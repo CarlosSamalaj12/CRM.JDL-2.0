@@ -1,0 +1,83 @@
+import api from './api';
+
+export const authService = {
+  // Fetch active users for the login screen dropdown selector
+  async getLoginUsers() {
+    try {
+      const response = await api.get('/api/login-users');
+      return response?.users || [];
+    } catch (error) {
+      console.error('Error fetching login users:', error);
+      return [];
+    }
+  },
+
+  // Authenticate local user with MariaDB credentials
+  async loginLocal(userId, password) {
+    try {
+      const response = await api.post('/api/login', { userId, password });
+      if (response && response.ok && response.user) {
+        this.saveSession(response.user);
+        return response.user;
+      }
+      throw new Error(response?.message || 'Credenciales inválidas');
+    } catch (error) {
+      console.error('Error during local login:', error);
+      throw error;
+    }
+  },
+
+  // Synchronize and authenticate Firebase user (Google or Email) with MariaDB
+  async loginFirebase(firebaseUser) {
+    try {
+      const payload = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+        photoURL: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || firebaseUser.email)}&background=0ea5e9&color=fff`
+      };
+
+      const response = await api.post('/api/auth/firebase', payload);
+      if (response && response.ok && response.user) {
+        this.saveSession(response.user);
+        return response.user;
+      }
+      throw new Error(response?.message || 'Error sincronizando con el servidor');
+    } catch (error) {
+      console.error('Error during Firebase login sync:', error);
+      throw error;
+    }
+  },
+
+  // Save session details to localStorage
+  saveSession(user) {
+    localStorage.setItem('user', JSON.stringify({
+      id: user.id,
+      name: user.name,
+      fullName: user.fullName || user.name,
+      username: user.username,
+      avatarDataUrl: user.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || user.name)}&background=0ea5e9&color=fff`,
+      signatureDataUrl: user.signatureDataUrl,
+      role: 'Usuario' // Default role for standard dashboard layout
+    }));
+  },
+
+  // Get current logged-in user from localStorage
+  getCurrentUser() {
+    const rawUser = localStorage.getItem('user');
+    if (!rawUser) return null;
+    try {
+      return JSON.parse(rawUser);
+    } catch (error) {
+      this.clearSession();
+      return null;
+    }
+  },
+
+  // Clear session on logout
+  clearSession() {
+    localStorage.removeItem('user');
+  }
+};
+
+export default authService;
