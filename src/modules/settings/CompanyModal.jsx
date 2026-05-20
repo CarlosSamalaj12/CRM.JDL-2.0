@@ -121,7 +121,7 @@ export default function CompanyModal({ onClose }) {
               <input id="managerAddress" type="text" placeholder="Direccion (opcional)" />
             </div>
             <div className="rightActions">
-              <button className="btn" type="button" id="btnAddManager">+ Encargado</button>
+              <button className="btn-cotizar" type="button" id="btnAddManager">+ Encargado</button>
             </div>
             <div className="quoteTableWrap">
               <table className="quoteTable">
@@ -143,10 +143,10 @@ export default function CompanyModal({ onClose }) {
 
           <div className="modalFooter">
             <div className="leftActions">
-              <button className="btnDanger" id="btnCompanyDisable" type="button">Inhabilitar</button>
+              <button className="btn-cancelar" id="btnCompanyDisable" type="button">Inhabilitar</button>
             </div>
             <div className="rightActions">
-              <button className="btnPrimary" type="submit">Guardar empresa</button>
+              <button className="btn-teal" type="submit">Guardar empresa</button>
             </div>
           </div>
         </form>

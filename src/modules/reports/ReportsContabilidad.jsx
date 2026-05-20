@@ -1,31 +1,275 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import Swal from 'sweetalert2';
+import api from '../../services/api';
 import { STATUS_META } from '../calendar/constants';
-
-const ACCOUNTING_STATUSES = ['Confirmado', '1er Cotizacion', 'Lista de Espera', 'Pre reserva'];
 
 export default function ReportsContabilidad({ onClose }) {
   const { events, users } = useOutletContext();
   
+  const [companies, setCompanies] = useState([]);
+  const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [search, setSearch] = useState('');
+  const [salonFilter, setSalonFilter] = useState('all');
+  const [companyFilter, setCompanyFilter] = useState('all');
+  
+  const [expandedAccounts, setExpandedAccounts] = useState(new Set());
+  const [activeStatementAccount, setActiveStatementAccount] = useState(null);
 
-  const accountingData = useMemo(() => {
-    if (!events) return { rows: [], summary: {} };
+  // Fetch institutions on mount
+  useEffect(() => {
+    let active = true;
+    const loadCompanies = async () => {
+      try {
+        const response = await api.get('/api/state');
+        if (active) {
+          setCompanies(response?.state?.companies || []);
+        }
+      } catch (err) {
+        console.error('Error al cargar empresas:', err);
+      }
+    };
+    loadCompanies();
+    return () => { active = false; };
+  }, []);
+
+  // Utility to format money in GTQ
+  const formatMoney = (amount) => {
+    return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
+  };
+
+  // 1. Series aggregation utilities modeled after original legacy app.js
+  const getEventSeries = (ev, allEvents) => {
+    if (!ev) return [];
+    if (!ev.groupId) return [ev];
+    return allEvents.filter(x => x.groupId === ev.groupId);
+  };
+
+  const getEventSeriesFinancialMeta = (ev, allEvents) => {
+    const series = getEventSeries(ev, allEvents)
+      .slice()
+      .sort((a, b) => {
+        const byDate = String(a?.date || "").localeCompare(String(b?.date || ""));
+        if (byDate !== 0) return byDate;
+        const byStart = String(a?.startTime || "").localeCompare(String(b?.startTime || ""));
+        if (byStart !== 0) return byStart;
+        return String(a?.salon || "").localeCompare(String(b?.salon || ""));
+      });
     
-    let filtered = events.filter(ev => {
-      return ACCOUNTING_STATUSES.includes(ev.status) && ev.status !== 'Cancelado';
-    });
+    const salonesList = [];
+    for (const item of series) {
+      const eventSalones = Array.isArray(item?.salones) ? item.salones : [];
+      for (const salon of [...eventSalones, item?.salon]) {
+        const label = String(salon || "").trim();
+        if (label) salonesList.push(label);
+      }
+    }
+    const uniqueSalones = Array.from(new Set(salonesList));
+    const explicitMainSalon = series.map((item) => String(item?.mainSalon || "").trim()).find(Boolean) || "";
+    const mainSalon = explicitMainSalon || uniqueSalones[0] || String(ev?.salon || "").trim();
+    
+    const primaryEvent = series.find((item) => String(item?.salon || "").trim() === mainSalon)
+      || series.find((item) => String(item?.id || "").trim() === String(ev?.id || "").trim())
+      || series[0]
+      || ev
+      || null;
+      
+    const firstEvent = series[0] || ev || null;
+    const lastEvent = series[series.length - 1] || ev || null;
+    
+    return {
+      series,
+      salones: uniqueSalones,
+      mainSalon,
+      primaryEvent,
+      startDate: String(firstEvent?.date || "").trim(),
+      endDate: String(lastEvent?.date || "").trim(),
+      startTime: String(primaryEvent?.startTime || firstEvent?.startTime || "").trim(),
+      endTime: String(primaryEvent?.endTime || firstEvent?.endTime || "").trim(),
+    };
+  };
+
+  // 2. Payments & advances normalization
+  const normalizeQuoteAdvancesForSnapshot = (rawAdvances) => {
+    const list = Array.isArray(rawAdvances) ? rawAdvances : [];
+    return list.map((item, index) => {
+      const amount = Number(item?.amount || 0);
+      return {
+        id: String(item?.id || `adv_${index + 1}`),
+        amount: Number.isFinite(amount) ? Math.max(0, amount) : 0,
+        paymentType: String(item?.paymentType || 'Transferencia'),
+        date: String(item?.date || ''),
+        voucherNumber: String(item?.voucherNumber || item?.boleta || ''),
+        description: String(item?.description || ''),
+        createdAt: String(item?.createdAt || '')
+      };
+    }).filter(item => item.amount >= 0);
+  };
+
+  // 3. Collection state evaluation helpers
+  const stripTime = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const fmtDateShort = (d) => {
+    return d.toLocaleDateString("es-GT", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
+  const parseQuoteDate = (raw) => {
+    if (!raw) return null;
+    let d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return stripTime(d);
+    d = new Date(`${raw}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? null : stripTime(d);
+  };
+
+  const summarizeAccountingCollectionState = (account) => {
+    const pending = Math.max(0, Number(account?.pendingAmount || 0));
+    const credit = Math.max(0, Number(account?.creditAmount || 0));
+    const due = parseQuoteDate(String(account?.nextDueDate || "").trim());
+    if (credit > 0 && pending <= 0) {
+      return { label: "Saldo a favor", tone: "credit", eta: "Disponible para compensar en otro evento", dueLabel: "Sin cobro urgente", sortWeight: 4 };
+    }
+    if (pending <= 0) {
+      return { label: "Saldado", tone: "ok", eta: "Sin gestion pendiente", dueLabel: "Cuenta al dia", sortWeight: 5 };
+    }
+    if (!due) {
+      return { label: "Sin fecha limite", tone: "neutral", eta: "Definir fecha maxima de pago", dueLabel: "Cobro sin programar", sortWeight: 3 };
+    }
+    const today = stripTime(new Date());
+    const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+    if (diffDays < 0) {
+      const days = Math.abs(diffDays);
+      return { label: `Vencido ${days} ${days === 1 ? "dia" : "dias"}`, tone: "overdue", eta: "Solicitar pago hoy", dueLabel: fmtDateShort(due), sortWeight: 0 };
+    }
+    if (diffDays === 0) {
+      return { label: "Cobro hoy", tone: "due", eta: "Solicitar pago hoy", dueLabel: fmtDateShort(due), sortWeight: 1 };
+    }
+    if (diffDays <= 3) {
+      return { label: `Por vencer ${diffDays} ${diffDays === 1 ? "dia" : "dias"}`, tone: "due", eta: `Solicitar en ${diffDays} ${diffDays === 1 ? "dia" : "dias"}`, dueLabel: fmtDateShort(due), sortWeight: 2 };
+    }
+    return { label: "En tiempo", tone: "ok", eta: `Solicitar en ${diffDays} dias`, dueLabel: fmtDateShort(due), sortWeight: 3 };
+  };
+
+  const pickActionRow = (list) => {
+    return list.slice().sort((a, b) => {
+      const aPending = Number(a?.balancePending || 0) > 0 ? 0 : 1;
+      const bPending = Number(b?.balancePending || 0) > 0 ? 0 : 1;
+      if (aPending !== bPending) return aPending - bPending;
+      const dueCmp = String(a?.dueDate || "9999-12-31").localeCompare(String(b?.dueDate || "9999-12-31"));
+      if (dueCmp !== 0) return dueCmp;
+      return String(b?.eventDate || "").localeCompare(String(a?.eventDate || ""));
+    })[0] || null;
+  };
+
+  // 4. Build deduplicated financial events list
+  const reportData = useMemo(() => {
+    if (!events) return [];
+    
+    const rows = [];
+    const seenReservations = new Set();
+    
+    for (const ev of events) {
+      if (ev.status === 'Cancelado' || ev.status === 'Mantenimiento') continue;
+      
+      const reservationKey = ev.groupId || ev.id;
+      if (reservationKey) {
+        if (seenReservations.has(reservationKey)) continue;
+        seenReservations.add(reservationKey);
+      }
+      
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const quote = primaryEvent?.quote || ev?.quote || {};
+      const assignedUser = users?.find(u => u.id === (primaryEvent?.userId || ev?.userId));
+      
+      const advances = normalizeQuoteAdvancesForSnapshot(quote?.advances);
+      const advancesSorted = advances.slice().sort((a, b) => {
+        const d = String(a.date || "").localeCompare(String(b.date || ""));
+        if (d !== 0) return d;
+        return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+      });
+      const lastAdvance = advancesSorted.length ? advancesSorted[advancesSorted.length - 1] : null;
+      const advancesTotal = advancesSorted.reduce((acc, item) => acc + Math.max(0, Number(item.amount || 0)), 0);
+      const total = Math.max(0, Number(quote?.total || 0));
+      const delta = total - advancesTotal;
+      
+      const companyId = quote?.companyId || '';
+      const matchedCompany = companies.find(c => c.id === companyId);
+      const companyName = matchedCompany?.name || quote?.companyName || 'Sin institucion';
+      
+      rows.push({
+        id: ev.id,
+        actionEventId: primaryEvent?.id || ev?.id,
+        companyId,
+        companyName,
+        refId: quote?.code || reservationKey || primaryEvent?.id || ev?.id || '',
+        name: primaryEvent?.name || ev?.name || '',
+        eventDate: financialMeta.startDate || primaryEvent?.date || ev?.date || '',
+        endDate: financialMeta.endDate || financialMeta.startDate || ev?.date || '',
+        startTime: financialMeta.startTime || primaryEvent?.startTime || ev?.startTime || '',
+        endTime: financialMeta.endTime || primaryEvent?.endTime || ev?.endTime || '',
+        salon: financialMeta.mainSalon || primaryEvent?.salon || ev?.salon || '',
+        salones: financialMeta.salones,
+        salonesLabel: financialMeta.salones.join(', '),
+        status: primaryEvent?.status || ev?.status || '',
+        userId: primaryEvent?.userId || ev?.userId,
+        userName: assignedUser?.fullName || assignedUser?.name || 'Sin asignar',
+        seller: assignedUser?.fullName || assignedUser?.name || 'Sin asignar',
+        clientName: ev.clientName || quote?.companyName || quote?.contact || '',
+        manager: quote?.contact || matchedCompany?.owner || '',
+        managerPhone: quote?.phone || matchedCompany?.phone || '',
+        pax: Number(primaryEvent?.pax || ev?.pax || quote?.people || 0),
+        quote: quote,
+        dueDate: quote?.dueDate || '',
+        docDate: quote?.docDate || '',
+        paymentType: quote?.paymentType || '',
+        subtotal: quote?.subtotal || 0,
+        total: total,
+        discount: quote?.discountValue || 0,
+        advances: advancesSorted,
+        advancesCount: advancesSorted.length,
+        advancesTotal,
+        balancePending: Math.max(0, delta),
+        creditBalance: Math.max(0, -delta),
+        lastAdvanceDate: lastAdvance?.date ? String(lastAdvance.date) : '',
+        lastAdvancePaymentType: lastAdvance?.paymentType ? String(lastAdvance.paymentType) : '',
+        lastAdvanceDescription: lastAdvance?.description ? String(lastAdvance.description) : '',
+        catBuckets: quote?.catBuckets || { alimentosBebidas: { amount: 0 }, hospedajeJdl: { amount: 0 }, hospedajeTerceros: { amount: 0 }, miscelaneos: { amount: 0 } },
+        statusColor: STATUS_META[primaryEvent?.status || ev?.status]?.color || '#64748b'
+      });
+    }
+
+    return rows;
+  }, [events, users, companies]);
+
+  // 5. Apply filters reactively
+  const filteredData = useMemo(() => {
+    let filtered = reportData;
+
+    if (search) {
+      const term = search.toLowerCase();
+      filtered = filtered.filter(r => 
+        r.name?.toLowerCase().includes(term) ||
+        r.clientName?.toLowerCase().includes(term) ||
+        r.salon?.toLowerCase().includes(term) ||
+        r.userName?.toLowerCase().includes(term) ||
+        r.refId?.toLowerCase().includes(term) ||
+        r.companyName?.toLowerCase().includes(term)
+      );
+    }
 
     if (dateFrom) {
-      filtered = filtered.filter(r => r.date >= dateFrom);
+      filtered = filtered.filter(r => r.eventDate >= dateFrom);
     }
 
     if (dateTo) {
-      filtered = filtered.filter(r => r.date <= dateTo);
+      filtered = filtered.filter(r => r.eventDate <= dateTo);
     }
 
     if (userFilter !== 'all') {
@@ -36,210 +280,1012 @@ export default function ReportsContabilidad({ onClose }) {
       filtered = filtered.filter(r => r.status === statusFilter);
     }
 
-    if (search) {
-      const term = search.toLowerCase();
-      filtered = filtered.filter(r => 
-        r.name?.toLowerCase().includes(term) ||
-        r.clientName?.toLowerCase().includes(term) ||
-        (r.quote?.companyName || '')?.toLowerCase().includes(term)
-      );
+    if (salonFilter !== 'all') {
+      filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
     }
 
-    const totalEvents = filtered.length;
-    const totalPax = filtered.reduce((sum, r) => sum + (r.pax || 0), 0);
-    const confirmedCount = filtered.filter(r => r.status === 'Confirmado').length;
-    const pendingCount = filtered.filter(r => r.status === '1er Cotizacion' || r.status === 'Lista de Espera').length;
+    if (companyFilter !== 'all') {
+      filtered = filtered.filter(r => r.companyId === companyFilter);
+    }
+
+    return filtered;
+  }, [reportData, search, dateFrom, dateTo, userFilter, statusFilter, salonFilter, companyFilter]);
+
+  // 6. Group filtered events into company portfolio accounts
+  const getAccountingCompanyAccounts = (rowsList = []) => {
+    const sourceRows = Array.isArray(rowsList) ? rowsList : [];
+    const groups = new Map();
     
-    const totalVentas = filtered.reduce((sum, r) => sum + (r.quote?.total || 0), 0);
-    const promedio = totalEvents > 0 ? totalVentas / totalEvents : 0;
+    for (const row of sourceRows) {
+      const key = String(row?.companyId || row?.companyName || row?.refId || row?.id || `sin_empresa_${groups.size + 1}`);
+      const account = groups.get(key) || {
+        key,
+        companyId: String(row?.companyId || ""),
+        companyName: String(row?.companyName || "Sin institucion").trim() || "Sin institucion",
+        contactPhone: String(row?.managerPhone || "").trim(),
+        rows: [],
+        netAmount: 0,
+        collectedAmount: 0,
+        pendingAmount: 0,
+        creditAmount: 0,
+        eventsCount: 0,
+        pendingEventsCount: 0,
+        paidEventsCount: 0,
+        advancesCount: 0,
+        sellerMap: new Map(),
+        lastAdvanceDate: "",
+        nextDueDate: "",
+      };
+      
+      account.rows.push(row);
+      account.netAmount += Math.max(0, Number(row?.total || 0));
+      account.collectedAmount += Math.max(0, Number(row?.advancesTotal || 0));
+      account.pendingAmount += Math.max(0, Number(row?.balancePending || 0));
+      account.creditAmount += Math.max(0, Number(row?.creditBalance || 0));
+      account.eventsCount += 1;
+      account.advancesCount += Math.max(0, Number(row?.advancesCount || 0));
+      if (Number(row?.balancePending || 0) > 0) account.pendingEventsCount += 1;
+      else account.paidEventsCount += 1;
+      
+      if (row?.userName) {
+        const seller = String(row.userName).trim();
+        account.sellerMap.set(seller, Number(account.sellerMap.get(seller) || 0) + Math.max(0, Number(row?.total || 0)));
+      }
+      if (row?.lastAdvanceDate && (!account.lastAdvanceDate || String(row.lastAdvanceDate).localeCompare(account.lastAdvanceDate) > 0)) {
+        account.lastAdvanceDate = String(row.lastAdvanceDate);
+      }
+      if (Number(row?.balancePending || 0) > 0 && row?.dueDate && (!account.nextDueDate || String(row.dueDate).localeCompare(account.nextDueDate) < 0)) {
+        account.nextDueDate = String(row.dueDate);
+      }
+      groups.set(key, account);
+    }
 
-    return {
-      rows: filtered.sort((a, b) => a.date.localeCompare(b.date)),
-      summary: { totalEvents, totalPax, confirmedCount, pendingCount, totalVentas, promedio }
-    };
-  }, [events, dateFrom, dateTo, userFilter, statusFilter, search]);
-
-  const getStatusColor = (status) => STATUS_META[status]?.color || '#64748b';
-
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
+    return Array.from(groups.values()).map((account) => {
+      const sellerEntry = Array.from(account.sellerMap.entries()).sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))[0];
+      const collection = summarizeAccountingCollectionState(account);
+      const actionRow = pickActionRow(account.rows);
+      return {
+        ...account,
+        primarySeller: sellerEntry?.[0] || "",
+        collectionLabel: collection.label,
+        collectionTone: collection.tone,
+        collectionEta: collection.eta,
+        collectionDueLabel: collection.dueLabel,
+        collectionSortWeight: collection.sortWeight,
+        actionEventId: String(actionRow?.actionEventId || actionRow?.id || ""),
+        actionHasCredit: Math.max(0, Number(account.creditAmount || 0)) > 0,
+      };
+    }).sort((a, b) => {
+      if (a.collectionSortWeight !== b.collectionSortWeight) return a.collectionSortWeight - b.collectionSortWeight;
+      if (Number(b.pendingAmount || 0) !== Number(a.pendingAmount || 0)) return Number(b.pendingAmount || 0) - Number(a.pendingAmount || 0);
+      return String(a.companyName || "").localeCompare(String(b.companyName || ""));
+    });
   };
 
-  const handleExportExcel = () => {
-    const csvContent = [
-      ['Fecha', 'Evento', 'Cliente', 'Salón', 'PAX', 'Estado', 'Vendedor', 'Total'].join(','),
-      ...accountingData.rows.map(r => [
-        r.date,
-        `"${r.name}"`,
-        `"${r.clientName || ''}"`,
-        r.salon,
-        r.pax,
-        r.status,
-        `"${users?.find(u => u.id === r.userId)?.fullName || 'Sin asignar'}"`,
-        r.quote?.total || 0
-      ].join(','))
-    ].join('\n');
+  const accounts = useMemo(() => {
+    return getAccountingCompanyAccounts(filteredData);
+  }, [filteredData]);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  // 7. Calculate overall financial metrics reactively
+  const summary = useMemo(() => {
+    const discountAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.discount || 0)), 0);
+    const netAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.total || 0)), 0);
+    const collectedAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.advancesTotal || 0)), 0);
+    const pendingAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.balancePending || 0)), 0);
+    const creditAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.creditBalance || 0)), 0);
+    const overdueCount = accounts.filter((account) => account.collectionTone === "overdue").length;
+    const nextCollection = accounts.find((account) => account.nextDueDate);
+    
+    return {
+      discountAmount,
+      netAmount,
+      collectedAmount,
+      pendingAmount,
+      creditAmount,
+      overdueCount,
+      nextCollection
+    };
+  }, [filteredData, accounts]);
+
+  // 8. Build detailed ledger entries for details dropdown and printable statement
+  const buildAccountingLedgerEntries = (account) => {
+    const rows = Array.isArray(account?.rows) ? account.rows : [];
+    const entries = [];
+    for (const row of rows) {
+      const eventId = String(row?.actionEventId || row?.id || "").trim();
+      const ref = String(row?.refId || eventId || "-").trim() || "-";
+      const company = String(account?.companyName || row?.companyName || "").trim();
+      const eventDate = String(row?.eventDate || "").trim();
+      const docDate = String(row?.docDate || "").trim();
+      const baseDate = docDate || eventDate;
+      const total = Math.max(0, Number(row?.total || 0));
+      const mainSalon = String(row?.salon || "").trim();
+      const salonesList = Array.isArray(row?.salones) ? row.salones.map((item) => String(item || "").trim()).filter(Boolean) : [];
+      const otherSalones = salonesList.filter((item) => item !== mainSalon);
+      const salonContext = [
+        mainSalon ? `Salon principal: ${mainSalon}` : "",
+        otherSalones.length ? `Salones del evento: ${otherSalones.join(", ")}` : "",
+      ].filter(Boolean).join(" | ");
+      if (total > 0) {
+        entries.push({
+          date: baseDate,
+          type: "Cargo",
+          eventId,
+          refId: ref,
+          concept: `Cotizacion ${ref}${company ? ` | ${company}` : ""}${salonContext ? ` | ${salonContext}` : ""}`,
+          debit: total,
+          credit: 0,
+          sortBucket: 0,
+        });
+      }
+      const advances = Array.isArray(row?.advances) ? row.advances : [];
+      for (const adv of advances) {
+        const amount = Math.max(0, Number(adv?.amount || 0));
+        if (amount <= 0) continue;
+        const advDate = String(adv?.date || baseDate || "").trim();
+        const paymentType = String(adv?.paymentType || "").trim();
+        const description = String(adv?.description || "").trim();
+        const notes = [paymentType, description].filter(Boolean).join(" | ");
+        entries.push({
+          date: advDate,
+          type: "Abono",
+          eventId,
+          refId: ref,
+          concept: `${notes || `Pago aplicado a ${ref}`}${salonContext ? ` | ${salonContext}` : ""}`,
+          debit: 0,
+          credit: amount,
+          sortBucket: 1,
+        });
+      }
+    }
+
+    const normalized = entries.slice().sort((a, b) => {
+      const d = String(a.date || "9999-12-31").localeCompare(String(b.date || "9999-12-31"));
+      if (d !== 0) return d;
+      if (a.sortBucket !== b.sortBucket) return a.sortBucket - b.sortBucket;
+      return String(a.refId || "").localeCompare(String(b.refId || ""));
+    });
+    let runningBalance = 0;
+    return normalized.map((entry) => {
+      runningBalance += Math.max(0, Number(entry.debit || 0));
+      runningBalance -= Math.max(0, Number(entry.credit || 0));
+      return { ...entry, runningBalance };
+    });
+  };
+
+  const getInitials = (name) => {
+    return String(name || "").split(" ").map(x => x[0]).slice(0, 2).join("").toUpperCase();
+  };
+
+  const pick = (obj, key) => obj?.[key] || { qty: 0, amount: 0 };
+
+  const toggleAccountExpand = (key) => {
+    setExpandedAccounts(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  // 9. Alert for quote/payment action on other views
+  const handleActionClick = (actionName, eventId) => {
+    Swal.fire({
+      title: 'Nota de Trazabilidad',
+      text: `Para ${actionName} en esta cotización, por favor búscalo directamente en el calendario interactivo y haz doble clic sobre el evento para abrir su panel.`,
+      icon: 'info',
+      confirmButtonColor: '#059669',
+      confirmButtonText: 'Entendido'
+    });
+  };
+
+  // 10. Excel download matching institutional accounts
+  const handleExportExcel = () => {
+    if (!accounts.length) {
+      Swal.fire('Error', 'No hay datos para exportar.', 'error');
+      return;
+    }
+    
+    const csvRows = [
+      '\ufeff' + [
+        'INDICADOR',
+        'INSTITUCION',
+        'TELEFONO',
+        'VENDEDOR PRINCIPAL',
+        'EVENTOS',
+        'PENDIENTES',
+        'VENTA NETA',
+        'COBRADO',
+        'SALDO PENDIENTE',
+        'SALDO A FAVOR',
+        'FECHA MAXIMA PAGO',
+        'TIEMPO SUGERIDO COBRO',
+        'ULTIMO DEPOSITO'
+      ].join(','),
+      ...accounts.map(acc => [
+        `"${acc.collectionLabel || ''}"`,
+        `"${acc.companyName || ''}"`,
+        `"${acc.contactPhone || ''}"`,
+        `"${acc.primarySeller || ''}"`,
+        acc.eventsCount || 0,
+        acc.pendingEventsCount || 0,
+        acc.netAmount || 0,
+        acc.collectedAmount || 0,
+        acc.pendingAmount || 0,
+        acc.creditAmount || 0,
+        `"${acc.collectionDueLabel || ''}"`,
+        `"${acc.collectionEta || ''}"`,
+        `"${acc.lastAdvanceDate || ''}"`
+      ].join(','))
+    ];
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `reporte_contabilidad_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `estado_cuenta_contable_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
   const clearFilters = () => {
+    setSearch('');
     setDateFrom('');
     setDateTo('');
     setUserFilter('all');
     setStatusFilter('all');
-    setSearch('');
+    setSalonFilter('all');
+    setCompanyFilter('all');
   };
 
+  // 11. Extract unique salon filters
+  const allSalones = useMemo(() => {
+    if (!events) return [];
+    return [...new Set(events.map(e => e.salon).filter(Boolean))].sort();
+  }, [events]);
+
+  const allStatuses = [
+    'Pre reserva',
+    'Reserva sin Cotizacion',
+    '1er Cotizacion',
+    'Seguimiento',
+    'Lista de Espera',
+    'Confirmado',
+    'Cancelado',
+    'Mantenimiento',
+    'Perdido',
+    'Realizado'
+  ];
+
   return (
-    <div style={{ 
-      position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)', 
-      zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-    }}>
-      <div style={{ 
-        width: '100%', maxWidth: '1400px', height: '90vh', background: '#fff', borderRadius: '24px',
-        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden'
-      }}>
+    <div className="modalBackdrop" id="accountingReportBackdrop" onClick={(e) => { if (e.target.id === 'accountingReportBackdrop') onClose(); }}>
+      <style>{`
+        #accountingReportBackdrop .salesReportModal {
+          height: 96vh !important;
+          max-height: 96vh !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
+          box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
+        }
+        #accountingReportBackdrop .salesReportBody {
+          flex: 1 !important;
+          padding: 16px 24px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 14px !important;
+          overflow-y: auto !important;
+        }
+        #accountingReportBackdrop .salesReportHeroPanel {
+          padding: 12px 18px !important;
+          margin-bottom: 0 !important;
+          border-radius: 16px !important;
+          background: #f8fafc !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+        #accountingReportBackdrop .reportSectionIntro {
+          margin-bottom: 8px !important;
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: flex-start !important;
+        }
+        #accountingReportBackdrop .reportSectionEyebrow {
+          font-size: 9px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          color: #64748b !important;
+          letter-spacing: 0.05em !important;
+        }
+        #accountingReportBackdrop .reportSectionTitle {
+          font-size: 16px !important;
+          font-weight: 800 !important;
+          color: #0f172a !important;
+          margin-top: 2px !important;
+        }
+        #accountingReportBackdrop .reportSectionText {
+          font-size: 11px !important;
+          color: #64748b !important;
+          margin-top: 2px !important;
+        }
+        #accountingReportBackdrop .reportFilterMeta {
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          color: #1e3a5f !important;
+          background: #e0f2fe !important;
+          padding: 4px 10px !important;
+          border-radius: 999px !important;
+        }
+        #accountingReportBackdrop .salesReportSummary {
+          display: grid !important;
+          grid-template-columns: repeat(4, 1fr) !important;
+          gap: 10px !important;
+        }
+        #accountingReportBackdrop .salesSummaryCard {
+          min-height: 84px !important;
+          padding: 8px 12px !important;
+          gap: 2px !important;
+          border-radius: 10px !important;
+          border: 1px solid #cbd5e1 !important;
+        }
+        #accountingReportBackdrop .salesSummaryCard strong {
+          font-size: 1.4rem !important;
+          font-weight: 800 !important;
+        }
+        #accountingReportBackdrop .salesSummaryCard small {
+          font-size: 10.5px !important;
+          font-weight: 700 !important;
+        }
+        #accountingReportBackdrop .salesSummaryEyebrow {
+          font-size: 9px !important;
+          font-weight: 800 !important;
+        }
+        #accountingReportBackdrop .salesSummaryMeta {
+          padding: 2px 8px !important;
+          font-size: 9.5px !important;
+          margin-top: 4px !important;
+          font-weight: 700 !important;
+        }
+        #accountingReportBackdrop .salesReportFiltersInline {
+          grid-template-columns: repeat(7, 1fr) !important;
+          gap: 8px !important;
+          padding: 12px 16px !important;
+          background: #f8fafc !important;
+          border-radius: 12px !important;
+          border: 1px solid #cbd5e1 !important;
+          align-items: flex-end !important;
+        }
+        #accountingReportBackdrop .salesReportFiltersInline .field {
+          margin-bottom: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+        }
+        #accountingReportBackdrop .salesReportFiltersInline .field span {
+          font-size: 10px !important;
+          font-weight: 700 !important;
+          color: #475569 !important;
+          margin-bottom: 4px !important;
+          text-transform: uppercase !important;
+        }
+        #accountingReportBackdrop .salesReportFiltersInline input,
+        #accountingReportBackdrop .salesReportFiltersInline select {
+          padding: 6px 8px !important;
+          font-size: 12px !important;
+          height: 32px !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 6px !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          font-weight: 600 !important;
+        }
+        #accountingReportBackdrop .salesReportActions {
+          grid-column: span 7 !important;
+          margin-top: 6px !important;
+          display: flex !important;
+          gap: 8px !important;
+          justify-content: flex-end !important;
+        }
+        #accountingReportBackdrop .salesReportActions button {
+          height: 32px !important;
+          padding: 0 16px !important;
+          font-size: 12px !important;
+          font-weight: 700 !important;
+          border-radius: 6px !important;
+        }
+        #accountingReportBackdrop .salesReportTableWrap {
+          margin-top: 4px !important;
+          border-radius: 12px !important;
+          border: 1px solid #cbd5e1 !important;
+        }
+        #accountingReportBackdrop .quoteTable thead th {
+          padding: 8px 10px !important;
+          font-size: 10.5px !important;
+          font-weight: 800 !important;
+        }
+        #accountingReportBackdrop .quoteTable tbody td {
+          padding: 8px 10px !important;
+          font-size: 12px !important;
+        }
+      `}</style>
+      <div className="salesReportModal">
         {/* Header */}
-        <div style={{ 
-          background: 'linear-gradient(135deg, #059669 0%, #0d9488 100%)', padding: '24px 32px', 
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ 
-              width: '60px', height: '60px', background: 'white', borderRadius: '16px', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <span style={{ fontSize: '32px' }}>💰</span>
+        <div className="modalHeader salesReportHeader">
+          <div className="reportBrandHeader">
+            <div className="reportBrandBadge salesReportBrandBadge">
+              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo salesReportBrandLogo" />
             </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: 'white' }}>Reporte de Contabilidad</h2>
-              <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
-                Control de ventas netas y flujo de efectivo
-              </p>
+            <div className="reportBrandCopy">
+              <div className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="modalTitle" id="accountingReportTitle">Estado de cuenta contable</div>
+              <div className="modalSubtitle" id="accountingReportSubtitle">Cartera por institución para cobro y aplicación de pagos</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ 
-            background: 'rgba(255,255,255,0.1)', border: 'none', width: '40px', height: '40px', 
-            borderRadius: '50%', color: 'white', fontSize: '20px', cursor: 'pointer'
-          }}>×</button>
+          <button className="iconBtn" id="btnAccountingReportClose" type="button" title="Cerrar" onClick={onClose}>&#10005;</button>
         </div>
-
-        {/* Resumen financiero */}
-        <div style={{ 
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', padding: '24px 32px',
-          background: '#f0fdf4', borderBottom: '1px solid #bbf7d0'
-        }}>
-          <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '2px solid #bbf7d0' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Total Eventos</div>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a' }}>{accountingData.summary.totalEvents}</div>
+        
+        <div className="modalBody salesReportBody">
+          {/* Hero Panel */}
+          <div className="salesReportHeroPanel">
+            <div className="reportSectionIntro">
+              <div>
+                <span className="reportSectionEyebrow">Visión Contable</span>
+                <h3 className="reportSectionTitle">Estado de cuenta por empresa con saldo pendiente, saldo a favor y tiempo sugerido de cobro</h3>
+                <p className="reportSectionText">Ideal para cobrar por institución, identificar vencimientos, abrir el detalle por evento y aplicar pagos sin perder trazabilidad.</p>
+              </div>
+              <span className="reportFilterMeta">
+                Vendedor: {users?.find(u => u.id === userFilter)?.fullName || 'Todos'}
+              </span>
+            </div>
+            
+            {/* KPI Metrics Strip */}
+            <div className="salesReportSummary">
+              <article className="salesSummaryCard salesSummaryCard--primary">
+                <span className="salesSummaryEyebrow">CARTERA</span>
+                <small>Empresas visibles</small>
+                <strong>{accounts.length}</strong>
+                <div className="salesSummaryMeta">
+                  {filteredData.length} eventos | Venta neta {formatMoney(summary.netAmount)}
+                </div>
+              </article>
+              
+              <article className="salesSummaryCard salesSummaryCard--info">
+                <span className="salesSummaryEyebrow">COBRADO</span>
+                <small>Anticipos cobrados</small>
+                <strong>{formatMoney(summary.collectedAmount)}</strong>
+                <div className="salesSummaryMeta">
+                  {filteredData.reduce((acc, row) => acc + (row.advancesCount || 0), 0)} pago(s) registrados
+                </div>
+              </article>
+              
+              <article className="salesSummaryCard salesSummaryCard--accent">
+                <span className="salesSummaryEyebrow">PENDIENTE</span>
+                <small>Saldo por cobrar</small>
+                <strong>{formatMoney(summary.pendingAmount)}</strong>
+                <div className="salesSummaryMeta">
+                  Saldo a favor {formatMoney(summary.creditAmount)} | Descuentos {formatMoney(summary.discountAmount)}
+                </div>
+              </article>
+              
+              <article className={`salesSummaryCard ${summary.overdueCount > 0 ? 'salesSummaryCard--accent' : 'salesSummaryCard--success'}`}>
+                <span className="salesSummaryEyebrow">GESTION</span>
+                <small>Cobro sugerido</small>
+                <strong>{summary.overdueCount > 0 ? `${summary.overdueCount} vencida(s)` : 'Al día'}</strong>
+                <div className="salesSummaryMeta">
+                  {summary.nextCollection ? `${summary.nextCollection.companyName}: ${summary.nextCollection.collectionEta}` : 'Sin cobros pendientes programados'}
+                </div>
+              </article>
+            </div>
           </div>
-          <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '2px solid #bbf7d0' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Confirmados</div>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#059669' }}>{accountingData.summary.confirmedCount}</div>
+          
+          {/* Filters Bar */}
+          <div className="salesReportFiltersInline">
+            <label className="field">
+              <span>Buscar</span>
+              <input 
+                type="text" 
+                placeholder="No cotizacion, vendedor, inst..." 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </label>
+            
+            <label className="field">
+              <span>Desde</span>
+              <input 
+                type="date" 
+                value={dateFrom} 
+                onChange={e => setDateFrom(e.target.value)}
+              />
+            </label>
+            
+            <label className="field">
+              <span>Hasta</span>
+              <input 
+                type="date" 
+                value={dateTo} 
+                onChange={e => setDateTo(e.target.value)}
+              />
+            </label>
+            
+            <label className="field">
+              <span>Vendedor</span>
+              <select 
+                value={userFilter} 
+                onChange={e => setUserFilter(e.target.value)}
+              >
+                <option value="all">Todos vendedores</option>
+                {users?.filter(u => u.active !== false).map(u => (
+                  <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
+                ))}
+              </select>
+            </label>
+            
+            <label className="field">
+              <span>Estado</span>
+              <select 
+                value={statusFilter} 
+                onChange={e => setStatusFilter(e.target.value)}
+              >
+                <option value="all">Todos estados</option>
+                {allStatuses.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            
+            <label className="field">
+              <span>Salón</span>
+              <select 
+                value={salonFilter} 
+                onChange={e => setSalonFilter(e.target.value)}
+              >
+                <option value="all">Todos salones</option>
+                {allSalones.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            
+            <label className="field">
+              <span>Institución</span>
+              <select 
+                value={companyFilter} 
+                onChange={e => setCompanyFilter(e.target.value)}
+              >
+                <option value="all">Todas instituciones</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </label>
+            
+            <div className="salesReportActions">
+              <button className="accountingActionBtn accountingActionBtn--secondary" style={{ border: '1px solid #cbd5e1' }} onClick={clearFilters}>Limpiar filtros</button>
+              <button className="accountingActionBtn" style={{ background: '#059669', color: '#fff' }} onClick={handleExportExcel}>Exportar Excel</button>
+            </div>
           </div>
-          <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '2px solid #bbf7d0' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Pendientes</div>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#d97706' }}>{accountingData.summary.pendingCount}</div>
-          </div>
-          <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '2px solid #bbf7d0' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Total Ventas</div>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#059669' }}>{formatMoney(accountingData.summary.totalVentas)}</div>
-          </div>
-        </div>
-
-        {/* Filtros */}
-        <div style={{ padding: '20px 32px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '16px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: '200px' }}>
-            <input 
-              type="text" 
-              placeholder="Buscar evento, cliente..." 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }}
-            />
-          </div>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }} />
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }} />
-          <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600', minWidth: '150px' }}>
-            <option value="all">Todos vendedores</option>
-            {users?.map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
-          </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600', minWidth: '150px' }}>
-            <option value="all">Todos estados</option>
-            {ACCOUNTING_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <button onClick={clearFilters} style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', fontWeight: '600', cursor: 'pointer' }}>Limpiar</button>
-          <button onClick={handleExportExcel} style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: '#059669', color: 'white', fontWeight: '700', cursor: 'pointer' }}>📥 Exportar</button>
-        </div>
-
-        {/* Tabla */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '0 32px 32px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
-              <tr>
-                <th style={{ textAlign: 'left', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>FECHA</th>
-                <th style={{ textAlign: 'left', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>EVENTO</th>
-                <th style={{ textAlign: 'left', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>CLIENTE</th>
-                <th style={{ textAlign: 'center', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>PAX</th>
-                <th style={{ textAlign: 'left', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>ESTADO</th>
-                <th style={{ textAlign: 'left', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>VENDEDOR</th>
-                <th style={{ textAlign: 'right', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>SUBTOTAL</th>
-                <th style={{ textAlign: 'right', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>DESCUENTO</th>
-                <th style={{ textAlign: 'right', padding: '14px 12px', fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0' }}>TOTAL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accountingData.rows.length === 0 ? (
+          
+          {/* Main Portfolio Table */}
+          <div className="salesReportTableWrap" style={{ flex: 1, overflow: 'auto' }}>
+            <table className="quoteTable salesReportTable" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <thead>
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '60px', color: '#94a3b8', fontSize: '14px' }}>
-                    No hay datos para los filtros seleccionados
-                  </td>
+                  <th>INDICADOR</th>
+                  <th>INSTITUCION</th>
+                  <th>CONTACTO COBRO</th>
+                  <th>EVENTOS</th>
+                  <th>VENTA NETA</th>
+                  <th>COBRADO</th>
+                  <th>SALDO PENDIENTE</th>
+                  <th>SALDO A FAVOR</th>
+                  <th>PROPUESTA</th>
+                  <th>ULTIMO PAGO</th>
+                  <th>ACCIONES</th>
                 </tr>
-              ) : (
-                accountingData.rows.map(r => {
-                  const quote = r.quote || {};
-                  const user = users?.find(u => u.id === r.userId);
-                  return (
-                    <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '14px 12px', fontSize: '13px', fontWeight: '600', color: '#64748b' }}>{r.date}</td>
-                      <td style={{ padding: '14px 12px', fontWeight: '700', color: '#0f172a', fontSize: '13px' }}>{r.name}</td>
-                      <td style={{ padding: '14px 12px', fontSize: '13px', color: '#334155' }}>{r.clientName || '-'}</td>
-                      <td style={{ padding: '14px 12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: '#475569' }}>{r.pax}</td>
-                      <td style={{ padding: '14px 12px' }}>
-                        <span style={{ 
-                          display: 'inline-block', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '700',
-                          background: `${getStatusColor(r.status)}15`, color: getStatusColor(r.status),
-                          border: `1px solid ${getStatusColor(r.status)}30`
-                        }}>{r.status}</span>
-                      </td>
-                      <td style={{ padding: '14px 12px', fontSize: '13px', color: '#475569' }}>{user?.fullName || user?.name || '-'}</td>
-                      <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: '13px', color: '#475569' }}>{formatMoney(quote.subtotal)}</td>
-                      <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: '13px', color: '#dc2626' }}>-{formatMoney(quote.discountValue || 0)}</td>
-                      <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: '14px', fontWeight: '700', color: '#059669' }}>{formatMoney(quote.total)}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+                {accounts.length === 0 ? (
+                  <tbody>
+                  <tr>
+                    <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                      Sin resultados para los filtros seleccionados.
+                    </td>
+                  </tr>
+                  </tbody>
+                ) : (
+                  accounts.map(acc => {
+                    const expanded = expandedAccounts.has(acc.key);
+                    const canApplyPayment = !!acc.actionEventId;
+                    
+                    return (
+                      <tbody key={acc.key}>
+                        {/* Summary Company Row */}
+                        <tr className="accountingCompanyRow" style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td>
+                            <span className={`accountingIndicator accountingIndicator--${acc.collectionTone}`}>
+                              {acc.collectionLabel}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="accountingCompanyCell">
+                              <strong>{acc.companyName}</strong>
+                              <small style={{ color: '#64748b', fontSize: '11px' }}>
+                                {acc.primarySeller ? `Principal: ${acc.primarySeller}` : "Sin vendedor asignado"}
+                              </small>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="accountingMetaCell">
+                              <strong>{acc.contactPhone || "-"}</strong>
+                              <small style={{ color: '#64748b', fontSize: '11px' }}>
+                                {`${acc.pendingEventsCount} pendiente(s) | ${acc.paidEventsCount} al día`}
+                              </small>
+                            </div>
+                          </td>
+                          <td style={{ fontWeight: '600', textAlign: 'center' }}>{acc.eventsCount || 0}</td>
+                          <td style={{ fontWeight: '700', color: '#0f172a' }}>{formatMoney(acc.netAmount)}</td>
+                          <td style={{ fontWeight: '600', color: '#16a34a' }}>{formatMoney(acc.collectedAmount)}</td>
+                          <td style={{ fontWeight: '700', color: acc.pendingAmount > 0 ? '#dc2626' : '#16a34a' }}>
+                            {formatMoney(acc.pendingAmount)}
+                          </td>
+                          <td style={{ fontWeight: '600', color: '#0d9488' }}>{formatMoney(acc.creditAmount)}</td>
+                          <td>
+                            <div className="accountingMetaCell">
+                              <strong>{acc.collectionDueLabel || "-"}</strong>
+                              <small style={{ color: '#64748b', fontSize: '11px' }}>{acc.collectionEta || "Sin gestión pendiente"}</small>
+                            </div>
+                          </td>
+                          <td style={{ color: '#475569', fontWeight: '500' }}>{acc.lastAdvanceDate || "-"}</td>
+                          <td>
+                            <div className="accountingActionGroup">
+                              <button 
+                                className="accountingActionBtn accountingActionBtn--secondary" 
+                                type="button" 
+                                onClick={() => toggleAccountExpand(acc.key)}
+                              >
+                                {expanded ? "Ocultar detalle" : "Ver detalle"}
+                              </button>
+                              <button 
+                                className="accountingActionBtn accountingActionBtn--secondary" 
+                                type="button"
+                                onClick={() => setActiveStatementAccount(acc)}
+                              >
+                                Estado de cuenta
+                              </button>
+                              <button 
+                                className="accountingActionBtn accountingActionBtn--secondary" 
+                                type="button" 
+                                onClick={() => handleActionClick("ver cotización", acc.actionEventId)}
+                                disabled={!canApplyPayment}
+                              >
+                                Ver cotización
+                              </button>
+                              <button 
+                                className="accountingActionBtn" 
+                                type="button" 
+                                onClick={() => handleActionClick(acc.actionHasCredit ? "ajustar crédito" : "aplicar pago", acc.actionEventId)}
+                                disabled={!canApplyPayment}
+                              >
+                                {acc.actionHasCredit ? "Ajustar saldo" : "Aplicar pago"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
 
-        {/* Footer con totales */}
-        <div style={{ 
-          padding: '16px 32px', background: '#f8fafc', borderTop: '2px solid #e2e8f0',
-          display: 'flex', justifyContent: 'flex-end', gap: '32px'
-        }}>
-          <div>
-            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Total general: </span>
-            <span style={{ fontSize: '18px', fontWeight: '800', color: '#059669' }}>{formatMoney(accountingData.summary.totalVentas)}</span>
+                        {/* Collapsible Expanded Details Section */}
+                        {expanded && (
+                          <tr className="accountingCompanyDetailRow">
+                            <td colSpan={11} style={{ padding: '16px 24px', background: '#f8fafc' }}>
+                              <div className="accountingDetailCard" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div className="accountingDetailHead">
+                                  <strong>Estado de cuenta por evento</strong>
+                                  <small style={{ fontSize: '12px', color: '#64748b', marginLeft: '10px' }}>
+                                    {`${acc.companyName} | ${acc.eventsCount} evento(s) | ${acc.advancesCount} pago(s)`}
+                                  </small>
+                                </div>
+                                
+                                {/* 1. Detailed Events Table */}
+                                <div className="accountingDetailTableWrap" style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff' }}>
+                                  <table className="quoteTable accountingDetailTable" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                      <tr style={{ background: '#f1f5f9' }}>
+                                        <th>Estado</th>
+                                        <th>No cotizacion</th>
+                                        <th>Fecha evento</th>
+                                        <th>Fecha max pago</th>
+                                        <th>Salon principal</th>
+                                        <th>Salones del evento</th>
+                                        <th>Vendedor</th>
+                                        <th>Forma pago</th>
+                                        <th style={{ textAlign: 'right' }}>Total neto</th>
+                                        <th style={{ textAlign: 'right' }}>Cobrado</th>
+                                        <th style={{ textAlign: 'right' }}>Pendiente</th>
+                                        <th style={{ textAlign: 'right' }}>Saldo a favor</th>
+                                        <th>Último depósito</th>
+                                        <th>Detalle</th>
+                                        <th>Acción</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {acc.rows.map((r, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                          <td>
+                                            <span className="salesStatusBadge" style={{
+                                              background: `${r.statusColor}22`,
+                                              borderColor: `${r.statusColor}99`,
+                                              color: r.statusColor,
+                                              padding: '3px 8px',
+                                              borderRadius: '999px',
+                                              fontSize: '10px',
+                                              fontWeight: '800'
+                                            }}>
+                                              {r.status || "-"}
+                                            </span>
+                                          </td>
+                                          <td style={{ fontWeight: '700' }}>{r.refId}</td>
+                                          <td>{r.eventDate}</td>
+                                          <td>{r.dueDate || "-"}</td>
+                                          <td>{r.salon}</td>
+                                          <td style={{ fontSize: '11px', color: '#475569' }}>{r.salonesLabel}</td>
+                                          <td>{r.userName}</td>
+                                          <td>{r.paymentType || "-"}</td>
+                                          <td style={{ textAlign: 'right', fontWeight: '700' }}>{formatMoney(r.total)}</td>
+                                          <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: '600' }}>{formatMoney(r.advancesTotal)}</td>
+                                          <td style={{ textAlign: 'right', color: r.balancePending > 0 ? '#dc2626' : '#16a34a', fontWeight: '700' }}>
+                                            {formatMoney(r.balancePending)}
+                                          </td>
+                                          <td style={{ textAlign: 'right', color: '#0d9488', fontWeight: '600' }}>{formatMoney(r.creditBalance)}</td>
+                                          <td>{r.lastAdvanceDate || "-"}</td>
+                                          <td>
+                                            <div className="accountingMetaCell">
+                                              <strong>{r.lastAdvancePaymentType || "-"}</strong>
+                                              <small style={{ fontSize: '10.5px', color: '#64748b' }}>{r.lastAdvanceDescription || "Sin anticipo registrado"}</small>
+                                            </div>
+                                          </td>
+                                          <td>
+                                            <div className="accountingActionGroup">
+                                              <button 
+                                                className="accountingActionBtn accountingActionBtn--secondary" 
+                                                type="button" 
+                                                onClick={() => handleActionClick("ver cotización", r.actionEventId)}
+                                              >
+                                                Ver cotización
+                                              </button>
+                                              <button 
+                                                className="accountingActionBtn" 
+                                                type="button" 
+                                                onClick={() => handleActionClick(r.creditBalance > 0 ? "ajustar crédito" : "aplicar pago", r.actionEventId)}
+                                              >
+                                                {r.creditBalance > 0 ? "Ajustar saldo" : "Aplicar pago"}
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+
+                                {/* 2. Category totals breakdown strip */}
+                                <div className="accountingDetailMetrics" style={{ display: 'flex', gap: '20px', background: '#e2e8f0', padding: '8px 16px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#334155' }}>
+                                  <span>Total A&B: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "alimentosBebidas").amount || 0), 0))}</span>
+                                  <span>Hospedaje JDL: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "hospedajeJdl").amount || 0), 0))}</span>
+                                  <span>Hospedaje Terceros: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "hospedajeTerceros").amount || 0), 0))}</span>
+                                  <span>Misceláneos: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "miscelaneos").amount || 0), 0))}</span>
+                                </div>
+
+                                {/* 3. Chronological Movements Ledger Table */}
+                                <div className="accountingDetailTableWrap" style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff' }}>
+                                  <table className="quoteTable accountingDetailTable" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                      <tr style={{ background: '#f1f5f9' }}>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>No cotizacion</th>
+                                        <th>Concepto</th>
+                                        <th style={{ textAlign: 'right' }}>Cargo (Débito)</th>
+                                        <th style={{ textAlign: 'right' }}>Abono (Crédito)</th>
+                                        <th style={{ textAlign: 'right' }}>Saldo acumulado</th>
+                                        <th>Acción</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {buildAccountingLedgerEntries(acc).length === 0 ? (
+                                        <tr>
+                                          <td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+                                            Sin movimientos para esta institución.
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        buildAccountingLedgerEntries(acc).map((entry, eIdx) => (
+                                          <tr key={eIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                            <td>{entry.date || "-"}</td>
+                                            <td style={{ fontWeight: '700' }}>{entry.type || "-"}</td>
+                                            <td style={{ fontWeight: '700' }}>{entry.refId || "-"}</td>
+                                            <td style={{ fontSize: '11px', color: '#475569' }}>{entry.concept || "-"}</td>
+                                            <td style={{ textAlign: 'right', fontWeight: entry.debit > 0 ? '700' : 'normal' }}>
+                                              {entry.debit > 0 ? formatMoney(entry.debit) : "-"}
+                                            </td>
+                                            <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: entry.credit > 0 ? '700' : 'normal' }}>
+                                              {entry.credit > 0 ? formatMoney(entry.credit) : "-"}
+                                            </td>
+                                            <td style={{ textAlign: 'right', fontWeight: '700', color: entry.runningBalance > 0 ? '#dc2626' : '#16a34a' }}>
+                                              {formatMoney(entry.runningBalance)}
+                                            </td>
+                                            <td>
+                                              <div className="accountingActionGroup">
+                                                <button 
+                                                  className="accountingActionBtn accountingActionBtn--secondary" 
+                                                  type="button" 
+                                                  onClick={() => handleActionClick("ver cotización", entry.eventId)}
+                                                >
+                                                  Ver cotización
+                                                </button>
+                                                <button 
+                                                  className="accountingActionBtn" 
+                                                  type="button" 
+                                                  onClick={() => handleActionClick(entry.runningBalance > 0 ? "aplicar pago" : "ajustar crédito", entry.eventId)}
+                                                >
+                                                  {entry.runningBalance > 0 ? "Aplicar pago" : "Ajustar"}
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                       </tbody>
+                    );
+                  })
+                )}
+            </table>
           </div>
         </div>
       </div>
+
+      {/* Printable Institutional "Estado de Cuenta" Modal Overlay */}
+      {activeStatementAccount && (
+        <div id="accountStatementBackdrop">
+          <div className="accountStatementModal">
+            {/* Header bar */}
+            <div className="accountStatementHeaderBar">
+              <div>
+                <div className="modalTitle">Estado de Cuenta</div>
+                <div className="modalSubtitle" style={{ opacity: 0.8 }}>
+                  {activeStatementAccount.rows?.length} evento(s) financiero(s) | {buildAccountingLedgerEntries(activeStatementAccount).length} movimiento(s)
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="iconBtn" onClick={() => window.print()} title="Imprimir estado de cuenta">🖨️ Imprimir</button>
+                <button className="iconBtn" style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', width: '32px', height: '32px', fontSize: '18px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setActiveStatementAccount(null)} title="Cerrar">×</button>
+              </div>
+            </div>
+            
+            {/* Body shell */}
+            <div className="accountStatementBodyShell">
+              <div className="accountStatementPaper">
+                {/* Brand header */}
+                <div className="accountStatementDocHead">
+                  <div className="accountStatementBrandBlock">
+                    <img className="accountStatementLogo" src="/Oficial_JDL_blanco.png" alt="Logo" style={{ filter: 'brightness(0)' }} />
+                    <div>
+                      <div className="accountStatementOrg">JARDINES DEL LAGO</div>
+                      <div className="accountStatementDept">Departamento de Cobros y Contabilidad</div>
+                    </div>
+                  </div>
+                  <div className="accountStatementFolioBox">
+                    <div className="accountStatementDocName" style={{ fontSize: '18px', fontWeight: '800' }}>Estado de Cuenta</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', textAlign: 'right' }}>
+                      <div>Generado: {new Date().toLocaleDateString('es-GT')}</div>
+                      <div>Hora: {new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Info grid */}
+                <div className="accountStatementInfoGrid" style={{ marginTop: '20px' }}>
+                  <div>
+                    <span>Institución:</span>
+                    <b>{activeStatementAccount.companyName}</b>
+                  </div>
+                  <div>
+                    <span>NIT:</span>
+                    <b>{companies.find(c => c.id === activeStatementAccount.companyId)?.nit || 'CF'}</b>
+                  </div>
+                  <div>
+                    <span>Contacto:</span>
+                    <b>{companies.find(c => c.id === activeStatementAccount.companyId)?.owner || activeStatementAccount.rows[0]?.quote?.contact || '-'}</b>
+                  </div>
+                  <div>
+                    <span>Teléfono:</span>
+                    <b>{activeStatementAccount.contactPhone || '-'}</b>
+                  </div>
+                  <div className="accountStatementInfoWide">
+                    <span>Dirección:</span>
+                    <b>{companies.find(c => c.id === activeStatementAccount.companyId)?.address || activeStatementAccount.rows[0]?.quote?.address || '-'}</b>
+                  </div>
+                </div>
+                
+                {/* Kpis strip */}
+                <div className="accountStatementTotalsStrip" style={{ marginTop: '25px' }}>
+                  <article className="accountStatementKpi">
+                    <small>Total neto</small>
+                    <strong>{formatMoney(activeStatementAccount.netAmount)}</strong>
+                  </article>
+                  <article className="accountStatementKpi">
+                    <small>Total pagado</small>
+                    <strong>{formatMoney(activeStatementAccount.collectedAmount)}</strong>
+                  </article>
+                  <article className="accountStatementKpi">
+                    <small>Saldo pendiente</small>
+                    <strong style={{ color: activeStatementAccount.pendingAmount > 0 ? '#b91c1c' : '#15803d' }}>
+                      {formatMoney(activeStatementAccount.pendingAmount)}
+                    </strong>
+                  </article>
+                  <article className="accountStatementKpi">
+                    <small>Saldo a favor</small>
+                    <strong>{formatMoney(activeStatementAccount.creditAmount)}</strong>
+                  </article>
+                </div>
+                
+                {/* Ledger Table */}
+                <div className="accountStatementTableSection" style={{ marginTop: '30px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>Resumen de Movimientos Contables</h4>
+                  <table className="accountStatementTable" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Fecha</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Ref</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Concepto</th>
+                        <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Cargo</th>
+                        <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Abono</th>
+                        <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Saldo Acumulado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buildAccountingLedgerEntries(activeStatementAccount).map((entry, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '8px 10px' }}>{entry.date}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: '700' }}>{entry.refId}</td>
+                          <td style={{ padding: '8px 10px', fontSize: '11px', color: '#475569' }}>{entry.concept}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: entry.debit > 0 ? '700' : 'normal' }}>
+                            {entry.debit > 0 ? formatMoney(entry.debit) : '-'}
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#16a34a', fontWeight: entry.credit > 0 ? '700' : 'normal' }}>
+                            {entry.credit > 0 ? formatMoney(entry.credit) : '-'}
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: entry.runningBalance > 0 ? '#b91c1c' : '#16a34a' }}>
+                            {formatMoney(entry.runningBalance)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Signatures */}
+                <div className="accountStatementFoot" style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-around' }}>
+                  <div className="accountStatementSignLine">
+                    <div style={{ borderTop: '1px solid #94a3b8', width: '200px', margin: '0 auto', textAlign: 'center', paddingTop: '6px', fontSize: '11px', color: '#64748b' }}>
+                      Firma Autorizada
+                    </div>
+                  </div>
+                  <div className="accountStatementSignLine">
+                    <div style={{ borderTop: '1px solid #94a3b8', width: '200px', margin: '0 auto', textAlign: 'center', paddingTop: '6px', fontSize: '11px', color: '#64748b' }}>
+                      Recibido por Cliente
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

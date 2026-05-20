@@ -218,15 +218,9 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
                         {rem.notes && ` • ${rem.notes}`}
                       </div>
                     </div>
-                    <button onClick={() => handleDelete(rem.id)} style={{
-                      background: '#fff1f1',
-                      border: 'none',
-                      borderRadius: '10px',
+                    <button onClick={() => handleDelete(rem.id)} className="btn-cancelar" style={{
                       padding: '10px 16px',
-                      color: '#dc2626',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      cursor: 'pointer'
+                      fontSize: '12px'
                     }}>
                       Eliminar
                     </button>
@@ -260,8 +254,8 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
               <textarea value={newReminder.notes} onChange={e => setNewReminder(prev => ({ ...prev, notes: e.target.value }))} placeholder="Detalles de la cita..." style={{ ...inputStyle, minHeight: '80px', resize: 'none' }} />
             </div>
             <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-              <button onClick={() => setShowForm(false)} style={btnSecondary}>Cancelar</button>
-              <button onClick={handleAdd} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
+              <button onClick={() => setShowForm(false)} className="btn-cancel" style={{ width: '50%', padding: '12px' }}>Cancelar</button>
+              <button onClick={handleAdd} disabled={saving} className="btn-teal" style={{ width: '50%', padding: '12px', opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Guardando...' : 'Guardar Cita'}
               </button>
             </div>
@@ -272,17 +266,11 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
       {/* Footer */}
       {!showForm && (
         <div style={footerStyle}>
-          <button onClick={() => setShowForm(true)} style={{
+          <button onClick={() => setShowForm(true)} className="btn-cotizar" style={{
             width: '100%',
             padding: '14px',
             borderRadius: '12px',
-            border: 'none',
-            background: '#2563eb',
-            color: 'white',
-            fontWeight: '800',
-            fontSize: '14px',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.15)'
+            fontSize: '14px'
           }}>
             + Agregar Nueva Cita
           </button>

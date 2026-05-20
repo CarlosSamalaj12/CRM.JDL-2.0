@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { STATUS_META_LIST, AUTO_STATUSES, getStatusFromQuotePresence } from '../constants';
 import authService from '../../../services/authService';
@@ -102,6 +103,14 @@ export default function ReservationForm({ onCancel }) {
       setFormData(prev => ({ ...prev, salon: salones[0] }));
     }
   }, [salones]);
+
+  useEffect(() => {
+    if (events && slots.length > 0) {
+      const conflicts = conflictService.checkAllSlots(slots, events, id);
+      setSlotConflicts(conflicts.filter(r => !r.ok));
+    }
+  }, [slots, events, id]);
+
 
   useEffect(() => {
     if (id && events) {
@@ -237,46 +246,71 @@ export default function ReservationForm({ onCancel }) {
 
   const validateReservationRequiredFields = useCallback(() => {
     const issues = [];
-    const newErrors = [];
 
     const name = formData.name.trim();
-    if (!name) issues.push('Nombre del evento');
+    if (!name) issues.push('Nombre del evento es requerido');
 
     const dateStart = formData.date.trim();
-    if (!dateStart) issues.push('Fecha inicial');
+    if (!dateStart) issues.push('Fecha inicial es requerida');
 
     const dateEnd = formData.endDate.trim();
-    if (!dateEnd) issues.push('Fecha final');
+    if (!dateEnd) issues.push('Fecha final es requerida');
+
+    if (dateStart && dateEnd && dateStart > dateEnd) {
+      issues.push('La fecha inicial no puede ser mayor a la fecha final');
+    }
 
     const userId = formData.userId.trim();
-    if (!userId) issues.push('Usuario');
+    if (!userId) issues.push('Usuario (quien bloquea) es requerido');
 
-    const totalPax = syncEventPaxFromSlots();
-    if (!totalPax || totalPax <= 0) issues.push('PAX total');
+    const isMaintenanceMode = formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado';
 
-    if (!slots.length) issues.push('Al menos un bloque de salón y horario');
+    if (!isMaintenanceMode) {
+      const totalPax = syncEventPaxFromSlots();
+      if (!totalPax || totalPax <= 0) issues.push('PAX total debe ser mayor a 0');
+    }
+
+    if (!slots.length) issues.push('Debes seleccionar al menos un salón y horario');
 
     slots.forEach((s, i) => {
       const idx = i + 1;
-      if (!s.salon) issues.push(`Bloque ${idx}: Salón`);
-      if (!s.pax || Number(s.pax) <= 0) issues.push(`Bloque ${idx}: PAX`);
+      const salonLabel = s.salon ? `"${s.salon}"` : `Nº ${idx}`;
+      
+      if (!s.salon) {
+        issues.push(`Debes seleccionar un salón en el horario Nº ${idx}`);
+      }
+      
+      if (!isMaintenanceMode) {
+        if (!s.pax || Number(s.pax) <= 0) {
+          issues.push(`El salón ${salonLabel} debe tener un PAX mayor a 0`);
+        }
+      }
       
       const slotRange = normalizeSlotDateRange(s, dateStart, dateEnd);
-      if (!slotRange.start) issues.push(`Bloque ${idx}: Fecha desde`);
-      if (!slotRange.end) issues.push(`Bloque ${idx}: Fecha hasta`);
+      if (!slotRange.start) issues.push(`Fecha de inicio requerida para el salón ${salonLabel}`);
+      if (!slotRange.end) issues.push(`Fecha final requerida para el salón ${salonLabel}`);
 
-      if (slotRange.start && slotRange.end && dateStart && dateEnd) {
-        const eventRange = normalizeSlotDateRange({ dateStart, dateEnd });
-        if (slotRange.start < eventRange.start || slotRange.end > eventRange.end) {
-          issues.push(`Bloque ${idx}: Fechas fuera del rango del evento`);
+      if (slotRange.start && slotRange.end) {
+        if (slotRange.start > slotRange.end) {
+          issues.push(`La fecha inicial no puede ser mayor a la fecha final para el salón ${salonLabel}`);
+        }
+        if (dateStart && dateEnd) {
+          const eventRange = normalizeSlotDateRange({ dateStart, dateEnd });
+          if (slotRange.start < eventRange.start || slotRange.end > eventRange.end) {
+            issues.push(`Las fechas del salón ${salonLabel} están fuera del rango general del evento`);
+          }
         }
       }
 
-      if (!s.startTime || !isValidClockTime(s.startTime)) issues.push(`Bloque ${idx}: Hora inicio`);
-      if (!s.endTime || !isValidClockTime(s.endTime)) issues.push(`Bloque ${idx}: Hora fin`);
+      if (!s.startTime || !isValidClockTime(s.startTime)) {
+        issues.push(`Hora de inicio requerida para el salón ${salonLabel}`);
+      }
+      if (!s.endTime || !isValidClockTime(s.endTime)) {
+        issues.push(`Hora de fin requerida para el salón ${salonLabel}`);
+      }
       
       if (s.startTime && s.endTime && compareTime(s.endTime, s.startTime) <= 0) {
-        issues.push(`Bloque ${idx}: La hora final debe ser mayor que inicio`);
+        issues.push(`La hora de inicio no puede ser mayor o igual a la hora de fin para el salón ${salonLabel}`);
       }
     });
 
@@ -289,6 +323,51 @@ export default function ReservationForm({ onCancel }) {
     const newSlots = slots.map(s => ({ ...s, status: 'Mantenimiento' }));
     setSlots(newSlots);
     showNotification('Estado cambiado a Mantenimiento', 'info');
+  };
+
+  const handleReleaseMaintenance = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const updatedFormData = {
+        ...formData,
+        status: 'Mantenimiento Realizado',
+        name: formData.name === 'MANTENIMIENTO' ? 'MANTENIMIENTO REALIZADO' : formData.name
+      };
+      const updatedSlots = slots.map(s => ({ ...s, status: 'Mantenimiento Realizado' }));
+      
+      const eventData = {
+        ...updatedFormData,
+        id: id || undefined,
+        pax: formData.pax ? parseInt(formData.pax) : null,
+        slots: updatedSlots,
+        salon: updatedSlots.map(s => s.salon).join(', ')
+      };
+
+      const savedEvent = await handleAddEvent(eventData);
+
+      if (id) {
+        const existingEvent = events.find(ev => ev.id === id);
+        if (existingEvent) {
+          await historyService.addDetailed(id, existingEvent, eventData);
+        }
+      } else {
+        await historyService.add(savedEvent.id, 'Mantenimiento realizado y liberado');
+      }
+
+      showNotification('Mantenimiento liberado: salón disponible', 'success');
+      setTimeout(() => navigate('/calendar'), 1000);
+    } catch {
+      showNotification('Error al liberar mantenimiento', 'error');
+      setSaving(false);
+    }
+  };
+
+  const handleStepClick = (statusKey) => {
+    setFormData(prev => ({ ...prev, status: statusKey }));
+    const newSlots = slots.map(s => ({ ...s, status: statusKey }));
+    setSlots(newSlots);
+    showNotification(`Estado cambiado a ${statusKey}`, 'info');
   };
 
   const handleCancelEvent = async () => {
@@ -429,29 +508,68 @@ export default function ReservationForm({ onCancel }) {
     transition: 'all 0.2s'
   };
 
-  const btnAction = {
+  const btnMaintenance = {
     ...btnBase,
-    background: '#f0f7ff',
-    borderColor: '#d3e4fe',
-    color: '#2563eb',
+    background: '#f1f5f9',
+    borderColor: '#cbd5e1',
+    color: '#475569',
   };
 
-  const btnCancel = {
+  const btnHistory = {
     ...btnBase,
-    background: '#fff1f1',
-    borderColor: '#fecaca',
-    color: '#dc2626',
+    background: '#f5f3ff',
+    borderColor: '#ddd6fe',
+    color: '#7c3aed',
+  };
+
+  const btnViewAppointments = {
+    ...btnBase,
+    background: '#f0fdf4',
+    borderColor: '#bbf7d0',
+    color: '#16a34a',
+  };
+
+  const btnAddAppointment = {
+    ...btnBase,
+    background: '#10b981',
+    color: 'white',
+    borderColor: '#10b981',
+    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.15)'
+  };
+
+  const btnCancelEvent = {
+    ...btnBase,
+    background: '#fff1f2',
+    borderColor: '#fecdd3',
+    color: '#e11d48',
+  };
+
+  const btnDelete = {
+    ...btnBase,
+    background: '#dc2626',
+    color: 'white',
+    borderColor: '#dc2626',
+    boxShadow: '0 2px 6px rgba(220, 38, 38, 0.15)'
+  };
+
+  const btnQuote = {
+    ...btnBase,
+    background: '#0284c7',
+    color: 'white',
+    borderColor: '#0284c7',
+    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.15)'
   };
 
   const btnSave = {
     ...btnBase,
-    background: '#0b1c30',
+    background: '#0d9488',
     color: 'white',
     padding: '12px 36px',
     fontSize: '15px',
-    borderColor: '#0b1c30',
-    boxShadow: '0 4px 10px rgba(11, 28, 48, 0.15)'
+    borderColor: '#0d9488',
+    boxShadow: '0 4px 10px rgba(13, 148, 136, 0.25)'
   };
+
 
   const inputStyle = {
     padding: '10px 12px',
@@ -479,10 +597,41 @@ export default function ReservationForm({ onCancel }) {
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
-        <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ fontSize: '42px', fontWeight: '800', color: '#0b1c30', margin: 0 }}>{id ? 'Editar reserva' : 'Nueva reserva'}</h1>
-          <button onClick={() => navigate('/calendar')} style={{ background: '#e2e8f0', border: 0, width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', fontSize: '20px' }}>×</button>
+      {/* Botón flotante X fijo al contenedor del formulario */}
+      <button 
+        onClick={() => navigate('/calendar')} 
+        style={{ 
+          position: 'absolute', 
+          top: '24px', 
+          right: '24px', 
+          zIndex: 100, 
+          background: '#eff6ff', 
+          border: '1px solid #dbeafe', 
+          width: '36px', 
+          height: '36px', 
+          borderRadius: '8px', 
+          cursor: 'pointer', 
+          fontSize: '20px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          color: '#1e40af', 
+          fontWeight: 'bold',
+          boxShadow: '0 4px 12px rgba(30, 64, 175, 0.15)'
+        }}
+      >
+        ×
+      </button>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+        {/* Encabezado Principal al estilo del original */}
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingRight: '40px' }}>
+          <div>
+            <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Reservar salon</h1>
+            <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>
+              {`${slots[0]?.salon || 'Sin salon'} - ${formData.date} - ${slots[0]?.startTime || '10:00'}-${slots[0]?.endTime || '12:00'}`}
+            </div>
+          </div>
         </div>
 
         {validationErrors.length > 0 && (
@@ -495,208 +644,417 @@ export default function ReservationForm({ onCancel }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <label style={labelStyle}>Nombre del evento *</label>
-              <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda Civil Fam. González" style={{ ...inputStyle, fontSize: '16px', marginBottom: '20px' }} />
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-                <div>
-                  <label style={labelStyle}>Estado de la Reserva</label>
-                  <select name="status" value={formData.status} onChange={handleChange} style={{ ...inputStyle, padding: '12px' }}>
-                    {STATUS_META_LIST.map(s => {
-                      const isAuto = AUTO_STATUSES.includes(s.key);
-                      return (
-                        <option key={s.key} value={s.key} disabled={isAuto}>
-                          {s.key}{isAuto ? ' (auto)' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>* Los estados automáticos se asignan según corresponda</div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Encargado del Seguimiento</label>
-                  <select name="userId" value={formData.userId} onChange={handleChange} style={{ ...inputStyle, padding: '12px' }}>
-                    <option value="">-- Sin Encargado --</option>
-                    {users?.map(u => (
-                      <option key={u.id} value={u.id}>👤 {u.fullName || u.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+        {/* Stepper de Proceso de Reserva / Sales Pipeline */}
+        {(() => {
+          const isMaint = formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado';
+          const isCanceled = formData.status === 'Cancelado';
+          const isLost = formData.status === 'Perdido';
+          const isWaiting = formData.status === 'Lista de Espera';
 
-              <div>
-                <label style={labelStyle}>Salones (Selecciona todos los que correspondan)</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginTop: '8px' }}>
-                  {salones.map(s => {
-                    const isSelected = slots.some(slot => slot.salon === s);
-                    return (
-                      <div
-                        key={s}
-                        onClick={() => {
-                          const hasSlot = slots.some(slot => slot.salon === s);
-                          if (hasSlot) {
-                            const idx = slots.findIndex(slot => slot.salon === s);
-                            removeSlotRow(idx);
-                          } else {
-                            addSlotRow();
-                            const newSlots = [...slots];
-                            newSlots[newSlots.length - 1].salon = s;
-                            setSlots(newSlots);
-                          }
-                        }}
-                        style={{
-                          padding: '12px',
-                          borderRadius: '10px',
-                          border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                          background: isSelected ? '#eff6ff' : 'white',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          fontWeight: '700',
-                          fontSize: '13px',
-                          color: isSelected ? '#1e40af' : '#475569'
-                        }}
-                      >
-                        <div style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '4px',
-                          border: '2px solid',
-                          borderColor: isSelected ? '#2563eb' : '#cbd5e1',
-                          background: isSelected ? '#2563eb' : 'transparent',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontSize: '10px'
-                        }}>{isSelected && '✓'}</div>
-                        <span>{s}</span>
+          if (isMaint) return null; // No mostrar pipeline comercial para mantenimientos
+
+          if (isCanceled) {
+            return (
+              <div style={{
+                background: '#fee2e2',
+                border: '1px solid #fca5a5',
+                borderRadius: '16px',
+                padding: '14px 20px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                color: '#991b1b',
+                fontWeight: '800',
+                fontSize: '14px',
+                boxShadow: '0 4px 10px rgba(220, 38, 38, 0.05)'
+              }}>
+                <span style={{ fontSize: '18px' }}>🚫</span>
+                <span>ESTA RESERVA SE ENCUENTRA CANCELADA</span>
+              </div>
+            );
+          }
+
+          if (isLost) {
+            return (
+              <div style={{
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '16px',
+                padding: '14px 20px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                color: '#475569',
+                fontWeight: '800',
+                fontSize: '14px',
+                boxShadow: '0 4px 10px rgba(71, 85, 105, 0.05)'
+              }}>
+                <span style={{ fontSize: '18px' }}>📉</span>
+                <span>ESTA RESERVA SE REGISTRÓ COMO VENTA PERDIDA</span>
+              </div>
+            );
+          }
+
+          if (isWaiting) {
+            return (
+              <div style={{
+                background: '#fef9c3',
+                border: '1px solid #fde047',
+                borderRadius: '16px',
+                padding: '14px 20px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                color: '#713f12',
+                fontWeight: '800',
+                fontSize: '14px',
+                boxShadow: '0 4px 10px rgba(234, 179, 8, 0.05)'
+              }}>
+                <span style={{ fontSize: '18px' }}>⏳</span>
+                <span>RESERVA EN LISTA DE ESPERA (SIN ESPACIO CONFIRMADO)</span>
+              </div>
+            );
+          }
+
+          const PIPELINE_STEPS = [
+            { key: 'Reserva sin Cotizacion', label: 'Contacto Inicial' },
+            { key: '1er Cotizacion', label: 'Cotizado' },
+            { key: 'Seguimiento', label: 'Seguimiento' },
+            { key: 'Pre reserva', label: 'Pre-Reserva' },
+            { key: 'Confirmado', label: 'Confirmado' }
+          ];
+
+          const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === formData.status);
+          const progressPct = currentIdx === -1 ? 0 : (currentIdx / (PIPELINE_STEPS.length - 1)) * 100;
+
+          return (
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: '12px',
+              padding: '12px 16px 8px 16px',
+              marginBottom: '16px',
+              position: 'relative',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)'
+            }}>
+              {/* Línea de fondo del Stepper */}
+              <div style={{
+                position: 'absolute',
+                top: '23px',
+                left: '10%',
+                right: '10%',
+                height: '2px',
+                background: '#f1f5f9',
+                borderRadius: '1px',
+                zIndex: 1
+              }} />
+
+              {/* Línea de progreso rellenada */}
+              <div style={{
+                position: 'absolute',
+                top: '23px',
+                left: '10%',
+                width: `${currentIdx === 0 ? 0 : (currentIdx / (PIPELINE_STEPS.length - 1)) * 80}%`,
+                height: '2px',
+                background: 'linear-gradient(90deg, #00A3FF 0%, #00CC66 100%)',
+                borderRadius: '1px',
+                zIndex: 2,
+                transition: 'all 0.4s ease-out'
+              }} />
+
+              {/* Nodos del Stepper */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 3 }}>
+                {PIPELINE_STEPS.map((step, idx) => {
+                  const isCompleted = idx < currentIdx;
+                  const isActive = idx === currentIdx;
+                  
+                  // Definir estilos según el estado
+                  let nodeBg = '#ffffff';
+                  let nodeBorder = '2px solid #cbd5e1';
+                  let nodeColor = '#94a3b8';
+                  let nodeShadow = 'none';
+
+                  if (isCompleted) {
+                    nodeBg = '#00CC66';
+                    nodeBorder = '2px solid #00CC66';
+                    nodeColor = '#ffffff';
+                    nodeShadow = '0 2px 6px rgba(0, 204, 102, 0.2)';
+                  } else if (isActive) {
+                    nodeBg = '#00A3FF';
+                    nodeBorder = '3px solid #ffffff';
+                    nodeColor = '#ffffff';
+                    nodeShadow = '0 0 0 2px #00A3FF, 0 4px 8px rgba(0, 163, 255, 0.25)';
+                  }
+
+                  return (
+                    <div
+                      key={step.key}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        cursor: 'default',
+                        flex: 1
+                      }}
+                    >
+                      {/* Círculo */}
+                      <div style={{
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        background: nodeBg,
+                        border: nodeBorder,
+                        color: nodeColor,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        fontWeight: '900',
+                        boxShadow: nodeShadow,
+                        transition: 'all 0.3s ease',
+                        transform: isActive ? 'scale(1.1)' : 'none'
+                      }}>
+                        {isCompleted ? '✓' : idx + 1}
                       </div>
-                    );
-                  })}
-                </div>
+
+                      {/* Etiqueta */}
+                      <span style={{
+                        marginTop: '6px',
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        color: isActive ? '#00A3FF' : isCompleted ? '#0f172a' : '#94a3b8',
+                        transition: 'color 0.3s ease',
+                        textAlign: 'center'
+                      }}>
+                        {step.label}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
+          );
+        })()}
 
-            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0b1c30', margin: 0 }}>Bloques de Salón y Horario</h3>
-                <button onClick={addSlotRow} style={{ ...btnAction, padding: '8px 16px', fontSize: '12px' }}>+ Agregar Bloque</button>
+        <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+          {/* Columna Izquierda: Información de Reserva y Salones */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Nombre del evento *</label>
+                <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda, Corporativo, Cena" style={{ ...inputStyle, fontSize: '14px', padding: '10px 14px' }} />
               </div>
 
-              {slotConflicts.length > 0 && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
-                  <div style={{ fontWeight: '700', color: '#dc2626', marginBottom: '8px', fontSize: '13px' }}>⚠️ Conflictos de horario detectados:</div>
-                  {slotConflicts.map((r, i) => (
-                    <div key={i} style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px' }}>
-                      Bloque {r.index + 1}: {r.message || r.hint}
-                    </div>
-                  ))}
+              {!(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Nombre de quien reserva (Cliente)</label>
+                    <input name="clientName" value={formData.clientName} onChange={handleChange} placeholder="Ej: Carlos Samalaj" style={{ ...inputStyle, padding: '8px 12px' }} />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Teléfono del Cliente</label>
+                    <input name="clientPhone" value={formData.clientPhone} onChange={handleChange} placeholder="Ej: +502 5555-5555" style={{ ...inputStyle, padding: '8px 12px' }} />
+                  </div>
                 </div>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {slots.map((slot, index) => (
-                  <div key={index} style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <span style={{ fontWeight: '800', color: '#64748b', fontSize: '12px' }}>BLOQUE {index + 1}</span>
-                      {slots.length > 1 && (
-                        <button onClick={() => removeSlotRow(index)} style={{ background: '#fef2f2', border: 'none', borderRadius: '6px', padding: '6px 12px', color: '#dc2626', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Eliminar</button>
-                      )}
+              {/* Sección de Salones y Horarios estilo original */}
+              <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '16px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '12px' }}>Salones y horarios</label>
+                
+                <button
+                  onClick={addSlotRow}
+                  style={{
+                    background: '#005954',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    marginBottom: '16px',
+                    transition: 'background-color 0.15s'
+                  }}
+                >
+                  Agregar salon
+                </button>
+
+                {slotConflicts.length > 0 && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px', fontSize: '11px', marginBottom: '12px' }}>
+                    <div style={{ fontWeight: '700', color: '#dc2626', marginBottom: '4px' }}>⚠️ Conflictos detectados:</div>
+                    {slotConflicts.map((r, i) => (
+                      <div key={i} style={{ color: '#991b1b', marginBottom: '2px' }}>
+                        Salon {r.index + 1}: {r.message || r.hint}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ overflowX: 'auto', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
+                  <div style={{ minWidth: '700px' }}>
+                    {/* Encabezado de la tabla */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 2fr 1.5fr 1.5fr', gap: '8px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>HASTA</span>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>INICIO</span>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>FIN</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr 1fr 100px 100px', gap: '10px', alignItems: 'end' }}>
-                      <div>
-                        <label style={labelStyle}>Salón</label>
-                        <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={inputStyle}>
-                          <option value="">-- Seleccionar --</option>
-                          {salones?.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>PAX</label>
-                        <input type="number" value={slot.pax} onChange={e => handleSlotChange(index, 'pax', e.target.value)} placeholder="0" style={inputStyle} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Fecha Desde</label>
-                        <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={inputStyle} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Fecha Hasta</label>
-                        <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={inputStyle} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Inicio</label>
-                        <input type="time" value={slot.startTime} onChange={e => handleSlotChange(index, 'startTime', e.target.value)} style={inputStyle} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Fin</label>
-                        <input type="time" value={slot.endTime} onChange={e => handleSlotChange(index, 'endTime', e.target.value)} style={inputStyle} />
-                      </div>
+
+                    {/* Contenido de la tabla con scroll vertical */}
+                    <div style={{ display: 'flex', flexDirection: 'column', padding: '8px', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
+                      {slots.map((slot, index) => (
+                        <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 2fr 1.5fr 1.5fr', gap: '8px', alignItems: 'center', background: 'white', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                          <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }}>
+                            <option value="">Selecciona salon</option>
+                            {salones?.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <input 
+                            type="text" 
+                            disabled={formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado'} 
+                            value={(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? 'N/A' : slot.pax} 
+                            onChange={e => handleSlotChange(index, 'pax', e.target.value)} 
+                            placeholder="PAX" 
+                            style={{ 
+                              ...inputStyle, 
+                              padding: '6px 10px', 
+                              fontSize: '12px',
+                              background: (formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? '#f1f5f9' : 'white',
+                              color: (formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? '#94a3b8' : '#000',
+                              textAlign: 'center'
+                            }} 
+                          />
+                          <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
+                          <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
+                          <input type="time" value={slot.startTime} onChange={e => handleSlotChange(index, 'startTime', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <input type="time" value={slot.endTime} onChange={e => handleSlotChange(index, 'endTime', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
+                            {slots.length > 1 && (
+                              <button onClick={() => removeSlotRow(index)} style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '14px', cursor: 'pointer', padding: '0 4px', fontWeight: 'bold' }}>×</button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-
-              <div style={{ marginTop: '16px', padding: '12px', background: '#f0f7ff', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>PAX TOTAL:</span>
-                <span style={{ fontSize: '18px', fontWeight: '800', color: '#2563eb' }}>{formData.pax || 0}</span>
-              </div>
-            </div>
-
-            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px', color: '#0b1c30', marginTop: 0 }}>Información del Cliente</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div>
-                  <label style={labelStyle}>Nombre de quien reserva</label>
-                  <input name="clientName" value={formData.clientName} onChange={handleChange} placeholder="Ej: Carlos Samalaj" style={inputStyle} />
                 </div>
-                <div>
-                  <label style={labelStyle}>Teléfono del Cliente</label>
-                  <input name="clientPhone" value={formData.clientPhone} onChange={handleChange} placeholder="Ej: +502 5555-5555" style={inputStyle} />
+
+                <div style={{ marginTop: '12px', padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #bfdbfe' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e40af' }}>PAX TOTAL:</span>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#1e40af' }}>{(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? 'N/A' : (formData.pax || 0)}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '12px', marginTop: 0 }}>Agenda</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label style={labelStyle}>Fecha de Inicio</label>
-                  <input type="date" name="date" value={formData.date} onChange={handleChange} style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Fecha de Fin</label>
-                  <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} style={inputStyle} />
-                </div>
-              </div>
+          {/* Columna Derecha: Controles de Configuración */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Fecha inicial */}
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Fecha inicial *</label>
+              <input type="date" name="date" value={formData.date} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px' }} />
             </div>
-            
-            <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '12px', marginTop: 0 }}>Notas</h3>
-              <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Detalles u observaciones de la reserva..." style={{ ...inputStyle, height: '100px', resize: 'none' }} />
+
+            {/* Fecha final */}
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Fecha final *</label>
+              <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px' }} />
+            </div>
+
+            {/* Estado */}
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Estado *</label>
+              {(() => {
+                const statusColor = STATUS_META_LIST.find(s => s.key === formData.status)?.color || '#2563eb';
+                return (
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    background: `${statusColor}10`, 
+                    border: `1px solid ${statusColor}30`, 
+                    padding: '10px 14px', 
+                    borderRadius: '8px', 
+                    color: statusColor, 
+                    fontWeight: '800', 
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor, display: 'inline-block' }}></span>
+                    {formData.status}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Usuario */}
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Usuario (quien bloquea) *</label>
+              <select name="userId" value={formData.userId} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px', marginBottom: '8px' }}>
+                <option value="">-- Sin Encargado --</option>
+                {users?.map(u => (
+                  <option key={u.id} value={u.id}>👤 {u.fullName || u.name}</option>
+                ))}
+              </select>
+              <button
+                style={{
+                  background: '#eff6ff',
+                  color: '#2563eb',
+                  border: '1px solid #bfdbfe',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                + Usuario
+              </button>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>Cada usuario tendra su avatar.</div>
+            </div>
+
+            {/* Notas */}
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Notas</label>
+              <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Detalles u observaciones..." style={{ ...inputStyle, height: '70px', padding: '10px', resize: 'none' }} />
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ background: 'white', borderTop: '2px solid #f1f5f9', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '80px' }}>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={handleOpenHistory} style={btnAction}>Historial</button>
-          <button onClick={handleOpenAppointments} style={btnAction}>Ver citas</button>
-          <button onClick={handleOpenAppointments} style={btnAction}>Agregar cita</button>
-          <button onClick={handleMaintenance} style={btnAction}>Poner en mantenimiento</button>
-          <button onClick={handleCancelEvent} style={btnCancel}>Cancelar evento</button>
-          {id && <button onClick={handleDeleteReservation} style={{ ...btnCancel, background: '#7f1d1d', color: 'white', borderColor: '#7f1d1d' }}>Eliminar</button>}
-          <button onClick={handleOpenQuote} style={btnAction}>Cotizar evento</button>
+
+      <div className="reservation-form-footer" style={{ background: '#eff6ff', borderTop: '1px solid #bfdbfe', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '80px' }}>
+        <div className="reservation-form-actions-left" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {formData.status === 'Mantenimiento' ? (
+            <button onClick={handleReleaseMaintenance} className="btn-agregar-cita">Liberar mantenimiento</button>
+          ) : (
+            <button onClick={handleMaintenance} className="btn-mantenimiento">Poner en mantenimiento</button>
+          )}
+          {id && (
+            <>
+              <button onClick={handleOpenHistory} className="btn-historial">Historial</button>
+              <button onClick={handleOpenAppointments} className="btn-ver-citas">Ver citas</button>
+              <button onClick={handleOpenAppointments} className="btn-agregar-cita">Agregar cita</button>
+              <button onClick={handleCancelEvent} className="btn-cancelar">Cancelar evento</button>
+              <button onClick={handleDeleteReservation} className="btn-eliminar">Eliminar</button>
+              {(() => {
+                const currentUser = authService.getCurrentUser();
+                const userRole = currentUser?.role || 'vendedor';
+                return userRole !== 'recepcionista' && (
+                  <button onClick={handleOpenQuote} className="btn-cotizar">Cotizar evento</button>
+                );
+              })()}
+            </>
+          )}
         </div>
         
-        <button onClick={handleSave} disabled={saving} style={btnSave}>
+        <button onClick={handleSave} disabled={saving} className="btn-guardar">
           {saving ? 'Guardando...' : 'Guardar'}
         </button>
       </div>
@@ -704,6 +1062,163 @@ export default function ReservationForm({ onCancel }) {
       <style>{`
         button:hover { filter: brightness(0.95); transform: translateY(-1px); }
         button:active { transform: translateY(0); }
+
+        /* Overrides para superar el !important de design-system.css */
+        .btn-mantenimiento {
+          background: #f1f5f9 !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #475569 !important;
+          padding: 10px 18px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-mantenimiento:hover {
+          background: #e2e8f0 !important;
+          color: #1e293b !important;
+          border-color: #94a3b8 !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(148, 163, 184, 0.15) !important;
+        }
+
+        .btn-historial {
+          background: #f5f3ff !important;
+          border: 1px solid #ddd6fe !important;
+          color: #7c3aed !important;
+          padding: 10px 18px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-historial:hover {
+          background: #ede9fe !important;
+          color: #6d28d9 !important;
+          border-color: #c084fc !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15) !important;
+        }
+
+        .btn-ver-citas {
+          background: #f0fdf4 !important;
+          border: 1px solid #bbf7d0 !important;
+          color: #16a34a !important;
+          padding: 10px 18px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-ver-citas:hover {
+          background: #dcfce7 !important;
+          color: #15803d !important;
+          border-color: #86efac !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(22, 163, 74, 0.15) !important;
+        }
+
+        .btn-agregar-cita {
+          background: #10b981 !important;
+          border: 1px solid #10b981 !important;
+          color: white !important;
+          padding: 10px 18px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          box-shadow: 0 2px 6px rgba(16, 185, 129, 0.15) !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-agregar-cita:hover {
+          background: #059669 !important;
+          color: white !important;
+          border-color: #059669 !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25) !important;
+        }
+
+        .btn-cancelar {
+          background: #fff1f2 !important;
+          border: 1px solid #fecdd3 !important;
+          color: #e11d48 !important;
+          padding: 10px 18px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-cancelar:hover {
+          background: #ffe4e6 !important;
+          color: #be123c !important;
+          border-color: #fda4af !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(225, 29, 72, 0.15) !important;
+        }
+
+        .btn-eliminar {
+          background: #dc2626 !important;
+          border: 1px solid #dc2626 !important;
+          color: white !important;
+          padding: 10px 18px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          box-shadow: 0 2px 6px rgba(220, 38, 38, 0.15) !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-eliminar:hover {
+          background: #b91c1c !important;
+          color: white !important;
+          border-color: #b91c1c !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25) !important;
+        }
+
+        .btn-cotizar {
+          background: #0284c7 !important;
+          border: 1px solid #0284c7 !important;
+          color: white !important;
+          padding: 10px 18px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          box-shadow: 0 2px 6px rgba(2, 132, 199, 0.15) !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-cotizar:hover {
+          background: #0369a1 !important;
+          color: white !important;
+          border-color: #0369a1 !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(3, 105, 161, 0.25) !important;
+        }
+
+        .btn-guardar {
+          background: #0d9488 !important;
+          border: 1px solid #0d9488 !important;
+          color: white !important;
+          padding: 12px 36px !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
+          font-size: 15px !important;
+          box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25) !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .btn-guardar:hover {
+          background: #0f766e !important;
+          color: white !important;
+          border-color: #0f766e !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 6px 15px rgba(15, 118, 110, 0.35) !important;
+        }
       `}</style>
 
       {showAppointmentModal && id && (
@@ -722,12 +1237,11 @@ export default function ReservationForm({ onCancel }) {
         </div>
       )}
 
-      {showQuoteModal && id && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowQuoteModal(false)}>
-          <div onClick={e => e.stopPropagation()}>
-            <QuoteModal event={events?.find(ev => ev.id === id)} onClose={() => setShowQuoteModal(false)} onSave={handleQuoteSave} />
-          </div>
-        </div>
+      {showQuoteModal && id && createPortal(
+        <div id="appShell" className="lum-calendar" style={{ position: 'absolute', zIndex: 9999999, top: 0, left: 0 }}>
+          <QuoteModal event={events?.find(ev => ev.id === id)} onClose={() => setShowQuoteModal(false)} onSave={handleQuoteSave} />
+        </div>,
+        document.body
       )}
     </div>
   );

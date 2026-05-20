@@ -38,8 +38,8 @@ export default function SettingsChecklist() {
               <div className="field">
                 <span>Acciones plantilla</span>
                 <div className="rightActions">
-                  <button className="btn" id="btnChecklistTemplateNew" type="button">Nueva plantilla</button>
-                  <button className="btnDanger" id="btnChecklistTemplateDisable" type="button">Inhabilitar</button>
+                  <button className="btn-cancel" id="btnChecklistTemplateNew" type="button">Nueva plantilla</button>
+                  <button className="btn-cancelar" id="btnChecklistTemplateDisable" type="button">Inhabilitar</button>
                 </div>
               </div>
             </div>
@@ -67,14 +67,14 @@ export default function SettingsChecklist() {
               <div className="field">
                 <span>Acciones seccion</span>
                 <div className="rightActions">
-                  <button className="btn" id="btnChecklistTemplateAddSection" type="button">Guardar seccion</button>
-                  <button className="btn" id="btnChecklistTemplateResetSection" type="button">Nueva seccion</button>
+                  <button className="btn-cotizar" id="btnChecklistTemplateAddSection" type="button">Guardar seccion</button>
+                  <button className="btn-cancel" id="btnChecklistTemplateResetSection" type="button">Nueva seccion</button>
                 </div>
               </div>
               <div className="field">
                 <span>Acciones punto</span>
                 <div className="rightActions">
-                  <button className="btn" id="btnChecklistTemplateAdd" type="button">Agregar punto</button>
+                  <button className="btn-teal" id="btnChecklistTemplateAdd" type="button">Agregar punto</button>
                 </div>
               </div>
             </div>
@@ -164,8 +164,8 @@ export default function SettingsChecklist() {
           <div className="modalFooter">
             <div></div>
             <div className="rightActions">
-              <button className="btn" id="btnEventChecklistDiscard" type="button" onClick={() => handleClose('eventChecklistBackdrop')}>Cerrar</button>
-              <button className="btnPrimary" id="btnEventChecklistSave" type="button">Guardar check list</button>
+              <button className="btn-cancel" id="btnEventChecklistDiscard" type="button" onClick={() => handleClose('eventChecklistBackdrop')}>Cerrar</button>
+              <button className="btn-teal" id="btnEventChecklistSave" type="button">Guardar check list</button>
             </div>
           </div>
         </div>

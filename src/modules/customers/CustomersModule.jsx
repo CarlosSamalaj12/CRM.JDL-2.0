@@ -86,122 +86,127 @@ export default function CustomersModule() {
   };
 
   return (
-    <div style={{ padding: '20px', height: '100%', overflowY: 'auto' }}>
+    <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
       <div style={{ 
-        display: 'block', 
-        position: 'relative', 
+        display: 'flex', 
+        flexDirection: 'column',
+        height: '100%',
         width: '100%', 
         maxWidth: '1400px', 
         margin: '0 auto',
         background: '#fff',
         borderRadius: '24px',
-        border: '1px solid #d3e4fe'
+        border: '1px solid #d3e4fe',
+        overflow: 'hidden'
       }}>
-        <div style={{ padding: '30px 40px', borderBottom: '1px solid #f1f5f9' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <div>
-              <h1 style={{ fontSize: '42px', fontWeight: '900', color: '#1e293b', margin: 0 }}>
+              <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#1e293b', margin: 0 }}>
                 Pipeline de Leads
               </h1>
-              <p style={{ color: '#64748b', fontSize: '16px', marginTop: '8px' }}>
+              <p style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', margin: 0 }}>
                 {filteredLeads.length} leads en el pipeline
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => navigate('/calendar')} style={{ 
-                padding: '10px 24px', borderRadius: '12px', border: '1px solid #d3e4fe', background: '#fff', 
-                color: '#1e293b', fontWeight: '700', cursor: 'pointer'
-              }}>Ver Calendario</button>
-              <button onClick={() => navigate('/hub')} style={{ 
-                padding: '10px 24px', borderRadius: '12px', border: '1px solid #d3e4fe', background: '#fff', 
-                color: '#1e293b', fontWeight: '700', cursor: 'pointer'
-              }}>Volver</button>
-            </div>
+              <button 
+                onClick={() => navigate('/calendar')}
+                className="iconBtn"
+                title="Cerrar"
+                style={{ 
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  padding: '4px 8px',
+                  lineHeight: '1'
+                }}
+              >&#10005;</button>
           </div>
         </div>
 
-        <div style={{ padding: '0 40px 40px 40px' }}>
-          <div style={{ marginBottom: '30px' }}>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ flex: 1 }}>
-                <input 
-                  type="text" 
-                  placeholder="Buscar por nombre, cliente, salón..." 
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '14px' }}
-                />
-              </div>
+        <div style={{ padding: '16px 24px 12px 24px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
+            <div style={{ flex: '2 1 200px' }}>
+              <input 
+                type="text" 
+                placeholder="Buscar por nombre, cliente, salón..." 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+              />
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Estado</label>
-                <select 
-                  value={statusFilter} 
-                  onChange={e => setStatusFilter(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }}
-                >
-                  <option value="all">Todos los estados</option>
-                  {LEADS_PIPELINE_STATUSES.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Vendedor</label>
-                <select 
-                  value={userFilter} 
-                  onChange={e => setUserFilter(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }}
-                >
-                  <option value="all">Todos los vendedores</option>
-                  {users?.map(u => (
-                    <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Fecha desde</label>
-                <input 
-                  type="date" 
-                  value={dateFrom} 
-                  onChange={e => setDateFrom(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }} 
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Fecha hasta</label>
-                <input 
-                  type="date" 
-                  value={dateTo} 
-                  onChange={e => setDateTo(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }} 
-                />
-              </div>
+            <div style={{ flex: '1 1 140px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Estado</label>
+              <select 
+                value={statusFilter} 
+                onChange={e => setStatusFilter(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+              >
+                <option value="all">Todos los estados</option>
+                {LEADS_PIPELINE_STATUSES.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-              <button onClick={clearFilters} style={{ 
-                background: '#f1f5f9', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: '700', cursor: 'pointer', color: '#64748b'
-              }}>
-                Limpiar filtros
-              </button>
+            <div style={{ flex: '1 1 140px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Vendedor</label>
+              <select 
+                value={userFilter} 
+                onChange={e => setUserFilter(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+              >
+                <option value="all">Todos los vendedores</option>
+                {users?.map(u => (
+                  <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
+                ))}
+              </select>
             </div>
+
+            <div style={{ flex: '1 1 130px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Fecha desde</label>
+              <input 
+                type="date" 
+                value={dateFrom} 
+                onChange={e => setDateFrom(e.target.value)}
+                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }} 
+              />
+            </div>
+
+            <div style={{ flex: '1 1 130px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Fecha hasta</label>
+              <input 
+                type="date" 
+                value={dateTo} 
+                onChange={e => setDateTo(e.target.value)}
+                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }} 
+              />
+            </div>
+
+            <button onClick={clearFilters} style={{ 
+              background: '#f1f5f9', border: 'none', padding: '10px 16px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', color: '#0351beff', fontSize: '12px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              Limpiar filtros
+            </button>
           </div>
+        </div>
 
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ background: '#f8fafc' }}>
+        <div style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflowX: 'auto', overflowY: 'auto', flex: 1, width: '100%', minHeight: 0 }}>
+            <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
+              <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>FECHA</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>EVENTO</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CLIENTE</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>SALÓN</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>PAX</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>ESTADO</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>VENDEDOR</th>
-                  <th style={{ textAlign: 'center', padding: '14px 16px' }}></th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>FECHA</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>EVENTO</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CLIENTE</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>SALÓN</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>PAX</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>ESTADO</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>VENDEDOR</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'center', padding: '14px 16px' }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -237,9 +242,18 @@ export default function CustomersModule() {
                       <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                         <button 
                           onClick={() => handleShowEvent(l.id)}
-                          style={{ border: '1px solid #e2e8f0', background: '#fff', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer' }}
+                          style={{ 
+                            border: '1px solid #bfdbfe', 
+                            background: '#eff6ff', 
+                            padding: '6px 14px', 
+                            borderRadius: '8px', 
+                            cursor: 'pointer', 
+                            fontSize: '13px', 
+                            fontWeight: '700', 
+                            color: '#1d4ed8'
+                          }}
                         >
-                          <span style={{ fontSize: '16px' }}>👁️</span>
+                          Ver
                         </button>
                       </td>
                     </tr>

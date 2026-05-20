@@ -76,7 +76,6 @@ export default function Sidebar() {
         </div>
         <div className="brandText">
           <div className="title">Jardines CRM</div>
-          <div className="subtitle">Enterprise Edition</div>
         </div>
       </div>
 
@@ -117,14 +116,16 @@ export default function Sidebar() {
           <span>Reportes</span>
         </button>
 
-        <button 
-          className={`lum-sideItem ${location.pathname === '/settings' ? 'isActive' : ''}`} 
-          type="button"
-          onClick={() => navigate('/settings')}
-        >
-          <span className="material-symbols-outlined">settings</span>
-          <span>Configuraciones</span>
-        </button>
+        {user.role === 'admin' && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/settings' ? 'isActive' : ''}`} 
+            type="button"
+            onClick={() => navigate('/settings')}
+          >
+            <span className="material-symbols-outlined">settings</span>
+            <span>Configuraciones</span>
+          </button>
+        )}
       </nav>
 
       <div className="lum-sideCta">
@@ -150,7 +151,9 @@ export default function Sidebar() {
           </div>
           <div className="sideUserName">
             <span style={{ color: '#f8fafc', fontSize: '12px', fontWeight: '600' }}>{user.name}</span>
-            <span style={{ color: '#94a3b8', fontSize: '10px' }}>Admin</span>
+            <span style={{ color: '#94a3b8', fontSize: '10px' }}>
+              {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : 'Vendedor'}
+            </span>
           </div>
         </div>
 

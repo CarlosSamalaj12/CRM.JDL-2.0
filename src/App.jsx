@@ -6,7 +6,7 @@ import ReservationForm from './modules/calendar/components/ReservationForm';
 import CustomersModule from './modules/customers/CustomersModule';
 import ReportsModule from './modules/reports/ReportsModule';
 import SearchModule from './modules/search/SearchModule';
-import HubModule from './modules/shared/HubModule';
+// import HubModule from './modules/shared/HubModule'; // Hub view removed per user request
 import SettingsMain from './modules/settings/SettingsMain';
 import { SupportModule } from './modules/shared/GenericModule';
 
@@ -19,8 +19,8 @@ function App() {
 
         {/* Rutas privadas envueltas en el MainLayout */}
         <Route path="/" element={<MainLayout />}>
-          <Route index element={<Navigate to="/hub" replace />} />
-          <Route path="hub" element={<HubModule />} />
+                    <Route index element={<Navigate to="/calendar" replace />} />
+          
           <Route path="calendar" element={<Calendar />} />
           <Route path="nueva-reserva" element={<Calendar />} />
           <Route path="reserva/:id" element={<Calendar />} />

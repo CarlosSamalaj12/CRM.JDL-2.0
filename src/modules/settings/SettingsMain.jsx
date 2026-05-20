@@ -7,12 +7,15 @@ import SettingsSalones from './SettingsSalones';
 import SettingsChecklist from './SettingsChecklist';
 import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
+import SettingsMenuMontaje from './SettingsMenuMontaje';
+import SettingsQuoteTemplates from './SettingsQuoteTemplates';
 
 const MODAL_IDS = [
   'userBackdrop', 'companyBackdrop', 'serviceBackdrop', 
   'serviceCategoryBackdrop', 'serviceSubcategoryBackdrop',
   'globalGoalsBackdrop', 'salonesBackdrop', 
-  'checklistTemplateBackdrop', 'eventChecklistBackdrop'
+  'checklistTemplateBackdrop', 'eventChecklistBackdrop',
+  'menuSuggestionsBackdrop', 'quoteServiceTemplateBackdrop'
 ];
 
 export default function SettingsMain() {
@@ -50,7 +53,22 @@ export default function SettingsMain() {
             <div className="moduleHubTitle">Configuraciones</div>
             <div className="moduleHubSub">Opciones generales y accesos rapidos</div>
           </div>
-          <button className="btn" id="btnBackFromSettings" type="button" onClick={() => navigate('/hub')}>Volver</button>
+          <button 
+            className="iconBtn" 
+            id="btnBackFromSettings" 
+            type="button" 
+            onClick={() => navigate('/calendar')}
+            title="Cerrar"
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              color: '#64748b',
+              padding: '4px 8px',
+              lineHeight: '1'
+            }}
+          >&#10005;</button>
         </div>
 
         <div className="settingsPanelScreen" id="settingsPanel">
@@ -162,6 +180,34 @@ export default function SettingsMain() {
                 </span>
               </span>
             </button>
+            <button className="moduleActionBtn" id="btnManageMenuMontaje" type="button" onClick={() => openModalById('menuSuggestionsBackdrop')}>
+              <span className="actionCardInner">
+                <span className="actionCardIcon">
+                  <svg className="actionCardSvg" viewBox="0 0 64 64" aria-hidden="true">
+                    <path d="M12 20h40M12 32h40M12 44h40M20 12v40M44 12v40"></path>
+                    <circle cx="32" cy="32" r="6"></circle>
+                  </svg>
+                </span>
+                <span className="actionCardText">
+                  <span className="actionCardLabel">Menu y montaje</span>
+                  <span className="actionCardMeta">Proteinas, preparaciones, guarniciones, postres y bebidas</span>
+                </span>
+              </span>
+            </button>
+            <button className="moduleActionBtn" id="btnManageQuoteServiceTemplates" type="button" onClick={() => openModalById('quoteServiceTemplateBackdrop')}>
+              <span className="actionCardInner">
+                <span className="actionCardIcon">
+                  <svg className="actionCardSvg" viewBox="0 0 64 64" aria-hidden="true">
+                    <rect x="10" y="16" width="44" height="32" rx="4"></rect>
+                    <path d="M18 24h28M18 32h18M18 40h8"></path>
+                  </svg>
+                </span>
+                <span className="actionCardText">
+                  <span className="actionCardLabel">Plantillas de cotizacion</span>
+                  <span className="actionCardMeta">Combos de servicios para cargar en cotizaciones</span>
+                </span>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -170,6 +216,8 @@ export default function SettingsMain() {
         <SettingsServices />
         <SettingsSalones />
         <SettingsChecklist />
+        <SettingsMenuMontaje />
+        <SettingsQuoteTemplates />
       </div>
     </div>
   );

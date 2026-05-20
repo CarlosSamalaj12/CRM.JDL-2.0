@@ -143,14 +143,10 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
 
       {/* Footer */}
       <div style={footerStyle}>
-        <button onClick={onClose} style={{
+        <button onClick={onClose} className="btn-cancel" style={{
           padding: '12px 48px',
           borderRadius: '12px',
-          border: '1px solid #e2e8f0',
-          background: 'white',
-          fontWeight: '700',
-          fontSize: '14px',
-          cursor: 'pointer'
+          fontSize: '14px'
         }}>
           Cerrar
         </button>

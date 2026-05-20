@@ -6,7 +6,8 @@ import ReportsVentas from './ReportsVentas';
 import ReportsContabilidad from './ReportsContabilidad';
 import ReportsOcupacion from './ReportsOcupacion';
 import ReportsInstitucion from './ReportsInstitucion';
-import ReportsModuleLegacy from './ReportsModuleLegacy'; // Usaremos el Legacy para el Dashboard por ahora
+import ReportsDashboard from './ReportsDashboard';
+
 
 export default function ReportsModule() {
   const navigate = useNavigate();
@@ -41,8 +42,9 @@ export default function ReportsModule() {
       title: 'Reporte Dashboard', 
       desc: 'Indicadores y vista ejecutiva', 
       icon: 'dashboard',
-      component: <ReportsModuleLegacy onClose={handleClose} />
+      component: <ReportsDashboard onClose={handleClose} />
     },
+
     { 
       id: 'institucion',
       title: 'Reporte por institucion', 
@@ -90,19 +92,19 @@ export default function ReportsModule() {
           }}>Elige el reporte que deseas consultar</p>
         </div>
         <button 
-          onClick={() => navigate('/hub')}
+          onClick={() => navigate('/calendar')}
+          className="iconBtn"
+          title="Cerrar"
           style={{ 
-            padding: '10px 24px', 
-            borderRadius: '12px', 
-            border: '1px solid #d3e4fe', 
-            background: '#fff',
-            color: '#1e293b',
-            fontWeight: '700',
-            fontSize: '14px',
+            background: 'none',
+            border: 'none',
+            fontSize: '24px',
             cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+            color: '#64748b',
+            padding: '4px 8px',
+            lineHeight: '1'
           }}
-        >Volver</button>
+        >&#10005;</button>
       </div>
 
       {/* Grid de Tarjetas */}
@@ -118,16 +120,24 @@ export default function ReportsModule() {
               background: '#fff', 
               padding: '24px', 
               borderRadius: '16px', 
-              border: '1px solid #eef2ff',
+              border: '1.5px solid #bfdbfe',
               display: 'flex', 
               alignItems: 'center', 
               gap: '16px',
               cursor: 'pointer',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-              transition: 'transform 0.15s ease'
+              transition: 'all 0.2s ease'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.borderColor = '#3b82f6';
+              e.currentTarget.style.background = '#f0f7ff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.borderColor = '#bfdbfe';
+              e.currentTarget.style.background = '#fff';
+            }}
           >
             <div style={{ 
               width: '52px', 

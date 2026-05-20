@@ -24,6 +24,8 @@ export default function MainLayout() {
   const [currentDate, setCurrentDate] = useState(getStartOfWeek(new Date()));
   const [customTitle, setCustomTitle] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roomFilter, setRoomFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
   // Siempre iniciar en la semana actual cuando se cambia a vista semanal
@@ -189,6 +191,11 @@ export default function MainLayout() {
               statusFilter={statusFilter}
               setStatusFilter={setStatusFilter}
               isCalendarView={isCalendarView}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              roomFilter={roomFilter}
+              setRoomFilter={setRoomFilter}
+              salones={salones}
             />
             <Legend />
           </>
@@ -211,7 +218,7 @@ export default function MainLayout() {
             }} />
           )}
 
-<Outlet context={{ 
+          <Outlet context={{ 
             viewMode, 
             setViewMode,
             currentDate, 
@@ -227,7 +234,11 @@ export default function MainLayout() {
             refreshData: loadInitialData,
             loadingData: loading,
             statusFilter,
-            setStatusFilter
+            setStatusFilter,
+            searchQuery,
+            setSearchQuery,
+            roomFilter,
+            setRoomFilter
           }} />
         </div>
       </div>

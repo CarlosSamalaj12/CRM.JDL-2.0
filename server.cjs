@@ -233,6 +233,9 @@ async function ensureUsersExtendedStructure() {
     if (!colSet.has("metas_mensuales_json")) {
       await conn.query("ALTER TABLE usuarios ADD COLUMN metas_mensuales_json LONGTEXT NULL");
     }
+    if (!colSet.has("rol")) {
+      await conn.query("ALTER TABLE usuarios ADD COLUMN rol VARCHAR(50) NOT NULL DEFAULT 'vendedor'");
+    }
   } finally {
     if (conn) conn.release();
   }
@@ -1171,7 +1174,7 @@ async function readStateFromTables() {
       appStateRows,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
-      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json FROM usuarios ORDER BY creado_en, id"),
+      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, rol FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
       conn.query(`
@@ -1242,6 +1245,7 @@ async function readStateFromTables() {
           active: Number(u.activo) !== 0,
           salesTargetEnabled: Number(u.influye_meta_ventas) !== 0,
           monthlyGoals,
+          role: str(u.rol || 'vendedor'),
         };
       }).filter((u) => u.id && u.name),
       companies: empresas.map((c) => ({
@@ -2165,7 +2169,7 @@ async function readLoginUsers() {
     conn = await pool.getConnection();
     const rows = await conn.query(
       `
-        SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url
+        SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, rol
         FROM usuarios
         WHERE activo = 1
         ORDER BY nombre_completo, nombre_usuario, nombre
@@ -2179,6 +2183,7 @@ async function readLoginUsers() {
         username: str(r.nombre_usuario),
         avatarDataUrl: str(r.avatar_data_url),
         signatureDataUrl: str(r.firma_data_url),
+        role: str(r.rol || 'vendedor'),
       }))
       .filter((u) => u.id);
   } finally {
@@ -2192,7 +2197,7 @@ async function authenticateUser(userId, password) {
     conn = await pool.getConnection();
     const rows = await conn.query(
       `
-        SELECT id, nombre, nombre_usuario, nombre_completo, contrasena, avatar_data_url, firma_data_url
+        SELECT id, nombre, nombre_usuario, nombre_completo, contrasena, avatar_data_url, firma_data_url, rol
         FROM usuarios
         WHERE id = ? AND activo = 1
         LIMIT 1
@@ -2210,6 +2215,7 @@ async function authenticateUser(userId, password) {
       username: str(row.nombre_usuario),
       avatarDataUrl: str(row.avatar_data_url),
       signatureDataUrl: str(row.firma_data_url),
+      role: str(row.rol || 'vendedor'),
     };
   } finally {
     if (conn) conn.release();
@@ -2231,8 +2237,8 @@ async function ensureDefaultUserCarlos() {
     await conn.query(
       `
         INSERT INTO usuarios
-          (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1)
+          (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, rol)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1, 'admin')
       `,
       [
         id,
@@ -2328,12 +2334,13 @@ async function writeStateToTables(state) {
           .map((g) => ({ month: str(g?.month), amount: Math.max(0, Number(g?.amount || 0)) }))
           .filter((g) => /^\d{4}-\d{2}$/.test(g.month) && Number.isFinite(g.amount) && g.amount > 0)
         : [];
+      const rol = str(u?.role || u?.rol || 'vendedor').trim();
       if (!id || !nombre) continue;
       await conn.query(
         `
           INSERT INTO usuarios
-            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, rol)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           id,
@@ -2348,6 +2355,7 @@ async function writeStateToTables(state) {
           active,
           salesTargetEnabled,
           JSON.stringify(monthlyGoals),
+          rol,
         ]
       );
     }
@@ -2941,21 +2949,31 @@ app.post("/api/auth/firebase", async (req, res) => {
     return res.status(400).json({ ok: false, message: "Datos de autenticación Firebase incompletos." });
   }
 
+  const lowerEmail = email.toLowerCase();
+  const isAdminEmail = lowerEmail === "sistemashotel@jardinesdellago.com";
+
   let conn;
   try {
     conn = await pool.getConnection();
     
     // 1. Buscar si el ID de Firebase ya existe
     const existingById = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo FROM usuarios WHERE id = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo, rol FROM usuarios WHERE id = ? LIMIT 1",
       [uid]
     );
 
     if (existingById.length > 0) {
       const u = existingById[0];
       if (Number(u.activo) === 0) {
-        return res.status(403).json({ ok: false, message: "El usuario está inactivo." });
+        return res.status(403).json({ ok: false, message: "El usuario está inactivo. Contacta al administrador." });
       }
+
+      // Si es el correo del admin, asegurar de que siempre tenga el rol 'admin'
+      if (isAdminEmail && u.rol !== "admin") {
+        await conn.query("UPDATE usuarios SET rol = 'admin' WHERE id = ?", [uid]);
+        u.rol = "admin";
+      }
+
       return res.json({
         ok: true,
         user: {
@@ -2965,33 +2983,36 @@ app.post("/api/auth/firebase", async (req, res) => {
           username: str(u.nombre_usuario),
           avatarDataUrl: str(u.avatar_data_url),
           signatureDataUrl: str(u.firma_data_url),
+          role: str(u.rol || 'vendedor'),
         }
       });
     }
 
     // 2. Buscar si ya existe un usuario local con el mismo correo para vincularlo
     const existingByEmail = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo FROM usuarios WHERE correo = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo, rol FROM usuarios WHERE correo = ? LIMIT 1",
       [email]
     );
 
     if (existingByEmail.length > 0) {
       const u = existingByEmail[0];
       if (Number(u.activo) === 0) {
-        return res.status(403).json({ ok: false, message: "El usuario está inactivo." });
+        return res.status(403).json({ ok: false, message: "El usuario está inactivo. Contacta al administrador." });
       }
       
       const oldId = u.id;
-      // Actualizar el ID local al UID de Firebase para futuras consultas e integrar sus fotos
+      let targetRole = u.rol || 'vendedor';
+      if (isAdminEmail) {
+        targetRole = 'admin';
+      }
+
       await conn.beginTransaction();
-      
-      // Desactivar restricciones de clave foránea temporalmente para actualizar el ID en cascada si es necesario
       await conn.query("SET FOREIGN_KEY_CHECKS = 0");
       
       // Actualizar la tabla usuarios
       await conn.query(
-        "UPDATE usuarios SET id = ?, avatar_data_url = COALESCE(avatar_data_url, ?) WHERE id = ?",
-        [uid, photoURL, oldId]
+        "UPDATE usuarios SET id = ?, avatar_data_url = COALESCE(avatar_data_url, ?), rol = ? WHERE id = ?",
+        [uid, photoURL, targetRole, oldId]
       );
       
       // Actualizar referencias en eventos
@@ -3024,31 +3045,42 @@ app.post("/api/auth/firebase", async (req, res) => {
           username: str(u.nombre_usuario),
           avatarDataUrl: str(u.avatar_data_url) || photoURL,
           signatureDataUrl: str(u.firma_data_url),
+          role: targetRole,
         }
       });
     }
 
-    // 3. Si no existe, crear un nuevo usuario con credenciales Firebase
-    const username = email.split("@")[0];
-    await conn.query(
-      `
-        INSERT INTO usuarios
-          (id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, activo)
-        VALUES (?, ?, ?, ?, ?, NULL, ?, 1)
-      `,
-      [uid, displayName, username, displayName, email, photoURL]
-    );
+    // 3. Si no existe en la BD:
+    // Si es el Admin principal (sistemashotel@jardinesdellago.com), lo creamos AUTOMÁTICAMENTE como admin.
+    if (isAdminEmail) {
+      const username = "admin_jdl";
+      await conn.query(
+        `
+          INSERT INTO usuarios
+            (id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, activo, rol)
+          VALUES (?, ?, ?, ?, ?, NULL, ?, 1, 'admin')
+        `,
+        [uid, displayName, username, displayName, email, photoURL]
+      );
 
-    return res.json({
-      ok: true,
-      user: {
-        id: uid,
-        name: displayName,
-        fullName: displayName,
-        username: username,
-        avatarDataUrl: photoURL,
-        signatureDataUrl: null,
-      }
+      return res.json({
+        ok: true,
+        user: {
+          id: uid,
+          name: displayName,
+          fullName: displayName,
+          username: username,
+          avatarDataUrl: photoURL,
+          signatureDataUrl: null,
+          role: 'admin',
+        }
+      });
+    }
+
+    // Para cualquier otro correo que NO existe pre-registrado, BLOQUEAMOS el acceso
+    return res.status(403).json({
+      ok: false,
+      message: "Acceso no autorizado. Tu correo no está pre-registrado en el sistema. Solicita acceso al administrador."
     });
 
   } catch (error) {
@@ -3664,13 +3696,18 @@ app.get("/sw.js", (req, res) => {
   return res.sendFile(fallbackPath);
 });
 
-app.use(express.static(path.join(__dirname, "dist")));
+// Frontend desactivado en el puerto 3001 para que actúe 100% como API Backend.
+// app.use(express.static(path.join(__dirname, "dist")));
 
 app.get("*", (req, res) => {
   if (req.path.startsWith("/api/")) {
     return res.status(404).json({ message: "Ruta API no encontrada." });
   }
-  return res.sendFile(path.join(__dirname, "dist", "index.html"));
+  return res.status(200).json({ 
+    service: "CRM API Backend (server.cjs)",
+    status: "online",
+    message: "El servidor Node está funcionando únicamente como API. Para ver la interfaz, entra al puerto 5173 (Vite)."
+  });
 });
 
 async function start() {

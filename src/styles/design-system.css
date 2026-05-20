@@ -159,19 +159,21 @@ button,
 .btnSecondary {
   min-height: 40px;
   padding: 0 14px;
-  border-radius: var(--ui-radius-md) !important;
-  border: 1px solid var(--ui-border-strong) !important;
-  background: var(--ui-surface-muted) !important;
-  color: var(--ui-text) !important;
-  font-weight: 600 !important;
-  box-shadow: none !important;
-  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  border-radius: var(--ui-radius-md);
+  border: 1px solid var(--ui-border-strong);
+  background: var(--ui-surface-muted);
+  color: var(--ui-text);
+  font-weight: 600;
+  box-shadow: none;
+  transition: all 0.2s ease;
 }
 
 button:hover,
 .btn:hover,
 .iconBtn:hover {
-  background: #e6edf6 !important;
+  background: #e6edf6;
+  filter: brightness(0.95);
+  transform: translateY(-1px);
 }
 
 .btnPrimary,
@@ -194,6 +196,151 @@ button:disabled,
 .btn:disabled {
   opacity: 0.56 !important;
   cursor: not-allowed !important;
+}
+
+/* Unified Functional Buttons Design System */
+.btn-teal {
+  background: #0d9488 !important;
+  color: white !important;
+  border: 1px solid #0d9488 !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-teal:hover {
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+  color: white !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 15px rgba(15, 118, 110, 0.35) !important;
+}
+
+.btn-cancel {
+  background: white !important;
+  color: #64748b !important;
+  border: 1px solid #cbd5e1 !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-cancel:hover {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #94a3b8 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(148, 163, 184, 0.08) !important;
+}
+
+.btn-mantenimiento {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-mantenimiento:hover {
+  background: #e2e8f0 !important;
+  color: #1e293b !important;
+  border-color: #94a3b8 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(148, 163, 184, 0.15) !important;
+}
+
+.btn-historial {
+  background: #f5f3ff !important;
+  border: 1px solid #ddd6fe !important;
+  color: #7c3aed !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-historial:hover {
+  background: #ede9fe !important;
+  color: #6d28d9 !important;
+  border-color: #c084fc !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15) !important;
+}
+
+.btn-ver-citas {
+  background: #f0fdf4 !important;
+  border: 1px solid #bbf7d0 !important;
+  color: #16a34a !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-ver-citas:hover {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border-color: #86efac !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.15) !important;
+}
+
+.btn-agregar-cita {
+  background: #10b981 !important;
+  border: 1px solid #10b981 !important;
+  color: white !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-agregar-cita:hover {
+  background: #059669 !important;
+  color: white !important;
+  border-color: #059669 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25) !important;
+}
+
+.btn-cancelar {
+  background: #fff1f2 !important;
+  border: 1px solid #fecdd3 !important;
+  color: #e11d48 !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-cancelar:hover {
+  background: #ffe4e6 !important;
+  color: #be123c !important;
+  border-color: #fda4af !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.15) !important;
+}
+
+.btn-eliminar {
+  background: #dc2626 !important;
+  border: 1px solid #dc2626 !important;
+  color: white !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-eliminar:hover {
+  background: #b91c1c !important;
+  color: white !important;
+  border-color: #b91c1c !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25) !important;
+}
+
+.btn-cotizar {
+  background: #0284c7 !important;
+  border: 1px solid #0284c7 !important;
+  color: white !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.btn-cotizar:hover {
+  background: #0369a1 !important;
+  color: white !important;
+  border-color: #0369a1 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.25) !important;
 }
 
 /* Inputs */
@@ -4992,6 +5139,256 @@ body.quoteModeOpen #appShell.lum-calendar #quoteBackdrop .quoteCurrencyBtn .mate
 @keyframes loadingProgress {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* ==========================================
+   GLOBAL RESPONSIVE DASHBOARD STYLE UPGRADES
+   ========================================== */
+
+/* 1. Week & Month calendar container margins */
+#appShell.lum-calendar .calendar-container {
+  transition: all 0.25s ease-in-out;
+}
+
+@media (max-width: 900px) {
+  #appShell.lum-calendar .calendar-container {
+    margin: 0 10px 10px 10px !important;
+    border-radius: 12px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  #appShell.lum-calendar .calendar-container {
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+/* 2. Topbar Navigation & Filters Responsiveness */
+@media (max-width: 800px) {
+  #appShell.lum-calendar .topbar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    min-height: auto !important;
+  }
+  
+  #appShell.lum-calendar .topbar-nav-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  
+  #appShell.lum-calendar .topbar-filters-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+    width: 100% !important;
+    padding-bottom: 6px !important;
+    scrollbar-width: none !important; /* Firefox */
+  }
+  
+  #appShell.lum-calendar .topbar-filters-row::-webkit-scrollbar {
+    display: none !important; /* Safari/Chrome */
+  }
+  
+  #appShell.lum-calendar .topbar-filters-row > div {
+    flex-shrink: 0 !important;
+  }
+}
+
+/* 3. Legend responsiveness */
+@media (max-width: 800px) {
+  #appShell.lum-calendar .legend {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    width: 100% !important;
+    padding: 8px 10px !important;
+    scrollbar-width: none !important;
+  }
+  
+  #appShell.lum-calendar .legend::-webkit-scrollbar {
+    display: none !important;
+  }
+  
+  #appShell.lum-calendar .legend > div {
+    flex-shrink: 0 !important;
+  }
+}
+
+/* 4. Desktop Sidebar Collapsing to Mobile Bottom Navigation Bar */
+@media (max-width: 640px) {
+  #appShell.lum-calendar {
+    flex-direction: column !important;
+  }
+  
+  #appShell.lum-calendar .lum-sidebar {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 60px !important;
+    min-height: 0 !important;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #0f172a !important; /* sleek elegant dark background */
+    border-right: none !important;
+    border-top: 1.5px solid #1e293b !important;
+    z-index: 1000 !important;
+  }
+  
+  /* Hide unused elements in bottom navigation */
+  #appShell.lum-calendar .lum-sidebarBrand,
+  #appShell.lum-calendar .sideUserProfile,
+  #appShell.lum-calendar .lum-sideFooter {
+    display: none !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideNav {
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideItem {
+    flex: 1 !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 4px !important;
+    background: transparent !important;
+    color: #94a3b8 !important;
+    gap: 2px !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideItem.isActive {
+    color: #38bdf8 !important;
+    background: rgba(56, 189, 248, 0.08) !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideItem span:not(.material-symbols-outlined) {
+    display: block !important;
+    font-size: 8px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.3px !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideItem .material-symbols-outlined {
+    font-size: 20px !important;
+    margin: 0 !important;
+  }
+  
+  /* Main content adjusts to not overlap bottom nav */
+  #appShell.lum-calendar .lum-main {
+    height: calc(100vh - 60px) !important;
+    max-height: calc(100vh - 60px) !important;
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+  
+  /* 5. Mobile Floating Action Button (FAB) for "+ Nueva reserva" */
+  #appShell.lum-calendar .lum-sideCta {
+    display: block !important;
+    position: fixed !important;
+    bottom: 80px !important; /* floats nicely above the bottom nav */
+    right: 20px !important;
+    z-index: 1001 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideCta .btnPrimary {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 56px !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    border-radius: 50% !important;
+    box-shadow: 0 6px 20px rgba(20, 184, 166, 0.4) !important;
+    font-size: 0 !important; /* Hide original text */
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #14b8a6 !important;
+    border: none !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease-in-out !important;
+    position: relative !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideCta .btnPrimary::before {
+    content: "+" !important;
+    color: #ffffff !important;
+    font-size: 32px !important;
+    font-weight: 300 !important;
+    position: absolute !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  #appShell.lum-calendar .lum-sideCta .btnPrimary:active {
+    transform: scale(0.95) !important;
+  }
+
+  /* 6. Reservation Form Modal Responsiveness */
+  #appShell.lum-calendar .reservation-modal-backdrop {
+    padding: 0 !important;
+  }
+  
+  #appShell.lum-calendar .reservation-modal-content {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+
+  #appShell.lum-calendar .reservation-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  #appShell.lum-calendar .reservation-form-footer {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 16px !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+  
+  #appShell.lum-calendar .reservation-form-actions-left {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 8px !important;
+  }
+  
+  #appShell.lum-calendar .btn-guardar {
+    width: 100% !important;
+    padding: 12px !important;
+  }
 }
 
 

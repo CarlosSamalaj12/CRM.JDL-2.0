@@ -35,12 +35,13 @@ export function isHardBlockingStatus(status) {
 
 export function findHardBlocks(draft, existingEvents, ignoreIds = null) {
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
+  const slotDate = draft.date || draft.dateStart;
   
   return existingEvents.filter(e => {
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
-    if (e.date !== draft.date) return false;
+    if (e.date !== slotDate) return false;
     if (e.status === 'Cancelado') return false;
     if (!HARD_BLOCK_STATUSES.includes(e.status)) return false;
     
@@ -50,12 +51,13 @@ export function findHardBlocks(draft, existingEvents, ignoreIds = null) {
 
 export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null) {
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
+  const slotDate = draft.date || draft.dateStart;
   
   return existingEvents.filter(e => {
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
-    if (e.date !== draft.date) return false;
+    if (e.date !== slotDate) return false;
     if (e.status !== 'Mantenimiento') return false;
     
     return timesOverlap(e.startTime, e.endTime, draft.startTime, draft.endTime);
@@ -64,12 +66,13 @@ export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null
 
 export function findAllConflicts(draft, existingEvents, ignoreIds = null) {
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
+  const slotDate = draft.date || draft.dateStart;
   
   return existingEvents.filter(e => {
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
-    if (e.date !== draft.date) return false;
+    if (e.date !== slotDate) return false;
     if (e.status === 'Cancelado') return false;
     
     return timesOverlap(e.startTime, e.endTime, draft.startTime, draft.endTime);
@@ -77,7 +80,8 @@ export function findAllConflicts(draft, existingEvents, ignoreIds = null) {
 }
 
 export function evaluateRules(draft, existingEvents, ignoreIds = null) {
-  if (!draft.date || !draft.startTime || !draft.endTime) {
+  const slotDate = draft.date || draft.dateStart;
+  if (!slotDate || !draft.startTime || !draft.endTime) {
     return { ok: true, message: '', hint: '' };
   }
 

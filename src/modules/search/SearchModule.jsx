@@ -67,117 +67,124 @@ export default function SearchModule() {
   };
 
   return (
-    <div style={{ padding: '20px', height: '100%', overflowY: 'auto' }}>
+    <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
       <div style={{ 
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        width: '100%',
         maxWidth: '1400px', 
         margin: '0 auto',
         background: '#fff',
         borderRadius: '20px',
-        border: '1px solid #e2e8f0'
+        border: '1px solid #e2e8f0',
+        overflow: 'hidden'
       }}>
-        <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9' }}>
-          <h2 style={{ fontSize: '32px', fontWeight: '800', color: '#0b1c30', margin: '0 0 8px 0' }}>Buscar Eventos</h2>
-          <p style={{ color: '#64748b', margin: 0 }}>Encuentra reservas por nombre, cliente, salón, fecha y más</p>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+          <h2 style={{ fontSize: '26px', fontWeight: '800', color: '#0b1c30', margin: 0 }}>Buscar Eventos</h2>
+          <p style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', margin: 0 }}>Encuentra reservas por nombre, cliente, salón, fecha y más</p>
         </div>
 
-        <div style={{ padding: '24px 32px' }}>
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{ 
-              display: 'flex', alignItems: 'center', background: '#f8fafc', padding: '0 16px', 
-              borderRadius: '12px', border: '2px solid #e2e8f0', height: '52px', marginBottom: '16px'
-            }}>
-              <span style={{ fontSize: '22px', marginRight: '12px' }}>🔍</span>
+        <div style={{ padding: '16px 24px 12px 24px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
+            <div style={{ flex: '2 1 200px', display: 'flex', alignItems: 'center', background: '#f8fafc', padding: '0 12px', borderRadius: '8px', border: '2px solid #e2e8f0', height: '38px', boxSizing: 'border-box' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '8px', color: '#64748b' }}>search</span>
               <input 
                 type="text" 
-                placeholder="Buscar por evento, cliente, teléfono, salón, notes..." 
+                placeholder="Buscar..." 
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '15px', color: '#0b1c30' }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#0b1c30' }}
+              />
+            </div>
+            
+            <div style={{ flex: '1 1 120px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Estado</label>
+              <select 
+                value={statusFilter} 
+                onChange={e => setStatusFilter(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+              >
+                <option value="all">Todos</option>
+                {Object.keys(STATUS_META).map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: '1 1 120px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Salón</label>
+              <select 
+                value={salonFilter} 
+                onChange={e => setSalonFilter(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+              >
+                <option value="all">Todos</option>
+                {salones?.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: '1 1 120px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Vendedor</label>
+              <select 
+                value={userFilter} 
+                onChange={e => setUserFilter(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+              >
+                <option value="all">Todos</option>
+                {users?.map(u => (
+                  <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: '1 1 110px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Desde</label>
+              <input 
+                type="date" 
+                value={dateFrom} 
+                onChange={e => setDateFrom(e.target.value)}
+                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Estado</label>
-                <select 
-                  value={statusFilter} 
-                  onChange={e => setStatusFilter(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }}
-                >
-                  <option value="all">Todos</option>
-                  {Object.keys(STATUS_META).map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Salón</label>
-                <select 
-                  value={salonFilter} 
-                  onChange={e => setSalonFilter(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }}
-                >
-                  <option value="all">Todos</option>
-                  {salones?.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Vendedor</label>
-                <select 
-                  value={userFilter} 
-                  onChange={e => setUserFilter(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600' }}
-                >
-                  <option value="all">Todos</option>
-                  {users?.map(u => (
-                    <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Rango de Fechas</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
-                    type="date" 
-                    value={dateFrom} 
-                    onChange={e => setDateFrom(e.target.value)}
-                    style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '12px' }}
-                  />
-                  <input 
-                    type="date" 
-                    value={dateTo} 
-                    onChange={e => setDateTo(e.target.value)}
-                    style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '12px' }}
-                  />
-                </div>
-              </div>
+            <div style={{ flex: '1 1 110px' }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Hasta</label>
+              <input 
+                type="date" 
+                value={dateTo} 
+                onChange={e => setDateTo(e.target.value)}
+                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+              />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>
-                {filteredEvents.length} resultado{filteredEvents.length !== 1 ? 's' : ''}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}>
+              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                {filteredEvents.length} resultados
               </span>
               <button onClick={clearFilters} style={{ 
-                background: '#f1f5f9', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', color: '#64748b'
+                background: '#f1f5f9', border: 'none', padding: '10px 14px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', color: '#64748b', fontSize: '12px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
-                Limpiar filtros
+                Limpiar
               </button>
             </div>
           </div>
+        </div>
 
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ background: '#f8fafc' }}>
+        <div style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflowX: 'auto', overflowY: 'auto', flex: 1, width: '100%', minHeight: 0 }}>
+            <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
+              <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CÓDIGO</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>EVENTO</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CLIENTE</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>SALÓN</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>FECHA</th>
-                  <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>ESTADO</th>
-                  <th style={{ textAlign: 'center', padding: '14px 16px' }}></th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CÓDIGO</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>EVENTO</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CLIENTE</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>SALÓN</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>FECHA</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>ESTADO</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'center', padding: '14px 16px' }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -223,9 +230,18 @@ export default function SearchModule() {
                         <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                           <button 
                             onClick={() => navigate(`/reserva/${ev.id}`)}
-                            style={{ border: '1px solid #e2e8f0', background: '#fff', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer' }}
+                            style={{ 
+                              border: '1px solid #bfdbfe', 
+                              background: '#eff6ff', 
+                              padding: '6px 14px', 
+                              borderRadius: '8px', 
+                              cursor: 'pointer', 
+                              fontSize: '13px', 
+                              fontWeight: '700', 
+                              color: '#1d4ed8'
+                            }}
                           >
-                            👁️
+                            Ver
                           </button>
                         </td>
                       </tr>

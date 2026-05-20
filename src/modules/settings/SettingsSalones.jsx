@@ -57,11 +57,11 @@ export default function SettingsSalones() {
 
         <div className="modalFooter">
           <div className="leftActions">
-            <button className="btnDanger" id="btnSalonDisable" type="button">Inhabilitar</button>
+            <button className="btn-cancelar" id="btnSalonDisable" type="button">Inhabilitar</button>
           </div>
           <div className="rightActions">
-            <button className="btn" id="btnSalonReset" type="button">Nuevo salon</button>
-            <button className="btnPrimary" id="btnSalonSave" type="button">Guardar salon</button>
+            <button className="btn-cancel" id="btnSalonReset" type="button">Nuevo salon</button>
+            <button className="btn-teal" id="btnSalonSave" type="button">Guardar salon</button>
           </div>
         </div>
       </div>

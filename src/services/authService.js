@@ -58,7 +58,7 @@ export const authService = {
       username: user.username,
       avatarDataUrl: user.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || user.name)}&background=0ea5e9&color=fff`,
       signatureDataUrl: user.signatureDataUrl,
-      role: 'Usuario' // Default role for standard dashboard layout
+      role: user.role || 'vendedor'
     }));
   },
 

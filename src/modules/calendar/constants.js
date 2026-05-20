@@ -46,6 +46,7 @@ export const STATUS_META_LIST = [
   { key: 'Confirmado', color: '#00CC66' },
   { key: 'Cancelado', color: '#FF3333' },
   { key: 'Mantenimiento', color: '#8A2BE2' },
+  { key: 'Mantenimiento Realizado', color: '#94a3b8' },
 ];
 
 export const AUTO_STATUSES = [

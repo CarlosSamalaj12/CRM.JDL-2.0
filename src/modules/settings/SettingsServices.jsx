@@ -50,14 +50,14 @@ export default function SettingsServices() {
                 <span>Categoria</span>
                 <select id="serviceCategory" required></select>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                  <button className="btn" type="button" id="btnServiceCategoryManage">Gestionar categorias</button>
+                  <button className="btn-mantenimiento" type="button" id="btnServiceCategoryManage">Gestionar categorias</button>
                 </div>
               </label>
               <label className="field">
                 <span>Subcategoria</span>
                 <select id="serviceSubcategory" required></select>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                  <button className="btn" type="button" id="btnServiceSubcategoryManage">Gestionar subcategorias</button>
+                  <button className="btn-mantenimiento" type="button" id="btnServiceSubcategoryManage">Gestionar subcategorias</button>
                 </div>
               </label>
             </div>
@@ -96,11 +96,11 @@ export default function SettingsServices() {
 
             <div className="modalFooter">
               <div className="leftActions">
-                <button className="btnDanger" type="button" id="btnServiceDisable">Inhabilitar</button>
+                <button className="btn-cancelar" type="button" id="btnServiceDisable">Inhabilitar</button>
               </div>
               <div className="rightActions">
-                <button className="btn" type="button" id="btnServiceDiscard" onClick={() => handleClose('serviceBackdrop')}>Cancelar</button>
-                <button className="btnPrimary" type="submit">Guardar servicio</button>
+                <button className="btn-cancel" type="button" id="btnServiceDiscard" onClick={() => handleClose('serviceBackdrop')}>Cancelar</button>
+                <button className="btn-teal" type="submit">Guardar servicio</button>
               </div>
             </div>
           </form>
@@ -150,8 +150,8 @@ export default function SettingsServices() {
           <div className="modalFooter">
             <div className="leftActions"></div>
             <div className="rightActions">
-              <button className="btn" id="btnServiceCategoryReset" type="button">Nueva categoria</button>
-              <button className="btnPrimary" id="btnServiceCategorySave" type="button">Guardar categoria</button>
+              <button className="btn-cancel" id="btnServiceCategoryReset" type="button">Nueva categoria</button>
+              <button className="btn-teal" id="btnServiceCategorySave" type="button">Guardar categoria</button>
             </div>
           </div>
         </div>
@@ -207,8 +207,8 @@ export default function SettingsServices() {
           <div className="modalFooter">
             <div className="leftActions"></div>
             <div className="rightActions">
-              <button className="btn" id="btnServiceSubcategoryReset" type="button">Nueva subcategoria</button>
-              <button className="btnPrimary" id="btnServiceSubcategorySave" type="button">Guardar subcategoria</button>
+              <button className="btn-cancel" id="btnServiceSubcategoryReset" type="button">Nueva subcategoria</button>
+              <button className="btn-teal" id="btnServiceSubcategorySave" type="button">Guardar subcategoria</button>
             </div>
           </div>
         </div>
@@ -280,11 +280,11 @@ export default function SettingsServices() {
 
           <div className="modalFooter">
             <div className="leftActions">
-              <button className="btnDanger" id="btnGlobalGoalDisable" type="button">Inhabilitar</button>
+              <button className="btn-cancelar" id="btnGlobalGoalDisable" type="button">Inhabilitar</button>
             </div>
             <div className="rightActions">
-              <button className="btn" id="btnGlobalGoalReset" type="button">Nueva meta</button>
-              <button className="btnPrimary" id="btnGlobalGoalSave" type="button">Guardar meta</button>
+              <button className="btn-cancel" id="btnGlobalGoalReset" type="button">Nueva meta</button>
+              <button className="btn-teal" id="btnGlobalGoalSave" type="button">Guardar meta</button>
             </div>
           </div>
         </div>
