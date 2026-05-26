@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import api from '../../services/api';
 import { STATUS_META } from '../calendar/constants';
 
 export default function ReportsContabilidad({ onClose }) {
   const { events, users } = useOutletContext();
+  const navigate = useNavigate();
   
   const [companies, setCompanies] = useState([]);
   const [search, setSearch] = useState('');
@@ -44,8 +46,9 @@ export default function ReportsContabilidad({ onClose }) {
   // 1. Series aggregation utilities modeled after original legacy app.js
   const getEventSeries = (ev, allEvents) => {
     if (!ev) return [];
-    if (!ev.groupId) return [ev];
-    return allEvents.filter(x => x.groupId === ev.groupId);
+    const groupId = ev.groupId || ev.id_grupo || ev.idGroup;
+    if (!groupId) return [ev];
+    return allEvents.filter(x => String(x.groupId || x.id_grupo || x.idGroup || '') === String(groupId));
   };
 
   const getEventSeriesFinancialMeta = (ev, allEvents) => {
@@ -177,7 +180,7 @@ export default function ReportsContabilidad({ onClose }) {
     for (const ev of events) {
       if (ev.status === 'Cancelado' || ev.status === 'Mantenimiento') continue;
       
-      const reservationKey = ev.groupId || ev.id;
+      const reservationKey = ev.groupId || ev.id_grupo || ev.idGroup || ev.id;
       if (reservationKey) {
         if (seenReservations.has(reservationKey)) continue;
         seenReservations.add(reservationKey);
@@ -273,7 +276,7 @@ export default function ReportsContabilidad({ onClose }) {
     }
 
     if (userFilter !== 'all') {
-      filtered = filtered.filter(r => r.userId === userFilter);
+      filtered = filtered.filter(r => String(r.userId || '') === String(userFilter));
     }
 
     if (statusFilter !== 'all') {
@@ -285,7 +288,7 @@ export default function ReportsContabilidad({ onClose }) {
     }
 
     if (companyFilter !== 'all') {
-      filtered = filtered.filter(r => r.companyId === companyFilter);
+      filtered = filtered.filter(r => String(r.companyId || '') === String(companyFilter));
     }
 
     return filtered;
@@ -472,14 +475,14 @@ export default function ReportsContabilidad({ onClose }) {
   };
 
   // 9. Alert for quote/payment action on other views
-  const handleActionClick = (actionName, eventId) => {
-    Swal.fire({
-      title: 'Nota de Trazabilidad',
-      text: `Para ${actionName} en esta cotización, por favor búscalo directamente en el calendario interactivo y haz doble clic sobre el evento para abrir su panel.`,
-      icon: 'info',
-      confirmButtonColor: '#059669',
-      confirmButtonText: 'Entendido'
-    });
+  const handleActionClick = (_actionName, eventId) => {
+    if (!eventId) {
+      Swal.fire('Sin evento relacionado', 'No se encontro un evento para abrir esta cotizacion.', 'info');
+      return;
+    }
+    onClose?.();
+    navigate(`/reserva/${eventId}`);
+    return;
   };
 
   // 10. Excel download matching institutional accounts
@@ -562,6 +565,7 @@ export default function ReportsContabilidad({ onClose }) {
     <div className="modalBackdrop" id="accountingReportBackdrop" onClick={(e) => { if (e.target.id === 'accountingReportBackdrop') onClose(); }}>
       <style>{`
         #accountingReportBackdrop .salesReportModal {
+          width: min(1240px, calc(100vw - 28px)) !important;
           height: 96vh !important;
           max-height: 96vh !important;
           display: flex !important;
@@ -569,9 +573,36 @@ export default function ReportsContabilidad({ onClose }) {
           overflow: hidden !important;
           box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
         }
+        #accountingReportBackdrop .salesReportHeader {
+          min-height: 86px !important;
+          padding: 14px 20px !important;
+          align-items: center !important;
+        }
+        #accountingReportBackdrop .reportBrandHeader {
+          gap: 12px !important;
+          align-items: center !important;
+        }
+        #accountingReportBackdrop .salesReportBrandBadge {
+          width: 52px !important;
+          height: 52px !important;
+          border-radius: 14px !important;
+        }
+        #accountingReportBackdrop .salesReportBrandLogo {
+          width: 38px !important;
+          height: 38px !important;
+        }
+        #accountingReportBackdrop #accountingReportTitle {
+          font-size: 27px !important;
+          line-height: 1.04 !important;
+          letter-spacing: -0.02em !important;
+        }
+        #accountingReportBackdrop #accountingReportSubtitle,
+        #accountingReportBackdrop .reportBrandEyebrow {
+          font-size: 12px !important;
+        }
         #accountingReportBackdrop .salesReportBody {
           flex: 1 !important;
-          padding: 16px 24px !important;
+          padding: 14px 24px 16px !important;
           display: flex !important;
           flex-direction: column !important;
           gap: 14px !important;
@@ -585,7 +616,7 @@ export default function ReportsContabilidad({ onClose }) {
           border: 1px solid #e2e8f0 !important;
         }
         #accountingReportBackdrop .reportSectionIntro {
-          margin-bottom: 8px !important;
+          margin-bottom: 10px !important;
           display: flex !important;
           justify-content: space-between !important;
           align-items: flex-start !important;
@@ -598,7 +629,7 @@ export default function ReportsContabilidad({ onClose }) {
           letter-spacing: 0.05em !important;
         }
         #accountingReportBackdrop .reportSectionTitle {
-          font-size: 16px !important;
+          font-size: 15px !important;
           font-weight: 800 !important;
           color: #0f172a !important;
           margin-top: 2px !important;
@@ -622,7 +653,7 @@ export default function ReportsContabilidad({ onClose }) {
           gap: 10px !important;
         }
         #accountingReportBackdrop .salesSummaryCard {
-          min-height: 84px !important;
+          min-height: 74px !important;
           padding: 8px 12px !important;
           gap: 2px !important;
           border-radius: 10px !important;
@@ -705,6 +736,112 @@ export default function ReportsContabilidad({ onClose }) {
         #accountingReportBackdrop .quoteTable tbody td {
           padding: 8px 10px !important;
           font-size: 12px !important;
+        }
+        #accountingReportBackdrop .salesReportModal {
+          width: min(1240px, calc(100vw - 28px)) !important;
+        }
+        #accountingReportBackdrop .salesReportBody {
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+        }
+        #accountingReportBackdrop .salesReportSummary {
+          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+          align-items: stretch !important;
+        }
+        #accountingReportBackdrop .salesSummaryCard {
+          min-width: 0 !important;
+        }
+        #accountingReportBackdrop .accountingPortfolioTable {
+          min-width: 1040px !important;
+          table-layout: fixed !important;
+        }
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(1),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(1) { width: 120px !important; }
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(2),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(2) { width: 190px !important; }
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(3),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(3) { width: 150px !important; }
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(4),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(4) { width: 76px !important; }
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(5),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(5),
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(6),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(6),
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(7),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(7),
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(8),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(8) { width: 112px !important; }
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(9),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(9) { width: 142px !important; }
+        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(10),
+        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(10) { width: 176px !important; }
+        #accountingReportBackdrop .accountingInlineActions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          justify-content: flex-start;
+          margin-top: 7px;
+        }
+        #accountingReportBackdrop .accountingInlineActions .accountingActionBtn {
+          min-height: 28px !important;
+          padding: 0 9px !important;
+          font-size: 10.5px !important;
+          border-radius: 8px !important;
+          box-shadow: none !important;
+        }
+        #accountingReportBackdrop .accountingLastPayCell {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        #accountingReportBackdrop .accountingDetailCard {
+          gap: 18px !important;
+        }
+        #accountingReportBackdrop .accountingDetailHead {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 12px 14px;
+          border: 1px solid #dbeafe;
+          border-radius: 12px;
+          background: #eff6ff;
+        }
+        #accountingReportBackdrop .accountingDetailTable {
+          min-width: 1320px;
+        }
+        #accountingReportBackdrop .accountingDetailTableWrap {
+          max-height: 42vh;
+          overflow: auto !important;
+        }
+        #accountingReportBackdrop .accountingDetailMetrics {
+          display: grid !important;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px !important;
+        }
+        #accountStatementBackdrop {
+          position: fixed !important;
+          inset: 0 !important;
+          z-index: 42000 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          padding: 18px !important;
+          background: rgba(15, 23, 42, 0.55) !important;
+          backdrop-filter: blur(10px) !important;
+          -webkit-backdrop-filter: blur(10px) !important;
+        }
+        #accountStatementBackdrop .accountStatementModal {
+          width: min(1180px, calc(100vw - 36px)) !important;
+          height: min(92vh, 940px) !important;
+        }
+        @media (max-width: 980px) {
+          #accountingReportBackdrop .salesReportSummary {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          #accountingReportBackdrop .accountingDetailMetrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
         }
       `}</style>
       <div className="salesReportModal">
@@ -867,7 +1004,7 @@ export default function ReportsContabilidad({ onClose }) {
           
           {/* Main Portfolio Table */}
           <div className="salesReportTableWrap" style={{ flex: 1, overflow: 'auto' }}>
-            <table className="quoteTable salesReportTable" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <table className="quoteTable salesReportTable accountingPortfolioTable" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <thead>
                 <tr>
                   <th>INDICADOR</th>
@@ -879,14 +1016,13 @@ export default function ReportsContabilidad({ onClose }) {
                   <th>SALDO PENDIENTE</th>
                   <th>SALDO A FAVOR</th>
                   <th>PROPUESTA</th>
-                  <th>ULTIMO PAGO</th>
-                  <th>ACCIONES</th>
+                  <th>ULTIMO PAGO / ACCIONES</th>
                 </tr>
               </thead>
                 {accounts.length === 0 ? (
                   <tbody>
                   <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
                       Sin resultados para los filtros seleccionados.
                     </td>
                   </tr>
@@ -934,35 +1070,40 @@ export default function ReportsContabilidad({ onClose }) {
                               <small style={{ color: '#64748b', fontSize: '11px' }}>{acc.collectionEta || "Sin gestión pendiente"}</small>
                             </div>
                           </td>
-                          <td style={{ color: '#475569', fontWeight: '500' }}>{acc.lastAdvanceDate || "-"}</td>
                           <td>
-                            <div className="accountingActionGroup">
-                              <button 
-                                className="accountingActionBtn accountingActionBtn--secondary" 
-                                type="button" 
+                            <div className="accountingLastPayCell">
+                              <strong style={{ color: '#475569', fontWeight: '700' }}>{acc.lastAdvanceDate || "-"}</strong>
+                              <small style={{ color: '#64748b', fontSize: '10.5px' }}>
+                                {acc.advancesCount ? `${acc.advancesCount} pago(s)` : 'Sin pagos'}
+                              </small>
+                            </div>
+                            <div className="accountingInlineActions">
+                              <button
+                                className="accountingActionBtn accountingActionBtn--secondary"
+                                type="button"
                                 onClick={() => toggleAccountExpand(acc.key)}
                               >
                                 {expanded ? "Ocultar detalle" : "Ver detalle"}
                               </button>
-                              <button 
-                                className="accountingActionBtn accountingActionBtn--secondary" 
+                              <button
+                                className="accountingActionBtn accountingActionBtn--secondary"
                                 type="button"
                                 onClick={() => setActiveStatementAccount(acc)}
                               >
                                 Estado de cuenta
                               </button>
-                              <button 
-                                className="accountingActionBtn accountingActionBtn--secondary" 
-                                type="button" 
-                                onClick={() => handleActionClick("ver cotización", acc.actionEventId)}
+                              <button
+                                className="accountingActionBtn accountingActionBtn--secondary"
+                                type="button"
+                                onClick={() => handleActionClick("ver cotizacion", acc.actionEventId)}
                                 disabled={!canApplyPayment}
                               >
-                                Ver cotización
+                                Ver cotizacion
                               </button>
-                              <button 
-                                className="accountingActionBtn" 
-                                type="button" 
-                                onClick={() => handleActionClick(acc.actionHasCredit ? "ajustar crédito" : "aplicar pago", acc.actionEventId)}
+                              <button
+                                className="accountingActionBtn"
+                                type="button"
+                                onClick={() => handleActionClick(acc.actionHasCredit ? "ajustar saldo" : "aplicar pago", acc.actionEventId)}
                                 disabled={!canApplyPayment}
                               >
                                 {acc.actionHasCredit ? "Ajustar saldo" : "Aplicar pago"}
@@ -974,13 +1115,13 @@ export default function ReportsContabilidad({ onClose }) {
                         {/* Collapsible Expanded Details Section */}
                         {expanded && (
                           <tr className="accountingCompanyDetailRow">
-                            <td colSpan={11} style={{ padding: '16px 24px', background: '#f8fafc' }}>
-                              <div className="accountingDetailCard" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                                <div className="accountingDetailHead">
-                                  <strong>Estado de cuenta por evento</strong>
-                                  <small style={{ fontSize: '12px', color: '#64748b', marginLeft: '10px' }}>
+                            <td colSpan={10} style={{ padding: '16px 24px', background: '#f8fafc' }}>
+                              <div className="accountingDetailCard" style={{ display: 'flex', flexDirection: 'column', gap: '18px', padding: '18px', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
+                                <div className="accountingDetailHead" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', border: 'none', borderBottom: '2px solid #e2e8f0', borderRadius: '0' }}>
+                                  <strong style={{ fontSize: '16px', color: '#0f172a' }}>Estado de cuenta por evento</strong>
+                                  <span style={{ fontSize: '13px', color: '#475569', fontWeight: '600', background: '#f1f5f9', padding: '6px 14px', borderRadius: '999px', border: '1px solid #cbd5e1' }}>
                                     {`${acc.companyName} | ${acc.eventsCount} evento(s) | ${acc.advancesCount} pago(s)`}
-                                  </small>
+                                  </span>
                                 </div>
                                 
                                 {/* 1. Detailed Events Table */}
@@ -1149,26 +1290,86 @@ export default function ReportsContabilidad({ onClose }) {
       </div>
 
       {/* Printable Institutional "Estado de Cuenta" Modal Overlay */}
-      {activeStatementAccount && (
-        <div id="accountStatementBackdrop">
-          <div className="accountStatementModal">
+      {activeStatementAccount && createPortal(
+        <div id="accountStatementBackdrop" onClick={() => setActiveStatementAccount(null)}>
+          <div className="accountStatementModal" onClick={(event) => event.stopPropagation()} style={{
+            background: '#ffffff',
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }}>
             {/* Header bar */}
-            <div className="accountStatementHeaderBar">
+            <div className="accountStatementHeaderBar" style={{
+              background: '#0284c7', // Azul más claro y agradable (Tailwind sky-600)
+              color: 'white',
+              padding: '20px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderTopLeftRadius: '12px',
+              borderTopRightRadius: '12px'
+            }}>
               <div>
-                <div className="modalTitle">Estado de Cuenta</div>
-                <div className="modalSubtitle" style={{ opacity: 0.8 }}>
+                <div className="modalTitle" style={{ color: 'white', fontSize: '20px', margin: 0 }}>Estado de Cuenta</div>
+                <div className="modalSubtitle" style={{ opacity: 0.9, color: '#e0f2fe', marginTop: '4px' }}>
                   {activeStatementAccount.rows?.length} evento(s) financiero(s) | {buildAccountingLedgerEntries(activeStatementAccount).length} movimiento(s)
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button className="iconBtn" onClick={() => window.print()} title="Imprimir estado de cuenta">🖨️ Imprimir</button>
-                <button className="iconBtn" style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', width: '32px', height: '32px', fontSize: '18px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setActiveStatementAccount(null)} title="Cerrar">×</button>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  className="iconBtn" 
+                  style={{ 
+                    background: 'rgba(255,255,255,0.2)', 
+                    color: '#fff', 
+                    border: '1px solid rgba(255,255,255,0.3)', 
+                    borderRadius: '6px', 
+                    padding: '8px 16px', 
+                    fontSize: '14px', 
+                    fontWeight: '600', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    transition: 'background 0.2s'
+                  }} 
+                  onClick={() => window.print()} 
+                  title="Imprimir estado de cuenta"
+                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>print</span> Imprimir
+                </button>
+                <button 
+                  className="iconBtn" 
+                  style={{ 
+                    background: '#ef4444', 
+                    color: '#fff', 
+                    border: 'none', 
+                    borderRadius: '6px', 
+                    width: '36px', 
+                    height: '36px', 
+                    fontSize: '20px', 
+                    fontWeight: '700', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    transition: 'background 0.2s'
+                  }} 
+                  onClick={() => setActiveStatementAccount(null)} 
+                  title="Cerrar"
+                  onMouseOver={(e) => e.currentTarget.style.background = '#dc2626'}
+                  onMouseOut={(e) => e.currentTarget.style.background = '#ef4444'}
+                >
+                  &times;
+                </button>
               </div>
             </div>
             
             {/* Body shell */}
-            <div className="accountStatementBodyShell">
-              <div className="accountStatementPaper">
+            <div className="accountStatementBodyShell" style={{ background: '#f1f5f9', padding: '24px', overflowY: 'auto', flex: 1, borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px' }}>
+              <div className="accountStatementPaper" style={{ background: '#fff', maxWidth: '900px', margin: '0 auto', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
                 {/* Brand header */}
                 <div className="accountStatementDocHead">
                   <div className="accountStatementBrandBlock">
@@ -1284,7 +1485,8 @@ export default function ReportsContabilidad({ onClose }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

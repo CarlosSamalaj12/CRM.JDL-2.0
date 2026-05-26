@@ -4,7 +4,7 @@ const mariadb = require("mariadb");
 const crypto = require("crypto");
 const fs = require("fs");
 require("dotenv").config();
-const { syncEventsToGoogle, getAuthUrl, handleAuthCallback } = require("./googleCalendar.cjs");
+const { createGoogleEvent, createUserReminder } = require("./googleCalendar.cjs");
 
 const APP_PORT = Number(process.env.APP_PORT || 3000);
 const DB_HOST = process.env.DB_HOST || "127.0.0.1";
@@ -3307,10 +3307,7 @@ app.put("/api/state", async (req, res) => {
     await writeStateToTables(nextState);
     console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! Base de datos MariaDB actualizada correctamente (${nextState.events?.length || 0} eventos registrados).`);
 
-    // Sincronizar asíncronamente con Google Calendar en segundo plano sin bloquear al cliente
-    syncEventsToGoogle(oldEvents, nextState.events || []).catch(err => {
-      console.error("❌ Error en la sincronización asíncrona de Google Calendar:", err);
-    });
+    // Google Calendar sync desactivado del calendario general.
 
     return res.json({ ok: true });
   } catch (error) {
@@ -3588,12 +3585,7 @@ app.get("/auth/google/sync", async (req, res) => {
       `);
     }
 
-    console.log(`[${new Date().toLocaleTimeString()}] 📦 Sincronizando ${events.length} eventos a Google Calendar...`);
-    
-    // Forzar la creación/actualización enviando cada evento a Google Calendar
-    for (const ev of events) {
-      await syncEventsToGoogle([], [ev]);
-    }
+      // Google Calendar sync desactivado del calendario general.
 
     return res.send(`
       <!DOCTYPE html>
@@ -3680,6 +3672,40 @@ app.get("/auth/google/sync", async (req, res) => {
     return res.status(500).send(`Error de sincronización: ${error.message}`);
   } finally {
     if (conn) conn.release();
+  }
+});
+
+app.post("/api/calendar/invite", async (req, res) => {
+  const { date, time, eventName, email, notes } = req.body;
+  if (!date || !time || !eventName) {
+    return res.status(400).json({ error: "Faltan campos requeridos: date, time, eventName" });
+  }
+  if (!email) {
+    return res.status(400).json({ error: "El email del usuario es requerido para crear la cita en Google Calendar" });
+  }
+
+  try {
+    const result = await createUserReminder({
+      userEmail: email,
+      eventName,
+      date,
+      time,
+      notes: notes || '',
+    });
+
+    if (!result.ok) {
+      return res.status(500).json({ error: "No se pudo crear la cita en Google Calendar" });
+    }
+
+    const modeMsg = result.mode === 'direct'
+      ? `Cita creada directamente en el calendario de ${email}`
+      : `Invitación enviada a ${email} (acepta el email para ver la cita en tu calendario)`;
+
+    console.log(`[${new Date().toLocaleTimeString()}] 📅 ${modeMsg}`);
+    return res.json({ ok: true, message: modeMsg, mode: result.mode });
+  } catch (error) {
+    console.error("❌ Error creando cita en Google Calendar:", error.message);
+    return res.status(500).json({ error: "Error creando evento en Google Calendar", details: error.message });
   }
 });
 

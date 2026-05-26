@@ -254,15 +254,22 @@ export default function ReportsVentas({ onClose }) {
     <div className="modalBackdrop" id="salesReportBackdrop" onClick={(e) => { if (e.target.id === 'salesReportBackdrop') onClose(); }}>
       <style>{`
         #salesReportBackdrop .salesReportModal {
+          width: min(1180px, calc(100vw - 32px)) !important;
           max-height: 96vh !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
           box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
         }
         #salesReportBackdrop .salesReportBody {
+          flex: 1 1 auto !important;
+          min-height: 0 !important;
           padding: 16px 24px !important;
           display: flex !important;
           flex-direction: column !important;
           gap: 14px !important;
           overflow-y: auto !important;
+          overflow-x: hidden !important;
         }
         #salesReportBackdrop .salesReportHeroPanel {
           padding: 12px 18px !important;
@@ -305,10 +312,11 @@ export default function ReportsVentas({ onClose }) {
         }
         #salesReportBackdrop .salesReportSummary {
           display: grid !important;
-          grid-template-columns: repeat(5, 1fr) !important;
+          grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
           gap: 10px !important;
         }
         #salesReportBackdrop .salesSummaryCard {
+          min-width: 0 !important;
           min-height: 84px !important;
           padding: 8px 12px !important;
           gap: 2px !important;
@@ -383,10 +391,36 @@ export default function ReportsVentas({ onClose }) {
           border-radius: 6px !important;
         }
         #salesReportBackdrop .salesReportTableWrap {
+          flex: 1 1 auto !important;
+          min-height: 260px !important;
+          max-height: none !important;
           margin-top: 4px !important;
           border-radius: 12px !important;
           border: 1px solid #cbd5e1 !important;
+          overflow: auto !important;
         }
+        #salesReportBackdrop .salesReportTable {
+          min-width: 980px !important;
+          table-layout: fixed !important;
+        }
+        #salesReportBackdrop .salesReportTable th:nth-child(1),
+        #salesReportBackdrop .salesReportTable td:nth-child(1) { width: 130px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(2),
+        #salesReportBackdrop .salesReportTable td:nth-child(2) { width: 150px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(3),
+        #salesReportBackdrop .salesReportTable td:nth-child(3) { width: 160px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(4),
+        #salesReportBackdrop .salesReportTable td:nth-child(4) { width: 110px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(5),
+        #salesReportBackdrop .salesReportTable td:nth-child(5) { width: 190px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(6),
+        #salesReportBackdrop .salesReportTable td:nth-child(6) { width: 120px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(7),
+        #salesReportBackdrop .salesReportTable td:nth-child(7) { width: 160px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(8),
+        #salesReportBackdrop .salesReportTable td:nth-child(8) { width: 70px !important; }
+        #salesReportBackdrop .salesReportTable th:nth-child(9),
+        #salesReportBackdrop .salesReportTable td:nth-child(9) { width: 110px !important; }
         #salesReportBackdrop .salesReportTable thead th {
           padding: 8px 10px !important;
           font-size: 10.5px !important;
@@ -400,6 +434,30 @@ export default function ReportsVentas({ onClose }) {
           width: 24px !important;
           height: 24px !important;
           font-size: 10px !important;
+        }
+        @media (max-width: 1180px) {
+          #salesReportBackdrop .salesReportSummary {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+          #salesReportBackdrop .salesReportFiltersInline {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+          #salesReportBackdrop .salesReportActions {
+            grid-column: span 3 !important;
+          }
+        }
+        @media (max-width: 760px) {
+          #salesReportBackdrop .salesReportSummary,
+          #salesReportBackdrop .salesReportFiltersInline {
+            grid-template-columns: 1fr !important;
+          }
+          #salesReportBackdrop .salesReportActions {
+            grid-column: span 1 !important;
+            justify-content: stretch !important;
+          }
+          #salesReportBackdrop .salesReportActions button {
+            flex: 1 1 0;
+          }
         }
       `}</style>
 

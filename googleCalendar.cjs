@@ -31,12 +31,18 @@ if (clientId && clientSecret) {
   }
 } else if (clientEmail && privateKey) {
   try {
-    const auth = new google.auth.JWT(
-      clientEmail,
-      null,
-      privateKey.replace(/\\n/g, '\n'), // Corrige los saltos de línea de la llave privada en variables .env
-      ["https://www.googleapis.com/auth/calendar"]
-    );
+    let key = privateKey;
+    if (key.startsWith('"') && key.endsWith('"')) {
+      key = key.substring(1, key.length - 1);
+    }
+    key = key.replace(/\\n/g, '\n');
+
+    const auth = new google.auth.JWT({
+      email: clientEmail,
+      key: key,
+      scopes: ["https://www.googleapis.com/auth/calendar"]
+    });
+    
     calendar = google.calendar({ version: "v3", auth });
     console.log("⚙️ Google Calendar API (Service Account): Inicializado y listo para sincronizar.");
   } catch (error) {
@@ -126,9 +132,12 @@ function getEventStartAndEnd(event) {
 }
 
 /**
- * Inserta un nuevo evento en Google Calendar
+ * Inserta un nuevo evento en Google Calendar.
+ * @param {object} event - Datos del evento del CRM.
+ * @param {boolean} isFallback - Si es true, no reintenta en caso de conflicto.
+ * @param {string|null} attendeeEmail - Email del usuario al que se le enviará la invitación de Google Calendar.
  */
-async function createGoogleEvent(event, isFallback = false) {
+async function createGoogleEvent(event, isFallback = false, attendeeEmail = null) {
   if (!calendar) return;
   const eventId = getGoogleEventId(event.id);
   const colorId = getStatusColorId(event.status);
@@ -149,12 +158,22 @@ async function createGoogleEvent(event, isFallback = false) {
     colorId: colorId
   };
 
+  // Si se proporciona un email de destinatario, agregarlo como asistente para que
+  // Google Calendar le envíe una invitación directamente a su cuenta.
+  if (attendeeEmail && typeof attendeeEmail === 'string' && attendeeEmail.includes('@')) {
+    resource.attendees = [{ email: attendeeEmail }];
+  }
+
   try {
     await calendar.events.insert({
       calendarId,
       requestBody: resource,
+      // sendUpdates='all' hace que Google envíe el email de invitación al asistente
+      sendUpdates: attendeeEmail ? 'all' : 'none',
     });
-    console.log(`✅ Google Calendar: Evento creado exitosamente -> "${event.name}" [${event.salon}]`);
+    console.log(`✅ Google Calendar: Evento creado exitosamente -> "${event.name}" [${event.salon}]${
+      attendeeEmail ? ` | Invitación enviada a: ${attendeeEmail}` : ''
+    }`);
   } catch (error) {
     if (error.code === 409 && !isFallback) {
       // 409 Conflict: El evento ya existe. Lo actualizamos en su lugar de forma transparente.
@@ -272,8 +291,100 @@ async function syncEventsToGoogle(oldEvents, newEvents) {
   }
 }
 
+
+/**
+ * Crea una cita/recordatorio de seguimiento directamente en el Google Calendar
+ * PERSONAL del usuario autenticado en el CRM.
+ *
+ * Usa el email del usuario como calendarId (requiere que el usuario haya compartido
+ * su calendario con la Service Account). Si falla por permisos, cae en modo invitación
+ * (attendees) como respaldo — Google envía un email de invitación al usuario.
+ *
+ * @param {object} params
+ * @param {string} params.userEmail  - Email del usuario autenticado (kevinbixcul@gmail.com)
+ * @param {string} params.eventName  - Nombre del evento en el calendario (ej: "Cita: Boda Juan")
+ * @param {string} params.date       - Fecha ISO: "2026-05-21"
+ * @param {string} params.time       - Hora HH:MM: "10:00"
+ * @param {string} params.notes      - Descripción / notas de la cita
+ */
+async function createUserReminder({ userEmail, eventName, date, time, notes }) {
+  if (!calendar) {
+    console.warn('⚠️ Google Calendar: No inicializado. Revisa las credenciales en .env');
+    return { ok: false, mode: null };
+  }
+
+  if (!userEmail || !userEmail.includes('@')) {
+    console.warn('⚠️ createUserReminder: Email del usuario inválido:', userEmail);
+    return { ok: false, mode: null };
+  }
+
+  // Calcular fin: 1 hora después del inicio
+  const startDt = new Date(`${date}T${time}:00`);
+  if (isNaN(startDt.getTime())) {
+    console.error('❌ createUserReminder: Fecha/hora inválida:', date, time);
+    return { ok: false, mode: null };
+  }
+  const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmtDt = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+
+  const resource = {
+    summary: eventName,
+    description: notes || '',
+    start: { dateTime: fmtDt(startDt), timeZone },
+    end:   { dateTime: fmtDt(endDt),   timeZone },
+    colorId: '2',  // Verde suave (Sage) para distinguir de reservas de salón
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'popup',  minutes: 30 },
+        { method: 'email',  minutes: 60 },
+      ],
+    },
+  };
+
+  // INTENTO 1: Escribir directamente al calendario personal del usuario.
+  // Funciona si el usuario compartía su Google Calendar con la Service Account.
+  try {
+    await calendar.events.insert({
+      calendarId: userEmail,   // <-- Clave: email del usuario como destino
+      requestBody: resource,
+      sendUpdates: 'none',
+    });
+    console.log(`✅ Google Calendar [directo]: Cita "${eventName}" creada en el calendario de ${userEmail}`);
+    return { ok: true, mode: 'direct' };
+  } catch (errDirect) {
+    // 403 = no tiene acceso al calendario, 404 = calendario no encontrado
+    if (errDirect.code === 403 || errDirect.code === 404) {
+      console.log(`ℹ️ Google Calendar: Sin acceso directo al calendario de ${userEmail}. Cambiando a modo invitación...`);
+    } else {
+      console.error(`❌ Google Calendar [directo]: Error inesperado ->`, errDirect.message);
+    }
+  }
+
+  // INTENTO 2 (fallback): Crear en el calendario del anfitrón y enviar invitación al usuario.
+  // El usuario recibe un email con el evento y puede aceptarlo con 1 clic.
+  try {
+    resource.attendees = [{ email: userEmail }];
+    await calendar.events.insert({
+      calendarId,             // <-- Calendario del anfitrón (GOOGLE_CALENDAR_ID)
+      requestBody: resource,
+      sendUpdates: 'all',     // Envía email de invitación al asistente
+    });
+    console.log(`✅ Google Calendar [invitación]: Cita "${eventName}" creada. Invitación enviada a ${userEmail}`);
+    return { ok: true, mode: 'invite' };
+  } catch (errInvite) {
+    console.error(`❌ Google Calendar [invitación]: Error ->`, errInvite.message);
+    return { ok: false, mode: null };
+  }
+}
+
 module.exports = {
   syncEventsToGoogle,
+  createGoogleEvent,
+  updateGoogleEvent,
+  deleteGoogleEvent,
+  createUserReminder,
   getAuthUrl,
   handleAuthCallback
 };

@@ -1,0 +1,197 @@
+<div class="modalBackdrop" id="quoteAdvanceBackdrop" hidden>
+      <div class="modal quoteAdvanceModal" role="dialog" aria-modal="true" aria-labelledby="quoteAdvanceTitle">
+        <div class="modalHeader">
+          <div>
+            <div class="modalTitle" id="quoteAdvanceTitle">Anticipos</div>
+            <div class="modalSubtitle">Registra pagos anticipados para restar saldo del evento</div>
+          </div>
+          <button class="iconBtn" id="btnQuoteAdvanceClose" type="button" title="Cerrar">&#10005;</button>
+        </div>
+        <div class="modalBody quoteAdvanceBody">
+          <div class="quoteAdvanceFormGrid">
+            <label class="field">
+              <span>Monto</span>
+              <input id="quoteAdvanceAmount" type="number" min="0" step="0.01" placeholder="Ej: 1500.00" required />
+            </label>
+            <label class="field">
+              <span>Forma de pago</span>
+              <select id="quoteAdvancePaymentType" required>
+                <option value="Credito">Credito</option>
+                <option value="Deposito">Deposito</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Tarjeta">Tarjeta</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Fecha</span>
+              <input id="quoteAdvanceDate" type="date" required />
+            </label>
+            <label class="field">
+              <span>No. boleta</span>
+              <input id="quoteAdvanceVoucherNumber" type="text" placeholder="Ej: BOL-000123" />
+            </label>
+            <label class="field quoteAdvanceDescriptionField">
+              <span>Descripcion</span>
+              <input id="quoteAdvanceDescription" type="text" placeholder="Detalle del anticipo" required />
+            </label>
+            <label class="field">
+              <span>Evidencia (archivo)</span>
+              <input id="quoteAdvanceEvidence" type="file" accept="image/*,application/pdf" />
+              <small id="quoteAdvanceEvidenceHint" class="fieldHint">Sin archivo adjunto</small>
+            </label>
+            <div class="rightActions quoteAdvanceAddAction">
+              <button class="btnPrimary" id="btnQuoteAdvanceAdd" type="button">Agregar anticipo</button>
+            </div>
+          </div>
+          <div class="quoteAdvanceSummary">
+            <div class="quoteAdvanceMetric quoteAdvanceMetric--total">
+              <span>Total anticipos</span>
+              <strong id="quoteAdvanceTotal">Q 0.00</strong>
+            </div>
+            <div class="quoteAdvanceMetric quoteAdvanceMetric--pending">
+              <span>Saldo pendiente</span>
+              <strong id="quoteAdvancePending">Q 0.00</strong>
+            </div>
+            <div class="quoteAdvanceMetric quoteAdvanceMetric--credit">
+              <span>Saldo a favor</span>
+              <strong id="quoteAdvanceCredit">Q 0.00</strong>
+            </div>
+          </div>
+          <div class="quoteTableWrap quoteAdvanceTableWrap">
+            <table class="quoteTable">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>No. boleta</th>
+                  <th>Descripcion</th>
+                  <th>Monto</th>
+                  <th>Evidencia</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="quoteAdvanceBody"></tbody>
+            </table>
+          </div>
+          <div class="quoteAdvanceLogCard">
+            <div class="quoteCardTitle">Log de pagos y movimientos</div>
+            <div class="quoteTableWrap quoteAdvanceLogWrap">
+              <table class="quoteTable">
+                <thead>
+                  <tr>
+                    <th>Fecha/Hora</th>
+                    <th>Usuario</th>
+                    <th>Movimiento</th>
+                  </tr>
+                </thead>
+                <tbody id="quoteAdvanceHistoryBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modalFooter">
+          <div></div>
+          <div class="rightActions">
+            <button class="btn" id="btnQuoteAdvanceDone" type="button">Listo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modalBackdrop" id="menuMontajeBackdrop" hidden>
+      <div class="modal menuMontajeModal" role="dialog" aria-modal="true" aria-labelledby="menuMontajeTitle">
+        <div class="modalHeader">
+          <div>
+            <div class="modalTitle" id="menuMontajeTitle">Menu &amp; Montaje</div>
+            <div class="modalSubtitle">Define menu y montaje por fecha y salon del evento</div>
+          </div>
+          <button class="iconBtn" id="btnMenuMontajeClose" type="button" title="Cerrar">&#10005;</button>
+        </div>
+        <div class="modalBody menuMontajeBody">
+          <section class="quoteCard mmCard mmCardWide">
+            <div class="quoteCardTitle">Datos por fecha y salon</div>
+            <div class="mmsSectionLead">Elige la version, fecha y salon para trabajar sobre la comanda correcta.</div>
+            <div class="mmGrid">
+              <label class="field">
+                <span>Version Menu &amp; Montaje</span>
+                <div class="quoteServiceActions">
+                  <select id="mmVersionSelect"></select>
+                  <button class="btn" id="btnMenuMontajeLoadVersion" type="button">Cargar</button>
+                </div>
+              </label>
+              <label class="field">
+                <span>Fecha + Salon</span>
+                <select id="mmDateSalonSelect"></select>
+              </label>
+              <label class="field">
+                <span>No Doc</span>
+                <input id="mmDocNo" type="text" readonly />
+              </label>
+            </div>
+          </section>
+
+          <section class="quoteCard mmCard mmMenuCard">
+            <div class="quoteCardTitle">Menu</div>
+            <div class="mmGrid">
+              <label class="field">
+                <span>Titulo menu</span>
+                <input id="mmMenuTitle" type="text" placeholder="Ej: Desayunos buffet" />
+              </label>
+              <label class="field">
+                <span>Cantidad</span>
+                <input id="mmMenuQty" type="number" min="0" step="1" placeholder="Ej: 15" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Descripcion menu</span>
+              <div class="mmTextTools" data-mm-target="mmMenuDescription">
+                <button class="btn mmToolBtn" type="button" data-mm-snippet="separator">+ Separador</button>
+              </div>
+              <textarea id="mmMenuDescription" rows="4" placeholder="Escribe detalle del menu"></textarea>
+              <div class="mmCountRow"><span id="mmMenuDescCount">0 caracteres</span></div>
+            </label>
+          </section>
+
+          <section class="quoteCard mmCard mmMontajeCard">
+            <div class="quoteCardTitle">Montaje</div>
+            <label class="field">
+              <span>Descripcion montaje</span>
+              <div class="mmTextTools" data-mm-target="mmMontajeDescription">
+                <button class="btn mmToolBtn" type="button" data-mm-snippet="separator">+ Separador</button>
+              </div>
+              <textarea id="mmMontajeDescription" rows="4" placeholder="Escribe detalle del montaje"></textarea>
+              <div class="mmCountRow"><span id="mmMontajeDescCount">0 caracteres</span></div>
+            </label>
+          </section>
+
+          <section class="quoteCard mmCard mmCardWide">
+            <div class="quoteCardTitle">Resumen guardado</div>
+            <div class="quoteTableWrap">
+              <table class="quoteTable">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Salon</th>
+                    <th>Menu</th>
+                    <th>Cant.</th>
+                    <th>Montaje</th>
+                  </tr>
+                </thead>
+                <tbody id="mmEntriesBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+        <div class="modalFooter">
+          <div class="leftActions">
+            <button class="btn" id="btnMenuMontajePrintDay" type="button">Imprimir/PDF por dia</button>
+          </div>
+          <div class="rightActions">
+            <button class="btn" id="btnMenuMontajeSaveCurrent" type="button">Actualizar version</button>
+            <button class="btnPrimary" id="btnMenuMontajeSave" type="button">Guardar Menu &amp; Montaje</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    

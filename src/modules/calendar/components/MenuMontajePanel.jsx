@@ -1,209 +1,437 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
+import './MenuMontajePanel.pos.css';
 
-// Helper unique ID generator
 const uid = () => Math.random().toString(36).substring(2, 9);
 
-export default function MenuMontajePanel({ event, quote, setQuote }) {
-  // Tabs: 'builder' (Premium Builder) or 'classic' (Classic Editor)
-  const [activeSubTab, setActiveSubTab] = useState('builder');
+const Icon = {
+  plate: <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></svg>,
+  prep: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20h10v-7a5 5 0 0 0-10 0v7Z" /><path d="M5 20h14" /><path d="M8 9a4 4 0 0 1 8 0" /></svg>,
+  sauce: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6" /><path d="M10 3v7" /><path d="M14 3v7" /><path d="M7 14a5 5 0 0 0 10 0c0-3-2-4-5-4s-5 1-5 4Z" /><path d="M8 17h8" /></svg>,
+  side: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4" /><path d="M6 13c-2 2-2 5 0 7 2-2 2-5 0-7Z" /><path d="M11 8c-2 2-2 5 0 7 2-2 2-5 0-7Z" /><path d="M16 3c-2 2-2 5 0 7 2-2 2-5 0-7Z" /></svg>,
+  dessert: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11h10" /><path d="M8 11v8h8v-8" /><path d="M10 7a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z" /></svg>,
+  drink: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l-1 16H9L8 3Z" /><path d="M9 8h6" /><path d="M10 21h4" /></svg>,
+  bread: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17c0-5 3-9 7-9s7 4 7 9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3Z" /><path d="M9 11c1 1 1 3 0 4" /><path d="M13 10c1 1 1 4 0 6" /></svg>,
+  layout: <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" /><rect x="4" y="13" width="16" height="7" rx="1" /></svg>,
+  plus: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14" /><path d="M5 12h14" /></svg>,
+  edit: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z" /><path d="m14 6 4 4" /></svg>,
+  trash: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16" /><path d="M9 7V5h6v2" /><path d="m6 7 1 13h10l1-13" /></svg>,
+  close: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12" /><path d="m18 6-12 12" /></svg>,
+  search: <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4" /></svg>,
+  catalog: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7a3 3 0 0 1 3 3v11a3 3 0 0 0-3-3H4V5Z" /><path d="M20 5h-7a3 3 0 0 0-3 3" /></svg>,
+  print: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4h18v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v6H7z" /></svg>,
+  save: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5V4Z" /><path d="M8 4v6h8" /><path d="M8 20v-6h8v6" /></svg>,
+  check: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>,
+};
 
-  // Combo Selector: Date + Salon
+const STAGES_MENU = [
+  { id: 'plato', label: 'Plato Fuerte', icon: '🍽️', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.14)' },
+  { id: 'preparacion', label: 'Preparación', icon: '👨‍🍳', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.14)' },
+  { id: 'salsa', label: 'Salsas', icon: '🫙', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.14)' },
+  { id: 'guarnicion', label: 'Guarniciones', icon: '🥦', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.14)' },
+  { id: 'postre', label: 'Postres', icon: '🍰', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.14)' },
+  { id: 'bebida', label: 'Bebidas', icon: '🥤', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.14)' },
+  { id: 'comentario', label: 'Pan/Tortilla', icon: '🥖', color: '#84cc16', bg: 'rgba(132, 204, 22, 0.14)' },
+];
+
+const STAGES_MONTAJE = [
+  { id: 'montaje_tipo', label: 'Tipo Montaje', icon: '🏛️', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.14)' },
+  { id: 'montaje_adicional', label: 'Adicionales', icon: '✨', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.14)' },
+];
+
+const CATALOG_KIND_OPTIONS = [
+  { value: 'plato_fuerte', label: 'Proteína / Plato base' },
+  { value: 'preparacion', label: 'Preparación' },
+  { value: 'salsa', label: 'Salsas' },
+  { value: 'guarnicion', label: 'Guarniciones' },
+  { value: 'postre', label: 'Postres' },
+  { value: 'bebida', label: 'Bebidas' },
+  { value: 'comentario', label: 'Tortilla/Pan y extras' },
+  { value: 'montaje_tipo', label: 'Montaje Tipo' },
+  { value: 'montaje_adicional', label: 'Montaje Adicional' },
+];
+
+const EMPTY_RULE_LINKS = {
+  salsaIds: [],
+  guarnicionIds: [],
+  postreIds: [],
+  bebidaIds: [],
+  montajeTipoIds: [],
+  montajeAdicionalIds: [],
+};
+
+const RULE_GROUPS = [
+  { key: 'salsaIds', title: 'Salsas', catalog: 'salsas' },
+  { key: 'guarnicionIds', title: 'Guarniciones', catalog: 'guarniciones' },
+  { key: 'postreIds', title: 'Postres', catalog: 'postres' },
+  { key: 'bebidaIds', title: 'Bebidas', catalog: 'bebidas' },
+  { key: 'montajeTipoIds', title: 'Tipos de montaje', catalog: 'montajeTipos' },
+  { key: 'montajeAdicionalIds', title: 'Adicionales de montaje', catalog: 'montajeAdicionales' },
+];
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;');
+
+const ensureQtyMap = (ids = [], qtyMap = {}) => ids.reduce((acc, id) => {
+  const key = String(id);
+  acc[key] = Math.max(1, Number(qtyMap?.[key] ?? qtyMap?.[id] ?? 1) || 1);
+  return acc;
+}, {});
+
+const normalizeIdList = (ids = []) => Array.from(new Set(
+  (Array.isArray(ids) ? ids : [])
+    .map(Number)
+    .filter((id) => Number.isFinite(id) && id > 0),
+));
+
+const normalizeLineItem = (line = {}) => {
+  const salsaIds = (line.salsaIds || []).map(Number).filter(Boolean);
+  const guarnicionIds = (line.guarnicionIds || []).map(Number).filter(Boolean);
+  const postreIds = (line.postreIds || []).map(Number).filter(Boolean);
+  const bebidaIds = (line.bebidaIds || []).map(Number).filter(Boolean);
+  const comentarioIds = (line.comentarioIds || []).map(Number).filter(Boolean);
+  return {
+    ...line,
+    key: line.key || uid(),
+    platoId: line.platoId ? Number(line.platoId) : null,
+    preparacionId: line.preparacionId ? Number(line.preparacionId) : null,
+    qty: Math.max(1, Number(line.qty || 1) || 1),
+    servicioHora: line.servicioHora || '',
+    salsaIds,
+    salsaQtys: ensureQtyMap(salsaIds, line.salsaQtys),
+    guarnicionIds,
+    guarnicionQtys: ensureQtyMap(guarnicionIds, line.guarnicionQtys),
+    postreIds,
+    postreQtys: ensureQtyMap(postreIds, line.postreQtys),
+    bebidaIds,
+    bebidaQtys: ensureQtyMap(bebidaIds, line.bebidaQtys),
+    comentarioIds,
+    comentarioQtys: ensureQtyMap(comentarioIds, line.comentarioQtys),
+    suggestedSalsaIds: normalizeIdList(line.suggestedSalsaIds),
+    suggestedGuarnicionIds: normalizeIdList(line.suggestedGuarnicionIds),
+    suggestedPostreIds: normalizeIdList(line.suggestedPostreIds),
+    suggestedBebidaIds: normalizeIdList(line.suggestedBebidaIds),
+    comentarioLibre: '',
+  };
+};
+
+function StagePicker({ stage, items, selected, isMulti, onToggle, onClose }) {
+  const [filter, setFilter] = useState('');
+  const filtered = useMemo(() => {
+    const term = filter.trim().toLowerCase();
+    if (!term) return items;
+    return items.filter((item) => String(item.nombre || '').toLowerCase().includes(term));
+  }, [filter, items]);
+
+  return (
+    <div className="mmp-modalShade" onMouseDown={onClose}>
+      <section className="mmp-picker" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="mmp-pickerHead" style={{ '--stage-bg': stage.bg, '--stage-color': stage.color }}>
+          <span className="mmp-pickerIcon">{stage.icon}</span>
+          <div>
+            <h3>{stage.label}</h3>
+            <p>{isMulti ? 'Selección múltiple permitida' : 'Seleccione una opción'}</p>
+          </div>
+          <button className="mmp-iconBtn" type="button" onClick={onClose} aria-label="Cerrar">{Icon.close}</button>
+        </header>
+
+        <div className="mmp-pickerSearch">
+          <span>{Icon.search}</span>
+          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={`Filtrar ${stage.label.toLowerCase()}...`} />
+        </div>
+
+        <div className="mmp-pickerGrid">
+          {filtered.map((item) => {
+            const isSelected = selected.includes(String(item.id));
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`mmp-pickerItem ${isSelected ? 'is-selected' : ''}`}
+                style={{ '--stage-bg': stage.bg, '--stage-color': stage.color }}
+                onClick={() => onToggle(item)}
+              >
+                <span>{item.nombre}</span>
+                {isSelected && <small>Seleccionado</small>}
+              </button>
+            );
+          })}
+          {!filtered.length && <div className="mmp-empty">Sin opciones disponibles</div>}
+        </div>
+
+        <footer className="mmp-pickerFoot">
+          <button className="mmp-primaryBtn" type="button" onClick={onClose}>Listo</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function LineCard({ line, index, catalogs, active, onEdit, onRemove, onQtyChange, onTimeChange, onComponentQtyChange }) {
+  const protein = catalogs.proteins.find((item) => String(item.id) === String(line.platoId));
+  const prep = catalogs.preparations.find((item) => String(item.id) === String(line.preparacionId));
+  const componentRows = [
+    prep?.nombre && { label: 'Preparación', value: prep.nombre, fixed: true },
+    { label: 'Salsas', ids: line.salsaIds, qtys: line.salsaQtys, list: catalogs.salsas, field: 'salsaQtys' },
+    { label: 'Guarniciones', ids: line.guarnicionIds, qtys: line.guarnicionQtys, list: catalogs.guarniciones, field: 'guarnicionQtys' },
+    { label: 'Postres', ids: line.postreIds, qtys: line.postreQtys, list: catalogs.postres, field: 'postreQtys' },
+    { label: 'Bebidas', ids: line.bebidaIds, qtys: line.bebidaQtys, list: catalogs.bebidas, field: 'bebidaQtys' },
+    { label: 'Pan/Tortilla', ids: line.comentarioIds, qtys: line.comentarioQtys, list: catalogs.comentarios, field: 'comentarioQtys' },
+  ].filter((row) => row && (row.fixed || row.ids?.length));
+
+  return (
+    <article className={`mmp-lineCard ${active ? 'is-active' : ''}`}>
+      <div className="mmp-lineTop">
+        <button className="mmp-lineTitle" type="button" onClick={onEdit}>
+          <b>Plato {index + 1}</b>
+          <span>{protein?.nombre || 'Sin plato fuerte'}</span>
+        </button>
+        <div className="mmp-lineQty">
+          <button type="button" onClick={() => onQtyChange(-1)}>-</button>
+          <strong>{line.qty || 1}</strong>
+          <button type="button" onClick={() => onQtyChange(1)}>+</button>
+        </div>
+        <button className="mmp-rowAction" type="button" onClick={onEdit} title="Editar plato">Editar</button>
+        <button className="mmp-rowAction danger" type="button" onClick={onRemove} title="Quitar plato">Quitar</button>
+      </div>
+
+      <div className="mmp-lineControls is-compact">
+        <label>
+          Hora
+          <input type="time" value={line.servicioHora || ''} onChange={(event) => onTimeChange(event.target.value)} />
+        </label>
+      </div>
+
+      {!!componentRows.length && (
+        <div className="mmp-lineDetails">
+          {componentRows.map((row) => (
+            <div className="mmp-componentGroup" key={row.label}>
+              <b>{row.label}</b>
+              {row.fixed ? (
+                <span className="mmp-componentPill">{row.value}</span>
+              ) : row.ids.map((id) => {
+                const item = row.list.find((catalogItem) => String(catalogItem.id) === String(id));
+                if (!item) return null;
+                const qty = Math.max(1, Number(row.qtys?.[String(id)] || row.qtys?.[id] || 1) || 1);
+                return (
+                  <span className="mmp-componentPill is-editable" key={`${row.field}-${id}`}>
+                    {item.nombre}
+                    <button type="button" onClick={() => onComponentQtyChange(row.field, id, -1)}>-</button>
+                    <strong>{qty}</strong>
+                    <button type="button" onClick={() => onComponentQtyChange(row.field, id, 1)}>+</button>
+                  </span>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
+export default function MenuMontajePanel({
+  event,
+  quote = {},
+  setQuote,
+  initialMode = 'builder',
+  onDirtyChange,
+  onPersistQuote,
+  onClose,
+}) {
+  const [activeSubTab, setActiveSubTab] = useState(initialMode);
+  const [primaryMode, setPrimaryMode] = useState('menu');
   const [selectedKey, setSelectedKey] = useState('');
   const [events, setEvents] = useState([]);
-  
-  // Catalogs state
+  const [activeStageId, setActiveStageId] = useState('');
+  const [notice, setNotice] = useState(null);
+
   const [catalogs, setCatalogs] = useState({
     proteins: [],
-    preparations: [], // Loaded dynamically based on selected protein
+    preparations: [],
     salsas: [],
     guarniciones: [],
     postres: [],
     bebidas: [],
     comentarios: [],
     montajeTipos: [],
-    montajeAdicionales: []
+    montajeAdicionales: [],
   });
 
-  // Builder form state (for the currently selected combo key)
   const [selectedProtein, setSelectedProtein] = useState('');
   const [selectedPrep, setSelectedPrep] = useState('');
   const [selectedSalsas, setSelectedSalsas] = useState([]);
   const [selectedGuarniciones, setSelectedGuarniciones] = useState([]);
-  const [guarnicionQtys, setGuarnicionQtys] = useState({});
   const [selectedPostres, setSelectedPostres] = useState([]);
-  const [postreQtys, setPostreQtys] = useState({});
   const [selectedBebidas, setSelectedBebidas] = useState([]);
-  const [bebidaQtys, setBebidaQtys] = useState({});
   const [selectedComentarios, setSelectedComentarios] = useState([]);
-  const [comentarioLibre, setComentarioLibre] = useState('');
   const [selectedMontajeTipo, setSelectedMontajeTipo] = useState('');
   const [selectedMontajeAdicionales, setSelectedMontajeAdicionales] = useState([]);
 
-  // Active builder category stage:
-  // 'plato', 'preparacion', 'salsa', 'guarnicion', 'postre', 'bebida', 'montaje_tipo', 'montaje_adicional'
-  const [builderStage, setBuilderStage] = useState('plato');
-  const [filterQuery, setFilterQuery] = useState('');
-  const [showAllOptions, setShowAllOptions] = useState(false);
-
-  // Manual inputs for the currently selected combo key (Classic mode)
   const [menuTitle, setMenuTitle] = useState('');
   const [menuQty, setMenuQty] = useState('');
+  const [menuNotes, setMenuNotes] = useState('');
   const [menuDescription, setMenuDescription] = useState('');
   const [montajeDescription, setMontajeDescription] = useState('');
-
-  // Selected Version for Menu & Montaje
+  const [editingCompiledMenu, setEditingCompiledMenu] = useState(false);
+  const [editingCompiledMontaje, setEditingCompiledMontaje] = useState(false);
   const [selectedMmsVersion, setSelectedMmsVersion] = useState(quote.menuMontajeVersion || 1);
-
-  // Active dishes line items list (draft line items before combining into description)
   const [lineItemsDraft, setLineItemsDraft] = useState([]);
-  const [activeLineKey, setActiveLineKey] = useState(''); // Selected line item to edit
+  const [activeLineKey, setActiveLineKey] = useState('');
 
-  // ----------------------------------------------------
-  // LOADERS & INITIALIZATION
-  // ----------------------------------------------------
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [catalogMode, setCatalogMode] = useState('base');
+  const [catalogKind, setCatalogKind] = useState('plato_fuerte');
+  const [catalogItems, setCatalogItems] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogNameDraft, setCatalogNameDraft] = useState('');
+  const [catalogProteinDraft, setCatalogProteinDraft] = useState('');
+  const [catalogDishTypeDraft, setCatalogDishTypeDraft] = useState('NORMAL');
+  const [catalogEditingItem, setCatalogEditingItem] = useState(null);
+  const [ruleProtein, setRuleProtein] = useState('');
+  const [rulePreparation, setRulePreparation] = useState('');
+  const [rulePreparations, setRulePreparations] = useState([]);
+  const [ruleLinks, setRuleLinks] = useState(EMPTY_RULE_LINKS);
+  const [ruleLoading, setRuleLoading] = useState(false);
+  const [ruleSaving, setRuleSaving] = useState(false);
+  const [printPreviewHtml, setPrintPreviewHtml] = useState('');
+
+  const savedDraftSnapshotRef = useRef('');
+
+  const buildDraftSnapshot = (values = {}) => JSON.stringify({
+    selectedKey: values.selectedKey ?? selectedKey,
+    menuTitle: values.menuTitle ?? menuTitle,
+    menuQty: String(values.menuQty ?? menuQty ?? ''),
+    menuNotes: values.menuNotes ?? menuNotes,
+    menuDescription: values.menuDescription ?? menuDescription,
+    montajeDescription: values.montajeDescription ?? montajeDescription,
+    lineItemsDraft: values.lineItemsDraft ?? lineItemsDraft,
+  });
+
+  const showNotice = (message) => {
+    const id = Date.now();
+    setNotice({ id, message });
+    window.setTimeout(() => setNotice((current) => (current?.id === id ? null : current)), 3400);
+  };
 
   const loadData = async () => {
     try {
-      // Load events list from state to compute date-salon combos
       const stateRes = await fetch('/api/state');
       if (stateRes.ok) {
-        const stateData = await stateRes.json();
-        setEvents(stateData?.state?.events || []);
+        const data = await stateRes.json();
+        setEvents(data?.state?.events || []);
       }
 
-      // Load all simple catalogs in parallel
-      const [
-        proteinsRes, salsasRes, guarnicionesRes, postresRes,
-        bebidasRes, comentariosRes, montajeTiposRes, adicionalesRes
-      ] = await Promise.all([
-        fetch('/api/menu-catalog/plato_fuerte').then(r => r.json()),
-        fetch('/api/menu-catalog/salsa').then(r => r.json()),
-        fetch('/api/menu-catalog/guarnicion').then(r => r.json()),
-        fetch('/api/menu-catalog/postre').then(r => r.json()),
-        fetch('/api/menu-catalog/bebida').then(r => r.json()),
-        fetch('/api/menu-catalog/comentario').then(r => r.json()),
-        fetch('/api/menu-catalog/montaje_tipo').then(r => r.json()),
-        fetch('/api/menu-catalog/montaje_adicional').then(r => r.json())
-      ]);
+      const kinds = ['plato_fuerte', 'salsa', 'guarnicion', 'postre', 'bebida', 'comentario', 'montaje_tipo', 'montaje_adicional'];
+      const [proteins, salsas, guarniciones, postres, bebidas, comentarios, montajeTipos, montajeAdicionales] = await Promise.all(
+        kinds.map((kind) => fetch(`/api/menu-catalog/${kind}`).then((res) => res.json()).catch(() => ({ items: [] }))),
+      );
 
-      setCatalogs(prev => ({
+      setCatalogs((prev) => ({
         ...prev,
-        proteins: proteinsRes.items?.filter(x => x.activo !== false) || [],
-        salsas: salsasRes.items?.filter(x => x.activo !== false) || [],
-        guarniciones: guarnicionesRes.items?.filter(x => x.activo !== false) || [],
-        postres: postresRes.items?.filter(x => x.activo !== false) || [],
-        bebidas: bebidasRes.items?.filter(x => x.activo !== false) || [],
-        comentarios: comentariosRes.items?.filter(x => x.activo !== false) || [],
-        montajeTipos: montajeTiposRes.items?.filter(x => x.activo !== false) || [],
-        montajeAdicionales: adicionalesRes.items?.filter(x => x.activo !== false) || []
+        proteins: (proteins.items || []).filter((item) => item.activo !== false),
+        salsas: (salsas.items || []).filter((item) => item.activo !== false),
+        guarniciones: (guarniciones.items || []).filter((item) => item.activo !== false),
+        postres: (postres.items || []).filter((item) => item.activo !== false),
+        bebidas: (bebidas.items || []).filter((item) => item.activo !== false),
+        comentarios: (comentarios.items || []).filter((item) => item.activo !== false),
+        montajeTipos: (montajeTipos.items || []).filter((item) => item.activo !== false),
+        montajeAdicionales: (montajeAdicionales.items || []).filter((item) => item.activo !== false),
       }));
-
-    } catch (err) {
-      console.error('Error al cargar catálogos de Menú & Montaje:', err);
+    } catch (error) {
+      console.error('Error cargando Menú & Montaje:', error);
+      showNotice('No se pudieron cargar todos los catálogos.');
     }
   };
 
+  useEffect(() => { loadData(); }, []);
+  useEffect(() => { setActiveSubTab(initialMode); }, [initialMode]);
+
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!savedDraftSnapshotRef.current) return;
+    onDirtyChange?.(buildDraftSnapshot() !== savedDraftSnapshotRef.current);
+  }, [selectedKey, menuTitle, menuQty, menuNotes, menuDescription, montajeDescription, lineItemsDraft]);
 
-  // Compute distinct date-salon combos for the event series
-  const combos = useMemo(() => {
-    if (!event || !events.length) return [];
-    
-    // Find all events in the same group series
-    const targetGroupId = event.id_grupo || event.idGroup;
-    let series = [];
-    if (targetGroupId) {
-      series = events.filter(x => String(x.id_grupo || x.idGroup || '') === String(targetGroupId));
-    } else {
-      series = [event];
-    }
-
-    // Sort series chronologically
-    series.sort((a, b) => {
-      const dateCompare = String(a.fecha_evento || a.date || '').localeCompare(String(b.fecha_evento || b.date || ''));
-      if (dateCompare !== 0) return dateCompare;
-      const salonCompare = String(a.nombre_salon || a.salon || '').localeCompare(String(b.nombre_salon || b.salon || ''));
-      if (salonCompare !== 0) return salonCompare;
-      return String(a.hora_inicio || a.startTime || '').localeCompare(String(b.hora_inicio || b.startTime || ''));
-    });
-
-    const seen = new Set();
-    const result = [];
-    series.forEach(item => {
-      const d = item.fecha_evento || item.date || '';
-      const s = item.nombre_salon || item.salon || '';
-      if (!d || !s) return;
-      const key = `${d}|${s}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      result.push({ key, date: d, salon: s });
-    });
-
-    return result;
-  }, [event, events]);
-
-  // Set initial selected key combo
-  useEffect(() => {
-    if (combos.length > 0 && !selectedKey) {
-      setSelectedKey(combos[0].key);
-    }
-  }, [combos, selectedKey]);
-
-  // Load preparations dynamically when protein changes
   useEffect(() => {
     if (!selectedProtein) {
-      setCatalogs(prev => ({ ...prev, preparations: [] }));
+      setCatalogs((prev) => ({ ...prev, preparations: [] }));
       setSelectedPrep('');
       return;
     }
 
     fetch(`/api/menu-catalog/preparacion?plato_id=${selectedProtein}`)
-      .then(r => r.json())
-      .then(data => {
-        const preps = data.items?.filter(x => x.activo !== false) || [];
-        setCatalogs(prev => ({ ...prev, preparations: preps }));
-        if (preps.length > 0) {
-          setSelectedPrep(String(preps[0].id));
-        } else {
-          setSelectedPrep('');
-        }
+      .then((res) => res.json())
+      .then((data) => {
+        const preps = (data.items || []).filter((item) => item.activo !== false);
+        setCatalogs((prev) => ({ ...prev, preparations: preps }));
+        setSelectedPrep(preps[0]?.id ? String(preps[0].id) : '');
       })
-      .catch(err => console.error('Error al cargar preparaciones:', err));
+      .catch(() => setCatalogs((prev) => ({ ...prev, preparations: [] })));
   }, [selectedProtein]);
 
-  // Load version data or event state when combo key or version changes
-  useEffect(() => {
-    if (!selectedKey) return;
-    const [date, salon] = selectedKey.split('|');
-    
-    // Find matching saved entry in the current quote draft
-    const entries = quote.menuMontajeEntries || [];
-    const entry = entries.find(x => String(x.date || '') === date && String(x.salon || '') === salon);
+  const combos = useMemo(() => {
+    if (!event) return [];
+    const groupId = event.id_grupo || event.idGroup;
+    let source = groupId && events.length
+      ? events.filter((item) => String(item.id_grupo || item.idGroup || '') === String(groupId))
+      : [event];
 
-    if (entry) {
-      setMenuTitle(entry.menuTitle || '');
-      setMenuQty(entry.menuQty || '');
-      setMenuDescription(entry.menuDescription || '');
-      setMontajeDescription(entry.montajeDescription || '');
-      
-      // Parse line items if available in entry.lineItems structure, or reset
-      if (entry.lineItems && Array.isArray(entry.lineItems)) {
-        setLineItemsDraft(entry.lineItems);
-      } else {
-        setLineItemsDraft([]);
-      }
-    } else {
-      setMenuTitle('');
-      setMenuQty(quote.people || event?.pax || '');
-      setMenuDescription('');
-      setMontajeDescription('');
-      setLineItemsDraft([]);
+    if (Array.isArray(event.slots) && event.slots.length) {
+      source = event.slots.map((slot) => ({
+        ...event,
+        fecha_evento: slot.dateStart || slot.date || event.date,
+        date: slot.dateStart || slot.date || event.date,
+        nombre_salon: slot.salon || event.salon,
+        salon: slot.salon || event.salon,
+        hora_inicio: slot.startTime || event.startTime,
+      }));
     }
 
-    // Reset current builder picks
+    const result = [];
+    const seen = new Set();
+    source
+      .slice()
+      .sort((a, b) => String(a.fecha_evento || a.date || '').localeCompare(String(b.fecha_evento || b.date || '')))
+      .forEach((item) => {
+        const date = item.fecha_evento || item.date || '';
+        const salon = item.nombre_salon || item.salon || '';
+        if (!date || !salon) return;
+        const key = `${date}|${salon}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        result.push({ key, date, salon });
+      });
+
+    return result;
+  }, [event, events]);
+
+  useEffect(() => {
+    if (combos.length > 0 && !selectedKey) setSelectedKey(combos[0].key);
+  }, [combos, selectedKey]);
+
+  useEffect(() => {
+    if (!selectedKey) return;
+
+    const [date, salon] = selectedKey.split('|');
+    const entry = (quote.menuMontajeEntries || []).find(
+      (item) => String(item.date || '') === date && String(item.salon || '') === salon,
+    );
+    const nextMenuTitle = entry?.menuTitle || '';
+    const nextMenuQty = entry?.menuQty || quote.people || event?.pax || '';
+    const nextMenuNotes = entry?.menuNotes || entry?.generalNotes || '';
+    const nextMenuDescription = entry?.menuDescription || '';
+    const nextMontajeDescription = entry?.montajeDescription || '';
+    const nextLines = Array.isArray(entry?.lineItems) ? entry.lineItems.map(normalizeLineItem) : [];
+
+    setMenuTitle(nextMenuTitle);
+    setMenuQty(nextMenuQty);
+    setMenuNotes(nextMenuNotes);
+    setMenuDescription(nextMenuDescription);
+    setMontajeDescription(nextMontajeDescription);
+    setLineItemsDraft(nextLines);
+    setActiveLineKey('');
     setSelectedProtein('');
     setSelectedPrep('');
     setSelectedSalsas([]);
@@ -211,1250 +439,1038 @@ export default function MenuMontajePanel({ event, quote, setQuote }) {
     setSelectedPostres([]);
     setSelectedBebidas([]);
     setSelectedComentarios([]);
-    setComentarioLibre('');
     setSelectedMontajeTipo('');
     setSelectedMontajeAdicionales([]);
-    setActiveLineKey('');
-    setBuilderStage('plato');
+    savedDraftSnapshotRef.current = buildDraftSnapshot({
+      selectedKey,
+      menuTitle: nextMenuTitle,
+      menuQty: nextMenuQty,
+      menuNotes: nextMenuNotes,
+      menuDescription: nextMenuDescription,
+      montajeDescription: nextMontajeDescription,
+      lineItemsDraft: nextLines,
+    });
+    onDirtyChange?.(false);
   }, [selectedKey, quote.menuMontajeEntries, selectedMmsVersion]);
 
-  // ----------------------------------------------------
-  // AUTOMATIC COMPILER LOGIC
-  // ----------------------------------------------------
+  const findName = (list, id, fallback = 'Por definir') => (
+    list.find((item) => String(item.id) === String(id))?.nombre || fallback
+  );
 
-  // Build textual menu description from multiple line items
+  const formatComponents = (ids = [], qtys = {}, list = []) => {
+    if (!ids.length) return 'Por definir';
+    return ids.map((id) => {
+      const name = findName(list, id, '');
+      if (!name) return '';
+      const qty = Math.max(1, Number(qtys?.[String(id)] || qtys?.[id] || 1) || 1);
+      return qty > 1 ? `${name} (x${qty})` : name;
+    }).filter(Boolean).join(', ') || 'Por definir';
+  };
+
   const compileMenuDescription = (items) => {
+    const generalComment = String(menuNotes || '').trim();
     if (!items.length) {
-      return "[PLATOS FUERTES]\n- Por definir";
+      return `[PLATOS FUERTES]\n- Por definir${generalComment ? `\n\n[COMENTARIO GENERAL]\n- ${generalComment}` : ''}`;
     }
 
-    const lines = [];
-    items.forEach((line, index) => {
-      if (index > 0) lines.push('');
-      lines.push(`[PLATO ${index + 1}]`);
-
-      const plateName = catalogs.proteins.find(x => String(x.id) === String(line.platoId))?.nombre || 'Por definir';
-      const prepName = catalogs.preparations.find(x => String(x.id) === String(line.preparacionId))?.nombre || 
-                       (line.preparacionId ? `Prep #${line.preparacionId}` : 'Por definir');
-
-      const salsasStr = line.salsaIds?.length 
-        ? line.salsaIds.map(sid => catalogs.salsas.find(x => String(x.id) === String(sid))?.nombre).filter(Boolean).join(', ') 
-        : 'Por definir';
-
-      const guarnicionesStr = line.guarnicionIds?.length
-        ? line.guarnicionIds.map(gid => catalogs.guarniciones.find(x => String(x.id) === String(gid))?.nombre).filter(Boolean).join(', ')
-        : 'Por definir';
-
-      const postresStr = line.postreIds?.length
-        ? line.postreIds.map(pid => {
-            const name = catalogs.postres.find(x => String(x.id) === String(pid))?.nombre || '';
-            const qty = line.postreQtys?.[pid] || 1;
-            return `${name} (x${qty})`;
-          }).filter(Boolean).join(', ')
-        : 'Por definir';
-
-      const bebidasStr = line.bebidaIds?.length
-        ? line.bebidaIds.map(bid => {
-            const name = catalogs.bebidas.find(x => String(x.id) === String(bid))?.nombre || '';
-            const qty = line.bebidaQtys?.[bid] || 1;
-            return `${name} (x${qty})`;
-          }).filter(Boolean).join(', ')
-        : 'Por definir';
-
-      const commentList = line.comentarioIds?.map(cid => catalogs.comentarios.find(x => String(x.id) === String(cid))?.nombre).filter(Boolean) || [];
-      if (line.comentarioLibre) {
-        commentList.push(line.comentarioLibre);
-      }
-      const commentsStr = commentList.length ? `COMENTARIOS (${commentList.join(', ')})` : '';
+    const plates = items.map((rawLine, index) => {
+      const line = normalizeLineItem(rawLine);
+      const plateName = findName(catalogs.proteins, line.platoId);
+      const prepName = line.preparacionId ? findName(catalogs.preparations, line.preparacionId, `Preparación #${line.preparacionId}`) : 'Por definir';
+      const salsas = formatComponents(line.salsaIds, line.salsaQtys, catalogs.salsas);
+      const guarniciones = formatComponents(line.guarnicionIds, line.guarnicionQtys, catalogs.guarniciones);
+      const postres = formatComponents(line.postreIds, line.postreQtys, catalogs.postres);
+      const bebidas = formatComponents(line.bebidaIds, line.bebidaQtys, catalogs.bebidas);
+      const panTortilla = formatComponents(line.comentarioIds, line.comentarioQtys, catalogs.comentarios);
 
       const parts = [
         `PLATO FUERTE (Cant ${line.qty || 1} - ${plateName})`,
+        `HORARIO (${line.servicioHora || 'Sin hora'})`,
         `PREPARACION (${prepName})`,
-        `SALSAS (${salsasStr})`,
-        `GUARNICIONES (${guarnicionesStr})`,
-        `POSTRES (${postresStr})`,
-        `BEBIDAS (${bebidasStr})`
+        `SALSAS (${salsas})`,
+        `GUARNICIONES (${guarniciones})`,
+        `POSTRES (${postres})`,
+        `BEBIDAS (${bebidas})`,
+        `PAN/TORTILLA (${panTortilla})`,
       ];
-      if (commentsStr) parts.push(commentsStr);
+      return `[PLATO ${index + 1}]\n- ${parts.join(' | ')}`;
+    }).join('\n\n');
 
-      lines.push(`- ${parts.join(' | ')}`);
-    });
-
-    return lines.join('\n').trim();
+    return `${plates}${generalComment ? `\n\n[COMENTARIO GENERAL]\n- ${generalComment}` : ''}`;
   };
 
-  // Build textual montage description
-  const compileMontajeDescription = () => {
-    const tipoName = catalogs.montajeTipos.find(x => String(x.id) === String(selectedMontajeTipo))?.nombre || 'Por definir';
-    const adicionalesStr = selectedMontajeAdicionales.length
-      ? selectedMontajeAdicionales.map(aid => catalogs.montajeAdicionales.find(x => String(x.id) === String(aid))?.nombre).filter(Boolean).join(', ')
+  const compileMontajeDescription = (tipo = selectedMontajeTipo, adicionales = selectedMontajeAdicionales) => {
+    const tipoName = tipo ? findName(catalogs.montajeTipos, tipo) : 'Por definir';
+    const adicionalesText = adicionales.length
+      ? adicionales.map((id) => findName(catalogs.montajeAdicionales, id, '')).filter(Boolean).join(', ')
       : 'Ninguno';
-
-    const lines = [
-      "[MONTAJE]",
-      `- TIPO (${tipoName}) | ADICIONALES (${adicionalesStr})`
-    ];
-
-    if (montajeDescription && !montajeDescription.startsWith('[MONTAJE]')) {
-      lines.push('');
-      lines.push('[DETALLE]');
-      lines.push(montajeDescription);
-    }
-
-    return lines.join('\n').trim();
+    return `[MONTAJE]\n- TIPO (${tipoName}) | ADICIONALES (${adicionalesText})`;
   };
 
-  // Sync builder components changes back into textual descriptions
-  const syncBuilderToText = (updatedLineItems) => {
-    const autoMenu = compileMenuDescription(updatedLineItems);
-    setMenuDescription(autoMenu);
+  useEffect(() => {
+    if (activeSubTab !== 'builder') return;
+    if (!lineItemsDraft.length && !String(menuNotes || '').trim()) return;
+    setMenuDescription(compileMenuDescription(lineItemsDraft));
+  }, [menuNotes, lineItemsDraft, catalogs.proteins, catalogs.preparations, catalogs.salsas, catalogs.guarniciones, catalogs.postres, catalogs.bebidas, catalogs.comentarios, activeSubTab]);
 
-    if (selectedMontajeTipo) {
-      const autoMontaje = compileMontajeDescription();
-      setMontajeDescription(autoMontaje);
-    }
+  const updateLines = (updater) => {
+    setLineItemsDraft((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      setMenuDescription(compileMenuDescription(next));
+      return next;
+    });
   };
 
-  // ----------------------------------------------------
-  // HANDLERS & BUILDER WORKFLOW
-  // ----------------------------------------------------
+  const updateActiveLine = (patch) => {
+    if (!activeLineKey) {
+      showNotice('Seleccione un plato primero.');
+      return;
+    }
+    updateLines((current) => current.map((line) => (line.key === activeLineKey ? { ...line, ...patch } : line)));
+  };
 
-  const handleStageOptionClick = async (id, name) => {
-    const numId = Number(id);
+  const applySuggestedLinksToLine = (line, links = {}) => {
+    const salsaIds = normalizeIdList(links.salsaIds);
+    const guarnicionIds = normalizeIdList(links.guarnicionIds);
+    const postreIds = normalizeIdList(links.postreIds);
+    const bebidaIds = normalizeIdList(links.bebidaIds);
+    return {
+      ...line,
+      suggestedSalsaIds: salsaIds,
+      suggestedGuarnicionIds: guarnicionIds,
+      suggestedPostreIds: postreIds,
+      suggestedBebidaIds: bebidaIds,
+    };
+  };
 
-    if (builderStage === 'plato') {
-      setSelectedProtein(String(numId));
-      
-      // Prompt for quantity
-      const { value: qty } = await Swal.fire({
-        title: `Cantidad para ${name}`,
-        input: 'number',
-        inputLabel: 'Ingrese la cantidad de platos fuertes',
-        inputValue: menuQty || quote.people || event?.pax || 1,
-        showCancelButton: true,
-        inputValidator: (value) => {
-          if (!value || Number(value) <= 0) {
-            return '¡Debe ingresar una cantidad mayor a cero!';
-          }
-        }
-      });
+  const loadAndApplySuggestions = async (preparacionId, preparacionName = '') => {
+    const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+    const platoId = Number(active?.platoId || selectedProtein || 0);
+    if (!activeLineKey || !platoId || !preparacionId) {
+      updateActiveLine({ preparacionId });
+      return;
+    }
 
-      if (!qty) return;
-      const safeQty = Math.floor(Number(qty));
-      setMenuQty(safeQty);
-
-      // Create new line draft key or edit active one
-      const key = activeLineKey || uid();
-      const newLine = {
-        key,
-        platoId: numId,
-        preparacionId: null,
-        qty: safeQty,
-        salsaIds: [],
-        guarnicionIds: [],
-        postreIds: [],
-        postreQtys: {},
-        bebidaIds: [],
-        bebidaQtys: {},
-        comentarioIds: [],
-        comentarioLibre: ''
+    try {
+      const response = await fetch(`/api/menu-suggestions?plato_id=${platoId}&preparacion_id=${preparacionId}`);
+      const links = response.ok ? await response.json() : {};
+      const patch = {
+        preparacionId,
+        ...applySuggestedLinksToLine(active, links),
       };
-
-      let updatedList = [];
-      const exists = lineItemsDraft.some(x => x.key === key);
-      if (exists) {
-        updatedList = lineItemsDraft.map(x => x.key === key ? { ...x, platoId: numId, qty: safeQty } : x);
-      } else {
-        updatedList = [...lineItemsDraft, newLine];
-      }
-
-      setLineItemsDraft(updatedList);
-      setActiveLineKey(key);
-      syncBuilderToText(updatedList);
-
-      // Advance stage
-      setBuilderStage('preparacion');
-      setFilterQuery('');
-
-    } else if (builderStage === 'preparacion') {
-      if (!activeLineKey) return;
-      setSelectedPrep(String(numId));
-      
-      const updatedList = lineItemsDraft.map(x => x.key === activeLineKey ? { ...x, preparacionId: numId } : x);
-      setLineItemsDraft(updatedList);
-      syncBuilderToText(updatedList);
-
-      setBuilderStage('guarnicion');
-      setFilterQuery('');
-
-    } else if (builderStage === 'salsa') {
-      if (!activeLineKey) return;
-      const current = selectedSalsas.includes(numId)
-        ? selectedSalsas.filter(x => x !== numId)
-        : [...selectedSalsas, numId];
-
-      setSelectedSalsas(current);
-      const updatedList = lineItemsDraft.map(x => x.key === activeLineKey ? { ...x, salsaIds: current } : x);
-      setLineItemsDraft(updatedList);
-      syncBuilderToText(updatedList);
-
-    } else if (builderStage === 'guarnicion') {
-      if (!activeLineKey) return;
-      const isSelected = selectedGuarniciones.includes(numId);
-      let updatedGuarniciones = [...selectedGuarniciones];
-
-      if (isSelected) {
-        updatedGuarniciones = updatedGuarniciones.filter(x => x !== numId);
-        const nextQtys = { ...guarnicionQtys };
-        delete nextQtys[numId];
-        setGuarnicionQtys(nextQtys);
-      } else {
-        updatedGuarniciones.push(numId);
-        setGuarnicionQtys(prev => ({ ...prev, [numId]: 1 }));
-      }
-
-      setSelectedGuarniciones(updatedGuarniciones);
-      const updatedList = lineItemsDraft.map(x => x.key === activeLineKey ? { ...x, guarnicionIds: updatedGuarniciones } : x);
-      setLineItemsDraft(updatedList);
-      syncBuilderToText(updatedList);
-
-    } else if (builderStage === 'postre') {
-      if (!activeLineKey) return;
-      const isSelected = selectedPostres.includes(numId);
-      let updatedPostres = [...selectedPostres];
-      let nextQtys = { ...postreQtys };
-
-      if (isSelected) {
-        updatedPostres = updatedPostres.filter(x => x !== numId);
-        delete nextQtys[numId];
-      } else {
-        // Prompt for item quantity
-        const { value: qty } = await Swal.fire({
-          title: `Porciones de ${name}`,
-          input: 'number',
-          inputValue: 1,
-          showCancelButton: true,
-          inputValidator: (v) => (!v || Number(v) <= 0) && 'Ingrese cantidad válida'
-        });
-        if (!qty) return;
-        updatedPostres.push(numId);
-        nextQtys[numId] = Math.floor(Number(qty));
-      }
-
-      setSelectedPostres(updatedPostres);
-      setPostreQtys(nextQtys);
-
-      const updatedList = lineItemsDraft.map(x => x.key === activeLineKey ? { ...x, postreIds: updatedPostres, postreQtys: nextQtys } : x);
-      setLineItemsDraft(updatedList);
-      syncBuilderToText(updatedList);
-
-    } else if (builderStage === 'bebida') {
-      if (!activeLineKey) return;
-      const isSelected = selectedBebidas.includes(numId);
-      let updatedBebidas = [...selectedBebidas];
-      let nextQtys = { ...bebidaQtys };
-
-      if (isSelected) {
-        updatedBebidas = updatedBebidas.filter(x => x !== numId);
-        delete nextQtys[numId];
-      } else {
-        const { value: qty } = await Swal.fire({
-          title: `Servicios de ${name}`,
-          input: 'number',
-          inputValue: menuQty || 1,
-          showCancelButton: true,
-          inputValidator: (v) => (!v || Number(v) <= 0) && 'Ingrese cantidad válida'
-        });
-        if (!qty) return;
-        updatedBebidas.push(numId);
-        nextQtys[numId] = Math.floor(Number(qty));
-      }
-
-      setSelectedBebidas(updatedBebidas);
-      setBebidaQtys(nextQtys);
-
-      const updatedList = lineItemsDraft.map(x => x.key === activeLineKey ? { ...x, bebidaIds: updatedBebidas, bebidaQtys: nextQtys } : x);
-      setLineItemsDraft(updatedList);
-      syncBuilderToText(updatedList);
-
-    } else if (builderStage === 'montaje_tipo') {
-      setSelectedMontajeTipo(String(numId));
-      
-      // Auto-compile montage string
-      const autoMontaje = compileMontajeDescription();
-      setMontajeDescription(autoMontaje);
-
-      // Prompt to advance to additions
-      setBuilderStage('montaje_adicional');
-      setFilterQuery('');
-
-    } else if (builderStage === 'montaje_adicional') {
-      const current = selectedMontajeAdicionales.includes(numId)
-        ? selectedMontajeAdicionales.filter(x => x !== numId)
-        : [...selectedMontajeAdicionales, numId];
-
-      setSelectedMontajeAdicionales(current);
-      
-      const tipoName = catalogs.montajeTipos.find(x => String(x.id) === String(selectedMontajeTipo))?.nombre || 'Por definir';
-      const adicionalesStr = current.length
-        ? current.map(aid => catalogs.montajeAdicionales.find(x => String(x.id) === String(aid))?.nombre).filter(Boolean).join(', ')
-        : 'Ninguno';
-
-      let autoMontaje = `[MONTAJE]\n- TIPO (${tipoName}) | ADICIONALES (${adicionalesStr})`;
-      if (montajeDescription && montageDescription.includes('[DETALLE]')) {
-        const manualParts = montageDescription.split('[DETALLE]');
-        autoMontaje += `\n\n[DETALLE]${manualParts[1]}`;
-      }
-      setMontajeDescription(autoMontaje);
+      delete patch.key;
+      delete patch.platoId;
+      delete patch.qty;
+      delete patch.servicioHora;
+      updateActiveLine(patch);
+      setSelectedSalsas(patch.salsaIds || []);
+      setSelectedGuarniciones(patch.guarnicionIds || []);
+      setSelectedPostres(patch.postreIds || []);
+      setSelectedBebidas(patch.bebidaIds || []);
+      const total = ['suggestedSalsaIds', 'suggestedGuarnicionIds', 'suggestedPostreIds', 'suggestedBebidaIds'].reduce((sum, key) => sum + (patch[key]?.length || 0), 0);
+      showNotice(total ? `Preparación lista con ${total} opción(es) de acompañamiento.` : `Preparación agregada: ${preparacionName}`);
+    } catch (error) {
+      updateActiveLine({ preparacionId });
+      showNotice(`Preparación agregada: ${preparacionName}`);
     }
   };
 
-  const handleEditLineItem = (line) => {
+  const changeLineComponentQty = (lineKey, qtyField, componentId, delta) => {
+    updateLines((current) => current.map((line) => {
+      if (line.key !== lineKey) return line;
+      const currentQtys = line[qtyField] || {};
+      const key = String(componentId);
+      return {
+        ...line,
+        [qtyField]: {
+          ...currentQtys,
+          [key]: Math.max(1, Number(currentQtys[key] || currentQtys[componentId] || 1) + delta),
+        },
+      };
+    }));
+  };
+
+  const handleEditLine = (line) => {
     setActiveLineKey(line.key);
-    setSelectedProtein(String(line.platoId));
+    setSelectedProtein(String(line.platoId || ''));
     setSelectedPrep(String(line.preparacionId || ''));
     setSelectedSalsas(line.salsaIds || []);
     setSelectedGuarniciones(line.guarnicionIds || []);
-    setGuarnicionQtys(line.guarnicionQtys || {});
     setSelectedPostres(line.postreIds || []);
-    setPostreQtys(line.postreQtys || {});
     setSelectedBebidas(line.bebidaIds || []);
-    setBebidaQtys(line.bebidaQtys || {});
     setSelectedComentarios(line.comentarioIds || []);
-    setComentarioLibre(line.comentarioLibre || '');
-    setBuilderStage('plato');
+    setPrimaryMode('menu');
   };
 
-  const handleRemoveLineItem = (key) => {
-    const updated = lineItemsDraft.filter(x => x.key !== key);
-    setLineItemsDraft(updated);
-    if (activeLineKey === key) {
-      setActiveLineKey('');
-      setSelectedProtein('');
-      setSelectedPrep('');
+  const handleToggleItem = async (stageId, item) => {
+    const id = Number(item.id);
+
+    if (stageId === 'plato') {
+      const qty = Math.max(1, Math.floor(Number(menuQty || quote.people || event?.pax || 1)) || 1);
+      const key = activeLineKey || uid();
+      const newLine = {
+        key,
+        platoId: id,
+        preparacionId: null,
+        qty,
+        servicioHora: '',
+        salsaIds: [],
+        guarnicionIds: [],
+        postreIds: [],
+        bebidaIds: [],
+        bebidaQtys: {},
+        comentarioIds: [],
+        comentarioQtys: {},
+        salsaQtys: {},
+        guarnicionQtys: {},
+        postreQtys: {},
+        comentarioLibre: '',
+      };
+      setSelectedProtein(String(id));
+      setMenuQty(qty);
+      setActiveLineKey(key);
+      updateLines((current) => (current.some((line) => line.key === key)
+        ? current.map((line) => (line.key === key ? { ...line, platoId: id, qty } : line))
+        : [...current, newLine]));
+      setActiveStageId('');
+      showNotice(`Plato agregado: ${item.nombre}`);
+      return;
     }
-    syncBuilderToText(updated);
+
+    if (stageId === 'preparacion') {
+      setSelectedPrep(String(id));
+      await loadAndApplySuggestions(id, item.nombre);
+      return;
+    }
+
+    const multiMap = {
+      salsa: ['selectedSalsas', selectedSalsas, setSelectedSalsas, 'salsaIds', 'salsaQtys'],
+      guarnicion: ['selectedGuarniciones', selectedGuarniciones, setSelectedGuarniciones, 'guarnicionIds', 'guarnicionQtys'],
+      postre: ['selectedPostres', selectedPostres, setSelectedPostres, 'postreIds', 'postreQtys'],
+      bebida: ['selectedBebidas', selectedBebidas, setSelectedBebidas, 'bebidaIds', 'bebidaQtys'],
+      comentario: ['selectedComentarios', selectedComentarios, setSelectedComentarios, 'comentarioIds', 'comentarioQtys'],
+    };
+
+    if (multiMap[stageId]) {
+      const [, current, setter, field, qtyField] = multiMap[stageId];
+      if (!activeLineKey) {
+        showNotice('Seleccione un plato primero.');
+        return;
+      }
+      const next = current.includes(id) ? current.filter((value) => value !== id) : [...current, id];
+      setter(next);
+      const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+      const nextQtys = ensureQtyMap(next, active?.[qtyField]);
+      updateActiveLine({ [field]: next, [qtyField]: nextQtys });
+      return;
+    }
+
+    if (stageId === 'montaje_tipo') {
+      setSelectedMontajeTipo(String(id));
+      const text = compileMontajeDescription(String(id), selectedMontajeAdicionales);
+      setMontajeDescription(text);
+      showNotice(`Montaje agregado: ${item.nombre}`);
+      return;
+    }
+
+    if (stageId === 'montaje_adicional') {
+      if (!selectedMontajeTipo) {
+        showNotice('Seleccione un tipo de montaje primero.');
+        return;
+      }
+      const next = selectedMontajeAdicionales.includes(id)
+        ? selectedMontajeAdicionales.filter((value) => value !== id)
+        : [...selectedMontajeAdicionales, id];
+      setSelectedMontajeAdicionales(next);
+      setMontajeDescription(compileMontajeDescription(selectedMontajeTipo, next));
+    }
+  };
+
+  const getStageItems = (stageId) => {
+    const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+    const suggestedMap = {
+      salsa: ['salsas', 'suggestedSalsaIds'],
+      guarnicion: ['guarniciones', 'suggestedGuarnicionIds'],
+      postre: ['postres', 'suggestedPostreIds'],
+      bebida: ['bebidas', 'suggestedBebidaIds'],
+    };
+
+    if (suggestedMap[stageId]) {
+      const [catalogKey, suggestionKey] = suggestedMap[stageId];
+      const catalog = catalogs[catalogKey] || [];
+      const suggested = normalizeIdList(active?.[suggestionKey]);
+      if (suggested.length) return catalog.filter((item) => suggested.includes(Number(item.id)));
+      return catalog;
+    }
+
+    return ({
+      plato: catalogs.proteins,
+      preparacion: catalogs.preparations,
+      comentario: catalogs.comentarios,
+      montaje_tipo: catalogs.montajeTipos,
+      montaje_adicional: catalogs.montajeAdicionales,
+    }[stageId] || []);
+  };
+
+  const getSelectedForStage = (stageId) => {
+    const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+    if (stageId === 'plato') return selectedProtein ? [selectedProtein] : [];
+    if (stageId === 'preparacion') return selectedPrep ? [selectedPrep] : [];
+    if (stageId === 'salsa') return (active?.salsaIds || selectedSalsas).map(String);
+    if (stageId === 'guarnicion') return (active?.guarnicionIds || selectedGuarniciones).map(String);
+    if (stageId === 'postre') return (active?.postreIds || selectedPostres).map(String);
+    if (stageId === 'bebida') return (active?.bebidaIds || selectedBebidas).map(String);
+    if (stageId === 'comentario') return (active?.comentarioIds || selectedComentarios).map(String);
+    if (stageId === 'montaje_tipo') return selectedMontajeTipo ? [selectedMontajeTipo] : [];
+    if (stageId === 'montaje_adicional') return selectedMontajeAdicionales.map(String);
+    return [];
+  };
+
+  const getStageCount = (stageId) => {
+    const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+    if (stageId === 'plato') return lineItemsDraft.length;
+    if (stageId === 'preparacion') return active?.preparacionId ? 1 : 0;
+    if (stageId === 'montaje_tipo') return selectedMontajeTipo ? 1 : 0;
+    if (stageId === 'montaje_adicional') return selectedMontajeAdicionales.length;
+    const field = { salsa: 'salsaIds', guarnicion: 'guarnicionIds', postre: 'postreIds', bebida: 'bebidaIds', comentario: 'comentarioIds' }[stageId];
+    return active?.[field]?.length || 0;
+  };
+
+  const handleSave = async (updateCurrent = false) => {
+    if (!selectedKey) {
+      Swal.fire('Error', 'Seleccione fecha y salón.', 'error');
+      return;
+    }
+    if (!menuDescription && !montajeDescription && !lineItemsDraft.length) {
+      Swal.fire('Atención', 'Complete al menos menú o montaje para guardar.', 'info');
+      return;
+    }
+
+    const [date, salon] = selectedKey.split('|');
+    const existingEntries = [...(quote.menuMontajeEntries || [])];
+    const entryIndex = existingEntries.findIndex((item) => String(item.date || '') === date && String(item.salon || '') === salon);
+    const normalizedLines = lineItemsDraft.map(normalizeLineItem);
+    const entry = {
+      id: entryIndex >= 0 ? existingEntries[entryIndex].id : uid(),
+      date,
+      salon,
+      menuTitle: menuTitle || `Menú de ${event?.name || event?.title || 'Evento'}`,
+      menuQty: menuQty ? Number(menuQty) : '',
+      menuNotes,
+      menuDescription: menuDescription || compileMenuDescription(normalizedLines),
+      montajeDescription,
+      lineItems: normalizedLines,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (entryIndex >= 0) existingEntries[entryIndex] = entry;
+    else existingEntries.push(entry);
+
+    const versions = [...(quote.menuMontajeVersions || [])];
+    let version = Number(selectedMmsVersion || quote.menuMontajeVersion || 1);
+    let createdNew = false;
+
+    if (updateCurrent) {
+      const versionIndex = versions.findIndex((item) => Number(item.version) === version);
+      const payload = { version, entries: existingEntries, savedAt: new Date().toISOString() };
+      if (versionIndex >= 0) versions[versionIndex] = payload;
+      else versions.push(payload);
+    } else {
+      const maxVersion = versions.reduce((max, item) => Math.max(max, Number(item.version || 0)), 0);
+      version = maxVersion + 1;
+      versions.push({ version, entries: existingEntries, savedAt: new Date().toISOString() });
+      createdNew = true;
+    }
+
+    const patch = { menuMontajeEntries: existingEntries, menuMontajeVersion: version, menuMontajeVersions: versions };
+    const nextQuote = { ...quote, ...patch };
+    setQuote?.((prev) => ({ ...prev, ...patch }));
+    if (typeof onPersistQuote === 'function') await onPersistQuote(nextQuote);
+
+    setSelectedMmsVersion(version);
+    savedDraftSnapshotRef.current = buildDraftSnapshot({
+      selectedKey,
+      menuTitle: entry.menuTitle,
+      menuQty: entry.menuQty,
+      menuNotes: entry.menuNotes,
+      menuDescription: entry.menuDescription,
+      montajeDescription: entry.montajeDescription,
+      lineItemsDraft: entry.lineItems,
+    });
+    onDirtyChange?.(false);
+    Swal.fire({
+      title: 'Guardado',
+      text: createdNew ? `Nueva versión V${version} creada.` : `Versión V${version} actualizada.`,
+      icon: 'success',
+      timer: 1800,
+      showConfirmButton: false,
+    });
+    if (!updateCurrent) onClose?.();
+  };
+
+  const handleLoadVersion = () => {
+    const version = Number(selectedMmsVersion);
+    const snapshot = quote.menuMontajeVersions?.find((item) => Number(item.version) === version);
+    if (!snapshot) {
+      Swal.fire('Error', 'Versión no encontrada.', 'error');
+      return;
+    }
+
+    Swal.fire({
+      title: `¿Cargar V${version}?`,
+      text: 'Reemplazará las asignaciones actuales de Menú & Montaje.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Cargar',
+      cancelButtonText: 'Cancelar',
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      setQuote?.((prev) => ({ ...prev, menuMontajeEntries: snapshot.entries || [], menuMontajeVersion: version }));
+      savedDraftSnapshotRef.current = '';
+      onDirtyChange?.(false);
+      Swal.fire('Cargado', `V${version} aplicada.`, 'success');
+    });
   };
 
   const handleClearForm = () => {
     Swal.fire({
       title: '¿Limpiar todo?',
-      text: 'Se vaciarán todas las selecciones actuales del constructor.',
+      text: 'Se vaciarán todas las selecciones actuales de este Menú & Montaje.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Sí, limpiar',
-      cancelButtonText: 'Cancelar'
-    }).then(r => {
-      if (r.isConfirmed) {
-        setLineItemsDraft([]);
-        setActiveLineKey('');
-        setSelectedProtein('');
-        setSelectedPrep('');
-        setSelectedSalsas([]);
-        setSelectedGuarniciones([]);
-        setSelectedPostres([]);
-        setSelectedBebidas([]);
-        setSelectedComentarios([]);
-        setComentarioLibre('');
-        setSelectedMontajeTipo('');
-        setSelectedMontajeAdicionales([]);
-        setMenuDescription('');
-        setMontajeDescription('');
-        setMenuTitle('');
-        setMenuQty('');
-      }
+      cancelButtonText: 'Cancelar',
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      setLineItemsDraft([]);
+      setActiveLineKey('');
+      setSelectedProtein('');
+      setSelectedPrep('');
+      setSelectedSalsas([]);
+      setSelectedGuarniciones([]);
+      setSelectedPostres([]);
+      setSelectedBebidas([]);
+      setSelectedComentarios([]);
+      setSelectedMontajeTipo('');
+      setSelectedMontajeAdicionales([]);
+      setMenuTitle('');
+      setMenuQty('');
+      setMenuNotes('');
+      setMenuDescription('');
+      setMontajeDescription('');
+      showNotice('Formulario limpio.');
     });
   };
 
-  // ----------------------------------------------------
-  // PERSIST & SAVE STATE INTEGRATION
-  // ----------------------------------------------------
+  const insertTextSnippet = (target) => {
+    const separator = '\n\n------------------------------\n\n';
+    if (target === 'menu') setMenuDescription((current) => `${current || ''}${separator}`);
+    if (target === 'montaje') setMontajeDescription((current) => `${current || ''}${separator}`);
+  };
 
-  const handleSaveMenuMontaje = async (isUpdateOnly = false) => {
-    if (!selectedKey) {
-      Swal.fire('Error', 'Seleccione una combinación de fecha y salón.', 'error');
+  const buildPrintHtml = () => {
+    let entries = [...(quote.menuMontajeEntries || [])];
+    if (selectedKey && (menuDescription || montajeDescription || lineItemsDraft.length)) {
+      const [date, salon] = selectedKey.split('|');
+      const draft = {
+        id: 'preview',
+        date,
+        salon,
+        menuTitle: menuTitle || `Menú de ${event?.name || event?.title || 'Evento'}`,
+        menuQty: menuQty ? Number(menuQty) : '',
+        menuNotes,
+        menuDescription: menuDescription || compileMenuDescription(lineItemsDraft.map(normalizeLineItem)),
+        montajeDescription,
+      };
+      const index = entries.findIndex((item) => String(item.date || '') === date && String(item.salon || '') === salon);
+      if (index >= 0) entries[index] = draft;
+      else entries.push(draft);
+    }
+
+    if (!entries.length) return '';
+
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Menú & Montaje</title><style>
+      *{box-sizing:border-box}body{margin:0;background:#eaf0f7;padding:22px;font-family:Segoe UI,Arial,sans-serif;color:#07162d}.card{max-width:940px;margin:0 auto 20px;border:1px solid #b9d0ea;border-radius:12px;overflow:hidden;background:#fff}.head{background:#155987;color:#fff;padding:16px 20px;font-size:20px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 28px;padding:14px 20px;background:#eaf4ff;border-bottom:1px solid #cbdff4;font-size:13px}.block{padding:16px 20px;border-bottom:1px solid #e4edf7}.block h2{margin:0 0 10px;color:#06436e;font-size:17px;font-weight:900;text-transform:uppercase}.block pre{margin:0;white-space:pre-wrap;font-family:Segoe UI,Arial,sans-serif;font-size:13px;line-height:1.55}@media print{body{background:#fff;padding:0}.card{border-radius:0;margin:0 0 12px;page-break-after:always}}
+    </style></head><body>${entries.map((entry) => `<section class="card"><div class="head">MENÚ Y MONTAJE - ${escapeHtml(entry.date)}</div><div class="meta"><div><b>Institución:</b> ${escapeHtml(quote.companyName || quote.institution || '-')}</div><div><b>No. Cotización:</b> ${escapeHtml(quote.code || 'N/A')}</div><div><b>Salón:</b> ${escapeHtml(entry.salon || 'N/A')}</div><div><b>Pax Asignado:</b> ${escapeHtml(entry.menuQty || quote.people || 'N/A')}</div><div><b>Tipo Evento:</b> ${escapeHtml(quote.eventType || 'N/A')}</div><div><b>Fecha:</b> ${escapeHtml(entry.date || 'N/A')}</div></div><div class="block"><h2>Menú - ${escapeHtml(entry.salon || '')}</h2><pre>${escapeHtml(entry.menuDescription || 'Sin detalle')}</pre></div><div class="block"><h2>Montaje - ${escapeHtml(entry.salon || '')}</h2><pre>${escapeHtml(entry.montajeDescription || 'Sin detalle')}</pre></div></section>`).join('')}</body></html>`;
+  };
+
+  const handlePreviewPrint = () => {
+    const html = buildPrintHtml();
+    if (!html) {
+      Swal.fire('Error', 'No hay datos para vista previa.', 'error');
       return;
     }
+    setPrintPreviewHtml(html);
+  };
 
-    const [date, salon] = selectedKey.split('|');
+  const loadCatalogItems = async (kind = catalogKind) => {
+    setCatalogLoading(true);
+    try {
+      const response = await fetch(`/api/menu-catalog/${kind}`);
+      const data = await response.json();
+      setCatalogItems(Array.isArray(data.items) ? data.items : []);
+      setCatalogEditingItem(null);
+      setCatalogNameDraft('');
+      setCatalogProteinDraft('');
+      setCatalogDishTypeDraft('NORMAL');
+    } catch {
+      showNotice('No se pudo cargar el catálogo.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
 
-    if (!menuTitle && !menuDescription && !montajeDescription) {
-      Swal.fire('Atención', 'Complete al menos los campos de menú o montaje para guardar.', 'info');
+  useEffect(() => {
+    if (showCatalogModal) loadCatalogItems(catalogKind);
+  }, [showCatalogModal, catalogKind]);
+
+  const loadRulePreparations = async (platoId = ruleProtein) => {
+    if (!platoId) {
+      setRulePreparations([]);
+      setRulePreparation('');
       return;
     }
-
-    // Prepare matching entry row
-    const existingEntries = [...(quote.menuMontajeEntries || [])];
-    const idx = existingEntries.findIndex(x => String(x.date || '') === date && String(x.salon || '') === salon);
-    
-    const row = {
-      id: idx >= 0 ? existingEntries[idx].id : uid(),
-      date,
-      salon,
-      menuTitle: menuTitle || `Menú de ${event?.name || 'Evento'}`,
-      menuQty: menuQty ? Number(menuQty) : '',
-      menuDescription,
-      montajeDescription,
-      lineItems: lineItemsDraft,
-      updatedAt: new Date().toISOString()
-    };
-
-    if (idx >= 0) {
-      existingEntries[idx] = row;
-    } else {
-      existingEntries.push(row);
+    try {
+      const response = await fetch(`/api/menu-catalog/preparacion?plato_id=${platoId}`);
+      const data = await response.json();
+      const items = (data.items || []).filter((item) => item.activo !== false);
+      setRulePreparations(items);
+      setRulePreparation((current) => (items.some((item) => String(item.id) === String(current)) ? current : (items[0]?.id ? String(items[0].id) : '')));
+    } catch {
+      setRulePreparations([]);
+      setRulePreparation('');
+      showNotice('No se pudieron cargar las preparaciones.');
     }
+  };
 
-    const currentVersions = [...(quote.menuMontajeVersions || [])];
-    let targetVerNum = Number(selectedMmsVersion || quote.menuMontajeVersion || 1);
-    let createdNewVer = false;
-
-    if (isUpdateOnly) {
-      // Update existing selected version array entry
-      const vIdx = currentVersions.findIndex(v => Number(v.version) === targetVerNum);
-      if (vIdx >= 0) {
-        currentVersions[vIdx] = {
-          ...currentVersions[vIdx],
-          entries: existingEntries,
-          savedAt: new Date().toISOString()
-        };
-      } else {
-        currentVersions.push({ version: targetVerNum, entries: existingEntries, savedAt: new Date().toISOString() });
-      }
-    } else {
-      // Create next version
-      const maxVer = currentVersions.reduce((max, v) => Math.max(max, Number(v.version || 0)), 0);
-      targetVerNum = maxVer + 1;
-      currentVersions.push({
-        version: targetVerNum,
-        entries: existingEntries,
-        savedAt: new Date().toISOString()
+  const loadRuleLinks = async (platoId = ruleProtein, preparacionId = rulePreparation) => {
+    if (!platoId || !preparacionId) {
+      setRuleLinks(EMPTY_RULE_LINKS);
+      return;
+    }
+    setRuleLoading(true);
+    try {
+      const response = await fetch(`/api/menu-suggestions?plato_id=${platoId}&preparacion_id=${preparacionId}`);
+      const data = await response.json();
+      setRuleLinks({
+        salsaIds: normalizeIdList(data.salsaIds),
+        guarnicionIds: normalizeIdList(data.guarnicionIds),
+        postreIds: normalizeIdList(data.postreIds),
+        bebidaIds: normalizeIdList(data.bebidaIds),
+        montajeTipoIds: normalizeIdList(data.montajeTipoIds),
+        montajeAdicionalIds: normalizeIdList(data.montajeAdicionalIds),
       });
-      createdNewVer = true;
+    } catch {
+      setRuleLinks(EMPTY_RULE_LINKS);
+      showNotice('No se pudieron cargar las combinaciones.');
+    } finally {
+      setRuleLoading(false);
     }
+  };
 
-    // Set updated quote object properties
-    setQuote(prev => ({
-      ...prev,
-      menuMontajeEntries: existingEntries,
-      menuMontajeVersion: targetVerNum,
-      menuMontajeVersions: currentVersions
-    }));
+  useEffect(() => {
+    if (!showCatalogModal || catalogMode !== 'rules') return;
+    if (!ruleProtein) {
+      const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+      if (active?.platoId) setRuleProtein(String(active.platoId));
+    }
+  }, [showCatalogModal, catalogMode]);
 
-    setSelectedMmsVersion(targetVerNum);
+  useEffect(() => {
+    if (!showCatalogModal || catalogMode !== 'rules') return;
+    loadRulePreparations(ruleProtein);
+  }, [showCatalogModal, catalogMode, ruleProtein]);
 
-    Swal.fire({
-      title: '¡Operación Exitosa!',
-      text: createdNewVer 
-        ? `Menú y montaje guardados correctamente en la nueva versión V${targetVerNum}.` 
-        : `Menú y montaje actualizados exitosamente en la versión V${targetVerNum}.`,
-      icon: 'success',
-      timer: 2000,
-      showConfirmButton: false
+  useEffect(() => {
+    if (!showCatalogModal || catalogMode !== 'rules') return;
+    loadRuleLinks(ruleProtein, rulePreparation);
+  }, [showCatalogModal, catalogMode, ruleProtein, rulePreparation]);
+
+  const handleToggleRule = (field, id) => {
+    const numericId = Number(id);
+    setRuleLinks((current) => {
+      const list = normalizeIdList(current[field]);
+      const next = list.includes(numericId) ? list.filter((item) => item !== numericId) : [...list, numericId];
+      return { ...current, [field]: next };
     });
   };
 
-  // Load a version from the historic snapshots
-  const handleLoadVersionHistory = () => {
-    const verNum = Number(selectedMmsVersion);
-    const verSnap = quote.menuMontajeVersions?.find(v => Number(v.version) === verNum);
-
-    if (!verSnap) {
-      Swal.fire('Error', 'No se encontró la versión seleccionada en el historial.', 'error');
+  const handleSaveRules = async () => {
+    if (!ruleProtein || !rulePreparation) {
+      showNotice('Seleccione plato base y preparación.');
       return;
     }
-
-    Swal.fire({
-      title: `¿Cargar Versión V${verNum}?`,
-      text: 'Esto reemplazará las asignaciones de menú y montaje actuales con el respaldo seleccionado.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, cargar',
-      cancelButtonText: 'Cancelar'
-    }).then(r => {
-      if (r.isConfirmed) {
-        setQuote(prev => ({
-          ...prev,
-          menuMontajeEntries: verSnap.entries || [],
-          menuMontajeVersion: verNum
-        }));
-        Swal.fire('Cargado', `Se aplicó el respaldo de la versión V${verNum}.`, 'success');
+    setRuleSaving(true);
+    try {
+      const response = await fetch('/api/menu-suggestions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_plato_fuerte: Number(ruleProtein),
+          id_preparacion: Number(rulePreparation),
+          ...ruleLinks,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok === false) throw new Error(data.message || 'No se pudo guardar la combinación.');
+      showNotice('Combinación guardada.');
+      const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+      if (active && String(active.platoId) === String(ruleProtein) && String(active.preparacionId) === String(rulePreparation)) {
+        updateLines((current) => current.map((line) => (line.key === activeLineKey ? applySuggestedLinksToLine(line, ruleLinks) : line)));
       }
-    });
+    } catch (error) {
+      showNotice(error?.message || 'No se pudo guardar la combinación.');
+    } finally {
+      setRuleSaving(false);
+    }
   };
 
-  // ----------------------------------------------------
-  // IN-APP PRINT & PDF GENERATOR
-  // ----------------------------------------------------
-  
-  const handlePrintMms = () => {
-    const entries = quote.menuMontajeEntries || [];
-    if (!entries.length) {
-      Swal.fire('Error', 'No hay datos de menú y montaje para imprimir.', 'error');
+  const handleSaveCatalogItem = async () => {
+    const nombre = catalogNameDraft.trim();
+    if (!nombre) {
+      showNotice('Escriba el nombre del registro.');
       return;
     }
 
-    const docTitle = `${quote.companyName || 'Cliente'} - MENÚ & MONTAJE`;
-    const orderedCombos = [...entries].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const payload = { nombre };
+    if (catalogKind === 'preparacion') payload.id_plato_fuerte = Number(catalogProteinDraft);
+    if (catalogKind === 'plato_fuerte') payload.tipo_plato = catalogDishTypeDraft || 'NORMAL';
+    if (catalogEditingItem) payload.activo = catalogEditingItem.activo !== false;
 
-    const sectionsHtml = orderedCombos.map(r => `
-      <article class="mmReportCard" style="page-break-after: always; margin-bottom: 24px; border: 1px solid #bdd0e9; border-radius: 12px; overflow: hidden; background: #fff; font-family: sans-serif;">
-        <div class="mmReportHead" style="background: linear-gradient(135deg, #0f3c67, #165d90); color: #fff; padding: 14px; font-size: 18px; font-weight: 900; text-transform: uppercase;">
-          ${quote.companyName || 'Menú y Montaje'} - ${r.date}
-        </div>
-        <div class="mmReportMeta" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; background: #edf5ff; border-bottom: 1px solid #c9d8ee; font-size: 13.5px;">
-          <div><b>Folio:</b> ${quote.folio || 'N/A'}</div>
-          <div><b>No. Cotización:</b> ${quote.code || 'N/A'}</div>
-          <div><b>Salón:</b> ${r.salon}</div>
-          <div><b>Pax Asignado:</b> ${r.menuQty || quote.people || 'N/A'}</div>
-          <div><b>Tipo Evento:</b> ${quote.eventType || 'N/A'}</div>
-          <div><b>Horario:</b> ${quote.schedule || 'N/A'}</div>
-        </div>
-        <div class="mmReportBlock" style="padding: 16px; border-bottom: 1px solid #d9e2f2;">
-          <h3 style="margin: 0 0 10px; color: #0a3f67; font-size: 16px; text-transform: uppercase;">🍽️ Menú: ${r.menuTitle}</h3>
-          <pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 13px; color: #334155; margin: 0;">${r.menuDescription || 'Detalle no ingresado'}</pre>
-        </div>
-        <div class="mmReportBlock" style="padding: 16px;">
-          <h3 style="margin: 0 0 10px; color: #0a3f67; font-size: 16px; text-transform: uppercase;">⛺ Montaje</h3>
-          <pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 13px; color: #334155; margin: 0;">${r.montajeDescription || 'Detalle no ingresado'}</pre>
-        </div>
-      </article>
-    `).join('');
-
-    const printWindow = window.open('', '_blank');
-    printWindow.document.open();
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-      <head>
-        <title>${docTitle}</title>
-        <style>
-          body { background: #eef3fb; padding: 20px; font-family: system-ui, sans-serif; }
-          @media print {
-            body { background: #fff; padding: 0; }
-            .mmReportCard { box-shadow: none; page-break-after: always; }
-          }
-        </style>
-      </head>
-      <body>
-        <div style="max-width: 900px; margin: 0 auto;">
-          ${sectionsHtml}
-        </div>
-        <script>
-          window.onload = function() {
-            window.print();
-          }
-        </script>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
-  // ----------------------------------------------------
-  // FILTERED BUILDER OPTIONS
-  // ----------------------------------------------------
-
-  const filteredStageOptions = useMemo(() => {
-    let list = [];
-    const term = filterQuery.toLowerCase().trim();
-
-    if (builderStage === 'plato') {
-      list = catalogs.proteins;
-    } else if (builderStage === 'preparacion') {
-      list = catalogs.preparations;
-    } else if (builderStage === 'salsa') {
-      list = catalogs.salsas;
-    } else if (builderStage === 'guarnicion') {
-      list = catalogs.guarniciones;
-    } else if (builderStage === 'postre') {
-      list = catalogs.postres;
-    } else if (builderStage === 'bebida') {
-      list = catalogs.bebidas;
-    } else if (builderStage === 'montaje_tipo') {
-      list = catalogs.montajeTipos;
-    } else if (builderStage === 'montaje_adicional') {
-      list = catalogs.montajeAdicionales;
-    }
-
-    if (term) {
-      list = list.filter(x => x.nombre?.toLowerCase().includes(term));
-    }
-
-    return list;
-  }, [builderStage, catalogs, filterQuery]);
-
-  // Check if item is selected in builder
-  const isOptionSelected = (id) => {
-    const numId = Number(id);
-    if (builderStage === 'plato') return String(numId) === selectedProtein;
-    if (builderStage === 'preparacion') return String(numId) === selectedPrep;
-    if (builderStage === 'salsa') return selectedSalsas.includes(numId);
-    if (builderStage === 'guarnicion') return selectedGuarniciones.includes(numId);
-    if (builderStage === 'postre') return selectedPostres.includes(numId);
-    if (builderStage === 'bebida') return selectedBebidas.includes(numId);
-    if (builderStage === 'montaje_tipo') return String(numId) === selectedMontajeTipo;
-    if (builderStage === 'montaje_adicional') return selectedMontajeAdicionales.includes(numId);
-    return false;
-  };
-
-  // ----------------------------------------------------
-  // TEXT TOOLS (FORMATTING HELPERS)
-  // ----------------------------------------------------
-
-  const insertTextSnippet = (snippetType, target) => {
-    const textToInsert = snippetType === 'separator' ? '\n-------------------------------------------\n' : '';
-    if (target === 'menu') {
-      setMenuDescription(prev => prev + textToInsert);
-    } else {
-      setMontajeDescription(prev => prev + textToInsert);
+    try {
+      const url = catalogEditingItem ? `/api/menu-catalog/${catalogKind}/${catalogEditingItem.id}` : `/api/menu-catalog/${catalogKind}`;
+      const response = await fetch(url, {
+        method: catalogEditingItem ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.message || 'No se pudo guardar.');
+      await loadCatalogItems(catalogKind);
+      await loadData();
+      showNotice(catalogEditingItem ? 'Registro actualizado.' : 'Registro guardado.');
+    } catch (error) {
+      showNotice(error?.message || 'Error al guardar el catálogo.');
     }
   };
 
-  // ----------------------------------------------------
-  // RENDERING CSS STYLES (HSL PALETTE)
-  // ----------------------------------------------------
+  const handleToggleCatalogItem = async (item) => {
+    const payload = { nombre: item.nombre, activo: item.activo === false };
+    if (catalogKind === 'preparacion') payload.id_plato_fuerte = item.id_plato_fuerte;
+    if (catalogKind === 'plato_fuerte') payload.tipo_plato = item.tipo_plato || 'NORMAL';
 
-  const containerStyle = {
-    background: '#ffffff',
-    borderRadius: '16px',
-    border: '1px solid #e2e8f0',
-    padding: '24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'
+    try {
+      const response = await fetch(`/api/menu-catalog/${catalogKind}/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.message || 'No se pudo actualizar.');
+      await loadCatalogItems(catalogKind);
+      await loadData();
+      showNotice(payload.activo ? 'Registro activado.' : 'Registro inhabilitado.');
+    } catch (error) {
+      showNotice(error?.message || 'Error al actualizar catálogo.');
+    }
   };
 
-  const sectionHeadStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottom: '2px solid #f1f5f9',
-    paddingBottom: '14px',
-    marginBottom: '8px'
+  const currentStages = primaryMode === 'menu' ? STAGES_MENU : STAGES_MONTAJE;
+  const activeStage = [...STAGES_MENU, ...STAGES_MONTAJE].find((stage) => stage.id === activeStageId);
+  const activeLine = lineItemsDraft.find((line) => line.key === activeLineKey);
+  const selectedCombo = combos.find((combo) => combo.key === selectedKey) || combos[0] || {
+    date: quote.eventDate || event?.date || '',
+    salon: quote.venue || event?.salon || '',
   };
-
-  const titleStyle = {
-    margin: 0,
-    fontSize: '18px',
-    fontWeight: '900',
-    color: '#0f172a',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  };
-
-  const comboGridStyle = {
-    display: 'grid',
-    gridTemplateColumns: '1.2fr 1fr 0.8fr',
-    gap: '16px',
-    background: '#f8fafc',
-    padding: '16px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0'
-  };
-
-  const labelStyle = {
-    fontSize: '11px',
-    fontWeight: '800',
-    color: '#475569',
-    marginBottom: '6px',
-    textTransform: 'uppercase',
-    display: 'block',
-    letterSpacing: '0.5px'
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: '8px',
-    border: '1.5px solid #cbd5e1',
-    fontSize: '13px',
-    color: '#1e293b',
-    background: 'white',
-    boxSizing: 'border-box'
-  };
-
-  const tabBtnStyle = (tabId) => ({
-    padding: '10px 18px',
-    borderRadius: '8px',
-    fontWeight: '800',
-    fontSize: '12.5px',
-    cursor: 'pointer',
-    border: 'none',
-    transition: 'all 0.2s',
-    background: activeSubTab === tabId ? '#1e3a8a' : '#f1f5f9',
-    color: activeSubTab === tabId ? 'white' : '#475569'
-  });
-
-  const stageBtnStyle = (stageId) => ({
-    padding: '8px 14px',
-    borderRadius: '6px',
-    fontWeight: '800',
-    fontSize: '12px',
-    cursor: 'pointer',
-    border: 'none',
-    transition: 'all 0.2s',
-    background: builderStage === stageId ? '#0d9488' : '#eff6ff',
-    color: builderStage === stageId ? 'white' : '#2563eb'
-  });
+  const hasEntries = Array.isArray(quote.menuMontajeEntries) && quote.menuMontajeEntries.length > 0;
 
   return (
-    <div style={containerStyle}>
-      {/* Header and Version controls */}
-      <div style={sectionHeadStyle}>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <h3 style={titleStyle}>🍽️ Planificador de Menú & Montaje</h3>
-          <span style={{
-            background: '#e0f2fe',
-            color: '#0369a1',
-            fontSize: '11.5px',
-            fontWeight: '900',
-            padding: '3px 8px',
-            borderRadius: '6px'
-          }}>
-            V{quote.menuMontajeVersion || 1} Activa
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button 
-            type="button" 
-            onClick={() => setActiveSubTab('builder')} 
-            style={tabBtnStyle('builder')}
-          >
-            🧩 Constructor Interactivo
-          </button>
-          <button 
-            type="button" 
-            onClick={() => setActiveSubTab('classic')} 
-            style={tabBtnStyle('classic')}
-          >
-            ✍️ Editor Clásico (Manual)
-          </button>
-        </div>
-      </div>
+    <div className="mmp-pos">
+      {notice && <div className="mmp-toast"><span>{notice.message}</span><i /></div>}
 
-      {/* Date & Salon Select Combo */}
-      <div style={comboGridStyle}>
-        <div>
-          <label style={labelStyle}>Fecha + Salón Asignados</label>
-          <select 
-            value={selectedKey}
-            onChange={e => setSelectedKey(e.target.value)}
-            style={inputStyle}
-          >
-            {combos.map(c => (
-              <option key={c.key} value={c.key}>{c.date} — {c.salon}</option>
-            ))}
-          </select>
+      <header className="mmp-shellHead">
+        <div className="mmp-titleBlock" aria-hidden="true">
+          <h2>Menú & Montaje</h2>
+          <p>Gestión de comandas por evento</p>
         </div>
-        
-        <div>
-          <label style={labelStyle}>Versión Histórica</label>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <select 
-              value={selectedMmsVersion} 
-              onChange={e => setSelectedMmsVersion(Number(e.target.value))}
-              style={inputStyle}
-            >
-              {quote.menuMontajeVersions && quote.menuMontajeVersions.length > 0 ? (
-                quote.menuMontajeVersions.map(v => (
-                  <option key={v.version} value={v.version}>Versión V{v.version} ({v.savedAt?.split('T')[0]})</option>
-                ))
-              ) : (
-                <option value="1">Versión V1 (Borrador)</option>
-              )}
+
+        <div className="mmp-segment">
+          <button type="button" className={primaryMode === 'menu' ? 'is-active' : ''} onClick={() => { setPrimaryMode('menu'); setActiveStageId(''); }}>Menú</button>
+          <button type="button" className={primaryMode === 'montaje' ? 'is-active' : ''} onClick={() => { setPrimaryMode('montaje'); setActiveStageId(''); }}>Montaje</button>
+        </div>
+
+        <div className="mmp-segment">
+          <button type="button" className={activeSubTab === 'builder' ? 'is-active' : ''} onClick={() => setActiveSubTab('builder')}>Constructor</button>
+          <button type="button" className={activeSubTab === 'classic' ? 'is-active' : ''} onClick={() => setActiveSubTab('classic')}>Manual</button>
+        </div>
+
+        <div className="mmp-headFields">
+          <label>
+            Versión
+            <select value={selectedMmsVersion} onChange={(event) => setSelectedMmsVersion(Number(event.target.value))}>
+              {quote.menuMontajeVersions?.length
+                ? quote.menuMontajeVersions.map((version) => <option key={version.version} value={version.version}>V{version.version} ({version.savedAt?.split('T')[0] || 'sin fecha'})</option>)
+                : <option value="1">V1 (Borrador)</option>}
             </select>
-            <button 
-              type="button"
-              onClick={handleLoadVersionHistory}
-              style={{
-                background: '#eff6ff',
-                color: '#2563eb',
-                border: '1.5px solid #bfdbfe',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                fontWeight: '800',
-                cursor: 'pointer'
-              }}
-            >
-              Cargar
-            </button>
-          </div>
+          </label>
+          <div className="mmp-headAction"><span aria-hidden="true">.</span><button className="mmp-lightBtn" type="button" onClick={handleLoadVersion}>Cargar</button></div>
+          <label>
+            Fecha / Salón
+            <select value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)}>
+              {combos.map((combo) => <option key={combo.key} value={combo.key}>{combo.date} · {combo.salon}</option>)}
+            </select>
+          </label>
+          <div className="mmp-headAction"><span aria-hidden="true">.</span><span className="mmp-code">{quote.code || 'Sin código'}</span></div>
         </div>
+      </header>
 
-        <div>
-          <label style={labelStyle}>Documento Relativo</label>
-          <input 
-            value={quote.code || '(Sin guardar)'}
-            readOnly 
-            style={{ ...inputStyle, background: '#f1f5f9', fontWeight: 'bold', color: '#64748b' }}
-          />
-        </div>
-      </div>
+      <main className="mmp-layout">
+        <section className="mmp-workspace">
+          {activeSubTab === 'builder' ? (
+            <>
+              <div className="mmp-workIntro">
+                <div>
+                  <h3>Armar menú y montaje</h3>
+                  <p>{selectedCombo.date || 'Sin fecha'} · {selectedCombo.salon || 'Sin salón'}</p>
+                </div>
+                <div className="mmp-workActions">
+                  <button className="mmp-lightBtn" type="button" onClick={() => setShowCatalogModal(true)}>{Icon.catalog} Gestionar catálogo</button>
+                  <button className="mmp-lightBtn danger" type="button" onClick={handleClearForm}>Anular todo</button>
+                </div>
+              </div>
 
-      {/* INTERACTIVE BUILDER TAB */}
-      {activeSubTab === 'builder' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1.3fr', gap: '20px' }}>
-          {/* Builder Options Workbench */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            
-            {/* Step Category Selectors */}
-            <div style={{
-              background: '#f8fafc',
-              padding: '12px',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '6px'
-            }}>
-              <button type="button" onClick={() => { setBuilderStage('plato'); setFilterQuery(''); }} style={stageBtnStyle('plato')}>1. Plato Fuerte</button>
-              <button type="button" disabled={!selectedProtein} onClick={() => { setBuilderStage('preparacion'); setFilterQuery(''); }} style={stageBtnStyle('preparacion')}>2. Preparación</button>
-              <button type="button" disabled={!selectedProtein} onClick={() => { setBuilderStage('salsa'); setFilterQuery(''); }} style={stageBtnStyle('salsa')}>3. Salsas</button>
-              <button type="button" disabled={!selectedProtein} onClick={() => { setBuilderStage('guarnicion'); setFilterQuery(''); }} style={stageBtnStyle('guarnicion')}>4. Guarniciones</button>
-              <button type="button" disabled={!selectedProtein} onClick={() => { setBuilderStage('postre'); setFilterQuery(''); }} style={stageBtnStyle('postre')}>5. Postres</button>
-              <button type="button" disabled={!selectedProtein} onClick={() => { setBuilderStage('bebida'); setFilterQuery(''); }} style={stageBtnStyle('bebida')}>6. Bebidas</button>
-              <button type="button" onClick={() => { setBuilderStage('montaje_tipo'); setFilterQuery(''); }} style={stageBtnStyle('montaje_tipo')}>7. Montaje Tipo</button>
-              <button type="button" disabled={!selectedMontajeTipo} onClick={() => { setBuilderStage('montaje_adicional'); setFilterQuery(''); }} style={stageBtnStyle('montaje_adicional')}>8. Adicionales</button>
-            </div>
+              <div className={`mmp-editHint ${activeLine ? 'is-ready' : ''}`}>
+                {activeLine
+                  ? <>Editando <b>{findName(catalogs.proteins, activeLine.platoId, 'plato seleccionado')}</b>. Seleccione una categoría para completar la comanda.</>
+                  : <>Seleccione <b>Plato Fuerte</b> para iniciar.</>}
+              </div>
 
-            {/* Quick Actions Search Bar */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input 
-                type="text" 
-                placeholder={`Filtrar opciones de ${builderStage}...`} 
-                value={filterQuery}
-                onChange={e => setFilterQuery(e.target.value)}
-                style={inputStyle}
-              />
-              <button 
-                type="button" 
-                onClick={handleClearForm}
-                style={{
-                  background: '#fef2f2',
-                  color: '#991b1b',
-                  border: '1.5px solid #fca5a5',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  fontWeight: '800',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                🗑️ Anular Todo
-              </button>
-            </div>
+              <div className="mmp-stageGrid">
+                {currentStages.map((stage) => {
+                  const count = getStageCount(stage.id);
+                  const enabled = stage.id === 'plato' || stage.id === 'montaje_tipo'
+                    ? true
+                    : primaryMode === 'menu' ? Boolean(activeLineKey) : Boolean(selectedMontajeTipo);
+                  return (
+                    <button
+                      key={stage.id}
+                      type="button"
+                      disabled={!enabled}
+                      className={`mmp-stageCard ${count ? 'has-data' : ''}`}
+                      style={{ '--stage-color': stage.color, '--stage-bg': stage.bg }}
+                      onClick={() => setActiveStageId(stage.id)}
+                    >
+                      <span className="mmp-stageIcon">{stage.icon}</span>
+                      <strong>{stage.label}</strong>
+                      {count > 0 && <em>{count}</em>}
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* Dynamic Catalog Board */}
-            <div style={{
-              background: 'white',
-              border: '1.5px dashed #cbd5e1',
-              borderRadius: '12px',
-              padding: '16px',
-              minHeight: '260px',
-              maxHeight: '340px',
-              overflowY: 'auto'
-            }}>
-              <h4 style={{ margin: '0 0 12px', fontSize: '13px', textTransform: 'uppercase', color: '#475569', fontWeight: '900' }}>
-                📋 Disponibles en Catálogo ({builderStage})
-              </h4>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '10px' }}>
-                {filteredStageOptions.length > 0 ? (
-                  filteredStageOptions.map(opt => {
-                    const selected = isOptionSelected(opt.id);
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => handleStageOptionClick(opt.id, opt.nombre)}
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: '10px',
-                          border: selected ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                          background: selected ? '#eff6ff' : '#f8fafc',
-                          color: selected ? '#1e40af' : '#1e293b',
-                          fontWeight: '700',
-                          fontSize: '12.5px',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          transition: 'all 0.15s ease'
+              {primaryMode === 'menu' && (
+                <label className="mmp-generalNote">
+                  <span>Comentario general</span>
+                  <textarea
+                    value={menuNotes}
+                    onChange={(event) => setMenuNotes(event.target.value)}
+                    rows={3}
+                    placeholder="Comentario para servicio, cocina o meseros..."
+                  />
+                </label>
+              )}
+
+              {primaryMode === 'menu' && (
+                <section className="mmp-configured">
+                  <header>
+                    <h3>Platos configurados</h3>
+                    <span>{lineItemsDraft.length} plato(s)</span>
+                  </header>
+                  <div className="mmp-lineList">
+                    {lineItemsDraft.map((line, index) => (
+                      <LineCard
+                        key={line.key}
+                        line={line}
+                        index={index}
+                        catalogs={catalogs}
+                        active={line.key === activeLineKey}
+                        onEdit={() => handleEditLine(line)}
+                        onRemove={() => {
+                          updateLines((current) => current.filter((item) => item.key !== line.key));
+                          if (line.key === activeLineKey) setActiveLineKey('');
                         }}
-                      >
-                        <span>{opt.nombre}</span>
-                        {selected && <span style={{ color: '#2563eb' }}>✓</span>}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div style={{ colSpan: '3', padding: '16px', color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>
-                    No se encontraron opciones para el filtro aplicado.
+                        onQtyChange={(delta) => updateLines((current) => current.map((item) => (
+                          item.key === line.key ? { ...item, qty: Math.max(1, Number(item.qty || 1) + delta) } : item
+                        )))}
+                        onTimeChange={(value) => updateLines((current) => current.map((item) => (
+                          item.key === line.key ? { ...item, servicioHora: value } : item
+                        )))}
+                        onComponentQtyChange={(qtyField, componentId, delta) => changeLineComponentQty(line.key, qtyField, componentId, delta)}
+                      />
+                    ))}
+                    {!lineItemsDraft.length && <div className="mmp-emptyCard">Sin platos configurados todavía.</div>}
                   </div>
-                )}
-              </div>
-            </div>
+                </section>
+              )}
 
-            {/* Active Plate / Line draft items list */}
-            {lineItemsDraft.length > 0 && (
-              <div style={{ background: '#f0fdf4', padding: '12px 16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
-                <h4 style={{ margin: '0 0 8px', fontSize: '12.5px', color: '#166534', fontWeight: '900', textTransform: 'uppercase' }}>
-                  🥗 Platos Fuertes Configurados en este día
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {lineItemsDraft.map((line, idx) => {
-                    const protein = catalogs.proteins.find(x => String(x.id) === String(line.platoId))?.nombre || 'Plato';
-                    const active = line.key === activeLineKey;
-                    return (
-                      <div key={line.key} style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        background: active ? '#ffffff' : 'rgba(255,255,255,0.6)',
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        border: active ? '1.5px solid #166534' : '1px solid #dcfce7'
-                      }}>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#14532d' }}>
-                          [Plato {idx + 1}] {protein} (Cant: {line.qty})
-                        </span>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button 
-                            type="button" 
-                            onClick={() => handleEditLineItem(line)}
-                            style={{
-                              background: '#eff6ff',
-                              color: '#2563eb',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemoveLineItem(line.key)}
-                            style={{
-                              background: '#fef2f2',
-                              color: '#991b1b',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Quitar
-                          </button>
+              {primaryMode === 'montaje' && (
+                <section className="mmp-montajeBox">
+                  <h3>Montaje configurado</h3>
+                  <pre>{montajeDescription || '[MONTAJE]\n- TIPO (Por definir) | ADICIONALES (Ninguno)'}</pre>
+                </section>
+              )}
+            </>
+          ) : (
+            <section className="mmp-manual">
+              <div className="mmp-formGrid">
+                <label>Título comercial del menú<input value={menuTitle} onChange={(event) => setMenuTitle(event.target.value)} placeholder="Ej: Almuerzo Gala Empresarial" /></label>
+                <label>Cantidad (Menú PAX)<input type="number" value={menuQty} onChange={(event) => setMenuQty(event.target.value)} placeholder="Ej: 150" /></label>
+              </div>
+              <label className="mmp-generalNote in-manual">
+                <span>Comentario general</span>
+                <textarea value={menuNotes} onChange={(event) => setMenuNotes(event.target.value)} rows={3} placeholder="Comentario para servicio, cocina o meseros..." />
+              </label>
+              <div className="mmp-formGrid two">
+                <label>
+                  <span className="mmp-labelRow">Descripción del menú <button type="button" onClick={() => insertTextSnippet('menu')}>Agregar separador</button></span>
+                  <textarea value={menuDescription} onChange={(event) => setMenuDescription(event.target.value)} rows={14} />
+                </label>
+                <label>
+                  <span className="mmp-labelRow">Descripción del montaje <button type="button" onClick={() => insertTextSnippet('montaje')}>Agregar separador</button></span>
+                  <textarea value={montajeDescription} onChange={(event) => setMontajeDescription(event.target.value)} rows={14} />
+                </label>
+              </div>
+            </section>
+          )}
+
+          {hasEntries && (
+            <section className="mmp-saved">
+              <header>
+                <h3>Registros de comanda generados</h3>
+                <p>{quote.menuMontajeEntries.length} registro(s) para esta cotización.</p>
+              </header>
+              <div className="mmp-tableWrap">
+                <table>
+                  <thead><tr><th>Fecha</th><th>Salón</th><th>Título Menú</th><th>Cantidad</th><th>Última actualización</th></tr></thead>
+                  <tbody>
+                    {quote.menuMontajeEntries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>{entry.date}</td>
+                        <td>{entry.salon}</td>
+                        <td>{entry.menuTitle}</td>
+                        <td>{entry.menuQty || 'N/A'}</td>
+                        <td>{entry.updatedAt?.split('T')[0] || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </section>
+
+        <aside className="mmp-ticket">
+          <header>
+            <h3>Resumen de comanda</h3>
+            <p>{selectedCombo.date || '-'} · {selectedCombo.salon || '-'}</p>
+          </header>
+
+          <div className="mmp-ticketScroll">
+            <label className="mmp-ticketField">
+              Título del menú
+              <input value={menuTitle} onChange={(event) => setMenuTitle(event.target.value)} placeholder="Ej: Menú Gala" />
+            </label>
+            <label className="mmp-ticketField">
+              PAX
+              <input type="number" value={menuQty} onChange={(event) => setMenuQty(event.target.value)} placeholder="Cantidad" />
+            </label>
+            <label className="mmp-ticketField">
+              Comentario general
+              <textarea value={menuNotes} onChange={(event) => setMenuNotes(event.target.value)} rows={3} placeholder="Comentario para servicio, cocina o meseros" />
+            </label>
+
+            <section>
+              <div className="mmp-ticketSectionHead">
+                <h4>Menú compilado</h4>
+                <button type="button" onClick={() => setEditingCompiledMenu((current) => !current)}>
+                  {editingCompiledMenu ? 'Listo' : 'Editar'}
+                </button>
+              </div>
+              {editingCompiledMenu ? (
+                <textarea
+                  className="mmp-compiledEditor"
+                  value={menuDescription}
+                  onChange={(event) => setMenuDescription(event.target.value)}
+                  rows={8}
+                  placeholder="[PLATOS FUERTES]\n- Por definir"
+                />
+              ) : (
+                <pre>{menuDescription || '[PLATOS FUERTES]\n- Por definir'}</pre>
+              )}
+            </section>
+            <section>
+              <div className="mmp-ticketSectionHead">
+                <h4>Montaje compilado</h4>
+                <button type="button" onClick={() => setEditingCompiledMontaje((current) => !current)}>
+                  {editingCompiledMontaje ? 'Listo' : 'Editar'}
+                </button>
+              </div>
+              {editingCompiledMontaje ? (
+                <textarea
+                  className="mmp-compiledEditor"
+                  value={montajeDescription}
+                  onChange={(event) => setMontajeDescription(event.target.value)}
+                  rows={6}
+                  placeholder="[MONTAJE]\n- TIPO (Por definir) | ADICIONALES (Ninguno)"
+                />
+              ) : (
+                <pre>{montajeDescription || '[MONTAJE]\n- TIPO (Por definir) | ADICIONALES (Ninguno)'}</pre>
+              )}
+            </section>
+          </div>
+
+          <footer>
+            <button className="mmp-lightBtn" type="button" onClick={handlePreviewPrint}>{Icon.print} Imprimir</button>
+            <button className="mmp-lightBtn" type="button" onClick={() => handleSave(true)}>Actualizar</button>
+            <button className="mmp-saveBtn" type="button" onClick={() => handleSave(false)}>{Icon.save} Guardar</button>
+          </footer>
+        </aside>
+      </main>
+
+      {activeStage && (
+        <StagePicker
+          stage={activeStage}
+          items={getStageItems(activeStage.id)}
+          selected={getSelectedForStage(activeStage.id)}
+          isMulti={!['plato', 'preparacion', 'montaje_tipo'].includes(activeStage.id)}
+          onToggle={(item) => handleToggleItem(activeStage.id, item)}
+          onClose={() => setActiveStageId('')}
+        />
+      )}
+
+      {showCatalogModal && (
+        <div className="mmp-modalShade">
+          <section className="mmp-catalogModal">
+            <header>
+              <div>
+                <h3>Gestionar catálogo Menú & Montaje</h3>
+                <p>Catálogo base y combinaciones para crear menús completos.</p>
+              </div>
+              <button className="mmp-iconBtn" type="button" onClick={() => setShowCatalogModal(false)}>{Icon.close}</button>
+            </header>
+
+            <div className="mmp-catalogBody">
+              <div className="mmp-catalogTabs">
+                <button type="button" className={catalogMode === 'base' ? 'is-active' : ''} onClick={() => setCatalogMode('base')}>Catálogo base</button>
+                <button type="button" className={catalogMode === 'rules' ? 'is-active' : ''} onClick={() => setCatalogMode('rules')}>Combinaciones</button>
+              </div>
+
+              {catalogMode === 'base' ? (
+                <>
+                  <form className="mmp-catalogForm" onSubmit={(event) => { event.preventDefault(); handleSaveCatalogItem(); }}>
+                    <label>Catálogo<select value={catalogKind} onChange={(event) => setCatalogKind(event.target.value)}>{CATALOG_KIND_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    {catalogKind === 'preparacion' && (
+                      <label>Proteína base<select value={catalogProteinDraft} onChange={(event) => setCatalogProteinDraft(event.target.value)}><option value="">Seleccione</option>{catalogs.proteins.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+                    )}
+                    <label>Nombre<input value={catalogNameDraft} onChange={(event) => setCatalogNameDraft(event.target.value)} placeholder="Escribe el nombre" /></label>
+                    {catalogKind === 'plato_fuerte' && (
+                      <label>Tipo de plato<select value={catalogDishTypeDraft} onChange={(event) => setCatalogDishTypeDraft(event.target.value)}><option value="NORMAL">Normal</option><option value="VEGETARIANO">Vegetariano</option><option value="SIN PROTEINA">Sin proteína</option></select></label>
+                    )}
+                    <div className="mmp-catalogActions">
+                      <button className="mmp-lightBtn" type="button" onClick={() => { setCatalogEditingItem(null); setCatalogNameDraft(''); setCatalogProteinDraft(''); setCatalogDishTypeDraft('NORMAL'); }}>Limpiar formulario</button>
+                      <button className="mmp-saveBtn" type="submit">{catalogEditingItem ? 'Actualizar registro' : 'Guardar registro'}</button>
+                    </div>
+                  </form>
+
+                  <div className="mmp-catalogTable">
+                    {catalogLoading ? <div className="mmp-empty">Cargando...</div> : (
+                      <table>
+                        <thead><tr><th>Nombre</th><th>Detalle</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody>
+                          {catalogItems.length ? catalogItems.map((item) => {
+                            const detail = catalogKind === 'preparacion'
+                              ? findName(catalogs.proteins, item.id_plato_fuerte, '-')
+                              : catalogKind === 'plato_fuerte' ? (item.tipo_plato || 'NORMAL') : '-';
+                            return (
+                              <tr key={item.id}>
+                                <td>{item.nombre}</td>
+                                <td>{detail}</td>
+                                <td><span className={item.activo === false ? 'is-off' : 'is-on'}>{item.activo === false ? 'Inactivo' : 'Activo'}</span></td>
+                                <td>
+                                  <button type="button" onClick={() => { setCatalogEditingItem(item); setCatalogNameDraft(item.nombre || ''); setCatalogProteinDraft(item.id_plato_fuerte ? String(item.id_plato_fuerte) : ''); setCatalogDishTypeDraft(item.tipo_plato || 'NORMAL'); }}>Editar</button>
+                                  <button type="button" onClick={() => handleToggleCatalogItem(item)}>{item.activo === false ? 'Activar' : 'Inhabilitar'}</button>
+                                </td>
+                              </tr>
+                            );
+                          }) : <tr><td colSpan="4">Sin registros</td></tr>}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <section className="mmp-ruleBuilder">
+                  <div className="mmp-ruleContext">
+                    <label>Plato base<select value={ruleProtein} onChange={(event) => setRuleProtein(event.target.value)}><option value="">Seleccione plato</option>{catalogs.proteins.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+                    <label>Preparación<select value={rulePreparation} onChange={(event) => setRulePreparation(event.target.value)} disabled={!ruleProtein}><option value="">Seleccione preparación</option>{rulePreparations.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+                    <button className="mmp-saveBtn" type="button" onClick={handleSaveRules} disabled={ruleSaving || !ruleProtein || !rulePreparation}>{ruleSaving ? 'Guardando...' : 'Guardar combinación'}</button>
+                  </div>
+
+                  {ruleLoading ? <div className="mmp-empty">Cargando combinaciones...</div> : (
+                    <div className="mmp-ruleGrid">
+                      {RULE_GROUPS.map((group) => (
+                        <div className="mmp-ruleGroup" key={group.key}>
+                          <h4>{group.title}</h4>
+                          <div>
+                            {(catalogs[group.catalog] || []).map((item) => {
+                              const checked = normalizeIdList(ruleLinks[group.key]).includes(Number(item.id));
+                              return (
+                                <label key={item.id} className={checked ? 'is-checked' : ''}>
+                                  <input type="checkbox" checked={checked} onChange={() => handleToggleRule(group.key, item.id)} />
+                                  <span>{item.nombre}</span>
+                                </label>
+                              );
+                            })}
+                            {!(catalogs[group.catalog] || []).length && <p>Sin registros.</p>}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Builder Live Comanda Preview Column */}
-          <div style={{
-            background: 'linear-gradient(to bottom, #f8fafc, #edf2f7)',
-            borderRadius: '16px',
-            border: '1px solid #e2e8f0',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            justifyContent: 'space-between'
-          }}>
-            <div>
-              <h3 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: '900', color: '#1e3a8a' }}>
-                📝 Resumen de la Comanda
-              </h3>
-              <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
-                Vista preliminar formateada del menú y montaje antes de consolidar.
-              </p>
-
-              {/* Live Preview Text Areas */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
-                <div>
-                  <label style={labelStyle}>Descripción de Menú compilado</label>
-                  <textarea 
-                    value={menuDescription}
-                    onChange={e => setMenuDescription(e.target.value)}
-                    rows={6}
-                    style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', background: '#ffffff' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Descripción de Montaje compilado</label>
-                  <textarea 
-                    value={montajeDescription}
-                    onChange={e => setMontajeDescription(e.target.value)}
-                    rows={4}
-                    style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', background: '#ffffff' }}
-                  />
-                </div>
-              </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
             </div>
-
-            <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '12px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => handleSaveMenuMontaje(true)}
-                  style={{
-                    flex: 1,
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    background: 'white',
-                    border: '1.5px solid #cbd5e1',
-                    color: '#475569',
-                    fontWeight: '800',
-                    fontSize: '12.5px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Actualizar Activa
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveMenuMontaje(false)}
-                  style={{
-                    flex: 1,
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    background: '#0d9488',
-                    border: 'none',
-                    color: 'white',
-                    fontWeight: '800',
-                    fontSize: '12.5px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(13, 148, 136, 0.2)'
-                  }}
-                >
-                  Guardar V{quote.menuMontajeVersions?.length + 1 || 2}
-                </button>
-              </div>
-              
-              <button
-                type="button"
-                onClick={handlePrintMms}
-                style={{
-                  width: '100%',
-                  marginTop: '8px',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  background: '#1e3a8a',
-                  color: 'white',
-                  border: 'none',
-                  fontWeight: '800',
-                  fontSize: '12px',
-                  cursor: 'pointer'
-                }}
-              >
-                🖨️ Generar Informe / Imprimir
-              </button>
-            </div>
-          </div>
+          </section>
         </div>
       )}
 
-      {/* CLASSIC MANUAL EDITOR TAB */}
-      {activeSubTab === 'classic' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '20px' }}>
-            <div>
-              <label style={labelStyle}>Título comercial del menú</label>
-              <input 
-                type="text" 
-                placeholder="Ej: Desayunos Buffet Americano, Almuerzo Gala"
-                value={menuTitle}
-                onChange={e => setMenuTitle(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Cantidad (Menú PAX)</label>
-              <input 
-                type="number" 
-                placeholder="Ej: 150"
-                value={menuQty}
-                onChange={e => setMenuQty(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            {/* Free Form Menu Description */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ ...labelStyle, margin: 0 }}>Descripción Manual del Menú</label>
-                <button 
-                  type="button" 
-                  onClick={() => insertTextSnippet('separator', 'menu')}
-                  style={{
-                    background: '#f1f5f9',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    padding: '2px 8px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
+      {printPreviewHtml && (
+        <div className="mmp-modalShade">
+          <section className="mmp-printModal">
+            <header>
+              <h3>Vista previa de impresión</h3>
+              <div>
+                <button
+                  className="mmp-saveBtn"
+                  type="button"
+                  onClick={() => {
+                    const printWindow = window.open('', '_blank');
+                    if (!printWindow) {
+                      Swal.fire('Error', 'Habilite ventanas emergentes para imprimir.', 'error');
+                      return;
+                    }
+                    printWindow.document.open();
+                    printWindow.document.write(printPreviewHtml.replace('</body></html>', '<script>window.onload=function(){window.print();}<\/script></body></html>'));
+                    printWindow.document.close();
                   }}
                 >
-                  + Separador
+                  {Icon.print} Imprimir
                 </button>
+                <button className="mmp-lightBtn" type="button" onClick={() => setPrintPreviewHtml('')}>Cerrar</button>
               </div>
-              <textarea 
-                value={menuDescription}
-                onChange={e => setMenuDescription(e.target.value)}
-                rows={10}
-                placeholder="Escriba aquí los detalles del menú libremente..."
-                style={{ ...inputStyle, fontFamily: 'monospace' }}
-              />
-              <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                {menuDescription.length} caracteres
-              </span>
-            </div>
-
-            {/* Free Form Montage Description */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ ...labelStyle, margin: 0 }}>Descripción Manual del Montaje</label>
-                <button 
-                  type="button" 
-                  onClick={() => insertTextSnippet('separator', 'montaje')}
-                  style={{
-                    background: '#f1f5f9',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    padding: '2px 8px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  + Separador
-                </button>
-              </div>
-              <textarea 
-                value={montajeDescription}
-                onChange={e => setMontajeDescription(e.target.value)}
-                rows={10}
-                placeholder="Escriba aquí las notas de montaje y logística libremente..."
-                style={{ ...inputStyle, fontFamily: 'monospace' }}
-              />
-              <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                {montajeDescription.length} caracteres
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-            <button
-              type="button"
-              onClick={handlePrintMms}
-              style={{
-                padding: '10px 20px',
-                borderRadius: '8px',
-                background: '#1e3a8a',
-                color: 'white',
-                border: 'none',
-                fontWeight: '800',
-                fontSize: '12.5px',
-                cursor: 'pointer'
-              }}
-            >
-              🖨️ Imprimir / PDF
-            </button>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => handleSaveMenuMontaje(true)}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: '8px',
-                  background: 'white',
-                  border: '1.5px solid #cbd5e1',
-                  color: '#475569',
-                  fontWeight: '800',
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
-              >
-                Actualizar Activa
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSaveMenuMontaje(false)}
-                style={{
-                  padding: '10px 24px',
-                  borderRadius: '8px',
-                  background: '#0d9488',
-                  border: 'none',
-                  color: 'white',
-                  fontWeight: '800',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(13, 148, 136, 0.2)'
-                }}
-              >
-                Guardar como Nueva Versión V{quote.menuMontajeVersions?.length + 1 || 2}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* History log block */}
-      {quote.menuMontajeEntries && quote.menuMontajeEntries.length > 0 && (
-        <div style={{
-          background: '#f8fafc',
-          padding: '16px',
-          borderRadius: '12px',
-          border: '1px solid #e2e8f0',
-          marginTop: '10px'
-        }}>
-          <h4 style={{ margin: '0 0 8px', fontSize: '13px', color: '#1e3a8a', fontWeight: '900', textTransform: 'uppercase' }}>
-            📅 Registros de Comanda ya generados para esta Cotización ({quote.menuMontajeEntries.length})
-          </h4>
-          
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #cbd5e1', color: '#475569', fontWeight: 'bold' }}>
-                  <th style={{ padding: '6px 8px' }}>Fecha</th>
-                  <th style={{ padding: '6px 8px' }}>Salón</th>
-                  <th style={{ padding: '6px 8px' }}>Título Menú</th>
-                  <th style={{ padding: '6px 8px' }}>Cantidad</th>
-                  <th style={{ padding: '6px 8px' }}>Última Actualización</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quote.menuMontajeEntries.map(entry => (
-                  <tr key={entry.id} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
-                    <td style={{ padding: '6px 8px', fontWeight: 'bold' }}>{entry.date}</td>
-                    <td style={{ padding: '6px 8px' }}>{entry.salon}</td>
-                    <td style={{ padding: '6px 8px' }}>{entry.menuTitle}</td>
-                    <td style={{ padding: '6px 8px' }}>{entry.menuQty || 'N/A'}</td>
-                    <td style={{ padding: '6px 8px' }}>{entry.updatedAt?.split('T')[0] || 'N/A'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            </header>
+            <iframe title="Vista previa Menú & Montaje" srcDoc={printPreviewHtml} />
+          </section>
         </div>
       )}
     </div>

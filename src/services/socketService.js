@@ -1,6 +1,5 @@
-import { io } from 'socket.io-client';
-
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Socket.IO desactivado: el servidor principal (puerto 3000) no usa Socket.IO.
+// Se mantiene la clase con la misma interfaz para no romper el resto del código.
 
 class SocketService {
   constructor() {
@@ -10,44 +9,12 @@ class SocketService {
   }
 
   connect() {
-    if (this.socket?.connected) return;
-
-    this.socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-
-    this.socket.on('connect', () => {
-      console.log('WebSocket conectado:', this.socket.id);
-      this.isConnected = true;
-    });
-
-    this.socket.on('disconnect', () => {
-      console.log('WebSocket desconectado');
-      this.isConnected = false;
-    });
-
-    this.socket.on('state-updated', () => {
-      this.notifyListeners('state-updated');
-    });
-
-    this.socket.on('event-change', (data) => {
-      this.notifyListeners('event-change', data);
-    });
-
-    this.socket.on('connect_error', (error) => {
-      console.error('Error de conexión WebSocket:', error.message);
-    });
+    // Socket.IO no disponible en el servidor actual. Sin conexión.
   }
 
   disconnect() {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-      this.isConnected = false;
-    }
+    this.socket = null;
+    this.isConnected = false;
   }
 
   on(event, callback) {

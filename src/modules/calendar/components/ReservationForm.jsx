@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { STATUS_META_LIST, AUTO_STATUSES, getStatusFromQuotePresence } from '../constants';
+import { STATUS_META_LIST, STATUS_META, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
 import reminderService from '../../../services/reminderService';
@@ -9,6 +9,7 @@ import conflictService, { checkSlotConflicts, findAllConflicts } from '../../../
 import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
+import ConfirmModal from '../../../components/ConfirmModal';
 
 const HOUR_START = 0;
 const HOUR_END = 23;
@@ -49,8 +50,287 @@ function normalizeSlotDateRange(slot, fallbackStart = "", fallbackEnd = "") {
   return rawStart <= rawEnd ? { start: rawStart, end: rawEnd } : { start: rawEnd, end: rawStart };
 }
 
+const MAINTENANCE_STATUSES = ['Mantenimiento', 'Mantenimiento Realizado'];
+
+function isMaintenanceStatus(status) {
+  return MAINTENANCE_STATUSES.includes(status);
+}
+
+function getSeriesForEvent(events = [], eventId = '') {
+  const target = events.find(ev => String(ev.id) === String(eventId));
+  if (!target) return [];
+  const groupId = String(target.groupId || '').trim();
+  if (!groupId) return [target];
+  const series = events.filter(ev => String(ev.groupId || '').trim() === groupId);
+  return series.length ? series : [target];
+}
+
+function slotsFromEventSeries(series = [], fallbackEvent = null) {
+  if (fallbackEvent?.slots?.length) return fallbackEvent.slots;
+  const source = series.length ? series : (fallbackEvent ? [fallbackEvent] : []);
+  const grouped = new Map();
+  for (const ev of source) {
+    const key = [
+      ev.salon || '',
+      ev.startTime || '',
+      ev.endTime || '',
+      ev.status || '',
+      ev.slotPax ?? ev.pax ?? '',
+    ].join('|');
+    const date = ev.date || ev.eventDateStart || '';
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        salon: ev.salon || '',
+        pax: ev.slotPax ?? ev.pax ?? '',
+        dateStart: date,
+        dateEnd: ev.endDate || ev.eventDateEnd || date,
+        startTime: ev.startTime || '10:00',
+        endTime: ev.endTime || '12:00',
+        status: ev.status || 'Reserva sin Cotizacion'
+      });
+    } else {
+      if (date && (!existing.dateStart || date < existing.dateStart)) existing.dateStart = date;
+      if (date && (!existing.dateEnd || date > existing.dateEnd)) existing.dateEnd = date;
+    }
+  }
+  return Array.from(grouped.values());
+}
+
+function normalizeReservationSnapshot({ formData = {}, slots = [] }) {
+  const cleanedSlots = (slots || []).map(slot => ({
+    salon: String(slot?.salon || '').trim(),
+    pax: String(slot?.pax || '').trim(),
+    dateStart: String(slot?.dateStart || '').trim(),
+    dateEnd: String(slot?.dateEnd || '').trim(),
+    startTime: String(slot?.startTime || '').trim(),
+    endTime: String(slot?.endTime || '').trim(),
+  })).sort((a, b) => (
+    a.dateStart.localeCompare(b.dateStart)
+    || a.salon.localeCompare(b.salon)
+    || a.startTime.localeCompare(b.startTime)
+    || a.endTime.localeCompare(b.endTime)
+  ));
+
+  return JSON.stringify({
+    name: String(formData?.name || '').trim(),
+    date: String(formData?.date || '').trim(),
+    endDate: String(formData?.endDate || '').trim(),
+    pax: String(formData?.pax || '').trim(),
+    notes: String(formData?.notes || '').trim(),
+    userId: String(formData?.userId || '').trim(),
+    slots: cleanedSlots,
+  });
+}
+
+function shouldMoveEditedReservationToSeguimiento(existingEvent, series, nextFormData, nextSlots) {
+  const currentStatus = String(existingEvent?.status || '').trim();
+  const nextStatus = String(nextFormData?.status || '').trim();
+  const commercialFollowUpStatuses = ['Reserva sin Cotizacion', '1er Cotizacion'];
+
+  if (!existingEvent || !commercialFollowUpStatuses.includes(currentStatus)) return false;
+  if (nextStatus && nextStatus !== currentStatus) return false;
+  if (currentStatus === 'Reserva sin Cotizacion' && !existingEvent.quote) return false;
+
+  const oldSlots = slotsFromEventSeries(series, existingEvent);
+  const firstSlot = oldSlots[0] || {};
+  const firstDate = (series || []).reduce((min, ev) => {
+    const date = String(ev?.date || '');
+    return date && (!min || date < min) ? date : min;
+  }, existingEvent.date || '');
+  const lastDate = (series || []).reduce((max, ev) => {
+    const date = String(ev?.date || '');
+    return date && (!max || date > max) ? date : max;
+  }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || '');
+
+  const oldFormData = {
+    name: existingEvent.name || '',
+    date: existingEvent.eventDateStart || firstDate || existingEvent.date || '',
+    endDate: existingEvent.eventDateEnd || lastDate || existingEvent.endDate || existingEvent.date || '',
+    pax: oldSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0) || existingEvent.pax || '',
+    notes: existingEvent.notes || '',
+    userId: existingEvent.userId || '',
+    salon: firstSlot.salon || existingEvent.salon || '',
+    startTime: firstSlot.startTime || existingEvent.startTime || '',
+    endTime: firstSlot.endTime || existingEvent.endTime || '',
+  };
+
+  return normalizeReservationSnapshot({ formData: oldFormData, slots: oldSlots })
+    !== normalizeReservationSnapshot({ formData: nextFormData, slots: nextSlots });
+}
+
+const StatusSelectCustom = ({ value, options, onChange, disabled, size = 'sm' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
+  const containerRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const insideButton = containerRef.current && containerRef.current.contains(event.target);
+      const insideMenu = menuRef.current && menuRef.current.contains(event.target);
+      if (!insideButton && !insideMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const closeMenu = (event) => {
+      const insideMenu = menuRef.current && menuRef.current.contains(event.target);
+      if (!insideMenu) setIsOpen(false);
+    };
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    return () => {
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+    };
+  }, [isOpen]);
+
+  const selectedOption = options.find(o => o.key === value) || options[0];
+  const isSm = size === 'sm';
+  const fontSize = isSm ? '11px' : '14px';
+  const padding = isSm ? '6px 8px' : '10px 14px';
+  const dotSize = isSm ? '8px' : '12px';
+  const openMenu = () => {
+    if (disabled) return;
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const menuWidth = Math.max(rect.width, 220);
+    const estimatedHeight = Math.min(260, Math.max(148, options.length * 38 + 12));
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const shouldOpenAbove = spaceBelow < estimatedHeight && rect.top > spaceBelow;
+    const maxHeight = shouldOpenAbove
+      ? Math.min(260, Math.max(140, rect.top - 12))
+      : Math.min(260, Math.max(140, viewportHeight - rect.bottom - 12));
+
+    setMenuPosition({
+      width: menuWidth,
+      left: Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8)),
+      top: shouldOpenAbove
+        ? Math.max(8, rect.top - maxHeight - 6)
+        : Math.min(rect.bottom + 6, viewportHeight - maxHeight - 8),
+      maxHeight
+    });
+    setIsOpen(true);
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', fontSize, userSelect: 'none' }}>
+      <div
+        onClick={openMenu}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: isSm ? '6px' : '10px',
+          padding,
+          background: disabled ? '#f1f5f9' : (isSm ? 'white' : `${selectedOption?.color || '#cbd5e1'}10`),
+          border: '1px solid',
+          borderColor: disabled ? '#cbd5e1' : (isSm ? '#cbd5e1' : `${selectedOption?.color || '#cbd5e1'}80`),
+          borderRadius: isSm ? '6px' : '8px',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          color: disabled ? '#94a3b8' : (isSm ? '#0f172a' : selectedOption?.color),
+          fontWeight: isSm ? '700' : '800'
+        }}
+      >
+        <span style={{
+          width: dotSize,
+          height: dotSize,
+          borderRadius: '50%',
+          background: selectedOption?.color || '#cbd5e1',
+          boxShadow: `0 0 0 2px ${disabled ? '#f1f5f9' : (isSm ? 'white' : 'transparent')}, 0 0 0 3px ${selectedOption?.color || '#cbd5e1'}80`
+        }} />
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selectedOption?.key}
+        </span>
+        <span style={{ opacity: 0.5, fontSize: isSm ? '9px' : '12px' }}>▼</span>
+      </div>
+
+      {isOpen && menuPosition && createPortal(
+        <div
+          ref={menuRef}
+          onWheel={(event) => event.stopPropagation()}
+          style={{
+          position: 'fixed',
+          top: menuPosition.top,
+          left: menuPosition.left,
+          width: menuPosition.width,
+          background: 'white',
+          border: '1px solid #cbd5e1',
+          borderRadius: '8px',
+          boxShadow: '0 18px 40px rgba(15, 23, 42, 0.22)',
+          zIndex: 9999999,
+          maxHeight: menuPosition.maxHeight,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '6px'
+        }}>
+          {options.map(option => {
+            const isAuto = isAutoStatus(option.key);
+            const isSelected = value === option.key;
+            return (
+              <div
+                key={option.key}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  if (!isAuto) {
+                    onChange(option.key);
+                    setIsOpen(false);
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 10px',
+                  borderRadius: '6px',
+                  cursor: isAuto ? 'not-allowed' : 'pointer',
+                  background: isSelected ? '#eff6ff' : 'transparent',
+                  opacity: isAuto ? 0.5 : 1,
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={(e) => {
+                  if (!isAuto && !isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseOut={(e) => {
+                  if (!isAuto && !isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span style={{
+                  width: dotSize,
+                  height: dotSize,
+                  borderRadius: '50%',
+                  background: option.color,
+                  boxShadow: `0 0 0 2px ${isSelected ? '#eff6ff' : 'white'}, 0 0 0 3px ${option.color}60`,
+                  flexShrink: 0
+                }} />
+                <span style={{ fontWeight: '600', color: '#334155', fontSize: '12px' }}>
+                  {option.key}
+                </span>
+              </div>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
 export default function ReservationForm({ onCancel }) {
-  const { events, salones, users, handleAddEvent, handleDeleteEvent, refreshData } = useOutletContext();
+  const { events, salones, users, handleAddEvent, refreshData } = useOutletContext();
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -60,6 +340,7 @@ export default function ReservationForm({ onCancel }) {
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
   const [slotConflicts, setSlotConflicts] = useState([]);
+  const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, type: null, message: '', title: '', isDanger: true });
 
   const urlDate = searchParams.get('date');
   const urlEndDate = searchParams.get('endDate') || urlDate;
@@ -84,8 +365,6 @@ export default function ReservationForm({ onCancel }) {
     endTime: urlEnd || '12:00',
     pax: '',
     notes: '',
-    clientName: '',
-    clientPhone: '',
     userId: getCurrentUserId()
   });
 
@@ -95,6 +374,13 @@ export default function ReservationForm({ onCancel }) {
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  const comparableEvents = useMemo(() => {
+    if (!id) return events || [];
+    const current = events?.find(ev => String(ev.id) === String(id));
+    const groupId = String(current?.groupId || '').trim();
+    return (events || []).filter(ev => String(ev.id) !== String(id) && (!groupId || String(ev.groupId || '').trim() !== groupId));
+  }, [events, id]);
 
   useEffect(() => {
     if (salones?.length > 0 && !formData.salon && slots[0].salon === '') {
@@ -106,33 +392,43 @@ export default function ReservationForm({ onCancel }) {
 
   useEffect(() => {
     if (events && slots.length > 0) {
-      const conflicts = conflictService.checkAllSlots(slots, events, id);
+      const conflicts = conflictService.checkAllSlots(slots, comparableEvents, id);
       setSlotConflicts(conflicts.filter(r => !r.ok));
     }
-  }, [slots, events, id]);
+  }, [slots, events, id, comparableEvents]);
 
 
   useEffect(() => {
     if (id && events) {
       const existingEvent = events.find(ev => ev.id === id);
       if (existingEvent) {
+        const series = getSeriesForEvent(events, id);
+        const seriesSlots = slotsFromEventSeries(series, existingEvent);
+        const firstSlot = seriesSlots[0] || {};
+        const firstDate = series.reduce((min, ev) => {
+          const date = String(ev.date || '');
+          return date && (!min || date < min) ? date : min;
+        }, existingEvent.date || getDefaultDate());
+        const lastDate = series.reduce((max, ev) => {
+          const date = String(ev.date || '');
+          return date && (!max || date > max) ? date : max;
+        }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || getDefaultDate());
+        const totalPaxFromSlots = seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
         setFormData({
           name: existingEvent.name || '',
-          salon: existingEvent.salon || '',
+          salon: firstSlot.salon || existingEvent.salon || '',
           status: existingEvent.status || 'Reserva sin Cotizacion',
-          date: existingEvent.date || getDefaultDate(),
-          endDate: existingEvent.endDate || existingEvent.date || getDefaultDate(),
-          startTime: existingEvent.startTime || '10:00',
-          endTime: existingEvent.endTime || '12:00',
-          pax: existingEvent.pax || '',
+          date: existingEvent.eventDateStart || firstDate || getDefaultDate(),
+          endDate: existingEvent.eventDateEnd || lastDate || existingEvent.date || getDefaultDate(),
+          startTime: firstSlot.startTime || existingEvent.startTime || '10:00',
+          endTime: firstSlot.endTime || existingEvent.endTime || '12:00',
+          pax: totalPaxFromSlots || existingEvent.pax || '',
           notes: existingEvent.notes || '',
-          clientName: existingEvent.clientName || '',
-          clientPhone: existingEvent.clientPhone || '',
           userId: existingEvent.userId || ''
         });
 
-        if (existingEvent.slots && existingEvent.slots.length > 0) {
-          setSlots(existingEvent.slots);
+        if (seriesSlots.length > 0) {
+          setSlots(seriesSlots);
         } else {
           setSlots([{
             salon: existingEvent.salon || (salones?.length > 0 ? salones[0] : ''),
@@ -156,8 +452,6 @@ export default function ReservationForm({ onCancel }) {
         endTime: urlEnd || '12:00',
         pax: '',
         notes: '',
-        clientName: '',
-        clientPhone: '',
         userId: getCurrentUserId()
       });
       setSlots([{
@@ -237,11 +531,30 @@ export default function ReservationForm({ onCancel }) {
     const newSlots = slots.map((s, i) => i === index ? { ...s, [field]: value } : s);
     setSlots(newSlots);
     if (field === 'pax') {
-      syncEventPaxFromSlots();
+      const total = newSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+      setFormData(prev => ({ ...prev, pax: total > 0 ? total : '' }));
     }
     if (field === 'salon' || field === 'startTime' || field === 'endTime') {
-      syncHiddenTimesFromFirstSlot();
+      if (index === 0 && newSlots.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          startTime: newSlots[0].startTime || prev.startTime,
+          endTime: newSlots[0].endTime || prev.endTime,
+          salon: newSlots[0].salon || prev.salon
+        }));
+      }
     }
+  };
+
+  const applyEventStatus = (statusKey) => {
+    const nextName = statusKey === 'Mantenimiento'
+      ? 'MANTENIMIENTO'
+      : statusKey === 'Mantenimiento Realizado' && formData.name === 'MANTENIMIENTO'
+        ? 'MANTENIMIENTO REALIZADO'
+        : formData.name;
+    setFormData(prev => ({ ...prev, status: statusKey, name: nextName }));
+    setSlots(prev => prev.map(slot => ({ ...slot, status: statusKey })));
+    showNotification(`Estado cambiado a ${statusKey}`, 'info');
   };
 
   const validateReservationRequiredFields = useCallback(() => {
@@ -260,10 +573,29 @@ export default function ReservationForm({ onCancel }) {
       issues.push('La fecha inicial no puede ser mayor a la fecha final');
     }
 
+    // Validación: No permitir eventos en el pasado al crear (solo aplica para eventos nuevos)
+    if (!id) {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const currentDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      if (dateStart && dateStart < currentDate) {
+        issues.push('La fecha inicial no puede estar en el pasado');
+      } else if (dateStart === currentDate) {
+        slots.forEach((s, i) => {
+          if (s.startTime && timeToMinutes(s.startTime) < currentMinutes) {
+            const salonLabel = s.salon ? `"${s.salon}"` : `Nº ${i + 1}`;
+            issues.push(`La hora de inicio en el salón ${salonLabel} ya pasó`);
+          }
+        });
+      }
+    }
+
     const userId = formData.userId.trim();
     if (!userId) issues.push('Usuario (quien bloquea) es requerido');
 
-    const isMaintenanceMode = formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado';
+    const isMaintenanceMode = isMaintenanceStatus(formData.status);
 
     if (!isMaintenanceMode) {
       const totalPax = syncEventPaxFromSlots();
@@ -280,7 +612,9 @@ export default function ReservationForm({ onCancel }) {
         issues.push(`Debes seleccionar un salón en el horario Nº ${idx}`);
       }
       
-      if (!isMaintenanceMode) {
+      const slotMaintenanceMode = isMaintenanceStatus(s.status || formData.status);
+
+      if (!slotMaintenanceMode) {
         if (!s.pax || Number(s.pax) <= 0) {
           issues.push(`El salón ${salonLabel} debe tener un PAX mayor a 0`);
         }
@@ -319,10 +653,7 @@ export default function ReservationForm({ onCancel }) {
   }, [formData, slots, syncEventPaxFromSlots]);
 
   const handleMaintenance = () => {
-    setFormData(prev => ({ ...prev, status: 'Mantenimiento', name: 'MANTENIMIENTO' }));
-    const newSlots = slots.map(s => ({ ...s, status: 'Mantenimiento' }));
-    setSlots(newSlots);
-    showNotification('Estado cambiado a Mantenimiento', 'info');
+    applyEventStatus('Mantenimiento');
   };
 
   const handleReleaseMaintenance = async () => {
@@ -339,6 +670,7 @@ export default function ReservationForm({ onCancel }) {
       const eventData = {
         ...updatedFormData,
         id: id || undefined,
+        groupId: events.find(ev => String(ev.id) === String(id))?.groupId || undefined,
         pax: formData.pax ? parseInt(formData.pax) : null,
         slots: updatedSlots,
         salon: updatedSlots.map(s => s.salon).join(', ')
@@ -347,7 +679,6 @@ export default function ReservationForm({ onCancel }) {
       const savedEvent = await handleAddEvent(eventData);
 
       if (id) {
-        const existingEvent = events.find(ev => ev.id === id);
         if (existingEvent) {
           await historyService.addDetailed(id, existingEvent, eventData);
         }
@@ -364,42 +695,63 @@ export default function ReservationForm({ onCancel }) {
   };
 
   const handleStepClick = (statusKey) => {
-    setFormData(prev => ({ ...prev, status: statusKey }));
-    const newSlots = slots.map(s => ({ ...s, status: statusKey }));
-    setSlots(newSlots);
-    showNotification(`Estado cambiado a ${statusKey}`, 'info');
+    applyEventStatus(statusKey);
   };
 
-  const handleCancelEvent = async () => {
+  const handleCancelEventClick = () => {
     if (!id) {
       showNotification('Solo se pueden cancelar eventos existentes', 'error');
       return;
     }
-    if (window.confirm('¿Deseas cambiar el estado a "Cancelado"?')) {
-      try {
-        await handleAddEvent({ ...formData, id, status: 'Cancelado', slots });
-        showNotification('Evento cancelado');
-        setTimeout(() => navigate('/calendar'), 1000);
-      } catch {
-        showNotification('Error al cancelar', 'error');
-      }
+    setConfirmConfig({
+      isOpen: true,
+      type: 'cancel',
+      title: 'Cancelar Reserva',
+      message: '¿Deseas cambiar el estado a "Cancelado"?',
+      isDanger: true
+    });
+  };
+
+  const executeCancelEvent = async () => {
+    setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+    try {
+      await handleAddEvent({ ...formData, id, status: 'Cancelado', slots: slots.map(slot => ({ ...slot, status: 'Cancelado' })) });
+      showNotification('Evento cancelado');
+      setTimeout(() => navigate('/calendar'), 1000);
+    } catch {
+      showNotification('Error al cancelar', 'error');
     }
   };
 
-  const handleDeleteReservation = async () => {
+  const handleDeleteReservationClick = () => {
     if (!id) {
       showNotification('Solo se pueden eliminar eventos existentes', 'error');
       return;
     }
-    if (window.confirm(`¿Estás seguro de eliminar esta reserva?`)) {
-      try {
-        await handleDeleteEvent(id);
-        await historyService.add(id, 'Reserva eliminada');
-        showNotification('Reserva eliminada');
-        setTimeout(() => navigate('/calendar'), 1000);
-      } catch {
-        showNotification('Error al eliminar', 'error');
-      }
+    setConfirmConfig({
+      isOpen: true,
+      type: 'delete',
+      title: 'Eliminar Reserva',
+      message: '¿Estás seguro de eliminar esta reserva? Esta acción no se puede deshacer y borrará el historial.',
+      isDanger: true
+    });
+  };
+
+  const executeDeleteReservation = async () => {
+    setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+    try {
+      await handleDeleteEvent(id);
+      await historyService.add(id, 'Reserva eliminada');
+      showNotification('Reserva eliminada');
+      setTimeout(() => navigate('/calendar'), 1000);
+    } catch {
+      showNotification('Error al eliminar', 'error');
+    }
+  };
+
+  const onConfirmAction = () => {
+    if (confirmConfig.type === 'cancel') {
+      executeCancelEvent();
     }
   };
 
@@ -427,18 +779,27 @@ export default function ReservationForm({ onCancel }) {
     setShowQuoteModal(true);
   };
 
-  const handleQuoteSave = async (quoteData) => {
+  const handleQuoteSave = async (quoteData, options = {}) => {
     try {
       const currentEvent = events.find(ev => ev.id === id);
+      const previousQuote = currentEvent?.quote || null;
+      const quoteChanged = JSON.stringify(previousQuote || null) !== JSON.stringify(quoteData || null);
+      const shouldFollowUp = previousQuote
+        && quoteChanged
+        && ['Reserva sin Cotizacion', '1er Cotizacion'].includes(currentEvent?.status);
       await handleAddEvent({
         ...currentEvent,
         quote: quoteData,
-        status: '1er Cotizacion'
+        status: shouldFollowUp
+          ? 'Seguimiento'
+          : currentEvent?.status === 'Reserva sin Cotizacion'
+          ? '1er Cotizacion'
+          : (currentEvent?.status || formData.status)
       });
-      showNotification('Cotización guardada');
-      setShowQuoteModal(false);
+      showNotification(shouldFollowUp ? 'Cotizacion actualizada. Estado a Seguimiento.' : 'Cotizacion guardada');
+      if (!options?.keepOpen) setShowQuoteModal(false);
     } catch {
-      showNotification('Error al guardar cotización', 'error');
+      showNotification('Error al guardar cotizacion', 'error');
     }
   };
 
@@ -451,7 +812,7 @@ export default function ReservationForm({ onCancel }) {
       return;
     }
 
-    const conflictCheck = conflictService.checkAllSlots(slots, events, id);
+    const conflictCheck = conflictService.checkAllSlots(slots, comparableEvents, id);
     const hasConflicts = conflictCheck.some(r => !r.ok);
     const hardConflicts = conflictCheck.filter(r => r.type === 'conflict' && !r.ok);
     
@@ -470,12 +831,26 @@ export default function ReservationForm({ onCancel }) {
 
     setSaving(true);
     try {
+      const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
+      const existingSeries = id ? getSeriesForEvent(events, id) : [];
+      const moveToFollowUp = id && shouldMoveEditedReservationToSeguimiento(existingEvent, existingSeries, formData, slots);
+      const finalStatus = moveToFollowUp ? 'Seguimiento' : formData.status;
+      const finalSlots = moveToFollowUp
+        ? slots.map(slot => ({
+          ...slot,
+          status: ['Reserva sin Cotizacion', '1er Cotizacion'].includes(slot.status || existingEvent?.status)
+            ? 'Seguimiento'
+            : slot.status
+        }))
+        : slots;
       const eventData = {
         ...formData,
+        status: finalStatus,
         id: id || undefined,
+        groupId: existingEvent?.groupId || undefined,
         pax: formData.pax ? parseInt(formData.pax) : null,
-        slots: slots,
-        salon: slots.map(s => s.salon).join(', ')
+        slots: finalSlots,
+        salon: finalSlots.map(s => s.salon).join(', ')
       };
 
       const savedEvent = await handleAddEvent(eventData);
@@ -489,7 +864,7 @@ export default function ReservationForm({ onCancel }) {
         await historyService.add(savedEvent.id, 'Reserva creada');
       }
 
-      showNotification(id ? 'Cambios guardados' : 'Reserva creada');
+      showNotification(moveToFollowUp ? 'Cambios guardados. Estado a Seguimiento.' : (id ? 'Cambios guardados' : 'Reserva creada'));
       setTimeout(() => navigate('/calendar'), 1000);
     } catch {
       showNotification('Error al guardar', 'error');
@@ -590,7 +965,7 @@ export default function ReservationForm({ onCancel }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
       {toast.show && (
         <div style={{ position: 'fixed', top: '24px', right: '24px', padding: '14px 28px', background: toast.type === 'error' ? '#dc2626' : '#059669', color: 'white', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, fontWeight: '700' }}>
           {toast.message}
@@ -623,11 +998,11 @@ export default function ReservationForm({ onCancel }) {
         ×
       </button>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
         {/* Encabezado Principal al estilo del original */}
         <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingRight: '40px' }}>
           <div>
-            <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Reservar salon</h1>
+            <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{id ? 'Editar reserva' : 'Reservar salon'}</h1>
             <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>
               {`${slots[0]?.salon || 'Sin salon'} - ${formData.date} - ${slots[0]?.startTime || '10:00'}-${slots[0]?.endTime || '12:00'}`}
             </div>
@@ -792,11 +1167,12 @@ export default function ReservationForm({ onCancel }) {
                   return (
                     <div
                       key={step.key}
+                      onClick={() => handleStepClick(step.key)}
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        cursor: 'default',
+                        cursor: 'pointer',
                         flex: 1
                       }}
                     >
@@ -839,16 +1215,17 @@ export default function ReservationForm({ onCancel }) {
           );
         })()}
 
-        <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingBottom: '16px' }}>
+        <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '16px', alignItems: 'start' }}>
           {/* Columna Izquierda: Información de Reserva y Salones */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Nombre del evento *</label>
                 <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda, Corporativo, Cena" style={{ ...inputStyle, fontSize: '14px', padding: '10px 14px' }} />
               </div>
 
-              {!(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') && (
+              {false && !(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Nombre de quien reserva (Cliente)</label>
@@ -895,49 +1272,56 @@ export default function ReservationForm({ onCancel }) {
                 )}
 
                 <div style={{ overflowX: 'auto', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
-                  <div style={{ minWidth: '700px' }}>
+                  <div style={{ minWidth: '720px' }}>
                     {/* Encabezado de la tabla */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 2fr 1.5fr 1.5fr', gap: '8px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
                       <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
                       <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
                       <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
                       <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>HASTA</span>
                       <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>INICIO</span>
                       <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>FIN</span>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>ESTADO</span>
                     </div>
 
                     {/* Contenido de la tabla con scroll vertical */}
-                    <div style={{ display: 'flex', flexDirection: 'column', padding: '8px', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', padding: '8px 0', gap: '6px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden' }}>
                       {slots.map((slot, index) => (
-                        <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 2fr 1.5fr 1.5fr', gap: '8px', alignItems: 'center', background: 'white', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                          <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }}>
+                        <div key={index} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', alignItems: 'center', background: 'white', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                          <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }}>
                             <option value="">Selecciona salon</option>
                             {salones?.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                           <input 
                             type="text" 
-                            disabled={formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado'} 
-                            value={(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? 'N/A' : slot.pax} 
+                            disabled={isMaintenanceStatus(slot.status || formData.status)}
+                            value={isMaintenanceStatus(slot.status || formData.status) ? 'N/A' : slot.pax}
                             onChange={e => handleSlotChange(index, 'pax', e.target.value)} 
                             placeholder="PAX" 
                             style={{ 
                               ...inputStyle, 
-                              padding: '6px 10px', 
-                              fontSize: '12px',
-                              background: (formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? '#f1f5f9' : 'white',
-                              color: (formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? '#94a3b8' : '#000',
+                              padding: '6px 4px',
+                              fontSize: '11px',
+                              background: isMaintenanceStatus(slot.status || formData.status) ? '#f1f5f9' : 'white',
+                              color: isMaintenanceStatus(slot.status || formData.status) ? '#94a3b8' : '#000',
                               textAlign: 'center'
                             }} 
                           />
-                          <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
-                          <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
-                          <input type="time" value={slot.startTime} onChange={e => handleSlotChange(index, 'startTime', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <input type="time" value={slot.endTime} onChange={e => handleSlotChange(index, 'endTime', e.target.value)} style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }} />
+                          <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
+                          <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
+                          <input type="time" value={slot.startTime} onChange={e => handleSlotChange(index, 'startTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            <input type="time" value={slot.endTime} onChange={e => handleSlotChange(index, 'endTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
                             {slots.length > 1 && (
-                              <button onClick={() => removeSlotRow(index)} style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '14px', cursor: 'pointer', padding: '0 4px', fontWeight: 'bold' }}>×</button>
+                              <button onClick={() => removeSlotRow(index)} style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '14px', cursor: 'pointer', padding: '0 2px', fontWeight: 'bold' }}>×</button>
                             )}
                           </div>
+                          <StatusSelectCustom
+                            size="sm"
+                            value={slot.status || formData.status}
+                            onChange={val => handleSlotChange(index, 'status', val)}
+                            options={isMaintenanceStatus(formData.status) ? STATUS_META_LIST.filter(s => isMaintenanceStatus(s.key)) : STATUS_META_LIST}
+                          />
                         </div>
                       ))}
                     </div>
@@ -946,14 +1330,14 @@ export default function ReservationForm({ onCancel }) {
 
                 <div style={{ marginTop: '12px', padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #bfdbfe' }}>
                   <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e40af' }}>PAX TOTAL:</span>
-                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#1e40af' }}>{(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') ? 'N/A' : (formData.pax || 0)}</span>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#1e40af' }}>{isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)}</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Columna Derecha: Controles de Configuración */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="reservation-side-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
             {/* Fecha inicial */}
             <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Fecha inicial *</label>
@@ -972,22 +1356,18 @@ export default function ReservationForm({ onCancel }) {
               {(() => {
                 const statusColor = STATUS_META_LIST.find(s => s.key === formData.status)?.color || '#2563eb';
                 return (
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px', 
-                    background: `${statusColor}10`, 
-                    border: `1px solid ${statusColor}30`, 
-                    padding: '10px 14px', 
-                    borderRadius: '8px', 
-                    color: statusColor, 
-                    fontWeight: '800', 
-                    fontSize: '14px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor, display: 'inline-block' }}></span>
-                    {formData.status}
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <StatusSelectCustom
+                      size="md"
+                      value={formData.status}
+                      onChange={(val) => applyEventStatus(val)}
+                      options={STATUS_META_LIST}
+                    />
+                    {isMaintenanceStatus(formData.status) && (
+                      <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
+                        En mantenimiento, cada salon solo puede quedar como Mantenimiento o Mantenimiento Realizado.
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -1027,10 +1407,11 @@ export default function ReservationForm({ onCancel }) {
           </div>
         </div>
       </div>
+      </div>
 
 
-      <div className="reservation-form-footer" style={{ background: '#eff6ff', borderTop: '1px solid #bfdbfe', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '80px' }}>
-        <div className="reservation-form-actions-left" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+      <div className="reservation-form-footer" style={{ background: '#eff6ff', borderTop: '1px solid #bfdbfe', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '72px', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="reservation-form-actions-left" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
           {formData.status === 'Mantenimiento' ? (
             <button onClick={handleReleaseMaintenance} className="btn-agregar-cita">Liberar mantenimiento</button>
           ) : (
@@ -1041,8 +1422,7 @@ export default function ReservationForm({ onCancel }) {
               <button onClick={handleOpenHistory} className="btn-historial">Historial</button>
               <button onClick={handleOpenAppointments} className="btn-ver-citas">Ver citas</button>
               <button onClick={handleOpenAppointments} className="btn-agregar-cita">Agregar cita</button>
-              <button onClick={handleCancelEvent} className="btn-cancelar">Cancelar evento</button>
-              <button onClick={handleDeleteReservation} className="btn-eliminar">Eliminar</button>
+              <button onClick={handleCancelEventClick} className="btn-cancelar">Cancelar evento</button>
               {(() => {
                 const currentUser = authService.getCurrentUser();
                 const userRole = currentUser?.role || 'vendedor';
@@ -1219,6 +1599,29 @@ export default function ReservationForm({ onCancel }) {
           transform: translateY(-2px) !important;
           box-shadow: 0 6px 15px rgba(15, 118, 110, 0.35) !important;
         }
+
+        @media (max-width: 1080px) {
+          .reservation-form-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .reservation-side-panel {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .reservation-side-panel {
+            grid-template-columns: 1fr !important;
+          }
+          .reservation-form-actions-left {
+            justify-content: stretch !important;
+          }
+          .reservation-form-actions-left > button,
+          .reservation-form-footer > button {
+            flex: 1 1 160px !important;
+          }
+        }
       `}</style>
 
       {showAppointmentModal && id && (
@@ -1239,10 +1642,25 @@ export default function ReservationForm({ onCancel }) {
 
       {showQuoteModal && id && createPortal(
         <div id="appShell" className="lum-calendar" style={{ position: 'absolute', zIndex: 9999999, top: 0, left: 0 }}>
-          <QuoteModal event={events?.find(ev => ev.id === id)} onClose={() => setShowQuoteModal(false)} onSave={handleQuoteSave} />
+          <QuoteModal
+            event={events.find(ev => String(ev.id) === String(id)) || { ...formData, id, slots }}
+            eventData={formData}
+            slots={slots}
+            onClose={() => setShowQuoteModal(false)}
+            onSave={handleQuoteSave}
+          />
         </div>,
         document.body
       )}
+
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        isDanger={confirmConfig.isDanger}
+        onConfirm={onConfirmAction}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

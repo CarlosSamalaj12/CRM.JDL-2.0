@@ -9,6 +9,7 @@ import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsMenuMontaje from './SettingsMenuMontaje';
 import SettingsQuoteTemplates from './SettingsQuoteTemplates';
+import authService from '../../services/authService';
 
 const MODAL_IDS = [
   'userBackdrop', 'companyBackdrop', 'serviceBackdrop', 
@@ -21,6 +22,9 @@ const MODAL_IDS = [
 export default function SettingsMain() {
   const navigate = useNavigate();
   const [openModal, setOpenModal] = useState(null);
+
+  const currentUser = authService.getCurrentUser();
+  const isAdmin = currentUser?.role === 'admin';
 
   const openModalById = (modalId) => {
     const modal = document.getElementById(modalId);
@@ -80,20 +84,22 @@ export default function SettingsMain() {
           <div className="settingsDivider"></div>
           <div className="settingsSectionTitle">Accesos directos</div>
           <div className="moduleActionGrid">
-            <button className="moduleActionBtn" id="btnQuickAddUser" type="button" onClick={() => openModalById('userBackdrop')}>
-              <span className="actionCardInner">
-                <span className="actionCardIcon">
-                  <svg className="actionCardSvg" viewBox="0 0 64 64" aria-hidden="true">
-                    <circle cx="32" cy="22" r="7"></circle>
-                    <path d="M24 34h16M22 46c2-6 7-9 10-9s8 3 10 9"></path>
-                  </svg>
+            {isAdmin && (
+              <button className="moduleActionBtn" id="btnQuickAddUser" type="button" onClick={() => openModalById('userBackdrop')}>
+                <span className="actionCardInner">
+                  <span className="actionCardIcon">
+                    <svg className="actionCardSvg" viewBox="0 0 64 64" aria-hidden="true">
+                      <circle cx="32" cy="22" r="7"></circle>
+                      <path d="M24 34h16M22 46c2-6 7-9 10-9s8 3 10 9"></path>
+                    </svg>
+                  </span>
+                  <span className="actionCardText">
+                    <span className="actionCardLabel">Agregar usuario</span>
+                    <span className="actionCardMeta">Crear cuenta de vendedor o recepcionista</span>
+                  </span>
                 </span>
-                <span className="actionCardText">
-                  <span className="actionCardLabel">Agregar usuario</span>
-                  <span className="actionCardMeta">Crear cuenta de vendedor o recepcionista</span>
-                </span>
-              </span>
-            </button>
+              </button>
+            )}
             <button className="moduleActionBtn" id="btnQuickAddInstitution" type="button" onClick={() => openModalById('companyBackdrop')}>
               <span className="actionCardInner">
                 <span className="actionCardIcon">
@@ -105,22 +111,6 @@ export default function SettingsMain() {
                 <span className="actionCardText">
                   <span className="actionCardLabel">Agregar empresa</span>
                   <span className="actionCardMeta">Registrar nueva institucion o cliente</span>
-                </span>
-              </span>
-            </button>
-            <button className="moduleActionBtn" id="btnQuickAddManager" type="button" onClick={() => openModalById('companyBackdrop')}>
-              <span className="actionCardInner">
-                <span className="actionCardIcon">
-                  <svg className="actionCardSvg" viewBox="0 0 64 64" aria-hidden="true">
-                    <circle cx="20" cy="18" r="6"></circle>
-                    <path d="M8 42c0-6 6-10 12-10s12 4 12 10"></path>
-                    <circle cx="44" cy="18" r="6"></circle>
-                    <path d="M32 42c0-6 6-10 12-10s12 4 12 10"></path>
-                  </svg>
-                </span>
-                <span className="actionCardText">
-                  <span className="actionCardLabel">Agregar encargado</span>
-                  <span className="actionCardMeta">Crear contacto de empresa</span>
                 </span>
               </span>
             </button>
@@ -211,7 +201,7 @@ export default function SettingsMain() {
           </div>
         </div>
 
-        <UserModal onClose={() => setOpenModal(null)} />
+        {isAdmin && <UserModal onClose={() => setOpenModal(null)} />}
         <CompanyModal onClose={() => setOpenModal(null)} />
         <SettingsServices />
         <SettingsSalones />

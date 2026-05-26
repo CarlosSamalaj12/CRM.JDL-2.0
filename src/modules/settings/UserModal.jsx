@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 
+const ROLE_COLORS = {
+  admin: { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
+  recepcionista: { bg: '#dbeafe', color: '#1e40af', border: '#93c5fd' },
+  vendedor: { bg: '#dcfce7', color: '#166534', border: '#86efac' },
+};
+
 export default function UserModal({ onClose }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -81,6 +87,7 @@ export default function UserModal({ onClose }) {
   }, [selectedUserId, users]);
 
   const resetForm = () => {
+    setSelectedUserId('');
     setFullName('');
     setEmail('');
     setPhone('');
@@ -92,6 +99,35 @@ export default function UserModal({ onClose }) {
     setSignatureDataUrl('');
     setGoalMonth('');
     setGoalAmount('');
+  };
+
+  const saveState = async (updatedUsers) => {
+    const res = await api.get('/api/state', { t: Date.now() });
+    const currentState = res?.state || {};
+    await api.put('/api/state', { state: { ...currentState, users: updatedUsers } });
+  };
+
+  const toggleActive = async (userId) => {
+    const updatedUsers = users.map(u => u.id === userId ? { ...u, active: !u.active } : u);
+    try {
+      await saveState(updatedUsers);
+      setUsers(updatedUsers);
+      if (selectedUserId === userId) {
+        const found = updatedUsers.find(u => u.id === userId);
+        if (found) setActive(found.active !== false);
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Estado Actualizado',
+        text: 'El estado del usuario se ha actualizado correctamente.',
+        confirmButtonColor: '#10b981',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (e) {
+      console.error('Error modifying user status:', e);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cambiar el estado del usuario.' });
+    }
   };
 
   const handleClose = () => {
@@ -276,6 +312,10 @@ export default function UserModal({ onClose }) {
           overflow: hidden;
           width: 95%;
           max-width: 920px !important;
+          height: min(820px, 85vh) !important;
+          max-height: 90vh !important;
+          display: flex;
+          flex-direction: column;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -499,6 +539,26 @@ export default function UserModal({ onClose }) {
         .goal-delete-btn:hover {
           background: rgba(239, 68, 68, 0.15);
         }
+
+        .usr-table { width: 100%; min-width: 500px; border-collapse: collapse; background: #ffffff; table-layout: auto; }
+        .usr-table th { background: #f1f5f9 !important; color: #475569 !important; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 2px solid #e2e8f0 !important; }
+        .usr-table tbody tr { background: #ffffff !important; }
+        .usr-table tbody tr:nth-child(even) { background: #f8fafc !important; }
+        .usr-table td { padding: 12px 14px !important; border-bottom: 1px solid #f1f5f9 !important; vertical-align: middle !important; color: #1e293b !important; background: transparent; font-size: 13px !important; }
+        .usr-table tr:last-child td { border-bottom: none !important; }
+        .usr-table tbody tr:hover td { background: #eff6ff !important; color: #0f172a !important; }
+        .usr-row-editing td { background: #f0f9ff !important; }
+        .role-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; border: 1px solid; }
+        .usr-icon-btn { background: none !important; border: none; cursor: pointer; padding: 6px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; transition: background 0.15s; }
+        .usr-icon-btn:hover { background: #f1f5f9 !important; }
+        .usr-icon-btn.danger:hover { background: #fee2e2 !important; }
+        .usr-icon-btn.success:hover { background: #dcfce7 !important; }
+        .usr-switch { position: relative; display: inline-block; width: 38px; height: 22px; }
+        .usr-switch input { opacity: 0; width: 0; height: 0; }
+        .usr-slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e1 !important; border-radius: 22px; transition: 0.25s; }
+        .usr-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.25s; }
+        input:checked + .usr-slider { background: #10b981 !important; }
+        input:checked + .usr-slider:before { transform: translateX(16px); }
       `}</style>
 
       <div className="modal glass-modal" role="dialog" aria-modal="true" aria-labelledby="userTitle">
@@ -515,7 +575,8 @@ export default function UserModal({ onClose }) {
           <button className="iconBtn" id="btnUserClose" type="button" title="Cerrar" onClick={handleClose} style={{ color: '#64748b' }}>&#10005;</button>
         </div>
 
-        <form className="modalBody" id="userForm" onSubmit={handleSave} style={{ padding: '24px 32px' }}>
+        <form id="userForm" onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+          <div className="modalBody" style={{ padding: '24px 32px', overflowY: 'auto', flex: 1, minHeight: 0, display: 'block', width: '100%', boxSizing: 'border-box' }}>
           
           {/* Elegant Google Secure Login Info Banner */}
           <div style={{ 
@@ -540,24 +601,48 @@ export default function UserModal({ onClose }) {
             </div>
           </div>
 
-          {/* Quick Selection and Status Row */}
           <div className="field-group" style={{ marginBottom: '24px' }}>
-            <label className="modern-field">
-              <span>Seleccionar Usuario Existente (para editar)</span>
-              <select 
-                id="userEditSelect"
-                value={selectedUserId} 
-                onChange={(e) => setSelectedUserId(e.target.value)}
-              >
-                <option value="">-- Pre-registrar Nuevo Usuario --</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.fullName || u.name} ({u.email || 'Sin correo'}) - {u.role === 'admin' ? 'Administrador' : u.role === 'recepcionista' ? 'Recepcionista' : 'Vendedor'}
-                  </option>
-                ))}
-              </select>
-            </label>
-
+            <div className="modern-field">
+              <span>Modo de Operación</span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: selectedUserId ? '#f0f9ff' : '#f0fdf4',
+                border: selectedUserId ? '1px solid #bae6fd' : '1px solid #bbf7d0',
+                padding: '11px 16px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: selectedUserId ? '#0369a1' : '#15803d',
+                height: '100%',
+                boxSizing: 'border-box'
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  {selectedUserId ? 'edit' : 'person_add'}
+                </span>
+                {selectedUserId ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'space-between' }}>
+                    <span>Editando Usuario</span>
+                    <button 
+                      type="button" 
+                      onClick={resetForm}
+                      style={{ 
+                        background: '#0284c7', 
+                        color: '#fff', 
+                        border: 'none', 
+                        padding: '2px 8px', 
+                        borderRadius: '4px', 
+                        fontSize: '11px', 
+                        cursor: 'pointer',
+                        fontWeight: '700'
+                      }}
+                    >Nuevo usuario</button>
+                  </div>
+                ) : 'Pre-registrar Nuevo Usuario'}
+              </div>
+            </div>
+ 
             <div className="modern-field">
               <span>Estado de Acceso</span>
               <label className="premium-switch-inline" style={{ height: '100%', boxSizing: 'border-box' }}>
@@ -567,7 +652,7 @@ export default function UserModal({ onClose }) {
                   checked={active}
                   onChange={(e) => setActive(e.target.checked)}
                 />
-                <span style={{ fontWeight: '700', color: '#1e293b' }}>ACCESO AUTORIZADO AL CRM (ACTIVO)</span>
+                <span style={{ fontWeight: '700', color: '#1e293b' }}>ACCESO AUTORIZADO (ACTIVO)</span>
               </label>
             </div>
           </div>
@@ -834,8 +919,107 @@ export default function UserModal({ onClose }) {
             )}
           </div>
 
+          {/* Divider */}
+          <div style={{ margin: '32px 0 24px 0', height: '1px', background: '#cbd5e1' }}></div>
+
+          {/* Table Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ color: '#0ea5e9' }}>group</span>
+                Usuarios Registrados ({users.length})
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                Lista de cuentas autorizadas. Haz clic en "Editar" para modificar sus datos o metas comerciales.
+              </div>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '12px', overflowX: 'auto', overflowY: 'visible', marginBottom: '24px', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
+            {loading ? (
+              <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Cargando usuarios...</div>
+            ) : users.length === 0 ? (
+              <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>No hay usuarios autorizados.</div>
+            ) : (
+              <table className="usr-table" style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse', background: '#ffffff', tableLayout: 'auto' }}>
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Correo</th>
+                    <th>Teléfono</th>
+                    <th>Rol</th>
+                    <th style={{ textAlign: 'center' }}>Activo</th>
+                    <th style={{ textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(u => {
+                    const isSelected = selectedUserId === u.id;
+                    const roleLabel = u.role === 'admin' ? 'Administrador' : u.role === 'recepcionista' ? 'Recepcionista' : 'Vendedor';
+                    const roleStyle = ROLE_COLORS[u.role] || ROLE_COLORS.vendedor;
+                    const avatarUrl = u.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || u.name || '?')}&background=0ea5e9&color=fff&size=80`;
+                    const isActive = u.active !== false;
+
+                    return (
+                      <tr 
+                        key={u.id} 
+                        className={isSelected ? 'usr-row-editing' : ''}
+                        style={{ background: '#ffffff', color: '#1e293b' }}
+                      >
+                        <td style={{ color: '#1e293b', background: 'transparent' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <img 
+                              src={avatarUrl} 
+                              alt="" 
+                              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #cbd5e1' }} 
+                            />
+                            <div>
+                              <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>{u.fullName || u.name}</div>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{u.username || '—'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ color: '#1e293b', background: 'transparent' }}>
+                          {u.email || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin correo</span>}
+                        </td>
+                        <td style={{ color: '#1e293b', background: 'transparent' }}>
+                          {u.phone || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>—</span>}
+                        </td>
+                        <td>
+                          <span className="role-badge" style={{ background: roleStyle.bg, color: roleStyle.color, borderColor: roleStyle.border }}>
+                            {roleLabel}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <label className="usr-switch" title={isActive ? 'Activo - clic para desactivar' : 'Inactivo - clic para activar'}>
+                            <input type="checkbox" checked={isActive} onChange={() => toggleActive(u.id)} />
+                            <span className="usr-slider"></span>
+                          </label>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="usr-icon-btn"
+                            title="Editar usuario"
+                            onClick={() => setSelectedUserId(u.id)}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0ea5e9' }}>edit</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Close of modalBody */}
+          </div>
+
           {/* Modal Action Buttons Footer */}
-          <div className="modalFooter" style={{ borderTop: '1px solid #cbd5e1', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="modalFooter" style={{ borderTop: '1px solid #cbd5e1', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', flexShrink: 0 }}>
             <div className="leftActions">
               <button 
                 className="btn-cancel" 

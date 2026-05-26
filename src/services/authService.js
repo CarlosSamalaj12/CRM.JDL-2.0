@@ -39,8 +39,16 @@ export const authService = {
 
       const response = await api.post('/api/auth/firebase', payload);
       if (response && response.ok && response.user) {
-        this.saveSession(response.user);
-        return response.user;
+        // Garantizar que el email siempre está presente.
+        // Prioridad: BD → correo de Firebase (siempre disponible)
+        const userWithEmail = {
+          ...response.user,
+          email: response.user.email || response.user.correo || firebaseUser.email,
+          avatarDataUrl: response.user.avatarDataUrl || firebaseUser.photoURL || '',
+        };
+        console.log('[Auth] Usuario autenticado desde BD:', userWithEmail);
+        this.saveSession(userWithEmail);
+        return userWithEmail;
       }
       throw new Error(response?.message || 'Error sincronizando con el servidor');
     } catch (error) {
@@ -56,6 +64,7 @@ export const authService = {
       name: user.name,
       fullName: user.fullName || user.name,
       username: user.username,
+      email: user.email || user.correo,
       avatarDataUrl: user.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || user.name)}&background=0ea5e9&color=fff`,
       signatureDataUrl: user.signatureDataUrl,
       role: user.role || 'vendedor'

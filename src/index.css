@@ -109,3 +109,236 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Asegurar que las alertas Swal2 siempre esten encima de modales con z-index alto */
+.swal2-container { z-index: 9999999 !important; }
+
+/* -----------------------------------------------------------
+   MENU & MONTAJE MODAL - Estilos heredados del legacy
+   ----------------------------------------------------------- */
+#menuMontajeSelectableBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 16px;
+  background: rgba(15,23,42,0.55);
+}
+#menuMontajeSelectableBackdrop .menuMontajeModal {
+  width: min(1400px, 98vw);
+  max-width: none !important;
+  max-height: none !important;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(2,6,23,0.48);
+}
+#menuMontajeSelectableBackdrop .menuMontajeBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+}
+#menuMontajeSelectableBackdrop .mmCard {
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid rgba(148,163,184,0.18);
+}
+#menuMontajeSelectableBackdrop .mmCardWide {
+  width: 100%;
+}
+#menuMontajeSelectableBackdrop .mmsFlatSectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+#menuMontajeSelectableBackdrop .mmsFlatFlowStrip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#menuMontajeSelectableBackdrop .mmsFlatFlowStrip span {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.12);
+  color: #64748b;
+}
+#menuMontajeSelectableBackdrop .mmsFlatFlowStrip span.isActive {
+  background: #2563eb;
+  color: #fff;
+}
+#menuMontajeSelectableBackdrop .mmGrid {
+  display: grid;
+  gap: 12px;
+}
+#menuMontajeSelectableBackdrop .mmsFlatContextGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+#menuMontajeSelectableBackdrop .mmsPosLayout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+#menuMontajeSelectableBackdrop .mmsFlatPosLayout {
+  grid-template-columns: 1.4fr 1fr;
+}
+#menuMontajeSelectableBackdrop .mmsPrimaryTabs,
+#menuMontajeSelectableBackdrop .mmsStageTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+#menuMontajeSelectableBackdrop .mmsPrimaryTab,
+#menuMontajeSelectableBackdrop .mmsStageTab {
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border: 1px solid rgba(148,163,184,0.2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+#menuMontajeSelectableBackdrop .mmsPrimaryTab.isActive,
+#menuMontajeSelectableBackdrop .mmsStageTab.isActive {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+#menuMontajeSelectableBackdrop .mmsStageBoard {
+  margin-top: 8px;
+  border: 1px solid rgba(148,163,184,0.15);
+  border-radius: 12px;
+  padding: 10px;
+  min-height: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+#menuMontajeSelectableBackdrop .mmsStageTitle {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  margin-bottom: 8px;
+}
+#menuMontajeSelectableBackdrop .mmsQuickButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#menuMontajeSelectableBackdrop .mmsStageOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#menuMontajeSelectableBackdrop .mmsStageOption {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148,163,184,0.2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+#menuMontajeSelectableBackdrop .mmsStageOption.isActive {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+#menuMontajeSelectableBackdrop .mmsComanda {
+  border: 1px solid rgba(148,163,184,0.15);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
+  min-height: 120px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+#menuMontajeSelectableBackdrop .mmsComandaBlock {
+  margin-bottom: 8px;
+}
+#menuMontajeSelectableBackdrop .mmsComandaTitle {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+#menuMontajeSelectableBackdrop .mmsComandaItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 24px;
+}
+#menuMontajeSelectableBackdrop .mmsComandaTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 700;
+}
+#menuMontajeSelectableBackdrop .mmsComandaTag button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+#menuMontajeSelectableBackdrop .mmsPosLiveTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  display: block;
+  margin-bottom: 4px;
+}
+#menuMontajeSelectableBackdrop .mmsSectionLead,
+#menuMontajeSelectableBackdrop .mmsFlowHint,
+#menuMontajeSelectableBackdrop .mmsSummaryLead,
+#menuMontajeSelectableBackdrop .mmsActivePlateHint,
+#menuMontajeSelectableBackdrop .hint {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+  display: block;
+}
+#menuMontajeSelectableBackdrop .mmsQuickQtyField {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid #d3e4fe;
+  background: #eff4ff;
+}
+#menuMontajeSelectableBackdrop .mmsQuickQtyField span {
+  font-size: 12px;
+  font-weight: 700;
+}
+@media (max-width: 900px) {
+  #menuMontajeSelectableBackdrop .mmsFlatPosLayout {
+    grid-template-columns: 1fr;
+  }
+  #menuMontajeSelectableBackdrop .mmsFlatContextGrid {
+    grid-template-columns: 1fr;
+  }
+}

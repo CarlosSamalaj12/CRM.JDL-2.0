@@ -14,7 +14,13 @@ export const reminderService = {
 
   async getByEventId(eventId) {
     const reminders = await this.getAll();
-    return reminders[eventId] || [];
+    const allForEvent = reminders[eventId] || [];
+    
+    const currentUser = authService.getCurrentUser();
+    // Los administradores ven todas las citas del evento.
+    // Los demás roles solo ven las que ellos crearon.
+    if (currentUser?.role === 'admin') return allForEvent;
+    return allForEvent.filter(r => !r.createdBy || r.createdBy === currentUser?.id);
   },
 
   async add(eventId, reminderData) {
@@ -27,8 +33,10 @@ export const reminderService = {
       time: reminderData.time,
       channel: reminderData.channel || 'whatsapp',
       notes: reminderData.notes || '',
+      notes: reminderData.notes || '',
       createdAt: new Date().toISOString(),
-      createdBy: authService.getCurrentUser()?.id || 'unknown'
+      createdBy: authService.getCurrentUser()?.id || 'unknown',
+      creatorName: authService.getCurrentUser()?.name || authService.getCurrentUser()?.email || 'Usuario'
     };
 
     const updatedReminders = {
@@ -71,13 +79,55 @@ export const reminderService = {
     }
   },
 
+  async update(eventId, reminderId, updatedData) {
+    const currentReminders = await this.getAll();
+    const eventReminders = currentReminders[eventId] || [];
+    
+    const updatedRemindersList = eventReminders.map(rem => {
+      if (rem.id === reminderId) {
+        return {
+          ...rem,
+          date: updatedData.date,
+          time: updatedData.time,
+          channel: updatedData.channel,
+          notes: updatedData.notes,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return rem;
+    });
+
+    const updatedReminders = {
+      ...currentReminders,
+      [eventId]: updatedRemindersList
+    };
+
+    try {
+      const response = await api.get('/api/state', { t: Date.now() });
+      const currentState = response?.state || {};
+      await api.put('/api/state', { 
+        state: { ...currentState, reminders: updatedReminders } 
+      });
+      return true;
+    } catch (err) {
+      console.error('Error actualizando recordatorio:', err);
+      throw err;
+    }
+  },
+
   async getUpcoming() {
     const reminders = await this.getAll();
     const allReminders = [];
     const now = new Date();
+    const currentUser = authService.getCurrentUser();
+    const isAdmin = currentUser?.role === 'admin';
 
     Object.entries(reminders).forEach(([eventId, eventReminders]) => {
       eventReminders.forEach(rem => {
+        // Filtrar por usuario: admin ve todo, los demás solo sus propias citas.
+        const isMine = !rem.createdBy || rem.createdBy === currentUser?.id;
+        if (!isAdmin && !isMine) return;
+
         const reminderDateTime = new Date(`${rem.date}T${rem.time}:00`);
         if (reminderDateTime >= now) {
           allReminders.push({ ...rem, eventId });

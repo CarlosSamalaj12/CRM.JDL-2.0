@@ -26,7 +26,8 @@
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.15.1",
     "slim-select": "^3.4.3",
-    "sweetalert2": "^11.26.24"
+    "sweetalert2": "^11.26.24",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

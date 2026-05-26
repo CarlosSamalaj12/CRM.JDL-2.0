@@ -119,6 +119,47 @@ function getEventTooltip(ev) {
   return lines.join('\n');
 }
 
+function getEventSeriesBadge(ev, allEvents = []) {
+  const groupId = String(ev?.groupId || '').trim();
+  if (!groupId) return '';
+
+  const series = (allEvents || [])
+    .filter(item => String(item?.groupId || '').trim() === groupId)
+    .sort((a, b) => {
+      const byDate = String(a?.date || '').localeCompare(String(b?.date || ''));
+      if (byDate !== 0) return byDate;
+      const byStart = String(a?.startTime || '').localeCompare(String(b?.startTime || ''));
+      if (byStart !== 0) return byStart;
+      const bySalon = String(a?.salon || '').localeCompare(String(b?.salon || ''));
+      if (bySalon !== 0) return bySalon;
+      return String(a?.id || '').localeCompare(String(b?.id || ''));
+    });
+
+  if (series.length <= 1) return '';
+  const index = series.findIndex(item => String(item?.id || '') === String(ev?.id || ''));
+  if (index < 0) return '';
+  return `Reserva ${index + 1}/${series.length}`;
+}
+
+function SeriesBadge({ label, color = '#2563eb', compact = false }) {
+  if (!label) return null;
+  return (
+    <span style={{
+      alignSelf: 'flex-start',
+      padding: compact ? '2px 6px' : '3px 8px',
+      borderRadius: '999px',
+      fontSize: compact ? '8px' : '10px',
+      fontWeight: '800',
+      color,
+      background: `${color}12`,
+      border: `1px solid ${color}35`,
+      whiteSpace: 'nowrap'
+    }}>
+      {label}
+    </span>
+  );
+}
+
 export default function Calendar() {
   const { 
     viewMode, 
@@ -155,9 +196,13 @@ export default function Calendar() {
         const minHour = Math.min(selectionStart.hour, selectionCurrent.hour);
         const maxHour = Math.max(selectionStart.hour, selectionCurrent.hour);
         
-        const formatTime = (h) => `${String(h).padStart(2, '0')}:00`;
+        const isSingleCell = minDate === maxDate && minHour === maxHour;
         
-        navigate(`/nueva-reserva?date=${minDate}&endDate=${maxDate}&start=${formatTime(minHour)}&end=${formatTime(maxHour + 1)}`);
+        // Solo abrimos si hay más de una celda seleccionada (arrastre)
+        if (!isSingleCell) {
+          const formatTime = (h) => `${String(h).padStart(2, '0')}:00`;
+          navigate(`/nueva-reserva?date=${minDate}&endDate=${maxDate}&start=${formatTime(minHour)}&end=${formatTime(maxHour + 1)}`);
+        }
       }
       setSelectionActive(false);
       setSelectionStart(null);
@@ -208,6 +253,9 @@ export default function Calendar() {
 
   const getEventsForDay = (dateStr) => {
     return filteredEvents.filter(ev => {
+      if (ev.groupId || ev.eventDateStart || ev.eventDateEnd) {
+        return ev.date === dateStr;
+      }
       const start = ev.date;
       const end = ev.endDate || ev.date;
       return dateStr >= start && dateStr <= end;
@@ -385,12 +433,26 @@ export default function Calendar() {
                         }}
                         onMouseDown={(e) => {
                           if (e.button !== 0) return; // solo click izquierdo
+                          if (dateStr < todayStr) {
+                            alert('No se pueden programar eventos en fechas anteriores a hoy.');
+                            return;
+                          }
                           setSelectionStart({ dateStr, hour });
                           setSelectionCurrent({ dateStr, hour });
                           setSelectionActive(true);
                         }}
+                        onDoubleClick={(e) => {
+                          if (e.button !== 0) return;
+                          if (dateStr < todayStr) {
+                            alert('No se pueden programar eventos en fechas anteriores a hoy.');
+                            return;
+                          }
+                          const formatTime = (h) => `${String(h).padStart(2, '0')}:00`;
+                          navigate(`/nueva-reserva?date=${dateStr}&endDate=${dateStr}&start=${formatTime(hour)}&end=${formatTime(hour + 1)}`);
+                        }}
                         onMouseEnter={() => {
                           if (selectionActive) {
+                            if (dateStr < todayStr) return; // No permitir arrastrar a fechas pasadas
                             setSelectionCurrent({ dateStr, hour });
                           }
                         }}
@@ -403,6 +465,7 @@ export default function Calendar() {
                     const top = timeToY(ev.startTime);
                     const height = Math.max(24, timeToY(ev.endTime) - top);
                     const color = STATUS_META[ev.status]?.color || '#64748b';
+                    const seriesBadge = getEventSeriesBadge(ev, events);
                     
                     const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
                     const normalBg = isMaint
@@ -483,6 +546,7 @@ export default function Calendar() {
                         <div style={{ fontSize: '9px', fontWeight: '700', color: color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           📍 {ev.salon}
                         </div>
+                        <SeriesBadge label={seriesBadge} color={color} compact />
                       </div>
                     );
                   })}
@@ -533,7 +597,7 @@ export default function Calendar() {
             return (
               <div
                 key={idx}
-                onClick={() => handleDayClick(dateStr)}
+                onDoubleClick={() => handleDayClick(dateStr)}
                 style={{
                   minHeight: '100px',
                   padding: '8px',
@@ -670,6 +734,11 @@ export default function Calendar() {
                     setSelectionCurrent({ dateStr, hour });
                     setSelectionActive(true);
                   }}
+                  onDoubleClick={(e) => {
+                    if (e.button !== 0) return;
+                    const formatTime = (h) => `${String(h).padStart(2, '0')}:00`;
+                    navigate(`/nueva-reserva?date=${dateStr}&endDate=${dateStr}&start=${formatTime(hour)}&end=${formatTime(hour + 1)}`);
+                  }}
                   onMouseEnter={() => {
                     if (selectionActive) {
                       setSelectionCurrent({ dateStr, hour });
@@ -683,6 +752,7 @@ export default function Calendar() {
               const top = timeToY(ev.startTime);
               const height = Math.max(24, timeToY(ev.endTime) - top);
               const color = STATUS_META[ev.status]?.color || '#64748b';
+              const seriesBadge = getEventSeriesBadge(ev, events);
               
               const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
               const normalBg = isMaint
@@ -758,6 +828,7 @@ export default function Calendar() {
                         <span>👥 {ev.pax} PAX</span>
                       </>
                     )}
+                    <SeriesBadge label={seriesBadge} color={color} />
                   </div>
                 </div>
               );
@@ -1018,6 +1089,7 @@ export default function Calendar() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {sortedEvents.map((ev) => {
                 const color = STATUS_META[ev.status]?.color || '#64748b';
+                const seriesBadge = getEventSeriesBadge(ev, events);
                 const eventDate = new Date(`${ev.date}T00:00:00`);
                 const dayNum = eventDate.getDate();
                 const monthName = eventDate.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase();
@@ -1099,6 +1171,7 @@ export default function Calendar() {
                             <span>👥 {ev.pax} PAX</span>
                           </>
                         )}
+                        <SeriesBadge label={seriesBadge} color={color} />
                       </div>
                       
                       {ev.trackingUser && (
@@ -1156,12 +1229,12 @@ export default function Calendar() {
       {/* Modal de reserva */}
       {(location.pathname === '/nueva-reserva' || location.pathname.startsWith('/reserva/')) && (
         <div className="reservation-modal-overlay" style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px'
+          position: 'fixed', inset: 0, background: '#f1f5f9',
+          zIndex: 32000, display: 'flex', alignItems: 'stretch', justifyContent: 'stretch', padding: 0
         }}>
-          <div style={{
-            width: '100%', maxWidth: '1100px', maxHeight: '90vh', background: '#f8fafc',
-            borderRadius: '24px', boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.25)',
+          <div className="reservation-modal-content" style={{
+            width: '100vw', height: '100vh', maxHeight: 'none', background: '#f8fafc',
+            borderRadius: 0, boxShadow: 'none',
             overflow: 'hidden', display: 'flex', flexDirection: 'column'
           }} onClick={e => e.stopPropagation()}>
             <ReservationForm onCancel={() => navigate('/calendar')} />
@@ -1173,6 +1246,7 @@ export default function Calendar() {
       {hoveredEvent && (() => {
         const { ev, rect } = hoveredEvent;
         const color = STATUS_META[ev.status]?.color || '#64748b';
+        const seriesBadge = getEventSeriesBadge(ev, events);
         
         // Calcular si colocar a la derecha o a la izquierda del elemento
         const tooltipWidth = 320;
@@ -1226,6 +1300,7 @@ export default function Calendar() {
             <div style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', lineHeight: '1.3' }}>
               {ev.name}
             </div>
+            <SeriesBadge label={seriesBadge} color={color} />
 
             {/* Separador */}
             <div style={{ height: '1px', background: '#f1f5f9' }} />
