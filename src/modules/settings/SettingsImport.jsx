@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { toast } from '../../utils/toast';
 import {
   IMPORT_EVENT_COLUMNS,
   IMPORT_MANAGER_COLUMNS,
@@ -64,7 +65,7 @@ export default function SettingsImport() {
   const handleFile = async (type, file) => {
     if (!file || working) return;
     if (!/\.csv$/i.test(file.name)) {
-      alert('Guarda la plantilla como CSV UTF-8 antes de importarla.');
+      toast('Guarda la plantilla como CSV UTF-8 antes de importarla.');
       return;
     }
     setWorking(type);
@@ -72,22 +73,22 @@ export default function SettingsImport() {
       const text = await file.text();
       const rows = parseCsvRows(text);
       if (!rows.length) {
-        alert('El archivo no tiene filas para importar.');
+        toast('El archivo no tiene filas para importar.');
         return;
       }
       const state = await loadCrmState();
       if (type === 'eventos') {
         const result = importEventRows(state, rows);
         await saveCrmState(state);
-        alert(`Importacion lista: ${result.imported} evento(s)${result.skipped ? `, ${result.skipped} fila(s) omitida(s)` : ''}.`);
+        toast(`Importacion lista: ${result.imported} evento(s)${result.skipped ? `, ${result.skipped} fila(s) omitida(s)` : ''}.`);
       } else {
         const result = importManagersCompaniesRows(state, rows);
         await saveCrmState(state);
-        alert(`Importacion lista: ${result.companiesTouched} empresa(s), ${result.managersTouched} encargado(s).`);
+        toast(`Importacion lista: ${result.companiesTouched} empresa(s), ${result.managersTouched} encargado(s).`);
       }
     } catch (err) {
       console.error('Error importando:', err);
-      alert(err.message || 'No se pudo leer el archivo CSV.');
+      toast(err.message || 'No se pudo leer el archivo CSV.');
     } finally {
       setWorking('');
       if (type === 'eventos' && eventsInputRef.current) eventsInputRef.current.value = '';

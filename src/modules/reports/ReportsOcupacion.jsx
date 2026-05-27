@@ -1,6 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import { STATUS_META } from '../calendar/constants';
+import { generateQuotePrintDocument, buildMenuMontajeReportHtml } from '../../utils/printUtils';
+import SettingsChecklist from '../settings/SettingsChecklist';
+import { toast } from '../../utils/toast';
 
 const STATUS = { PRERESERVA: 'Pre reserva', CONFIRMADO: 'Confirmado' };
 const ALLOWED_STATUSES = new Set([STATUS.PRERESERVA, STATUS.CONFIRMADO]);
@@ -30,7 +34,21 @@ export default function ReportsOcupacion({ onClose }) {
     });
     return filtered.map(ev => {
       const user = users?.find(u => String(u.id) === String(ev.userId));
-      return { eventId: String(ev.id||''), status: String(ev.status||''), statusColor: STATUS_META[ev.status]?.color||'#2563eb', eventDate: String(ev.date||''), startTime: String(ev.startTime||''), endTime: String(ev.endTime||''), eventName: String(ev.name||''), salon: String(ev.salon||''), company: ev.quote?.companyName||'', seller: String(user?.fullName||user?.name||''), pax: Number(ev.pax||ev.quote?.people||0), total: Number(ev.quote?.total||0) };
+      return { 
+        eventId: String(ev.id||''), 
+        status: String(ev.status||''), 
+        statusColor: STATUS_META[ev.status]?.color||'#2563eb', 
+        eventDate: String(ev.date||''), 
+        startTime: String(ev.startTime||''), 
+        endTime: String(ev.endTime||''), 
+        eventName: String(ev.name||''), 
+        salon: String(ev.salon||''), 
+        company: ev.quote?.companyName||'', 
+        seller: String(user?.fullName||user?.name||''), 
+        pax: Number(ev.pax||ev.quote?.people||0), 
+        total: Number(ev.quote?.total||0),
+        rawEvent: ev
+      };
     }).sort((a, b) => { const d = a.eventDate.localeCompare(b.eventDate); if (d !== 0) return d; const t = a.startTime.localeCompare(b.startTime); return t !== 0 ? t : a.salon.localeCompare(b.salon); });
   }, [events, users, weekDays]);
 
@@ -66,6 +84,84 @@ export default function ReportsOcupacion({ onClose }) {
   const handlePrevWeek = () => { const s = new Date(currentWeekStart + 'T00:00:00'); s.setDate(s.getDate() - 7); setCurrentWeekStart(s.toISOString().split('T')[0]); };
   const handleNextWeek = () => { const s = new Date(currentWeekStart + 'T00:00:00'); s.setDate(s.getDate() + 7); setCurrentWeekStart(s.toISOString().split('T')[0]); };
   const handleGoToday = () => { const t = new Date(); const d = t.getDay(); const diff = t.getDate() - d + (d === 0 ? -6 : 1); setCurrentWeekStart(new Date(t.setDate(diff)).toISOString().split('T')[0]); };
+
+  const handleExportExcel = () => {
+    if (!rows.length) {
+      toast("No hay datos para exportar.");
+      return;
+    }
+    try {
+      const worksheetData = rows.map(r => ({
+        'Estado': r.status,
+        'PAX': r.pax,
+        'Fecha Evento': r.eventDate,
+        'Hora Inicio': r.startTime,
+        'Hora Fin': r.endTime,
+        'Evento': r.eventName,
+        'Salón': r.salon,
+        'Institución': r.company || '-',
+        'Vendedor': r.seller,
+        'Total Cotizado': r.total
+      }));
+      
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Ocupación Semanal');
+      XLSX.writeFile(workbook, `Reporte_Ocupacion_${weekDays[0]}_a_${weekDays[6]}.xlsx`);
+      toast('Reporte exportado exitosamente');
+    } catch (err) {
+      console.error('Error al exportar Excel:', err);
+      toast('Error al exportar a Excel');
+    }
+  };
+
+  const handleQuoteClick = async (r) => {
+    const ev = r.rawEvent;
+    if (!ev?.quote) {
+      toast("Este evento no tiene cotización.");
+      return;
+    }
+    try {
+      const user = users?.find(u => String(u.id) === String(ev.userId));
+      const success = await generateQuotePrintDocument(ev.quote, user);
+      if (success !== false) {
+        toast("Generando vista previa de cotización...");
+      }
+    } catch (err) {
+      console.error(err);
+      toast("Error al abrir la cotización.");
+    }
+  };
+
+  const handleMenuClick = (r) => {
+    const ev = r.rawEvent;
+    if (!ev?.quote) {
+      toast("Este evento no tiene cotización ni informe de Menú & Montaje.");
+      return;
+    }
+    const html = buildMenuMontajeReportHtml(ev, ev.quote, "full");
+    if (!html) {
+      toast("No hay datos de menú/montaje para imprimir.");
+      return;
+    }
+    const w = window.open("about:blank", "_blank");
+    if (!w) {
+      toast("Habilita ventanas emergentes para generar el informe.");
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+  };
+
+  const handleChecklistClick = (r) => {
+    if (typeof window.openEventChecklist === 'function') {
+      window.openEventChecklist(r.eventId);
+    } else {
+      toast("El componente de checklist no está disponible.");
+    }
+  };
 
   const styles = {
     backdrop: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', overflow: 'auto' },
@@ -110,7 +206,7 @@ export default function ReportsOcupacion({ onClose }) {
     weekRevenue: { justifyContent: 'flex-start', color: '#0f3158', fontWeight: '800', fontSize: '11px', padding: '6px 8px', border: '1px solid #dce8f5', borderRadius: '10px', background: 'rgba(255,255,255,0.86)' },
     weekEvents: { display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '330px', paddingTop: '4px' },
     weekEmpty: { minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd9e8', borderRadius: '14px', background: '#f8fafc', color: '#64748b', fontSize: '12px', fontWeight: '800' },
-    weekEvent: { position: 'relative', width: '100%', minHeight: '112px', display: 'flex', flexDirection: 'column', gap: '5px', padding: '12px 12px 12px 14px', border: '1px solid #cddcec', borderLeftWidth: '4px', borderRadius: '12px', background: 'linear-gradient(180deg, rgba(255,255,255,0.90), rgba(255,255,255,0.74))', cursor: 'pointer', boxShadow: '0 8px 16px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.85)', overflow: 'hidden' },
+    weekEvent: { position: 'relative', width: '100%', minHeight: '136px', display: 'flex', flexDirection: 'column', gap: '5px', padding: '12px 12px 12px 14px', border: '1px solid #cddcec', borderLeftWidth: '4px', borderRadius: '12px', background: 'linear-gradient(180deg, rgba(255,255,255,0.90), rgba(255,255,255,0.74))', cursor: 'pointer', boxShadow: '0 8px 16px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.85)', overflow: 'hidden' },
     weekEventTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' },
     weekEventTime: { fontSize: '11px', fontWeight: '900', color: '#2563eb' },
     weekEventStatus: { maxWidth: '92px', padding: '4px 7px', border: '1px solid #cddcec', borderRadius: '999px', background: 'rgba(37,99,235,0.13)', color: '#0f172a', fontSize: '9px', fontWeight: '950', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
@@ -155,7 +251,7 @@ export default function ReportsOcupacion({ onClose }) {
             <input type="date" value={currentWeekStart} onChange={(e) => setCurrentWeekStart(e.target.value)} style={styles.input} />
             <button onClick={handleNextWeek} style={styles.btn}>›</button>
             <button onClick={handleGoToday} style={styles.btn}>Semana actual</button>
-            <div style={styles.actions}><button style={styles.btnPrimary}>Exportar Excel</button></div>
+            <div style={styles.actions}><button onClick={handleExportExcel} style={styles.btnPrimary}>Exportar Excel</button></div>
           </div>
           
           <div style={styles.sectionHeader}><div><div style={styles.sectionEyebrow}>Resumen ejecutivo</div><div style={styles.sectionTitle}>KPIs prioritarios de la semana</div></div></div>
@@ -189,12 +285,86 @@ export default function ReportsOcupacion({ onClose }) {
                 </div>
                 <div style={styles.weekRevenue}>{d.revenue > 0 ? formatMoneyGT(d.revenue) : 'Sin monto'}</div>
                 <div style={styles.weekEvents}>
-                  {d.rows.length ? d.rows.map(r => <div key={r.eventId} style={{...styles.weekEvent, borderLeftColor: r.statusColor}}>
-                    <div style={styles.weekEventTop}><span style={styles.weekEventTime}>{r.startTime} - {r.endTime}</span><span style={{...styles.weekEventStatus, background: `${r.statusColor}22`, borderColor: `${r.statusColor}55`}}>{r.status === 'Confirmado' ? 'CONF' : 'PRE'}</span></div>
-                    <strong style={styles.weekEventName}>{r.eventName}</strong>
-                    <span style={styles.weekEventSalon}>{r.salon}</span>
-                    <small style={styles.weekEventCompany}>{r.company || r.seller}</small>
-                  </div>) : <div style={styles.weekEmpty}>Sin eventos</div>}
+                  {d.rows.length ? d.rows.map(r => {
+                    const ev = r.rawEvent;
+                    const hasQuote = !!ev.quote;
+                    const hasMenu = !!(ev.quote?.menuMontajeEntries && ev.quote.menuMontajeEntries.length > 0 || ev.quote?.menuMontajeVersion);
+                    const hasChecklist = !!(ev.checklist && ev.checklist.items && ev.checklist.items.length > 0);
+                    const completed = hasChecklist && ev.checklist.items.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
+                    
+                    return (
+                      <div key={r.eventId} style={{...styles.weekEvent, borderLeftColor: r.statusColor}}>
+                        <div style={styles.weekEventTop}>
+                          <span style={styles.weekEventTime}>{r.startTime} - {r.endTime}</span>
+                          <span style={{...styles.weekEventStatus, background: `${r.statusColor}22`, borderColor: `${r.statusColor}55`}}>
+                            {r.status === 'Confirmado' ? 'CONF' : 'PRE'}
+                          </span>
+                        </div>
+                        <strong style={styles.weekEventName}>{r.eventName}</strong>
+                        <span style={styles.weekEventSalon}>{r.salon}</span>
+                        <small style={styles.weekEventCompany}>{r.company || r.seller}</small>
+                        
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '6px', borderTop: '1px solid #f1f5f9', paddingTop: '6px' }}>
+                          {hasQuote && (
+                            <button 
+                              type="button" 
+                              onClick={() => handleQuoteClick(r)}
+                              style={{ 
+                                background: '#eff6ff', 
+                                border: '1px solid #bfdbfe', 
+                                color: '#2563eb', 
+                                padding: '2px 4px', 
+                                borderRadius: '4px', 
+                                cursor: 'pointer',
+                                fontSize: '9px',
+                                fontWeight: 'bold'
+                              }}
+                              title="Ver Cotización"
+                            >
+                              COT
+                            </button>
+                          )}
+                          {hasMenu && (
+                            <button 
+                              type="button" 
+                              onClick={() => handleMenuClick(r)}
+                              style={{ 
+                                background: '#f0fdf4', 
+                                border: '1px solid #bbf7d0', 
+                                color: '#16a34a', 
+                                padding: '2px 4px', 
+                                borderRadius: '4px', 
+                                cursor: 'pointer',
+                                fontSize: '9px',
+                                fontWeight: 'bold'
+                              }}
+                              title="Ver Menú & Montaje"
+                            >
+                              M&M
+                            </button>
+                          )}
+                          <button 
+                            type="button" 
+                            onClick={() => handleChecklistClick(r)}
+                            style={{ 
+                              background: completed ? '#dcfce7' : (hasChecklist ? '#fef3c7' : '#f1f5f9'), 
+                              border: '1px solid',
+                              borderColor: completed ? '#bbf7d0' : (hasChecklist ? '#fde047' : '#cbd5e1'), 
+                              color: completed ? '#15803d' : (hasChecklist ? '#a16207' : '#475569'), 
+                              padding: '2px 4px', 
+                              borderRadius: '4px', 
+                              cursor: 'pointer',
+                              fontSize: '9px',
+                              fontWeight: 'bold'
+                            }}
+                            title="Llenar Checklist"
+                          >
+                            CHK
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }) : <div style={styles.weekEmpty}>Sin eventos</div>}
                 </div>
               </div>
             ))}
@@ -216,12 +386,129 @@ export default function ReportsOcupacion({ onClose }) {
           <div style={styles.sectionHeader}><div><div style={styles.sectionEyebrow}>Operación detallada</div><div style={styles.sectionTitle}>Tabla de eventos y resultados</div><div style={styles.sectionDesc}>Prioriza estado, salon, vendedor, cotizacion, checklist y montos sin saturar la lectura.</div></div></div>
           <div style={styles.tableWrap}>
             <table style={styles.table}>
-              <thead><tr><th style={styles.th}>Estado</th><th style={styles.th}>PAX</th><th style={styles.th}>Fecha evento</th><th style={styles.th}>Hora inicio</th><th style={styles.th}>Hora final</th><th style={styles.th}>Evento</th><th style={styles.th}>Salón</th><th style={styles.th}>Institución</th><th style={styles.th}>Vendedor</th><th style={styles.th}>Total evento</th></tr></thead>
-              <tbody>{rows.length ? rows.map((r, i) => <tr key={r.eventId} style={i%2 ? styles.trEven : {}}><td style={styles.td}><span style={styles.statusBadge(r.statusColor)}>{r.status}</span></td><td style={styles.td}><strong>{r.pax}</strong></td><td style={styles.td}>{r.eventDate}</td><td style={styles.td}>{r.startTime}</td><td style={styles.td}>{r.endTime}</td><td style={styles.td}><strong>{r.eventName}</strong></td><td style={styles.td}>{r.salon}</td><td style={styles.td}>{r.company || '-'}</td><td style={styles.td}>{r.seller}</td><td style={styles.td}><strong style={{ color: '#2563eb' }}>{formatMoneyGT(r.total)}</strong></td></tr>) : <tr><td colSpan={10} style={styles.emptyState}>Sin eventos Confirmados/Pre reserva para esta semana.</td></tr>}</tbody>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Estado</th>
+                  <th style={styles.th}>PAX</th>
+                  <th style={styles.th}>Fecha evento</th>
+                  <th style={styles.th}>Hora inicio</th>
+                  <th style={styles.th}>Hora final</th>
+                  <th style={styles.th}>Evento</th>
+                  <th style={styles.th}>Salón</th>
+                  <th style={styles.th}>Institución</th>
+                  <th style={styles.th}>Vendedor</th>
+                  <th style={styles.th}>Cotización</th>
+                  <th style={styles.th}>Menú & Montaje</th>
+                  <th style={styles.th}>Checklist</th>
+                  <th style={styles.th}>Total evento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length ? rows.map((r, i) => {
+                  const ev = r.rawEvent;
+                  const hasQuote = !!ev.quote;
+                  const quoteLabel = hasQuote ? `V${ev.quote.version || 1}` : '-';
+                  const hasMenu = !!(ev.quote?.menuMontajeEntries && ev.quote.menuMontajeEntries.length > 0 || ev.quote?.menuMontajeVersion);
+                  const menuLabel = hasMenu ? `V${ev.quote?.menuMontajeVersion || 1}` : '-';
+                  const hasChecklist = !!(ev.checklist && ev.checklist.items && ev.checklist.items.length > 0);
+                  const completed = hasChecklist && ev.checklist.items.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
+                  const checklistLabel = completed ? "Completo" : (hasChecklist ? "En proceso" : "Iniciar");
+
+                  return (
+                    <tr key={r.eventId} style={i%2 ? styles.trEven : {}}>
+                      <td style={styles.td}><span style={styles.statusBadge(r.statusColor)}>{r.status}</span></td>
+                      <td style={styles.td}><strong>{r.pax}</strong></td>
+                      <td style={styles.td}>{r.eventDate}</td>
+                      <td style={styles.td}>{r.startTime}</td>
+                      <td style={styles.td}>{r.endTime}</td>
+                      <td style={styles.td}><strong>{r.eventName}</strong></td>
+                      <td style={styles.td}>{r.salon}</td>
+                      <td style={styles.td}>{r.company || '-'}</td>
+                      <td style={styles.td}>{r.seller}</td>
+                      
+                      {/* Action cell 1: Cotización */}
+                      <td style={styles.td}>
+                        {hasQuote ? (
+                          <button 
+                            type="button" 
+                            onClick={() => handleQuoteClick(r)}
+                            style={{ 
+                              background: '#eff6ff', 
+                              border: '1px solid #bfdbfe', 
+                              color: '#2563eb', 
+                              padding: '4px 8px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            {quoteLabel}
+                          </button>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>-</span>
+                        )}
+                      </td>
+                      
+                      {/* Action cell 2: Menú & Montaje */}
+                      <td style={styles.td}>
+                        {hasMenu ? (
+                          <button 
+                            type="button" 
+                            onClick={() => handleMenuClick(r)}
+                            style={{ 
+                              background: '#f0fdf4', 
+                              border: '1px solid #bbf7d0', 
+                              color: '#16a34a', 
+                              padding: '4px 8px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            {menuLabel}
+                          </button>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>-</span>
+                        )}
+                      </td>
+                      
+                      {/* Action cell 3: Checklist */}
+                      <td style={styles.td}>
+                        <button 
+                          type="button" 
+                          onClick={() => handleChecklistClick(r)}
+                          style={{ 
+                            background: completed ? '#dcfce7' : (hasChecklist ? '#fef3c7' : '#f1f5f9'), 
+                            border: '1px solid',
+                            borderColor: completed ? '#bbf7d0' : (hasChecklist ? '#fde047' : '#cbd5e1'), 
+                            color: completed ? '#15803d' : (hasChecklist ? '#a16207' : '#475569'), 
+                            padding: '4px 8px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {checklistLabel}
+                        </button>
+                      </td>
+                      
+                      <td style={styles.td}><strong style={{ color: '#2563eb' }}>{formatMoneyGT(r.total)}</strong></td>
+                    </tr>
+                  );
+                }) : (
+                  <tr>
+                    <td colSpan={13} style={styles.emptyState}>Sin eventos Confirmados/Pre reserva para esta semana.</td>
+                  </tr>
+                )}
+              </tbody>
             </table>
           </div>
         </div>
       </div>
+      <SettingsChecklist />
     </div>
   );
 }

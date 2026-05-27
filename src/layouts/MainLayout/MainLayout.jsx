@@ -7,6 +7,7 @@ import eventService from '../../services/eventService';
 import salonService from '../../services/salonService';
 import authService from '../../services/authService';
 import socketService from '../../services/socketService';
+import { toast } from '../../utils/toast';
 
 export default function MainLayout() {
   const location = useLocation();
@@ -81,15 +82,22 @@ export default function MainLayout() {
     try {
       setLoading(true);
       
-      const [eventsData, salonesData, usersData] = await Promise.all([
+      const [eventsData, salonesData, usersData, stateRes] = await Promise.all([
         eventService.getAll(),
         salonService.getAll(),
         authService.getLoginUsers(),
+        fetch('/api/state').then(r => r.json()).catch(() => ({}))
       ]);
       
       setEvents(eventsData);
       setSalones(salonesData);
       setUsers(usersData);
+
+      const loadedState = stateRes?.state || stateRes || {};
+      const loadedOps = (loadedState.occupancyWeeklyOps && typeof loadedState.loadedOps === 'object' || loadedState.occupancyWeeklyOps) 
+        ? loadedState.occupancyWeeklyOps 
+        : {};
+      setOccupancyWeeklyOps(loadedOps);
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
@@ -114,7 +122,7 @@ export default function MainLayout() {
       return savedEvent;
     } catch (err) {
       console.error('Error guardando evento:', err);
-      alert('Error al guardar el evento');
+      toast('Error al guardar el evento');
       throw err;
     }
   };
@@ -125,7 +133,7 @@ export default function MainLayout() {
       setEvents(prev => prev.filter(ev => ev.id !== eventId));
     } catch (err) {
       console.error('Error eliminando evento:', err);
-      alert('Error al eliminar el evento');
+      toast('Error al eliminar el evento');
     }
   };
 
@@ -135,7 +143,7 @@ export default function MainLayout() {
       setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, status } : ev));
     } catch (err) {
       console.error('Error actualizando estado:', err);
-      alert('Error al actualizar el estado');
+      toast('Error al actualizar el estado');
     }
   };
 

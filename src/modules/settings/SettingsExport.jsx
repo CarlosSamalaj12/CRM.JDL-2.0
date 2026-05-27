@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from '../../utils/toast';
 import { exportRowsToExcel, getLatestQuoteSnapshot, getQuoteTotals, loadCrmState } from './settingsDataUtils';
 
 const companyColumns = [
@@ -76,10 +77,14 @@ export default function SettingsExport() {
           telefono_empresa: String(company.phone || ''),
           direccion_empresa: String(company.address || ''),
           tipo_evento_preferido: String(company.eventType || ''),
-          notas: String(company.notes || ''),
+          notes: String(company.notes || ''),
           estado: disabledCompanies.has(String(company.id || '')) ? 'Inactiva' : 'Activa',
         }));
-        if (!rows.length) return alert('No hay empresas para exportar.');
+        if (!rows.length) {
+          toast('No hay empresas para exportar.');
+          setWorking('');
+          return;
+        }
         exportRowsToExcel({
           title: 'CRM Jardines - Exportacion de empresas',
           subtitle: 'Catalogo de empresas preparado para importarse al nuevo sistema.',
@@ -93,7 +98,7 @@ export default function SettingsExport() {
             telefono_empresa: '5555-1234',
             direccion_empresa: 'Ciudad de Guatemala',
             tipo_evento_preferido: 'Corporativo',
-            notas: 'Cliente frecuente',
+            notes: 'Cliente frecuente',
             estado: 'Activa',
           },
           rows,
@@ -117,7 +122,11 @@ export default function SettingsExport() {
             });
           }
         }
-        if (!rows.length) return alert('No hay encargados para exportar.');
+        if (!rows.length) {
+          toast('No hay encargados para exportar.');
+          setWorking('');
+          return;
+        }
         exportRowsToExcel({
           title: 'CRM Jardines - Exportacion de encargados',
           subtitle: 'Contactos responsables vinculados a empresas para importarse al nuevo sistema.',
@@ -175,7 +184,11 @@ export default function SettingsExport() {
             ultima_cotizacion: String(quote.quotedAt || quote.docDate || ''),
           };
         });
-        if (!rows.length) return alert('No hay eventos para exportar.');
+        if (!rows.length) {
+          toast('No hay eventos para exportar.');
+          setWorking('');
+          return;
+        }
         exportRowsToExcel({
           title: 'CRM Jardines - Exportacion de eventos',
           subtitle: 'Eventos y reservas preparados para importarse al nuevo sistema. Cada fila representa un bloque de fecha, salon y horario.',
@@ -214,7 +227,7 @@ export default function SettingsExport() {
       }
     } catch (err) {
       console.error('Error exportando:', err);
-      alert(err.message || 'No se pudo exportar.');
+      toast(err.message || 'No se pudo exportar.');
     } finally {
       setWorking('');
     }

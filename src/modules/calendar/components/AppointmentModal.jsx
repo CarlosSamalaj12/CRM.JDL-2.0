@@ -3,6 +3,7 @@ import reminderService from '../../../services/reminderService';
 import authService from '../../../services/authService';
 import api from '../../../services/api';
 import ConfirmModal from '../../../components/ConfirmModal';
+import { toast } from '../../../utils/toast';
 
 export default function AppointmentModal({ eventId, eventName, onClose, onSaved }) {
   const [reminders, setReminders] = useState([]);
@@ -87,7 +88,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
       if (onSaved) onSaved();
     } catch (error) {
       console.error(error);
-      alert('Error al guardar recordatorio');
+      toast('Error al guardar recordatorio');
     } finally {
       setSaving(false);
     }
@@ -108,7 +109,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
       if (onSaved) onSaved();
     } catch (error) {
       console.error(error);
-      alert('Error al eliminar');
+      toast('Error al eliminar');
     }
   };
 

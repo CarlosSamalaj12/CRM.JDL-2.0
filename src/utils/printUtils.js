@@ -1,4 +1,5 @@
 import authService from '../services/authService';
+import { modernAlert } from './toast';
 
 function escapeHtml(unsafe) {
   return String(unsafe || "")
@@ -43,7 +44,7 @@ function fillTemplateHtmlTokens(htmlText, contextMap) {
 export const generateQuotePrintDocument = async (quote, user) => {
   const printWin = window.open('', '_blank');
   if (!printWin) {
-    alert("Bloqueador de ventanas emergentes activado. Habilitalo para ver la cotizacion.");
+    modernAlert({ icon: 'warning', title: 'Bloqueador activo', text: 'Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización.' });
     return false;
   }
   printWin.document.open();
@@ -234,7 +235,7 @@ export const generateQuotePrintDocument = async (quote, user) => {
 
     // La ventana se abre al inicio para evitar bloqueadores de popups.
     if (false) {
-      alert("Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización.");
+      modernAlert({ icon: 'warning', title: 'Bloqueador activo', text: 'Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización.' });
       return false;
     }
 

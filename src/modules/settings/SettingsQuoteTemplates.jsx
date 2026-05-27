@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast, modernConfirm } from '../../utils/toast';
 
 const handleClose = (modalId) => {
   const modal = document.getElementById(modalId);
@@ -72,11 +73,11 @@ export default function SettingsQuoteTemplates() {
 
   const handleAddService = () => {
     if (!selectedService) {
-      alert('Debe buscar y seleccionar un servicio del catálogo');
+      toast('Debe buscar y seleccionar un servicio del catálogo');
       return;
     }
     if (quantity <= 0) {
-      alert('La cantidad debe ser mayor que 0');
+      toast('La cantidad debe ser mayor que 0');
       return;
     }
 
@@ -89,7 +90,7 @@ export default function SettingsQuoteTemplates() {
 
     // Prevent duplicates in the same template
     if (templateItems.some(item => String(item.serviceId) === String(selectedService.id))) {
-      alert('Este servicio ya está agregado en la plantilla. Modifique su cantidad o elimínelo para re-agregar.');
+      toast('Este servicio ya está agregado en la plantilla. Modifique su cantidad o elimínelo para re-agregar.');
       return;
     }
 
@@ -114,7 +115,7 @@ export default function SettingsQuoteTemplates() {
 
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) {
-      alert('Debe especificar un nombre para la plantilla');
+      toast('Debe especificar un nombre para la plantilla');
       return;
     }
 
@@ -138,7 +139,11 @@ export default function SettingsQuoteTemplates() {
 
   const handleDeleteTemplate = async () => {
     if (!selectedTemplateId) return;
-    if (!window.confirm('¿Está seguro de que desea eliminar esta plantilla?')) return;
+    const ok = await modernConfirm({
+      title: '¿Está seguro?',
+      message: '¿Está seguro de que desea eliminar esta plantilla?'
+    });
+    if (!ok) return;
 
     const updatedTemplates = templates.filter(t => String(t.id) !== String(selectedTemplateId));
     await saveGlobalState(updatedTemplates, 'Plantilla eliminada con éxito');
@@ -162,14 +167,14 @@ export default function SettingsQuoteTemplates() {
       
       const dataSave = await resSave.json();
       if (dataSave.ok) {
-        alert(successMessage);
+        toast(successMessage);
         loadState();
       } else {
-        alert('Error al guardar el estado global: ' + dataSave.message);
+        toast('Error al guardar el estado global: ' + dataSave.message);
       }
     } catch (err) {
       console.error(err);
-      alert('Error de red al actualizar las plantillas.');
+      toast('Error de red al actualizar las plantillas.');
     }
   };
 

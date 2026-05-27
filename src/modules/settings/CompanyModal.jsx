@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadCrmState, normalizeCompanyRecord, saveCrmState, uid } from './settingsDataUtils';
+import { toast, modernConfirm } from '../../utils/toast';
 
 const emptyCompany = {
   id: '',
@@ -95,11 +96,11 @@ export default function CompanyModal({ onClose }) {
       address: managerDraft.address.trim(),
     };
     if (!clean.name || !clean.phone || !clean.email) {
-      alert('Encargado requiere nombre, telefono y correo.');
+      toast('Encargado requiere nombre, telefono y correo.');
       return;
     }
     if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean.email)) {
-      alert('Correo de encargado invalido.');
+      toast('Correo de encargado invalido.');
       return;
     }
     if (editingManagerId) {
@@ -122,8 +123,12 @@ export default function CompanyModal({ onClose }) {
     });
   };
 
-  const removeManager = (managerId) => {
-    if (!window.confirm('Esta seguro de eliminar este encargado?')) return;
+  const removeManager = async (managerId) => {
+    const ok = await modernConfirm({
+      title: 'Eliminar encargado',
+      message: '¿Está seguro de eliminar este encargado?'
+    });
+    if (!ok) return;
     setManagers((prev) => prev.filter((item) => String(item.id || '') !== String(managerId || '')));
     if (String(editingManagerId) === String(managerId)) {
       setEditingManagerId('');
@@ -152,15 +157,15 @@ export default function CompanyModal({ onClose }) {
     });
 
     if (!payload.name || !payload.owner || !payload.email || !payload.nit || !payload.businessName || !payload.eventType || !payload.address || !payload.phone) {
-      alert('Completa todos los campos obligatorios de empresa.');
+      toast('Completa todos los campos obligatorios de empresa.');
       return;
     }
     if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(payload.email)) {
-      alert('Correo de empresa invalido.');
+      toast('Correo de empresa invalido.');
       return;
     }
     if (!payload.managers.length) {
-      alert('Agrega al menos un encargado para la empresa.');
+      toast('Agrega al menos un encargado para la empresa.');
       return;
     }
 
@@ -183,12 +188,12 @@ export default function CompanyModal({ onClose }) {
       nextState.disabledManagers = Array.from(nextDisabledManagers);
 
       await saveCrmState(nextState);
-      alert(selectedId ? 'Empresa actualizada.' : 'Empresa agregada.');
+      toast(selectedId ? 'Empresa actualizada.' : 'Empresa agregada.');
       await reloadData();
       setSelectedId(payload.id);
     } catch (err) {
       console.error('Error guardando empresa:', err);
-      alert(err.message || 'No se pudo guardar la empresa.');
+      toast(err.message || 'No se pudo guardar la empresa.');
     } finally {
       setSaving(false);
     }

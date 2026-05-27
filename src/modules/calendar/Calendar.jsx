@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import { STATUS_META } from './constants';
 import ReservationForm from './components/ReservationForm';
+import { toast } from '../../utils/toast';
 
 const HOUR_HEIGHT = 56;
 const HOUR_START = 6;
@@ -141,6 +142,22 @@ function getEventSeriesBadge(ev, allEvents = []) {
   return `Reserva ${index + 1}/${series.length}`;
 }
 
+function getStatusAbbreviation(status) {
+  switch (status) {
+    case 'Reserva sin Cotizacion': return 'RSC';
+    case '1er Cotizacion': return '1C';
+    case 'Perdido': return 'P';
+    case 'Seguimiento': return 'S';
+    case 'Lista de Espera': return 'LE';
+    case 'Pre reserva': return 'PR';
+    case 'Confirmado': return 'C';
+    case 'Cancelado': return 'CAN';
+    case 'Mantenimiento': return 'MNT';
+    case 'Mantenimiento Realizado': return 'MR';
+    default: return '';
+  }
+}
+
 function SeriesBadge({ label, color = '#2563eb', compact = false }) {
   if (!label) return null;
   return (
@@ -265,6 +282,10 @@ export default function Calendar() {
   const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
 
   const handleDayClick = (dateStr) => {
+    if (dateStr < todayStr) {
+      toast('No se pueden programar eventos en fechas anteriores a hoy.');
+      return;
+    }
     navigate(`/nueva-reserva?date=${dateStr}&start=10:00&end=12:00`);
   };
 
@@ -280,17 +301,16 @@ export default function Calendar() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>
         {/* Contenedor Desplazable que contiene tanto cabecera como cuerpo */}
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           
           {/* Cabecera Pinned */}
           <div style={{ 
             display: 'flex', 
-            background: 'rgba(255, 255, 255, 0.95)', 
-            backdropFilter: 'blur(10px)',
-            borderBottom: '2px solid #e2e8f0', 
+            background: '#ffffff', 
+            borderBottom: '2px solid #cbd5e1', 
             position: 'sticky',
             top: 0,
-            zIndex: 10,
+            zIndex: 20,
             flexShrink: 0
           }}>
             {/* Espaciador de horas con etiqueta "HORA" */}
@@ -298,13 +318,17 @@ export default function Calendar() {
               width: '70px', 
               flexShrink: 0, 
               borderRight: '1px solid #e2e8f0',
+              borderBottom: '2px solid #cbd5e1',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '10px',
+              fontSize: '12px',
               fontWeight: '800',
               color: '#94a3b8',
-              background: '#f8fafc'
+              background: '#f8fafc',
+              position: 'sticky',
+              left: 0,
+              zIndex: 21
             }}>
               HORA
             </div>
@@ -319,17 +343,19 @@ export default function Calendar() {
               return (
                 <div key={idx} style={{ 
                   flex: 1, 
-                  height: '64px',
+                  minWidth: '220px',
+                  height: '68px',
                   display: 'flex', 
                   flexDirection: 'column', 
                   alignItems: 'center', 
                   justifyContent: 'center',
-                  borderRight: idx < 6 ? '1px solid #e2e8f0' : 'none',
-                  background: isToday ? '#f0f7ff' : 'transparent',
+                  borderLeft: idx > 0 ? '1px solid #e2e8f0' : 'none',
+                  borderBottom: '2px solid #cbd5e1',
+                  background: isToday ? '#f0f7ff' : '#ffffff',
                   transition: 'background 0.2s'
                 }}>
                   <div style={{ 
-                    fontSize: '10px', 
+                    fontSize: '12px', 
                     fontWeight: '800', 
                     color: isToday ? '#2563eb' : isWeekend ? '#e11d48' : '#64748b', 
                     textTransform: 'uppercase',
@@ -338,15 +364,15 @@ export default function Calendar() {
                     {day.toLocaleDateString('es-ES', { weekday: 'short' })}
                   </div>
                   <div style={{ 
-                    width: '28px', 
-                    height: '28px', 
+                    width: '32px', 
+                    height: '32px', 
                     borderRadius: '50%', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
                     background: isToday ? '#2563eb' : 'transparent',
                     color: isToday ? 'white' : isWeekend ? '#e11d48' : '#0f172a',
-                    fontSize: '13px', 
+                    fontSize: '15px', 
                     fontWeight: '800',
                     marginTop: '2px'
                   }}>
@@ -364,11 +390,11 @@ export default function Calendar() {
           <div style={{ 
             width: '70px', 
             flexShrink: 0, 
-            background: 'rgba(248, 250, 252, 0.85)', 
+            background: '#f8fafc', 
             borderRight: '1px solid #e2e8f0',
             position: 'sticky',
             left: 0,
-            zIndex: 5
+            zIndex: 10
           }}>
             {hours.map(hour => (
               <div key={hour} style={{ 
@@ -378,7 +404,7 @@ export default function Calendar() {
                 justifyContent: 'flex-end', 
                 paddingRight: '10px'
               }}>
-                <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', marginTop: '-6px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#94a3b8', marginTop: '-6px' }}>
                   {formatHour(hour)}
                 </span>
               </div>
@@ -395,8 +421,10 @@ export default function Calendar() {
               return (
                 <div key={idx} style={{ 
                   flex: 1, 
-                  borderRight: idx < 6 ? '1px solid #e2e8f0' : 'none', 
+                  minWidth: '220px',
+                  borderLeft: idx > 0 ? '1px solid #e2e8f0' : 'none', 
                   position: 'relative',
+                  zIndex: 1,
                   background: 'white'
                 }}>
                   {/* Líneas horizontales de horas */}
@@ -434,7 +462,7 @@ export default function Calendar() {
                         onMouseDown={(e) => {
                           if (e.button !== 0) return; // solo click izquierdo
                           if (dateStr < todayStr) {
-                            alert('No se pueden programar eventos en fechas anteriores a hoy.');
+                            toast('No se pueden programar eventos en fechas anteriores a hoy.');
                             return;
                           }
                           setSelectionStart({ dateStr, hour });
@@ -444,7 +472,7 @@ export default function Calendar() {
                         onDoubleClick={(e) => {
                           if (e.button !== 0) return;
                           if (dateStr < todayStr) {
-                            alert('No se pueden programar eventos en fechas anteriores a hoy.');
+                            toast('No se pueden programar eventos en fechas anteriores a hoy.');
                             return;
                           }
                           const formatTime = (h) => `${String(h).padStart(2, '0')}:00`;
@@ -469,11 +497,11 @@ export default function Calendar() {
                     
                     const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
                     const normalBg = isMaint
-                      ? `repeating-linear-gradient(45deg, ${color}12, ${color}12 8px, ${color}20 8px, ${color}20 16px)`
-                      : `${color}12`;
+                      ? `repeating-linear-gradient(45deg, ${color}12, ${color}12 8px, ${color}20 8px, ${color}20 16px) #ffffff`
+                      : `linear-gradient(0deg, ${color}12, ${color}12) #ffffff`;
                     const hoverBg = isMaint
-                      ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px)`
-                      : `${color}25`;
+                      ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px) #ffffff`
+                      : `linear-gradient(0deg, ${color}25, ${color}25) #ffffff`;
 
                     const layout = layouts[ev.id] || { lane: 0, totalLanes: 1 };
                     const lane = layout.lane;
@@ -482,9 +510,18 @@ export default function Calendar() {
                     const leftPct = (lane * 100) / totalLanes;
                     const widthPct = 100 / totalLanes;
                     
+                    const seller = users?.find(u => String(u.id) === String(ev.userId));
+                    const sellerName = seller?.fullName || seller?.name || 'Sistemas Admin';
+                    const showFullDetails = height >= 140;
+
+                    const formatMoneyGT = (val) => {
+                      return 'Cot Q ' + Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    };
+
                     return (
                       <div
                         key={ev.id}
+                        title={getEventTooltip(ev)}
                         onClick={(e) => { e.stopPropagation(); handleEventClick(ev.id); }}
                         style={{
                           position: 'absolute',
@@ -500,53 +537,111 @@ export default function Calendar() {
                           overflow: 'hidden',
                           zIndex: 1 + lane,
                           boxShadow: '0 2px 6px rgba(0, 0, 0, 0.02)',
-                          transition: 'all 0.2s',
+                          transition: 'background 0.2s',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '2px'
                         }}
                         onMouseEnter={e => {
-                          e.currentTarget.style.transform = 'scale(1.02)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-                          e.currentTarget.style.zIndex = 100;
                           e.currentTarget.style.background = hoverBg;
-
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredEvent({
-                            ev,
-                            rect: {
-                              top: rect.top,
-                              left: rect.left,
-                              width: rect.width,
-                              height: rect.height
-                            }
-                          });
                         }}
                         onMouseLeave={e => {
-                          e.currentTarget.style.transform = 'none';
-                          e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.02)';
-                          e.currentTarget.style.zIndex = 1 + lane;
                           e.currentTarget.style.background = normalBg;
-                          setHoveredEvent(null);
                         }}
                       >
-                        <div style={{ 
-                          fontSize: '11px', 
-                          fontWeight: '800', 
-                          color: '#0f172a', 
-                          whiteSpace: 'nowrap', 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis' 
-                        }}>
-                          {ev.status === 'Mantenimiento' ? '🛠️ ' : ev.status === 'Mantenimiento Realizado' ? '✅🛠️ ' : ''}{ev.name}
-                        </div>
-                        <div style={{ fontSize: '9px', fontWeight: '600', color: '#475569', whiteSpace: 'nowrap' }}>
-                          🕒 {ev.startTime} - {ev.endTime}
-                        </div>
-                        <div style={{ fontSize: '9px', fontWeight: '700', color: color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          📍 {ev.salon}
-                        </div>
-                        <SeriesBadge label={seriesBadge} color={color} compact />
+                        {showFullDetails ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', height: '100%' }}>
+                            {/* Header row: Status and Badge */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
+                                <span style={{ fontSize: '10px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{ev.status}</span>
+                              </div>
+                              <span style={{
+                                width: '28px',
+                                height: '16px',
+                                borderRadius: '4px',
+                                backgroundColor: '#cbd5e1',
+                                color: '#1e293b',
+                                fontSize: '10px',
+                                fontWeight: '900',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifySelf: 'flex-end',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                {getStatusAbbreviation(ev.status)}
+                              </span>
+                            </div>
+
+                            {/* Event Title */}
+                            <div style={{ 
+                              fontSize: '12.5px', 
+                              fontWeight: '800', 
+                              color: '#0f172a', 
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              lineHeight: '1.2'
+                            }}>
+                              {ev.status === 'Mantenimiento' ? '🛠️ ' : ev.status === 'Mantenimiento Realizado' ? '✅🛠️ ' : ''}{ev.name}
+                            </div>
+
+                            {/* Horario */}
+                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' }}>Horario</span>
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>{ev.startTime} - {ev.endTime}</span>
+                            </div>
+
+                            {/* Salon */}
+                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' }}>Salón</span>
+                              <span style={{ fontSize: '11px', fontWeight: '700', color: color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.salon}</span>
+                            </div>
+
+                            {/* Vendedor */}
+                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' }}>Vendedor</span>
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sellerName}</span>
+                            </div>
+
+                            {/* PAX */}
+                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' }}>PAX</span>
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>{ev.pax || ev.quote?.people || 0}</span>
+                            </div>
+
+                            {/* Cotizacion */}
+                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' }}>Cot.</span>
+                              <span style={{ fontSize: '11px', fontWeight: '700', color: '#334155' }}>{formatMoneyGT(ev.quote?.total || 0)}</span>
+                            </div>
+
+                            {seriesBadge && <div style={{ marginTop: 'auto' }}><SeriesBadge label={seriesBadge} color={color} compact /></div>}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', height: '100%' }}>
+                            <div style={{ 
+                              fontSize: '12px', 
+                              fontWeight: '800', 
+                              color: '#0f172a', 
+                              whiteSpace: 'nowrap', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis' 
+                            }}>
+                              {ev.status === 'Mantenimiento' ? '🛠️ ' : ev.status === 'Mantenimiento Realizado' ? '✅🛠️ ' : ''}{ev.name}
+                            </div>
+                            <div style={{ fontSize: '10.5px', fontWeight: '600', color: '#475569', whiteSpace: 'nowrap' }}>
+                              🕒 {ev.startTime} - {ev.endTime}
+                            </div>
+                            <div style={{ fontSize: '10.5px', fontWeight: '700', color: color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              📍 {ev.salon}
+                            </div>
+                            {seriesBadge && <SeriesBadge label={seriesBadge} color={color} compact />}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -585,7 +680,7 @@ export default function Calendar() {
       <div style={{ padding: '16px', height: '100%', overflow: 'auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '16px' }}>
           {['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'].map(d => (
-            <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: '800', color: '#64748b', padding: '8px' }}>{d}</div>
+            <div key={d} style={{ textAlign: 'center', fontSize: '12.5px', fontWeight: '800', color: '#64748b', padding: '8px' }}>{d}</div>
           ))}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
@@ -611,7 +706,7 @@ export default function Calendar() {
                 }}
               >
                 <div style={{ 
-                  fontSize: '12px', fontWeight: '700', 
+                  fontSize: '14px', fontWeight: '700', 
                   color: item.isCurrentMonth ? '#0f172a' : '#94a3b8',
                   textAlign: 'center'
                 }}>{item.date.getDate()}</div>
@@ -619,7 +714,7 @@ export default function Calendar() {
                   const color = STATUS_META[ev.status]?.color || '#64748b';
                   return (
                     <div key={ev.id} style={{
-                      fontSize: '9px',
+                      fontSize: '10.5px',
                       padding: '2px 4px',
                       borderRadius: '4px',
                       background: `${color}20`,
@@ -634,7 +729,7 @@ export default function Calendar() {
                   );
                 })}
                 {dayEvents.length > 2 && (
-                  <div style={{ fontSize: '9px', color: '#64748b', textAlign: 'center' }}>+{dayEvents.length - 2}</div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b', textAlign: 'center' }}>+{dayEvents.length - 2}</div>
                 )}
               </div>
             );
@@ -655,13 +750,13 @@ export default function Calendar() {
         {/* Cabecera Pinned */}
         <div style={{ 
           height: '60px', 
-          borderBottom: '2px solid #e2e8f0', 
+          borderBottom: '2px solid #cbd5e1', 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center', 
           background: isToday ? '#f0f7ff' : 'white',
           flexShrink: 0,
-          zIndex: 10
+          zIndex: 20
         }}>
           <div style={{ fontSize: '15px', fontWeight: '900', color: isToday ? '#2563eb' : '#0f172a', letterSpacing: '0.5px' }}>
             {currentDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
@@ -674,11 +769,11 @@ export default function Calendar() {
           <div style={{ 
             width: '70px', 
             flexShrink: 0, 
-            background: 'rgba(248, 250, 252, 0.85)', 
+            background: '#f8fafc', 
             borderRight: '1px solid #e2e8f0',
             position: 'sticky',
             left: 0,
-            zIndex: 5
+            zIndex: 10
           }}>
             {hours.map(hour => (
               <div key={hour} style={{ 
@@ -696,7 +791,7 @@ export default function Calendar() {
           </div>
 
           {/* Cuadrícula de un solo día */}
-          <div style={{ flex: 1, position: 'relative', background: 'white' }}>
+          <div style={{ flex: 1, position: 'relative', zIndex: 1, background: 'white' }}>
             {hours.map(hour => {
               const isSelected = selectionActive && selectionStart && selectionCurrent && (() => {
                 const minDate = selectionStart.dateStr <= selectionCurrent.dateStr ? selectionStart.dateStr : selectionCurrent.dateStr;
@@ -730,17 +825,26 @@ export default function Calendar() {
                   }}
                   onMouseDown={(e) => {
                     if (e.button !== 0) return; // solo click izquierdo
+                    if (dateStr < todayStr) {
+                      toast('No se pueden programar eventos en fechas anteriores a hoy.');
+                      return;
+                    }
                     setSelectionStart({ dateStr, hour });
                     setSelectionCurrent({ dateStr, hour });
                     setSelectionActive(true);
                   }}
                   onDoubleClick={(e) => {
                     if (e.button !== 0) return;
+                    if (dateStr < todayStr) {
+                      toast('No se pueden programar eventos en fechas anteriores a hoy.');
+                      return;
+                    }
                     const formatTime = (h) => `${String(h).padStart(2, '0')}:00`;
                     navigate(`/nueva-reserva?date=${dateStr}&endDate=${dateStr}&start=${formatTime(hour)}&end=${formatTime(hour + 1)}`);
                   }}
                   onMouseEnter={() => {
                     if (selectionActive) {
+                      if (dateStr < todayStr) return; // No permitir arrastrar a fechas pasadas
                       setSelectionCurrent({ dateStr, hour });
                     }
                   }}
@@ -756,11 +860,11 @@ export default function Calendar() {
               
               const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
               const normalBg = isMaint
-                ? `repeating-linear-gradient(45deg, ${color}12, ${color}12 8px, ${color}20 8px, ${color}20 16px)`
-                : `${color}12`;
+                ? `repeating-linear-gradient(45deg, ${color}12, ${color}12 8px, ${color}20 8px, ${color}20 16px) #ffffff`
+                : `linear-gradient(0deg, ${color}12, ${color}12) #ffffff`;
               const hoverBg = isMaint
-                ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px)`
-                : `${color}20`;
+                ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px) #ffffff`
+                : `linear-gradient(0deg, ${color}20, ${color}20) #ffffff`;
 
               const layout = layouts[ev.id] || { lane: 0, totalLanes: 1 };
               const lane = layout.lane;
@@ -1208,7 +1312,7 @@ export default function Calendar() {
   return (
     <div className="calendar-container" style={{ 
       flex: 1, 
-      margin: '0 20px 20px 20px',
+      margin: '0 0 20px 0',
       display: 'flex', 
       flexDirection: 'column', 
       background: 'white',
@@ -1242,111 +1346,7 @@ export default function Calendar() {
         </div>
       )}
 
-      {/* Tooltip flotante Premium personalizado */}
-      {hoveredEvent && (() => {
-        const { ev, rect } = hoveredEvent;
-        const color = STATUS_META[ev.status]?.color || '#64748b';
-        const seriesBadge = getEventSeriesBadge(ev, events);
-        
-        // Calcular si colocar a la derecha o a la izquierda del elemento
-        const tooltipWidth = 320;
-        const gap = 12;
-        const windowWidth = window.innerWidth;
-        const showOnLeft = rect.left + rect.width + tooltipWidth + gap > windowWidth;
-        const leftPos = showOnLeft 
-          ? rect.left - tooltipWidth - gap 
-          : rect.left + rect.width + gap;
-          
-        return (
-          <div style={{
-            position: 'fixed',
-            top: `${Math.min(rect.top, window.innerHeight - 320)}px`,
-            left: `${leftPos}px`,
-            width: `${tooltipWidth}px`,
-            zIndex: 99999,
-            pointerEvents: 'none',
-            background: 'rgba(255, 255, 255, 0.96)',
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(226, 232, 240, 0.8)',
-            borderLeft: `6px solid ${color}`,
-            borderRadius: '16px',
-            padding: '16px 20px',
-            boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          }}>
-            {/* Header: Estado con color del estado */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{
-                padding: '4px 10px',
-                borderRadius: '20px',
-                fontSize: '9px',
-                fontWeight: '900',
-                color: color,
-                background: `${color}15`,
-                border: `1px solid ${color}30`,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                {ev.status}
-              </span>
-              <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700' }}>
-                Detalles de reserva
-              </span>
-            </div>
 
-            {/* Título de la reserva */}
-            <div style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', lineHeight: '1.3' }}>
-              {ev.name}
-            </div>
-            <SeriesBadge label={seriesBadge} color={color} />
-
-            {/* Separador */}
-            <div style={{ height: '1px', background: '#f1f5f9' }} />
-
-            {/* Cuerpo del Tooltip */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ fontSize: '14px' }}>🕒</span>
-                <span><strong>Horario:</strong> {ev.startTime} - {ev.endTime}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ fontSize: '14px' }}>📍</span>
-                <span><strong>Salón:</strong> {ev.salon || 'Sin salón'}</span>
-              </div>
-              {ev.pax ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#475569' }}>
-                  <span style={{ fontSize: '14px' }}>👥</span>
-                  <span><strong>PAX:</strong> {ev.pax} invitados</span>
-                </div>
-              ) : null}
-              {ev.clientName ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#475569' }}>
-                  <span style={{ fontSize: '14px' }}>👤</span>
-                  <span><strong>Cliente:</strong> {ev.clientName}</span>
-                </div>
-              ) : null}
-              {ev.clientPhone ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#475569' }}>
-                  <span style={{ fontSize: '14px' }}>📞</span>
-                  <span><strong>Teléfono:</strong> {ev.clientPhone}</span>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Notas si existen */}
-            {ev.notes && (
-              <>
-                <div style={{ height: '1px', background: '#f1f5f9' }} />
-                <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', borderLeft: '3px solid #cbd5e1', lineHeight: '1.4' }}>
-                  "{ev.notes}"
-                </div>
-              </>
-            )}
-          </div>
-        );
-      })()}
     </div>
   );
 }

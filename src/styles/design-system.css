@@ -5148,11 +5148,12 @@ body.quoteModeOpen #appShell.lum-calendar #quoteBackdrop .quoteCurrencyBtn .mate
 /* 1. Week & Month calendar container margins */
 #appShell.lum-calendar .calendar-container {
   transition: all 0.25s ease-in-out;
+  margin: 0 0 20px 0 !important;
 }
 
 @media (max-width: 900px) {
   #appShell.lum-calendar .calendar-container {
-    margin: 0 10px 10px 10px !important;
+    margin: 0 0 10px 0 !important;
     border-radius: 12px !important;
   }
 }

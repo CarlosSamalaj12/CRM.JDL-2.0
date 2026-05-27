@@ -10,6 +10,71 @@ import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
 import ConfirmModal from '../../../components/ConfirmModal';
+import Swal from 'sweetalert2';
+
+const pastEventEditAuthorizedKeys = new Set();
+
+function reservationKeyFromEvent(ev) {
+  if (!ev) return "";
+  return String(ev.groupId || ev.id || "").trim();
+}
+
+function isEventSeriesInPast(events = [], eventId = '') {
+  const series = getSeriesForEvent(events, eventId);
+  if (!series.length) return false;
+  const lastDate = series.reduce((max, ev) => {
+    const d = String(ev.date || ev.eventDateEnd || ev.eventDateStart || '');
+    return d > max ? d : max;
+  }, '');
+  if (!lastDate) return false;
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return lastDate < todayIso;
+}
+
+async function requestPastEventEditAuthorization(ev) {
+  const key = reservationKeyFromEvent(ev);
+  if (!key) return false;
+  if (pastEventEditAuthorizedKeys.has(key)) return true;
+
+  const result = await Swal.fire({
+    icon: "warning",
+    title: "Evento de fecha pasada",
+    text: "Para editar este evento ingresa codigo de administrador.",
+    input: "password",
+    inputPlaceholder: "Codigo admin",
+    showCancelButton: true,
+    confirmButtonText: "Autorizar",
+    cancelButtonText: "Cancelar",
+    background: "#f8fbff",
+    color: "#10243b",
+    confirmButtonColor: "#2563eb",
+    cancelButtonColor: "#94a3b8",
+    inputValidator: (value) => {
+      if (!String(value || "").trim()) return "Ingresa el codigo.";
+      return null;
+    },
+  });
+
+  if (!result.isConfirmed) return false;
+  const code = String(result.value || "").trim();
+
+  if (code !== "JDL-ADMIN-2026") {
+    await Swal.fire({
+      icon: "error",
+      title: "Codigo invalido",
+      text: "No tienes autorizacion para editar eventos de fechas pasadas.",
+      background: "#f8fbff",
+      color: "#10243b",
+      confirmButtonColor: "#2563eb",
+    });
+    return false;
+  }
+
+  pastEventEditAuthorizedKeys.add(key);
+  return true;
+}
 
 const HOUR_START = 0;
 const HOUR_END = 23;
@@ -193,7 +258,7 @@ const StatusSelectCustom = ({ value, options, onChange, disabled, size = 'sm' })
 
   const selectedOption = options.find(o => o.key === value) || options[0];
   const isSm = size === 'sm';
-  const fontSize = isSm ? '11px' : '14px';
+  const fontSize = isSm ? '12.5px' : '15px';
   const padding = isSm ? '6px 8px' : '10px 14px';
   const dotSize = isSm ? '8px' : '12px';
   const openMenu = () => {
@@ -374,6 +439,44 @@ export default function ReservationForm({ onCancel }) {
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [salonCapacities, setSalonCapacities] = useState({});
+
+  useEffect(() => {
+    const fetchState = async () => {
+      try {
+        const response = await fetch('/api/state');
+        const data = await response.json();
+        if (data?.state?.salonCapacities) {
+          setSalonCapacities(data.state.salonCapacities);
+        }
+      } catch (err) {
+        console.error("Error loading capacities:", err);
+      }
+    };
+    fetchState();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const checkPastEvent = async () => {
+      if (id && events && events.length > 0) {
+        const existingEvent = events.find(ev => String(ev.id) === String(id));
+        if (existingEvent && isEventSeriesInPast(events, id)) {
+          const key = reservationKeyFromEvent(existingEvent);
+          if (key && !pastEventEditAuthorizedKeys.has(key)) {
+            const auth = await requestPastEventEditAuthorization(existingEvent);
+            if (!auth && active) {
+              navigate('/calendar');
+            }
+          }
+        }
+      }
+    };
+    checkPastEvent();
+    return () => {
+      active = false;
+    };
+  }, [id, events, navigate]);
 
   const comparableEvents = useMemo(() => {
     if (!id) return events || [];
@@ -528,7 +631,11 @@ export default function ReservationForm({ onCancel }) {
   };
 
   const handleSlotChange = (index, field, value) => {
-    const newSlots = slots.map((s, i) => i === index ? { ...s, [field]: value } : s);
+    let val = value;
+    if (field === 'pax') {
+      val = value.replace(/\D/g, '');
+    }
+    const newSlots = slots.map((s, i) => i === index ? { ...s, [field]: val } : s);
     setSlots(newSlots);
     if (field === 'pax') {
       const total = newSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
@@ -617,6 +724,16 @@ export default function ReservationForm({ onCancel }) {
       if (!slotMaintenanceMode) {
         if (!s.pax || Number(s.pax) <= 0) {
           issues.push(`El salón ${salonLabel} debe tener un PAX mayor a 0`);
+        } else {
+          const slotPax = Number(s.pax || 0);
+          const salonNameClean = String(s.salon || "").trim();
+          const configuredMax = salonCapacities && typeof salonCapacities === "object"
+            ? Number(salonCapacities[salonNameClean] || 0)
+            : 0;
+          const maxAllowedPax = configuredMax > 0 ? configuredMax : 2000;
+          if (slotPax > maxAllowedPax) {
+            issues.push(`El PAX del salón ${salonLabel} supera el máximo permitido (${maxAllowedPax})`);
+          }
         }
       }
       
@@ -806,6 +923,15 @@ export default function ReservationForm({ onCancel }) {
   const handleSave = async () => {
     if (saving) return;
 
+    const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
+    if (existingEvent && isEventSeriesInPast(events, id)) {
+      const key = reservationKeyFromEvent(existingEvent);
+      if (!pastEventEditAuthorizedKeys.has(key)) {
+        showNotification("Evento de fecha pasada bloqueado. Solicita codigo de administrador.", "error");
+        return;
+      }
+    }
+
     const validation = validateReservationRequiredFields();
     if (!validation.ok) {
       showNotification(`Completa: ${validation.issues[0]}${validation.issues.length > 1 ? ` (+${validation.issues.length - 1} pendientes)` : ''}`, 'error');
@@ -876,7 +1002,7 @@ export default function ReservationForm({ onCancel }) {
     padding: '10px 18px',
     borderRadius: '10px',
     fontWeight: '700',
-    fontSize: '13px',
+    fontSize: '14px',
     cursor: 'pointer',
     border: '1px solid',
     whiteSpace: 'nowrap',
@@ -940,7 +1066,7 @@ export default function ReservationForm({ onCancel }) {
     background: '#0d9488',
     color: 'white',
     padding: '12px 36px',
-    fontSize: '15px',
+    fontSize: '16.5px',
     borderColor: '#0d9488',
     boxShadow: '0 4px 10px rgba(13, 148, 136, 0.25)'
   };
@@ -950,14 +1076,14 @@ export default function ReservationForm({ onCancel }) {
     padding: '10px 12px',
     borderRadius: '8px',
     border: '2px solid #f1f5f9',
-    fontSize: '13px',
+    fontSize: '14.5px',
     fontWeight: '600',
     width: '100%'
   };
 
   const labelStyle = {
     display: 'block',
-    fontSize: '11px',
+    fontSize: '12.5px',
     fontWeight: '800',
     color: '#64748b',
     marginBottom: '6px',
@@ -1221,18 +1347,18 @@ export default function ReservationForm({ onCancel }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Nombre del evento *</label>
-                <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda, Corporativo, Cena" style={{ ...inputStyle, fontSize: '14px', padding: '10px 14px' }} />
+                <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Nombre del evento *</label>
+                <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda, Corporativo, Cena" style={{ ...inputStyle, fontSize: '15px', padding: '10px 14px' }} />
               </div>
 
               {false && !(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
                   <div>
-                    <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Nombre de quien reserva (Cliente)</label>
+                    <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Nombre de quien reserva (Cliente)</label>
                     <input name="clientName" value={formData.clientName} onChange={handleChange} placeholder="Ej: Carlos Samalaj" style={{ ...inputStyle, padding: '8px 12px' }} />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Teléfono del Cliente</label>
+                    <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Teléfono del Cliente</label>
                     <input name="clientPhone" value={formData.clientPhone} onChange={handleChange} placeholder="Ej: +502 5555-5555" style={{ ...inputStyle, padding: '8px 12px' }} />
                   </div>
                 </div>
@@ -1275,25 +1401,27 @@ export default function ReservationForm({ onCancel }) {
                   <div style={{ minWidth: '720px' }}>
                     {/* Encabezado de la tabla */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>HASTA</span>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>INICIO</span>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>FIN</span>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>ESTADO</span>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>HASTA</span>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>INICIO</span>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>FIN</span>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>ESTADO</span>
                     </div>
 
                     {/* Contenido de la tabla con scroll vertical */}
                     <div style={{ display: 'flex', flexDirection: 'column', padding: '8px 0', gap: '6px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden' }}>
                       {slots.map((slot, index) => (
                         <div key={index} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', alignItems: 'center', background: 'white', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                          <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }}>
+                          <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }}>
                             <option value="">Selecciona salon</option>
                             {salones?.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                           <input 
                             type="text" 
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             disabled={isMaintenanceStatus(slot.status || formData.status)}
                             value={isMaintenanceStatus(slot.status || formData.status) ? 'N/A' : slot.pax}
                             onChange={e => handleSlotChange(index, 'pax', e.target.value)} 
@@ -1301,17 +1429,17 @@ export default function ReservationForm({ onCancel }) {
                             style={{ 
                               ...inputStyle, 
                               padding: '6px 4px',
-                              fontSize: '11px',
+                              fontSize: '12.5px',
                               background: isMaintenanceStatus(slot.status || formData.status) ? '#f1f5f9' : 'white',
                               color: isMaintenanceStatus(slot.status || formData.status) ? '#94a3b8' : '#000',
                               textAlign: 'center'
                             }} 
                           />
-                          <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
-                          <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
-                          <input type="time" value={slot.startTime} onChange={e => handleSlotChange(index, 'startTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
+                          <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
+                          <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
+                          <input type="time" value={slot.startTime} onChange={e => handleSlotChange(index, 'startTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
                           <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                            <input type="time" value={slot.endTime} onChange={e => handleSlotChange(index, 'endTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '11px' }} />
+                            <input type="time" value={slot.endTime} onChange={e => handleSlotChange(index, 'endTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
                             {slots.length > 1 && (
                               <button onClick={() => removeSlotRow(index)} style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '14px', cursor: 'pointer', padding: '0 2px', fontWeight: 'bold' }}>×</button>
                             )}
@@ -1329,8 +1457,8 @@ export default function ReservationForm({ onCancel }) {
                 </div>
 
                 <div style={{ marginTop: '12px', padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #bfdbfe' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e40af' }}>PAX TOTAL:</span>
-                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#1e40af' }}>{isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)}</span>
+                  <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e40af' }}>PAX TOTAL:</span>
+                  <span style={{ fontSize: '16.5px', fontWeight: '900', color: '#1e40af' }}>{isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)}</span>
                 </div>
               </div>
             </div>

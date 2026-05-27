@@ -80,7 +80,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     slots: eventProp?.slots || slots || eventData?.slots || []
   }), [eventProp, eventData, slots]);
   const localSwal = (...args) => {
-    const target = document.getElementById('quoteAdvanceBackdrop')
+    const target = document.getElementById('companyCreateBackdrop')
+      || document.getElementById('serviceCreateBackdrop')
+      || document.getElementById('versionPanelBackdrop')
+      || document.getElementById('quoteAdvanceBackdrop')
       || document.getElementById('menuMontajePosBackdrop')
       || document.getElementById('menuMontajeSelectableBackdrop')
       || document.getElementById('qp-root')
@@ -2720,25 +2723,31 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
                 {/* col 1 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[
-                    { label: 'Contacto', key: 'contact', type: 'text' },
-                    { label: 'Email', key: 'email', type: 'email' },
-                  ].map(f => (
-                    <div key={f.key}>
-                      <label style={fieldLabel}>{f.label}</label>
-                      <input style={fieldInput} type={f.type} value={quote[f.key]} onChange={e => setQuote(p => ({ ...p, [f.key]: e.target.value }))} />
-                    </div>
-                  ))}
-
                   {/* ── Campo Institución con dropdown ── */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <label style={{ ...fieldLabel, marginBottom: 0 }}>Institución</label>
                       <button
-                        className="qp-btn"
                         type="button"
                         onClick={openCreateCompanyModal}
-                        style={{ minHeight: 28, padding: '0 10px', fontSize: 11, fontWeight: 800 }}
+                        style={{ 
+                          minHeight: 28, 
+                          padding: '0 12px', 
+                          fontSize: 11, 
+                          fontWeight: 900, 
+                          background: '#2563eb', 
+                          color: '#ffffff', 
+                          borderRadius: '6px', 
+                          border: 'none', 
+                          boxShadow: '0 2px 4px rgba(37,99,235,0.2)', 
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'background .12s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
                       >
                         + Agregar empresa
                       </button>
@@ -2782,6 +2791,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   )}
 
                   {[
+                    { label: 'Contacto (Encargado de la empresa)', key: 'contact', type: 'text' },
+                    { label: 'Email', key: 'email', type: 'email' },
                     { label: 'Teléfono', key: 'phone', type: 'text' },
                     { label: 'NIT', key: 'nit', type: 'text' },
                     { label: 'Facturar a', key: 'billTo', type: 'text' },
@@ -2789,7 +2800,18 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   ].map(f => (
                     <div key={f.key}>
                       <label style={fieldLabel}>{f.label}</label>
-                      <input style={fieldInput} type={f.type} value={quote[f.key]} onChange={e => setQuote(p => ({ ...p, [f.key]: e.target.value }))} />
+                      <input 
+                        style={fieldInput} 
+                        type={f.type} 
+                        value={quote[f.key] || ''} 
+                        onChange={e => {
+                          let val = e.target.value;
+                          if (f.key === 'phone') {
+                            val = val.replace(/\D/g, '');
+                          }
+                          setQuote(p => ({ ...p, [f.key]: val }));
+                        }} 
+                      />
                     </div>
                   ))}
                 </div>
@@ -2809,7 +2831,18 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   ].map(f => (
                     <div key={f.key}>
                       <label style={fieldLabel}>{f.label}</label>
-                      <input style={fieldInput} type={f.type} value={quote[f.key]} onChange={e => setQuote(p => ({ ...p, [f.key]: e.target.value }))} />
+                      <input 
+                        style={fieldInput} 
+                        type={f.type} 
+                        value={quote[f.key] || ''} 
+                        onChange={e => {
+                          let val = e.target.value;
+                          if (f.key === 'people') {
+                            val = val.replace(/\D/g, '');
+                          }
+                          setQuote(p => ({ ...p, [f.key]: val }));
+                        }} 
+                      />
                     </div>
                   ))}
                 </div>
@@ -3178,7 +3211,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       {/* ── Modal: Cargar versión ── */}
       {showCreateCompanyModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
+        <div id="companyCreateBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
           <div style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(1180px, 98vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#ffffff', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div>
@@ -3218,7 +3251,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   </select>
                 </label>
                 <label style={fieldLabel}>Direccion<input style={fieldInput} value={companyDraft.address} onChange={e => setCompanyDraft(p => ({ ...p, address: e.target.value }))} placeholder="Direccion" /></label>
-                <label style={fieldLabel}>Telefono<input style={fieldInput} value={companyDraft.phone} onChange={e => setCompanyDraft(p => ({ ...p, phone: e.target.value }))} placeholder="Telefono" /></label>
+                <label style={fieldLabel}>Telefono<input style={fieldInput} value={companyDraft.phone} onChange={e => setCompanyDraft(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }))} placeholder="Telefono" /></label>
                 <label style={{ ...fieldLabel, gridColumn: '1 / -1' }}>Observacion<textarea style={{ ...fieldInput, height: 58, paddingTop: 10, resize: 'vertical' }} value={companyDraft.notes} onChange={e => setCompanyDraft(p => ({ ...p, notes: e.target.value }))} placeholder="Alguna observacion" /></label>
               </div>
 
@@ -3236,7 +3269,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <label style={fieldLabel}>Encargados de la empresa</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))', gap: 8 }}>
                   <input style={fieldInput} value={managerDraft.name} onChange={e => setManagerDraft(p => ({ ...p, name: e.target.value }))} placeholder="Nombre del encargado" />
-                  <input style={fieldInput} value={managerDraft.phone} onChange={e => setManagerDraft(p => ({ ...p, phone: e.target.value }))} placeholder="Telefono" />
+                  <input style={fieldInput} value={managerDraft.phone} onChange={e => setManagerDraft(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }))} placeholder="Telefono" />
                   <input style={fieldInput} type="email" value={managerDraft.email} onChange={e => setManagerDraft(p => ({ ...p, email: e.target.value }))} placeholder="Correo" />
                   <input style={fieldInput} value={managerDraft.address} onChange={e => setManagerDraft(p => ({ ...p, address: e.target.value }))} placeholder="Direccion (opcional)" />
                 </div>
@@ -3275,7 +3308,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       )}
 
       {showVersionPanel && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div id="versionPanelBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 20, width: '90%', maxWidth: 400, maxHeight: '80vh', overflow: 'auto' }}>
             <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12, color: '#0f172a' }}>Cargar versión de cotización</div>
             {quote.versions?.length > 0 ? (
@@ -3299,7 +3332,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       {/* Modal: Crear servicio */}
       {showCreateServiceModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
+        <div id="serviceCreateBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
           <div style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(900px, 96vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div><div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Nuevo servicio</div><div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>Se agregara al catalogo de cotizacion</div></div>
