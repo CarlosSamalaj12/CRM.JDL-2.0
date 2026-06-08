@@ -2653,6 +2653,74 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         #menuMontajeSelectableBackdrop .modalSubtitle {
           color: #94a3b8 !important;
         }
+        
+        .qp-close-btn {
+          width: 36px !important;
+          height: 36px !important;
+          border-radius: 50% !important;
+          border: 1px solid #cbd5e1 !important;
+          background: #f8fafc !important;
+          color: #475569 !important;
+          font-size: 16px !important;
+          font-weight: bold !important;
+          cursor: pointer !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          transition: all 0.2s ease !important;
+          padding: 0 !important;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+        }
+        .qp-close-btn:hover {
+          background: #f1f5f9 !important;
+          color: #0f172a !important;
+          border-color: #94a3b8 !important;
+        }
+        
+        @media (max-width: 768px) {
+          .qp-main-grid {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .qp-header {
+            align-items: center !important;
+            padding: 10px 14px !important;
+          }
+          .qp-floating-footer {
+            position: sticky !important;
+            bottom: 0 !important;
+            right: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            background: #ffffff !important;
+            border-top: 1px solid #cbd5e1 !important;
+            padding: 12px !important;
+            pointer-events: auto !important;
+            margin: 0 !important;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.05) !important;
+          }
+          .qp-floating-footer-inner {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+            width: 100% !important;
+          }
+          .qp-floating-footer-inner button {
+            width: 100% !important;
+            justify-content: center !important;
+            height: 40px !important;
+            font-size: 11px !important;
+            margin: 0 !important;
+          }
+          .qp-floating-footer-inner button:last-child {
+            grid-column: span 2 !important;
+            height: 44px !important;
+            font-size: 13px !important;
+          }
+          #qp-body {
+            padding-bottom: 60px !important;
+          }
+        }
       `}</style>
 
       {/* ══════════ CONTENEDOR RAÍZ ══════════ */}
@@ -2670,7 +2738,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       >
 
         {/* ── HEADER ── */}
-        <div style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div className="qp-header" style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>
               CRM / Reservas / Cotización
@@ -2683,7 +2751,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               {event?.name || 'Nuevo Evento'} — {quote.venue || '(sin salón)'} — {quote.eventDate || '---'}{quote.schedule ? ` — ${quote.schedule}` : ''}
             </div>
           </div>
-          <button className="qp-btn" onClick={handleRequestClose} style={{ marginTop: 4 }}>Cerrar</button>
+          <button className="qp-close-btn" onClick={handleRequestClose} aria-label="Cerrar">✕</button>
         </div>
 
         {/* ── BODY SCROLLABLE ── */}
@@ -2852,7 +2920,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           )}
 
           {/* ── Grid principal: izquierda (agregar servicios) + derecha (tabla) ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 12, alignItems: 'start' }}>
+          <div className="qp-main-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 12, alignItems: 'start' }}>
 
             {/* ════ PANEL IZQUIERDO ════ */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -3117,7 +3185,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         {/* fin body */}
 
         {/* ── FOOTER FLOTANTE FIJO ── */}
-        <div style={{
+        <div className="qp-floating-footer" style={{
           position: 'absolute',
           right: 20,
           bottom: 14,
@@ -3132,7 +3200,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           zIndex: 30,
           pointerEvents: 'none'
         }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', pointerEvents: 'auto' }}>
+          <div className="qp-floating-footer-inner" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', pointerEvents: 'auto' }}>
             <button
               className="qp-btn"
               type="button"
@@ -3176,20 +3244,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 16,
+            padding: 0,
             background: 'rgba(2,6,23,0.72)',
-            overflow: 'auto'
+            overflow: 'hidden'
           }}
         >
-          <div className="modal menuMontajeModal" role="dialog" aria-modal="true" aria-labelledby="menuMontajeSelectableTitle">
-            <div className="modalHeader">
-              <div>
-                <div className="modalTitle" id="menuMontajeSelectableTitle">
-                  Menu & Montaje
-                </div>
-              </div>
-              <button className="iconBtn" type="button" title="Cerrar" onClick={handleCloseMenuMontaje}>Cerrar</button>
-            </div>
+          <div className="modal menuMontajeModal" role="dialog" aria-modal="true">
             <div className="modalBody menuMontajeBody">
               <MenuMontajePanel
                 event={event}

@@ -9,6 +9,9 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isMobileReminderOpen, setIsMobileReminderOpen] = useState(false);
+
   const user = authService.getCurrentUser() || {
     name: 'Invitado',
     avatarDataUrl: 'https://ui-avatars.com/api/?name=Guest&background=cbd5e1&color=64748b'
@@ -108,82 +111,486 @@ export default function Sidebar() {
 
 
   return (
-    <aside className="lum-sidebar" aria-label="Menu principal" style={{ containerType: 'inline-size', position: 'relative', zIndex: 100 }}>
-      <style>{`
-        /* Definimos el contenedor para usar Container Queries */
-        .lum-sidebar {
-          container-type: inline-size;
-          container-name: sidebar;
-        }
+    <>
+      {/* Botón de Hamburguesa Flotante en Móvil */}
+      <button 
+        className="mobile-hamburger-btn" 
+        onClick={() => setIsMobileOpen(true)}
+        aria-label="Abrir menú"
+      >
+        <span className="material-symbols-outlined">menu</span>
+      </button>
 
-        .sideUserProfile {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 14px;
-          background: rgba(0,0,0,0.1);
-          border-top: 1px solid rgba(255,255,255,0.05);
-          margin-top: auto;
-        }
+      {/* Cajón de Navegación (Drawer) en Móvil */}
+      {isMobileOpen && (
+        <div className="mobile-drawer-backdrop" onClick={() => setIsMobileOpen(false)}>
+          <div className="mobile-drawer-content" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-drawer-header">
+              <div className="drawer-logo-wrap">
+                <img src="/Oficial_JDL_blanco.png" alt="Logo" className="drawer-logo-img" />
+                <span className="drawer-logo-text">Jardines CRM</span>
+              </div>
+              <button className="close-drawer-btn" onClick={() => setIsMobileOpen(false)} aria-label="Cerrar menú">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
 
-        .sideUserLabel {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
+            <nav className="mobile-drawer-nav">
+              <button 
+                className={`drawer-nav-item ${location.pathname === '/customers' ? 'isActive' : ''}`} 
+                onClick={() => { setIsMobileOpen(false); navigate('/customers'); }}
+              >
+                <span className="material-symbols-outlined">group</span>
+                <span>Clientes potenciales</span>
+              </button>
+              <button 
+                className={`drawer-nav-item ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
+                onClick={() => { setIsMobileOpen(false); navigate('/calendar'); }}
+              >
+                <span className="material-symbols-outlined">calendar_month</span>
+                <span>Calendario</span>
+              </button>
+              <button 
+                className={`drawer-nav-item ${location.pathname === '/search' ? 'isActive' : ''}`} 
+                onClick={() => { setIsMobileOpen(false); navigate('/search'); }}
+              >
+                <span className="material-symbols-outlined">search</span>
+                <span>Buscar evento</span>
+              </button>
+              <button 
+                className={`drawer-nav-item ${location.pathname === '/reports' ? 'isActive' : ''}`} 
+                onClick={() => { setIsMobileOpen(false); navigate('/reports'); }}
+              >
+                <span className="material-symbols-outlined">analytics</span>
+                <span>Reportes</span>
+              </button>
+              <button 
+                className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
+                onClick={() => { setIsMobileOpen(false); navigate('/settings'); }}
+              >
+                <span className="material-symbols-outlined">settings</span>
+                <span>Configuraciones</span>
+              </button>
+            </nav>
 
-        .sideUserName {
-          display: flex;
-          flex-direction: column;
-        }
+            <div className="mobile-drawer-profile">
+              <div className="profile-info">
+                <img src={user.avatarDataUrl || user.avatar} alt="User avatar" className="profile-avatar" />
+                <div className="profile-text">
+                  <span className="profile-name">{user.name}</span>
+                  <span className="profile-role">
+                    {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : 'Vendedor'}
+                  </span>
+                </div>
+              </div>
 
-        /* LOGICA: Solo cuando el NAVBAR mismo se haga delgado (< 180px por ejemplo) */
-        @container sidebar (max-width: 180px) {
+              <div className="mobile-drawer-reminders">
+                <button 
+                  className="reminders-toggle-btn"
+                  onClick={() => setIsMobileReminderOpen(!isMobileReminderOpen)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className={`material-symbols-outlined ${reminders.length > 0 ? 'bell-animated' : ''}`}>notifications</span>
+                    <span style={{ color: '#cbd5e1' }}>Recordatorios</span>
+                    {reminders.length > 0 && <span className="drawer-notification-count">{reminders.length}</span>}
+                  </div>
+                  <span className="material-symbols-outlined">
+                    {isMobileReminderOpen ? 'expand_less' : 'expand_more'}
+                  </span>
+                </button>
+                
+                {isMobileReminderOpen && (
+                  <div className="drawer-reminders-list">
+                    {reminders.map((r, idx) => (
+                      <div 
+                        key={idx} 
+                        className="drawer-reminder-card"
+                        onClick={() => {
+                          setIsMobileOpen(false);
+                          navigate(`/reserva/${r.eventId}`);
+                        }}
+                      >
+                        <div className="reminder-card-main">
+                          <strong className="reminder-card-title">{r.eventName}</strong>
+                          <button 
+                            className="reminder-card-check"
+                            onClick={(e) => handleDismissReminder(e, r.eventId, r.id)}
+                            title="Marcar como revisado"
+                          >
+                            <span className="material-symbols-outlined">check_circle</span>
+                          </button>
+                        </div>
+                        <div className="reminder-card-sub">
+                          <span>🕒 {r.date} {r.time}</span>
+                          {r.eventSalon && <span> • 📍 {r.eventSalon}</span>}
+                        </div>
+                      </div>
+                    ))}
+                    {reminders.length === 0 && (
+                      <div className="drawer-no-reminders">No tienes citas pendientes</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mobile-drawer-footer">
+              <button className="drawer-footer-btn" onClick={() => { setIsMobileOpen(false); navigate('/support'); }}>
+                <span className="material-symbols-outlined">support_agent</span>
+                <span>Soporte</span>
+              </button>
+              <button className="drawer-footer-btn" onClick={handleLogout}>
+                <span className="material-symbols-outlined">logout</span>
+                <span>Cerrar sesión</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <aside className="lum-sidebar" aria-label="Menu principal" style={{ containerType: 'inline-size', position: 'relative', zIndex: 100 }}>
+        <style>{`
+          /* Definimos el contenedor para usar Container Queries */
+          .lum-sidebar {
+            container-type: inline-size;
+            container-name: sidebar;
+          }
+
           .sideUserProfile {
-            flex-direction: column;
-            gap: 15px;
-            justify-content: center;
-            width: 100%;
-            padding: 16px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 14px;
+            background: rgba(0,0,0,0.1);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            margin-top: auto;
           }
-          .sideUserBellWrapper {
-            order: 2;
-          }
-          .sideUserLabel {
-            order: 1;
-          }
-        }
 
-        @keyframes bellRing {
-          0%, 85%, 100% { transform: rotate(0); }
-          88% { transform: rotate(15deg); }
-          91% { transform: rotate(-15deg); }
-          94% { transform: rotate(10deg); }
-          97% { transform: rotate(-10deg); }
-        }
-        .bell-animated {
-          animation: bellRing 4s ease-in-out infinite;
-          transform-origin: top center;
-          display: inline-block;
-        }
-        
-        .reminder-item {
-          padding: 12px;
-          margin-bottom: 8px;
-          background: #ffffff;
-          border-radius: 8px;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .reminder-item:hover {
-          background: #f8fafc;
-          border-color: #cbd5e1;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-      `}</style>
+          .sideUserLabel {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+
+          .sideUserName {
+            display: flex;
+            flex-direction: column;
+          }
+
+          /* LOGICA: Solo cuando el NAVBAR mismo se haga delgado (< 180px por ejemplo) */
+          @container sidebar (max-width: 180px) {
+            .sideUserProfile {
+              flex-direction: column;
+              gap: 15px;
+              justify-content: center;
+              width: 100%;
+              padding: 16px 0;
+            }
+            .sideUserBellWrapper {
+              order: 2;
+            }
+            .sideUserLabel {
+              order: 1;
+            }
+          }
+
+          @keyframes bellRing {
+            0%, 85%, 100% { transform: rotate(0); }
+            88% { transform: rotate(15deg); }
+            91% { transform: rotate(-15deg); }
+            94% { transform: rotate(10deg); }
+            97% { transform: rotate(-10deg); }
+          }
+          .bell-animated {
+            animation: bellRing 4s ease-in-out infinite;
+            transform-origin: top center;
+            display: inline-block;
+          }
+          
+          .reminder-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #ffffff;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          .reminder-item:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          }
+
+          /* Estilos para el menú Hamburguesa Flotante y el Drawer en Móvil */
+          .mobile-hamburger-btn {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: #0b1c30; /* Azul marino corporativo */
+            color: #ffffff;
+            border: 2px solid #14b8a6; /* Borde turquesa para destacar */
+            box-shadow: 0 6px 20px rgba(11, 28, 48, 0.4);
+            z-index: 10001;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            padding: 0;
+          }
+          .mobile-hamburger-btn:active {
+            transform: scale(0.9);
+          }
+          .mobile-hamburger-btn span {
+            font-size: 26px;
+          }
+
+          .mobile-drawer-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 20000;
+            display: flex;
+            justify-content: flex-start;
+          }
+
+          .mobile-drawer-content {
+            width: 290px;
+            height: 100%;
+            background: #0b1c30; /* Azul oscuro */
+            box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            padding: 20px 16px;
+            gap: 16px;
+            overflow-y: auto;
+            animation: slideInLeft 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          }
+
+          @keyframes slideInLeft {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+          }
+
+          .mobile-drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          }
+          .drawer-logo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .drawer-logo-img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+          }
+          .drawer-logo-text {
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 800;
+          }
+          .close-drawer-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .close-drawer-btn span {
+            font-size: 24px;
+          }
+
+          .mobile-drawer-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
+          .drawer-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            color: #cbd5e1;
+            font-size: 14.5px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.15s ease-in-out;
+          }
+          .drawer-nav-item span.material-symbols-outlined {
+            font-size: 22px;
+            color: #94a3b8;
+          }
+          .drawer-nav-item:hover, .drawer-nav-item.isActive {
+            background: rgba(56, 189, 248, 0.08);
+            color: #38bdf8;
+          }
+          .drawer-nav-item:hover span.material-symbols-outlined, .drawer-nav-item.isActive span.material-symbols-outlined {
+            color: #38bdf8;
+          }
+
+          .mobile-drawer-profile {
+            margin-top: auto;
+            padding: 14px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+          }
+          .profile-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .profile-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid #14b8a6;
+          }
+          .profile-text {
+            display: flex;
+            flex-direction: column;
+          }
+          .profile-name {
+            color: #f8fafc;
+            font-size: 13.5px;
+            font-weight: 700;
+          }
+          .profile-role {
+            color: #94a3b8;
+            font-size: 10.5px;
+          }
+
+          .reminders-toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 4px 0;
+          }
+          .drawer-notification-count {
+            background: #ef4444;
+            color: #ffffff;
+            font-size: 9px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-weight: 900;
+          }
+          .drawer-reminders-list {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 2px;
+          }
+          .drawer-reminder-card {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            cursor: pointer;
+          }
+          .reminder-card-main {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+          }
+          .reminder-card-title {
+            color: #f1f5f9;
+            font-size: 12.5px;
+            font-weight: 700;
+            word-break: break-word;
+          }
+          .reminder-card-check {
+            background: transparent;
+            border: none;
+            color: #10b981;
+            cursor: pointer;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .reminder-card-check span {
+            font-size: 18px;
+          }
+          .reminder-card-sub {
+            font-size: 10.5px;
+            color: #94a3b8;
+          }
+          .drawer-no-reminders {
+            font-size: 11px;
+            color: #64748b;
+            text-align: center;
+            padding: 10px 0;
+          }
+
+          .mobile-drawer-footer {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+          }
+          .drawer-footer-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 6px;
+          }
+          .drawer-footer-btn span {
+            font-size: 18px;
+          }
+          .drawer-footer-btn:hover {
+            color: #cbd5e1;
+          }
+
+          @media (max-width: 768px) {
+            .mobile-hamburger-btn {
+              display: flex;
+            }
+          }
+        `}</style>
 
       <div className="lum-sidebarBrand">
         <div className="logo">
@@ -438,5 +845,6 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   );
 }

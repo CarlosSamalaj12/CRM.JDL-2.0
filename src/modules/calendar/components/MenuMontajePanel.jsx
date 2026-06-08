@@ -1,8 +1,38 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
+import TimeSelect from '../../../components/TimeSelect';
 import './MenuMontajePanel.pos.css';
 
 const uid = () => Math.random().toString(36).substring(2, 9);
+
+const AutoResizeTextarea = ({ value, onChange, placeholder, className, style }) => {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={className}
+      rows={1}
+      style={{
+        ...style,
+        resize: 'none',
+        overflowY: 'hidden',
+        boxSizing: 'border-box'
+      }}
+    />
+  );
+};
 
 const Icon = {
   plate: <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></svg>,
@@ -32,6 +62,7 @@ const STAGES_MENU = [
   { id: 'postre', label: 'Postres', icon: '🍰', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.14)' },
   { id: 'bebida', label: 'Bebidas', icon: '🥤', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.14)' },
   { id: 'comentario', label: 'Pan/Tortilla', icon: '🥖', color: '#84cc16', bg: 'rgba(132, 204, 22, 0.14)' },
+  { id: 'adicional_menu', label: 'Adicionales', icon: '✨', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.14)' },
 ];
 
 const STAGES_MONTAJE = [
@@ -76,7 +107,8 @@ const escapeHtml = (value) => String(value ?? '')
 
 const ensureQtyMap = (ids = [], qtyMap = {}) => ids.reduce((acc, id) => {
   const key = String(id);
-  acc[key] = Math.max(1, Number(qtyMap?.[key] ?? qtyMap?.[id] ?? 1) || 1);
+  const val = qtyMap?.[key] ?? qtyMap?.[id];
+  acc[key] = val === '' ? 1 : Math.max(1, Number(val || 1) || 1);
   return acc;
 }, {});
 
@@ -97,7 +129,7 @@ const normalizeLineItem = (line = {}) => {
     key: line.key || uid(),
     platoId: line.platoId ? Number(line.platoId) : null,
     preparacionId: line.preparacionId ? Number(line.preparacionId) : null,
-    qty: Math.max(1, Number(line.qty || 1) || 1),
+    qty: line.qty === '' ? 1 : Math.max(1, Number(line.qty || 1) || 1),
     servicioHora: line.servicioHora || '',
     salsaIds,
     salsaQtys: ensureQtyMap(salsaIds, line.salsaQtys),
@@ -109,6 +141,11 @@ const normalizeLineItem = (line = {}) => {
     bebidaQtys: ensureQtyMap(bebidaIds, line.bebidaQtys),
     comentarioIds,
     comentarioQtys: ensureQtyMap(comentarioIds, line.comentarioQtys),
+    adicionales: (line.adicionales || []).map((a) => ({
+      id: String(a.id),
+      nombre: String(a.nombre || ''),
+      qty: a.qty === '' ? 1 : Math.max(1, Number(a.qty) || 1),
+    })),
     suggestedSalsaIds: normalizeIdList(line.suggestedSalsaIds),
     suggestedGuarnicionIds: normalizeIdList(line.suggestedGuarnicionIds),
     suggestedPostreIds: normalizeIdList(line.suggestedPostreIds),
@@ -117,7 +154,7 @@ const normalizeLineItem = (line = {}) => {
   };
 };
 
-function StagePicker({ stage, items, selected, isMulti, onToggle, onClose }) {
+function StagePicker({ stage, items, selected, isMulti, onToggle, onClose, quantities = {}, onQtyChange, onQtySet }) {
   const [filter, setFilter] = useState('');
   const filtered = useMemo(() => {
     const term = filter.trim().toLowerCase();
@@ -134,7 +171,7 @@ function StagePicker({ stage, items, selected, isMulti, onToggle, onClose }) {
             <h3>{stage.label}</h3>
             <p>{isMulti ? 'Selección múltiple permitida' : 'Seleccione una opción'}</p>
           </div>
-          <button className="mmp-iconBtn" type="button" onClick={onClose} aria-label="Cerrar">{Icon.close}</button>
+          <button className="mmp-iconBtn" type="button" onClick={onClose} aria-label="Cerrar">&#10005;</button>
         </header>
 
         <div className="mmp-pickerSearch">
@@ -143,22 +180,91 @@ function StagePicker({ stage, items, selected, isMulti, onToggle, onClose }) {
         </div>
 
         <div className="mmp-pickerGrid">
+          {stage.id === 'adicional_menu' && filter.trim() && (
+            <div
+              className="mmp-pickerItem is-add-custom"
+              style={{ '--stage-bg': stage.bg, '--stage-color': stage.color, borderStyle: 'dashed' }}
+              onClick={() => {
+                const newName = filter.trim();
+                const newItem = { id: 'custom-' + Date.now(), nombre: newName };
+                onToggle(newItem);
+                setFilter('');
+              }}
+            >
+              <div style={{ flex: 1, fontWeight: 'bold', color: stage.color }}>
+                + Agregar "{filter.trim()}"
+              </div>
+            </div>
+          )}
           {filtered.map((item) => {
             const isSelected = selected.includes(String(item.id));
+            const rawQty = isSelected ? (quantities[String(item.id)] ?? quantities[item.id]) : 1;
+            const displayQty = rawQty === '' ? '' : (Number(rawQty) || 1);
             return (
-              <button
+              <div
                 key={item.id}
-                type="button"
                 className={`mmp-pickerItem ${isSelected ? 'is-selected' : ''}`}
                 style={{ '--stage-bg': stage.bg, '--stage-color': stage.color }}
                 onClick={() => onToggle(item)}
               >
-                <span>{item.nombre}</span>
-                {isSelected && <small>Seleccionado</small>}
-              </button>
+                <div
+                  className="mmp-pickerItemContent"
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    minWidth: 0,
+                  }}
+                >
+                  <span>{item.nombre}</span>
+                  {isSelected && <small>Seleccionado</small>}
+                </div>
+                {isMulti && isSelected && (
+                  <div className="mmp-pickerItemQty" onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (displayQty === '' || Number(displayQty) <= 1) {
+                          onQtySet?.(item, 1);
+                        } else {
+                          onQtyChange?.(item, -1);
+                        }
+                      }}
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      value={displayQty}
+                      onChange={(event) => {
+                        const valStr = event.target.value;
+                        const val = valStr === '' ? '' : Math.max(1, parseInt(valStr, 10) || 1);
+                        onQtySet?.(item, val);
+                      }}
+                      onBlur={(event) => {
+                        if (event.target.value === '' || parseInt(event.target.value, 10) < 1) {
+                          onQtySet?.(item, 1);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onQtyChange?.(item, 1);
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
-          {!filtered.length && <div className="mmp-empty">Sin opciones disponibles</div>}
+          {!filtered.length && stage.id !== 'adicional_menu' && <div className="mmp-empty">Sin opciones disponibles</div>}
         </div>
 
         <footer className="mmp-pickerFoot">
@@ -169,7 +275,7 @@ function StagePicker({ stage, items, selected, isMulti, onToggle, onClose }) {
   );
 }
 
-function LineCard({ line, index, catalogs, active, onEdit, onRemove, onQtyChange, onTimeChange, onComponentQtyChange }) {
+function LineCard({ line, index, catalogs, active, onEdit, onRemove, onQtyChange, onQtySet, onTimeChange, onComponentQtyChange, onComponentQtySet, onRemoveComponent }) {
   const protein = catalogs.proteins.find((item) => String(item.id) === String(line.platoId));
   const prep = catalogs.preparations.find((item) => String(item.id) === String(line.preparacionId));
   const componentRows = [
@@ -179,18 +285,54 @@ function LineCard({ line, index, catalogs, active, onEdit, onRemove, onQtyChange
     { label: 'Postres', ids: line.postreIds, qtys: line.postreQtys, list: catalogs.postres, field: 'postreQtys' },
     { label: 'Bebidas', ids: line.bebidaIds, qtys: line.bebidaQtys, list: catalogs.bebidas, field: 'bebidaQtys' },
     { label: 'Pan/Tortilla', ids: line.comentarioIds, qtys: line.comentarioQtys, list: catalogs.comentarios, field: 'comentarioQtys' },
+    { label: 'Adicionales', ids: line.adicionales?.map(a => a.id) || [], qtys: line.adicionales?.reduce((acc, a) => { acc[a.id] = a.qty; return acc; }, {}) || {}, list: line.adicionales || [], field: 'adicionales' },
   ].filter((row) => row && (row.fixed || row.ids?.length));
 
+  const displayLineQty = line.qty === '' ? '' : (Number(line.qty) || 1);
+
   return (
-    <article className={`mmp-lineCard ${active ? 'is-active' : ''}`}>
+    <article
+      className={`mmp-lineCard ${active ? 'is-active' : ''}`}
+      style={{ cursor: 'pointer' }}
+      onClick={(event) => {
+        const isInteractive = event.target.closest('button, input, textarea, select');
+        if (!isInteractive) {
+          onEdit();
+        }
+      }}
+    >
       <div className="mmp-lineTop">
         <button className="mmp-lineTitle" type="button" onClick={onEdit}>
           <b>Plato {index + 1}</b>
           <span>{protein?.nombre || 'Sin plato fuerte'}</span>
         </button>
         <div className="mmp-lineQty">
-          <button type="button" onClick={() => onQtyChange(-1)}>-</button>
-          <strong>{line.qty || 1}</strong>
+          <button
+            type="button"
+            onClick={() => {
+              if (displayLineQty === '' || Number(displayLineQty) <= 1) {
+                onQtySet?.(1);
+              } else {
+                onQtyChange(-1);
+              }
+            }}
+          >
+            -
+          </button>
+          <input
+            type="number"
+            value={displayLineQty}
+            onChange={(event) => {
+              const valStr = event.target.value;
+              const val = valStr === '' ? '' : Math.max(1, parseInt(valStr, 10) || 1);
+              onQtySet?.(val);
+            }}
+            onBlur={(event) => {
+              if (event.target.value === '' || parseInt(event.target.value, 10) < 1) {
+                onQtySet?.(1);
+              }
+            }}
+          />
           <button type="button" onClick={() => onQtyChange(1)}>+</button>
         </div>
         <button className="mmp-rowAction" type="button" onClick={onEdit} title="Editar plato">Editar</button>
@@ -200,7 +342,7 @@ function LineCard({ line, index, catalogs, active, onEdit, onRemove, onQtyChange
       <div className="mmp-lineControls is-compact">
         <label>
           Hora
-          <input type="time" value={line.servicioHora || ''} onChange={(event) => onTimeChange(event.target.value)} />
+          <TimeSelect value={line.servicioHora || ''} onChange={onTimeChange} />
         </label>
       </div>
 
@@ -214,13 +356,49 @@ function LineCard({ line, index, catalogs, active, onEdit, onRemove, onQtyChange
               ) : row.ids.map((id) => {
                 const item = row.list.find((catalogItem) => String(catalogItem.id) === String(id));
                 if (!item) return null;
-                const qty = Math.max(1, Number(row.qtys?.[String(id)] || row.qtys?.[id] || 1) || 1);
+                const rawQty = row.qtys?.[String(id)] ?? row.qtys?.[id];
+                const displayQty = rawQty === '' ? '' : (Number(rawQty) || 1);
                 return (
                   <span className="mmp-componentPill is-editable" key={`${row.field}-${id}`}>
                     {item.nombre}
-                    <button type="button" onClick={() => onComponentQtyChange(row.field, id, -1)}>-</button>
-                    <strong>{qty}</strong>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (displayQty === '' || Number(displayQty) <= 1) {
+                          onComponentQtySet?.(row.field, id, 1);
+                        } else {
+                          onComponentQtyChange(row.field, id, -1);
+                        }
+                      }}
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      value={displayQty}
+                      onChange={(event) => {
+                        const valStr = event.target.value;
+                        const val = valStr === '' ? '' : Math.max(1, parseInt(valStr, 10) || 1);
+                        onComponentQtySet?.(row.field, id, val);
+                      }}
+                      onBlur={(event) => {
+                        if (event.target.value === '' || parseInt(event.target.value, 10) < 1) {
+                          onComponentQtySet?.(row.field, id, 1);
+                        }
+                      }}
+                    />
                     <button type="button" onClick={() => onComponentQtyChange(row.field, id, 1)}>+</button>
+                    <button
+                      className="mmp-pill-remove"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveComponent?.(row.field, id);
+                      }}
+                      title="Quitar complemento"
+                    >
+                      ✕
+                    </button>
                   </span>
                 );
               })}
@@ -470,7 +648,7 @@ export default function MenuMontajePanel({
   const compileMenuDescription = (items) => {
     const generalComment = String(menuNotes || '').trim();
     if (!items.length) {
-      return `[PLATOS FUERTES]\n- Por definir${generalComment ? `\n\n[COMENTARIO GENERAL]\n- ${generalComment}` : ''}`;
+      return `[PLATOS FUERTES]\n- Por definir${generalComment ? `\n\n[COMENTARIO]\n- ${generalComment}` : ''}`;
     }
 
     const plates = items.map((rawLine, index) => {
@@ -482,6 +660,7 @@ export default function MenuMontajePanel({
       const postres = formatComponents(line.postreIds, line.postreQtys, catalogs.postres);
       const bebidas = formatComponents(line.bebidaIds, line.bebidaQtys, catalogs.bebidas);
       const panTortilla = formatComponents(line.comentarioIds, line.comentarioQtys, catalogs.comentarios);
+      const adicionales = formatComponents(line.adicionales?.map(a => a.id) || [], line.adicionales?.reduce((acc, a) => { acc[a.id] = a.qty; return acc; }, {}) || {}, line.adicionales || []);
 
       const parts = [
         `PLATO FUERTE (Cant ${line.qty || 1} - ${plateName})`,
@@ -493,10 +672,13 @@ export default function MenuMontajePanel({
         `BEBIDAS (${bebidas})`,
         `PAN/TORTILLA (${panTortilla})`,
       ];
+      if (adicionales && adicionales !== 'Por definir') {
+        parts.push(`ADICIONALES (${adicionales})`);
+      }
       return `[PLATO ${index + 1}]\n- ${parts.join(' | ')}`;
     }).join('\n\n');
 
-    return `${plates}${generalComment ? `\n\n[COMENTARIO GENERAL]\n- ${generalComment}` : ''}`;
+    return `${plates}${generalComment ? `\n\n[COMENTARIO]\n- ${generalComment}` : ''}`;
   };
 
   const compileMontajeDescription = (tipo = selectedMontajeTipo, adicionales = selectedMontajeAdicionales) => {
@@ -590,6 +772,63 @@ export default function MenuMontajePanel({
     }));
   };
 
+  const removeLineComponent = async (lineKey, qtyField, componentId) => {
+    const confirm = await Swal.fire({
+      title: '¿Quitar complemento?',
+      text: '¿Estás seguro de que deseas quitar este elemento del plato?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#94a3b8',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    updateLines((current) => current.map((line) => {
+      if (line.key !== lineKey) return line;
+
+      if (qtyField === 'adicionales') {
+        const nextAdicionales = (line.adicionales || []).filter(
+          (a) => String(a.id) !== String(componentId)
+        );
+        return { ...line, adicionales: nextAdicionales };
+      }
+
+      const idField = {
+        salsaQtys: 'salsaIds',
+        guarnicionQtys: 'guarnicionIds',
+        postreQtys: 'postreIds',
+        bebidaQtys: 'bebidaIds',
+        comentarioQtys: 'comentarioIds',
+      }[qtyField];
+
+      if (!idField) return line;
+
+      const nextIds = (line[idField] || []).filter((id) => String(id) !== String(componentId));
+      const nextQtys = { ...(line[qtyField] || {}) };
+      delete nextQtys[String(componentId)];
+      delete nextQtys[componentId];
+
+      const updatedLine = {
+        ...line,
+        [idField]: nextIds,
+        [qtyField]: nextQtys,
+      };
+
+      if (lineKey === activeLineKey) {
+        if (qtyField === 'salsaQtys') setSelectedSalsas(nextIds);
+        if (qtyField === 'guarnicionQtys') setSelectedGuarniciones(nextIds);
+        if (qtyField === 'postreQtys') setSelectedPostres(nextIds);
+        if (qtyField === 'bebidaQtys') setSelectedBebidas(nextIds);
+        if (qtyField === 'comentarioQtys') setSelectedComentarios(nextIds);
+      }
+
+      return updatedLine;
+    }));
+  };
+
   const handleEditLine = (line) => {
     setActiveLineKey(line.key);
     setSelectedProtein(String(line.platoId || ''));
@@ -624,6 +863,7 @@ export default function MenuMontajePanel({
         salsaQtys: {},
         guarnicionQtys: {},
         postreQtys: {},
+        adicionales: [],
         comentarioLibre: '',
       };
       setSelectedProtein(String(id));
@@ -640,6 +880,24 @@ export default function MenuMontajePanel({
     if (stageId === 'preparacion') {
       setSelectedPrep(String(id));
       await loadAndApplySuggestions(id, item.nombre);
+      return;
+    }
+
+    if (stageId === 'adicional_menu') {
+      if (!activeLineKey) {
+        showNotice('Seleccione un plato primero.');
+        return;
+      }
+      const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+      const currentAdicionales = active?.adicionales || [];
+      const exists = currentAdicionales.some((a) => String(a.id) === String(item.id));
+      let nextAdicionales;
+      if (exists) {
+        nextAdicionales = currentAdicionales.filter((a) => String(a.id) !== String(item.id));
+      } else {
+        nextAdicionales = [...currentAdicionales, { id: String(item.id), nombre: item.nombre, qty: 1 }];
+      }
+      updateActiveLine({ adicionales: nextAdicionales });
       return;
     }
 
@@ -688,6 +946,9 @@ export default function MenuMontajePanel({
 
   const getStageItems = (stageId) => {
     const active = lineItemsDraft.find((line) => line.key === activeLineKey);
+    if (stageId === 'adicional_menu') {
+      return active?.adicionales || [];
+    }
     const suggestedMap = {
       salsa: ['salsas', 'suggestedSalsaIds'],
       guarnicion: ['guarniciones', 'suggestedGuarnicionIds'],
@@ -716,6 +977,7 @@ export default function MenuMontajePanel({
     const active = lineItemsDraft.find((line) => line.key === activeLineKey);
     if (stageId === 'plato') return selectedProtein ? [selectedProtein] : [];
     if (stageId === 'preparacion') return selectedPrep ? [selectedPrep] : [];
+    if (stageId === 'adicional_menu') return (active?.adicionales || []).map((a) => String(a.id));
     if (stageId === 'salsa') return (active?.salsaIds || selectedSalsas).map(String);
     if (stageId === 'guarnicion') return (active?.guarnicionIds || selectedGuarniciones).map(String);
     if (stageId === 'postre') return (active?.postreIds || selectedPostres).map(String);
@@ -732,6 +994,7 @@ export default function MenuMontajePanel({
     if (stageId === 'preparacion') return active?.preparacionId ? 1 : 0;
     if (stageId === 'montaje_tipo') return selectedMontajeTipo ? 1 : 0;
     if (stageId === 'montaje_adicional') return selectedMontajeAdicionales.length;
+    if (stageId === 'adicional_menu') return active?.adicionales?.length || 0;
     const field = { salsa: 'salsaIds', guarnicion: 'guarnicionIds', postre: 'postreIds', bebida: 'bebidaIds', comentario: 'comentarioIds' }[stageId];
     return active?.[field]?.length || 0;
   };
@@ -1093,6 +1356,7 @@ export default function MenuMontajePanel({
           <h2>Menú & Montaje</h2>
           <p>Gestión de comandas por evento</p>
         </div>
+        <button className="mmp-close-btn" type="button" onClick={onClose} aria-label="Cerrar">✕</button>
 
         <div className="mmp-segment">
           <button type="button" className={primaryMode === 'menu' ? 'is-active' : ''} onClick={() => { setPrimaryMode('menu'); setActiveStageId(''); }}>Menú</button>
@@ -1121,6 +1385,7 @@ export default function MenuMontajePanel({
             </select>
           </label>
           <div className="mmp-headAction"><span aria-hidden="true">.</span><span className="mmp-code">{quote.code || 'Sin código'}</span></div>
+          <div className="mmp-headAction mmp-desktop-close"><span aria-hidden="true">.</span><button className="mmp-lightBtn danger" type="button" onClick={onClose}>Cerrar</button></div>
         </div>
       </header>
 
@@ -1139,11 +1404,7 @@ export default function MenuMontajePanel({
                 </div>
               </div>
 
-              <div className={`mmp-editHint ${activeLine ? 'is-ready' : ''}`}>
-                {activeLine
-                  ? <>Editando <b>{findName(catalogs.proteins, activeLine.platoId, 'plato seleccionado')}</b>. Seleccione una categoría para completar la comanda.</>
-                  : <>Seleccione <b>Plato Fuerte</b> para iniciar.</>}
-              </div>
+
 
               <div className="mmp-stageGrid">
                 {currentStages.map((stage) => {
@@ -1168,104 +1429,185 @@ export default function MenuMontajePanel({
                 })}
               </div>
 
-              {primaryMode === 'menu' && (
-                <label className="mmp-generalNote">
-                  <span>Comentario general</span>
-                  <textarea
-                    value={menuNotes}
-                    onChange={(event) => setMenuNotes(event.target.value)}
-                    rows={3}
-                    placeholder="Comentario para servicio, cocina o meseros..."
-                  />
-                </label>
+              {primaryMode === 'menu' && activeLine && (
+                <div className="mmp-editHint-box">
+                  <span>Editando <b>{findName(catalogs.proteins, activeLine.platoId, 'plato seleccionado')}</b>. Seleccione una categoría para completar la comanda.</span>
+                </div>
               )}
 
-              {primaryMode === 'menu' && (
-                <section className="mmp-configured">
-                  <header>
-                    <h3>Platos configurados</h3>
-                    <span>{lineItemsDraft.length} plato(s)</span>
-                  </header>
-                  <div className="mmp-lineList">
-                    {lineItemsDraft.map((line, index) => (
-                      <LineCard
-                        key={line.key}
-                        line={line}
-                        index={index}
-                        catalogs={catalogs}
-                        active={line.key === activeLineKey}
-                        onEdit={() => handleEditLine(line)}
-                        onRemove={() => {
-                          updateLines((current) => current.filter((item) => item.key !== line.key));
-                          if (line.key === activeLineKey) setActiveLineKey('');
-                        }}
-                        onQtyChange={(delta) => updateLines((current) => current.map((item) => (
-                          item.key === line.key ? { ...item, qty: Math.max(1, Number(item.qty || 1) + delta) } : item
-                        )))}
-                        onTimeChange={(value) => updateLines((current) => current.map((item) => (
-                          item.key === line.key ? { ...item, servicioHora: value } : item
-                        )))}
-                        onComponentQtyChange={(qtyField, componentId, delta) => changeLineComponentQty(line.key, qtyField, componentId, delta)}
+              <div className="mmp-scrollableArea">
+                {primaryMode === 'menu' && (
+                  <>
+                    <section className="mmp-configured">
+                      <header style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h3>Platos configurados</h3>
+                        <button
+                          type="button"
+                          className="mmp-add-plate-btn"
+                          onClick={() => {
+                            setActiveLineKey('');
+                            setSelectedProtein('');
+                            setSelectedPrep('');
+                            setSelectedSalsas([]);
+                            setSelectedGuarniciones([]);
+                            setSelectedPostres([]);
+                            setSelectedBebidas([]);
+                            setSelectedComentarios([]);
+                          }}
+                        >
+                          + Nuevo Plato
+                        </button>
+                        <span style={{ marginLeft: 'auto' }}>{lineItemsDraft.length} plato(s)</span>
+                      </header>
+
+                      <div className="mmp-lineList">
+                        {lineItemsDraft.map((line, index) => (
+                          <LineCard
+                            key={line.key}
+                            line={line}
+                            index={index}
+                            catalogs={catalogs}
+                            active={line.key === activeLineKey}
+                            onEdit={() => handleEditLine(line)}
+                            onRemove={async () => {
+                              const confirm = await Swal.fire({
+                                title: '¿Quitar plato?',
+                                text: 'Se eliminará el plato y todos sus complementos.',
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: 'Sí, quitar',
+                                cancelButtonText: 'Cancelar',
+                                confirmButtonColor: '#dc2626',
+                                cancelButtonColor: '#94a3b8',
+                              });
+                              if (confirm.isConfirmed) {
+                                updateLines((current) => current.filter((item) => item.key !== line.key));
+                                if (line.key === activeLineKey) setActiveLineKey('');
+                              }
+                            }}
+                            onRemoveComponent={(qtyField, componentId) => removeLineComponent(line.key, qtyField, componentId)}
+                            onQtyChange={(delta) => updateLines((current) => current.map((item) => (
+                              item.key === line.key ? { ...item, qty: Math.max(1, Number(item.qty || 1) + delta) } : item
+                            )))}
+                            onQtySet={(val) => updateLines((current) => current.map((item) => (
+                              item.key === line.key ? { ...item, qty: val } : item
+                            )))}
+                            onTimeChange={(value) => updateLines((current) => current.map((item) => (
+                              item.key === line.key ? { ...item, servicioHora: value } : item
+                            )))}
+                            onComponentQtyChange={(qtyField, componentId, delta) => changeLineComponentQty(line.key, qtyField, componentId, delta)}
+                            onComponentQtySet={(qtyField, componentId, val) => {
+                              updateLines((current) => current.map((item) => {
+                                if (item.key !== line.key) return item;
+                                const currentQtys = item[qtyField] || {};
+                                const key = String(componentId);
+                                return {
+                                  ...item,
+                                  [qtyField]: {
+                                    ...currentQtys,
+                                    [key]: val,
+                                  },
+                                };
+                              }));
+                            }}
+                          />
+                        ))}
+                        {!lineItemsDraft.length && <div className="mmp-emptyCard">Sin platos configurados todavía.</div>}
+                      </div>
+                    </section>
+
+                    <label className="mmp-generalNote">
+                      <span>Comentario:</span>
+                      <AutoResizeTextarea
+                        value={menuNotes}
+                        onChange={(event) => setMenuNotes(event.target.value)}
+                        placeholder="Comentario para servicio, cocina o meseros..."
                       />
-                    ))}
-                    {!lineItemsDraft.length && <div className="mmp-emptyCard">Sin platos configurados todavía.</div>}
+                    </label>
+                  </>
+                )}
+
+                {primaryMode === 'montaje' && (
+                  <section className="mmp-montajeBox">
+                    <h3>Montaje configurado</h3>
+                    <pre>{montajeDescription || '[MONTAJE]\n- TIPO (Por definir) | ADICIONALES (Ninguno)'}</pre>
+                  </section>
+                )}
+
+                {hasEntries && (
+                  <section className="mmp-saved">
+                    <header>
+                      <h3>Registros de comanda generados</h3>
+                      <p>{quote.menuMontajeEntries.length} registro(s) para esta cotización.</p>
+                    </header>
+                    <div className="mmp-tableWrap">
+                      <table>
+                        <thead><tr><th>Fecha</th><th>Salón</th><th>Título Menú</th><th>Cantidad</th><th>Última actualización</th></tr></thead>
+                        <tbody>
+                          {quote.menuMontajeEntries.map((entry) => (
+                            <tr key={entry.id}>
+                              <td>{entry.date}</td>
+                              <td>{entry.salon}</td>
+                              <td>{entry.menuTitle}</td>
+                              <td>{entry.menuQty || 'N/A'}</td>
+                              <td>{entry.updatedAt?.split('T')[0] || 'N/A'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="mmp-scrollableArea">
+              <section className="mmp-manual">
+                <div className="mmp-formGrid">
+                  <label>Título comercial del menú<input value={menuTitle} onChange={(event) => setMenuTitle(event.target.value)} placeholder="Ej: Almuerzo Gala Empresarial" /></label>
+                  <label>Cantidad (Menú PAX)<input type="number" value={menuQty} onChange={(event) => setMenuQty(event.target.value)} placeholder="Ej: 150" /></label>
+                </div>
+                <label className="mmp-generalNote in-manual">
+                  <span>Comentario:</span>
+                  <AutoResizeTextarea value={menuNotes} onChange={(event) => setMenuNotes(event.target.value)} placeholder="Comentario para servicio, cocina o meseros..." />
+                </label>
+                <div className="mmp-formGrid two">
+                  <label>
+                    <span className="mmp-labelRow">Descripción del menú <button type="button" onClick={() => insertTextSnippet('menu')}>Agregar separador</button></span>
+                    <textarea value={menuDescription} onChange={(event) => setMenuDescription(event.target.value)} rows={14} />
+                  </label>
+                  <label>
+                    <span className="mmp-labelRow">Descripción del montaje <button type="button" onClick={() => insertTextSnippet('montaje')}>Agregar separador</button></span>
+                    <textarea value={montajeDescription} onChange={(event) => setMontajeDescription(event.target.value)} rows={14} />
+                  </label>
+                </div>
+              </section>
+
+              {hasEntries && (
+                <section className="mmp-saved">
+                  <header>
+                    <h3>Registros de comanda generados</h3>
+                    <p>{quote.menuMontajeEntries.length} registro(s) para esta cotización.</p>
+                  </header>
+                  <div className="mmp-tableWrap">
+                    <table>
+                      <thead><tr><th>Fecha</th><th>Salón</th><th>Título Menú</th><th>Cantidad</th><th>Última actualización</th></tr></thead>
+                      <tbody>
+                        {quote.menuMontajeEntries.map((entry) => (
+                          <tr key={entry.id}>
+                            <td>{entry.date}</td>
+                            <td>{entry.salon}</td>
+                            <td>{entry.menuTitle}</td>
+                            <td>{entry.menuQty || 'N/A'}</td>
+                            <td>{entry.updatedAt?.split('T')[0] || 'N/A'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </section>
               )}
-
-              {primaryMode === 'montaje' && (
-                <section className="mmp-montajeBox">
-                  <h3>Montaje configurado</h3>
-                  <pre>{montajeDescription || '[MONTAJE]\n- TIPO (Por definir) | ADICIONALES (Ninguno)'}</pre>
-                </section>
-              )}
-            </>
-          ) : (
-            <section className="mmp-manual">
-              <div className="mmp-formGrid">
-                <label>Título comercial del menú<input value={menuTitle} onChange={(event) => setMenuTitle(event.target.value)} placeholder="Ej: Almuerzo Gala Empresarial" /></label>
-                <label>Cantidad (Menú PAX)<input type="number" value={menuQty} onChange={(event) => setMenuQty(event.target.value)} placeholder="Ej: 150" /></label>
-              </div>
-              <label className="mmp-generalNote in-manual">
-                <span>Comentario general</span>
-                <textarea value={menuNotes} onChange={(event) => setMenuNotes(event.target.value)} rows={3} placeholder="Comentario para servicio, cocina o meseros..." />
-              </label>
-              <div className="mmp-formGrid two">
-                <label>
-                  <span className="mmp-labelRow">Descripción del menú <button type="button" onClick={() => insertTextSnippet('menu')}>Agregar separador</button></span>
-                  <textarea value={menuDescription} onChange={(event) => setMenuDescription(event.target.value)} rows={14} />
-                </label>
-                <label>
-                  <span className="mmp-labelRow">Descripción del montaje <button type="button" onClick={() => insertTextSnippet('montaje')}>Agregar separador</button></span>
-                  <textarea value={montajeDescription} onChange={(event) => setMontajeDescription(event.target.value)} rows={14} />
-                </label>
-              </div>
-            </section>
-          )}
-
-          {hasEntries && (
-            <section className="mmp-saved">
-              <header>
-                <h3>Registros de comanda generados</h3>
-                <p>{quote.menuMontajeEntries.length} registro(s) para esta cotización.</p>
-              </header>
-              <div className="mmp-tableWrap">
-                <table>
-                  <thead><tr><th>Fecha</th><th>Salón</th><th>Título Menú</th><th>Cantidad</th><th>Última actualización</th></tr></thead>
-                  <tbody>
-                    {quote.menuMontajeEntries.map((entry) => (
-                      <tr key={entry.id}>
-                        <td>{entry.date}</td>
-                        <td>{entry.salon}</td>
-                        <td>{entry.menuTitle}</td>
-                        <td>{entry.menuQty || 'N/A'}</td>
-                        <td>{entry.updatedAt?.split('T')[0] || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            </div>
           )}
         </section>
 
@@ -1285,8 +1627,8 @@ export default function MenuMontajePanel({
               <input type="number" value={menuQty} onChange={(event) => setMenuQty(event.target.value)} placeholder="Cantidad" />
             </label>
             <label className="mmp-ticketField">
-              Comentario general
-              <textarea value={menuNotes} onChange={(event) => setMenuNotes(event.target.value)} rows={3} placeholder="Comentario para servicio, cocina o meseros" />
+              Comentario:
+              <AutoResizeTextarea value={menuNotes} onChange={(event) => setMenuNotes(event.target.value)} placeholder="Comentario para servicio, cocina o meseros" />
             </label>
 
             <section>
@@ -1345,6 +1687,76 @@ export default function MenuMontajePanel({
           isMulti={!['plato', 'preparacion', 'montaje_tipo'].includes(activeStage.id)}
           onToggle={(item) => handleToggleItem(activeStage.id, item)}
           onClose={() => setActiveStageId('')}
+          quantities={
+            activeStage.id === 'adicional_menu'
+              ? (activeLine?.adicionales || []).reduce((acc, a) => { acc[String(a.id)] = a.qty; return acc; }, {})
+              : activeLine ? (activeLine[
+                  {
+                    salsa: 'salsaQtys',
+                    guarnicion: 'guarnicionQtys',
+                    postre: 'postreQtys',
+                    bebida: 'bebidaQtys',
+                    comentario: 'comentarioQtys',
+                  }[activeStage.id]
+                ] || {}) : {}
+          }
+          onQtyChange={(item, delta) => {
+            const qtyField = {
+              salsa: 'salsaQtys',
+              guarnicion: 'guarnicionQtys',
+              postre: 'postreQtys',
+              bebida: 'bebidaQtys',
+              comentario: 'comentarioQtys',
+            }[activeStage.id];
+            if (activeLineKey && qtyField) {
+              changeLineComponentQty(activeLineKey, qtyField, item.id, delta);
+            } else if (activeLineKey && activeStage.id === 'adicional_menu') {
+              updateLines((current) => current.map((line) => {
+                if (line.key !== activeLineKey) return line;
+                const nextAdicionales = (line.adicionales || []).map((a) => {
+                  if (String(a.id) === String(item.id)) {
+                    return { ...a, qty: a.qty === '' ? delta : Math.max(1, Number(a.qty) + delta) };
+                  }
+                  return a;
+                });
+                return { ...line, adicionales: nextAdicionales };
+              }));
+            }
+          }}
+          onQtySet={(item, val) => {
+            const qtyField = {
+              salsa: 'salsaQtys',
+              guarnicion: 'guarnicionQtys',
+              postre: 'postreQtys',
+              bebida: 'bebidaQtys',
+              comentario: 'comentarioQtys',
+            }[activeStage.id];
+            if (activeLineKey && qtyField) {
+              updateLines((current) => current.map((line) => {
+                if (line.key !== activeLineKey) return line;
+                const currentQtys = line[qtyField] || {};
+                const key = String(item.id);
+                return {
+                  ...line,
+                  [qtyField]: {
+                    ...currentQtys,
+                    [key]: val,
+                  },
+                };
+              }));
+            } else if (activeLineKey && activeStage.id === 'adicional_menu') {
+              updateLines((current) => current.map((line) => {
+                if (line.key !== activeLineKey) return line;
+                const nextAdicionales = (line.adicionales || []).map((a) => {
+                  if (String(a.id) === String(item.id)) {
+                    return { ...a, qty: val };
+                  }
+                  return a;
+                });
+                return { ...line, adicionales: nextAdicionales };
+              }));
+            }
+          }}
         />
       )}
 
@@ -1356,7 +1768,7 @@ export default function MenuMontajePanel({
                 <h3>Gestionar catálogo Menú & Montaje</h3>
                 <p>Catálogo base y combinaciones para crear menús completos.</p>
               </div>
-              <button className="mmp-iconBtn" type="button" onClick={() => setShowCatalogModal(false)}>{Icon.close}</button>
+              <button className="mmp-iconBtn" type="button" onClick={() => setShowCatalogModal(false)}>&#10005;</button>
             </header>
 
             <div className="mmp-catalogBody">
@@ -1397,8 +1809,8 @@ export default function MenuMontajePanel({
                                 <td>{detail}</td>
                                 <td><span className={item.activo === false ? 'is-off' : 'is-on'}>{item.activo === false ? 'Inactivo' : 'Activo'}</span></td>
                                 <td>
-                                  <button type="button" onClick={() => { setCatalogEditingItem(item); setCatalogNameDraft(item.nombre || ''); setCatalogProteinDraft(item.id_plato_fuerte ? String(item.id_plato_fuerte) : ''); setCatalogDishTypeDraft(item.tipo_plato || 'NORMAL'); }}>Editar</button>
-                                  <button type="button" onClick={() => handleToggleCatalogItem(item)}>{item.activo === false ? 'Activar' : 'Inhabilitar'}</button>
+                                  <button className="mmp-btn-edit" type="button" onClick={() => { setCatalogEditingItem(item); setCatalogNameDraft(item.nombre || ''); setCatalogProteinDraft(item.id_plato_fuerte ? String(item.id_plato_fuerte) : ''); setCatalogDishTypeDraft(item.tipo_plato || 'NORMAL'); }}>Editar</button>
+                                  <button className={item.activo === false ? "mmp-btn-activate" : "mmp-btn-deactivate"} type="button" onClick={() => handleToggleCatalogItem(item)}>{item.activo === false ? 'Activar' : 'Inhabilitar'}</button>
                                 </td>
                               </tr>
                             );

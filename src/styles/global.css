@@ -4541,7 +4541,7 @@ input[type="number"]::-webkit-outer-spin-button{
 }
 
 #institutionReportBackdrop .institutionReportBody{
-  height: calc(100vh - 104px) !important;
+  height: auto !important;
   max-height: none !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
@@ -4830,8 +4830,8 @@ input[type="number"]::-webkit-outer-spin-button{
 
 @media (max-width: 760px){
   #institutionReportBackdrop .institutionReportBody{
-    height: calc(100vh - 92px) !important;
-    padding: 14px !important;
+    height: auto !important;
+    padding: 14px 14px 80px !important;
   }
 
   #institutionReportBackdrop .dashboardReportFilters.institutionReportFilters,
@@ -8652,3 +8652,493 @@ body.quoteModeOpen #quoteBackdrop[hidden]{
   height: auto !important;
   min-height: fit-content !important;
 }
+
+/* Custom compact styles for SweetAlert2 modals to make them non-invasive */
+body div.swal2-container div.swal2-popup.swal2-modal {
+  width: 360px !important;
+  padding: 1.25rem !important;
+  border-radius: 16px !important;
+  font-size: 13px !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3) !important;
+  background: #ffffff !important;
+  color: #1f2a37 !important;
+}
+.swal2-title {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  margin-bottom: 6px !important;
+  color: #111827 !important;
+}
+.swal2-html-container {
+  font-size: 12.5px !important;
+  margin: 6px 0 !important;
+  color: #4b5563 !important;
+}
+.swal2-input,
+.swal2-file,
+.swal2-textarea,
+.swal2-select,
+.swal2-radio,
+.swal2-checkbox {
+  height: 38px !important;
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  margin: 12px auto 0 !important;
+  box-sizing: border-box !important;
+  width: 90% !important;
+  background-color: #ffffff !important;
+  color: #1f2a37 !important;
+}
+.swal2-textarea {
+  height: auto !important;
+}
+.swal2-actions {
+  margin-top: 1rem !important;
+  gap: 8px !important;
+}
+.swal2-styled {
+  padding: 8px 16px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  margin: 0 !important;
+}
+.swal2-styled.swal2-confirm {
+  background-color: #0b1c30 !important; /* Restore previous dark navy button color */
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+.swal2-styled.swal2-cancel {
+  background-color: #f1f5f9 !important; /* Restore previous light gray/blue button */
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: none !important;
+}
+.swal2-icon {
+  width: 48px !important;
+  height: 48px !important;
+  margin: 8px auto 12px !important;
+  transform: scale(0.85) !important;
+}
+
+/* === MOBILE RESPONSIVE LAYOUT UPGRADES FOR REPORTS === */
+
+/* Main reports module cards grid */
+.reports-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .reports-menu-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .reports-menu-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* Reports Dashboard responsive styles */
+@media (max-width: 768px) {
+  .reports-dashboard-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .reports-dashboard-toolbar .field {
+    width: 100% !important;
+  }
+  .reports-dashboard-toolbar .field input,
+  .reports-dashboard-toolbar .field select {
+    width: 100% !important;
+  }
+  .reports-dashboard-toolbar .actions {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+  .reports-dashboard-toolbar .actions button {
+    width: 100% !important;
+  }
+  .reports-dashboard-goals-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .reports-dashboard-charts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .reports-dashboard-seller-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+}
+
+/* Reports Ocupacion responsive styles */
+@media (max-width: 768px) {
+  .reports-ocupacion-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .reports-ocupacion-toolbar input {
+    width: 100% !important;
+  }
+  .reports-ocupacion-toolbar button {
+    width: 100% !important;
+  }
+  .reports-ocupacion-toolbar .actions {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+  .reports-ocupacion-toolbar .actions button {
+    width: 100% !important;
+  }
+  .reports-ocupacion-summary-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .reports-ocupacion-ops-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .reports-ocupacion-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .reports-ocupacion-ops-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Modals general responsive overflow overrides */
+@media (max-width: 768px) {
+  /* Sales report and accounting report modal width fixing */
+  #salesReportBackdrop .salesReportModal,
+  #accountingReportBackdrop .salesReportModal,
+  #institutionReportBackdrop .institutionReportModal {
+    width: calc(100vw - 12px) !important;
+    margin: 6px !important;
+    height: 98vh !important;
+    max-height: 98vh !important;
+  }
+  
+  #salesReportBackdrop .salesReportBody,
+  #accountingReportBackdrop .salesReportBody,
+  #institutionReportBackdrop .institutionReportBody {
+    padding: 10px 14px 80px !important;
+    gap: 12px !important;
+  }
+
+  /* Prevent meta badge from overflowing headers */
+  #salesReportBackdrop .reportSectionIntro,
+  #accountingReportBackdrop .reportSectionIntro {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  
+  #salesReportBackdrop .reportFilterMeta,
+  #accountingReportBackdrop .reportFilterMeta {
+    align-self: flex-start !important;
+    text-align: left !important;
+  }
+}
+
+/* === MOBILE RESPONSIVE OVERRIDES FOR CUSTOMERS AND SEARCH MODULES === */
+@media (max-width: 768px) {
+  .module-container-wrapper {
+    padding: 8px !important;
+  }
+  .module-card-container {
+    border-radius: 12px !important;
+  }
+  .module-header-container {
+    padding: 12px 16px !important;
+  }
+  .module-filters-container {
+    padding: 12px 16px 8px 16px !important;
+  }
+  .module-table-wrapper {
+    padding: 0 16px 16px 16px !important;
+  }
+  
+  /* Settings screen main container responsive padding */
+  #settingsScreen .moduleHub,
+  #reportsHubScreen .moduleHub {
+    padding: 12px !important;
+    border-radius: 8px !important;
+  }
+  
+  #settingsScreen .moduleHubHeaderRow,
+  #reportsHubScreen .moduleHubHeaderRow {
+    margin: -12px -12px 12px !important;
+    padding: 10px 12px !important;
+  }
+  
+  /* Generic modal styling adjustments to occupy full screen on mobile */
+  .modalBackdrop,
+  [id$="Backdrop"] {
+    padding: 6px !important;
+  }
+  
+  #reportsHubScreen,
+  #settingsScreen,
+  #salesReportBackdrop,
+  #accountingReportBackdrop,
+  #occupancyReportBackdrop,
+  #dashboardReportBackdrop,
+  #institutionReportBackdrop {
+    left: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: 6px !important;
+  }
+  
+  .modal,
+  #modalBackdrop .modal,
+  #quoteBackdrop .modal,
+  #quoteAdvanceBackdrop .modal,
+  #accountStatementBackdrop .modal,
+  #salesReportBackdrop .modal,
+  #occupancyReportBackdrop .modal,
+  #dashboardReportBackdrop .modal,
+  #institutionReportBackdrop .modal,
+  #accountingReportBackdrop .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    height: 98vh !important;
+    max-height: 98vh !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  
+  /* General settings tables and forms vertical stacking */
+  .modalBody .row2,
+  .modalBody .row3,
+  .modalBody .flex-row {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+  
+  .modalBody .field {
+    width: 100% !important;
+    flex: none !important;
+  }
+  
+  /* Collapse modal actions / footers */
+  .modalFooter,
+  #quoteBackdrop .quoteFooterRow {
+    padding: 12px 8px !important;
+    flex-direction: column-reverse !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+  
+  .modalFooter .leftActions, 
+  .modalFooter .rightActions,
+  #quoteBackdrop .quoteFooterRow .leftActions,
+  #quoteBackdrop .quoteFooterRow .rightActions {
+    width: 100% !important;
+    justify-content: stretch !important;
+    display: flex !important;
+    gap: 8px !important;
+  }
+  
+  .modalFooter .rightActions {
+    flex-direction: column !important;
+  }
+  
+  .modalFooter button,
+  #quoteBackdrop .quoteFooterRow button {
+    width: 100% !important;
+    height: 40px !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  /* Export buttons mobile layout optimization */
+  #settingsScreen .settingsActionGridEnhanced {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+  #settingsScreen .settingsActionGridEnhanced .actionCardMeta {
+    display: none !important;
+  }
+  #settingsScreen .settingsActionGridEnhanced .actionCardLabel {
+    font-size: 11px !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+  }
+  #settingsScreen .settingsActionGridEnhanced .moduleActionBtn,
+  #settingsScreen .settingsActionGridEnhanced .settingsHubBtn {
+    padding: 8px 6px !important;
+    min-height: 44px !important;
+    height: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  #settingsScreen .settingsActionGridEnhanced .actionCardInner,
+  #settingsScreen .settingsActionGridEnhanced .actionCardText {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  
+  /* Institution Report mobile UI/UX and text size optimizations */
+  #institutionReportBackdrop .reportSectionIntro {
+    display: none !important;
+  }
+  #institutionReportBackdrop .institutionReportHeroPanel {
+    padding: 8px !important;
+    border-radius: 8px !important;
+    margin-bottom: 10px !important;
+  }
+  #institutionReportBackdrop .institutionReportFilters {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  #institutionReportBackdrop .institutionReportFilters .field {
+    grid-column: auto !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  #institutionReportBackdrop .institutionReportFilters .institutionSearchField {
+    grid-column: span 2 !important;
+  }
+  #institutionReportBackdrop .institutionReportFilters .field:nth-child(2) {
+    grid-column: span 2 !important;
+  }
+  #institutionReportBackdrop .dashboardReportActions {
+    grid-column: span 2 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+  }
+  #institutionReportBackdrop .dashboardReportActions button {
+    flex: 1 1 0 !important;
+    width: 100% !important;
+    height: 32px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+  }
+  #institutionReportBackdrop .modalHeader {
+    padding: 10px 14px !important;
+  }
+  #institutionReportBackdrop .reportBrandHeader {
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  #institutionReportBackdrop .reportBrandBadge {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 4px !important;
+  }
+  #institutionReportBackdrop .reportBrandLogo {
+    height: 24px !important;
+  }
+  #institutionReportBackdrop .reportBrandCopy {
+    min-width: 0 !important;
+  }
+  #institutionReportBackdrop .reportBrandEyebrow {
+    font-size: 8px !important;
+  }
+  #institutionReportBackdrop .modalTitle {
+    font-size: 14px !important;
+  }
+  #institutionReportBackdrop .modalSubtitle {
+    display: none !important;
+  }
+  #institutionReportBackdrop .institutionReportNav {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    padding: 8px !important;
+    background: #f1f5f9 !important;
+    border-radius: 10px !important;
+    margin-bottom: 12px !important;
+  }
+  #institutionReportBackdrop .institutionReportNav button {
+    width: 100% !important;
+    height: 36px !important;
+    font-size: 11px !important;
+    padding: 0 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    font-weight: 700 !important;
+  }
+  #institutionReportBackdrop .institutionReportNav button:last-child {
+    grid-column: span 3 !important;
+  }
+  #institutionReportBackdrop .institutionHeadlineCard h3 {
+    font-size: 18px !important;
+    margin: 4px 0 !important;
+  }
+  #institutionReportBackdrop .summaryCard {
+    padding: 10px !important;
+    border-radius: 10px !important;
+  }
+  #institutionReportBackdrop .summaryCard strong {
+    font-size: 16px !important;
+    margin-top: 4px !important;
+  }
+  #institutionReportBackdrop .summaryCard span {
+    font-size: 8.5px !important;
+  }
+  #institutionReportBackdrop .summaryCard small {
+    font-size: 10px !important;
+  }
+  #institutionReportBackdrop .dashboardCardHead {
+    padding: 10px 12px !important;
+  }
+  #institutionReportBackdrop .dashboardCardHead strong {
+    font-size: 13px !important;
+  }
+  #institutionReportBackdrop .dashboardCardHead small {
+    font-size: 10px !important;
+  }
+  #institutionReportBackdrop .metricRow {
+    padding: 6px 10px !important;
+  }
+  #institutionReportBackdrop .metricRow strong {
+    font-size: 11px !important;
+  }
+  #institutionReportBackdrop .metricRow span {
+    font-size: 10.5px !important;
+  }
+  #institutionReportBackdrop .dashboardCard {
+    padding: 12px !important;
+    border-radius: 12px !important;
+    margin-bottom: 12px !important;
+  }
+  #institutionReportBackdrop .institutionEventsTable th,
+  #institutionReportBackdrop .institutionEventsTable td {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+

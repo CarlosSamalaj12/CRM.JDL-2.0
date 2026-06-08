@@ -305,7 +305,7 @@ export default function SettingsSalones() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div className="row2" style={{ display: 'flex', gap: '16px' }}>
             <label className="field" style={{ flex: 2 }}>
               <span>Nombre del salon</span>
               <input 

@@ -245,7 +245,7 @@ export default function ReportsOcupacion({ onClose }) {
         </div>
         <div style={styles.body}>
           <div style={styles.sectionHeader}><div><div style={styles.sectionEyebrow}>Vista ejecutiva semanal</div><div style={styles.sectionTitle}>Lectura de ocupación y rentabilidad</div><div style={styles.sectionDesc}>Filtra la semana, identifica dias criticos y baja al detalle operativo sin perder contexto.</div></div></div>
-          <div style={styles.toolbar}>
+          <div className="reports-ocupacion-toolbar" style={styles.toolbar}>
             <span style={styles.fieldLabel}>Semana (desde lunes)</span>
             <button onClick={handlePrevWeek} style={styles.btn}>‹</button>
             <input type="date" value={currentWeekStart} onChange={(e) => setCurrentWeekStart(e.target.value)} style={styles.input} />
@@ -255,7 +255,7 @@ export default function ReportsOcupacion({ onClose }) {
           </div>
           
           <div style={styles.sectionHeader}><div><div style={styles.sectionEyebrow}>Resumen ejecutivo</div><div style={styles.sectionTitle}>KPIs prioritarios de la semana</div></div></div>
-          <div style={styles.summaryGrid}>
+          <div className="reports-ocupacion-summary-grid" style={styles.summaryGrid}>
             {summaryCards.map((c, i) => {
               const colors = i===0 ? {c:'#2563eb',bg:'#dbeafe'} : i===1 ? {c:'#16a34a',bg:'#dcfce7'} : i===2 ? {c:'#d97706',bg:'#fef3c7'} : i===3 ? {c:'#0891b2',bg:'#cffafe'} : {c:'#7c3aed',bg:'#ede9fe'};
               return <div key={i} style={{...styles.summaryCard, borderTop: `4px solid ${colors.c}`}}>
@@ -372,7 +372,7 @@ export default function ReportsOcupacion({ onClose }) {
 
           <div style={styles.opsPanel}>
             <div style={styles.opsTitleRow}><span style={styles.opsLegend}>Operación hotelera</span><span style={{...styles.opsLegend, color: '#64748b'}}>Edición habilitada</span></div>
-            <div style={styles.opsGrid}>
+            <div className="reports-ocupacion-ops-grid" style={styles.opsGrid}>
               {dayCards.map(d => (
                 <div key={d.date} style={styles.opsCard}>
                   <div style={styles.opsHead}>{d.dayName.substring(0,3)} {d.dayNumber}</div>

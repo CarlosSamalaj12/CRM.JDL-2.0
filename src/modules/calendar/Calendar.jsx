@@ -1136,9 +1136,11 @@ export default function Calendar() {
   };
 
   const renderAgendaView = () => {
-    const sortedEvents = [...filteredEvents].sort((a, b) => {
-      return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
-    });
+    const sortedEvents = [...filteredEvents]
+      .filter(ev => ev.date >= todayStr)
+      .sort((a, b) => {
+        return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+      });
 
     return (
       <div style={{ 

@@ -625,18 +625,36 @@ export default function LegacyMenuCatalogModal() {
                               type="button"
                               title="Asociar sugerencias / combinaciones"
                               onClick={() => handleOpenSuggestionsFor(item)}
-                              style={{ background: '#faf5ff', border: '1px solid #d8b4fe', color: '#7c3aed', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                              style={{
+                                background: '#faf5ff',
+                                border: '1px solid #d8b4fe',
+                                color: '#6b21a8',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontWeight: '700',
+                                fontSize: '12px'
+                              }}
                             >
-                              🍴
+                              🍴 Combinaciones
                             </button>
                           )}
                           <button
                             type="button"
                             title="Editar"
                             onClick={() => loadCatalogForEdit(item)}
-                            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            style={{
+                              background: '#eff6ff',
+                              border: '1px solid #bfdbfe',
+                              color: '#1e40af',
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: '700',
+                              fontSize: '12px'
+                            }}
                           >
-                            ✎
+                            Editar
                           </button>
                           <button
                             type="button"
@@ -646,14 +664,15 @@ export default function LegacyMenuCatalogModal() {
                               background: item.active ? '#fff1f2' : '#f0fdf4',
                               border: '1px solid',
                               borderColor: item.active ? '#fecdd3' : '#bbf7d0',
-                              color: item.active ? '#e11d48' : '#16a34a',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
+                              color: item.active ? '#991b1b' : '#166534',
+                              padding: '4px 10px',
+                              borderRadius: '6px',
                               cursor: 'pointer',
-                              fontWeight: 'bold'
+                              fontWeight: '700',
+                              fontSize: '12px'
                             }}
                           >
-                            {item.active ? '🚫' : '↻'}
+                            {item.active ? 'Inhabilitar' : 'Activar'}
                           </button>
                         </div>
                       </td>

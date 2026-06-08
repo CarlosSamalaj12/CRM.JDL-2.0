@@ -181,7 +181,7 @@ export default function ReportsDashboard({ onClose }) {
               <div style={styles.sectionDesc}>Un dashboard ejecutivo con mejor separación visual para identificar avances, brechas y desempeño del periodo.</div>
             </div>
           </div>
-          <div style={styles.toolbar}>
+          <div className="reports-dashboard-toolbar" style={styles.toolbar}>
             <div style={styles.field}><span style={styles.fieldLabel}>Periodo</span><select value="month" disabled style={styles.select}><option value="month">Mes</option></select></div>
             <div style={styles.field}><span style={styles.fieldLabel}>Mes base</span><input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} style={styles.input} /></div>
             <div style={styles.field}><span style={styles.fieldLabel}>Desde</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={styles.input} placeholder="dd/mm/aaaa" /></div>
@@ -193,7 +193,7 @@ export default function ReportsDashboard({ onClose }) {
           </div>
 
           <div style={styles.sectionHeader}><div><div style={styles.sectionTitle}>KPIs clave</div><div style={styles.sectionSubtitle}>Lectura inmediata del avance comercial</div></div></div>
-          <div style={styles.goalsGrid}>
+          <div className="reports-dashboard-goals-grid" style={styles.goalsGrid}>
             <article style={styles.goalCard}>
               <div style={styles.heroCard}>
                 <div style={styles.heroRow}><div><small style={styles.heroSmall}>EFICIENCIA EN {getRoleLabel(role).toUpperCase()}S "CRM"</small><strong style={styles.heroTitle}>{dateRange.label}</strong></div><div style={styles.heroPct}><b style={styles.heroPctNum}>{statusSummary.pct.toFixed(1)}%</b><span style={styles.heroPctLabel}>Confirmado</span></div></div>
@@ -208,9 +208,9 @@ export default function ReportsDashboard({ onClose }) {
           </div>
 
           <div style={styles.sectionHeader}><div><div style={styles.sectionTitle}>Analítica visual</div><div style={styles.sectionSubtitle}>Comparativos y distribuciones del periodo</div></div></div>
-          <div style={styles.chartsGrid}>
+          <div className="reports-dashboard-charts-grid" style={styles.chartsGrid}>
             <div style={styles.chartCard}><div style={styles.chartTitle}>Áreas más utilizadas</div><div style={styles.chartSub}>Distribución de salones en el periodo</div>
-              {salonData ? <div style={styles.pieWrap}><div style={{...styles.pie, background: `conic-gradient(${salonData.slices.join(',')})`}} /><div style={styles.pieLeg}>{salonData.o.map((it,i) => <div key={i} style={styles.pieLegItem}><i style={{...styles.pieDot, background: it.c}} /><span>{it.l.substring(0,12)}: {((it.n/salonData.tot)*100).toFixed(0)}%</span></div>)}</div></div> : <div style={{ color: '#94a3b8', fontSize: '11px', textAlign: 'center', padding: '12px' }}>Sin salones con actividad</div>}
+              {salonData ? <div style={styles.pieWrap}><div style={{...styles.pie, background: `conic-gradient(${salonData.slices.join(',')})`}} /><div style={styles.pieLeg}>{salonData.o.map((it,i) => <div key={i} style={styles.pieLegItem}><i style={{...styles.pieDot, background: it.c}} /><span>{it.l.substring(0,12)}: {((it.n/salonData.tot)*100).toFixed(0)}%</span></div>)}</div></div> : <div style={{ color: '#94a3b8', fontSize: '11px', textAlign: 'center', padding: '12px' }}>Sin salones con activity</div>}
             </div>
             <div style={styles.chartCard}><div style={styles.chartTitle}>Ventas por tipo de evento</div><div style={styles.chartSub}>Corporativo vs Social por mes</div>
               <div style={{ display: 'grid', gap: '10px' }}>
@@ -230,7 +230,7 @@ export default function ReportsDashboard({ onClose }) {
           </div>
 
           <div style={styles.sectionHeader}><div><div style={styles.sectionTitle}>Equipo</div><div style={styles.sectionSubtitle}>Lectura rápida del rendimiento individual</div></div></div>
-          <div style={styles.sellerGrid}>
+          <div className="reports-dashboard-seller-grid" style={styles.sellerGrid}>
             {sellerMetrics.length ? sellerMetrics.map(s => <div key={s.id} style={styles.sellerCard}><div style={styles.sellerVal}>{formatMoneyGT(s.amount)}</div><div style={{...styles.sellerBar, height: `${Math.max(10,(s.amount/maxAmt)*80)}px`}} /><div style={styles.sellerAv}>{s.name.charAt(0).toUpperCase()}</div><div style={styles.sellerName}>{s.name}</div><div style={styles.sellerMeta}>{s.confirmed} confirmados de {s.total} evento(s)</div></div>) : <div style={{ color: '#94a3b8', fontSize: '11px', textAlign: 'center', gridColumn: '1/-1', padding: '20px' }}>No hay asesores comerciales con metas asignadas.</div>}
           </div>
         </div>

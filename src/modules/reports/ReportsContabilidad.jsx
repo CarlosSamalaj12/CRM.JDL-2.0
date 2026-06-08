@@ -843,6 +843,36 @@ export default function ReportsContabilidad({ onClose }) {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
+        @media (max-width: 760px) {
+          #accountingReportBackdrop .salesReportSummary {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          #accountingReportBackdrop .salesReportFiltersInline {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+          }
+          #accountingReportBackdrop .salesReportFiltersInline .field:nth-child(1) {
+            grid-column: span 2 !important;
+          }
+          #accountingReportBackdrop .salesReportFiltersInline .field:nth-child(7) {
+            grid-column: span 2 !important;
+          }
+          #accountingReportBackdrop .salesReportActions {
+            grid-column: span 2 !important;
+            justify-content: stretch !important;
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 8px !important;
+            width: 100% !important;
+            margin-top: 8px !important;
+          }
+          #accountingReportBackdrop .salesReportActions button {
+            flex: 1 1 0 !important;
+            width: 100% !important;
+            height: 32px !important;
+          }
+        }
       `}</style>
       <div className="salesReportModal">
         {/* Header */}

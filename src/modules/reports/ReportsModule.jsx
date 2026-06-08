@@ -108,11 +108,7 @@ export default function ReportsModule() {
       </div>
 
       {/* Grid de Tarjetas */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(3, 1fr)', 
-        gap: '20px' 
-      }}>
+      <div className="reports-menu-grid">
         {reportCards.map((card, i) => (
           <div key={i} 
             onClick={() => setSelectedReport(card.id)}

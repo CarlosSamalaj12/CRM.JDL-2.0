@@ -336,7 +336,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
             </div>
             <div>
               <label style={labelStyle}>Hora</label>
-              <input type="time" value={newReminder.time} onChange={e => setNewReminder(prev => ({ ...prev, time: e.target.value }))} style={inputStyle} />
+              <input type="time" step="300" value={newReminder.time} onChange={e => setNewReminder(prev => ({ ...prev, time: e.target.value }))} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Medio de contacto</label>

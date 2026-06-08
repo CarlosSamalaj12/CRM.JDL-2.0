@@ -11,6 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import Swal from 'sweetalert2';
+import TimeSelect from '../../../components/TimeSelect';
 
 const pastEventEditAuthorizedKeys = new Set();
 
@@ -1437,9 +1438,9 @@ export default function ReservationForm({ onCancel }) {
                           />
                           <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
                           <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
-                          <input type="time" value={slot.startTime} onChange={e => handleSlotChange(index, 'startTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                            <input type="time" value={slot.endTime} onChange={e => handleSlotChange(index, 'endTime', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
+                          <TimeSelect value={slot.startTime} onChange={val => handleSlotChange(index, 'startTime', val)} style={{ padding: '4px 2px', fontSize: '12.5px', height: '28px' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', width: '100%' }}>
+                            <TimeSelect value={slot.endTime} onChange={val => handleSlotChange(index, 'endTime', val)} style={{ padding: '4px 2px', fontSize: '12.5px', height: '28px' }} />
                             {slots.length > 1 && (
                               <button onClick={() => removeSlotRow(index)} style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '14px', cursor: 'pointer', padding: '0 2px', fontWeight: 'bold' }}>×</button>
                             )}
@@ -1742,12 +1743,38 @@ export default function ReservationForm({ onCancel }) {
           .reservation-side-panel {
             grid-template-columns: 1fr !important;
           }
-          .reservation-form-actions-left {
-            justify-content: stretch !important;
+          .reservation-form-footer {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 12px !important;
           }
-          .reservation-form-actions-left > button,
-          .reservation-form-footer > button {
-            flex: 1 1 160px !important;
+          .reservation-form-actions-left {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)) !important;
+            gap: 8px !important;
+            width: 100% !important;
+          }
+          .reservation-form-actions-left > button {
+            width: 100% !important;
+            height: 40px !important;
+            padding: 6px 8px !important;
+            font-size: 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+            margin: 0 !important;
+            flex: none !important;
+          }
+          .reservation-form-footer > button.btn-guardar {
+            width: 100% !important;
+            height: 46px !important;
+            font-size: 15px !important;
+            margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex: none !important;
           }
         }
       `}</style>

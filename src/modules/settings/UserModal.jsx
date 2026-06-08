@@ -363,9 +363,58 @@ export default function UserModal({ onClose }) {
         }
 
         @media (max-width: 640px) {
+          .glass-modal {
+            width: 100% !important;
+            height: 98vh !important;
+            max-height: 98vh !important;
+            border-radius: 12px !important;
+          }
+          .modalBody {
+            padding: 16px 12px !important;
+          }
+          .modalFooter {
+            padding: 16px 12px !important;
+            flex-direction: column-reverse !important;
+            gap: 12px !important;
+            align-items: stretch !important;
+          }
+          .modalFooter .leftActions, .modalFooter .rightActions {
+            width: 100% !important;
+            justify-content: stretch !important;
+            display: flex !important;
+          }
+          .modalFooter button {
+            width: 100% !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .modalFooter .rightActions {
+            flex-direction: column !important;
+            gap: 8px !important;
+            margin-bottom: 8px !important;
+          }
           .field-group {
             grid-template-columns: 1fr;
             gap: 15px;
+          }
+          .avatar-signature-grid {
+            grid-template-columns: 1fr !important;
+            gap: 20px !important;
+            padding: 12px !important;
+          }
+          .goals-input-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .goals-input-row .modern-field {
+            width: 100% !important;
+          }
+          .goals-input-row button {
+            width: 100% !important;
+            height: 40px !important;
           }
         }
 
@@ -709,7 +758,7 @@ export default function UserModal({ onClose }) {
           </div>
 
           {/* Professional Avatar and Signature Section */}
-          <div style={{ 
+          <div className="avatar-signature-grid" style={{ 
             display: 'grid', 
             gridTemplateColumns: '1fr 1fr', 
             gap: '24px', 
@@ -836,7 +885,7 @@ export default function UserModal({ onClose }) {
 
             {salesTargetEnabled ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                <div className="goals-input-row" style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
                   <label className="modern-field" style={{ flex: 1 }}>
                     <span>Seleccionar Mes</span>
                     <input 

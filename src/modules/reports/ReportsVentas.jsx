@@ -447,16 +447,32 @@ export default function ReportsVentas({ onClose }) {
           }
         }
         @media (max-width: 760px) {
-          #salesReportBackdrop .salesReportSummary,
+          #salesReportBackdrop .salesReportSummary {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
           #salesReportBackdrop .salesReportFiltersInline {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+          }
+          #salesReportBackdrop .salesReportFiltersInline .field:nth-child(1) {
+            grid-column: span 2 !important;
+          }
+          #salesReportBackdrop .salesReportFiltersInline .field:nth-child(6) {
+            grid-column: span 2 !important;
           }
           #salesReportBackdrop .salesReportActions {
-            grid-column: span 1 !important;
+            grid-column: span 2 !important;
             justify-content: stretch !important;
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 8px !important;
+            width: 100% !important;
+            margin-top: 8px !important;
           }
           #salesReportBackdrop .salesReportActions button {
-            flex: 1 1 0;
+            flex: 1 1 0 !important;
+            width: 100% !important;
           }
         }
       `}</style>

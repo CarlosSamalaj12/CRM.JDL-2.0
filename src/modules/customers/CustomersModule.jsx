@@ -86,8 +86,8 @@ export default function CustomersModule() {
   };
 
   return (
-    <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
-      <div style={{ 
+    <div className="module-container-wrapper" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
+      <div className="module-card-container" style={{ 
         display: 'flex', 
         flexDirection: 'column',
         height: '100%',
@@ -99,7 +99,7 @@ export default function CustomersModule() {
         border: '1px solid #d3e4fe',
         overflow: 'hidden'
       }}>
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+        <div className="module-header-container" style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <div>
               <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#1e293b', margin: 0 }}>
@@ -126,7 +126,7 @@ export default function CustomersModule() {
           </div>
         </div>
 
-        <div style={{ padding: '16px 24px 12px 24px', flexShrink: 0 }}>
+        <div className="module-filters-container" style={{ padding: '16px 24px 12px 24px', flexShrink: 0 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
             <div style={{ flex: '2 1 200px' }}>
               <input 
@@ -194,7 +194,7 @@ export default function CustomersModule() {
           </div>
         </div>
 
-        <div style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <div className="module-table-wrapper" style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflowX: 'auto', overflowY: 'auto', flex: 1, width: '100%', minHeight: 0 }}>
             <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>

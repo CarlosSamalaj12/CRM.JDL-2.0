@@ -5225,86 +5225,19 @@ body.quoteModeOpen #appShell.lum-calendar #quoteBackdrop .quoteCurrencyBtn .mate
 }
 
 /* 4. Desktop Sidebar Collapsing to Mobile Bottom Navigation Bar */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   #appShell.lum-calendar {
     flex-direction: column !important;
   }
   
   #appShell.lum-calendar .lum-sidebar {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: auto !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 60px !important;
-    min-height: 0 !important;
-    flex-direction: row !important;
-    justify-content: space-around !important;
-    align-items: center !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: #0f172a !important; /* sleek elegant dark background */
-    border-right: none !important;
-    border-top: 1.5px solid #1e293b !important;
-    z-index: 1000 !important;
-  }
-  
-  /* Hide unused elements in bottom navigation */
-  #appShell.lum-calendar .lum-sidebarBrand,
-  #appShell.lum-calendar .sideUserProfile,
-  #appShell.lum-calendar .lum-sideFooter {
     display: none !important;
   }
   
-  #appShell.lum-calendar .lum-sideNav {
-    flex-direction: row !important;
-    justify-content: space-around !important;
-    align-items: center !important;
-    width: 100% !important;
-    height: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  
-  #appShell.lum-calendar .lum-sideItem {
-    flex: 1 !important;
-    height: 100% !important;
-    border-radius: 0 !important;
-    margin: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    align-items: center !important;
-    padding: 4px !important;
-    background: transparent !important;
-    color: #94a3b8 !important;
-    gap: 2px !important;
-  }
-  
-  #appShell.lum-calendar .lum-sideItem.isActive {
-    color: #38bdf8 !important;
-    background: rgba(56, 189, 248, 0.08) !important;
-  }
-  
-  #appShell.lum-calendar .lum-sideItem span:not(.material-symbols-outlined) {
-    display: block !important;
-    font-size: 8px !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.3px !important;
-  }
-  
-  #appShell.lum-calendar .lum-sideItem .material-symbols-outlined {
-    font-size: 20px !important;
-    margin: 0 !important;
-  }
-  
-  /* Main content adjusts to not overlap bottom nav */
+  /* Main content adjusts to fill full height */
   #appShell.lum-calendar .lum-main {
-    height: calc(100vh - 60px) !important;
-    max-height: calc(100vh - 60px) !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
     padding: 8px !important;
     gap: 8px !important;
   }
@@ -5313,7 +5246,7 @@ body.quoteModeOpen #appShell.lum-calendar #quoteBackdrop .quoteCurrencyBtn .mate
   #appShell.lum-calendar .lum-sideCta {
     display: block !important;
     position: fixed !important;
-    bottom: 80px !important; /* floats nicely above the bottom nav */
+    bottom: 20px !important; /* floats in the corner */
     right: 20px !important;
     z-index: 1001 !important;
     margin: 0 !important;
@@ -5372,7 +5305,7 @@ body.quoteModeOpen #appShell.lum-calendar #quoteBackdrop .quoteCurrencyBtn .mate
   }
 
   #appShell.lum-calendar .reservation-form-footer {
-    flex-direction: column-reverse !important;
+    flex-direction: column !important; /* Changed to normal column so Guardar is at the bottom */
     align-items: stretch !important;
     gap: 12px !important;
     padding: 16px !important;
@@ -5381,9 +5314,10 @@ body.quoteModeOpen #appShell.lum-calendar #quoteBackdrop .quoteCurrencyBtn .mate
   }
   
   #appShell.lum-calendar .reservation-form-actions-left {
-    flex-wrap: wrap !important;
-    justify-content: center !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
     gap: 8px !important;
+    width: 100% !important;
   }
   
   #appShell.lum-calendar .btn-guardar {
