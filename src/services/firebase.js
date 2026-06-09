@@ -1,5 +1,13 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import {
+  getAuth,
+  getRedirectResult,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+  GoogleAuthProvider,
+  signOut,
+} from "firebase/auth";
 
 // Firebase Config mapping environment variables.
 // Uses mock credentials as a fallback to prevent runtime boot crash if not yet configured in .env.
@@ -24,7 +32,7 @@ googleProvider.setCustomParameters({
 
 export const firebaseService = {
   auth,
-  
+
   async loginWithEmail(email, password) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -40,7 +48,21 @@ export const firebaseService = {
       const result = await signInWithPopup(auth, googleProvider);
       return result.user;
     } catch (error) {
+      if (error?.code === 'auth/popup-blocked') {
+        await signInWithRedirect(auth, googleProvider);
+        return null;
+      }
       console.error("Firebase Google login error:", error);
+      throw error;
+    }
+  },
+
+  async getGoogleRedirectUser() {
+    try {
+      const result = await getRedirectResult(auth);
+      return result?.user || null;
+    } catch (error) {
+      console.error("Firebase Google redirect login error:", error);
       throw error;
     }
   },

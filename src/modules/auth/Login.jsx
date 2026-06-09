@@ -21,6 +21,44 @@ export default function Login() {
     }
   }, [navigate]);
 
+  // Complete Google redirect login when popup auth is blocked by the browser.
+  useEffect(() => {
+    let cancelled = false;
+
+    const completeRedirectLogin = async () => {
+      try {
+        const firebaseUser = await firebaseService.getGoogleRedirectUser();
+        if (!firebaseUser || cancelled) return;
+
+        setLoading(true);
+        const localUser = await authService.loginFirebase(firebaseUser);
+        if (cancelled) return;
+
+        Swal.fire({
+          icon: 'success',
+          title: '¡Sesión Iniciada!',
+          text: `Bienvenido, ${localUser.fullName || localUser.name}`,
+          timer: 1500,
+          showConfirmButton: false
+        });
+        setTimeout(() => navigate('/calendar'), 1500);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Google redirect login error detail:', err);
+          Swal.fire({ icon: 'error', title: 'Error de Autenticación', text: err.message || 'No se pudo completar el inicio de sesión con Google.' });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    completeRedirectLogin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
   // Fetch login users on mount
   useEffect(() => {
     authService.getLoginUsers().then(setLoginUsers);
@@ -78,6 +116,7 @@ export default function Login() {
     setLoading(true);
     try {
       const firebaseUser = await firebaseService.loginWithGoogle();
+      if (!firebaseUser) return;
       const localUser = await authService.loginFirebase(firebaseUser);
       Swal.fire({
         icon: 'success', title: '¡Sesión Iniciada!',
