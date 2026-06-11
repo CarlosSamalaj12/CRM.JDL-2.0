@@ -1425,7 +1425,7 @@ export default function Calendar() {
             borderRadius: 0, boxShadow: 'none',
             overflow: 'hidden', display: 'flex', flexDirection: 'column'
           }} onClick={e => e.stopPropagation()}>
-            <ReservationForm onCancel={() => navigate('/calendar')} />
+            <ReservationForm />
           </div>
         </div>
       )}

@@ -398,7 +398,7 @@ export default function ReservationForm() {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
-  const [, setValidationErrors] = useState([]);
+  const [validationErrors, setValidationErrors] = useState([]);
   const [slotConflicts, setSlotConflicts] = useState([]);
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, type: null, message: '', title: '', isDanger: true });
 
@@ -407,8 +407,8 @@ export default function ReservationForm() {
   const urlStart = searchParams.get('start');
   const urlEnd = searchParams.get('end');
 
-  const getDefaultDate = () => urlDate || new Date().toISOString().split('T')[0];
-  const getDefaultEndDate = () => urlEndDate || getDefaultDate();
+  const getDefaultDate = useCallback(() => urlDate || new Date().toISOString().split('T')[0], [urlDate]);
+  const getDefaultEndDate = useCallback(() => urlEndDate || getDefaultDate(), [urlEndDate, getDefaultDate]);
 
   const getCurrentUserId = () => {
     const currentUser = authService.getCurrentUser();
@@ -433,7 +433,7 @@ export default function ReservationForm() {
   ]);
 
   const [saving, setSaving] = useState(false);
-  const [, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [salonCapacities, setSalonCapacities] = useState({});
 
   const labelStyle = {
@@ -501,7 +501,7 @@ export default function ReservationForm() {
       setSlots(newSlots);
       setFormData(prev => ({ ...prev, salon: salones[0] }));
     }
-  }, [salones]);
+  }, [salones, formData.salon, slots]);
 
   useEffect(() => {
     if (events && slots.length > 0) {
@@ -577,7 +577,7 @@ export default function ReservationForm() {
         status: 'Reserva sin Cotizacion'
       }]);
     }
-  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd]);
+  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate]);
 
   const showNotification = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -777,7 +777,7 @@ export default function ReservationForm() {
 
     setValidationErrors(issues);
     return { ok: issues.length === 0, issues };
-  }, [formData, slots, syncEventPaxFromSlots]);
+  }, [formData, slots, syncEventPaxFromSlots, id, salonCapacities]);
 
   const handleMaintenance = () => {
     applyEventStatus('Mantenimiento');
@@ -994,13 +994,68 @@ export default function ReservationForm() {
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === formData.status);
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+      {toast.show && (
+        <div style={{ position: 'fixed', top: '24px', right: '24px', padding: '14px 28px', background: toast.type === 'error' ? '#dc2626' : '#059669', color: 'white', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, fontWeight: '700' }}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Header bar with title and Cerrar button */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '20px 24px 0 24px',
+        background: '#f8fafc'
+      }}>
+        <div>
+          <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+            {id ? 'Editar Reserva' : 'Nueva Reserva'}
+          </h1>
+          {id && (
+            <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px', fontWeight: '600' }}>
+              {slots[0]?.salon || 'Sin salón'} • {formData.date} • {slots[0]?.startTime || '10:00'} - {slots[0]?.endTime || '12:00'}
+            </div>
+          )}
+        </div>
+        
+        <button
+          onClick={() => navigate('/calendar')}
+          style={{
+            background: '#ffffff',
+            border: '1px solid #cbd5e1',
+            borderRadius: '8px',
+            padding: '8px 16px',
+            fontSize: '13px',
+            fontWeight: '700',
+            color: '#475569',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            transition: 'all 0.15s'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#f1f5f9';
+            e.currentTarget.style.color = '#0f172a';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = '#ffffff';
+            e.currentTarget.style.color = '#475569';
+          }}
+        >
+          <span>✕</span> Cerrar
+        </button>
+      </div>
+
       <div style={{
               background: '#ffffff',
               border: '1px solid #cbd5e1',
               borderRadius: '12px',
               padding: '12px 16px 8px 16px',
-              marginBottom: '16px',
+              margin: '16px 24px 16px 24px',
               position: 'relative',
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)'
             }}>
@@ -1101,9 +1156,17 @@ export default function ReservationForm() {
                 })}
               </div>
             </div>
-          );
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingBottom: '16px' }}>
-        <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '16px', alignItems: 'start' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '0 24px 24px 24px' }}>
+          {validationErrors.length > 0 && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+              <div style={{ color: '#dc2626', fontWeight: '700', marginBottom: '8px' }}>⚠️ Faltan datos por completar:</div>
+              <ul style={{ margin: 0, paddingLeft: '20px', color: '#991b1b', fontSize: '13px' }}>
+                {validationErrors.slice(0, 5).map((err, i) => <li key={i}>{err}</li>)}
+                {validationErrors.length > 5 && <li>...y {validationErrors.length - 5} más</li>}
+              </ul>
+            </div>
+          )}
+          <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '16px', alignItems: 'start' }}>
           {/* Columna Izquierda: Información de Reserva y Salones */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
@@ -1574,7 +1637,7 @@ export default function ReservationForm() {
         onConfirm={onConfirmAction}
         onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
       />
-    </>
+    </div>
   );
 }
 

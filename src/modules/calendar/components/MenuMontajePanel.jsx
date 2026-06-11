@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import TimeSelect from '../../../components/TimeSelect';
 import { loadState as loadCrmState } from '../../../services/stateService';
@@ -479,7 +479,7 @@ export default function MenuMontajePanel({
 
   const savedDraftSnapshotRef = useRef('');
 
-  const buildDraftSnapshot = (values = {}) => JSON.stringify({
+  const buildDraftSnapshot = useCallback((values = {}) => JSON.stringify({
     selectedKey: values.selectedKey ?? selectedKey,
     menuTitle: values.menuTitle ?? menuTitle,
     menuQty: String(values.menuQty ?? menuQty ?? ''),
@@ -487,7 +487,7 @@ export default function MenuMontajePanel({
     menuDescription: values.menuDescription ?? menuDescription,
     montajeDescription: values.montajeDescription ?? montajeDescription,
     lineItemsDraft: values.lineItemsDraft ?? lineItemsDraft,
-  });
+  }), [selectedKey, menuTitle, menuQty, menuNotes, menuDescription, montajeDescription, lineItemsDraft]);
 
   const showNotice = (message) => {
     const id = Date.now();
@@ -517,7 +517,7 @@ export default function MenuMontajePanel({
         montajeAdicionales: (montajeAdicionales.items || []).filter((item) => item.activo !== false),
       }));
     } catch {
-      console.error('Error cargando Men? & Montaje.');
+      console.error('Error cargando Menú y Montaje.');
       showNotice('No se pudieron cargar todos los catálogos.');
     }
   };
@@ -528,7 +528,7 @@ export default function MenuMontajePanel({
   useEffect(() => {
     if (!savedDraftSnapshotRef.current) return;
     onDirtyChange?.(buildDraftSnapshot() !== savedDraftSnapshotRef.current);
-  }, [selectedKey, menuTitle, menuQty, menuNotes, menuDescription, montajeDescription, lineItemsDraft]);
+  }, [selectedKey, menuTitle, menuQty, menuNotes, menuDescription, montajeDescription, lineItemsDraft, buildDraftSnapshot, onDirtyChange]);
 
   useEffect(() => {
     if (!selectedProtein) {
@@ -627,7 +627,7 @@ export default function MenuMontajePanel({
       lineItemsDraft: nextLines,
     });
     onDirtyChange?.(false);
-  }, [selectedKey, quote.menuMontajeEntries, selectedMmsVersion]);
+  }, [selectedKey, quote.menuMontajeEntries, selectedMmsVersion, buildDraftSnapshot, onDirtyChange, quote.people, event?.pax]);
 
   const findName = (list, id, fallback = 'Por definir') => (
     list.find((item) => String(item.id) === String(id))?.nombre || fallback
@@ -643,7 +643,7 @@ export default function MenuMontajePanel({
     }).filter(Boolean).join(', ') || 'Por definir';
   };
 
-  const compileMenuDescription = (items) => {
+  const compileMenuDescription = useCallback((items) => {
     const generalComment = String(menuNotes || '').trim();
     if (!items.length) {
       return `[PLATOS FUERTES]\n- Por definir${generalComment ? `\n\n[COMENTARIO]\n- ${generalComment}` : ''}`;
@@ -677,7 +677,7 @@ export default function MenuMontajePanel({
     }).join('\n\n');
 
     return `${plates}${generalComment ? `\n\n[COMENTARIO]\n- ${generalComment}` : ''}`;
-  };
+  }, [menuNotes, catalogs]);
 
   const compileMontajeDescription = (tipo = selectedMontajeTipo, adicionales = selectedMontajeAdicionales) => {
     const tipoName = tipo ? findName(catalogs.montajeTipos, tipo) : 'Por definir';
@@ -691,7 +691,7 @@ export default function MenuMontajePanel({
     if (activeSubTab !== 'builder') return;
     if (!lineItemsDraft.length && !String(menuNotes || '').trim()) return;
     setMenuDescription(compileMenuDescription(lineItemsDraft));
-  }, [menuNotes, lineItemsDraft, catalogs.proteins, catalogs.preparations, catalogs.salsas, catalogs.guarniciones, catalogs.postres, catalogs.bebidas, catalogs.comentarios, activeSubTab]);
+  }, [menuNotes, lineItemsDraft, catalogs.proteins, catalogs.preparations, catalogs.salsas, catalogs.guarniciones, catalogs.postres, catalogs.bebidas, catalogs.comentarios, activeSubTab, compileMenuDescription]);
 
   const updateLines = (updater) => {
     setLineItemsDraft((current) => {
@@ -1164,7 +1164,7 @@ export default function MenuMontajePanel({
     setPrintPreviewHtml(html);
   };
 
-  const loadCatalogItems = async (kind = catalogKind) => {
+  const loadCatalogItems = useCallback(async (kind = catalogKind) => {
     setCatalogLoading(true);
     try {
       const response = await fetch(`/api/menu-catalog/${kind}`);
@@ -1179,13 +1179,13 @@ export default function MenuMontajePanel({
     } finally {
       setCatalogLoading(false);
     }
-  };
+  }, [catalogKind, showNotice]);
 
   useEffect(() => {
     if (showCatalogModal) loadCatalogItems(catalogKind);
-  }, [showCatalogModal, catalogKind]);
+  }, [showCatalogModal, catalogKind, loadCatalogItems]);
 
-  const loadRulePreparations = async (platoId = ruleProtein) => {
+  const loadRulePreparations = useCallback(async (platoId = ruleProtein) => {
     if (!platoId) {
       setRulePreparations([]);
       setRulePreparation('');
@@ -1202,9 +1202,9 @@ export default function MenuMontajePanel({
       setRulePreparation('');
       showNotice('No se pudieron cargar las preparaciones.');
     }
-  };
+  }, [ruleProtein, showNotice]);
 
-  const loadRuleLinks = async (platoId = ruleProtein, preparacionId = rulePreparation) => {
+  const loadRuleLinks = useCallback(async (platoId = ruleProtein, preparacionId = rulePreparation) => {
     if (!platoId || !preparacionId) {
       setRuleLinks(EMPTY_RULE_LINKS);
       return;
@@ -1227,7 +1227,7 @@ export default function MenuMontajePanel({
     } finally {
       setRuleLoading(false);
     }
-  };
+  }, [ruleProtein, rulePreparation, showNotice]);
 
   useEffect(() => {
     if (!showCatalogModal || catalogMode !== 'rules') return;
@@ -1235,17 +1235,17 @@ export default function MenuMontajePanel({
       const active = lineItemsDraft.find((line) => line.key === activeLineKey);
       if (active?.platoId) setRuleProtein(String(active.platoId));
     }
-  }, [showCatalogModal, catalogMode]);
+  }, [showCatalogModal, catalogMode, ruleProtein, lineItemsDraft, activeLineKey]);
 
   useEffect(() => {
     if (!showCatalogModal || catalogMode !== 'rules') return;
     loadRulePreparations(ruleProtein);
-  }, [showCatalogModal, catalogMode, ruleProtein]);
+  }, [showCatalogModal, catalogMode, ruleProtein, loadRulePreparations]);
 
   useEffect(() => {
     if (!showCatalogModal || catalogMode !== 'rules') return;
     loadRuleLinks(ruleProtein, rulePreparation);
-  }, [showCatalogModal, catalogMode, ruleProtein, rulePreparation]);
+  }, [showCatalogModal, catalogMode, ruleProtein, rulePreparation, loadRuleLinks]);
 
   const handleToggleRule = (field, id) => {
     const numericId = Number(id);

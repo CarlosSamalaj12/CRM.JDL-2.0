@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import reminderService from '../../../services/reminderService';
 import authService from '../../../services/authService';
 import api from '../../../services/api';
@@ -21,7 +21,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
   
   const currentUser = authService.getCurrentUser();
 
-  const loadReminders = async () => {
+  const loadReminders = useCallback(async () => {
     setLoading(true);
     try {
       const data = await reminderService.getByEventId(eventId);
@@ -31,11 +31,11 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
     loadReminders();
-  }, [eventId, loadReminders]);
+  }, [loadReminders]);
 
   const handleAddOrUpdate = async () => {
     if (!newReminder.date || !newReminder.time) return;
@@ -50,9 +50,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
         await reminderService.add(eventId, newReminder);
         
         // Enviar a Google Calendar si el usuario tiene email configurado
-        if (currentUser && currentUser.email) {
-        console.log("AppointmentModal -> Enviando peticion a Google Calendar para email:", currentUser.email);
-        try {
+        if (currentUser && currentUser.email) {        try {
           const res = await api.post('/api/calendar/invite', {
             date: newReminder.date,
             time: newReminder.time,
@@ -60,8 +58,6 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
             email: currentUser.email,
             notes: `Medio: ${newReminder.channel}. ${newReminder.notes}`,
           });
-          console.log("AppointmentModal -> Respuesta de Google Calendar:", res);
-
           if (res?.mode === 'direct') {
             console.log("✅ Cita registrada directamente en tu Google Calendar");
           } else if (res?.mode === 'invite') {
@@ -69,12 +65,9 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
           }
         } catch (calendarError) {
           // El error en Google Calendar no debe bloquear el guardado del recordatorio
-          console.error("AppointmentModal -> Error enviando a Google Calendar:", calendarError);
-        }
-      } else {
-        console.warn("AppointmentModal -> No se envio a Google Calendar porque el currentUser no tiene email", currentUser);
+          console.error('Error enviando la cita a Google Calendar:', calendarError);
+        }        }
       }
-      } // <- Cierra el else de !editingReminderId
 
       await loadReminders();
       setShowForm(false);

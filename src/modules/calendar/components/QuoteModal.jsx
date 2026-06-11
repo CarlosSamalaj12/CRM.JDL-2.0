@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import authService from '../../../services/authService';
@@ -171,7 +171,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const [serviceQty, setServiceQty] = useState(1);
 
-  const loadState = async () => {
+  const loadState = useCallback(async () => {
     try {
       const data = await loadCrmState();
       setCompanies(data?.companies || []);
@@ -189,15 +189,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         });
         setQuote(prev => ({ ...prev, code: `COT-${String(maxCOT + 1).padStart(3, '0')}` }));
       }
-      if (event?.date && !selectedServiceDate) setSelectedServiceDate(event.date);
     } catch (err) { console.error('Error:', err); }
-  };
+  }, [quote.code, setQuote]);
 
   useEffect(() => {
     loadState();
     document.body.classList.add('quoteModeOpen');
     return () => document.body.classList.remove('quoteModeOpen');
-  }, []);
+  }, [loadState]);
 
   const availableServiceDates = useMemo(() => {
     if (!quote.eventDate) return [event?.date || new Date().toISOString().split('T')[0]];
@@ -212,7 +211,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   useEffect(() => {
     if (availableServiceDates.length > 0 && !availableServiceDates.includes(selectedServiceDate))
       setSelectedServiceDate(availableServiceDates[0]);
-  }, [availableServiceDates]);
+  }, [availableServiceDates, selectedServiceDate]);
 
   const filteredServices = useMemo(() => {
     const term = serviceSearch.trim().toLowerCase();
