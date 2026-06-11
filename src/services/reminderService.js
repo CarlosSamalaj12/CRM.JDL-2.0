@@ -1,11 +1,11 @@
-import api from './api';
 import authService from './authService';
+import { loadState, saveState } from './stateService';
 
 export const reminderService = {
   async getAll() {
     try {
-      const response = await api.get('/api/state');
-      return response?.state?.reminders || {};
+      const state = await loadState({ cacheBust: false });
+      return state?.reminders || {};
     } catch (err) {
       console.error('Error al obtener recordatorios:', err);
       return {};
@@ -33,7 +33,6 @@ export const reminderService = {
       time: reminderData.time,
       channel: reminderData.channel || 'whatsapp',
       notes: reminderData.notes || '',
-      notes: reminderData.notes || '',
       createdAt: new Date().toISOString(),
       createdBy: authService.getCurrentUser()?.id || 'unknown',
       creatorName: authService.getCurrentUser()?.name || authService.getCurrentUser()?.email || 'Usuario'
@@ -45,11 +44,8 @@ export const reminderService = {
     };
 
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
-      await api.put('/api/state', { 
-        state: { ...currentState, reminders: updatedReminders } 
-      });
+      const currentState = await loadState();
+      await saveState({ ...currentState, reminders: updatedReminders });
       return newReminder;
     } catch (err) {
       console.error('Error agregando recordatorio:', err);
@@ -67,11 +63,8 @@ export const reminderService = {
     };
 
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
-      await api.put('/api/state', { 
-        state: { ...currentState, reminders: updatedReminders } 
-      });
+      const currentState = await loadState();
+      await saveState({ ...currentState, reminders: updatedReminders });
       return true;
     } catch (err) {
       console.error('Error eliminando recordatorio:', err);
@@ -103,11 +96,8 @@ export const reminderService = {
     };
 
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
-      await api.put('/api/state', { 
-        state: { ...currentState, reminders: updatedReminders } 
-      });
+      const currentState = await loadState();
+      await saveState({ ...currentState, reminders: updatedReminders });
       return true;
     } catch (err) {
       console.error('Error actualizando recordatorio:', err);

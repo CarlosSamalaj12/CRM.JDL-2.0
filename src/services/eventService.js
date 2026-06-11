@@ -1,4 +1,4 @@
-import api from './api';
+import { loadState, saveState } from './stateService';
 
 export const EVENT_STATUS = {
   PRE_RESERVA: 'Pre reserva',
@@ -82,8 +82,8 @@ function expandEventSlots(eventData, existingEvent = null) {
 export const eventService = {
 async getAll() {
     try {
-      const response = await api.get('/api/state');
-      return response?.state?.events || [];
+      const state = await loadState({ cacheBust: false });
+      return state?.events || [];
     } catch (err) {
       console.error('Error al obtener eventos de la base de datos:', err);
       return [];
@@ -92,8 +92,8 @@ async getAll() {
 
   async getById(id) {
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const events = response?.state?.events || [];
+      const state = await loadState();
+      const events = state?.events || [];
       return events.find(e => e.id === id) || null;
     } catch (err) {
       console.error('Error al obtener evento por ID de la base de datos:', err);
@@ -109,12 +109,11 @@ async getAll() {
     };
     
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
+      const currentState = await loadState();
       const events = currentState.events || [];
       const expandedEvents = expandEventSlots(newEvent);
       const updatedState = { ...currentState, events: [...events, ...expandedEvents] };
-      await api.put('/api/state', { state: updatedState });
+      await saveState(updatedState);
       return expandedEvents[0] || newEvent;
     } catch (err) {
       console.error('Error guardando en el servidor:', err);
@@ -124,8 +123,7 @@ async getAll() {
 
   async update(id, eventData) {
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
+      const currentState = await loadState();
       const events = currentState.events || [];
       const existingEvent = events.find(e => String(e.id) === String(id));
       const hasSlots = Array.isArray(eventData?.slots) && eventData.slots.length > 0;
@@ -166,7 +164,7 @@ async getAll() {
         updatedEvents = events.map(e => String(e.id) === String(id) ? { ...e, ...eventData, updatedAt: new Date().toISOString() } : e);
         savedEvent = updatedEvents.find(e => String(e.id) === String(id));
       }
-      await api.put('/api/state', { state: { ...currentState, events: updatedEvents } });
+      await saveState({ ...currentState, events: updatedEvents });
       return savedEvent;
     } catch (err) {
       console.error('Error actualizando en el servidor:', err);
@@ -176,10 +174,9 @@ async getAll() {
 
   async delete(id) {
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
+      const currentState = await loadState();
       const events = currentState.events || [];
-      await api.put('/api/state', { state: { ...currentState, events: events.filter(e => e.id !== id) } });
+      await saveState({ ...currentState, events: events.filter(e => e.id !== id) });
     } catch (err) {
       console.error('Error eliminando en el servidor:', err);
       throw err;

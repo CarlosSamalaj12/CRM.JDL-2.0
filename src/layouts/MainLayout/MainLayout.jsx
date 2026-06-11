@@ -7,6 +7,7 @@ import eventService from '../../services/eventService';
 import salonService from '../../services/salonService';
 import authService from '../../services/authService';
 import socketService from '../../services/socketService';
+import { loadState, saveState } from '../../services/stateService';
 import { toast } from '../../utils/toast';
 
 export default function MainLayout() {
@@ -49,36 +50,7 @@ export default function MainLayout() {
   const [users, setUsers] = useState([]);
   const [occupancyWeeklyOps, setOccupancyWeeklyOps] = useState({});
 
-  useEffect(() => {
-    let user = authService.getCurrentUser();
-    if (!user) {
-      const defaultUser = {
-        id: 1,
-        name: 'Admin',
-        fullName: 'Administrador',
-        username: 'admin',
-        email: 'admin@jardinesdellago.com',
-        role: 'admin',
-        avatarDataUrl: ''
-      };
-      authService.saveSession(defaultUser);
-      user = defaultUser;
-    }
-    socketService.connect();
-    
-    // Cargar datos iniciales al montar el layout
-    loadInitialData();
-    
-    const unsubscribeState = socketService.on('state-updated', () => {
-      loadInitialData();
-    });
-
-    return () => {
-      unsubscribeState();
-    };
-  }, [navigate]);
-
-  const loadInitialData = async () => {
+  async function loadInitialData() {
     try {
       setLoading(true);
       
@@ -86,7 +58,7 @@ export default function MainLayout() {
         eventService.getAll(),
         salonService.getAll(),
         authService.getLoginUsers(),
-        fetch('/api/state').then(r => r.json()).catch(() => ({}))
+        loadState().catch(() => ({}))
       ]);
       
       setEvents(eventsData);
@@ -103,7 +75,32 @@ export default function MainLayout() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (!authService.getCurrentUser()) {
+      authService.saveSession({
+        id: 1,
+        name: 'Admin',
+        fullName: 'Administrador',
+        username: 'admin',
+        email: 'admin@jardinesdellago.com',
+        role: 'admin',
+        avatarDataUrl: ''
+      });
+    }
+    socketService.connect();
+
+    loadInitialData();
+
+    const unsubscribeState = socketService.on('state-updated', () => {
+      loadInitialData();
+    });
+
+    return () => {
+      unsubscribeState();
+    };
+  }, [navigate]);
 
   const handleAddEvent = async (eventData) => {
     try {
@@ -169,14 +166,8 @@ export default function MainLayout() {
     });
 
     try {
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: { ...currentState, occupancyWeeklyOps: newOps } })
-      });
+      const currentState = await loadState();
+      await saveState({ ...currentState, occupancyWeeklyOps: newOps });
     } catch (err) {
       console.error('Error guardando occupancyOps:', err);
     }

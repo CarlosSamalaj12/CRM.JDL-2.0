@@ -1,4 +1,3 @@
-import authService from '../services/authService';
 import { modernAlert } from './toast';
 
 function escapeHtml(unsafe) {
@@ -13,7 +12,7 @@ function escapeHtml(unsafe) {
 function buildTemplatePrintContextFromQuoteData(quote, user) {
   const d = quote.date ? new Date(`${quote.date}T00:00:00`) : new Date();
   const monthName = d.toLocaleDateString("es-GT", { month: "long" });
-  
+
   return {
     VENDEDOR_NOMBRE: user?.name || "Vendedor",
     CLIENTE_NOMBRE: quote?.contact || "",
@@ -34,34 +33,137 @@ function fillTemplateHtmlTokens(htmlText, contextMap) {
   for (const [key, rawValue] of pairs) {
     const token = "{{" + String(key) + "}}";
     const textValue = String(rawValue || "");
-    // Si es URL (como la firma) no la escapamos
     const value = /_URL$/i.test(String(key)) ? textValue : escapeHtml(textValue);
     out = out.split(token).join(value);
   }
   return out;
 }
 
+function quoteMoney(value) {
+  return `Q ${Number(value || 0).toFixed(2)}`;
+}
+
+function normalizeDocDate(value) {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatAdvanceDetail(advanceLike) {
+  const advance = advanceLike || {};
+  const parts = [];
+  if (advance.paymentType) parts.push(String(advance.paymentType));
+  if (advance.voucherNumber) parts.push(`Ref. ${advance.voucherNumber}`);
+  if (advance.description) parts.push(String(advance.description));
+  return parts.join(" · ") || "Anticipo";
+}
+
+function classifyQuoteItem(item) {
+  const haystack = [
+    item?.category,
+    item?.subcategory,
+    item?.name,
+    item?.description
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (haystack.includes("hospedaje terceros")) return "Hospedaje terceros";
+  if (haystack.includes("hospedaje")) return "Hospedaje jdl";
+  if (
+    haystack.includes("alimento") ||
+    haystack.includes("bebida") ||
+    haystack.includes("menu") ||
+    haystack.includes("coffee") ||
+    haystack.includes("desayuno") ||
+    haystack.includes("almuerzo") ||
+    haystack.includes("cena")
+  ) {
+    return "Alimentos y bebidas";
+  }
+  return "Miscelaneos";
+}
+
+function buildQuoteRowsHtml(items) {
+  const grouped = new Map();
+  items.forEach((item) => {
+    const dateKey = normalizeDocDate(item?.serviceDate || item?.date || item?.eventDate || "") || "Servicios";
+    if (!grouped.has(dateKey)) grouped.set(dateKey, []);
+    grouped.get(dateKey).push(item);
+  });
+
+  return Array.from(grouped.keys())
+    .sort((a, b) => String(a).localeCompare(String(b)))
+    .map((dateKey, index, keys) => {
+      const dayItems = grouped.get(dateKey) || [];
+      const showDayHeader = keys.length > 1 || dateKey !== "Servicios";
+      const rows = [];
+
+      if (showDayHeader) {
+        rows.push(`
+          <tr class="dayHeaderRow">
+            <td colspan="4">${escapeHtml(dateKey)}</td>
+          </tr>
+        `);
+      }
+
+      let daySubtotal = 0;
+      dayItems.forEach((item) => {
+        const qty = Number(item?.qty ?? item?.quantity ?? 0);
+        const price = Number(item?.price || 0);
+        const total = Number(item?.total ?? qty * price);
+        daySubtotal += total;
+        rows.push(`
+          <tr>
+            <td>${qty.toFixed(0)}</td>
+            <td>
+              <div style="font-weight:700;">${escapeHtml(item?.name || "")}</div>
+              ${item?.description ? `<div style="font-size:10px;color:#577082;margin-top:2px;">${escapeHtml(item.description)}</div>` : ""}
+            </td>
+            <td>${quoteMoney(price)}</td>
+            <td>${quoteMoney(total)}</td>
+          </tr>
+        `);
+      });
+
+      if (showDayHeader && dayItems.length > 1) {
+        rows.push(`
+          <tr class="daySubtotalRow">
+            <td colspan="2">Subtotal ${escapeHtml(dateKey)}</td>
+            <td colspan="2" style="text-align:right;">${quoteMoney(daySubtotal)}</td>
+          </tr>
+        `);
+      }
+
+      return rows.join("");
+    })
+    .join("");
+}
+
 export const generateQuotePrintDocument = async (quote, user) => {
-  const printWin = window.open('', '_blank');
+  const printWin = window.open("", "_blank");
   if (!printWin) {
-    modernAlert({ icon: 'warning', title: 'Bloqueador activo', text: 'Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización.' });
+    modernAlert({ icon: "warning", title: "Bloqueador activo", text: "Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización." });
     return false;
   }
+
   printWin.document.open();
   printWin.document.write(`<!doctype html><html><head><title>Preparando cotizacion</title></head><body style="font-family:Arial,sans-serif;padding:24px;">Preparando vista previa de cotizacion...</body></html>`);
   printWin.document.close();
 
   try {
-    let htmlContent = '';
+    let htmlContent = "";
     let isServiHospTemplate = false;
 
-    // 1. Determinar si usa plantilla de contrato y descargarla
     if (quote.templateId) {
-      let fileName = '';
-      if (quote.templateId === 'contrato_corp' || quote.templateId === 'contrato_social') {
-        fileName = 'Jardines.html';
-      } else if (quote.templateId === 'contrato_hosp') {
-        fileName = 'ServiHosp.html';
+      let fileName = "";
+      if (quote.templateId === "contrato_corp" || quote.templateId === "contrato_social") {
+        fileName = "Jardines.html";
+      } else if (quote.templateId === "contrato_hosp") {
+        fileName = "ServiHosp.html";
         isServiHospTemplate = true;
       }
 
@@ -69,8 +171,6 @@ export const generateQuotePrintDocument = async (quote, user) => {
         const res = await fetch(`/templates/${fileName}`);
         if (res.ok) {
           let tplHtml = await res.text();
-          
-          // Reemplazar rutas de imágenes locales de la plantilla
           tplHtml = tplHtml.replace(/src="([a-zA-Z0-9_.-]+)"/g, 'src="/templates/$1"');
 
           const contextMap = buildTemplatePrintContextFromQuoteData(quote, user);
@@ -78,12 +178,8 @@ export const generateQuotePrintDocument = async (quote, user) => {
 
           const parser = new DOMParser();
           const tplDoc = parser.parseFromString(tplHtml, "text/html");
-
-          // Limpiar estilos originales de impresión que causan conflicto
           const rawTplStyleText = tplDoc.head
-            ? Array.from(tplDoc.head.querySelectorAll("style"))
-                .map((node) => node.textContent || "")
-                .join("\n")
+            ? Array.from(tplDoc.head.querySelectorAll("style")).map((node) => node.textContent || "").join("\n")
             : "";
           const tplStyleText = rawTplStyleText
             .replace(/@media print\s*\{[\s\S]*?\}(?=\.[a-zA-Z0-9_-]+\{|[a-z]+\{|$)/g, "")
@@ -93,39 +189,38 @@ export const generateQuotePrintDocument = async (quote, user) => {
           let tplBody = tplDoc.body ? tplDoc.body.innerHTML : tplHtml;
 
           if (tplDoc.body) {
-            // Extraer encabezados y pies de página
             const headerImg = tplDoc.body.querySelector(".contract-header img, .contract-header-print img");
             const footerImg = isServiHospTemplate ? null : tplDoc.body.querySelector(".contract-footer img, .contract-footer-print img");
-            
-            // Eliminar los originales del body
+
             tplDoc.body
               .querySelectorAll(".contract-header, .contract-header-print, .contract-footer, .contract-footer-print, script")
               .forEach((node) => node.remove());
 
             if (headerImg || footerImg) {
-              const repeatFrameStyles = `<style>
-                .contractPrintFrame{ width:100%; border-collapse:collapse; table-layout:fixed; }
-                .contractPrintHead,.contractPrintFoot{ display:table-row; }
-                .contractPrintCell{ padding:0; }
-                .contractPrintRow{ break-inside:auto; page-break-inside:auto; }
-                .contractPrintContent{ padding:0; }
-                @media print{
-                  .contractPrintFrame thead{ display:table-header-group; }
-                  .contractPrintFrame tfoot{ display:table-footer-group; }
-                  .contractPrintHead .contractPrintCell{ padding:0 0 4mm; }
-                  .contractPrintFoot .contractPrintCell{ padding:4mm 0 0; }
-                  .contractPrintHead img{ display:block; width:100%; object-position:center top; }
-                  .contractPrintFoot img{ display:block; width:100%; object-position:center bottom; }
-                }
-              </style>`;
-
               const repeatHead = headerImg ? `<tr class="contractPrintHead"><td class="contractPrintCell">${headerImg.outerHTML}</td></tr>` : "";
               const repeatFoot = footerImg ? `<tr class="contractPrintFoot"><td class="contractPrintCell">${footerImg.outerHTML}</td></tr>` : "";
               const bodyRows = Array.from(tplDoc.body.children)
                 .map((node) => `<tr class="contractPrintRow"><td class="contractPrintContent">${node.outerHTML}</td></tr>`)
                 .join("");
 
-              tplBody = `${repeatFrameStyles}<table class="contractPrintFrame"><thead>${repeatHead}</thead><tfoot>${repeatFoot}</tfoot><tbody>${bodyRows}</tbody></table>`;
+              tplBody = `
+                <style>
+                  .contractPrintFrame{ width:100%; border-collapse:collapse; table-layout:fixed; }
+                  .contractPrintHead,.contractPrintFoot{ display:table-row; }
+                  .contractPrintCell{ padding:0; }
+                  .contractPrintRow{ break-inside:auto; page-break-inside:auto; }
+                  .contractPrintContent{ padding:0; }
+                  @media print{
+                    .contractPrintFrame thead{ display:table-header-group; }
+                    .contractPrintFrame tfoot{ display:table-footer-group; }
+                    .contractPrintHead .contractPrintCell{ padding:0 0 4mm; }
+                    .contractPrintFoot .contractPrintCell{ padding:4mm 0 0; }
+                    .contractPrintHead img{ display:block; width:100%; object-position:center top; }
+                    .contractPrintFoot img{ display:block; width:100%; object-position:center bottom; }
+                  }
+                </style>
+                <table class="contractPrintFrame"><thead>${repeatHead}</thead><tfoot>${repeatFoot}</tfoot><tbody>${bodyRows}</tbody></table>
+              `;
             } else {
               tplBody = tplDoc.body.innerHTML;
             }
@@ -137,117 +232,458 @@ export const generateQuotePrintDocument = async (quote, user) => {
               <div class="templateAttach" style="margin-top:20px; font-family:Arial,sans-serif;">
                 ${tplBody}
               </div>
-            </div>`;
+            </div>
+          `;
         }
       }
     }
 
-    // 2. Construir la tabla de cotización
-    let itemsTableRows = '';
-    (quote.items || []).forEach(item => {
-      const qty = Number(item.qty ?? item.quantity ?? 0);
-      const price = Number(item.price || 0);
-      const total = Number(item.total ?? (qty * price));
-      itemsTableRows += `
-        <tr>
-          <td style="text-align:center;">${qty.toFixed(0)}</td>
-          <td>
-            <div style="font-weight:bold;">${escapeHtml(item.name)}</div>
-            ${item.description ? `<div style="font-size:10px;color:#666;">${escapeHtml(item.description)}</div>` : ''}
-          </td>
-          <td style="text-align:right;">Q ${price.toFixed(2)}</td>
-          <td style="text-align:right;">Q ${total.toFixed(2)}</td>
-        </tr>
-      `;
-    });
+    const items = Array.isArray(quote.items) ? quote.items : [];
+    const subtotalDoc = Number(quote.subtotal || items.reduce((sum, item) => {
+      const qty = Number(item?.qty ?? item?.quantity ?? 0);
+      const price = Number(item?.price || 0);
+      return sum + Number(item?.total ?? qty * price);
+    }, 0));
+    const discountDoc = Number(quote.discountAmount || 0);
+    const totalDoc = Number(quote.total || Math.max(0, subtotalDoc - discountDoc));
+    const advances = Array.isArray(quote.advances) ? quote.advances : [];
+    const totalAnticiposDoc = advances.reduce((sum, advance) => sum + Number(advance?.amount || 0), 0);
+    const saldoDoc = Math.max(0, totalDoc - totalAnticiposDoc);
+    const docDate = normalizeDocDate(quote.docDate || quote.quotedAt?.split("T")[0] || new Date().toISOString().slice(0, 10));
+    const quoteHeaderSrc = isServiHospTemplate ? "/templates/EncabezadoServ.jpg" : "/templates/Encabezadojdl.png";
+    const quoteDocLabel = `COTIZACION ${String(quote.companyName || "JARDINES DEL LAGO").toUpperCase()}`;
+    const discountLabel = Number(discountDoc) > 0 && quote.discountType === "PERCENT" && Number(quote.discountValue || 0) > 0
+      ? `DESCUENTO (${Number(quote.discountValue).toFixed(2)}%)`
+      : "DESCUENTO";
+    const itemsRowsHtml = buildQuoteRowsHtml(items);
+    const sellerSignatureHtml = user?.signatureDataUrl
+      ? `<img class="signatureImage" src="${escapeHtml(user.signatureDataUrl)}" alt="Firma vendedor" />`
+      : "";
+    const groupedSummary = items.reduce((acc, item) => {
+      const key = classifyQuoteItem(item);
+      const qty = Number(item?.qty ?? item?.quantity ?? 0);
+      const price = Number(item?.price || 0);
+      const total = Number(item?.total ?? qty * price);
+      acc[key] = (acc[key] || 0) + total;
+      return acc;
+    }, {});
+    const summaryRows = [
+      { label: "Alimentos y bebidas", amount: groupedSummary["Alimentos y bebidas"] || 0 },
+      { label: "Hospedaje jdl", amount: groupedSummary["Hospedaje jdl"] || 0 },
+      { label: "Hospedaje terceros", amount: groupedSummary["Hospedaje terceros"] || 0 },
+      { label: "Miscelaneos", amount: groupedSummary["Miscelaneos"] || 0 }
+    ];
 
-    const quoteTableHtml = `
-      <div style="font-family:Arial,sans-serif; max-width:800px; margin:0 auto; padding:20px;">
-        <h2 style="text-align:center; margin-bottom:20px; color:#1f3b4d;">Cotización de Evento</h2>
-        
-        <table style="width:100%; margin-bottom:20px; border-collapse:collapse;">
-          <tr>
-            <td style="width:50%; vertical-align:top;">
-              <strong>Empresa:</strong> ${escapeHtml(quote.companyName)}<br/>
-              <strong>Contacto:</strong> ${escapeHtml(quote.contact)}<br/>
-              <strong>Teléfono:</strong> ${escapeHtml(quote.phone)}<br/>
-              <strong>Email:</strong> ${escapeHtml(quote.email)}<br/>
-            </td>
-            <td style="width:50%; vertical-align:top; text-align:right;">
-              <strong>Fecha Emisión:</strong> ${escapeHtml(quote.docDate || quote.quotedAt?.split('T')[0] || new Date().toISOString().split('T')[0])}<br/>
-              <strong>Fecha Evento:</strong> ${escapeHtml(quote.eventDate || '')}<br/>
-              <strong>Tipo de Evento:</strong> ${escapeHtml(quote.eventType)}<br/>
-              <strong>Lugar/Salón:</strong> ${escapeHtml(quote.venue)}<br/>
-              <strong>Código:</strong> <span style="color:#d97706; font-weight:bold;">${escapeHtml(quote.code)}</span>
-            </td>
-          </tr>
-        </table>
-
-        <table style="width:100%; border-collapse:collapse; margin-bottom:20px;" border="1">
-          <thead>
-            <tr style="background:#e5f5f6; color:#1f3b4d;">
-              <th style="padding:8px;">CANT.</th>
-              <th style="padding:8px;">SERVICIO</th>
-              <th style="padding:8px;">PRECIO U.</th>
-              <th style="padding:8px;">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsTableRows}
-          </tbody>
-        </table>
-
-        <div style="text-align:right; margin-bottom:30px;">
-          <p><strong>Subtotal:</strong> Q ${Number(quote.subtotal || 0).toFixed(2)}</p>
-          <p><strong>Descuento:</strong> Q ${Number(quote.discountAmount || 0).toFixed(2)}</p>
-          <h3 style="color:#1f3b4d;">Total: Q ${Number(quote.total || 0).toFixed(2)}</h3>
-        </div>
-      </div>
-    `;
-
-    // 3. Juntar todo y abrir ventana
     const finalHtml = `
-      <html>
+      <!doctype html>
+      <html lang="es">
         <head>
-          <title>Cotización ${quote.code}</title>
+          <meta charset="utf-8" />
+          <title>Cotización ${escapeHtml(quote.code || "")}</title>
           <style>
-            body { font-family: Arial, sans-serif; margin:0; padding:0; }
-            table { width:100%; border-collapse:collapse; }
-            th, td { padding:8px; }
-            @media print {
-              html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .no-print { display: none !important; }
-              .page-break { break-before: page; page-break-before: always; }
+            :root{
+              --paper:#ffffff;
+              --surface:#fdfefe;
+              --line:#c7dae3;
+              --zebra:#f6fbfd;
+              --brand:#1d6f88;
+              --brand-deep:#144c59;
+              --brand-muted:#e8f5f7;
+              --title:#143f57;
+            }
+            *{ box-sizing:border-box; }
+            html,body{ margin:0; padding:0; }
+            body{
+              font-family:Arial,sans-serif;
+              background:#edf4f8;
+              color:#1f3b4d;
+              -webkit-print-color-adjust:exact;
+              print-color-adjust:exact;
+            }
+            .doc{
+              width:min(1080px,100%);
+              margin:0 auto;
+              background:var(--paper);
+              box-shadow:0 10px 28px rgba(15,23,42,.12);
+            }
+            .quoteContractHeader img{
+              display:block;
+              width:100%;
+              height:auto;
+              max-height:92px;
+              object-fit:contain;
+              object-position:center top;
+            }
+            .head{
+              background:var(--brand);
+              color:#fff;
+              padding:11px 16px;
+              font-weight:800;
+              font-size:13px;
+              letter-spacing:.42px;
+              text-transform:uppercase;
+            }
+            .quoteMetaTable{
+              width:100%;
+              border-collapse:collapse;
+              table-layout:fixed;
+              margin:0 0 10px;
+              border-top:3px solid rgba(30,167,173,.32);
+              border-left:1px solid var(--line);
+              border-right:1px solid var(--line);
+              background:var(--surface);
+            }
+            .quoteMetaTable col.metaLabel{ width:13%; }
+            .quoteMetaTable col.metaValue{ width:20.333%; }
+            .quoteMetaTable td{
+              border-bottom:1px solid var(--line);
+              border-right:1px solid var(--line);
+              padding:6px 8px;
+              font-size:12px;
+              color:#274152;
+              vertical-align:middle;
+              background:var(--surface);
+            }
+            .quoteMetaTable tr td:last-child{ border-right:none; }
+            .quoteMetaTable td.metaLabel{ background:#e7f5f6; color:var(--title); font-weight:700; }
+            .quoteMetaTable td.metaValue{ font-weight:600; }
+            .quoteMetaTable tr.metaDivider td{ border-top:2px solid rgba(30,167,173,.35); }
+            .quoteMetaTable tr.metaGap td{ padding:0; height:9px; border:none; background:#f4fafc; }
+            table{ width:100%; border-collapse:collapse; }
+            .quoteItemsTablePrint{ table-layout:fixed; }
+            .quoteItemsTablePrint col.qtyCol{ width:11%; }
+            .quoteItemsTablePrint col.descCol{ width:57%; }
+            .quoteItemsTablePrint col.priceCol{ width:16%; }
+            .quoteItemsTablePrint col.totalCol{ width:16%; }
+            thead th{
+              background:#e5f5f6;
+              border:1px solid #cddde5;
+              padding:6px 8px;
+              text-align:center;
+              font-size:11.5px;
+              font-weight:800;
+              color:var(--title);
+              text-transform:uppercase;
+            }
+            tbody td{
+              border:1px solid var(--line);
+              padding:7px 9px;
+              font-size:12px;
+              background:var(--surface);
+              color:#1f3b4d;
+            }
+            .quoteItemsTablePrint tbody td:nth-child(1){ text-align:center; border-right:2px solid #c7d8e2; }
+            .quoteItemsTablePrint tbody td:nth-child(3),
+            .quoteItemsTablePrint tbody td:nth-child(4){ text-align:right; font-variant-numeric:tabular-nums; }
+            tbody tr:nth-child(even):not(.dayHeaderRow):not(.daySubtotalRow) td{ background:var(--zebra); }
+            .dayHeaderRow td{
+              background:#215d78;
+              color:#fff !important;
+              font-weight:800;
+              text-transform:uppercase;
+              text-align:center;
+              padding:6px 9px;
+            }
+            .daySubtotalRow td{
+              background:#e8f5f7 !important;
+              color:#15516b;
+              font-weight:700;
+            }
+            tfoot td{ border:1px solid #c8d7e0; padding:6px 8px; font-size:11px; background:#e9f5f7; color:#18445a; }
+            .sumLabel{ text-align:right; font-weight:700; color:#15495f; background:#e2f1f3; }
+            .sumValue{ text-align:right; font-weight:800; color:#103b52; background:#e2f1f3; }
+            .sumTotal .sumLabel,.sumTotal .sumValue{ background:var(--brand-deep); color:#fff; font-size:12.2px; }
+            .policyTitle{
+              margin-top:9px;
+              background:#1f5f7a;
+              color:#fff;
+              font-weight:800;
+              text-align:center;
+              padding:4px 8px;
+              text-transform:uppercase;
+            }
+            .policyBox{
+              border:1px solid #b5cad8;
+              border-top:none;
+              padding:7px 9px;
+              font-size:10.4px;
+              line-height:1.4;
+              background:#f9fcfd;
+            }
+            .policyBox p{ margin:0 0 6px; }
+            .policyBox p:last-child{ margin-bottom:0; }
+            .cargoSummaryWrap{
+              margin:0 0 11px;
+              border:1px solid #c4d7e3;
+              border-top:none;
+              border-radius:0 0 12px 12px;
+              overflow:hidden;
+              background:var(--surface);
+            }
+            .cargoTable{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; }
+            .cargoTable col:first-child{ width:72%; }
+            .cargoTable col:last-child{ width:28%; }
+            .cargoTable th,.cargoTable td{ padding:9px 10px; border-bottom:1px solid var(--line); }
+            .cargoTable thead th{ background:#e6f4f6; color:var(--title); font-size:11px; font-weight:800; text-transform:uppercase; }
+            .cargoTable thead th:first-child{ text-align:left; border-right:1px solid var(--line); }
+            .cargoTable thead th:last-child,.cargoAmount{ text-align:right; }
+            .cargoTable tbody td:first-child{ border-right:1px solid var(--line); }
+            .cargoLabel{ font-weight:700; color:#1c3f52; }
+            .cargoAmount{ white-space:nowrap; font-weight:800; color:#163f55; }
+            .cargoEm{ font-weight:800; background:#e1f2f4 !important; }
+            .cargoEmFinal{ background:var(--brand-deep) !important; }
+            .cargoEmFinal .cargoLabel,.cargoEmFinal .cargoAmount{ color:#fff; }
+            .signatureSection{
+              margin:10px 12px 0;
+              padding:14px 10px 8px;
+              border:1px solid #c7dbe2;
+              border-radius:12px;
+              background:#fff;
+            }
+            .signatureGrid{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+            .signatureCard{ padding:6px 10px; min-height:120px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+            .signatureSignArea{
+              width:100%;
+              min-height:72px;
+              display:flex;
+              align-items:flex-end;
+              justify-content:center;
+              margin-bottom:8px;
+              background:#fff;
+              border:1px solid #d7e1ea;
+              border-radius:6px;
+            }
+            .signatureImage{ max-height:68px; width:auto; max-width:320px; object-fit:contain; display:block; padding:2px 6px; }
+            .signatureLine{ width:78%; max-width:320px; border-top:2px solid #6b8798; margin:0 auto; }
+            .signatureRole{ font-weight:800; color:#164d66; text-transform:uppercase; font-size:11px; margin:6px 0; }
+            .signatureData{ margin:2px 0; font-size:11px; color:#2a4b5e; line-height:1.35; width:100%; }
+            .templateAttach{ border-top:1px solid var(--line); background:#f3f9fc; padding:12px 12px 0; }
+            .templateAttachBody{ background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:visible; font-size:10px; line-height:1.15; }
+            .actions{
+              padding:12px;
+              display:flex;
+              justify-content:flex-end;
+              gap:8px;
+              border-top:1px solid var(--line);
+              background:#f0f7fa;
+            }
+            .actions button{
+              border:1px solid rgba(17,125,143,.32);
+              background:#fff;
+              color:#0f4760;
+              border-radius:10px;
+              padding:7px 12px;
+              font-weight:700;
+              cursor:pointer;
+            }
+            @media print{
+              html,body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+              .actions{ display:none !important; }
+              .page-break{ break-before:page; page-break-before:always; }
+              body{ background:#fff; }
+              .doc{ box-shadow:none; }
             }
           </style>
         </head>
         <body>
-          <div class="no-print" style="background:#f1f5f9; padding:15px; text-align:center; border-bottom:1px solid #cbd5e1;">
-            <button onclick="window.print()" style="background:#10b981; color:white; border:none; padding:10px 20px; font-size:16px; border-radius:4px; cursor:pointer; font-weight:bold;">Imprimir Documento</button>
+          <div class="doc">
+            <div class="quoteContractHeader">
+              <img src="${escapeHtml(quoteHeaderSrc)}" alt="Encabezado cotización" />
+            </div>
+            <div class="head">${escapeHtml(quoteDocLabel)}</div>
+
+            <table class="quoteMetaTable">
+              <colgroup>
+                <col class="metaLabel" />
+                <col class="metaValue" />
+                <col class="metaValue" />
+                <col class="metaLabel" />
+                <col class="metaValue" />
+                <col class="metaValue" />
+              </colgroup>
+              <tbody>
+                <tr>
+                  <td class="metaLabel">Codigo</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.code || "")}</td>
+                  <td class="metaLabel">Fecha Doc</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(docDate)}</td>
+                </tr>
+                <tr>
+                  <td class="metaLabel">Encargado</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.contact || "")}</td>
+                  <td class="metaLabel">Contacto</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.contact || "")}</td>
+                </tr>
+                <tr>
+                  <td class="metaLabel">Email</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.email || "")}</td>
+                  <td class="metaLabel">Telefono</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.phone || "")}</td>
+                </tr>
+                <tr>
+                  <td class="metaLabel">Institucion</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.companyName || "")}</td>
+                  <td class="metaLabel">Facturar A</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.billTo || quote.companyName || "")}</td>
+                </tr>
+                <tr>
+                  <td class="metaLabel">Nit</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.nit || "")}</td>
+                  <td class="metaLabel">Direccion</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.address || "")}</td>
+                </tr>
+                <tr class="metaDivider">
+                  <td class="metaLabel">Forma de Pago</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.paymentType || "")}</td>
+                  <td class="metaLabel">Fecha maximo Pago</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(normalizeDocDate(quote.dueDate || ""))}</td>
+                </tr>
+                <tr class="metaGap"><td colspan="6"></td></tr>
+                <tr>
+                  <td class="metaLabel">Salon</td>
+                  <td class="metaValue">${escapeHtml(quote.venue || "")}</td>
+                  <td class="metaLabel">Horario</td>
+                  <td class="metaValue">${escapeHtml(quote.schedule || "")}</td>
+                  <td class="metaLabel">No Personas</td>
+                  <td class="metaValue">${escapeHtml(String(quote.people || ""))}</td>
+                </tr>
+                <tr>
+                  <td class="metaLabel">Tipo de Evento</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.eventType || "")}</td>
+                  <td class="metaLabel">Folio No</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(quote.folio || "")}</td>
+                </tr>
+                <tr>
+                  <td class="metaLabel">Fecha Inicio</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(normalizeDocDate(quote.eventDate || ""))}</td>
+                  <td class="metaLabel">Fecha Fin</td>
+                  <td class="metaValue" colspan="2">${escapeHtml(normalizeDocDate(quote.endDate || quote.eventDate || ""))}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <table class="quoteItemsTablePrint">
+              <colgroup>
+                <col class="qtyCol" />
+                <col class="descCol" />
+                <col class="priceCol" />
+                <col class="totalCol" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Cantidad</th>
+                  <th>Descripcion</th>
+                  <th>Precio</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>${itemsRowsHtml}</tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2"></td>
+                  <td class="sumLabel">SUBTOTAL EVENTO</td>
+                  <td class="sumValue">${quoteMoney(subtotalDoc)}</td>
+                </tr>
+                <tr>
+                  <td colspan="2"></td>
+                  <td class="sumLabel">${escapeHtml(discountLabel)}</td>
+                  <td class="sumValue">${quoteMoney(discountDoc)}</td>
+                </tr>
+                <tr class="sumTotal">
+                  <td colspan="2"></td>
+                  <td class="sumLabel">TOTAL EVENTO</td>
+                  <td class="sumValue">${quoteMoney(totalDoc)}</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div class="policyTitle">NOTAS</div>
+            <div class="policyBox">
+              <p>Incrementos en menos de 24 horas de servicios y/o productos tendran cargo adicional del 10% en relacion con el excedente.</p>
+              <p>El monto de anticipo para asegurar el evento depende de las clausulas de formalizacion.</p>
+              <p>Estamos sujetos a pagos trimestrales. Aplicamos Clausula de No Show.</p>
+              <p>Esta propuesta se formaliza al tener la firma del asesor de ventas y del cliente, junto a comprobante de anticipo y/o orden de compra.</p>
+              <p>No se reembolsa el anticipo si no realiza su evento por cualquier causa.</p>
+            </div>
+
+            <div class="policyTitle">RESUMEN DE CARGOS</div>
+            <div class="cargoSummaryWrap">
+              <table class="cargoTable">
+                <colgroup><col /><col /></colgroup>
+                <thead>
+                  <tr>
+                    <th>Descripcion</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${summaryRows.map((row) => `
+                    <tr>
+                      <td class="cargoLabel">${escapeHtml(row.label)}</td>
+                      <td class="cargoAmount">${row.amount > 0 ? escapeHtml(quoteMoney(row.amount)) : "-"}</td>
+                    </tr>
+                  `).join("")}
+                  <tr class="cargoEm">
+                    <td class="cargoLabel">Total contratado</td>
+                    <td class="cargoAmount">${totalDoc > 0 ? escapeHtml(quoteMoney(totalDoc)) : "-"}</td>
+                  </tr>
+                  ${advances.length ? advances.map((advance) => `
+                    <tr>
+                      <td class="cargoLabel">${escapeHtml(`${normalizeDocDate(advance?.date || "")} - ${formatAdvanceDetail(advance)}`)}</td>
+                      <td class="cargoAmount">${Number(advance?.amount || 0) > 0 ? escapeHtml(quoteMoney(advance.amount)) : "-"}</td>
+                    </tr>
+                  `).join("") : `
+                    <tr>
+                      <td class="cargoLabel">Anticipos: sin registros</td>
+                      <td class="cargoAmount">-</td>
+                    </tr>
+                  `}
+                  <tr class="cargoEm">
+                    <td class="cargoLabel">Total anticipos</td>
+                    <td class="cargoAmount">${totalAnticiposDoc > 0 ? escapeHtml(quoteMoney(totalAnticiposDoc)) : "-"}</td>
+                  </tr>
+                  <tr class="cargoEm cargoEmFinal">
+                    <td class="cargoLabel">Saldo</td>
+                    <td class="cargoAmount">${saldoDoc > 0 ? escapeHtml(quoteMoney(saldoDoc)) : "-"}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <section class="signatureSection">
+              <div class="signatureGrid">
+                <div class="signatureCard">
+                  <div class="signatureSignArea">${sellerSignatureHtml}</div>
+                  <div class="signatureLine"></div>
+                  <div class="signatureRole">Firma Vendedor</div>
+                  <div class="signatureData">${escapeHtml(user?.name || "Vendedor")}</div>
+                  <div class="signatureData">${escapeHtml(user?.email || "")}</div>
+                  <div class="signatureData">${escapeHtml(user?.phone || "")}</div>
+                </div>
+                <div class="signatureCard">
+                  <div class="signatureSignArea"></div>
+                  <div class="signatureLine"></div>
+                  <div class="signatureRole">Firma Encargado Evento</div>
+                  <div class="signatureData">${escapeHtml(quote.contact || "")}</div>
+                  <div class="signatureData">${escapeHtml(quote.email || "")}</div>
+                  <div class="signatureData">${escapeHtml(quote.phone || "")}</div>
+                </div>
+              </div>
+            </section>
+
+            ${htmlContent ? `<div class="page-break templateAttach">${htmlContent}</div>` : ""}
+
+            <div class="actions">
+              <button onclick="window.print()">Imprimir</button>
+            </div>
           </div>
-          
-          ${quoteTableHtml}
-          ${htmlContent ? `<div class="page-break"></div>${htmlContent}` : ''}
-          
         </body>
       </html>
     `;
 
-    // La ventana se abre al inicio para evitar bloqueadores de popups.
-    if (false) {
-      modernAlert({ icon: 'warning', title: 'Bloqueador activo', text: 'Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización.' });
-      return false;
-    }
-
     printWin.document.open();
     printWin.document.write(finalHtml);
     printWin.document.close();
-    
-    // Auto imprimir
-    setTimeout(() => {
-      if(printWin) printWin.print();
-    }, 500);
-
     return true;
   } catch (err) {
     console.error("Error generating print document:", err);
@@ -255,19 +691,146 @@ export const generateQuotePrintDocument = async (quote, user) => {
       printWin.document.open();
       printWin.document.write(`<!doctype html><html><body style="font-family:Arial,sans-serif;padding:24px;"><h2>No se pudo generar la cotizacion</h2><p>Revise los datos de la cotizacion e intente nuevamente.</p></body></html>`);
       printWin.document.close();
-    } catch (_) {}
+    } catch {
+      // ignore
+    }
     return false;
   }
 };
-export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full") {
+
+export function renderMenuMontajeRichText(rawText) {
+  const value = String(rawText || "").trim();
+  if (!value) return `<p class="mmReportText">-</p>`;
+  const lines = String(rawText || "").split(/\r?\n/);
+  const htmlParts = [];
+  let paragraphBuffer = [];
+  let sectionTitle = "";
+  let sectionItems = [];
+  const flushParagraph = () => {
+    if (!paragraphBuffer.length) return;
+    const chunk = paragraphBuffer.join("\n");
+    htmlParts.push(`<p class="mmReportText">${escapeHtml(chunk)}</p>`);
+    paragraphBuffer = [];
+  };
+  const flushSection = () => {
+    if (!sectionTitle) return;
+    if (/^PLATO\s+\d+$/i.test(sectionTitle) && sectionItems.length) {
+      const compactSegments = sectionItems
+        .flatMap((item) => String(item || "").split(/\s+\|\s+/))
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+      const rows = compactSegments.map((segment) => {
+        const match = segment.match(/^([^()]+?)\s*\((.*)\)$/);
+        if (match) {
+          return {
+            label: String(match[1] || "").trim().toUpperCase(),
+            value: String(match[2] || "").trim() || "-",
+          };
+        }
+        return { label: "DETALLE", value: segment };
+      });
+      htmlParts.push(`
+        <section class="mmReportSection">
+          <div class="mmReportSubtitle">${escapeHtml(sectionTitle)}</div>
+          <div class="mmReportInlineFlow">
+            ${rows.map((row) => `
+              <span class="mmReportInlinePair"><span class="mmReportInlineLabel">[${escapeHtml(row.label)}]</span> <span class="mmReportMiniValue">${escapeHtml(row.value)}</span></span>
+            `).join("")}
+          </div>
+        </section>
+      `);
+      sectionTitle = "";
+      sectionItems = [];
+      return;
+    }
+    if (/^MONTAJE$/i.test(sectionTitle) && sectionItems.length) {
+      const compactSegments = sectionItems
+        .flatMap((item) => String(item || "").split(/\s+\|\s+/))
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+      const rows = compactSegments.map((segment) => {
+        const match = segment.match(/^([^()]+?)\s*\((.*)\)$/);
+        if (match) {
+          return {
+            label: String(match[1] || "").trim().toUpperCase(),
+            value: String(match[2] || "").trim() || "-",
+          };
+        }
+        const pair = segment.match(/^([^:]+):\s*(.*)$/);
+        if (pair) {
+          return {
+            label: String(pair[1] || "").trim().toUpperCase(),
+            value: String(pair[2] || "").trim() || "-",
+          };
+        }
+        return { label: "DETALLE", value: segment };
+      });
+      htmlParts.push(`
+        <section class="mmReportSection">
+          <div class="mmReportSubtitle">${escapeHtml(sectionTitle)}</div>
+          <div class="mmReportInlineFlow">
+            ${rows.map((row) => `
+              <span class="mmReportInlinePair"><span class="mmReportInlineLabel">[${escapeHtml(row.label)}]</span> <span class="mmReportMiniValue">${escapeHtml(row.value)}</span></span>
+            `).join("")}
+          </div>
+        </section>
+      `);
+      sectionTitle = "";
+      sectionItems = [];
+      return;
+    }
+    const textValue = sectionItems.length ? sectionItems.join(" | ") : "-";
+    const itemsHtml = `<p class="mmReportSectionLine">${escapeHtml(textValue)}</p>`;
+    htmlParts.push(`
+      <section class="mmReportSection">
+        <div class="mmReportSubtitle">${escapeHtml(sectionTitle)}</div>
+        ${itemsHtml}
+      </section>
+    `);
+    sectionTitle = "";
+    sectionItems = [];
+  };
+  for (const line of lines) {
+    const normalized = String(line || "").trim();
+    if (/^<hr\s*\/?>$/i.test(normalized) || /^[-_]{6,}$/.test(normalized) || /^\[\[HR\]\]$/i.test(normalized)) {
+      flushParagraph();
+      flushSection();
+      htmlParts.push(`<hr class="mmReportHr" />`);
+      continue;
+    }
+    const sectionMatch = normalized.match(/^\[(.+)\]$/);
+    if (sectionMatch) {
+      flushParagraph();
+      flushSection();
+      sectionTitle = String(sectionMatch[1] || "").trim();
+      continue;
+    }
+    if (!normalized) {
+      flushParagraph();
+      flushSection();
+      continue;
+    }
+    if (sectionTitle) {
+      const content = normalized.replace(/^-+\s*/, "");
+      if (content) sectionItems.push(content);
+      continue;
+    }
+    paragraphBuffer.push(line);
+  }
+  flushParagraph();
+  flushSection();
+  return htmlParts.join("") || `<p class="mmReportText">-</p>`;
+}
+
+export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", { companies = [], users = [] } = {}) {
   const quote = quoteLike || {};
   const entries = (Array.isArray(quote?.menuMontajeEntries) ? quote.menuMontajeEntries : [])
     .filter((x) => String(x?.date || "").trim() && String(x?.salon || "").trim());
   if (!entries.length) return "";
-  const company = (state.companies || []).find((c) => String(c.id || "") === String(quote.companyId || ""));
+  const company = (companies || []).find((c) => String(c.id || "") === String(quote.companyId || ""));
   const institutionName = String(company?.name || quote.companyName || "-").trim() || "-";
   const manager = company?.managers?.find((m) => String(m.id || "") === String(quote.managerId || ""));
-  const seller = (state.users || []).find((u) => String(u.id || "") === String(ev?.userId || ""));
+  const seller = (users || []).find((u) => String(u.id || "") === String(ev?.userId || ""));
 
   const byDate = new Map();
   for (const row of entries) {
@@ -483,13 +1046,12 @@ function collectCurrentDocumentStyles() {
       try {
         const rules = Array.from(sheet.cssRules || []);
         cssText += rules.map((r) => r.cssText).join("\n");
-      } catch (_) {
+      } catch {
         // Ignore stylesheets that are not readable due to browser security rules.
       }
     }
     return cssText.trim();
-  } catch (_) {
+  } catch {
     return "";
   }
 }
-

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { toast, modernConfirm, modernAlert } from '../../utils/toast';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import { toast, modernConfirm } from '../../utils/toast';
 
 export default function SettingsSalones() {
   const backdropRef = useRef(null);
@@ -40,9 +41,7 @@ export default function SettingsSalones() {
 
   const loadData = async () => {
     try {
-      const res = await fetch('/api/state');
-      const data = await res.json();
-      const state = data?.state || data || {};
+      const state = await loadCrmState();
       
       const loadedSalones = Array.isArray(state.salones) ? state.salones : [];
       const loadedDisabled = Array.isArray(state.disabledSalones) ? state.disabledSalones : [];
@@ -149,21 +148,12 @@ export default function SettingsSalones() {
       nextSalones.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
       // Persist to server
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
-
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: {
-            ...currentState,
-            salones: nextSalones,
-            disabledSalones: nextDisabledSalones,
-            salonCapacities: nextCapacities
-          }
-        })
+      const currentState = await loadCrmState();
+      await saveCrmState({
+        ...currentState,
+        salones: nextSalones,
+        disabledSalones: nextDisabledSalones,
+        salonCapacities: nextCapacities
       });
 
       setSalones(nextSalones);
@@ -201,20 +191,8 @@ export default function SettingsSalones() {
         nextDisabled = nextDisabled.filter(s => s !== name);
       }
 
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
-
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: {
-            ...currentState,
-            disabledSalones: nextDisabled
-          }
-        })
-      });
+      const currentState = await loadCrmState();
+      await saveCrmState({ ...currentState, disabledSalones: nextDisabled });
 
       setDisabledSalones(nextDisabled);
       toast(isCurrentlyActive ? 'Salon inhabilitado' : 'Salon reactivado');

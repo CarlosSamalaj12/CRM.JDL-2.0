@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
+import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
 
 export default function SettingsChecklist() {
   // ── Refs for both modals ──
@@ -8,7 +10,6 @@ export default function SettingsChecklist() {
 
   // ── Modal-open flags ──
   const [isTemplateOpen, setIsTemplateOpen] = useState(false);
-  const [isEventOpen, setIsEventOpen] = useState(false);
 
   // ── Shared data ──
   const [templates, setTemplates] = useState([]);
@@ -55,14 +56,9 @@ export default function SettingsChecklist() {
       setIsTemplateOpen(!templateBackdropRef.current.hidden);
     }
 
-    const obs2 = new MutationObserver(() => {
-      if (eventBackdropRef.current) {
-        setIsEventOpen(!eventBackdropRef.current.hidden);
-      }
-    });
+    const obs2 = new MutationObserver(() => {});
     if (eventBackdropRef.current) {
       obs2.observe(eventBackdropRef.current, { attributes: true, attributeFilter: ['hidden'] });
-      setIsEventOpen(!eventBackdropRef.current.hidden);
     }
 
     return () => { obs1.disconnect(); obs2.disconnect(); };
@@ -78,9 +74,7 @@ export default function SettingsChecklist() {
   // ──────────────────────────────────────
   const loadData = async () => {
     try {
-      const res = await fetch('/api/state');
-      const data = await res.json();
-      const state = data?.state || data || {};
+      const state = await loadCrmState();
       const loaded = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
       setTemplates(loaded);
       resetTemplateForm();
@@ -91,26 +85,14 @@ export default function SettingsChecklist() {
   };
 
   const persistTemplates = async (updatedTemplates) => {
-    const stateRes = await fetch('/api/state');
-    const stateData = await stateRes.json();
-    const currentState = stateData.state || {};
-    await fetch('/api/state', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: { ...currentState, checklistTemplates: updatedTemplates } })
-    });
+    const currentState = await loadCrmState();
+    await saveCrmState({ ...currentState, checklistTemplates: updatedTemplates });
     window.dispatchEvent(new Event('stateUpdated'));
   };
 
   const persistEvents = async (updatedEvents) => {
-    const stateRes = await fetch('/api/state');
-    const stateData = await stateRes.json();
-    const currentState = stateData.state || {};
-    await fetch('/api/state', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: { ...currentState, events: updatedEvents } })
-    });
+    const currentState = await loadCrmState();
+    await saveCrmState({ ...currentState, events: updatedEvents });
     window.dispatchEvent(new Event('stateUpdated'));
   };
 
@@ -127,7 +109,6 @@ export default function SettingsChecklist() {
   const handleCloseEvent = () => {
     if (eventBackdropRef.current) {
       eventBackdropRef.current.hidden = true;
-      setIsEventOpen(false);
     }
   };
 
@@ -305,45 +286,8 @@ export default function SettingsChecklist() {
   };
 
   // ── Save template (persist) ──
-  const handleSaveTemplate = async () => {
-    const name = templateName.trim();
-    if (!name) { toast('Nombre de plantilla es requerido'); return; }
 
-    setSaving(true);
-    try {
-      let updatedTemplates;
-      const isNew = !selectedTemplateId;
-
-      if (isNew) {
-        const newTemplate = {
-          id: Date.now(),
-          name,
-          active: templateActive,
-          sections: []
-        };
-        updatedTemplates = [...templates, newTemplate];
-        await persistTemplates(updatedTemplates);
-        setTemplates(updatedTemplates);
-        setSelectedTemplateId(String(newTemplate.id));
-        toast('Plantilla creada');
-      } else {
-        updatedTemplates = templates.map(t => {
-          if (t.id !== Number(selectedTemplateId)) return t;
-          return { ...t, name, active: templateActive };
-        });
-        await persistTemplates(updatedTemplates);
-        setTemplates(updatedTemplates);
-        toast('Plantilla actualizada');
-      }
-    } catch (err) {
-      console.error(err);
-      toast('Error al guardar plantilla');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Save template sections & items (full persist of in-memory state) ──
+  // Save template sections & items (full persist of in-memory state) ──
   const handleSaveAll = async () => {
     const name = templateName.trim();
     if (!name) { toast('Nombre de plantilla es requerido'); return; }
@@ -394,13 +338,10 @@ export default function SettingsChecklist() {
   //  EVENT CHECKLIST — handlers
   // ══════════════════════════════════════════════
 
-  // Expose global opener
   useEffect(() => {
-    window.openEventChecklist = async (evtId) => {
+    const openChecklist = async (evtId) => {
       try {
-        const res = await fetch('/api/state');
-        const data = await res.json();
-        const state = data?.state || data || {};
+        const state = await loadCrmState();
         const loadedTemplates = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
         const events = Array.isArray(state.events) ? state.events : [];
         const evt = events.find(e => e.id === evtId);
@@ -421,7 +362,6 @@ export default function SettingsChecklist() {
 
         if (eventBackdropRef.current) {
           eventBackdropRef.current.hidden = false;
-          setIsEventOpen(true);
         }
       } catch (err) {
         console.error(err);
@@ -429,7 +369,15 @@ export default function SettingsChecklist() {
       }
     };
 
-    return () => { delete window.openEventChecklist; };
+    const handleOpenChecklistEvent = (event) => {
+      const evtId = event?.detail?.eventId;
+      if (evtId) openChecklist(evtId);
+    };
+
+    window.addEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handleOpenChecklistEvent);
+    return () => {
+      window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handleOpenChecklistEvent);
+    };
   }, []);
 
   // ── Apply template to event ──
@@ -482,9 +430,7 @@ export default function SettingsChecklist() {
 
     setSaving(true);
     try {
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
+      const currentState = await loadCrmState();
       const events = Array.isArray(currentState.events) ? currentState.events : [];
 
       const updatedEvents = events.map(ev => {
@@ -934,3 +880,5 @@ export default function SettingsChecklist() {
     </>
   );
 }
+
+

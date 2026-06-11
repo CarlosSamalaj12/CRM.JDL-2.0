@@ -5262,7 +5262,7 @@ body.quoteModeOpen #appShell.lum-calendar #quoteBackdrop .quoteCurrencyBtn .mate
     min-height: 56px !important;
     border-radius: 50% !important;
     box-shadow: 0 6px 20px rgba(20, 184, 166, 0.4) !important;
-    font-size: 0 !important; /* Hide original text */
+    font-size: 0 !important; /* Hide duplicate label text */
     padding: 0 !important;
     overflow: hidden !important;
     background: #14b8a6 !important;

@@ -1,4 +1,4 @@
-// Constantes del sistema original
+// Constantes base del calendario
 export const HOUR_START = 0;
 export const HOUR_END = 23; 
 export const HOUR_HEIGHT = 56; // Pixeles por hora

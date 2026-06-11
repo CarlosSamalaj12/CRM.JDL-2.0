@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 
 const handleClose = (modalId) => {
@@ -107,15 +108,14 @@ export default function SettingsServices() {
   const loadServices = async () => {
     try {
       const [stateRes, catRes, subcatRes] = await Promise.all([
-        fetch('/api/state'),
+        loadCrmState(),
         fetch('/api/categorias-servicio'),
         fetch('/api/subcategorias-servicio')
       ]);
-      const stateData = await stateRes.json();
       const catData = await catRes.json();
       const subcatData = await subcatRes.json();
 
-      const loadedState = stateData?.state || stateData || {};
+      const loadedState = stateRes || {};
       setServices(Array.isArray(loadedState.services) ? loadedState.services : []);
       setDisabledServices(Array.isArray(loadedState.disabledServices) ? loadedState.disabledServices : []);
       setCategories(Array.isArray(catData?.categorias) ? catData.categorias : []);
@@ -155,9 +155,7 @@ export default function SettingsServices() {
 
   const loadGoals = async () => {
     try {
-      const res = await fetch('/api/state');
-      const data = await res.json();
-      const loadedState = data?.state || data || {};
+      const loadedState = await loadCrmState();
       setGlobalGoals(Array.isArray(loadedState.globalMonthlyGoals) ? loadedState.globalMonthlyGoals : []);
     } catch (err) {
       console.error(err);
@@ -368,20 +366,11 @@ export default function SettingsServices() {
         }
       }
 
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
-
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: {
-            ...currentState,
-            services: updatedServices,
-            disabledServices: updatedDisabled
-          }
-        })
+      const currentState = await loadCrmState();
+      await saveCrmState({
+        ...currentState,
+        services: updatedServices,
+        disabledServices: updatedDisabled
       });
 
       setServices(updatedServices);
@@ -417,20 +406,8 @@ export default function SettingsServices() {
         nextDisabled = nextDisabled.filter(id => id !== service.id);
       }
 
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
-
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: {
-            ...currentState,
-            disabledServices: nextDisabled
-          }
-        })
-      });
+      const currentState = await loadCrmState();
+      await saveCrmState({ ...currentState, disabledServices: nextDisabled });
 
       setDisabledServices(nextDisabled);
       toast(isCurrentlyActive ? 'Servicio inhabilitado' : 'Servicio reactivado');
@@ -656,20 +633,8 @@ export default function SettingsServices() {
         updatedGoals = updatedGoals.map(g => (g.month === goalMonth && g.role === goalRole) ? newGoalObj : g);
       }
 
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
-
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: {
-            ...currentState,
-            globalMonthlyGoals: updatedGoals
-          }
-        })
-      });
+      const currentState = await loadCrmState();
+      await saveCrmState({ ...currentState, globalMonthlyGoals: updatedGoals });
 
       setGlobalGoals(updatedGoals);
       toast(isNew ? "Meta mensual agregada" : "Meta mensual actualizada");
@@ -698,20 +663,8 @@ export default function SettingsServices() {
     try {
       const updatedGoals = globalGoals.map(g => (g.month === goal.month && g.role === goal.role) ? { ...g, active: !isCurrentlyActive } : g);
 
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData.state || {};
-
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: {
-            ...currentState,
-            globalMonthlyGoals: updatedGoals
-          }
-        })
-      });
+      const currentState = await loadCrmState();
+      await saveCrmState({ ...currentState, globalMonthlyGoals: updatedGoals });
 
       setGlobalGoals(updatedGoals);
       toast(isCurrentlyActive ? 'Meta inhabilitada' : 'Meta reactivada');

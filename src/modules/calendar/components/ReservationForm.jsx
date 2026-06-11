@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { STATUS_META_LIST, STATUS_META, isAutoStatus } from '../constants';
+import { STATUS_META_LIST, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
-import reminderService from '../../../services/reminderService';
-import conflictService, { checkSlotConflicts, findAllConflicts } from '../../../services/conflictService';
+import conflictService from '../../../services/conflictService';
+import { loadState as loadCrmState } from '../../../services/stateService';
 import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
@@ -84,12 +84,6 @@ function timeToMinutes(time) {
   if (!time || typeof time !== 'string') return 0;
   const parts = time.split(':');
   return parseInt(parts[0], 10) * 60 + parseInt(parts[1] || 0, 10);
-}
-
-function minutesToTime(minutes) {
-  const hh = Math.floor(minutes / 60);
-  const mm = minutes % 60;
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
 function compareTime(a, b) {
@@ -395,7 +389,7 @@ const StatusSelectCustom = ({ value, options, onChange, disabled, size = 'sm' })
   );
 };
 
-export default function ReservationForm({ onCancel }) {
+export default function ReservationForm() {
   const { events, salones, users, handleAddEvent, refreshData } = useOutletContext();
   const navigate = useNavigate();
   const { id } = useParams();
@@ -404,7 +398,7 @@ export default function ReservationForm({ onCancel }) {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
-  const [validationErrors, setValidationErrors] = useState([]);
+  const [, setValidationErrors] = useState([]);
   const [slotConflicts, setSlotConflicts] = useState([]);
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, type: null, message: '', title: '', isDanger: true });
 
@@ -439,16 +433,31 @@ export default function ReservationForm({ onCancel }) {
   ]);
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [, setToast] = useState({ show: false, message: '', type: 'success' });
   const [salonCapacities, setSalonCapacities] = useState({});
+
+  const labelStyle = {
+    display: 'block',
+    marginBottom: '6px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
+  };
+
+  const inputStyle = {
+    width: '100%',
+    border: '1px solid #cbd5e1',
+    borderRadius: '10px',
+    background: '#ffffff',
+    color: '#0f172a',
+    boxSizing: 'border-box',
+  };
 
   useEffect(() => {
     const fetchState = async () => {
       try {
-        const response = await fetch('/api/state');
-        const data = await response.json();
-        if (data?.state?.salonCapacities) {
-          setSalonCapacities(data.state.salonCapacities);
+        const data = await loadCrmState();
+        if (data?.salonCapacities) {
+          setSalonCapacities(data.salonCapacities);
         }
       } catch (err) {
         console.error("Error loading capacities:", err);
@@ -778,6 +787,7 @@ export default function ReservationForm({ onCancel }) {
     if (saving) return;
     setSaving(true);
     try {
+      const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
       const updatedFormData = {
         ...formData,
         status: 'Mantenimiento Realizado',
@@ -838,32 +848,6 @@ export default function ReservationForm({ onCancel }) {
       setTimeout(() => navigate('/calendar'), 1000);
     } catch {
       showNotification('Error al cancelar', 'error');
-    }
-  };
-
-  const handleDeleteReservationClick = () => {
-    if (!id) {
-      showNotification('Solo se pueden eliminar eventos existentes', 'error');
-      return;
-    }
-    setConfirmConfig({
-      isOpen: true,
-      type: 'delete',
-      title: 'Eliminar Reserva',
-      message: '¿Estás seguro de eliminar esta reserva? Esta acción no se puede deshacer y borrará el historial.',
-      isDanger: true
-    });
-  };
-
-  const executeDeleteReservation = async () => {
-    setConfirmConfig(prev => ({ ...prev, isOpen: false }));
-    try {
-      await handleDeleteEvent(id);
-      await historyService.add(id, 'Reserva eliminada');
-      showNotification('Reserva eliminada');
-      setTimeout(() => navigate('/calendar'), 1000);
-    } catch {
-      showNotification('Error al eliminar', 'error');
     }
   };
 
@@ -999,241 +983,19 @@ export default function ReservationForm({ onCancel }) {
     }
   };
 
-  const btnBase = {
-    padding: '10px 18px',
-    borderRadius: '10px',
-    fontWeight: '700',
-    fontSize: '14px',
-    cursor: 'pointer',
-    border: '1px solid',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.2s'
-  };
+  const PIPELINE_STEPS = [
+    { key: 'Reserva sin Cotizacion', label: 'Contacto Inicial' },
+    { key: '1er Cotizacion', label: 'Cotizado' },
+    { key: 'Seguimiento', label: 'Seguimiento' },
+    { key: 'Pre reserva', label: 'Pre-Reserva' },
+    { key: 'Confirmado', label: 'Confirmado' }
+  ];
 
-  const btnMaintenance = {
-    ...btnBase,
-    background: '#f1f5f9',
-    borderColor: '#cbd5e1',
-    color: '#475569',
-  };
-
-  const btnHistory = {
-    ...btnBase,
-    background: '#f5f3ff',
-    borderColor: '#ddd6fe',
-    color: '#7c3aed',
-  };
-
-  const btnViewAppointments = {
-    ...btnBase,
-    background: '#f0fdf4',
-    borderColor: '#bbf7d0',
-    color: '#16a34a',
-  };
-
-  const btnAddAppointment = {
-    ...btnBase,
-    background: '#10b981',
-    color: 'white',
-    borderColor: '#10b981',
-    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.15)'
-  };
-
-  const btnCancelEvent = {
-    ...btnBase,
-    background: '#fff1f2',
-    borderColor: '#fecdd3',
-    color: '#e11d48',
-  };
-
-  const btnDelete = {
-    ...btnBase,
-    background: '#dc2626',
-    color: 'white',
-    borderColor: '#dc2626',
-    boxShadow: '0 2px 6px rgba(220, 38, 38, 0.15)'
-  };
-
-  const btnQuote = {
-    ...btnBase,
-    background: '#0284c7',
-    color: 'white',
-    borderColor: '#0284c7',
-    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.15)'
-  };
-
-  const btnSave = {
-    ...btnBase,
-    background: '#0d9488',
-    color: 'white',
-    padding: '12px 36px',
-    fontSize: '16.5px',
-    borderColor: '#0d9488',
-    boxShadow: '0 4px 10px rgba(13, 148, 136, 0.25)'
-  };
-
-
-  const inputStyle = {
-    padding: '10px 12px',
-    borderRadius: '8px',
-    border: '2px solid #f1f5f9',
-    fontSize: '14.5px',
-    fontWeight: '600',
-    width: '100%'
-  };
-
-  const labelStyle = {
-    display: 'block',
-    fontSize: '12.5px',
-    fontWeight: '800',
-    color: '#64748b',
-    marginBottom: '6px',
-    textTransform: 'uppercase'
-  };
+  const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === formData.status);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
-      {toast.show && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', padding: '14px 28px', background: toast.type === 'error' ? '#dc2626' : '#059669', color: 'white', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, fontWeight: '700' }}>
-          {toast.message}
-        </div>
-      )}
-
-      {/* Botón flotante X fijo al contenedor del formulario */}
-      <button 
-        onClick={() => navigate('/calendar')} 
-        style={{ 
-          position: 'absolute', 
-          top: '24px', 
-          right: '24px', 
-          zIndex: 100, 
-          background: '#eff6ff', 
-          border: '1px solid #dbeafe', 
-          width: '36px', 
-          height: '36px', 
-          borderRadius: '8px', 
-          cursor: 'pointer', 
-          fontSize: '20px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          color: '#1e40af', 
-          fontWeight: 'bold',
-          boxShadow: '0 4px 12px rgba(30, 64, 175, 0.15)'
-        }}
-      >
-        ×
-      </button>
-
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
-        {/* Encabezado Principal al estilo del original */}
-        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingRight: '40px' }}>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{id ? 'Editar reserva' : 'Reservar salon'}</h1>
-            <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>
-              {`${slots[0]?.salon || 'Sin salon'} - ${formData.date} - ${slots[0]?.startTime || '10:00'}-${slots[0]?.endTime || '12:00'}`}
-            </div>
-          </div>
-        </div>
-
-        {validationErrors.length > 0 && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
-            <div style={{ color: '#dc2626', fontWeight: '700', marginBottom: '8px' }}>⚠️ Faltan datos por completar:</div>
-            <ul style={{ margin: 0, paddingLeft: '20px', color: '#991b1b', fontSize: '13px' }}>
-              {validationErrors.slice(0, 5).map((err, i) => <li key={i}>{err}</li>)}
-              {validationErrors.length > 5 && <li>...y {validationErrors.length - 5} más</li>}
-            </ul>
-          </div>
-        )}
-
-        {/* Stepper de Proceso de Reserva / Sales Pipeline */}
-        {(() => {
-          const isMaint = formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado';
-          const isCanceled = formData.status === 'Cancelado';
-          const isLost = formData.status === 'Perdido';
-          const isWaiting = formData.status === 'Lista de Espera';
-
-          if (isMaint) return null; // No mostrar pipeline comercial para mantenimientos
-
-          if (isCanceled) {
-            return (
-              <div style={{
-                background: '#fee2e2',
-                border: '1px solid #fca5a5',
-                borderRadius: '16px',
-                padding: '14px 20px',
-                marginBottom: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                color: '#991b1b',
-                fontWeight: '800',
-                fontSize: '14px',
-                boxShadow: '0 4px 10px rgba(220, 38, 38, 0.05)'
-              }}>
-                <span style={{ fontSize: '18px' }}>🚫</span>
-                <span>ESTA RESERVA SE ENCUENTRA CANCELADA</span>
-              </div>
-            );
-          }
-
-          if (isLost) {
-            return (
-              <div style={{
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
-                borderRadius: '16px',
-                padding: '14px 20px',
-                marginBottom: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                color: '#475569',
-                fontWeight: '800',
-                fontSize: '14px',
-                boxShadow: '0 4px 10px rgba(71, 85, 105, 0.05)'
-              }}>
-                <span style={{ fontSize: '18px' }}>📉</span>
-                <span>ESTA RESERVA SE REGISTRÓ COMO VENTA PERDIDA</span>
-              </div>
-            );
-          }
-
-          if (isWaiting) {
-            return (
-              <div style={{
-                background: '#fef9c3',
-                border: '1px solid #fde047',
-                borderRadius: '16px',
-                padding: '14px 20px',
-                marginBottom: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                color: '#713f12',
-                fontWeight: '800',
-                fontSize: '14px',
-                boxShadow: '0 4px 10px rgba(234, 179, 8, 0.05)'
-              }}>
-                <span style={{ fontSize: '18px' }}>⏳</span>
-                <span>RESERVA EN LISTA DE ESPERA (SIN ESPACIO CONFIRMADO)</span>
-              </div>
-            );
-          }
-
-          const PIPELINE_STEPS = [
-            { key: 'Reserva sin Cotizacion', label: 'Contacto Inicial' },
-            { key: '1er Cotizacion', label: 'Cotizado' },
-            { key: 'Seguimiento', label: 'Seguimiento' },
-            { key: 'Pre reserva', label: 'Pre-Reserva' },
-            { key: 'Confirmado', label: 'Confirmado' }
-          ];
-
-          const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === formData.status);
-          const progressPct = currentIdx === -1 ? 0 : (currentIdx / (PIPELINE_STEPS.length - 1)) * 100;
-
-          return (
-            <div style={{
+    <>
+      <div style={{
               background: '#ffffff',
               border: '1px solid #cbd5e1',
               borderRadius: '12px',
@@ -1340,8 +1102,6 @@ export default function ReservationForm({ onCancel }) {
               </div>
             </div>
           );
-        })()}
-
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingBottom: '16px' }}>
         <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '16px', alignItems: 'start' }}>
           {/* Columna Izquierda: Información de Reserva y Salones */}
@@ -1352,7 +1112,7 @@ export default function ReservationForm({ onCancel }) {
                 <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda, Corporativo, Cena" style={{ ...inputStyle, fontSize: '15px', padding: '10px 14px' }} />
               </div>
 
-              {false && !(formData.status === 'Mantenimiento' || formData.status === 'Mantenimiento Realizado') && (
+              {(formData.status === '__hidden__') && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Nombre de quien reserva (Cliente)</label>
@@ -1365,7 +1125,7 @@ export default function ReservationForm({ onCancel }) {
                 </div>
               )}
 
-              {/* Sección de Salones y Horarios estilo original */}
+              {/* Sección de salones y horarios */}
               <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '16px' }}>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '12px' }}>Salones y horarios</label>
                 
@@ -1483,7 +1243,6 @@ export default function ReservationForm({ onCancel }) {
             <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Estado *</label>
               {(() => {
-                const statusColor = STATUS_META_LIST.find(s => s.key === formData.status)?.color || '#2563eb';
                 return (
                   <div style={{ display: 'grid', gap: '8px' }}>
                     <StatusSelectCustom
@@ -1535,7 +1294,6 @@ export default function ReservationForm({ onCancel }) {
             </div>
           </div>
         </div>
-      </div>
       </div>
 
 
@@ -1816,6 +1574,7 @@ export default function ReservationForm({ onCancel }) {
         onConfirm={onConfirmAction}
         onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
       />
-    </div>
+    </>
   );
 }
+

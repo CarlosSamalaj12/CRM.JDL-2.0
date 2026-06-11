@@ -1,11 +1,11 @@
-import api from './api';
 import authService from './authService';
+import { loadState, saveState } from './stateService';
 
 export const historyService = {
   async getAll() {
     try {
-      const response = await api.get('/api/state');
-      return response?.state?.changeHistory || {};
+      const state = await loadState({ cacheBust: false });
+      return state?.changeHistory || {};
     } catch (err) {
       console.error('Error al obtener historial:', err);
       return {};
@@ -37,11 +37,8 @@ export const historyService = {
     };
 
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
-      await api.put('/api/state', { 
-        state: { ...currentState, changeHistory: updatedHistory } 
-      });
+      const currentState = await loadState();
+      await saveState({ ...currentState, changeHistory: updatedHistory });
       return newEntry;
     } catch (err) {
       console.error('Error agregando entrada de historial:', err);

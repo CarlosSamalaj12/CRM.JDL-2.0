@@ -77,7 +77,7 @@ export const authService = {
     if (!rawUser) return null;
     try {
       return JSON.parse(rawUser);
-    } catch (error) {
+    } catch {
       this.clearSession();
       return null;
     }

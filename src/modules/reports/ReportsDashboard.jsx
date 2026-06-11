@@ -101,11 +101,11 @@ export default function ReportsDashboard({ onClose }) {
   const handleReset = () => { const n = new Date(); setMonthKey(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`); setFromDate(''); setToDate(''); setRole(USER_ROLES.SELLER); setScope('all'); setSelectedSellerId(''); };
 
   const styles = {
-    backdrop: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', overflow: 'auto' },
-    modal: { width: '100%', maxWidth: '1200px', maxHeight: '92vh', background: '#ffffff', borderRadius: '14px', border: '1px solid rgba(191,210,232,0.9)', boxShadow: '0 25px 60px rgba(15,23,42,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    header: { background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)', borderBottom: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px' },
-    brandBadge: { width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #cbd5e1', background: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-    brandLogo: { width: '36px', height: '36px', objectFit: 'contain' },
+    backdrop: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', overflow: 'hidden' },
+    modal: { width: 'min(1280px, calc(100vw - 32px))', height: '92vh', maxHeight: '92vh', background: 'linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%)', borderRadius: '16px', border: '1px solid rgba(191,210,232,0.5)', boxShadow: '0 25px 60px rgba(15,23,42,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+    header: { background: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(244,249,255,0.96) 100%)', borderBottom: '1px solid rgba(148,163,184,0.16)', padding: '16px 24px', display: 'flex', alignItems: 'center', minHeight: '86px', justifyContent: 'space-between', gap: '14px' },
+    brandBadge: { width: '56px', height: '56px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #c7d8ec', background: '#f5faff', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+    brandLogo: { width: '40px', height: '40px', objectFit: 'contain' },
     brandCopy: { flex: '1' },
     eyebrow: { color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' },
     title: { margin: '2px 0 0', fontSize: '20px', fontWeight: '800', color: '#0f172a' },
@@ -162,16 +162,16 @@ export default function ReportsDashboard({ onClose }) {
   const dateRange = getDateRange();
 
   return (
-    <div style={styles.backdrop} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div style={styles.modal}>
-        <div style={styles.header}>
+    <div className="modalBackdrop" id="dashboardReportBackdrop" style={styles.backdrop} onClick={(e) => { if (e.target.id === 'dashboardReportBackdrop') onClose(); }}>
+      <div className="modal dashboardReportModal" style={styles.modal}>
+        <div className="modalHeader" style={styles.header}>
           <div style={styles.brandBadge}><img src="/Oficial_JDL_acua.png" alt="JDL" style={styles.brandLogo} /></div>
-          <div style={styles.brandCopy}>
-            <div style={styles.eyebrow}>CRM Reservas | Jardines del Lago</div>
-            <div style={styles.title}>Reporte Dashboard</div>
-            <div style={styles.subtitle}>Vista mensual de vendedores, metas y comparativos</div>
+          <div className="reportBrandCopy" style={styles.brandCopy}>
+            <div style={styles.eyebrow} className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
+            <div style={styles.title} className="modalTitle">Reporte Dashboard</div>
+            <div style={styles.subtitle} className="modalSubtitle">Vista mensual de vendedores, metas y comparativos</div>
           </div>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          <button onClick={onClose} className="iconBtn reportModalClose">✕</button>
         </div>
         <div style={styles.body}>
           <div style={styles.sectionHeader}>

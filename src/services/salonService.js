@@ -1,10 +1,11 @@
 import api from './api';
+import { loadState } from './stateService';
 
 export const salonService = {
   async getAll() {
     try {
-      const response = await api.get('/api/state', { t: Date.now() });
-      return response?.state?.salones || [];
+      const state = await loadState();
+      return state?.salones || [];
     } catch (err) {
       console.error('Error al obtener salones de la base de datos:', err);
       return [];

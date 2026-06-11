@@ -1,4 +1,4 @@
-import api from '../../services/api';
+import { loadState, saveState } from '../../services/stateService';
 
 export const IMPORT_EVENT_COLUMNS = [
   'evento_id',
@@ -95,12 +95,11 @@ export function normalizeCompanyRecord(company = {}) {
 }
 
 export async function loadCrmState() {
-  const data = await api.get('/api/state', { t: Date.now() });
-  return data?.state || {};
+  return loadState();
 }
 
 export async function saveCrmState(state) {
-  return api.put('/api/state', { state });
+  return saveState(state);
 }
 
 export function csvEscapeCell(value) {

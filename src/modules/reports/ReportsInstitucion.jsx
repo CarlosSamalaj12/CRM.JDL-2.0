@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import api from '../../services/api';
+import { loadState as loadCrmState } from '../../services/stateService';
 import { STATUS_META } from '../calendar/constants';
 
 const normalizeText = (value) => String(value || '').trim().toLowerCase();
@@ -41,9 +41,9 @@ export default function ReportsInstitucion({ onClose }) {
 
   useEffect(() => {
     let mounted = true;
-    api.get('/api/state', { t: Date.now() })
+    loadCrmState()
       .then((response) => {
-        if (mounted) setCompanies(Array.isArray(response?.state?.companies) ? response.state.companies : []);
+        if (mounted) setCompanies(Array.isArray(response?.companies) ? response.companies : []);
       })
       .catch(() => {
         if (mounted) setCompanies([]);
@@ -252,8 +252,8 @@ export default function ReportsInstitucion({ onClose }) {
       <div className="modal dashboardReportModal institutionReportModal" role="dialog" aria-modal="true" aria-labelledby="institutionReportTitle">
         <div className="modalHeader">
           <div className="reportBrandHeader">
-            <div className="reportBrandBadge">
-              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo" />
+            <div className="reportBrandBadge" style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px', borderRadius: '14px', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid #c7d8ec', background: '#f5faff', flex: '0 0 56px' }}>
+              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo" style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px', maxWidth: '40px', maxHeight: '40px', objectFit: 'contain', display: 'block' }} />
             </div>
             <div className="reportBrandCopy">
               <div className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>

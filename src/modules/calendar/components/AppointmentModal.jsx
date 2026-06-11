@@ -35,7 +35,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
 
   useEffect(() => {
     loadReminders();
-  }, [eventId]);
+  }, [eventId, loadReminders]);
 
   const handleAddOrUpdate = async () => {
     if (!newReminder.date || !newReminder.time) return;
@@ -191,29 +191,6 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
     border: '2px solid #f1f5f9',
     fontSize: '14px',
     fontWeight: '600'
-  };
-
-  const btnPrimary = {
-    padding: '12px 24px',
-    borderRadius: '10px',
-    fontWeight: '700',
-    fontSize: '14px',
-    cursor: 'pointer',
-    border: 'none',
-    background: '#0b1c30',
-    color: 'white',
-    boxShadow: '0 4px 10px rgba(11, 28, 48, 0.15)'
-  };
-
-  const btnSecondary = {
-    padding: '12px 24px',
-    borderRadius: '10px',
-    fontWeight: '700',
-    fontSize: '14px',
-    cursor: 'pointer',
-    border: '1px solid #e2e8f0',
-    background: 'white',
-    color: '#64748b'
   };
 
   return (

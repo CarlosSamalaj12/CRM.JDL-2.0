@@ -12,7 +12,7 @@ export default function ReportsVentas({ onClose }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [salonFilter, setSalonFilter] = useState('all');
 
-  // Series utilities modeled after original legacy app.js
+  // Utilidades para agrupar series de eventos y consolidar metadatos
   const getEventSeries = (ev, allEvents) => {
     if (!ev) return [];
     if (!ev.groupId) return [ev];
@@ -254,12 +254,14 @@ export default function ReportsVentas({ onClose }) {
     <div className="modalBackdrop" id="salesReportBackdrop" onClick={(e) => { if (e.target.id === 'salesReportBackdrop') onClose(); }}>
       <style>{`
         #salesReportBackdrop .salesReportModal {
-          width: min(1180px, calc(100vw - 32px)) !important;
-          max-height: 96vh !important;
+          width: min(1280px, calc(100vw - 32px)) !important;
+          height: 92vh !important;
+          max-height: 92vh !important;
           display: flex !important;
           flex-direction: column !important;
           overflow: hidden !important;
           box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
+          border-radius: 16px !important;
         }
         #salesReportBackdrop .salesReportBody {
           flex: 1 1 auto !important;
@@ -477,11 +479,11 @@ export default function ReportsVentas({ onClose }) {
         }
       `}</style>
 
-      <div className="modal salesReportModal" role="dialog" aria-modal="true" aria-labelledby="salesReportTitle" style={{ width: '100%', maxWidth: '1400px' }}>
+      <div className="modal salesReportModal" role="dialog" aria-modal="true" aria-labelledby="salesReportTitle">
         <div className="modalHeader">
           <div className="reportBrandHeader">
-            <div className="reportBrandBadge salesReportBrandBadge">
-              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo salesReportBrandLogo" />
+            <div className="reportBrandBadge salesReportBrandBadge" style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px', borderRadius: '14px', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid #c7d8ec', background: '#f5faff', flex: '0 0 56px' }}>
+              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo salesReportBrandLogo" style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px', maxWidth: '40px', maxHeight: '40px', objectFit: 'contain', display: 'block' }} />
             </div>
             <div className="reportBrandCopy">
               <div className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
@@ -489,7 +491,7 @@ export default function ReportsVentas({ onClose }) {
               <div className="modalSubtitle" id="salesReportSubtitle">Listado de eventos y cotizaciones con lectura ejecutiva</div>
             </div>
           </div>
-          <button className="iconBtn" id="btnSalesReportClose" type="button" title="Cerrar" onClick={onClose}>&#10005;</button>
+          <button className="iconBtn reportModalClose" id="btnSalesReportClose" type="button" title="Cerrar" onClick={onClose}>&#10005;</button>
         </div>
 
         <div className="modalBody salesReportBody">
@@ -631,7 +633,7 @@ export default function ReportsVentas({ onClose }) {
               </label>
               <div className="rightActions salesReportActions">
                 <button className="btn" id="btnSalesReportReset" type="button" onClick={clearFilters}>Limpiar</button>
-                <button className="btnPrimary" id="btnSalesReportExportExcel" type="button" onClick={handleExportExcel} style={{ background: '#059669', color: 'white', fontWeight: '700' }}>Exportar Excel</button>
+                <button className="btnPrimary" id="btnSalesReportExportExcel" type="button" onClick={handleExportExcel}>Exportar Excel</button>
               </div>
             </div>
 

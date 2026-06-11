@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import UserModal from './UserModal';
 import CompanyModal from './CompanyModal';
@@ -11,17 +11,9 @@ import SettingsMenuMontaje from './SettingsMenuMontaje';
 import SettingsQuoteTemplates from './SettingsQuoteTemplates';
 import authService from '../../services/authService';
 
-const MODAL_IDS = [
-  'userBackdrop', 'companyBackdrop', 'serviceBackdrop', 
-  'serviceCategoryBackdrop', 'serviceSubcategoryBackdrop',
-  'globalGoalsBackdrop', 'salonesBackdrop', 
-  'checklistTemplateBackdrop', 'eventChecklistBackdrop',
-  'menuSuggestionsBackdrop', 'quoteServiceTemplateBackdrop'
-];
-
 export default function SettingsMain() {
   const navigate = useNavigate();
-  const [openModal, setOpenModal] = useState(null);
+  const handleModalClose = () => {};
 
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
@@ -30,22 +22,6 @@ export default function SettingsMain() {
     const modal = document.getElementById(modalId);
     if (modal) {
       modal.hidden = false;
-      setOpenModal(modalId);
-    }
-  };
-
-  const closeAllModals = () => {
-    MODAL_IDS.forEach(id => {
-      const modal = document.getElementById(id);
-      if (modal) modal.hidden = true;
-    });
-    setOpenModal(null);
-  };
-
-  const handleBackdropClick = (e) => {
-    if (e.target.classList.contains('modalBackdrop')) {
-      e.target.hidden = true;
-      setOpenModal(null);
     }
   };
 
@@ -201,8 +177,8 @@ export default function SettingsMain() {
           </div>
         </div>
 
-        {isAdmin && <UserModal onClose={() => setOpenModal(null)} />}
-        <CompanyModal onClose={() => setOpenModal(null)} />
+        {isAdmin && <UserModal onClose={handleModalClose} />}
+        <CompanyModal onClose={handleModalClose} />
         <SettingsServices />
         <SettingsSalones />
         <SettingsChecklist />

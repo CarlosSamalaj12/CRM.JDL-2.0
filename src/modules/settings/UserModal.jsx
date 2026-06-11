@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import Swal from 'sweetalert2';
 
 const ROLE_COLORS = {
@@ -34,8 +34,8 @@ export default function UserModal({ onClose }) {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/state', { t: Date.now() });
-      const allUsers = response?.state?.users || [];
+      const state = await loadCrmState();
+      const allUsers = state?.users || [];
       setUsers(allUsers);
     } catch (err) {
       console.error('Error fetching users from state:', err);
@@ -43,6 +43,21 @@ export default function UserModal({ onClose }) {
       setLoading(false);
     }
   };
+
+  function resetForm() {
+    setSelectedUserId('');
+    setFullName('');
+    setEmail('');
+    setPhone('');
+    setRole('vendedor');
+    setActive(true);
+    setSalesTargetEnabled(false);
+    setMonthlyGoals([]);
+    setAvatarDataUrl('');
+    setSignatureDataUrl('');
+    setGoalMonth('');
+    setGoalAmount('');
+  }
 
   useEffect(() => {
     fetchUsers();
@@ -86,25 +101,9 @@ export default function UserModal({ onClose }) {
     }
   }, [selectedUserId, users]);
 
-  const resetForm = () => {
-    setSelectedUserId('');
-    setFullName('');
-    setEmail('');
-    setPhone('');
-    setRole('vendedor');
-    setActive(true);
-    setSalesTargetEnabled(false);
-    setMonthlyGoals([]);
-    setAvatarDataUrl('');
-    setSignatureDataUrl('');
-    setGoalMonth('');
-    setGoalAmount('');
-  };
-
   const saveState = async (updatedUsers) => {
-    const res = await api.get('/api/state', { t: Date.now() });
-    const currentState = res?.state || {};
-    await api.put('/api/state', { state: { ...currentState, users: updatedUsers } });
+    const currentState = await loadCrmState();
+    await saveCrmState({ ...currentState, users: updatedUsers });
   };
 
   const toggleActive = async (userId) => {
@@ -203,8 +202,7 @@ export default function UserModal({ onClose }) {
 
     try {
       setLoading(true);
-      const response = await api.get('/api/state', { t: Date.now() });
-      const currentState = response?.state || {};
+      const currentState = await loadCrmState();
       const currentUsers = currentState.users || [];
 
       let updatedUsers = [...currentUsers];
@@ -266,7 +264,7 @@ export default function UserModal({ onClose }) {
       }
 
       // Save state to MariaDB via state replication route
-      await api.put('/api/state', { state: { ...currentState, users: updatedUsers } });
+      await saveCrmState({ ...currentState, users: updatedUsers });
 
       Swal.fire({
         icon: 'success',

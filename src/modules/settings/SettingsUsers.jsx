@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import Swal from 'sweetalert2';
 
 const ROLE_LABELS = {
@@ -21,8 +21,8 @@ export default function SettingsUsers() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/state', { t: Date.now() });
-      setUsers(res?.state?.users || []);
+      const state = await loadCrmState();
+      setUsers(state?.users || []);
     } catch (e) {
       console.error('Error cargando usuarios:', e);
     } finally {
@@ -44,9 +44,8 @@ export default function SettingsUsers() {
   }, []);
 
   const saveState = async (updatedUsers) => {
-    const res = await api.get('/api/state', { t: Date.now() });
-    const currentState = res?.state || {};
-    await api.put('/api/state', { state: { ...currentState, users: updatedUsers } });
+    const currentState = await loadCrmState();
+    await saveCrmState({ ...currentState, users: updatedUsers });
   };
 
   const toggleActive = async (userId) => {

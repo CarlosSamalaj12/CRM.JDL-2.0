@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { STATUS_META } from '../calendar/constants';
 import { generateQuotePrintDocument, buildMenuMontajeReportHtml } from '../../utils/printUtils';
+import { emitOpenEventChecklist } from '../../utils/appEvents';
 import SettingsChecklist from '../settings/SettingsChecklist';
 import { toast } from '../../utils/toast';
+import { loadState } from '../../services/stateService';
 
 const STATUS = { PRERESERVA: 'Pre reserva', CONFIRMADO: 'Confirmado' };
 const ALLOWED_STATUSES = new Set([STATUS.PRERESERVA, STATUS.CONFIRMADO]);
@@ -12,6 +14,24 @@ const ALLOWED_STATUSES = new Set([STATUS.PRERESERVA, STATUS.CONFIRMADO]);
 export default function ReportsOcupacion({ onClose }) {
   const { events, users, occupancyWeeklyOps, handleUpdateOccupancyOps } = useOutletContext();
   
+  const [companies, setCompanies] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchCompanies = async () => {
+      try {
+        const stateData = await loadState();
+        if (active) {
+          setCompanies(stateData?.companies || []);
+        }
+      } catch (err) {
+        console.error("Error loading companies:", err);
+      }
+    };
+    fetchCompanies();
+    return () => { active = false; };
+  }, []);
+
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date(); const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
@@ -139,7 +159,7 @@ export default function ReportsOcupacion({ onClose }) {
       toast("Este evento no tiene cotización ni informe de Menú & Montaje.");
       return;
     }
-    const html = buildMenuMontajeReportHtml(ev, ev.quote, "full");
+    const html = buildMenuMontajeReportHtml(ev, ev.quote, "full", { companies, users });
     if (!html) {
       toast("No hay datos de menú/montaje para imprimir.");
       return;
@@ -156,17 +176,17 @@ export default function ReportsOcupacion({ onClose }) {
   };
 
   const handleChecklistClick = (r) => {
-    if (typeof window.openEventChecklist === 'function') {
-      window.openEventChecklist(r.eventId);
-    } else {
-      toast("El componente de checklist no está disponible.");
+    if (!r?.eventId) {
+      toast("No se encontro el evento para abrir el checklist.");
+      return;
     }
+    emitOpenEventChecklist(r.eventId);
   };
 
   const styles = {
-    backdrop: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', overflow: 'auto' },
-    modal: { width: '100%', maxWidth: '1400px', maxHeight: '95vh', background: 'linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%)', borderRadius: '18px', border: '1px solid rgba(191,210,232,0.9)', boxShadow: '0 25px 60px rgba(15,23,42,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    header: { background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)', borderBottom: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '16px' },
+    backdrop: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', overflow: 'hidden' },
+    modal: { width: 'min(1280px, calc(100vw - 32px))', height: '92vh', maxHeight: '92vh', background: 'linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%)', borderRadius: '16px', border: '1px solid rgba(191,210,232,0.5)', boxShadow: '0 25px 60px rgba(15,23,42,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+    header: { background: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(244,249,255,0.96) 100%)', borderBottom: '1px solid rgba(148,163,184,0.16)', padding: '16px 24px', display: 'flex', alignItems: 'center', minHeight: '86px', justifyContent: 'space-between', gap: '14px' },
     brandBadge: { width: '56px', height: '56px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #c7d8ec', background: '#f5faff', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
     brandLogo: { width: '40px', height: '40px', objectFit: 'contain' },
     brandCopy: { flex: '1' },
@@ -232,16 +252,16 @@ export default function ReportsOcupacion({ onClose }) {
   };
 
   return (
-    <div style={styles.backdrop} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div style={styles.modal}>
-        <div style={styles.header}>
+    <div className="modalBackdrop" id="occupancyReportBackdrop" style={styles.backdrop} onClick={(e) => { if (e.target.id === 'occupancyReportBackdrop') onClose(); }}>
+      <div className="modal occupancyReportModal" style={styles.modal}>
+        <div className="modalHeader" style={styles.header}>
           <div style={styles.brandBadge}><img src="/Oficial_JDL_acua.png" alt="JDL" style={styles.brandLogo} /></div>
-          <div style={styles.brandCopy}>
-            <div style={styles.eyebrow}>CRM Reservas | Jardines del Lago</div>
-            <div style={styles.title}>Reporte de ocupación</div>
-            <div style={styles.subtitle}>Semana {weekDays[0]} a {weekDays[6]} (Lunes a Domingo)</div>
+          <div className="reportBrandCopy" style={styles.brandCopy}>
+            <div className="reportBrandEyebrow" style={styles.eyebrow}>CRM Reservas | Jardines del Lago</div>
+            <div className="modalTitle" id="occupancyReportTitle" style={styles.title}>Reporte de ocupación</div>
+            <div className="modalSubtitle" style={styles.subtitle}>Semana {weekDays[0]} a {weekDays[6]} (Lunes a Domingo)</div>
           </div>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          <button onClick={onClose} className="iconBtn reportModalClose">✕</button>
         </div>
         <div style={styles.body}>
           <div style={styles.sectionHeader}><div><div style={styles.sectionEyebrow}>Vista ejecutiva semanal</div><div style={styles.sectionTitle}>Lectura de ocupación y rentabilidad</div><div style={styles.sectionDesc}>Filtra la semana, identifica dias criticos y baja al detalle operativo sin perder contexto.</div></div></div>

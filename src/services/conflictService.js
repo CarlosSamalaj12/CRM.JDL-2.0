@@ -1,5 +1,4 @@
 const HARD_BLOCK_STATUSES = ['Confirmado', 'Pre reserva'];
-const SOFT_BLOCK_STATUSES = ['Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento', 'Lista de Espera', 'Perdido'];
 
 export function timeToMinutes(time) {
   if (!time || typeof time !== 'string') return 0;

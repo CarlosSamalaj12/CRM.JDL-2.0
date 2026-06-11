@@ -13,7 +13,7 @@ const LEADS_PIPELINE_STATUSES = [
 
 export default function CustomersModule() {
   const navigate = useNavigate();
-  const { events, users, salones } = useOutletContext();
+  const { events, users } = useOutletContext();
   
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');

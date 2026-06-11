@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import authService from '../../../services/authService';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
 import MenuMontajePanel from './MenuMontajePanel';
 
@@ -98,6 +99,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [catalogServices, setCatalogServices] = useState([]);
   const [quickTemplates, setQuickTemplates] = useState([]);
   const [serviceSearch, setServiceSearch] = useState('');
+  const [selectedCatalogService, setSelectedCatalogService] = useState(null);
   const [selectedServiceDate, setSelectedServiceDate] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
   const [showCompanyResults, setShowCompanyResults] = useState(false);
@@ -114,9 +116,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [editingManagerId, setEditingManagerId] = useState('');
   const [creatingCompany, setCreatingCompany] = useState(false);
   const [serviceDraft, setServiceDraft] = useState(emptyServiceDraft);
-  const [newServiceName, setNewServiceName] = useState('');
-  const [newServicePrice, setNewServicePrice] = useState(0);
-  const [newServiceCategory, setNewServiceCategory] = useState('');
   const [showMenuMontajeModal, setShowMenuMontajeModal] = useState(false);
   const [menuMontajeMode, setMenuMontajeMode] = useState('builder');
   const [menuMontajeDirty, setMenuMontajeDirty] = useState(false);
@@ -174,19 +173,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const loadState = async () => {
     try {
-      const response = await fetch('/api/state');
-      const data = await response.json();
-      setCompanies(data?.state?.companies || []);
-      setCatalogServices(data?.state?.services || []);
-      setQuickTemplates(data?.state?.quoteServiceTemplates || data?.state?.quickTemplates || []);
+      const data = await loadCrmState();
+      setCompanies(data?.companies || []);
+      setCatalogServices(data?.services || []);
+      setQuickTemplates(data?.quoteServiceTemplates || data?.quickTemplates || []);
       if (!quote.code) {
-        const evs = data?.state?.events || [];
+        const evs = data?.events || [];
         let maxCOT = 0;
         evs.forEach(ev => {
           if (ev.quote?.code) {
             const m = ev.quote.code.match(/^COT-(\d+)$/);
             if (m) maxCOT = Math.max(maxCOT, parseInt(m[1], 10));
           }
+
         });
         setQuote(prev => ({ ...prev, code: `COT-${String(maxCOT + 1).padStart(3, '0')}` }));
       }
@@ -217,9 +216,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const filteredServices = useMemo(() => {
     const term = serviceSearch.trim().toLowerCase();
-    if (!term) return [];
+    if (!term || (selectedCatalogService && selectedCatalogService.name === serviceSearch)) return [];
     return catalogServices.filter(s => s.active !== false && (s.name?.toLowerCase().includes(term) || s.category?.toLowerCase().includes(term))).slice(0, 10);
-  }, [serviceSearch, catalogServices]);
+  }, [serviceSearch, catalogServices, selectedCatalogService]);
   const serviceCategories = useMemo(() => [...new Set(catalogServices.map(service => String(service.category || '').trim()).filter(Boolean))].sort(), [catalogServices]);
   const serviceSubcategories = useMemo(() => {
     const scoped = serviceDraft.category
@@ -385,9 +384,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
     setCreatingCompany(true);
     try {
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentState = stateData?.state || {};
+      const currentState = await loadCrmState();
       const currentCompanies = Array.isArray(currentState.companies) ? currentState.companies : [];
       const existingIndex = currentCompanies.findIndex((item) => {
         const sameNit = clean.nit && String(item.nit || '').trim().toLowerCase() === clean.nit.toLowerCase();
@@ -424,11 +421,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       if (companyDraftActive) nextDisabledCompanies.delete(String(savedCompany.id));
       else nextDisabledCompanies.add(String(savedCompany.id));
 
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: { ...currentState, companies: nextCompanies, disabledCompanies: Array.from(nextDisabledCompanies) } })
-      });
+      await saveCrmState({ ...currentState, companies: nextCompanies, disabledCompanies: Array.from(nextDisabledCompanies) });
 
       setCompanies(nextCompanies);
       handleCompanySelect(savedCompany);
@@ -537,7 +530,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       onClose();
     }
   };
-
   const addServiceItem = (serviceObj) => {
     if (!serviceObj) { localSwal('Error', 'Selecciona un servicio del catálogo', 'error'); return; }
     const paxVal = Math.max(0, Number(quote.people || 0));
@@ -550,6 +542,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     };
     setQuote(prev => ({ ...prev, items: [...prev.items, newItem] }));
     setServiceSearch(''); setServiceQty(1);
+    setSelectedCatalogService(null);
   };
 
   const removeServiceItem = (rowId) => setQuote(prev => ({ ...prev, items: prev.items.filter(i => i.rowId !== rowId) }));
@@ -620,7 +613,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         await onSave(finalQuote);
       }
       
-      await localSwal({ icon: 'success', title: 'Cotización guardada!', text: 'Código: ' + finalQuote.code, timer: 1800, showConfirmButton: false });
+      await localSwal({ icon: 'success', title: '¡Cotización guardada!', text: 'Código: ' + finalQuote.code, timer: 1800, showConfirmButton: false });
       savedQuoteSnapshotRef.current = quoteSnapshot(finalQuote);
       onClose();
 
@@ -647,34 +640,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     localSwal('Éxito', `Versión ${versionData.version} cargada`, 'success');
   };
 
-  const handleCreateService = async () => {
-    if (!newServiceName.trim()) { localSwal('Error', 'Ingresa nombre del servicio', 'error'); return; }
-    try {
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentServices = stateData?.state?.services || [];
-      const newService = {
-        id: `svc_${Date.now()}`,
-        name: newServiceName.trim(),
-        price: Number(newServicePrice) || 0,
-        category: newServiceCategory || 'General',
-        active: true,
-        quantityMode: 'MANUAL'
-      };
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: { ...stateData.state, services: [...currentServices, newService] } })
-      });
-      setCatalogServices(prev => [...prev, newService]);
-      setShowCreateServiceModal(false);
-      setNewServiceName('');
-      setNewServicePrice(0);
-      setNewServiceCategory('');
-      localSwal('Éxito', 'Servicio creado', 'success');
-    } catch (err) { localSwal('Error', 'No se pudo crear el servicio', 'error'); }
-  };
-
   const resetServiceDraft = () => setServiceDraft(emptyServiceDraft);
 
   const handleEditServiceDraft = (service) => {
@@ -693,9 +658,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const handleSaveServiceDraft = async () => {
     if (!serviceDraft.name.trim()) { localSwal('Error', 'Ingresa nombre del servicio', 'error'); return; }
     try {
-      const stateRes = await fetch('/api/state');
-      const stateData = await stateRes.json();
-      const currentServices = stateData?.state?.services || [];
+      const currentState = await loadCrmState();
+      const currentServices = currentState?.services || [];
       const savedService = {
         id: serviceDraft.id || `svc_${Date.now()}`,
         name: serviceDraft.name.trim(),
@@ -710,32 +674,23 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       const nextServices = exists
         ? currentServices.map(service => String(service.id || '') === String(savedService.id) ? savedService : service)
         : [...currentServices, savedService];
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: { ...stateData.state, services: nextServices } })
-      });
+      await saveCrmState({ ...currentState, services: nextServices });
       setCatalogServices(nextServices);
       resetServiceDraft();
       localSwal('Éxito', exists ? 'Servicio actualizado' : 'Servicio creado', 'success');
-    } catch (err) { localSwal('Error', 'No se pudo guardar el servicio', 'error'); }
+    } catch { localSwal('Error', 'No se pudo guardar el servicio', 'error'); }
   };
 
   const handleToggleServiceActive = async () => {
     if (!serviceDraft.id) return;
     const nextDraft = { ...serviceDraft, active: !serviceDraft.active };
     setServiceDraft(nextDraft);
-    const stateRes = await fetch('/api/state');
-    const stateData = await stateRes.json();
-    const currentServices = stateData?.state?.services || [];
+    const currentState = await loadCrmState();
+    const currentServices = currentState?.services || [];
     const nextServices = currentServices.map(service => String(service.id || '') === String(serviceDraft.id)
       ? { ...service, active: nextDraft.active }
       : service);
-    await fetch('/api/state', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: { ...stateData.state, services: nextServices } })
-    });
+    await saveCrmState({ ...currentState, services: nextServices });
     setCatalogServices(nextServices);
   };
 
@@ -773,29 +728,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     await onSave(quoteToPersist, { keepOpen: true, source: 'menuMontaje' });
     setQuote(prev => ({ ...prev, ...quoteToPersist }));
     savedQuoteSnapshotRef.current = quoteSnapshot(quoteToPersist);
-  };
-
-  const handleCloseMenuMontaje = async () => {
-    if (!menuMontajeDirty) {
-      setShowMenuMontajeModal(false);
-      return;
-    }
-
-    const result = await localSwal({
-      icon: 'warning',
-      title: 'Menu y montaje sin guardar',
-      text: 'Hay cambios en Menu y Montaje que no se han guardado. Si sales ahora, se perdera la informacion capturada.',
-      showCancelButton: true,
-      confirmButtonText: 'Salir sin guardar',
-      cancelButtonText: 'Continuar editando',
-      confirmButtonColor: '#991b1b',
-      cancelButtonColor: '#1267d8'
-    });
-
-    if (result.isConfirmed) {
-      setMenuMontajeDirty(false);
-      setShowMenuMontajeModal(false);
-    }
   };
 
   const getCurrentActor = () => {
@@ -837,13 +769,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     setShowAdvancesModal(true);
     window.setTimeout(() => document.getElementById('quoteAdvanceAmount')?.focus(), 40);
   };
-
-  useEffect(() => {
-    window.openQuoteAdvanceModal = () => handleOpenAdvances();
-    return () => {
-      if (window.openQuoteAdvanceModal) delete window.openQuoteAdvanceModal;
-    };
-  }, [quote.docDate]);
 
   const handleStartEditAdvance = (advanceId) => {
     const item = advanceRows.find(advance => String(advance.id) === String(advanceId));
@@ -989,7 +914,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const handleReimprimir = async () => {
     if (!quote.items?.length) {
-      localSwal({ icon: 'warning', title: 'Cotización Vacía', text: 'Agrega servicios antes de imprimir.' });
+      localSwal({ icon: 'warning', title: 'Cotización vacía', text: 'Agrega servicios antes de imprimir.' });
       return;
     }
     const user = authService.getCurrentUser();
@@ -1806,10 +1731,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           text-align: left;
           cursor: pointer;
         }
-        #menuMontajeSelectableBackdrop .mmsModeBtn + .mmsModeBtn,
-        #menuMontajeSelectableBackdrop .mmsStageItem + .mmsStageItem {
-          margin-top: 8px;
-        }
         #menuMontajeSelectableBackdrop .mmsModeBtn.isActive,
         #menuMontajeSelectableBackdrop .mmsStageItem.isActive {
           background: #1267d8;
@@ -2604,7 +2525,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           }
         }
 
-        /* Override final para el nuevo POS oscuro: elimina cualquier sidebar/seudo-sidebar legacy */
+        /* Ajuste final del modo POS oscuro para limpiar barras laterales residuales */
         #menuMontajeSelectableBackdrop,
         #menuMontajeSelectableBackdrop .menuMontajeModal,
         #menuMontajeSelectableBackdrop .menuMontajeBody,
@@ -2751,7 +2672,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               {event?.name || 'Nuevo Evento'} — {quote.venue || '(sin salón)'} — {quote.eventDate || '---'}{quote.schedule ? ` — ${quote.schedule}` : ''}
             </div>
           </div>
-          <button className="qp-close-btn" onClick={handleRequestClose} aria-label="Cerrar">✕</button>
+          <button className="qp-close-btn" onClick={handleRequestClose} aria-label="Cerrar">×</button>
         </div>
 
         {/* ── BODY SCROLLABLE ── */}
@@ -2768,7 +2689,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             <div style={{ flex: '1 1 180px' }}>
               <label style={fieldLabel}>Plantilla contrato</label>
               <select style={fieldSelect} value={quote.templateId} onChange={e => setQuote(p => ({ ...p, templateId: e.target.value }))}>
-                <option value="">— Sin Plantilla —</option>
+                <option value="">— Sin plantilla —</option>
                 <option value="contrato_corp">Jardines (Corporativo)</option>
                 {quickTemplates.filter(t => t.id !== 'contrato_corp' && t.id !== 'tpl-contrato-corp').map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -2931,17 +2852,61 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div className="section-title">Agregar servicio</div>
                 <div style={{ position: 'relative', marginBottom: 8 }}>
                   <input
-                    style={fieldInput}
+                    id="quoteServiceSearchInput"
+                    style={{ ...fieldInput, paddingRight: selectedCatalogService ? '30px' : '9px' }}
                     value={serviceSearch}
-                    onChange={e => setServiceSearch(e.target.value)}
+                    onChange={e => {
+                      setServiceSearch(e.target.value);
+                      if (selectedCatalogService && selectedCatalogService.name !== e.target.value) {
+                        setSelectedCatalogService(null);
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (selectedCatalogService) {
+                          addServiceItem(selectedCatalogService);
+                        }
+                      }
+                    }}
                     placeholder="Buscar servicio..."
                   />
+                  {selectedCatalogService && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCatalogService(null);
+                        setServiceSearch('');
+                      }}
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        padding: 0
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                   {filteredServices.length > 0 && (
                     <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 200, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 7, maxHeight: 180, overflowY: 'auto', boxShadow: '0 6px 18px rgba(0,0,0,.1)' }}>
                       {filteredServices.map(s => (
                         <div
                           key={s.id}
-                          onMouseDown={e => { e.preventDefault(); addServiceItem(s); }}
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setSelectedCatalogService(s);
+                            setServiceSearch(s.name);
+                            setTimeout(() => {
+                              document.getElementById('quoteServiceQtyInput')?.focus();
+                            }, 50);
+                          }}
                           style={{ padding: '7px 11px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid #f1f5f9', color: '#334155' }}
                         >
                           <div style={{ fontWeight: 600 }}>{s.name}</div>
@@ -2955,11 +2920,20 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   <div style={{ flex: 1 }}>
                     <label style={fieldLabel}>Cantidad</label>
                     <input
+                      id="quoteServiceQtyInput"
                       style={{ ...fieldInput, width: 70 }}
                       type="number"
                       min="1"
                       value={serviceQty}
                       onChange={e => setServiceQty(parseInt(e.target.value) || 1)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (selectedCatalogService) {
+                            addServiceItem(selectedCatalogService);
+                          }
+                        }
+                      }}
                     />
                   </div>
                   <div style={{ flex: 1 }}>
@@ -2969,12 +2943,21 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     </select>
                   </div>
                 </div>
-                <button className="qp-btn" style={{ marginTop: 8, width: '100%' }} type="button" onClick={() => setShowCreateServiceModal(true)}>
-                  + Crear nuevo servicio
-                </button>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button 
+                    className="qp-btn" 
+                    style={{ flex: 1, background: selectedCatalogService ? '#10b981' : '#cbd5e1', color: selectedCatalogService ? '#fff' : '#64748b', cursor: selectedCatalogService ? 'pointer' : 'not-allowed' }} 
+                    type="button" 
+                    disabled={!selectedCatalogService}
+                    onClick={() => addServiceItem(selectedCatalogService)}
+                  >
+                    Agregar servicio
+                  </button>
+                  <button className="qp-btn" style={{ flex: 1 }} type="button" onClick={() => setShowCreateServiceModal(true)}>
+                    + Crear nuevo servicio
+                  </button>
+                </div>
               </div>
-
-              {/* Aplicar plantilla */}
               <div style={card}>
                 <div className="eyebrow">Plantillas rápidas</div>
                 <div className="section-title">Aplicar plantilla</div>
@@ -3224,7 +3207,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               onClick={handleReimprimir}
               style={{ background: '#f8f3ff', borderColor: '#c8b6ea', color: '#5b3b91', boxShadow: '0 6px 14px rgba(91,59,145,.10)' }}
             >
-              Reimprimir cotización
+              Imprimir
             </button>
             <button className="qp-btn-primary" type="button" onClick={handleSaveQuote} style={{ boxShadow: '0 8px 18px rgba(15,23,42,.18)' }}>Guardar cotización</button>
           </div>
@@ -3594,3 +3577,5 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     </>
   );
 }
+
+

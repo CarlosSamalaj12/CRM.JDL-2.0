@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import MainLayout from './layouts/MainLayout/MainLayout';
 import Login from './modules/auth/Login';
 import Calendar from './modules/calendar/Calendar';
-import ReservationForm from './modules/calendar/components/ReservationForm';
 import CustomersModule from './modules/customers/CustomersModule';
 import ReportsModule from './modules/reports/ReportsModule';
 import SearchModule from './modules/search/SearchModule';

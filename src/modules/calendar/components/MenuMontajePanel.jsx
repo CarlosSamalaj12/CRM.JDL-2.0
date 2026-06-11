@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import TimeSelect from '../../../components/TimeSelect';
+import { loadState as loadCrmState } from '../../../services/stateService';
 import './MenuMontajePanel.pos.css';
 
 const uid = () => Math.random().toString(36).substring(2, 9);
@@ -496,11 +497,8 @@ export default function MenuMontajePanel({
 
   const loadData = async () => {
     try {
-      const stateRes = await fetch('/api/state');
-      if (stateRes.ok) {
-        const data = await stateRes.json();
-        setEvents(data?.state?.events || []);
-      }
+      const data = await loadCrmState();
+      setEvents(data?.events || []);
 
       const kinds = ['plato_fuerte', 'salsa', 'guarnicion', 'postre', 'bebida', 'comentario', 'montaje_tipo', 'montaje_adicional'];
       const [proteins, salsas, guarniciones, postres, bebidas, comentarios, montajeTipos, montajeAdicionales] = await Promise.all(
@@ -518,8 +516,8 @@ export default function MenuMontajePanel({
         montajeTipos: (montajeTipos.items || []).filter((item) => item.activo !== false),
         montajeAdicionales: (montajeAdicionales.items || []).filter((item) => item.activo !== false),
       }));
-    } catch (error) {
-      console.error('Error cargando Menú & Montaje:', error);
+    } catch {
+      console.error('Error cargando Men? & Montaje.');
       showNotice('No se pudieron cargar todos los catálogos.');
     }
   };
@@ -751,7 +749,7 @@ export default function MenuMontajePanel({
       setSelectedBebidas(patch.bebidaIds || []);
       const total = ['suggestedSalsaIds', 'suggestedGuarnicionIds', 'suggestedPostreIds', 'suggestedBebidaIds'].reduce((sum, key) => sum + (patch[key]?.length || 0), 0);
       showNotice(total ? `Preparación lista con ${total} opción(es) de acompañamiento.` : `Preparación agregada: ${preparacionName}`);
-    } catch (error) {
+    } catch {
       updateActiveLine({ preparacionId });
       showNotice(`Preparación agregada: ${preparacionName}`);
     }
@@ -1281,8 +1279,8 @@ export default function MenuMontajePanel({
       if (active && String(active.platoId) === String(ruleProtein) && String(active.preparacionId) === String(rulePreparation)) {
         updateLines((current) => current.map((line) => (line.key === activeLineKey ? applySuggestedLinksToLine(line, ruleLinks) : line)));
       }
-    } catch (error) {
-      showNotice(error?.message || 'No se pudo guardar la combinación.');
+    } catch {
+      showNotice('No se pudo guardar la combinaci?n.');
     } finally {
       setRuleSaving(false);
     }
@@ -1312,8 +1310,8 @@ export default function MenuMontajePanel({
       await loadCatalogItems(catalogKind);
       await loadData();
       showNotice(catalogEditingItem ? 'Registro actualizado.' : 'Registro guardado.');
-    } catch (error) {
-      showNotice(error?.message || 'Error al guardar el catálogo.');
+    } catch {
+      showNotice('Error al guardar el cat?logo.');
     }
   };
 
@@ -1333,8 +1331,8 @@ export default function MenuMontajePanel({
       await loadCatalogItems(catalogKind);
       await loadData();
       showNotice(payload.activo ? 'Registro activado.' : 'Registro inhabilitado.');
-    } catch (error) {
-      showNotice(error?.message || 'Error al actualizar catálogo.');
+    } catch {
+      showNotice('Error al actualizar cat?logo.');
     }
   };
 
@@ -1872,7 +1870,7 @@ export default function MenuMontajePanel({
                       return;
                     }
                     printWindow.document.open();
-                    printWindow.document.write(printPreviewHtml.replace('</body></html>', '<script>window.onload=function(){window.print();}<\/script></body></html>'));
+                    printWindow.document.write(printPreviewHtml.replace('</body></html>', '<script>window.onload=function(){window.print();}</script></body></html>'));
                     printWindow.document.close();
                   }}
                 >
@@ -1888,3 +1886,5 @@ export default function MenuMontajePanel({
     </div>
   );
 }
+
+

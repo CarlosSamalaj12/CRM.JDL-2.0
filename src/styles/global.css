@@ -2100,19 +2100,7 @@ html body #institutionReportBackdrop .modalHeader{
 }
 
 html body #institutionReportBackdrop .reportModalClose{
-  min-width: 42px !important;
-  width: 42px !important;
-  height: 42px !important;
-  border-radius: 14px !important;
-  border: 1px solid rgba(148,163,184,0.24) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #eef4fa 100%) !important;
-  color: #0f172a !important;
-  box-shadow: 0 8px 18px rgba(15,23,42,0.10) !important;
-}
-
-html body #institutionReportBackdrop .reportModalClose:hover{
-  background: linear-gradient(180deg, #eff8ff 0%, #dbefff 100%) !important;
-  border-color: rgba(14,165,233,0.34) !important;
+  border-radius: 50% !important;
 }
 
 html body #institutionReportBackdrop .institutionReportHeroPanel,
@@ -3440,7 +3428,7 @@ input[type="number"]::-webkit-outer-spin-button{
 }
 /* === END REPORTS/SETTINGS FLAT PAGE MODE === */
 
-/* === REPORT MODALS FLAT PAGE MODE (NO FLOATING) === */
+/* === REPORT MODALS UNIFIED FLOATING MODE === */
 #salesReportBackdrop,
 #accountingReportBackdrop,
 #occupancyReportBackdrop,
@@ -3450,19 +3438,16 @@ input[type="number"]::-webkit-outer-spin-button{
   top: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  left: 256px !important;
-  z-index: 1300 !important;
+  left: 0 !important;
+  z-index: 9999 !important;
   display: flex !important;
-  align-items: stretch !important;
-  justify-content: stretch !important;
-  padding: 16px 18px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
   overflow: hidden !important;
-  background:
-    radial-gradient(1000px 720px at 15% 0%, rgba(14,165,233,0.08), transparent 58%),
-    radial-gradient(900px 680px at 88% 12%, rgba(56,189,248,0.06), transparent 55%),
-    linear-gradient(180deg, #f7fbff 0%, #eef4fb 100%) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  background: rgba(15, 23, 42, 0.4) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
 }
 
 #salesReportBackdrop[hidden],
@@ -3478,15 +3463,17 @@ input[type="number"]::-webkit-outer-spin-button{
 #occupancyReportBackdrop .occupancyReportModal,
 #dashboardReportBackdrop .dashboardReportModal,
 #institutionReportBackdrop .institutionReportModal{
-  width: 100% !important;
+  width: min(1280px, calc(100vw - 32px)) !important;
   max-width: none !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  border-radius: 14px !important;
-  border: 1px solid rgba(191,210,232,0.9) !important;
+  height: 92vh !important;
+  max-height: 92vh !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(191,210,232,0.5) !important;
   background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%) !important;
-  box-shadow: none !important;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
   overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 #salesReportBackdrop .salesReportBody,
@@ -3717,10 +3704,37 @@ input[type="number"]::-webkit-outer-spin-button{
 #dashboardReportBackdrop .modalHeader,
 #institutionReportBackdrop .modalHeader{
   display: flex !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   justify-content: space-between !important;
   gap: 14px !important;
-  overflow: hidden !important;
+  overflow: visible !important;
+  padding: 16px 24px !important;
+  min-height: 86px !important;
+  flex: 0 0 auto !important;
+}
+
+.reportModalClose {
+  min-width: 42px !important;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(148,163,184,0.24) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #eef4fa 100%) !important;
+  color: #0f172a !important;
+  box-shadow: 0 8px 18px rgba(15,23,42,0.10) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+  transition: all 0.2s ease !important;
+}
+
+.reportModalClose:hover {
+  background: linear-gradient(180deg, #eff8ff 0%, #dbefff 100%) !important;
+  border-color: rgba(14,165,233,0.34) !important;
+  transform: scale(1.05) !important;
 }
 
 #salesReportBackdrop .reportBrandHeader,
@@ -9139,6 +9153,82 @@ body div.swal2-container div.swal2-popup.swal2-modal {
     padding: 6px 8px !important;
     font-size: 11px !important;
   }
+}
+
+/* Custom Scrollbars for Report Table Wrappers and Scrollable Containers */
+.salesReportTableWrap,
+.institutionEventsWrap,
+.accountingDetailTableWrap,
+.accountingPortfolioTable,
+.salesReportBody,
+.institutionReportBody,
+.occupancyReportBody,
+.dashboardReportBody,
+.reports-ocupacion-toolbar,
+.reports-dashboard-toolbar,
+.institutionReportFilters {
+  scrollbar-width: thin !important;
+  scrollbar-color: #cbd5e1 #f1f5f9 !important;
+}
+
+.salesReportTableWrap::-webkit-scrollbar,
+.institutionEventsWrap::-webkit-scrollbar,
+.accountingDetailTableWrap::-webkit-scrollbar,
+.accountingPortfolioTable::-webkit-scrollbar,
+.salesReportBody::-webkit-scrollbar,
+.institutionReportBody::-webkit-scrollbar,
+.occupancyReportBody::-webkit-scrollbar,
+.dashboardReportBody::-webkit-scrollbar,
+.reports-ocupacion-toolbar::-webkit-scrollbar,
+.reports-dashboard-toolbar::-webkit-scrollbar,
+.institutionReportFilters::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.salesReportTableWrap::-webkit-scrollbar-track,
+.institutionEventsWrap::-webkit-scrollbar-track,
+.accountingDetailTableWrap::-webkit-scrollbar-track,
+.accountingPortfolioTable::-webkit-scrollbar-track,
+.salesReportBody::-webkit-scrollbar-track,
+.institutionReportBody::-webkit-scrollbar-track,
+.occupancyReportBody::-webkit-scrollbar-track,
+.dashboardReportBody::-webkit-scrollbar-track,
+.reports-ocupacion-toolbar::-webkit-scrollbar-track,
+.reports-dashboard-toolbar::-webkit-scrollbar-track,
+.institutionReportFilters::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 999px !important;
+}
+
+.salesReportTableWrap::-webkit-scrollbar-thumb,
+.institutionEventsWrap::-webkit-scrollbar-thumb,
+.accountingDetailTableWrap::-webkit-scrollbar-thumb,
+.accountingPortfolioTable::-webkit-scrollbar-thumb,
+.salesReportBody::-webkit-scrollbar-thumb,
+.institutionReportBody::-webkit-scrollbar-thumb,
+.occupancyReportBody::-webkit-scrollbar-thumb,
+.dashboardReportBody::-webkit-scrollbar-thumb,
+.reports-ocupacion-toolbar::-webkit-scrollbar-thumb,
+.reports-dashboard-toolbar::-webkit-scrollbar-thumb,
+.institutionReportFilters::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 999px !important;
+  border: 2px solid #f1f5f9 !important;
+}
+
+.salesReportTableWrap::-webkit-scrollbar-thumb:hover,
+.institutionEventsWrap::-webkit-scrollbar-thumb:hover,
+.accountingDetailTableWrap::-webkit-scrollbar-thumb:hover,
+.accountingPortfolioTable::-webkit-scrollbar-thumb:hover,
+.salesReportBody::-webkit-scrollbar-thumb:hover,
+.institutionReportBody::-webkit-scrollbar-thumb:hover,
+.occupancyReportBody::-webkit-scrollbar-thumb:hover,
+.dashboardReportBody::-webkit-scrollbar-thumb:hover,
+.reports-ocupacion-toolbar::-webkit-scrollbar-thumb:hover,
+.reports-dashboard-toolbar::-webkit-scrollbar-thumb:hover,
+.institutionReportFilters::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
 }
 
 

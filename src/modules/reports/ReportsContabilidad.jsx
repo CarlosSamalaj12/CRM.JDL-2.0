@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import api from '../../services/api';
+import { loadState as loadCrmState } from '../../services/stateService';
 import { STATUS_META } from '../calendar/constants';
 
 export default function ReportsContabilidad({ onClose }) {
@@ -26,9 +26,9 @@ export default function ReportsContabilidad({ onClose }) {
     let active = true;
     const loadCompanies = async () => {
       try {
-        const response = await api.get('/api/state');
+        const response = await loadCrmState({ cacheBust: false });
         if (active) {
-          setCompanies(response?.state?.companies || []);
+          setCompanies(response?.companies || []);
         }
       } catch (err) {
         console.error('Error al cargar empresas:', err);
@@ -43,7 +43,7 @@ export default function ReportsContabilidad({ onClose }) {
     return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
   };
 
-  // 1. Series aggregation utilities modeled after original legacy app.js
+  // 1. Utilidades para agrupar series de eventos y consolidar metadatos
   const getEventSeries = (ev, allEvents) => {
     if (!ev) return [];
     const groupId = ev.groupId || ev.id_grupo || ev.idGroup;
@@ -456,10 +456,6 @@ export default function ReportsContabilidad({ onClose }) {
     });
   };
 
-  const getInitials = (name) => {
-    return String(name || "").split(" ").map(x => x[0]).slice(0, 2).join("").toUpperCase();
-  };
-
   const pick = (obj, key) => obj?.[key] || { qty: 0, amount: 0 };
 
   const toggleAccountExpand = (key) => {
@@ -565,13 +561,14 @@ export default function ReportsContabilidad({ onClose }) {
     <div className="modalBackdrop" id="accountingReportBackdrop" onClick={(e) => { if (e.target.id === 'accountingReportBackdrop') onClose(); }}>
       <style>{`
         #accountingReportBackdrop .salesReportModal {
-          width: min(1240px, calc(100vw - 28px)) !important;
-          height: 96vh !important;
-          max-height: 96vh !important;
+          width: min(1280px, calc(100vw - 32px)) !important;
+          height: 92vh !important;
+          max-height: 92vh !important;
           display: flex !important;
           flex-direction: column !important;
           overflow: hidden !important;
           box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
+          border-radius: 16px !important;
         }
         #accountingReportBackdrop .salesReportHeader {
           min-height: 86px !important;
@@ -738,7 +735,7 @@ export default function ReportsContabilidad({ onClose }) {
           font-size: 12px !important;
         }
         #accountingReportBackdrop .salesReportModal {
-          width: min(1240px, calc(100vw - 28px)) !important;
+          width: min(1280px, calc(100vw - 32px)) !important;
         }
         #accountingReportBackdrop .salesReportBody {
           overflow-y: auto !important;
@@ -874,12 +871,12 @@ export default function ReportsContabilidad({ onClose }) {
           }
         }
       `}</style>
-      <div className="salesReportModal">
+      <div className="modal salesReportModal">
         {/* Header */}
         <div className="modalHeader salesReportHeader">
           <div className="reportBrandHeader">
-            <div className="reportBrandBadge salesReportBrandBadge">
-              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo salesReportBrandLogo" />
+            <div className="reportBrandBadge salesReportBrandBadge" style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px', borderRadius: '14px', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid #c7d8ec', background: '#f5faff', flex: '0 0 56px' }}>
+              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo salesReportBrandLogo" style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px', maxWidth: '40px', maxHeight: '40px', objectFit: 'contain', display: 'block' }} />
             </div>
             <div className="reportBrandCopy">
               <div className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
@@ -887,7 +884,7 @@ export default function ReportsContabilidad({ onClose }) {
               <div className="modalSubtitle" id="accountingReportSubtitle">Cartera por institución para cobro y aplicación de pagos</div>
             </div>
           </div>
-          <button className="iconBtn" id="btnAccountingReportClose" type="button" title="Cerrar" onClick={onClose}>&#10005;</button>
+          <button className="iconBtn reportModalClose" id="btnAccountingReportClose" type="button" title="Cerrar" onClick={onClose}>&#10005;</button>
         </div>
         
         <div className="modalBody salesReportBody">
@@ -1028,7 +1025,7 @@ export default function ReportsContabilidad({ onClose }) {
             
             <div className="salesReportActions">
               <button className="accountingActionBtn accountingActionBtn--secondary" style={{ border: '1px solid #cbd5e1' }} onClick={clearFilters}>Limpiar filtros</button>
-              <button className="accountingActionBtn" style={{ background: '#059669', color: '#fff' }} onClick={handleExportExcel}>Exportar Excel</button>
+              <button className="accountingActionBtn" onClick={handleExportExcel}>Exportar Excel</button>
             </div>
           </div>
           
@@ -1147,7 +1144,7 @@ export default function ReportsContabilidad({ onClose }) {
                           <tr className="accountingCompanyDetailRow">
                             <td colSpan={10} style={{ padding: '16px 24px', background: '#f8fafc' }}>
                               <div className="accountingDetailCard" style={{ display: 'flex', flexDirection: 'column', gap: '18px', padding: '18px', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
-                                <div className="accountingDetailHead" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', border: 'none', borderBottom: '2px solid #e2e8f0', borderRadius: '0' }}>
+                                <div className="accountingDetailHead" style={{ paddingBottom: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', border: 'none', borderBottom: '2px solid #e2e8f0', borderRadius: '0' }}>
                                   <strong style={{ fontSize: '16px', color: '#0f172a' }}>Estado de cuenta por evento</strong>
                                   <span style={{ fontSize: '13px', color: '#475569', fontWeight: '600', background: '#f1f5f9', padding: '6px 14px', borderRadius: '999px', border: '1px solid #cbd5e1' }}>
                                     {`${acc.companyName} | ${acc.eventsCount} evento(s) | ${acc.advancesCount} pago(s)`}

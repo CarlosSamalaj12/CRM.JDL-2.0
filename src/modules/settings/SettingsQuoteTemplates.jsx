@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 
 const handleClose = (modalId) => {
@@ -27,10 +28,8 @@ export default function SettingsQuoteTemplates() {
   }, []);
 
   const loadState = () => {
-    fetch('/api/state')
-      .then(r => r.json())
-      .then(data => {
-        const stateObj = data.state || data;
+    loadCrmState()
+      .then(stateObj => {
         setTemplates(stateObj.quoteServiceTemplates || []);
         setServices(stateObj.services || []);
       })
@@ -152,26 +151,11 @@ export default function SettingsQuoteTemplates() {
 
   const saveGlobalState = async (updatedTemplatesList, successMessage) => {
     try {
-      // Fetch full state first to merge and update only the quoteServiceTemplates list
-      const resState = await fetch('/api/state');
-      const dataState = await resState.json();
-      const currentState = dataState.state || dataState;
-
+      const currentState = await loadCrmState();
       currentState.quoteServiceTemplates = updatedTemplatesList;
-
-      const resSave = await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: currentState }),
-      });
-      
-      const dataSave = await resSave.json();
-      if (dataSave.ok) {
-        toast(successMessage);
-        loadState();
-      } else {
-        toast('Error al guardar el estado global: ' + dataSave.message);
-      }
+      await saveCrmState(currentState);
+      toast(successMessage);
+      loadState();
     } catch (err) {
       console.error(err);
       toast('Error de red al actualizar las plantillas.');
