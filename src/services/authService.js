@@ -17,7 +17,7 @@ export const authService = {
     try {
       const response = await api.post('/api/login', { userId, password });
       if (response && response.ok && response.user) {
-        this.saveSession(response.user);
+        this.saveSession(response.user, response.token);
         return response.user;
       }
       throw new Error(response?.message || 'Credenciales inválidas');
@@ -47,7 +47,7 @@ export const authService = {
           avatarDataUrl: response.user.avatarDataUrl || firebaseUser.photoURL || '',
         };
         console.log('[Auth] Usuario autenticado desde BD:', userWithEmail);
-        this.saveSession(userWithEmail);
+        this.saveSession(userWithEmail, response.token);
         return userWithEmail;
       }
       throw new Error(response?.message || 'Error sincronizando con el servidor');
@@ -58,7 +58,7 @@ export const authService = {
   },
 
   // Save session details to localStorage
-  saveSession(user) {
+  saveSession(user, token) {
     localStorage.setItem('user', JSON.stringify({
       id: user.id,
       name: user.name,
@@ -69,12 +69,19 @@ export const authService = {
       signatureDataUrl: user.signatureDataUrl,
       role: user.role || 'vendedor'
     }));
+    if (token) {
+      localStorage.setItem('token', token);
+    }
   },
 
   // Get current logged-in user from localStorage
   getCurrentUser() {
+    const token = localStorage.getItem('token');
     const rawUser = localStorage.getItem('user');
-    if (!rawUser) return null;
+    if (!rawUser || !token) {
+      this.clearSession();
+      return null;
+    }
     try {
       return JSON.parse(rawUser);
     } catch {
@@ -86,6 +93,7 @@ export const authService = {
   // Clear session on logout
   clearSession() {
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
   }
 };
 

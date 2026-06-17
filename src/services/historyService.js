@@ -25,9 +25,10 @@ export const historyService = {
     
     const newEntry = {
       id: `hist_${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      userId: currentUser?.id || 'unknown',
-      userName: currentUser?.fullName || currentUser?.name || 'Usuario',
+      at: new Date().toISOString(),
+      actorUserId: currentUser?.id || 'unknown',
+      actorName: currentUser?.fullName || currentUser?.name || 'Usuario',
+      avatarDataUrl: currentUser?.avatarDataUrl || '',
       change: changeDescription
     };
 
@@ -48,8 +49,11 @@ export const historyService = {
 
   async addDetailed(eventId, oldSnapshot, newSnapshot) {
     const changes = [];
+    const ignoredFields = new Set(['slots', 'id', 'groupId']);
     
     Object.keys(newSnapshot).forEach(key => {
+      if (ignoredFields.has(key)) return;
+      
       const oldValue = oldSnapshot[key];
       const newValue = newSnapshot[key];
       

@@ -4,6 +4,7 @@ import historyService from '../../../services/historyService';
 export default function HistoryPanel({ eventId, eventName, onClose }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hoveredEntryId, setHoveredEntryId] = useState(null);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -24,10 +25,12 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
   const formatTimestamp = (isoStr) => {
     const d = new Date(isoStr);
     return d.toLocaleString('es-ES', {
+      year: 'numeric',
       day: 'numeric',
       month: 'short',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'
     });
   };
 
@@ -62,22 +65,49 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
       boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.25)',
       overflow: 'hidden'
     }}>
+      <style>{`
+        .btn-exit-modal {
+          background: rgba(255,255,255,0.1) !important;
+          color: white !important;
+          border: none !important;
+          border-radius: 50% !important;
+          width: 36px !important;
+          height: 36px !important;
+          padding: 0 !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          cursor: pointer !important;
+          transition: all 0.15s ease !important;
+          position: relative !important;
+          overflow: visible !important;
+          outline: none !important;
+        }
+        .btn-exit-modal:hover {
+          background: rgba(239, 68, 68, 0.3) !important;
+          color: #fca5a5 !important;
+        }
+        .btn-exit-modal:active {
+          transform: scale(0.88) !important;
+        }
+        .btn-exit-modal svg {
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        }
+        .btn-exit-modal:hover svg {
+          transform: rotate(90deg) scale(1.2) !important;
+        }
+      `}</style>
       {/* Header */}
       <div style={headerStyle}>
         <div>
           <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>📋 Historial de Cambios</h2>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>{eventName}</p>
         </div>
-        <button onClick={onClose} style={{
-          background: 'rgba(255,255,255,0.1)',
-          border: 'none',
-          width: '36px',
-          height: '36px',
-          borderRadius: '50%',
-          fontSize: '20px',
-          cursor: 'pointer',
-          color: 'white'
-        }}>×</button>
+        <button onClick={onClose} className="btn-exit-modal">
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16">
+            <path d="M4 4l10 10M14 4l-10 10" />
+          </svg>
+        </button>
       </div>
 
       {/* Body */}
@@ -124,15 +154,75 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
                     alignItems: 'center',
                     marginBottom: '8px'
                   }}>
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>
-                      {formatTimestamp(entry.timestamp)}
+                    <span
+                      title={entry.at || entry.timestamp}
+                      style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', cursor: 'help' }}
+                    >
+                      {formatTimestamp(entry.at || entry.timestamp)}
                     </span>
                   </div>
                   <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600', lineHeight: '1.5' }}>
                     {entry.change}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', fontWeight: '600' }}>
-                    👤 {entry.userName || 'Usuario'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', position: 'relative' }}>
+                    <div
+                      style={{ position: 'relative', display: 'inline-flex' }}
+                      onMouseEnter={() => setHoveredEntryId(entry.id || idx)}
+                      onMouseLeave={() => setHoveredEntryId(null)}
+                    >
+                      <img
+                        src={entry.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.actorName || entry.userName || 'Usuario')}&background=cbd5e1&color=64748b&size=28`}
+                        alt={entry.actorName || entry.userName || 'Usuario'}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '2px solid #e2e8f0',
+                          flexShrink: 0,
+                          cursor: 'pointer'
+                        }}
+                      />
+                      {/* Custom tooltip */}
+                      <div className="custom-avatar-tooltip"
+                        style={{
+                          position: 'absolute',
+                          bottom: 'calc(100% + 8px)',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: '#0f172a',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap',
+                          pointerEvents: 'none',
+                          opacity: (hoveredEntryId === (entry.id || idx)) ? 1 : 0,
+                          transition: 'opacity 0.18s ease, transform 0.18s ease',
+                          transform: `translateX(-50%) translateY(${(hoveredEntryId === (entry.id || idx)) ? 0 : 4}px)`,
+                          zIndex: 100,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.25)'
+                        }}
+                      >
+                        {entry.actorName || entry.userName || 'Usuario'}
+                        {/* Arrow */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 0,
+                          height: 0,
+                          borderLeft: '5px solid transparent',
+                          borderRight: '5px solid transparent',
+                          borderTop: '5px solid #0f172a'
+                        }} />
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>
+                      {entry.actorName || entry.userName || 'Usuario'}
+                    </span>
                   </div>
                 </div>
               </div>

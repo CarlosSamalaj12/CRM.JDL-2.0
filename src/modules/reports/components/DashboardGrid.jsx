@@ -1,11 +1,11 @@
-import React from 'react';
 
-export default function DashboardGrid({ children }) {
+
+export default function DashboardGrid({ children, columns = 4 }) {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-      gap: '14px',
+      gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+      gap: '16px',
       alignItems: 'stretch',
     }}>
       {children}

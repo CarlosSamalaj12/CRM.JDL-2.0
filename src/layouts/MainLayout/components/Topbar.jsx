@@ -29,8 +29,8 @@ export default function Topbar({
       gap: '8px',
       padding: '8px 16px',
       minHeight: '66px',
-      background: '#fff',
-      borderBottom: '1px solid #d3e4fe'
+      background: 'var(--ui-surface)',
+      borderBottom: '1px solid var(--ui-border)'
     }}>
       
       {/* Grupo superior: Navegación y selector de vista */}
@@ -53,9 +53,9 @@ export default function Topbar({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'white',
-              borderLeft: '1px solid #d3e4fe',
-              borderRight: '1px solid #d3e4fe',
+              background: 'var(--ui-surface)',
+              borderLeft: '1px solid var(--ui-border)',
+              borderRight: '1px solid var(--ui-border)',
               fontWeight: '600',
               textTransform: 'capitalize'
             }}>
@@ -97,9 +97,9 @@ export default function Topbar({
               fontSize: '12px',
               cursor: 'pointer',
               fontWeight: '600',
-              border: isFilterActive ? `2px solid ${STATUS_META[statusFilter]?.color || '#e2e8f0'}` : '1px solid #e2e8f0',
-              color: isFilterActive ? (STATUS_META[statusFilter]?.color || '#64748b') : '#64748b',
-              background: isFilterActive ? `${STATUS_META[statusFilter]?.color || '#e2e8f0'}10` : '#fff'
+              border: isFilterActive ? `2px solid ${STATUS_META[statusFilter]?.color || 'var(--ui-border)'}` : '1px solid var(--ui-border)',
+              color: isFilterActive ? (STATUS_META[statusFilter]?.color || 'var(--ui-text-muted)') : 'var(--ui-text-muted)',
+              background: isFilterActive ? `${STATUS_META[statusFilter]?.color || 'var(--ui-border)'}10` : 'var(--ui-surface)'
             }}
           >
             <option value="all">Todos los Estados</option>
@@ -130,13 +130,16 @@ export default function Topbar({
         {/* 4. BARRA DE BUSQUEDA */}
         <div style={{ flex: '1 1 200px', minWidth: '120px' }}>
           <label className="lum-search" style={{ margin: '0', height: '36px' }}>
-            <span className="material-symbols-outlined">search</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#64748b', marginRight: '4px' }}>
+              <circle cx="11" cy="11" r="7" />
+              <path d="m16 16 4 4" />
+            </svg>
             <input 
               type="text" 
-              placeholder="Buscar eventos..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ fontSize: '12px' }} 
+              style={{ fontSize: '12px', border: 'none', outline: 'none', background: 'transparent', boxShadow: 'none' }} 
+              autoComplete="off"
             />
           </label>
         </div>

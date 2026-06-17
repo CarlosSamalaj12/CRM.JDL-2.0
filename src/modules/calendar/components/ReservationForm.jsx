@@ -39,6 +39,10 @@ async function requestPastEventEditAuthorization(ev) {
   if (!key) return false;
   if (pastEventEditAuthorizedKeys.has(key)) return true;
 
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  await new Promise(resolve => setTimeout(resolve, 0));
   const result = await Swal.fire({
     icon: "warning",
     title: "Evento de fecha pasada",
@@ -62,6 +66,10 @@ async function requestPastEventEditAuthorization(ev) {
   const code = String(result.value || "").trim();
 
   if (code !== "JDL-ADMIN-2026") {
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+    await new Promise(resolve => setTimeout(resolve, 0));
     await Swal.fire({
       icon: "error",
       title: "Codigo invalido",
@@ -401,6 +409,8 @@ export default function ReservationForm() {
   const [validationErrors, setValidationErrors] = useState([]);
   const [slotConflicts, setSlotConflicts] = useState([]);
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, type: null, message: '', title: '', isDanger: true });
+  const [isCloseHovered, setIsCloseHovered] = useState(false);
+  const [isCloseActive, setIsCloseActive] = useState(false);
 
   const urlDate = searchParams.get('date');
   const urlEndDate = searchParams.get('endDate') || urlDate;
@@ -425,7 +435,8 @@ export default function ReservationForm() {
     endTime: urlEnd || '12:00',
     pax: '',
     notes: '',
-    userId: getCurrentUserId()
+    userId: getCurrentUserId(),
+    quote: null
   });
 
   const [slots, setSlots] = useState([
@@ -513,7 +524,7 @@ export default function ReservationForm() {
 
   useEffect(() => {
     if (id && events) {
-      const existingEvent = events.find(ev => ev.id === id);
+      const existingEvent = events.find(ev => String(ev.id) === String(id));
       if (existingEvent) {
         const series = getSeriesForEvent(events, id);
         const seriesSlots = slotsFromEventSeries(series, existingEvent);
@@ -537,7 +548,8 @@ export default function ReservationForm() {
           endTime: firstSlot.endTime || existingEvent.endTime || '12:00',
           pax: totalPaxFromSlots || existingEvent.pax || '',
           notes: existingEvent.notes || '',
-          userId: existingEvent.userId || ''
+          userId: existingEvent.userId || '',
+          quote: existingEvent.quote || null
         });
 
         if (seriesSlots.length > 0) {
@@ -565,7 +577,8 @@ export default function ReservationForm() {
         endTime: urlEnd || '12:00',
         pax: '',
         notes: '',
-        userId: getCurrentUserId()
+        userId: getCurrentUserId(),
+        quote: null
       });
       setSlots([{
         salon: salones?.length > 0 ? salones[0] : '',
@@ -801,7 +814,8 @@ export default function ReservationForm() {
         groupId: events.find(ev => String(ev.id) === String(id))?.groupId || undefined,
         pax: formData.pax ? parseInt(formData.pax) : null,
         slots: updatedSlots,
-        salon: updatedSlots.map(s => s.salon).join(', ')
+        salon: updatedSlots.map(s => s.salon).join(', '),
+        quote: existingEvent?.quote || undefined
       };
 
       const savedEvent = await handleAddEvent(eventData);
@@ -843,7 +857,14 @@ export default function ReservationForm() {
   const executeCancelEvent = async () => {
     setConfirmConfig(prev => ({ ...prev, isOpen: false }));
     try {
-      await handleAddEvent({ ...formData, id, status: 'Cancelado', slots: slots.map(slot => ({ ...slot, status: 'Cancelado' })) });
+      const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
+      await handleAddEvent({
+        ...formData,
+        id,
+        status: 'Cancelado',
+        slots: slots.map(slot => ({ ...slot, status: 'Cancelado' })),
+        quote: existingEvent?.quote || undefined
+      });
       showNotification('Evento cancelado');
       setTimeout(() => navigate('/calendar'), 1000);
     } catch {
@@ -883,13 +904,14 @@ export default function ReservationForm() {
 
   const handleQuoteSave = async (quoteData, options = {}) => {
     try {
-      const currentEvent = events.find(ev => ev.id === id);
+      const currentEvent = events.find(ev => String(ev.id) === String(id));
       const previousQuote = currentEvent?.quote || null;
       const quoteChanged = JSON.stringify(previousQuote || null) !== JSON.stringify(quoteData || null);
       const shouldFollowUp = previousQuote
         && quoteChanged
         && ['Reserva sin Cotizacion', '1er Cotizacion'].includes(currentEvent?.status);
-      await handleAddEvent({
+      
+      const updatedEvent = {
         ...currentEvent,
         quote: quoteData,
         status: shouldFollowUp
@@ -897,7 +919,16 @@ export default function ReservationForm() {
           : currentEvent?.status === 'Reserva sin Cotizacion'
           ? '1er Cotizacion'
           : (currentEvent?.status || formData.status)
-      });
+      };
+
+      await handleAddEvent(updatedEvent);
+
+      setFormData(prev => ({
+        ...prev,
+        quote: quoteData,
+        status: updatedEvent.status
+      }));
+
       showNotification(shouldFollowUp ? 'Cotizacion actualizada. Estado a Seguimiento.' : 'Cotizacion guardada');
       if (!options?.keepOpen) setShowQuoteModal(false);
     } catch {
@@ -961,13 +992,14 @@ export default function ReservationForm() {
         groupId: existingEvent?.groupId || undefined,
         pax: formData.pax ? parseInt(formData.pax) : null,
         slots: finalSlots,
-        salon: finalSlots.map(s => s.salon).join(', ')
+        salon: finalSlots.map(s => s.salon).join(', '),
+        quote: formData.quote || existingEvent?.quote || undefined
       };
 
       const savedEvent = await handleAddEvent(eventData);
 
       if (id) {
-        const existingEvent = events.find(ev => ev.id === id);
+        const existingEvent = events.find(ev => String(ev.id) === String(id));
         if (existingEvent) {
           await historyService.addDetailed(id, existingEvent, eventData);
         }
@@ -1022,31 +1054,45 @@ export default function ReservationForm() {
         
         <button
           onClick={() => navigate('/calendar')}
+          onMouseEnter={() => setIsCloseHovered(true)}
+          onMouseLeave={() => { setIsCloseHovered(false); setIsCloseActive(false); }}
+          onMouseDown={() => setIsCloseActive(true)}
+          onMouseUp={() => setIsCloseActive(false)}
           style={{
-            background: '#ffffff',
-            border: '1px solid #cbd5e1',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            fontSize: '13px',
-            fontWeight: '700',
-            color: '#475569',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            border: 'none',
+            background: isCloseHovered ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+            color: isCloseHovered ? '#ef4444' : '#64748b',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-            transition: 'all 0.15s'
+            justifyContent: 'center',
+            transition: 'all 0.2s ease',
+            padding: 0,
+            boxShadow: 'none',
+            outline: 'none',
+            transform: isCloseActive ? 'scale(0.88)' : 'none',
           }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = '#f1f5f9';
-            e.currentTarget.style.color = '#0f172a';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = '#ffffff';
-            e.currentTarget.style.color = '#475569';
-          }}
+          aria-label="Cerrar"
         >
-          <span>✕</span> Cerrar
+          <svg
+            viewBox="0 0 18 18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            width="18"
+            height="18"
+            style={{
+              transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              transform: isCloseHovered ? 'rotate(90deg) scale(1.15)' : 'none',
+              flexShrink: 0,
+            }}
+          >
+            <path d="M4 4l10 10M14 4l-10 10" />
+          </svg>
         </button>
       </div>
 
@@ -1370,7 +1416,6 @@ export default function ReservationForm() {
           {id && (
             <>
               <button onClick={handleOpenHistory} className="btn-historial">Historial</button>
-              <button onClick={handleOpenAppointments} className="btn-ver-citas">Ver citas</button>
               <button onClick={handleOpenAppointments} className="btn-agregar-cita">Agregar cita</button>
               <button onClick={handleCancelEventClick} className="btn-cancelar">Cancelar evento</button>
               {(() => {
@@ -1432,25 +1477,6 @@ export default function ReservationForm() {
           box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15) !important;
         }
 
-        .btn-ver-citas {
-          background: #f0fdf4 !important;
-          border: 1px solid #bbf7d0 !important;
-          color: #16a34a !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-ver-citas:hover {
-          background: #dcfce7 !important;
-          color: #15803d !important;
-          border-color: #86efac !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(22, 163, 74, 0.15) !important;
-        }
-
         .btn-agregar-cita {
           background: #10b981 !important;
           border: 1px solid #10b981 !important;
@@ -1488,26 +1514,6 @@ export default function ReservationForm() {
           border-color: #fda4af !important;
           transform: translateY(-2px) !important;
           box-shadow: 0 4px 12px rgba(225, 29, 72, 0.15) !important;
-        }
-
-        .btn-eliminar {
-          background: #dc2626 !important;
-          border: 1px solid #dc2626 !important;
-          color: white !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          box-shadow: 0 2px 6px rgba(220, 38, 38, 0.15) !important;
-          cursor: pointer !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-eliminar:hover {
-          background: #b91c1c !important;
-          color: white !important;
-          border-color: #b91c1c !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25) !important;
         }
 
         .btn-cotizar {
@@ -1619,7 +1625,10 @@ export default function ReservationForm() {
       {showQuoteModal && id && createPortal(
         <div id="appShell" className="lum-calendar" style={{ position: 'absolute', zIndex: 9999999, top: 0, left: 0 }}>
           <QuoteModal
-            event={events.find(ev => String(ev.id) === String(id)) || { ...formData, id, slots }}
+            event={{
+              ...(events.find(ev => String(ev.id) === String(id)) || { ...formData, id, slots }),
+              quote: formData.quote || events.find(ev => String(ev.id) === String(id))?.quote || null
+            }}
             eventData={formData}
             slots={slots}
             onClose={() => setShowQuoteModal(false)}

@@ -38,12 +38,11 @@ export default function ReportsContabilidad({ onClose }) {
     return () => { active = false; };
   }, []);
 
-  // Utility to format money in GTQ
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
   };
 
-  // 1. Utilidades para agrupar series de eventos y consolidar metadatos
+  // Utility functions preserved
   const getEventSeries = (ev, allEvents) => {
     if (!ev) return [];
     const groupId = ev.groupId || ev.id_grupo || ev.idGroup;
@@ -95,7 +94,6 @@ export default function ReportsContabilidad({ onClose }) {
     };
   };
 
-  // 2. Payments & advances normalization
   const normalizeQuoteAdvancesForSnapshot = (rawAdvances) => {
     const list = Array.isArray(rawAdvances) ? rawAdvances : [];
     return list.map((item, index) => {
@@ -112,7 +110,6 @@ export default function ReportsContabilidad({ onClose }) {
     }).filter(item => item.amount >= 0);
   };
 
-  // 3. Collection state evaluation helpers
   const stripTime = (date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -170,27 +167,21 @@ export default function ReportsContabilidad({ onClose }) {
     })[0] || null;
   };
 
-  // 4. Build deduplicated financial events list
   const reportData = useMemo(() => {
     if (!events) return [];
-    
     const rows = [];
     const seenReservations = new Set();
-    
     for (const ev of events) {
       if (ev.status === 'Cancelado' || ev.status === 'Mantenimiento') continue;
-      
       const reservationKey = ev.groupId || ev.id_grupo || ev.idGroup || ev.id;
       if (reservationKey) {
         if (seenReservations.has(reservationKey)) continue;
         seenReservations.add(reservationKey);
       }
-      
       const financialMeta = getEventSeriesFinancialMeta(ev, events);
       const primaryEvent = financialMeta.primaryEvent || ev;
       const quote = primaryEvent?.quote || ev?.quote || {};
       const assignedUser = users?.find(u => u.id === (primaryEvent?.userId || ev?.userId));
-      
       const advances = normalizeQuoteAdvancesForSnapshot(quote?.advances);
       const advancesSorted = advances.slice().sort((a, b) => {
         const d = String(a.date || "").localeCompare(String(b.date || ""));
@@ -201,16 +192,11 @@ export default function ReportsContabilidad({ onClose }) {
       const advancesTotal = advancesSorted.reduce((acc, item) => acc + Math.max(0, Number(item.amount || 0)), 0);
       const total = Math.max(0, Number(quote?.total || 0));
       const delta = total - advancesTotal;
-      
       const companyId = quote?.companyId || '';
       const matchedCompany = companies.find(c => c.id === companyId);
       const companyName = matchedCompany?.name || quote?.companyName || 'Sin institucion';
-      
       rows.push({
-        id: ev.id,
-        actionEventId: primaryEvent?.id || ev?.id,
-        companyId,
-        companyName,
+        id: ev.id, actionEventId: primaryEvent?.id || ev?.id, companyId, companyName,
         refId: quote?.code || reservationKey || primaryEvent?.id || ev?.id || '',
         name: primaryEvent?.name || ev?.name || '',
         eventDate: financialMeta.startDate || primaryEvent?.date || ev?.date || '',
@@ -218,8 +204,7 @@ export default function ReportsContabilidad({ onClose }) {
         startTime: financialMeta.startTime || primaryEvent?.startTime || ev?.startTime || '',
         endTime: financialMeta.endTime || primaryEvent?.endTime || ev?.endTime || '',
         salon: financialMeta.mainSalon || primaryEvent?.salon || ev?.salon || '',
-        salones: financialMeta.salones,
-        salonesLabel: financialMeta.salones.join(', '),
+        salones: financialMeta.salones, salonesLabel: financialMeta.salones.join(', '),
         status: primaryEvent?.status || ev?.status || '',
         userId: primaryEvent?.userId || ev?.userId,
         userName: assignedUser?.fullName || assignedUser?.name || 'Sin asignar',
@@ -228,18 +213,11 @@ export default function ReportsContabilidad({ onClose }) {
         manager: quote?.contact || matchedCompany?.owner || '',
         managerPhone: quote?.phone || matchedCompany?.phone || '',
         pax: Number(primaryEvent?.pax || ev?.pax || quote?.people || 0),
-        quote: quote,
-        dueDate: quote?.dueDate || '',
-        docDate: quote?.docDate || '',
-        paymentType: quote?.paymentType || '',
-        subtotal: quote?.subtotal || 0,
-        total: total,
-        discount: quote?.discountValue || 0,
-        advances: advancesSorted,
-        advancesCount: advancesSorted.length,
-        advancesTotal,
-        balancePending: Math.max(0, delta),
-        creditBalance: Math.max(0, -delta),
+        quote, dueDate: quote?.dueDate || '', docDate: quote?.docDate || '',
+        paymentType: quote?.paymentType || '', subtotal: quote?.subtotal || 0, total,
+        discount: quote?.discountValue || 0, advances: advancesSorted,
+        advancesCount: advancesSorted.length, advancesTotal,
+        balancePending: Math.max(0, delta), creditBalance: Math.max(0, -delta),
         lastAdvanceDate: lastAdvance?.date ? String(lastAdvance.date) : '',
         lastAdvancePaymentType: lastAdvance?.paymentType ? String(lastAdvance.paymentType) : '',
         lastAdvanceDescription: lastAdvance?.description ? String(lastAdvance.description) : '',
@@ -247,79 +225,41 @@ export default function ReportsContabilidad({ onClose }) {
         statusColor: STATUS_META[primaryEvent?.status || ev?.status]?.color || '#64748b'
       });
     }
-
     return rows;
   }, [events, users, companies]);
 
-  // 5. Apply filters reactively
   const filteredData = useMemo(() => {
     let filtered = reportData;
-
     if (search) {
       const term = search.toLowerCase();
       filtered = filtered.filter(r => 
-        r.name?.toLowerCase().includes(term) ||
-        r.clientName?.toLowerCase().includes(term) ||
-        r.salon?.toLowerCase().includes(term) ||
-        r.userName?.toLowerCase().includes(term) ||
-        r.refId?.toLowerCase().includes(term) ||
-        r.companyName?.toLowerCase().includes(term)
+        r.name?.toLowerCase().includes(term) || r.clientName?.toLowerCase().includes(term) ||
+        r.salon?.toLowerCase().includes(term) || r.userName?.toLowerCase().includes(term) ||
+        r.refId?.toLowerCase().includes(term) || r.companyName?.toLowerCase().includes(term)
       );
     }
-
-    if (dateFrom) {
-      filtered = filtered.filter(r => r.eventDate >= dateFrom);
-    }
-
-    if (dateTo) {
-      filtered = filtered.filter(r => r.eventDate <= dateTo);
-    }
-
-    if (userFilter !== 'all') {
-      filtered = filtered.filter(r => String(r.userId || '') === String(userFilter));
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(r => r.status === statusFilter);
-    }
-
-    if (salonFilter !== 'all') {
-      filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
-    }
-
-    if (companyFilter !== 'all') {
-      filtered = filtered.filter(r => String(r.companyId || '') === String(companyFilter));
-    }
-
+    if (dateFrom) filtered = filtered.filter(r => r.eventDate >= dateFrom);
+    if (dateTo) filtered = filtered.filter(r => r.eventDate <= dateTo);
+    if (userFilter !== 'all') filtered = filtered.filter(r => String(r.userId || '') === String(userFilter));
+    if (statusFilter !== 'all') filtered = filtered.filter(r => r.status === statusFilter);
+    if (salonFilter !== 'all') filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
+    if (companyFilter !== 'all') filtered = filtered.filter(r => String(r.companyId || '') === String(companyFilter));
     return filtered;
   }, [reportData, search, dateFrom, dateTo, userFilter, statusFilter, salonFilter, companyFilter]);
 
-  // 6. Group filtered events into company portfolio accounts
   const getAccountingCompanyAccounts = (rowsList = []) => {
     const sourceRows = Array.isArray(rowsList) ? rowsList : [];
     const groups = new Map();
-    
     for (const row of sourceRows) {
       const key = String(row?.companyId || row?.companyName || row?.refId || row?.id || `sin_empresa_${groups.size + 1}`);
       const account = groups.get(key) || {
-        key,
-        companyId: String(row?.companyId || ""),
+        key, companyId: String(row?.companyId || ""),
         companyName: String(row?.companyName || "Sin institucion").trim() || "Sin institucion",
-        contactPhone: String(row?.managerPhone || "").trim(),
-        rows: [],
-        netAmount: 0,
-        collectedAmount: 0,
-        pendingAmount: 0,
-        creditAmount: 0,
-        eventsCount: 0,
-        pendingEventsCount: 0,
-        paidEventsCount: 0,
-        advancesCount: 0,
-        sellerMap: new Map(),
-        lastAdvanceDate: "",
-        nextDueDate: "",
+        contactPhone: String(row?.managerPhone || "").trim(), rows: [],
+        netAmount: 0, collectedAmount: 0, pendingAmount: 0, creditAmount: 0,
+        eventsCount: 0, pendingEventsCount: 0, paidEventsCount: 0, advancesCount: 0,
+        sellerMap: new Map(), lastAdvanceDate: "", nextDueDate: "",
       };
-      
       account.rows.push(row);
       account.netAmount += Math.max(0, Number(row?.total || 0));
       account.collectedAmount += Math.max(0, Number(row?.advancesTotal || 0));
@@ -329,7 +269,6 @@ export default function ReportsContabilidad({ onClose }) {
       account.advancesCount += Math.max(0, Number(row?.advancesCount || 0));
       if (Number(row?.balancePending || 0) > 0) account.pendingEventsCount += 1;
       else account.paidEventsCount += 1;
-      
       if (row?.userName) {
         const seller = String(row.userName).trim();
         account.sellerMap.set(seller, Number(account.sellerMap.get(seller) || 0) + Math.max(0, Number(row?.total || 0)));
@@ -342,18 +281,14 @@ export default function ReportsContabilidad({ onClose }) {
       }
       groups.set(key, account);
     }
-
     return Array.from(groups.values()).map((account) => {
       const sellerEntry = Array.from(account.sellerMap.entries()).sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))[0];
       const collection = summarizeAccountingCollectionState(account);
       const actionRow = pickActionRow(account.rows);
       return {
-        ...account,
-        primarySeller: sellerEntry?.[0] || "",
-        collectionLabel: collection.label,
-        collectionTone: collection.tone,
-        collectionEta: collection.eta,
-        collectionDueLabel: collection.dueLabel,
+        ...account, primarySeller: sellerEntry?.[0] || "",
+        collectionLabel: collection.label, collectionTone: collection.tone,
+        collectionEta: collection.eta, collectionDueLabel: collection.dueLabel,
         collectionSortWeight: collection.sortWeight,
         actionEventId: String(actionRow?.actionEventId || actionRow?.id || ""),
         actionHasCredit: Math.max(0, Number(account.creditAmount || 0)) > 0,
@@ -365,11 +300,8 @@ export default function ReportsContabilidad({ onClose }) {
     });
   };
 
-  const accounts = useMemo(() => {
-    return getAccountingCompanyAccounts(filteredData);
-  }, [filteredData]);
+  const accounts = useMemo(() => getAccountingCompanyAccounts(filteredData), [filteredData]);
 
-  // 7. Calculate overall financial metrics reactively
   const summary = useMemo(() => {
     const discountAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.discount || 0)), 0);
     const netAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.total || 0)), 0);
@@ -378,19 +310,9 @@ export default function ReportsContabilidad({ onClose }) {
     const creditAmount = filteredData.reduce((acc, row) => acc + Math.max(0, Number(row?.creditBalance || 0)), 0);
     const overdueCount = accounts.filter((account) => account.collectionTone === "overdue").length;
     const nextCollection = accounts.find((account) => account.nextDueDate);
-    
-    return {
-      discountAmount,
-      netAmount,
-      collectedAmount,
-      pendingAmount,
-      creditAmount,
-      overdueCount,
-      nextCollection
-    };
+    return { discountAmount, netAmount, collectedAmount, pendingAmount, creditAmount, overdueCount, nextCollection };
   }, [filteredData, accounts]);
 
-  // 8. Build detailed ledger entries for details dropdown and printable statement
   const buildAccountingLedgerEntries = (account) => {
     const rows = Array.isArray(account?.rows) ? account.rows : [];
     const entries = [];
@@ -405,21 +327,9 @@ export default function ReportsContabilidad({ onClose }) {
       const mainSalon = String(row?.salon || "").trim();
       const salonesList = Array.isArray(row?.salones) ? row.salones.map((item) => String(item || "").trim()).filter(Boolean) : [];
       const otherSalones = salonesList.filter((item) => item !== mainSalon);
-      const salonContext = [
-        mainSalon ? `Salon principal: ${mainSalon}` : "",
-        otherSalones.length ? `Salones del evento: ${otherSalones.join(", ")}` : "",
-      ].filter(Boolean).join(" | ");
+      const salonContext = [mainSalon ? `Salon principal: ${mainSalon}` : "", otherSalones.length ? `Salones del evento: ${otherSalones.join(", ")}` : ""].filter(Boolean).join(" | ");
       if (total > 0) {
-        entries.push({
-          date: baseDate,
-          type: "Cargo",
-          eventId,
-          refId: ref,
-          concept: `Cotizacion ${ref}${company ? ` | ${company}` : ""}${salonContext ? ` | ${salonContext}` : ""}`,
-          debit: total,
-          credit: 0,
-          sortBucket: 0,
-        });
+        entries.push({ date: baseDate, type: "Cargo", eventId, refId: ref, concept: `Cotizacion ${ref}${company ? ` | ${company}` : ""}${salonContext ? ` | ${salonContext}` : ""}`, debit: total, credit: 0, sortBucket: 0 });
       }
       const advances = Array.isArray(row?.advances) ? row.advances : [];
       for (const adv of advances) {
@@ -429,19 +339,9 @@ export default function ReportsContabilidad({ onClose }) {
         const paymentType = String(adv?.paymentType || "").trim();
         const description = String(adv?.description || "").trim();
         const notes = [paymentType, description].filter(Boolean).join(" | ");
-        entries.push({
-          date: advDate,
-          type: "Abono",
-          eventId,
-          refId: ref,
-          concept: `${notes || `Pago aplicado a ${ref}`}${salonContext ? ` | ${salonContext}` : ""}`,
-          debit: 0,
-          credit: amount,
-          sortBucket: 1,
-        });
+        entries.push({ date: advDate, type: "Abono", eventId, refId: ref, concept: `${notes || `Pago aplicado a ${ref}`}${salonContext ? ` | ${salonContext}` : ""}`, debit: 0, credit: amount, sortBucket: 1 });
       }
     }
-
     const normalized = entries.slice().sort((a, b) => {
       const d = String(a.date || "9999-12-31").localeCompare(String(b.date || "9999-12-31"));
       if (d !== 0) return d;
@@ -461,16 +361,12 @@ export default function ReportsContabilidad({ onClose }) {
   const toggleAccountExpand = (key) => {
     setExpandedAccounts(prev => {
       const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
-  // 9. Alert for quote/payment action on other views
   const handleActionClick = (_actionName, eventId) => {
     if (!eventId) {
       Swal.fire('Sin evento relacionado', 'No se encontro un evento para abrir esta cotizacion.', 'info');
@@ -478,49 +374,22 @@ export default function ReportsContabilidad({ onClose }) {
     }
     onClose?.();
     navigate(`/reserva/${eventId}`);
-    return;
   };
 
-  // 10. Excel download matching institutional accounts
   const handleExportExcel = () => {
     if (!accounts.length) {
       Swal.fire('Error', 'No hay datos para exportar.', 'error');
       return;
     }
-    
     const csvRows = [
-      '\ufeff' + [
-        'INDICADOR',
-        'INSTITUCION',
-        'TELEFONO',
-        'VENDEDOR PRINCIPAL',
-        'EVENTOS',
-        'PENDIENTES',
-        'VENTA NETA',
-        'COBRADO',
-        'SALDO PENDIENTE',
-        'SALDO A FAVOR',
-        'FECHA MAXIMA PAGO',
-        'TIEMPO SUGERIDO COBRO',
-        'ULTIMO DEPOSITO'
-      ].join(','),
+      '\ufeff' + ['INDICADOR', 'INSTITUCION', 'TELEFONO', 'VENDEDOR PRINCIPAL', 'EVENTOS', 'PENDIENTES', 'VENTA NETA', 'COBRADO', 'SALDO PENDIENTE', 'SALDO A FAVOR', 'FECHA MAXIMA PAGO', 'TIEMPO SUGERIDO COBRO', 'ULTIMO DEPOSITO'].join(','),
       ...accounts.map(acc => [
-        `"${acc.collectionLabel || ''}"`,
-        `"${acc.companyName || ''}"`,
-        `"${acc.contactPhone || ''}"`,
-        `"${acc.primarySeller || ''}"`,
-        acc.eventsCount || 0,
-        acc.pendingEventsCount || 0,
-        acc.netAmount || 0,
-        acc.collectedAmount || 0,
-        acc.pendingAmount || 0,
-        acc.creditAmount || 0,
-        `"${acc.collectionDueLabel || ''}"`,
-        `"${acc.collectionEta || ''}"`,
-        `"${acc.lastAdvanceDate || ''}"`
+        `"${acc.collectionLabel || ''}"`, `"${acc.companyName || ''}"`, `"${acc.contactPhone || ''}"`,
+        `"${acc.primarySeller || ''}"`, acc.eventsCount || 0, acc.pendingEventsCount || 0,
+        acc.netAmount || 0, acc.collectedAmount || 0, acc.pendingAmount || 0, acc.creditAmount || 0,
+        `"${acc.collectionDueLabel || ''}"`, `"${acc.collectionEta || ''}"`, `"${acc.lastAdvanceDate || ''}"`
       ].join(','))
     ];
-
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -529,985 +398,438 @@ export default function ReportsContabilidad({ onClose }) {
   };
 
   const clearFilters = () => {
-    setSearch('');
-    setDateFrom('');
-    setDateTo('');
-    setUserFilter('all');
-    setStatusFilter('all');
-    setSalonFilter('all');
-    setCompanyFilter('all');
+    setSearch(''); setDateFrom(''); setDateTo(''); setUserFilter('all');
+    setStatusFilter('all'); setSalonFilter('all'); setCompanyFilter('all');
   };
 
-  // 11. Extract unique salon filters
   const allSalones = useMemo(() => {
     if (!events) return [];
     return [...new Set(events.map(e => e.salon).filter(Boolean))].sort();
   }, [events]);
 
-  const allStatuses = [
-    'Pre reserva',
-    'Reserva sin Cotizacion',
-    '1er Cotizacion',
-    'Seguimiento',
-    'Lista de Espera',
-    'Confirmado',
-    'Cancelado',
-    'Mantenimiento',
-    'Perdido',
-    'Realizado'
+  const allStatuses = ['Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
+    'Lista de Espera', 'Confirmado', 'Cancelado', 'Mantenimiento', 'Perdido', 'Realizado'];
+
+  // ── Bento KPI data ──
+  const kpiSummary = [
+    { label: 'Instituciones', value: accounts.length, accent: '#2563eb', meta: `${filteredData.length} evento(s)` },
+    { label: 'Venta Neta', value: formatMoney(summary.netAmount), accent: '#16a34a', meta: `Total cotizado` },
+    { label: 'Cobrado', value: formatMoney(summary.collectedAmount), accent: '#0d9488', meta: `${accounts.reduce((a, c) => a + c.advancesCount, 0)} pago(s)` },
+    { label: 'Saldo Pendiente', value: formatMoney(summary.pendingAmount), accent: summary.pendingAmount > 0 ? '#dc2626' : '#16a34a', meta: `${summary.overdueCount} vencido(s)` },
+    { label: 'Saldo a Favor', value: formatMoney(summary.creditAmount), accent: '#7c3aed', meta: `Disponible` },
   ];
 
   return (
-    <div className="modalBackdrop" id="accountingReportBackdrop" onClick={(e) => { if (e.target.id === 'accountingReportBackdrop') onClose(); }}>
-      <style>{`
-        #accountingReportBackdrop .salesReportModal {
-          width: min(1280px, calc(100vw - 32px)) !important;
-          height: 92vh !important;
-          max-height: 92vh !important;
-          display: flex !important;
-          flex-direction: column !important;
-          overflow: hidden !important;
-          box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
-          border-radius: 16px !important;
-        }
-        #accountingReportBackdrop .salesReportHeader {
-          min-height: 86px !important;
-          padding: 14px 20px !important;
-          align-items: center !important;
-        }
-        #accountingReportBackdrop .reportBrandHeader {
-          gap: 12px !important;
-          align-items: center !important;
-        }
-        #accountingReportBackdrop .salesReportBrandBadge {
-          width: 52px !important;
-          height: 52px !important;
-          border-radius: 14px !important;
-        }
-        #accountingReportBackdrop .salesReportBrandLogo {
-          width: 38px !important;
-          height: 38px !important;
-        }
-        #accountingReportBackdrop #accountingReportTitle {
-          font-size: 27px !important;
-          line-height: 1.04 !important;
-          letter-spacing: -0.02em !important;
-        }
-        #accountingReportBackdrop #accountingReportSubtitle,
-        #accountingReportBackdrop .reportBrandEyebrow {
-          font-size: 12px !important;
-        }
-        #accountingReportBackdrop .salesReportBody {
-          flex: 1 !important;
-          padding: 14px 24px 16px !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 14px !important;
-          overflow-y: auto !important;
-        }
-        #accountingReportBackdrop .salesReportHeroPanel {
-          padding: 12px 18px !important;
-          margin-bottom: 0 !important;
-          border-radius: 16px !important;
-          background: #f8fafc !important;
-          border: 1px solid #e2e8f0 !important;
-        }
-        #accountingReportBackdrop .reportSectionIntro {
-          margin-bottom: 10px !important;
-          display: flex !important;
-          justify-content: space-between !important;
-          align-items: flex-start !important;
-        }
-        #accountingReportBackdrop .reportSectionEyebrow {
-          font-size: 9px !important;
-          font-weight: 800 !important;
-          text-transform: uppercase !important;
-          color: #64748b !important;
-          letter-spacing: 0.05em !important;
-        }
-        #accountingReportBackdrop .reportSectionTitle {
-          font-size: 15px !important;
-          font-weight: 800 !important;
-          color: #0f172a !important;
-          margin-top: 2px !important;
-        }
-        #accountingReportBackdrop .reportSectionText {
-          font-size: 11px !important;
-          color: #64748b !important;
-          margin-top: 2px !important;
-        }
-        #accountingReportBackdrop .reportFilterMeta {
-          font-size: 11px !important;
-          font-weight: 700 !important;
-          color: #1e3a5f !important;
-          background: #e0f2fe !important;
-          padding: 4px 10px !important;
-          border-radius: 999px !important;
-        }
-        #accountingReportBackdrop .salesReportSummary {
-          display: grid !important;
-          grid-template-columns: repeat(4, 1fr) !important;
-          gap: 10px !important;
-        }
-        #accountingReportBackdrop .salesSummaryCard {
-          min-height: 74px !important;
-          padding: 8px 12px !important;
-          gap: 2px !important;
-          border-radius: 10px !important;
-          border: 1px solid #cbd5e1 !important;
-        }
-        #accountingReportBackdrop .salesSummaryCard strong {
-          font-size: 1.4rem !important;
-          font-weight: 800 !important;
-        }
-        #accountingReportBackdrop .salesSummaryCard small {
-          font-size: 10.5px !important;
-          font-weight: 700 !important;
-        }
-        #accountingReportBackdrop .salesSummaryEyebrow {
-          font-size: 9px !important;
-          font-weight: 800 !important;
-        }
-        #accountingReportBackdrop .salesSummaryMeta {
-          padding: 2px 8px !important;
-          font-size: 9.5px !important;
-          margin-top: 4px !important;
-          font-weight: 700 !important;
-        }
-        #accountingReportBackdrop .salesReportFiltersInline {
-          grid-template-columns: repeat(7, 1fr) !important;
-          gap: 8px !important;
-          padding: 12px 16px !important;
-          background: #f8fafc !important;
-          border-radius: 12px !important;
-          border: 1px solid #cbd5e1 !important;
-          align-items: flex-end !important;
-        }
-        #accountingReportBackdrop .salesReportFiltersInline .field {
-          margin-bottom: 0 !important;
-          display: flex !important;
-          flex-direction: column !important;
-        }
-        #accountingReportBackdrop .salesReportFiltersInline .field span {
-          font-size: 10px !important;
-          font-weight: 700 !important;
-          color: #475569 !important;
-          margin-bottom: 4px !important;
-          text-transform: uppercase !important;
-        }
-        #accountingReportBackdrop .salesReportFiltersInline input,
-        #accountingReportBackdrop .salesReportFiltersInline select {
-          padding: 6px 8px !important;
-          font-size: 12px !important;
-          height: 32px !important;
-          border: 1px solid #cbd5e1 !important;
-          border-radius: 6px !important;
-          background: #ffffff !important;
-          color: #0f172a !important;
-          font-weight: 600 !important;
-        }
-        #accountingReportBackdrop .salesReportActions {
-          grid-column: span 7 !important;
-          margin-top: 6px !important;
-          display: flex !important;
-          gap: 8px !important;
-          justify-content: flex-end !important;
-        }
-        #accountingReportBackdrop .salesReportActions button {
-          height: 32px !important;
-          padding: 0 16px !important;
-          font-size: 12px !important;
-          font-weight: 700 !important;
-          border-radius: 6px !important;
-        }
-        #accountingReportBackdrop .salesReportTableWrap {
-          margin-top: 4px !important;
-          border-radius: 12px !important;
-          border: 1px solid #cbd5e1 !important;
-        }
-        #accountingReportBackdrop .quoteTable thead th {
-          padding: 8px 10px !important;
-          font-size: 10.5px !important;
-          font-weight: 800 !important;
-        }
-        #accountingReportBackdrop .quoteTable tbody td {
-          padding: 8px 10px !important;
-          font-size: 12px !important;
-        }
-        #accountingReportBackdrop .salesReportModal {
-          width: min(1280px, calc(100vw - 32px)) !important;
-        }
-        #accountingReportBackdrop .salesReportBody {
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-        }
-        #accountingReportBackdrop .salesReportSummary {
-          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-          align-items: stretch !important;
-        }
-        #accountingReportBackdrop .salesSummaryCard {
-          min-width: 0 !important;
-        }
-        #accountingReportBackdrop .accountingPortfolioTable {
-          min-width: 1040px !important;
-          table-layout: fixed !important;
-        }
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(1),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(1) { width: 120px !important; }
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(2),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(2) { width: 190px !important; }
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(3),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(3) { width: 150px !important; }
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(4),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(4) { width: 76px !important; }
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(5),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(5),
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(6),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(6),
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(7),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(7),
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(8),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(8) { width: 112px !important; }
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(9),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(9) { width: 142px !important; }
-        #accountingReportBackdrop .accountingPortfolioTable th:nth-child(10),
-        #accountingReportBackdrop .accountingPortfolioTable td:nth-child(10) { width: 176px !important; }
-        #accountingReportBackdrop .accountingInlineActions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          justify-content: flex-start;
-          margin-top: 7px;
-        }
-        #accountingReportBackdrop .accountingInlineActions .accountingActionBtn {
-          min-height: 28px !important;
-          padding: 0 9px !important;
-          font-size: 10.5px !important;
-          border-radius: 8px !important;
-          box-shadow: none !important;
-        }
-        #accountingReportBackdrop .accountingLastPayCell {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        #accountingReportBackdrop .accountingDetailCard {
-          gap: 18px !important;
-        }
-        #accountingReportBackdrop .accountingDetailHead {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: space-between;
-          gap: 8px;
-          padding: 12px 14px;
-          border: 1px solid #dbeafe;
-          border-radius: 12px;
-          background: #eff6ff;
-        }
-        #accountingReportBackdrop .accountingDetailTable {
-          min-width: 1320px;
-        }
-        #accountingReportBackdrop .accountingDetailTableWrap {
-          max-height: 42vh;
-          overflow: auto !important;
-        }
-        #accountingReportBackdrop .accountingDetailMetrics {
-          display: grid !important;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px !important;
-        }
-        #accountStatementBackdrop {
-          position: fixed !important;
-          inset: 0 !important;
-          z-index: 42000 !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          padding: 18px !important;
-          background: rgba(15, 23, 42, 0.55) !important;
-          backdrop-filter: blur(10px) !important;
-          -webkit-backdrop-filter: blur(10px) !important;
-        }
-        #accountStatementBackdrop .accountStatementModal {
-          width: min(1180px, calc(100vw - 36px)) !important;
-          height: min(92vh, 940px) !important;
-        }
-        @media (max-width: 980px) {
-          #accountingReportBackdrop .salesReportSummary {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-          #accountingReportBackdrop .accountingDetailMetrics {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-        @media (max-width: 760px) {
-          #accountingReportBackdrop .salesReportSummary {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 8px !important;
-          }
-          #accountingReportBackdrop .salesReportFiltersInline {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 10px !important;
-          }
-          #accountingReportBackdrop .salesReportFiltersInline .field:nth-child(1) {
-            grid-column: span 2 !important;
-          }
-          #accountingReportBackdrop .salesReportFiltersInline .field:nth-child(7) {
-            grid-column: span 2 !important;
-          }
-          #accountingReportBackdrop .salesReportActions {
-            grid-column: span 2 !important;
-            justify-content: stretch !important;
-            display: flex !important;
-            flex-direction: row !important;
-            gap: 8px !important;
-            width: 100% !important;
-            margin-top: 8px !important;
-          }
-          #accountingReportBackdrop .salesReportActions button {
-            flex: 1 1 0 !important;
-            width: 100% !important;
-            height: 32px !important;
-          }
-        }
-      `}</style>
-      <div className="modal salesReportModal">
-        {/* Header */}
-        <div className="modalHeader salesReportHeader">
-          <div className="reportBrandHeader">
-            <div className="reportBrandBadge salesReportBrandBadge" style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px', borderRadius: '14px', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid #c7d8ec', background: '#f5faff', flex: '0 0 56px' }}>
-              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo salesReportBrandLogo" style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px', maxWidth: '40px', maxHeight: '40px', objectFit: 'contain', display: 'block' }} />
-            </div>
-            <div className="reportBrandCopy">
-              <div className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
-              <div className="modalTitle" id="accountingReportTitle">Estado de cuenta contable</div>
-              <div className="modalSubtitle" id="accountingReportSubtitle">Cartera por institución para cobro y aplicación de pagos</div>
-            </div>
+    <div className="reports-page-container">
+      {/* Header */}
+      <div className="reports-page-header">
+        <div className="reports-brand-header">
+          <div className="reports-brand-badge">
+            <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
-          <button className="iconBtn reportModalClose" id="btnAccountingReportClose" type="button" title="Cerrar" onClick={onClose}>&#10005;</button>
+          <div>
+            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-title">Estado de Cuenta Contable</div>
+            <div className="reports-subtitle">Cartera por institución para cobro y aplicación de pagos</div>
+          </div>
         </div>
-        
-        <div className="modalBody salesReportBody">
-          {/* Hero Panel */}
-          <div className="salesReportHeroPanel">
-            <div className="reportSectionIntro">
-              <div>
-                <span className="reportSectionEyebrow">Visión Contable</span>
-                <h3 className="reportSectionTitle">Estado de cuenta por empresa con saldo pendiente, saldo a favor y tiempo sugerido de cobro</h3>
-                <p className="reportSectionText">Ideal para cobrar por institución, identificar vencimientos, abrir el detalle por evento y aplicar pagos sin perder trazabilidad.</p>
+        <button className="btn-exit" type="button" onClick={onClose}>
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+          Volver
+        </button>
+      </div>
+
+      <div className="reports-page-body">
+        {/* ── Hero + Storytelling ── */}
+        <section className="reports-hero-panel">
+          <div className="reports-section-intro">
+            <div>
+              <span className="reports-eyebrow">Visión Contable</span>
+              <h3 className="reports-section-title">Estado de cuenta por empresa con saldo pendiente, saldo a favor y tiempo sugerido de cobro</h3>
+              <p className="reports-section-text">Ideal para cobrar por institución, identificar vencimientos, abrir el detalle por evento y aplicar pagos sin perder trazabilidad.</p>
+            </div>
+            <span className="reports-filter-meta">
+              {users?.find(u => u.id === userFilter)?.fullName || 'Todos los vendedores'}
+            </span>
+          </div>
+
+          {/* Bento KPI Summary */}
+          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+            {kpiSummary.map((kpi, i) => (
+              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${kpi.accent}` }}>
+                <span className="reports-eyebrow">{kpi.label}</span>
+                <strong style={{ fontSize: kpi.label === 'Instituciones' ? '2.2rem' : '1.3rem' }}>{kpi.value}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{kpi.meta}</span>
               </div>
-              <span className="reportFilterMeta">
-                Vendedor: {users?.find(u => u.id === userFilter)?.fullName || 'Todos'}
-              </span>
-            </div>
-            
-            {/* KPI Metrics Strip */}
-            <div className="salesReportSummary">
-              <article className="salesSummaryCard salesSummaryCard--primary">
-                <span className="salesSummaryEyebrow">CARTERA</span>
-                <small>Empresas visibles</small>
-                <strong>{accounts.length}</strong>
-                <div className="salesSummaryMeta">
-                  {filteredData.length} eventos | Venta neta {formatMoney(summary.netAmount)}
-                </div>
-              </article>
-              
-              <article className="salesSummaryCard salesSummaryCard--info">
-                <span className="salesSummaryEyebrow">COBRADO</span>
-                <small>Anticipos cobrados</small>
-                <strong>{formatMoney(summary.collectedAmount)}</strong>
-                <div className="salesSummaryMeta">
-                  {filteredData.reduce((acc, row) => acc + (row.advancesCount || 0), 0)} pago(s) registrados
-                </div>
-              </article>
-              
-              <article className="salesSummaryCard salesSummaryCard--accent">
-                <span className="salesSummaryEyebrow">PENDIENTE</span>
-                <small>Saldo por cobrar</small>
-                <strong>{formatMoney(summary.pendingAmount)}</strong>
-                <div className="salesSummaryMeta">
-                  Saldo a favor {formatMoney(summary.creditAmount)} | Descuentos {formatMoney(summary.discountAmount)}
-                </div>
-              </article>
-              
-              <article className={`salesSummaryCard ${summary.overdueCount > 0 ? 'salesSummaryCard--accent' : 'salesSummaryCard--success'}`}>
-                <span className="salesSummaryEyebrow">GESTION</span>
-                <small>Cobro sugerido</small>
-                <strong>{summary.overdueCount > 0 ? `${summary.overdueCount} vencida(s)` : 'Al día'}</strong>
-                <div className="salesSummaryMeta">
-                  {summary.nextCollection ? `${summary.nextCollection.companyName}: ${summary.nextCollection.collectionEta}` : 'Sin cobros pendientes programados'}
-                </div>
-              </article>
-            </div>
+            ))}
           </div>
-          
-          {/* Filters Bar */}
-          <div className="salesReportFiltersInline">
-            <label className="field">
-              <span>Buscar</span>
-              <input 
-                type="text" 
-                placeholder="No cotizacion, vendedor, inst..." 
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </label>
-            
-            <label className="field">
-              <span>Desde</span>
-              <input 
-                type="date" 
-                value={dateFrom} 
-                onChange={e => setDateFrom(e.target.value)}
-              />
-            </label>
-            
-            <label className="field">
-              <span>Hasta</span>
-              <input 
-                type="date" 
-                value={dateTo} 
-                onChange={e => setDateTo(e.target.value)}
-              />
-            </label>
-            
-            <label className="field">
-              <span>Vendedor</span>
-              <select 
-                value={userFilter} 
-                onChange={e => setUserFilter(e.target.value)}
-              >
-                <option value="all">Todos vendedores</option>
-                {users?.filter(u => u.active !== false).map(u => (
-                  <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
-                ))}
-              </select>
-            </label>
-            
-            <label className="field">
-              <span>Estado</span>
-              <select 
-                value={statusFilter} 
-                onChange={e => setStatusFilter(e.target.value)}
-              >
-                <option value="all">Todos estados</option>
-                {allStatuses.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </label>
-            
-            <label className="field">
-              <span>Salón</span>
-              <select 
-                value={salonFilter} 
-                onChange={e => setSalonFilter(e.target.value)}
-              >
-                <option value="all">Todos salones</option>
-                {allSalones.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </label>
-            
-            <label className="field">
-              <span>Institución</span>
-              <select 
-                value={companyFilter} 
-                onChange={e => setCompanyFilter(e.target.value)}
-              >
-                <option value="all">Todas instituciones</option>
-                {companies.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </label>
-            
-            <div className="salesReportActions">
-              <button className="accountingActionBtn accountingActionBtn--secondary" style={{ border: '1px solid #cbd5e1' }} onClick={clearFilters}>Limpiar filtros</button>
-              <button className="accountingActionBtn" onClick={handleExportExcel}>Exportar Excel</button>
-            </div>
+
+          {/* Storytelling */}
+          <div className="reports-storytelling-card">
+            <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Narración de Cartera Contable</span>
+            <p className="reports-story-text">
+              La cartera contable activa registra un total de <strong className="highlight-blue">{accounts.length}</strong> instituciones con un volumen de negocio consolidado de <strong className="highlight-slate">{formatMoney(summary.netAmount)}</strong>. A la fecha, se han recaudado <strong className="highlight-green">{formatMoney(summary.collectedAmount)}</strong> en anticipos y pagos aplicados, quedando un saldo pendiente por cobrar de <strong className="highlight-orange">{formatMoney(summary.pendingAmount)}</strong> (con <strong className="highlight-blue">{formatMoney(summary.creditAmount)}</strong> registrados como saldos a favor). Actualmente, tenemos <strong className="highlight-orange">{summary.overdueCount}</strong> instituciones con cobros vencidos que requieren atención inmediata.
+            </p>
           </div>
-          
-          {/* Main Portfolio Table */}
-          <div className="salesReportTableWrap" style={{ flex: 1, overflow: 'auto' }}>
-            <table className="quoteTable salesReportTable accountingPortfolioTable" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-              <thead>
+        </section>
+
+        {/* ── Filters ── */}
+        <div className="reports-toolbar">
+          <label className="field">
+            <span>Buscar</span>
+            <input type="text" placeholder="No cotización, vendedor, inst..." value={search} onChange={e => setSearch(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Desde</span>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Hasta</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Vendedor</span>
+            <select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
+              <option value="all">Todos vendedores</option>
+              {users?.filter(u => u.active !== false).map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Estado</span>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="all">Todos estados</option>
+              {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Salón</span>
+            <select value={salonFilter} onChange={e => setSalonFilter(e.target.value)}>
+              <option value="all">Todos salones</option>
+              {allSalones.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Institución</span>
+            <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
+              <option value="all">Todas instituciones</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <div className="reports-actions">
+            <button type="button" onClick={clearFilters}>Limpiar filtros</button>
+            <button className="btnPrimary" type="button" onClick={handleExportExcel}>Exportar Excel</button>
+          </div>
+        </div>
+
+        {/* ── Portfolio Table ── */}
+        <div className="reports-table-wrap">
+          <table className="reports-table">
+            <thead>
+              <tr>
+                <th style={{ width: '100px' }}>Indicador</th>
+                <th>Institución</th>
+                <th style={{ width: '120px' }}>Contacto</th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Eventos</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Venta Neta</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Cobrado</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Pendiente</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Saldo Favor</th>
+                <th style={{ width: '110px' }}>Propuesta</th>
+                <th style={{ minWidth: '200px' }}>Último Pago / Acciones</th>
+              </tr>
+            </thead>
+            {accounts.length === 0 ? (
+              <tbody>
                 <tr>
-                  <th>INDICADOR</th>
-                  <th>INSTITUCION</th>
-                  <th>CONTACTO COBRO</th>
-                  <th>EVENTOS</th>
-                  <th>VENTA NETA</th>
-                  <th>COBRADO</th>
-                  <th>SALDO PENDIENTE</th>
-                  <th>SALDO A FAVOR</th>
-                  <th>PROPUESTA</th>
-                  <th>ULTIMO PAGO / ACCIONES</th>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                    Sin resultados para los filtros seleccionados.
+                  </td>
                 </tr>
-              </thead>
-                {accounts.length === 0 ? (
-                  <tbody>
-                  <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                      Sin resultados para los filtros seleccionados.
+              </tbody>
+            ) : accounts.map(acc => {
+              const expanded = expandedAccounts.has(acc.key);
+              const canApplyPayment = !!acc.actionEventId;
+              return (
+                <tbody key={acc.key}>
+                  {/* Company Row */}
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td>
+                      <span className={`reports-collection-status reports-collection-status--${acc.collectionTone}`}>
+                        {acc.collectionLabel}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <strong style={{ fontSize: '12px', color: '#0f172a' }}>{acc.companyName}</strong>
+                        <small style={{ color: '#94a3b8', fontSize: '10px' }}>
+                          {acc.primarySeller ? `Vendedor: ${acc.primarySeller}` : 'Sin vendedor asignado'}
+                        </small>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <strong style={{ fontSize: '12px', color: '#334155' }}>{acc.contactPhone || '-'}</strong>
+                        <small style={{ color: '#94a3b8', fontSize: '10px' }}>
+                          {acc.pendingEventsCount} pendiente(s) · {acc.paidEventsCount} al día
+                        </small>
+                      </div>
+                    </td>
+                    <td style={{ fontWeight: '700', textAlign: 'center', fontSize: '13px' }}>{acc.eventsCount}</td>
+                    <td style={{ fontWeight: '700', textAlign: 'right', color: '#0f172a', fontSize: '12px' }}>{formatMoney(acc.netAmount)}</td>
+                    <td style={{ fontWeight: '600', textAlign: 'right', color: '#16a34a', fontSize: '12px' }}>{formatMoney(acc.collectedAmount)}</td>
+                    <td style={{ fontWeight: '700', textAlign: 'right', color: acc.pendingAmount > 0 ? '#dc2626' : '#16a34a', fontSize: '12px' }}>{formatMoney(acc.pendingAmount)}</td>
+                    <td style={{ fontWeight: '600', textAlign: 'right', color: '#0d9488', fontSize: '12px' }}>{formatMoney(acc.creditAmount)}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <strong style={{ fontSize: '11px', color: '#334155' }}>{acc.collectionDueLabel || '-'}</strong>
+                        <small style={{ color: '#94a3b8', fontSize: '10px' }}>{acc.collectionEta || 'Sin gestión'}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#475569' }}>
+                          <strong>{acc.lastAdvanceDate || '-'}</strong>
+                          <small style={{ color: '#94a3b8' }}>{acc.advancesCount ? `(${acc.advancesCount} pago(s))` : ''}</small>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          <button type="button" onClick={() => toggleAccountExpand(acc.key)}
+                            style={{ padding: '3px 8px', fontSize: '9px', fontWeight: '700', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>
+                            {expanded ? 'Ocultar' : 'Detalle'}
+                          </button>
+                          <button type="button" onClick={() => setActiveStatementAccount(acc)}
+                            style={{ padding: '3px 8px', fontSize: '9px', fontWeight: '700', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>
+                            Estado
+                          </button>
+                          <button type="button" onClick={() => handleActionClick("ver cotizacion", acc.actionEventId)} disabled={!canApplyPayment}
+                            style={{ padding: '3px 8px', fontSize: '9px', fontWeight: '700', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: !canApplyPayment ? '#cbd5e1' : '#475569', cursor: canApplyPayment ? 'pointer' : 'not-allowed' }}>
+                            Cotización
+                          </button>
+                          <button type="button" onClick={() => handleActionClick(acc.actionHasCredit ? "ajustar saldo" : "aplicar pago", acc.actionEventId)} disabled={!canApplyPayment}
+                            style={{ padding: '3px 8px', fontSize: '9px', fontWeight: '700', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: canApplyPayment ? 'pointer' : 'not-allowed', opacity: canApplyPayment ? 1 : 0.4 }}>
+                            {acc.actionHasCredit ? 'Ajustar' : 'Pago'}
+                          </button>
+                        </div>
+                      </div>
                     </td>
                   </tr>
-                  </tbody>
-                ) : (
-                  accounts.map(acc => {
-                    const expanded = expandedAccounts.has(acc.key);
-                    const canApplyPayment = !!acc.actionEventId;
-                    
-                    return (
-                      <tbody key={acc.key}>
-                        {/* Summary Company Row */}
-                        <tr className="accountingCompanyRow" style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td>
-                            <span className={`accountingIndicator accountingIndicator--${acc.collectionTone}`}>
-                              {acc.collectionLabel}
+
+                  {/* Expanded Details */}
+                  {expanded && (
+                    <tr>
+                      <td colSpan={10} style={{ padding: '16px 24px', background: '#f8fafc' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', padding: '18px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '2px solid #e2e8f0' }}>
+                            <strong style={{ fontSize: '14px', color: '#0f172a' }}>Estado de cuenta por evento</strong>
+                            <span style={{ fontSize: '11px', color: '#475569', fontWeight: '600', background: '#f1f5f9', padding: '4px 12px', borderRadius: '999px' }}>
+                              {acc.companyName} · {acc.eventsCount} evento(s) · {acc.advancesCount} pago(s)
                             </span>
-                          </td>
-                          <td>
-                            <div className="accountingCompanyCell">
-                              <strong>{acc.companyName}</strong>
-                              <small style={{ color: '#64748b', fontSize: '11px' }}>
-                                {acc.primarySeller ? `Principal: ${acc.primarySeller}` : "Sin vendedor asignado"}
-                              </small>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="accountingMetaCell">
-                              <strong>{acc.contactPhone || "-"}</strong>
-                              <small style={{ color: '#64748b', fontSize: '11px' }}>
-                                {`${acc.pendingEventsCount} pendiente(s) | ${acc.paidEventsCount} al día`}
-                              </small>
-                            </div>
-                          </td>
-                          <td style={{ fontWeight: '600', textAlign: 'center' }}>{acc.eventsCount || 0}</td>
-                          <td style={{ fontWeight: '700', color: '#0f172a' }}>{formatMoney(acc.netAmount)}</td>
-                          <td style={{ fontWeight: '600', color: '#16a34a' }}>{formatMoney(acc.collectedAmount)}</td>
-                          <td style={{ fontWeight: '700', color: acc.pendingAmount > 0 ? '#dc2626' : '#16a34a' }}>
-                            {formatMoney(acc.pendingAmount)}
-                          </td>
-                          <td style={{ fontWeight: '600', color: '#0d9488' }}>{formatMoney(acc.creditAmount)}</td>
-                          <td>
-                            <div className="accountingMetaCell">
-                              <strong>{acc.collectionDueLabel || "-"}</strong>
-                              <small style={{ color: '#64748b', fontSize: '11px' }}>{acc.collectionEta || "Sin gestión pendiente"}</small>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="accountingLastPayCell">
-                              <strong style={{ color: '#475569', fontWeight: '700' }}>{acc.lastAdvanceDate || "-"}</strong>
-                              <small style={{ color: '#64748b', fontSize: '10.5px' }}>
-                                {acc.advancesCount ? `${acc.advancesCount} pago(s)` : 'Sin pagos'}
-                              </small>
-                            </div>
-                            <div className="accountingInlineActions">
-                              <button
-                                className="accountingActionBtn accountingActionBtn--secondary"
-                                type="button"
-                                onClick={() => toggleAccountExpand(acc.key)}
-                              >
-                                {expanded ? "Ocultar detalle" : "Ver detalle"}
-                              </button>
-                              <button
-                                className="accountingActionBtn accountingActionBtn--secondary"
-                                type="button"
-                                onClick={() => setActiveStatementAccount(acc)}
-                              >
-                                Estado de cuenta
-                              </button>
-                              <button
-                                className="accountingActionBtn accountingActionBtn--secondary"
-                                type="button"
-                                onClick={() => handleActionClick("ver cotizacion", acc.actionEventId)}
-                                disabled={!canApplyPayment}
-                              >
-                                Ver cotizacion
-                              </button>
-                              <button
-                                className="accountingActionBtn"
-                                type="button"
-                                onClick={() => handleActionClick(acc.actionHasCredit ? "ajustar saldo" : "aplicar pago", acc.actionEventId)}
-                                disabled={!canApplyPayment}
-                              >
-                                {acc.actionHasCredit ? "Ajustar saldo" : "Aplicar pago"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                          </div>
 
-                        {/* Collapsible Expanded Details Section */}
-                        {expanded && (
-                          <tr className="accountingCompanyDetailRow">
-                            <td colSpan={10} style={{ padding: '16px 24px', background: '#f8fafc' }}>
-                              <div className="accountingDetailCard" style={{ display: 'flex', flexDirection: 'column', gap: '18px', padding: '18px', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
-                                <div className="accountingDetailHead" style={{ paddingBottom: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', border: 'none', borderBottom: '2px solid #e2e8f0', borderRadius: '0' }}>
-                                  <strong style={{ fontSize: '16px', color: '#0f172a' }}>Estado de cuenta por evento</strong>
-                                  <span style={{ fontSize: '13px', color: '#475569', fontWeight: '600', background: '#f1f5f9', padding: '6px 14px', borderRadius: '999px', border: '1px solid #cbd5e1' }}>
-                                    {`${acc.companyName} | ${acc.eventsCount} evento(s) | ${acc.advancesCount} pago(s)`}
-                                  </span>
-                                </div>
-                                
-                                {/* 1. Detailed Events Table */}
-                                <div className="accountingDetailTableWrap" style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff' }}>
-                                  <table className="quoteTable accountingDetailTable" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                      <tr style={{ background: '#f1f5f9' }}>
-                                        <th>Estado</th>
-                                        <th>No cotizacion</th>
-                                        <th>Fecha evento</th>
-                                        <th>Fecha max pago</th>
-                                        <th>Salon principal</th>
-                                        <th>Salones del evento</th>
-                                        <th>Vendedor</th>
-                                        <th>Forma pago</th>
-                                        <th style={{ textAlign: 'right' }}>Total neto</th>
-                                        <th style={{ textAlign: 'right' }}>Cobrado</th>
-                                        <th style={{ textAlign: 'right' }}>Pendiente</th>
-                                        <th style={{ textAlign: 'right' }}>Saldo a favor</th>
-                                        <th>Último depósito</th>
-                                        <th>Detalle</th>
-                                        <th>Acción</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {acc.rows.map((r, idx) => (
-                                        <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                                          <td>
-                                            <span className="salesStatusBadge" style={{
-                                              background: `${r.statusColor}22`,
-                                              borderColor: `${r.statusColor}99`,
-                                              color: r.statusColor,
-                                              padding: '3px 8px',
-                                              borderRadius: '999px',
-                                              fontSize: '10px',
-                                              fontWeight: '800'
-                                            }}>
-                                              {r.status || "-"}
-                                            </span>
-                                          </td>
-                                          <td style={{ fontWeight: '700' }}>{r.refId}</td>
-                                          <td>{r.eventDate}</td>
-                                          <td>{r.dueDate || "-"}</td>
-                                          <td>{r.salon}</td>
-                                          <td style={{ fontSize: '11px', color: '#475569' }}>{r.salonesLabel}</td>
-                                          <td>{r.userName}</td>
-                                          <td>{r.paymentType || "-"}</td>
-                                          <td style={{ textAlign: 'right', fontWeight: '700' }}>{formatMoney(r.total)}</td>
-                                          <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: '600' }}>{formatMoney(r.advancesTotal)}</td>
-                                          <td style={{ textAlign: 'right', color: r.balancePending > 0 ? '#dc2626' : '#16a34a', fontWeight: '700' }}>
-                                            {formatMoney(r.balancePending)}
-                                          </td>
-                                          <td style={{ textAlign: 'right', color: '#0d9488', fontWeight: '600' }}>{formatMoney(r.creditBalance)}</td>
-                                          <td>{r.lastAdvanceDate || "-"}</td>
-                                          <td>
-                                            <div className="accountingMetaCell">
-                                              <strong>{r.lastAdvancePaymentType || "-"}</strong>
-                                              <small style={{ fontSize: '10.5px', color: '#64748b' }}>{r.lastAdvanceDescription || "Sin anticipo registrado"}</small>
-                                            </div>
-                                          </td>
-                                          <td>
-                                            <div className="accountingActionGroup">
-                                              <button 
-                                                className="accountingActionBtn accountingActionBtn--secondary" 
-                                                type="button" 
-                                                onClick={() => handleActionClick("ver cotización", r.actionEventId)}
-                                              >
-                                                Ver cotización
-                                              </button>
-                                              <button 
-                                                className="accountingActionBtn" 
-                                                type="button" 
-                                                onClick={() => handleActionClick(r.creditBalance > 0 ? "ajustar crédito" : "aplicar pago", r.actionEventId)}
-                                              >
-                                                {r.creditBalance > 0 ? "Ajustar saldo" : "Aplicar pago"}
-                                              </button>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
+                          {/* Detail Events Table */}
+                          <div className="reports-table-wrap" style={{ boxShadow: 'none', border: '1px solid #e2e8f0' }}>
+                            <table className="reports-table" style={{ minWidth: '1000px' }}>
+                              <thead>
+                                <tr>
+                                  <th>Estado</th>
+                                  <th>Cotización</th>
+                                  <th>Fecha</th>
+                                  <th>Vendedor</th>
+                                  <th>Salón</th>
+                                  <th style={{ textAlign: 'right' }}>Total</th>
+                                  <th style={{ textAlign: 'right' }}>Cobrado</th>
+                                  <th style={{ textAlign: 'right' }}>Pendiente</th>
+                                  <th>Acción</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {acc.rows.map((r, idx) => (
+                                  <tr key={idx}>
+                                    <td>
+                                      <span className="reports-table-status" style={{
+                                        background: `${r.statusColor}18`, color: r.statusColor,
+                                        border: `1px solid ${r.statusColor}30`,
+                                      }}>
+                                        {r.status || '-'}
+                                      </span>
+                                    </td>
+                                    <td style={{ fontWeight: 700 }}>{r.refId}</td>
+                                    <td>{r.eventDate}</td>
+                                    <td>{r.userName}</td>
+                                    <td>{r.salon}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatMoney(r.total)}</td>
+                                    <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>{formatMoney(r.advancesTotal)}</td>
+                                    <td style={{ textAlign: 'right', color: r.balancePending > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>{formatMoney(r.balancePending)}</td>
+                                    <td>
+                                      <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button type="button" onClick={() => handleActionClick("ver cotización", r.actionEventId)}
+                                          style={{ padding: '2px 6px', fontSize: '9px', fontWeight: '700', borderRadius: '4px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>
+                                          Ver
+                                        </button>
+                                        <button type="button" onClick={() => handleActionClick(r.creditBalance > 0 ? "ajustar crédito" : "aplicar pago", r.actionEventId)}
+                                          style={{ padding: '2px 6px', fontSize: '9px', fontWeight: '700', borderRadius: '4px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer' }}>
+                                          {r.creditBalance > 0 ? 'Ajustar' : 'Pago'}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
 
-                                {/* 2. Category totals breakdown strip */}
-                                <div className="accountingDetailMetrics" style={{ display: 'flex', gap: '20px', background: '#e2e8f0', padding: '8px 16px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#334155' }}>
-                                  <span>Total A&B: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "alimentosBebidas").amount || 0), 0))}</span>
-                                  <span>Hospedaje JDL: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "hospedajeJdl").amount || 0), 0))}</span>
-                                  <span>Hospedaje Terceros: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "hospedajeTerceros").amount || 0), 0))}</span>
-                                  <span>Misceláneos: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "miscelaneos").amount || 0), 0))}</span>
-                                </div>
+                          {/* Category Breakdown */}
+                          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', background: '#f8fafc', padding: '8px 14px', borderRadius: '8px', fontSize: '10px', fontWeight: '700', color: '#475569' }}>
+                            <span>A&B: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "alimentosBebidas").amount || 0), 0))}</span>
+                            <span>Hosp. JDL: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "hospedajeJdl").amount || 0), 0))}</span>
+                            <span>Hosp. 3ros: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "hospedajeTerceros").amount || 0), 0))}</span>
+                            <span>Misceláneos: {formatMoney(acc.rows.reduce((sum, row) => sum + Number(pick(row.catBuckets, "miscelaneos").amount || 0), 0))}</span>
+                          </div>
 
-                                {/* 3. Chronological Movements Ledger Table */}
-                                <div className="accountingDetailTableWrap" style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff' }}>
-                                  <table className="quoteTable accountingDetailTable" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                      <tr style={{ background: '#f1f5f9' }}>
-                                        <th>Fecha</th>
-                                        <th>Tipo</th>
-                                        <th>No cotizacion</th>
-                                        <th>Concepto</th>
-                                        <th style={{ textAlign: 'right' }}>Cargo (Débito)</th>
-                                        <th style={{ textAlign: 'right' }}>Abono (Crédito)</th>
-                                        <th style={{ textAlign: 'right' }}>Saldo acumulado</th>
-                                        <th>Acción</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {buildAccountingLedgerEntries(acc).length === 0 ? (
-                                        <tr>
-                                          <td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
-                                            Sin movimientos para esta institución.
-                                          </td>
-                                        </tr>
-                                      ) : (
-                                        buildAccountingLedgerEntries(acc).map((entry, eIdx) => (
-                                          <tr key={eIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                                            <td>{entry.date || "-"}</td>
-                                            <td style={{ fontWeight: '700' }}>{entry.type || "-"}</td>
-                                            <td style={{ fontWeight: '700' }}>{entry.refId || "-"}</td>
-                                            <td style={{ fontSize: '11px', color: '#475569' }}>{entry.concept || "-"}</td>
-                                            <td style={{ textAlign: 'right', fontWeight: entry.debit > 0 ? '700' : 'normal' }}>
-                                              {entry.debit > 0 ? formatMoney(entry.debit) : "-"}
-                                            </td>
-                                            <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: entry.credit > 0 ? '700' : 'normal' }}>
-                                              {entry.credit > 0 ? formatMoney(entry.credit) : "-"}
-                                            </td>
-                                            <td style={{ textAlign: 'right', fontWeight: '700', color: entry.runningBalance > 0 ? '#dc2626' : '#16a34a' }}>
-                                              {formatMoney(entry.runningBalance)}
-                                            </td>
-                                            <td>
-                                              <div className="accountingActionGroup">
-                                                <button 
-                                                  className="accountingActionBtn accountingActionBtn--secondary" 
-                                                  type="button" 
-                                                  onClick={() => handleActionClick("ver cotización", entry.eventId)}
-                                                >
-                                                  Ver cotización
-                                                </button>
-                                                <button 
-                                                  className="accountingActionBtn" 
-                                                  type="button" 
-                                                  onClick={() => handleActionClick(entry.runningBalance > 0 ? "aplicar pago" : "ajustar crédito", entry.eventId)}
-                                                >
-                                                  {entry.runningBalance > 0 ? "Aplicar pago" : "Ajustar"}
-                                                </button>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        ))
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                       </tbody>
-                    );
-                  })
-                )}
-            </table>
-          </div>
+                          {/* Ledger Movements */}
+                          <div className="reports-table-wrap" style={{ boxShadow: 'none', border: '1px solid #e2e8f0' }}>
+                            <table className="reports-table" style={{ minWidth: '700px' }}>
+                              <thead>
+                                <tr>
+                                  <th>Fecha</th>
+                                  <th>Tipo</th>
+                                  <th>Ref</th>
+                                  <th>Concepto</th>
+                                  <th style={{ textAlign: 'right' }}>Cargo</th>
+                                  <th style={{ textAlign: 'right' }}>Abono</th>
+                                  <th style={{ textAlign: 'right' }}>Saldo</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {buildAccountingLedgerEntries(acc).length === 0 ? (
+                                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>Sin movimientos para esta institución.</td></tr>
+                                ) : buildAccountingLedgerEntries(acc).map((entry, eIdx) => (
+                                  <tr key={eIdx}>
+                                    <td>{entry.date || '-'}</td>
+                                    <td style={{ fontWeight: 700 }}>{entry.type || '-'}</td>
+                                    <td style={{ fontWeight: 700 }}>{entry.refId || '-'}</td>
+                                    <td style={{ fontSize: '10px', color: '#475569', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.concept || '-'}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: entry.debit > 0 ? 700 : 400 }}>{entry.debit > 0 ? formatMoney(entry.debit) : '-'}</td>
+                                    <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: entry.credit > 0 ? 700 : 400 }}>{entry.credit > 0 ? formatMoney(entry.credit) : '-'}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: 700, color: entry.runningBalance > 0 ? '#dc2626' : '#16a34a' }}>{formatMoney(entry.runningBalance)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              );
+            })}
+          </table>
         </div>
       </div>
 
-      {/* Printable Institutional "Estado de Cuenta" Modal Overlay */}
+      {/* ── Statement Modal ── */}
       {activeStatementAccount && createPortal(
-        <div id="accountStatementBackdrop" onClick={() => setActiveStatementAccount(null)}>
-          <div className="accountStatementModal" onClick={(event) => event.stopPropagation()} style={{
-            background: '#ffffff',
-            borderRadius: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        <div onClick={() => setActiveStatementAccount(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: '16px', display: 'flex', flexDirection: 'column',
+            maxWidth: '920px', width: '100%', maxHeight: '90vh', boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
           }}>
-            {/* Header bar */}
-            <div className="accountStatementHeaderBar" style={{
-              background: '#0284c7', // Azul más claro y agradable (Tailwind sky-600)
-              color: 'white',
-              padding: '20px 24px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderTopLeftRadius: '12px',
-              borderTopRightRadius: '12px'
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0284c7, #0369a1)', color: '#fff',
+              padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              borderRadius: '16px 16px 0 0',
             }}>
               <div>
-                <div className="modalTitle" style={{ color: 'white', fontSize: '20px', margin: 0 }}>Estado de Cuenta</div>
-                <div className="modalSubtitle" style={{ opacity: 0.9, color: '#e0f2fe', marginTop: '4px' }}>
-                  {activeStatementAccount.rows?.length} evento(s) financiero(s) | {buildAccountingLedgerEntries(activeStatementAccount).length} movimiento(s)
+                <div style={{ fontSize: '20px', fontWeight: 800 }}>Estado de Cuenta</div>
+                <div style={{ opacity: 0.85, fontSize: '12px', marginTop: '4px' }}>
+                  {activeStatementAccount.rows?.length} evento(s) · {buildAccountingLedgerEntries(activeStatementAccount).length} movimiento(s)
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button 
-                  className="iconBtn" 
-                  style={{ 
-                    background: 'rgba(255,255,255,0.2)', 
-                    color: '#fff', 
-                    border: '1px solid rgba(255,255,255,0.3)', 
-                    borderRadius: '6px', 
-                    padding: '8px 16px', 
-                    fontSize: '14px', 
-                    fontWeight: '600', 
-                    cursor: 'pointer', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    transition: 'background 0.2s'
-                  }} 
-                  onClick={() => window.print()} 
-                  title="Imprimir estado de cuenta"
-                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-                  onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>print</span> Imprimir
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => window.print()}
+                  style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🖨️ Imprimir
                 </button>
-                <button 
-                  className="iconBtn" 
-                  style={{ 
-                    background: '#ef4444', 
-                    color: '#fff', 
-                    border: 'none', 
-                    borderRadius: '6px', 
-                    width: '36px', 
-                    height: '36px', 
-                    fontSize: '20px', 
-                    fontWeight: '700', 
-                    cursor: 'pointer', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    transition: 'background 0.2s'
-                  }} 
-                  onClick={() => setActiveStatementAccount(null)} 
-                  title="Cerrar"
-                  onMouseOver={(e) => e.currentTarget.style.background = '#dc2626'}
-                  onMouseOut={(e) => e.currentTarget.style.background = '#ef4444'}
-                >
-                  &times;
+                <button onClick={() => setActiveStatementAccount(null)} className="btn-exit" style={{ color: '#fff !important' }}>
+                  <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
                 </button>
               </div>
             </div>
-            
-            {/* Body shell */}
-            <div className="accountStatementBodyShell" style={{ background: '#f1f5f9', padding: '24px', overflowY: 'auto', flex: 1, borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px' }}>
-              <div className="accountStatementPaper" style={{ background: '#fff', maxWidth: '900px', margin: '0 auto', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-                {/* Brand header */}
-                <div className="accountStatementDocHead">
-                  <div className="accountStatementBrandBlock">
-                    <img className="accountStatementLogo" src="/Oficial_JDL_blanco.png" alt="Logo" style={{ filter: 'brightness(0)' }} />
-                    <div>
-                      <div className="accountStatementOrg">JARDINES DEL LAGO</div>
-                      <div className="accountStatementDept">Departamento de Cobros y Contabilidad</div>
-                    </div>
+
+            {/* Body */}
+            <div style={{ background: '#f1f5f9', padding: '24px', overflowY: 'auto', flex: 1, borderRadius: '0 0 16px 16px' }}>
+              <div style={{ background: '#fff', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                {/* Brand */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                  <div>
+                    <img src="/Oficial_JDL_blanco.png" alt="JDL" style={{ height: '32px', filter: 'brightness(0)', marginBottom: '8px' }} />
+                    <div style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a' }}>JARDINES DEL LAGO</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Departamento de Cobros y Contabilidad</div>
                   </div>
-                  <div className="accountStatementFolioBox">
-                    <div className="accountStatementDocName" style={{ fontSize: '18px', fontWeight: '800' }}>Estado de Cuenta</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', textAlign: 'right' }}>
-                      <div>Generado: {new Date().toLocaleDateString('es-GT')}</div>
-                      <div>Hora: {new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 800, fontSize: '16px', color: '#0f172a' }}>Estado de Cuenta</div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+                      {new Date().toLocaleDateString('es-GT')} · {new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
-                
-                {/* Info grid */}
-                <div className="accountStatementInfoGrid" style={{ marginTop: '20px' }}>
-                  <div>
-                    <span>Institución:</span>
-                    <b>{activeStatementAccount.companyName}</b>
-                  </div>
-                  <div>
-                    <span>NIT:</span>
-                    <b>{companies.find(c => c.id === activeStatementAccount.companyId)?.nit || 'CF'}</b>
-                  </div>
-                  <div>
-                    <span>Contacto:</span>
-                    <b>{companies.find(c => c.id === activeStatementAccount.companyId)?.owner || activeStatementAccount.rows[0]?.quote?.contact || '-'}</b>
-                  </div>
-                  <div>
-                    <span>Teléfono:</span>
-                    <b>{activeStatementAccount.contactPhone || '-'}</b>
-                  </div>
-                  <div className="accountStatementInfoWide">
-                    <span>Dirección:</span>
-                    <b>{companies.find(c => c.id === activeStatementAccount.companyId)?.address || activeStatementAccount.rows[0]?.quote?.address || '-'}</b>
-                  </div>
+
+                {/* Info Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px', padding: '16px', background: '#f8fafc', borderRadius: '8px', fontSize: '12px' }}>
+                  <div><span style={{ color: '#94a3b8' }}>Institución:</span> <strong>{activeStatementAccount.companyName}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>NIT:</span> <strong>{companies.find(c => c.id === activeStatementAccount.companyId)?.nit || 'CF'}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>Contacto:</span> <strong>{companies.find(c => c.id === activeStatementAccount.companyId)?.owner || activeStatementAccount.rows[0]?.quote?.contact || '-'}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>Teléfono:</span> <strong>{activeStatementAccount.contactPhone || '-'}</strong></div>
+                  <div style={{ gridColumn: '1 / -1' }}><span style={{ color: '#94a3b8' }}>Dirección:</span> <strong>{companies.find(c => c.id === activeStatementAccount.companyId)?.address || activeStatementAccount.rows[0]?.quote?.address || '-'}</strong></div>
                 </div>
-                
-                {/* Kpis strip */}
-                <div className="accountStatementTotalsStrip" style={{ marginTop: '25px' }}>
-                  <article className="accountStatementKpi">
-                    <small>Total neto</small>
-                    <strong>{formatMoney(activeStatementAccount.netAmount)}</strong>
-                  </article>
-                  <article className="accountStatementKpi">
-                    <small>Total pagado</small>
-                    <strong>{formatMoney(activeStatementAccount.collectedAmount)}</strong>
-                  </article>
-                  <article className="accountStatementKpi">
-                    <small>Saldo pendiente</small>
-                    <strong style={{ color: activeStatementAccount.pendingAmount > 0 ? '#b91c1c' : '#15803d' }}>
-                      {formatMoney(activeStatementAccount.pendingAmount)}
-                    </strong>
-                  </article>
-                  <article className="accountStatementKpi">
-                    <small>Saldo a favor</small>
-                    <strong>{formatMoney(activeStatementAccount.creditAmount)}</strong>
-                  </article>
+
+                {/* KPI Strip */}
+                <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '24px' }}>
+                  {[
+                    { label: 'Total neto', value: formatMoney(activeStatementAccount.netAmount), color: '#10c972' },
+                    { label: 'Total pagado', value: formatMoney(activeStatementAccount.collectedAmount), color: '#2563eb' },
+                    { label: 'Saldo pendiente', value: formatMoney(activeStatementAccount.pendingAmount), color: activeStatementAccount.pendingAmount > 0 ? '#b91c1c' : '#15803d' },
+                    { label: 'Saldo a favor', value: formatMoney(activeStatementAccount.creditAmount), color: '#10c972' },
+                  ].map((kpi, i) => (
+                    <div key={i} className="bento-tile" style={{ borderTop: `3px solid ${kpi.color}`, padding: '12px', borderRadius: '8px' }}>
+                      <small style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8' }}>{kpi.label}</small>
+                      <strong style={{ display: 'block', fontSize: '14px', fontWeight: 850, color: kpi.color }}>{kpi.value}</strong>
+                    </div>
+                  ))}
                 </div>
-                
+
                 {/* Ledger Table */}
-                <div className="accountStatementTableSection" style={{ marginTop: '30px' }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>Resumen de Movimientos Contables</h4>
-                  <table className="accountStatementTable" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>Resumen de Movimientos Contables</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                     <thead>
-                      <tr>
-                        <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Fecha</th>
-                        <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Ref</th>
-                        <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Concepto</th>
-                        <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Cargo</th>
-                        <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Abono</th>
-                        <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: '11px', background: '#f1f5f9' }}>Saldo Acumulado</th>
+                      <tr style={{ background: '#f8fafc' }}>
+                        {['Fecha', 'Ref', 'Concepto', 'Cargo', 'Abono', 'Saldo'].map(h => (
+                          <th key={h} style={{ textAlign: h === 'Cargo' || h === 'Abono' || h === 'Saldo' ? 'right' : 'left', padding: '8px 10px', fontWeight: 700, color: '#64748b', borderBottom: '2px solid #e2e8f0' }}>{h}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
                       {buildAccountingLedgerEntries(activeStatementAccount).map((entry, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '8px 10px' }}>{entry.date}</td>
-                          <td style={{ padding: '8px 10px', fontWeight: '700' }}>{entry.refId}</td>
-                          <td style={{ padding: '8px 10px', fontSize: '11px', color: '#475569' }}>{entry.concept}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: entry.debit > 0 ? '700' : 'normal' }}>
-                            {entry.debit > 0 ? formatMoney(entry.debit) : '-'}
-                          </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#16a34a', fontWeight: entry.credit > 0 ? '700' : 'normal' }}>
-                            {entry.credit > 0 ? formatMoney(entry.credit) : '-'}
-                          </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: entry.runningBalance > 0 ? '#b91c1c' : '#16a34a' }}>
-                            {formatMoney(entry.runningBalance)}
-                          </td>
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '7px 10px' }}>{entry.date}</td>
+                          <td style={{ padding: '7px 10px', fontWeight: 700 }}>{entry.refId}</td>
+                          <td style={{ padding: '7px 10px', color: '#475569', fontSize: '10px' }}>{entry.concept}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: entry.debit > 0 ? 700 : 400 }}>{entry.debit > 0 ? formatMoney(entry.debit) : '-'}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', color: '#16a34a', fontWeight: entry.credit > 0 ? 700 : 400 }}>{entry.credit > 0 ? formatMoney(entry.credit) : '-'}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: entry.runningBalance > 0 ? '#b91c1c' : '#16a34a' }}>{formatMoney(entry.runningBalance)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                
+
                 {/* Signatures */}
-                <div className="accountStatementFoot" style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-around' }}>
-                  <div className="accountStatementSignLine">
-                    <div style={{ borderTop: '1px solid #94a3b8', width: '200px', margin: '0 auto', textAlign: 'center', paddingTop: '6px', fontSize: '11px', color: '#64748b' }}>
-                      Firma Autorizada
-                    </div>
-                  </div>
-                  <div className="accountStatementSignLine">
-                    <div style={{ borderTop: '1px solid #94a3b8', width: '200px', margin: '0 auto', textAlign: 'center', paddingTop: '6px', fontSize: '11px', color: '#64748b' }}>
-                      Recibido por Cliente
-                    </div>
-                  </div>
+                <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-around', fontSize: '11px', color: '#64748b' }}>
+                  <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #94a3b8', width: '180px', paddingTop: '6px' }}>Firma Autorizada</div></div>
+                  <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #94a3b8', width: '180px', paddingTop: '6px' }}>Recibido por Cliente</div></div>
                 </div>
               </div>
             </div>

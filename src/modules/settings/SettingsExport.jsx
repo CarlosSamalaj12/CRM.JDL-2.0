@@ -197,7 +197,7 @@ export default function SettingsExport() {
             evento_id: 'evt_001',
             grupo_id: 'grp_001',
             nombre_evento: 'Capacitacion anual',
-            estado: 'Confirmado',
+            circle: 'Confirmado',
             fecha_inicio_evento: '2026-05-20',
             fecha_fin_evento: '2026-05-20',
             fecha_bloque: '2026-05-20',
@@ -234,28 +234,162 @@ export default function SettingsExport() {
   };
 
   return (
-    <div className="settingsExportPanel" aria-label="Exportar datos por Excel">
-      <div className="settingsExportIntro">
-        <strong>Migracion por Excel</strong>
-        <span>Descarga eventos, empresas o encargados con las columnas sugeridas, una fila de ejemplo y los datos actuales del CRM.</span>
-      </div>
-      <div className="moduleActionGrid settingsActionGridEnhanced">
-        <button className="moduleActionBtn settingsHubBtn" id="btnSettingsExportEventsExcel" type="button" onClick={() => handleExport('eventos')}>
-          <span className="actionCardInner"><span className="actionCardText"><span className="actionCardLabel">{working === 'eventos' ? 'Exportando...' : 'Exportar eventos'}</span><span className="actionCardMeta">Reservas, salones, empresa, encargado y cotizacion</span></span></span>
+    <div className="settings-data-section">
+      <style>{`
+        .settings-data-section {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          text-align: left;
+        }
+        .settings-data-desc {
+          font-size: 13.5px;
+          color: var(--ui-text-soft) !important;
+          line-height: 1.5;
+          margin: 0;
+        }
+        .settings-data-actions {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin: 4px 0;
+        }
+        .settings-data-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 40px;
+          padding: 0 16px;
+          background: var(--ui-primary-soft) !important;
+          color: var(--ui-primary) !important;
+          border: 1px solid transparent !important;
+          border-radius: 12px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: none !important;
+        }
+        .settings-data-btn:hover {
+          background: var(--ui-primary) !important;
+          color: #ffffff !important;
+        }
+        .settings-data-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .settings-data-btn svg {
+          width: 16px;
+          height: 16px;
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2.5;
+        }
+        .settings-columns-details {
+          background: var(--ui-surface-muted) !important;
+          border-radius: 14px;
+          padding: 12px 16px;
+          border: 1px solid var(--ui-border);
+        }
+        .settings-columns-details-title {
+          font-size: 11px;
+          font-weight: 800;
+          color: var(--ui-text) !important;
+          margin: 8px 0 6px 0;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .settings-column-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .settings-column-badge {
+          font-size: 11px;
+          padding: 3px 8px;
+          background: var(--ui-surface) !important;
+          border: 1px solid var(--ui-border-strong) !important;
+          border-radius: 6px;
+          color: var(--ui-text-soft) !important;
+          font-family: var(--ui-font);
+        }
+      `}</style>
+      
+      <p className="settings-data-desc">
+        Descarga archivos en formato Excel con la estructura de datos recomendada para respaldar o transferir la información de eventos, empresas o contactos comerciales.
+      </p>
+
+      <div className="settings-data-actions">
+        <button 
+          className="settings-data-btn" 
+          type="button" 
+          disabled={!!working}
+          onClick={() => handleExport('eventos')}
+        >
+          <svg viewBox="0 0 24 24" stroke="currentColor">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          {working === 'eventos' ? 'Exportando...' : 'Exportar Eventos'}
         </button>
-        <button className="moduleActionBtn settingsHubBtn" id="btnSettingsExportCompaniesExcel" type="button" onClick={() => handleExport('empresas')}>
-          <span className="actionCardInner"><span className="actionCardText"><span className="actionCardLabel">{working === 'empresas' ? 'Exportando...' : 'Exportar empresas'}</span><span className="actionCardMeta">Catalogo de clientes, facturacion y contacto</span></span></span>
+
+        <button 
+          className="settings-data-btn" 
+          type="button" 
+          disabled={!!working}
+          onClick={() => handleExport('empresas')}
+        >
+          <svg viewBox="0 0 24 24" stroke="currentColor">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          {working === 'empresas' ? 'Exportando...' : 'Exportar Empresas'}
         </button>
-        <button className="moduleActionBtn settingsHubBtn" id="btnSettingsExportManagersExcel" type="button" onClick={() => handleExport('encargados')}>
-          <span className="actionCardInner"><span className="actionCardText"><span className="actionCardLabel">{working === 'encargados' ? 'Exportando...' : 'Exportar encargados'}</span><span className="actionCardMeta">Responsables relacionados a cada empresa</span></span></span>
+
+        <button 
+          className="settings-data-btn" 
+          type="button" 
+          disabled={!!working}
+          onClick={() => handleExport('encargados')}
+        >
+          <svg viewBox="0 0 24 24" stroke="currentColor">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          {working === 'encargados' ? 'Exportando...' : 'Exportar Encargados'}
         </button>
       </div>
-      <div className="settingsExportExample">
-        <strong>Ejemplo de columnas</strong>
-        <span>Eventos: evento_id, nombre_evento, fecha_inicio_evento, fecha_fin_evento, salon_principal, empresa_id, encargado_id, vendedor, pax_total, total_cotizacion.</span>
-        <span>Empresas: empresa_id, nombre_comercial, razon_social_facturar, nit, correo_empresa, telefono_empresa, direccion_empresa, tipo_evento_preferido.</span>
-        <span>Encargados: encargado_id, empresa_id, empresa_nombre, nombre_encargado, telefono, correo, direccion.</span>
-      </div>
+
+      <details className="settings-columns-details">
+        <summary style={{ fontSize: '13px', fontWeight: '700', cursor: 'pointer', color: 'var(--ui-primary)', outline: 'none' }}>
+          Ver columnas y campos incluidos en el reporte
+        </summary>
+        <div style={{ marginTop: '12px', borderTop: '1px solid var(--ui-border)', paddingTop: '8px' }}>
+          <div className="settings-columns-details-title" style={{ marginTop: 0 }}>Columnas de Eventos</div>
+          <div className="settings-column-badges" style={{ marginBottom: '10px' }}>
+            {eventColumns.map(col => (
+              <span key={col.key} className="settings-column-badge" title={col.description}>{col.label}</span>
+            ))}
+          </div>
+          
+          <div className="settings-columns-details-title">Columnas de Empresas</div>
+          <div className="settings-column-badges" style={{ marginBottom: '10px' }}>
+            {companyColumns.map(col => (
+              <span key={col.key} className="settings-column-badge" title={col.description}>{col.label}</span>
+            ))}
+          </div>
+
+          <div className="settings-columns-details-title">Columnas de Encargados</div>
+          <div className="settings-column-badges">
+            {managerColumns.map(col => (
+              <span key={col.key} className="settings-column-badge" title={col.description}>{col.label}</span>
+            ))}
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

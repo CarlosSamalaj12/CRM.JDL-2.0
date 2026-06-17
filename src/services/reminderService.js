@@ -20,7 +20,10 @@ export const reminderService = {
     // Los administradores ven todas las citas del evento.
     // Los demás roles solo ven las que ellos crearon.
     if (currentUser?.role === 'admin') return allForEvent;
-    return allForEvent.filter(r => !r.createdBy || r.createdBy === currentUser?.id);
+    return allForEvent.filter(r => {
+      const creatorId = r.createdBy || r.createdByUserId;
+      return !creatorId || creatorId === currentUser?.id;
+    });
   },
 
   async add(eventId, reminderData) {
@@ -115,7 +118,8 @@ export const reminderService = {
     Object.entries(reminders).forEach(([eventId, eventReminders]) => {
       eventReminders.forEach(rem => {
         // Filtrar por usuario: admin ve todo, los demás solo sus propias citas.
-        const isMine = !rem.createdBy || rem.createdBy === currentUser?.id;
+        const creatorId = rem.createdBy || rem.createdByUserId;
+        const isMine = !creatorId || creatorId === currentUser?.id;
         if (!isAdmin && !isMine) return;
 
         const reminderDateTime = new Date(`${rem.date}T${rem.time}:00`);

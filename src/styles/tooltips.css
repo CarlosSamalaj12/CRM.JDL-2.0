@@ -1,0 +1,133 @@
+/* ============================================================
+   Shared Tooltip Styles — CRM Tooltips
+   Import this file in any component that uses custom tooltips.
+   ============================================================ */
+
+/* ── Calendar tooltips (week/month/year event cards) ── */
+.cal-tooltip {
+  position: relative;
+}
+
+.cal-tooltip[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  background: #1e293b;
+  color: #f1f5f9;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: pre-line;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 9999;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  min-width: 180px;
+  max-width: 320px;
+  text-align: left;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.cal-tooltip[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.cal-tooltip[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1e293b;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 9999;
+  transition: opacity 0.18s ease;
+}
+
+.cal-tooltip[data-tooltip]:hover::before {
+  opacity: 1;
+}
+
+
+/* ── Pipeline Leads status chip tooltips ── */
+.chip-tooltip {
+  position: relative;
+  display: inline-flex;
+  cursor: help;
+}
+
+.chip-tooltip::after {
+  content: attr(data-desc);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: #1e293b;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 100;
+  line-height: 1.4;
+}
+
+.chip-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  border: 5px solid transparent;
+  border-top-color: #1e293b;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 100;
+}
+
+.chip-tooltip:hover::after,
+.chip-tooltip:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+
+/* ── Search module status badge tooltips ── */
+.search-status-badge::after {
+  content: attr(data-desc);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: #1e293b;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 100;
+  line-height: 1.4;
+}
+
+.search-status-badge:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}

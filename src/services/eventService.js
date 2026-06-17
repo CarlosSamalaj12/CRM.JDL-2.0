@@ -16,7 +16,7 @@ export const EVENT_STATUS = {
 const pad2 = (value) => String(value).padStart(2, '0');
 
 function uid(prefix = 'evt') {
-  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+  return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
 function normalizeDateRange(start, end) {
@@ -39,8 +39,10 @@ function expandEventSlots(eventData, existingEvent = null) {
   const slots = Array.isArray(eventData?.slots) ? eventData.slots : [];
   if (!slots.length) return [{ ...eventData }];
 
-  const baseId = String(eventData.id || existingEvent?.id || uid('evt'));
-  const groupId = String(eventData.groupId || existingEvent?.groupId || baseId);
+  const rawBaseId = String(eventData.groupId || existingEvent?.groupId || eventData.id || existingEvent?.id || uid('evt'));
+  // Limpiar cualquier sufijo de expansión previo para evitar IDs anidados que exceden VARCHAR(30)
+  const baseId = rawBaseId.replace(/_(s|slot)\d+_\d{6,}$/, '');
+  const groupId = baseId;
   const eventDateStart = String(eventData.date || eventData.eventDateStart || slots[0]?.dateStart || '').trim();
   const eventDateEnd = String(eventData.endDate || eventData.eventDateEnd || eventDateStart).trim();
   const totalPax = eventData.pax === null || eventData.pax === undefined || eventData.pax === ''
@@ -49,13 +51,20 @@ function expandEventSlots(eventData, existingEvent = null) {
   const salones = Array.from(new Set(slots.map((slot) => String(slot?.salon || '').trim()).filter(Boolean)));
   const expanded = [];
 
+  const makeExpandedId = (baseId, slotIdx, date, isFirst) => {
+    if (isFirst) return baseId;
+    const cleanDate = date.replace(/-/g, '');
+    const rawId = `${baseId}_s${slotIdx + 1}_${cleanDate}`;
+    return rawId.length <= 70 ? rawId : rawId.slice(0, 65) + '_' + Math.random().toString(16).slice(2, 6);
+  };
+
   slots.forEach((slot, slotIndex) => {
     const slotDates = normalizeDateRange(slot.dateStart || eventDateStart, slot.dateEnd || slot.dateStart || eventDateEnd || eventDateStart);
     slotDates.forEach((date, dateIndex) => {
       const isFirst = slotIndex === 0 && dateIndex === 0;
       expanded.push({
         ...eventData,
-        id: isFirst ? baseId : `${baseId}_slot_${slotIndex + 1}_${date.replace(/-/g, '')}`,
+        id: makeExpandedId(baseId, slotIndex, date, isFirst),
         groupId,
         salon: String(slot.salon || '').trim(),
         mainSalon: salones[0] || String(slot.salon || '').trim(),
@@ -82,7 +91,7 @@ function expandEventSlots(eventData, existingEvent = null) {
 export const eventService = {
 async getAll() {
     try {
-      const state = await loadState({ cacheBust: false });
+      const state = await loadState({ cacheBust: true });
       return state?.events || [];
     } catch (err) {
       console.error('Error al obtener eventos de la base de datos:', err);

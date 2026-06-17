@@ -89,151 +89,307 @@ export default function ReportsDashboard({ onClose }) {
     });
     const max = Math.max(1, ...Object.values(totals).map((item) => item.amount));
     return Object.entries(totals).map(([key, item]) => ({
-      key,
-      label: labels[key],
-      color: colors[key],
-      count: item.count,
-      amount: item.amount,
-      pct: (item.amount / max) * 100
+      key, label: labels[key], color: colors[key], count: item.count, amount: item.amount, pct: (item.amount / max) * 100
     }));
   }, [filteredRows]);
 
   const handleReset = () => { const n = new Date(); setMonthKey(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`); setFromDate(''); setToDate(''); setRole(USER_ROLES.SELLER); setScope('all'); setSelectedSellerId(''); };
 
-  const styles = {
-    backdrop: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', overflow: 'hidden' },
-    modal: { width: 'min(1280px, calc(100vw - 32px))', height: '92vh', maxHeight: '92vh', background: 'linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%)', borderRadius: '16px', border: '1px solid rgba(191,210,232,0.5)', boxShadow: '0 25px 60px rgba(15,23,42,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    header: { background: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(244,249,255,0.96) 100%)', borderBottom: '1px solid rgba(148,163,184,0.16)', padding: '16px 24px', display: 'flex', alignItems: 'center', minHeight: '86px', justifyContent: 'space-between', gap: '14px' },
-    brandBadge: { width: '56px', height: '56px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #c7d8ec', background: '#f5faff', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
-    brandLogo: { width: '40px', height: '40px', objectFit: 'contain' },
-    brandCopy: { flex: '1' },
-    eyebrow: { color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' },
-    title: { margin: '2px 0 0', fontSize: '20px', fontWeight: '800', color: '#0f172a' },
-    subtitle: { marginTop: '2px', color: '#64748b', fontSize: '12px' },
-    closeBtn: { width: '36px', height: '36px', borderRadius: '8px', border: 'none', background: '#f1f5f9', color: '#64748b', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-    body: { padding: '14px', flex: '1', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' },
-    sectionTitle: { fontSize: '10px', fontWeight: '900', color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '999px', padding: '4px 8px', display: 'inline-block', textTransform: 'uppercase' },
-    sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' },
-    sectionSubtitle: { fontSize: '14px', fontWeight: '800', color: '#0f172a', marginTop: '6px' },
-    sectionDesc: { fontSize: '11px', color: '#64748b', marginTop: '2px' },
-    toolbar: { display: 'flex', alignItems: 'flex-end', gap: '10px', flexWrap: 'wrap', padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' },
-    field: { display: 'flex', flexDirection: 'column', gap: '3px' },
-    fieldLabel: { fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' },
-    input: { height: '36px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' },
-    select: { height: '36px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' },
-    btn: { height: '36px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontWeight: '700', fontSize: '12px', cursor: 'pointer', padding: '0 12px' },
-    actions: { marginLeft: 'auto', display: 'flex', gap: '8px' },
-    goalsGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' },
-    goalCard: { padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '4px', minHeight: '100px' },
-    heroCard: { gridColumn: 'span 2', background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)', color: 'white', border: 'none', padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '6px' },
-    heroRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
-    heroSmall: { fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', opacity: 0.8 },
-    heroTitle: { fontSize: '16px', fontWeight: '800' },
-    heroPct: { textAlign: 'right' },
-    heroPctNum: { fontSize: '28px', fontWeight: '900' },
-    heroPctLabel: { fontSize: '9px', opacity: 0.8 },
-    heroBar: { height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.2)', display: 'flex', gap: '2px' },
-    heroSeg: { height: '100%', minWidth: '2px' },
-    heroLegend: { display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '9px', opacity: 0.9 },
-    goalLabel: { fontSize: '9px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase' },
-    goalValue: { fontSize: '20px', fontWeight: '800', color: '#0f172a' },
-    goalMeta: { fontSize: '10px', color: '#64748b' },
-    goalProg: { height: '6px', background: '#e2e8f0', borderRadius: '3px', marginTop: 'auto', overflow: 'hidden' },
-    goalProgBar: (p) => ({ height: '100%', background: p >= 100 ? '#16a34a' : p >= 80 ? '#f59e0b' : '#2563eb', width: `${Math.min(p,100)}%` }),
-    chartsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
-    chartCard: { padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#f8fafc' },
-    chartTitle: { fontSize: '13px', fontWeight: '800', color: '#0f172a', marginBottom: '4px' },
-    chartSub: { fontSize: '10px', color: '#64748b', marginBottom: '8px' },
-    pieWrap: { display: 'flex', alignItems: 'center', gap: '12px' },
-    pie: { width: '80px', height: '80px', borderRadius: '50%', flexShrink: 0 },
-    pieLeg: { display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '10px, color: #64748b' },
-    pieLegItem: { display: 'flex', alignItems: 'center', gap: '4px' },
-    pieDot: { width: '10px', height: '10px', borderRadius: '2px' },
-    sellerGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px' },
-    sellerCard: { padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#f8fafc', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' },
-    sellerVal: { fontSize: '16px', fontWeight: '900', color: '#2563eb' },
-    sellerBar: { width: '40px', borderRadius: '4px', background: '#10c972' },
-    sellerAv: { width: '32px', height: '32px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: '#64748b' },
-    sellerName: { fontSize: '10px', fontWeight: '800', color: '#0f172a', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-    sellerMeta: { fontSize: '9px', color: '#94a3b8' },
-  };
-
   const visSeg = statusSummary.seg.filter(s => s.count > 0);
   const dateRange = getDateRange();
 
+  // ── Bento KPI cards data ──
+  const kpiCards = [
+    {
+      label: `Meta ${getRoleLabel(role)}`, value: formatMoneyGT(globalGoal),
+      trend: `${gProg.toFixed(1)}%`, trendColor: gProg>=100 ? '#15803d' : gProg>=80 ? '#b45309' : '#1d4ed8',
+      trendBg: gProg>=100 ? '#dcfce7' : gProg>=80 ? '#fef3c7' : '#eff6ff',
+      accent: gProg>=100 ? '#16a34a' : gProg>=80 ? '#f59e0b' : '#2563eb',
+    },
+    {
+      label: 'Pendiente Rol', value: formatMoneyGT(Math.max(0,globalGoal-globalAchieved)),
+      trend: globalAchieved >= globalGoal ? 'Superada' : '',
+      accent: globalAchieved >= globalGoal ? '#16a34a' : '#e11d48',
+    },
+    {
+      label: 'Meta Personal', value: formatMoneyGT(personalGoal),
+      trend: `${pProg.toFixed(1)}%`, trendColor: pProg>=100 ? '#15803d' : pProg>=80 ? '#b45309' : '#1d4ed8',
+      trendBg: pProg>=100 ? '#dcfce7' : pProg>=80 ? '#fef3c7' : '#eff6ff',
+      accent: pProg>=100 ? '#16a34a' : pProg>=80 ? '#f59e0b' : '#2563eb',
+      subtitle: focusedUser?.fullName || getRoleLabel(role),
+    },
+    {
+      label: 'Pendiente Personal', value: formatMoneyGT(Math.max(0,personalGoal-personalAchieved)),
+      trend: personalAchieved >= personalGoal ? 'Superada' : '',
+      accent: personalAchieved >= personalGoal ? '#16a34a' : '#e11d48',
+      subtitle: focusedUser?.fullName || getRoleLabel(role),
+    },
+  ];
+
+  // ── Color utility for progress bars ──
+  const progColor = (pct) => pct >= 100 ? '#16a34a' : pct >= 80 ? '#f59e0b' : '#3b82f6';
+
   return (
-    <div className="modalBackdrop" id="dashboardReportBackdrop" style={styles.backdrop} onClick={(e) => { if (e.target.id === 'dashboardReportBackdrop') onClose(); }}>
-      <div className="modal dashboardReportModal" style={styles.modal}>
-        <div className="modalHeader" style={styles.header}>
-          <div style={styles.brandBadge}><img src="/Oficial_JDL_acua.png" alt="JDL" style={styles.brandLogo} /></div>
-          <div className="reportBrandCopy" style={styles.brandCopy}>
-            <div style={styles.eyebrow} className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
-            <div style={styles.title} className="modalTitle">Reporte Dashboard</div>
-            <div style={styles.subtitle} className="modalSubtitle">Vista mensual de vendedores, metas y comparativos</div>
+    <div className="reports-page-container">
+      {/* Header */}
+      <div className="reports-page-header">
+        <div className="reports-brand-header">
+          <div className="reports-brand-badge">
+            <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
-          <button onClick={onClose} className="iconBtn reportModalClose">✕</button>
+          <div>
+            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-title">Dashboard Ejecutivo</div>
+            <div className="reports-subtitle">Metas comerciales, rendimiento y analítica del periodo</div>
+          </div>
         </div>
-        <div style={styles.body}>
-          <div style={styles.sectionHeader}>
+        <button className="btn-exit" type="button" onClick={onClose}>
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+          Volver
+        </button>
+      </div>
+
+      <div className="reports-page-body">
+        {/* ── 1. Filtros ── */}
+        <section className="reports-hero-panel">
+          <div className="reports-section-intro">
             <div>
-              <div style={styles.sectionTitle}>Control gerencial</div>
-              <div style={styles.sectionSubtitle}>Metas, comparativos y rendimiento por vendedor</div>
-              <div style={styles.sectionDesc}>Un dashboard ejecutivo con mejor separación visual para identificar avances, brechas y desempeño del periodo.</div>
+              <span className="reports-eyebrow">Control gerencial</span>
+              <h3 className="reports-section-title">Metas, comparativos y rendimiento</h3>
+              <p className="reports-section-text">Filtra por mes, rol y vendedor para ver el desempeño del periodo.</p>
             </div>
           </div>
-          <div className="reports-dashboard-toolbar" style={styles.toolbar}>
-            <div style={styles.field}><span style={styles.fieldLabel}>Periodo</span><select value="month" disabled style={styles.select}><option value="month">Mes</option></select></div>
-            <div style={styles.field}><span style={styles.fieldLabel}>Mes base</span><input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} style={styles.input} /></div>
-            <div style={styles.field}><span style={styles.fieldLabel}>Desde</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={styles.input} placeholder="dd/mm/aaaa" /></div>
-            <div style={styles.field}><span style={styles.fieldLabel}>Hasta</span><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={styles.input} placeholder="dd/mm/aaaa" /></div>
-            <div style={styles.field}><span style={styles.fieldLabel}>Rol</span><select value={role} onChange={(e) => setRole(e.target.value)} style={styles.select}><option value="vendedor">Vendedor</option><option value="recepcionista">Recepcionista</option></select></div>
-            <div style={styles.field}><span style={styles.fieldLabel}>Vista</span><select value={scope} onChange={(e) => setScope(e.target.value)} style={styles.select}><option value="all">Todos usuarios del rol</option><option value="seller">Usuario específico</option></select></div>
-            {scope === 'seller' && <div style={styles.field}><span style={styles.fieldLabel}>Usuario</span><select value={selectedSellerId} onChange={(e) => setSelectedSellerId(e.target.value)} style={styles.select}><option value="">Selecciona vendedor</option>{filteredUsers.map(u => <option key={u.id} value={u.id}>{u.fullName||u.name}</option>)}</select></div>}
-            <div style={styles.actions}><button onClick={handleReset} style={styles.btn}>Limpiar filtros</button></div>
+
+          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px' }}>
+            <label className="field" style={{ flex: '0 0 172px', maxWidth: '172px' }}>
+              <span>Mes base</span>
+              <input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} />
+            </label>
+            <label className="field" style={{ flex: '0 0 148px', maxWidth: '148px' }}>
+              <span>Desde</span>
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            </label>
+            <label className="field" style={{ flex: '0 0 148px', maxWidth: '148px' }}>
+              <span>Hasta</span>
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            </label>
+            <label className="field" style={{ flex: '0 0 126px', maxWidth: '136px' }}>
+              <span>Rol</span>
+              <select value={role} onChange={(e) => setRole(e.target.value)}>
+                <option value="vendedor">Vendedor</option>
+                <option value="recepcionista">Recepcionista</option>
+              </select>
+            </label>
+            <label className="field" style={{ flex: '0 0 144px', maxWidth: '154px' }}>
+              <span>Vista</span>
+              <select value={scope} onChange={(e) => setScope(e.target.value)}>
+                <option value="all">Todos los usuarios</option>
+                <option value="seller">Usuario específico</option>
+              </select>
+            </label>
+            {scope === 'seller' && (
+              <label className="field" style={{ flex: '0 0 164px', maxWidth: '174px' }}>
+                <span>Usuario</span>
+                <select value={selectedSellerId} onChange={(e) => setSelectedSellerId(e.target.value)}>
+                  <option value="">Selecciona vendedor</option>
+                  {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.fullName||u.name}</option>)}
+                </select>
+              </label>
+            )}
+            <div className="reports-actions" style={{ marginLeft: '0' }}>
+              <button type="button" onClick={handleReset}>Limpiar filtros</button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 2. Hero Bar: Eficiencia + Estado general ── */}
+        <section className="reports-hero-panel" style={{ gap: '12px' }}>
+          <div className="reports-section-intro">
+            <div>
+              <span className="reports-eyebrow">Rendimiento del periodo</span>
+              <h3 className="reports-section-title">{dateRange.label}</h3>
+            </div>
           </div>
 
-          <div style={styles.sectionHeader}><div><div style={styles.sectionTitle}>KPIs clave</div><div style={styles.sectionSubtitle}>Lectura inmediata del avance comercial</div></div></div>
-          <div className="reports-dashboard-goals-grid" style={styles.goalsGrid}>
-            <article style={styles.goalCard}>
-              <div style={styles.heroCard}>
-                <div style={styles.heroRow}><div><small style={styles.heroSmall}>EFICIENCIA EN {getRoleLabel(role).toUpperCase()}S "CRM"</small><strong style={styles.heroTitle}>{dateRange.label}</strong></div><div style={styles.heroPct}><b style={styles.heroPctNum}>{statusSummary.pct.toFixed(1)}%</b><span style={styles.heroPctLabel}>Confirmado</span></div></div>
-                <div style={styles.heroBar}>{visSeg.slice(0,5).map((s,i) => <div key={i} style={{...styles.heroSeg, width: `${Math.max(2,s.pct)}%`, background: s.c}} />)}</div>
-                <div style={styles.heroLegend}>{visSeg.slice(0,5).map((s,i) => <span key={i} style={{display:'flex',alignItems:'center',gap:'3px'}}><i style={{...styles.pieDot, background: s.c}} /><span>{s.l.substring(0,12)} {s.pct.toFixed(0)}%</span></span>)}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            {/* Hero card: Eficiencia */}
+            <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#2563eb', gridColumn: 'span 2' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span className="reports-eyebrow">Eficiencia ({getRoleLabel(role)})</span>
+                  <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{dateRange.label}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <strong style={{ fontSize: '28px', fontWeight: '900', display: 'block', lineHeight: 1, color: '#0f172a' }}>{statusSummary.pct.toFixed(1)}%</strong>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Confirmado</span>
+                </div>
               </div>
-            </article>
-            <article style={{...styles.goalCard, borderTop: `3px solid ${gProg>=100?'#16a34a':gProg>=80?'#f59e0b':'#2563eb'}`}}><span style={styles.goalLabel}>Meta {getRoleLabel(role)}</span><span style={styles.goalValue}>{formatMoneyGT(globalGoal)}</span><span style={styles.goalMeta}>Avance {formatMoneyGT(globalAchieved)} | {gProg.toFixed(1)}%</span><div style={styles.goalProg}><div style={styles.goalProgBar(gProg)} /></div></article>
-            <article style={{...styles.goalCard, borderTop: `3px solid ${gProg>=100?'#16a34a':gProg>=80?'#f59e0b':'#2563eb'}`}}><span style={styles.goalLabel}>Pendiente del rol</span><span style={styles.goalValue}>{formatMoneyGT(Math.max(0,globalGoal-globalAchieved))}</span><span style={styles.goalMeta}>{globalAchieved>=globalGoal?`Meta ${getRoleLabel(role)} superada`:'Ingreso pendiente para cumplir meta'}</span><div style={styles.goalProg}><div style={styles.goalProgBar(gProg)} /></div></article>
-            <article style={{...styles.goalCard, borderTop: `3px solid ${pProg>=100?'#16a34a':pProg>=80?'#f59e0b':'#2563eb'}`}}><span style={styles.goalLabel}>Meta personal ({focusedUser?.fullName||'Selecciona vendedor'})</span><span style={styles.goalValue}>{formatMoneyGT(personalGoal)}</span><span style={styles.goalMeta}>Avance {formatMoneyGT(personalAchieved)} | {pProg.toFixed(1)}%</span><div style={styles.goalProg}><div style={styles.goalProgBar(pProg)} /></div></article>
-            <article style={{...styles.goalCard, borderTop: `3px solid ${pProg>=100?'#16a34a':pProg>=80?'#f59e0b':'#2563eb'}`}}><span style={styles.goalLabel}>Falta para meta personal</span><span style={styles.goalValue}>{formatMoneyGT(Math.max(0,personalGoal-personalAchieved))}</span><span style={styles.goalMeta}>{personalAchieved>=personalGoal?'Meta personal superada':'Ingreso pendiente para cumplir meta'}</span><div style={styles.goalProg}><div style={styles.goalProgBar(pProg)} /></div></article>
+              {/* Barra de estados */}
+              <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', display: 'flex', gap: '2px', margin: '10px 0', overflow: 'hidden' }}>
+                {visSeg.slice(0,5).map((s,i) => (
+                  <div key={i} style={{ height: '100%', width: `${Math.max(2,s.pct)}%`, background: s.c, borderRadius: '2px', transition: 'width 0.5s ease' }} />
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '10px', color: '#64748b' }}>
+                {visSeg.slice(0,5).map((s,i) => (
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.c, display: 'inline-block', flexShrink: 0 }} />
+                    {s.l.substring(0,12)} {s.pct.toFixed(0)}%
+                  </span>
+                ))}
+              </div>
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+                {statusSummary.total} evento(s) · {statusSummary.confirmed} confirmados
+              </div>
+            </div>
+
+            {/* KPI Cards con estilo bento */}
+            {kpiCards.map((kpi, i) => (
+              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${kpi.accent}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span className="reports-eyebrow">{kpi.label}</span>
+                  {kpi.subtitle && (
+                    <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 700, textAlign: 'right', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {kpi.subtitle}
+                    </span>
+                  )}
+                </div>
+                <strong style={{ fontSize: '1.5rem', fontWeight: '850', color: '#0f172a', lineHeight: '1.1', letterSpacing: '-0.02em' }}>{kpi.value}</strong>
+                {kpi.trend && (
+                  <span style={{
+                    fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '999px',
+                    background: kpi.trendBg || '#f1f5f9', color: kpi.trendColor || '#475569',
+                    width: 'fit-content',
+                  }}>
+                    {kpi.trend}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── 3. Storytelling ── */}
+        <div className="reports-storytelling-card">
+          <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Narración ejecutiva</span>
+          <p className="reports-story-text">
+            En el periodo <strong className="highlight-slate">{dateRange.label}</strong>, el equipo de {getRoleLabel(role).toLowerCase()}s gestionó <strong className="highlight-blue">{statusSummary.total}</strong> eventos con una tasa de confirmación del <strong className="highlight-green">{statusSummary.pct.toFixed(1)}%</strong>. 
+            La meta global del rol es de <strong className="highlight-blue">{formatMoneyGT(globalGoal)}</strong> con un avance del <strong className="highlight-green">{gProg.toFixed(1)}%</strong>.
+            {focusedUser ? ` El desempeño de ${focusedUser.fullName || ''} muestra ${personalAchieved >= personalGoal ? 'un cumplimiento sobresaliente de la meta personal.' : `un avance del ${pProg.toFixed(1)}% sobre su meta personal de ${formatMoneyGT(personalGoal)}.`}` : ''}
+          </p>
+        </div>
+
+        {/* ── 4. Charts Grid ── */}
+        <section className="reports-hero-panel" style={{ gap: '12px' }}>
+          <div className="reports-section-intro">
+            <div>
+              <span className="reports-eyebrow">Analítica visual</span>
+              <h3 className="reports-section-title">Comparativos y distribuciones del periodo</h3>
+            </div>
           </div>
 
-          <div style={styles.sectionHeader}><div><div style={styles.sectionTitle}>Analítica visual</div><div style={styles.sectionSubtitle}>Comparativos y distribuciones del periodo</div></div></div>
-          <div className="reports-dashboard-charts-grid" style={styles.chartsGrid}>
-            <div style={styles.chartCard}><div style={styles.chartTitle}>Áreas más utilizadas</div><div style={styles.chartSub}>Distribución de salones en el periodo</div>
-              {salonData ? <div style={styles.pieWrap}><div style={{...styles.pie, background: `conic-gradient(${salonData.slices.join(',')})`}} /><div style={styles.pieLeg}>{salonData.o.map((it,i) => <div key={i} style={styles.pieLegItem}><i style={{...styles.pieDot, background: it.c}} /><span>{it.l.substring(0,12)}: {((it.n/salonData.tot)*100).toFixed(0)}%</span></div>)}</div></div> : <div style={{ color: '#94a3b8', fontSize: '11px', textAlign: 'center', padding: '12px' }}>Sin salones con activity</div>}
+          <div className="reports-charts-grid">
+            {/* Salones chart */}
+            <div className="reports-chart-card">
+              <div className="reports-chart-title">Áreas más utilizadas</div>
+              <div className="reports-chart-subtitle">Distribución de salones en el periodo</div>
+              {salonData ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginTop: '16px' }}>
+                  <div style={{
+                    width: '100px', height: '100px', borderRadius: '50%', flexShrink: 0,
+                    background: `conic-gradient(${salonData.slices.join(',')})`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                  }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: '#64748b', flex: 1 }}>
+                    {salonData.o.map((it,i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: it.c, display: 'inline-block', flexShrink: 0 }} />
+                        <strong style={{ color: '#1e293b', fontWeight: 700 }}>{it.l.substring(0,18)}</strong>
+                        <span style={{ marginLeft: 'auto' }}>{((it.n/salonData.tot)*100).toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '32px' }}>Sin salones con actividad</div>
+              )}
             </div>
-            <div style={styles.chartCard}><div style={styles.chartTitle}>Ventas por tipo de evento</div><div style={styles.chartSub}>Corporativo vs Social por mes</div>
-              <div style={{ display: 'grid', gap: '10px' }}>
+
+            {/* Event types chart */}
+            <div className="reports-chart-card">
+              <div className="reports-chart-title">Ventas por tipo de evento</div>
+              <div className="reports-chart-subtitle">Corporativo, Social y Otros</div>
+              <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
                 {eventTypeData.some(item => item.count > 0) ? eventTypeData.map(item => (
                   <div key={item.key}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', fontWeight: 800, color: '#334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                       <span>{item.label} ({item.count})</span>
-                      <span>{formatMoneyGT(item.amount)}</span>
+                      <span style={{ color: '#0f172a', fontWeight: 800 }}>{formatMoneyGT(item.amount)}</span>
                     </div>
-                    <div style={{ height: '9px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden', marginTop: '5px' }}>
-                      <div style={{ width: `${Math.max(4, item.pct)}%`, height: '100%', background: item.color }} />
+                    <div style={{ height: '10px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${Math.max(4, item.pct)}%`, height: '100%', background: item.color,
+                        borderRadius: '999px', transition: 'width 0.6s ease',
+                      }} />
                     </div>
                   </div>
-                )) : <div style={{ color: '#94a3b8', fontSize: '11px', textAlign: 'center', padding: '12px' }}>Sin ventas por tipo en el periodo</div>}
+                )) : (
+                  <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '32px' }}>Sin ventas por tipo en el periodo</div>
+                )}
               </div>
             </div>
           </div>
+        </section>
 
-          <div style={styles.sectionHeader}><div><div style={styles.sectionTitle}>Equipo</div><div style={styles.sectionSubtitle}>Lectura rápida del rendimiento individual</div></div></div>
-          <div className="reports-dashboard-seller-grid" style={styles.sellerGrid}>
-            {sellerMetrics.length ? sellerMetrics.map(s => <div key={s.id} style={styles.sellerCard}><div style={styles.sellerVal}>{formatMoneyGT(s.amount)}</div><div style={{...styles.sellerBar, height: `${Math.max(10,(s.amount/maxAmt)*80)}px`}} /><div style={styles.sellerAv}>{s.name.charAt(0).toUpperCase()}</div><div style={styles.sellerName}>{s.name}</div><div style={styles.sellerMeta}>{s.confirmed} confirmados de {s.total} evento(s)</div></div>) : <div style={{ color: '#94a3b8', fontSize: '11px', textAlign: 'center', gridColumn: '1/-1', padding: '20px' }}>No hay asesores comerciales con metas asignadas.</div>}
+        {/* ── 5. Seller Cards ── */}
+        <section className="reports-hero-panel" style={{ gap: '12px' }}>
+          <div className="reports-section-intro">
+            <div>
+              <span className="reports-eyebrow">Equipo</span>
+              <h3 className="reports-section-title">Rendimiento individual</h3>
+            </div>
           </div>
-        </div>
+
+          <div className="reports-seller-grid">
+            {sellerMetrics.length ? sellerMetrics.map(s => (
+              <div key={s.id} className="reports-seller-card" style={{ position: 'relative', paddingTop: '20px' }}>
+                {/* Avatar */}
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #2563eb, #60a5fa)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '14px', fontWeight: '800', color: '#fff',
+                  boxShadow: '0 4px 10px rgba(37,99,235,0.2)',
+                }}>
+                  {s.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="reports-seller-value" style={{ fontSize: '16px' }}>{formatMoneyGT(s.amount)}</div>
+                {/* Bar chart */}
+                <div style={{
+                  width: '32px', height: '60px', borderRadius: '8px',
+                  background: '#f1f5f9', display: 'flex', alignItems: 'flex-end',
+                  overflow: 'hidden', margin: '4px 0',
+                }}>
+                  <div style={{
+                    width: '100%',
+                    height: `${Math.max(10, (s.amount / maxAmt) * 80)}%`,
+                    background: 'linear-gradient(180deg, #60a5fa, #2563eb)',
+                    borderRadius: '0 0 6px 6px',
+                    transition: 'height 0.5s ease',
+                  }} />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '12px', color: '#0f172a', textAlign: 'center' }}>{s.name}</div>
+                <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center' }}>
+                  {s.confirmed} de {s.total} confirmados
+                </div>
+              </div>
+            )) : (
+              <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', gridColumn: '1/-1', padding: '40px' }}>
+                No hay asesores comerciales con metas asignadas.
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

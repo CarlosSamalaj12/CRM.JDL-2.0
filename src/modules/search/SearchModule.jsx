@@ -1,25 +1,49 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
+
+const STATUS_DESCRIPTIONS = {
+  'Reserva sin Cotizacion': 'Cliente potencial recién agregado, sin cotización creada',
+  '1er Cotizacion': 'Se generó la primera cotización, pendiente de revisión',
+  'Seguimiento': 'Cotización enviada, en proceso de seguimiento con el cliente',
+  'Lista de Espera': 'Cliente interesado pero sin fecha confirmada, en espera',
+  'Pre reserva': 'Apartado provisional, pendiente de confirmación final',
+  'Perdido': 'Oportunidad cerrada, el cliente no concretó',
+  'Confirmado': 'Reserva confirmada y asegurada',
+  'Cancelado': 'Reserva cancelada por el cliente o el sistema',
+  'Mantenimiento': 'Salón en mantenimiento programado',
+  'Mantenimiento Realizado': 'Mantenimiento completado',
+};
+import './search.css';
+import '../../styles/tooltips.css';
 
 export default function SearchModule() {
   const { events, users, salones } = useOutletContext();
   const navigate = useNavigate();
   
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [salonFilter, setSalonFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // Debounce: espera 300ms después de que el usuario deja de escribir
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const filteredEvents = useMemo(() => {
     if (!events) return [];
     
     let filtered = events;
 
-    if (query) {
-      const term = query.toLowerCase();
+    if (debouncedQuery) {
+      const term = debouncedQuery.toLowerCase();
       filtered = filtered.filter(ev => 
         ev.name?.toLowerCase().includes(term) ||
         ev.clientName?.toLowerCase().includes(term) ||
@@ -51,7 +75,7 @@ export default function SearchModule() {
     }
 
     return filtered.sort((a, b) => b.date.localeCompare(a.date));
-  }, [events, query, statusFilter, salonFilter, userFilter, dateFrom, dateTo]);
+  }, [events, debouncedQuery, statusFilter, salonFilter, userFilter, dateFrom, dateTo]);
 
   const clearFilters = () => {
     setQuery('');
@@ -67,43 +91,48 @@ export default function SearchModule() {
   };
 
   return (
-    <div className="module-container-wrapper" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
-      <div className="module-card-container" style={{ 
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        width: '100%',
-        maxWidth: '1400px', 
-        margin: '0 auto',
-        background: '#fff',
-        borderRadius: '20px',
-        border: '1px solid #e2e8f0',
-        overflow: 'hidden'
-      }}>
-        <div className="module-header-container" style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-          <h2 style={{ fontSize: '26px', fontWeight: '800', color: '#0b1c30', margin: 0 }}>Buscar Eventos</h2>
-          <p style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', margin: 0 }}>Encuentra reservas por nombre, cliente, salón, fecha y más</p>
+    <div className="search-page">
+      <div className="search-card">
+        {/* Header */}
+        <div className="search-header">
+          <h2 className="search-title">Buscar Eventos</h2>
+          <p className="search-subtitle">Encuentra reservas por nombre, cliente, salón, fecha y más</p>
         </div>
 
-        <div className="module-filters-container" style={{ padding: '16px 24px 12px 24px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
-            <div style={{ flex: '2 1 200px', display: 'flex', alignItems: 'center', background: '#f8fafc', padding: '0 12px', borderRadius: '8px', border: '2px solid #e2e8f0', height: '38px', boxSizing: 'border-box' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '8px', color: '#64748b' }}>search</span>
+        {/* Filters */}
+        <div className="search-filters">
+          <div className="search-filters-row">
+            <div className="search-input-wrap">
+              <span className="search-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m16 16 4 4" />
+                </svg>
+              </span>
               <input 
                 type="text" 
-                placeholder="Buscar..." 
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#0b1c30' }}
+                autoComplete="off"
               />
+              <button
+                type="button"
+                className={`search-clear-input${query ? ' visible' : ''}`}
+                onClick={() => setQuery('')}
+                tabIndex={query ? 0 : -1}
+                aria-label="Limpiar búsqueda"
+              >
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
             </div>
             
-            <div style={{ flex: '1 1 120px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Estado</label>
+            <div className="search-field">
+              <label className="search-field-label">Estado</label>
               <select 
                 value={statusFilter} 
                 onChange={e => setStatusFilter(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
               >
                 <option value="all">Todos</option>
                 {Object.keys(STATUS_META).map(s => (
@@ -112,12 +141,11 @@ export default function SearchModule() {
               </select>
             </div>
 
-            <div style={{ flex: '1 1 120px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Salón</label>
+            <div className="search-field">
+              <label className="search-field-label">Salón</label>
               <select 
                 value={salonFilter} 
                 onChange={e => setSalonFilter(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
               >
                 <option value="all">Todos</option>
                 {salones?.map(s => (
@@ -126,12 +154,11 @@ export default function SearchModule() {
               </select>
             </div>
 
-            <div style={{ flex: '1 1 120px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Vendedor</label>
+            <div className="search-field">
+              <label className="search-field-label">Vendedor</label>
               <select 
                 value={userFilter} 
                 onChange={e => setUserFilter(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
               >
                 <option value="all">Todos</option>
                 {users?.map(u => (
@@ -140,86 +167,82 @@ export default function SearchModule() {
               </select>
             </div>
 
-            <div style={{ flex: '1 1 110px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Desde</label>
+            <div className="search-field">
+              <label className="search-field-label">Desde</label>
               <input 
                 type="date" 
                 value={dateFrom} 
                 onChange={e => setDateFrom(e.target.value)}
-                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
               />
             </div>
 
-            <div style={{ flex: '1 1 110px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Hasta</label>
+            <div className="search-field">
+              <label className="search-field-label">Hasta</label>
               <input 
                 type="date" 
                 value={dateTo} 
                 onChange={e => setDateTo(e.target.value)}
-                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}>
-              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', whiteSpace: 'nowrap' }}>
+            <div className="search-actions">
+              <span className="search-result-count">
                 {filteredEvents.length} resultados
               </span>
-              <button onClick={clearFilters} style={{ 
-                background: '#f1f5f9', border: 'none', padding: '10px 14px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', color: '#64748b', fontSize: '12px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
+              <button className="search-clear-btn" onClick={clearFilters}>
                 Limpiar
               </button>
             </div>
           </div>
         </div>
 
-        <div className="module-table-wrapper" style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflowX: 'auto', overflowY: 'auto', flex: 1, width: '100%', minHeight: 0 }}>
-            <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
-              <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>
+        {/* Table area */}
+        <div className="search-table-area">
+          <div className="search-table-wrap">
+            <table className="search-table">
+              <thead>
                 <tr>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CÓDIGO</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>EVENTO</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>CLIENTE</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>SALÓN</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>FECHA</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>ESTADO</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'center', padding: '14px 16px' }}></th>
+                  <th>CÓDIGO</th>
+                  <th>EVENTO</th>
+                  <th>CLIENTE</th>
+                  <th>SALÓN</th>
+                  <th>FECHA</th>
+                  <th>ESTADO</th>
+                  <th className="center"></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredEvents.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
-                      No se encontraron eventos que coincidan con tu búsqueda
+                    <td colSpan={7}>
+                      <div className="search-empty-state">
+                        No se encontraron eventos que coincidan con tu búsqueda
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   filteredEvents.map(ev => {
                     const assignedUser = users?.find(u => u.id === ev.userId);
                     return (
-                      <tr key={ev.id} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}>
-                        <td style={{ padding: '14px 16px', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>{ev.id?.substring(0, 12)}</td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>{ev.name}</div>
-                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Encargado: {assignedUser?.fullName || assignedUser?.name || 'Sin asignar'}</div>
+                      <tr key={ev.id}>
+                        <td className="mono">{ev.id?.substring(0, 12)}</td>
+                        <td>
+                          <div className="search-event-name">{ev.name}</div>
+                          <div className="search-event-assignee">
+                            Encargado: {assignedUser?.fullName || assignedUser?.name || 'Sin asignar'}
+                          </div>
                         </td>
-                        <td style={{ padding: '14px 16px', fontSize: '13px' }}>
-                          <div style={{ color: '#334155' }}>{ev.clientName || '-'}</div>
-                          {ev.clientPhone && <div style={{ fontSize: '11px', color: '#94a3b8' }}>{ev.clientPhone}</div>}
+                        <td>
+                          <div className="search-client-name">{ev.clientName || '-'}</div>
+                          {ev.clientPhone && <div className="search-client-phone">{ev.clientPhone}</div>}
                         </td>
-                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#475569' }}>{ev.salon}</td>
-                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#64748b' }}>
-                          <div style={{ fontWeight: '600' }}>{ev.date}</div>
-                          <div style={{ fontSize: '11px' }}>{ev.startTime} - {ev.endTime}</div>
+                        <td><span className="search-salon-name">{ev.salon}</span></td>
+                        <td>
+                          <div className="search-date-main">{ev.date}</div>
+                          <div className="search-date-time">{ev.startTime} - {ev.endTime}</div>
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{ 
-                            display: 'inline-block', 
-                            padding: '4px 10px', 
-                            borderRadius: '20px', 
-                            fontSize: '10px', 
-                            fontWeight: '700', 
+                        <td>
+                          <span className="search-status-badge" data-desc={STATUS_DESCRIPTIONS[ev.status] || ''} style={{ 
                             background: `${getStatusColor(ev.status)}15`,
                             color: getStatusColor(ev.status),
                             border: `1px solid ${getStatusColor(ev.status)}30`
@@ -227,19 +250,10 @@ export default function SearchModule() {
                             {ev.status}
                           </span>
                         </td>
-                        <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                        <td className="center">
                           <button 
+                            className="search-view-btn"
                             onClick={() => navigate(`/reserva/${ev.id}`)}
-                            style={{ 
-                              border: '1px solid #bfdbfe', 
-                              background: '#eff6ff', 
-                              padding: '6px 14px', 
-                              borderRadius: '8px', 
-                              cursor: 'pointer', 
-                              fontSize: '13px', 
-                              fontWeight: '700', 
-                              color: '#1d4ed8'
-                            }}
                           >
                             Ver
                           </button>

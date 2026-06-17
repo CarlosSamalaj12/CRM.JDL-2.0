@@ -10,13 +10,12 @@ export default function SettingsSalones() {
   const [salonCapacities, setSalonCapacities] = useState({});
   
   // Form State
-  const [selectedSalon, setSelectedSalon] = useState(''); // Empty string for "Crear nuevo salon"
+  const [selectedSalon, setSelectedSalon] = useState('');
   const [salonNameInput, setSalonNameInput] = useState('');
   const [salonCapacityInput, setSalonCapacityInput] = useState('');
   const [salonActive, setSalonActive] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Monitor hidden attribute to check if modal is open
   useEffect(() => {
     const observer = new MutationObserver(() => {
       if (backdropRef.current) {
@@ -32,7 +31,6 @@ export default function SettingsSalones() {
     return () => observer.disconnect();
   }, []);
 
-  // Fetch state on modal open
   useEffect(() => {
     if (isOpen) {
       loadData();
@@ -42,15 +40,12 @@ export default function SettingsSalones() {
   const loadData = async () => {
     try {
       const state = await loadCrmState();
-      
       const loadedSalones = Array.isArray(state.salones) ? state.salones : [];
       const loadedDisabled = Array.isArray(state.disabledSalones) ? state.disabledSalones : [];
       const loadedCapacities = (state.salonCapacities && typeof state.salonCapacities === 'object') ? state.salonCapacities : {};
-      
       setSalones(loadedSalones);
       setDisabledSalones(loadedDisabled);
       setSalonCapacities(loadedCapacities);
-      
       resetForm();
     } catch (err) {
       console.error('Error al cargar salones:', err);
@@ -104,7 +99,6 @@ export default function SettingsSalones() {
       return;
     }
 
-    // Check duplicate name
     const isNew = !selectedSalon;
     const exists = salones.some(s => s.toLowerCase() === nameTrimmed.toLowerCase() && (!selectedSalon || s.toLowerCase() !== selectedSalon.toLowerCase()));
     if (exists) {
@@ -122,20 +116,15 @@ export default function SettingsSalones() {
         nextSalones.push(nameTrimmed);
       } else {
         nextSalones = nextSalones.map(s => s === selectedSalon ? nameTrimmed : s);
-        // Rename key in capacities
         if (selectedSalon !== nameTrimmed) {
           nextCapacities[nameTrimmed] = nextCapacities[selectedSalon];
           delete nextCapacities[selectedSalon];
-          
-          // Rename in disabled list
           nextDisabledSalones = nextDisabledSalones.map(s => s === selectedSalon ? nameTrimmed : s);
         }
       }
 
-      // Set capacity
       nextCapacities[nameTrimmed] = capacityNum;
 
-      // Handle active switch
       if (salonActive) {
         nextDisabledSalones = nextDisabledSalones.filter(s => s !== nameTrimmed);
       } else {
@@ -144,10 +133,8 @@ export default function SettingsSalones() {
         }
       }
 
-      // Sort salones alphabetically
       nextSalones.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
-      // Persist to server
       const currentState = await loadCrmState();
       await saveCrmState({
         ...currentState,
@@ -159,7 +146,6 @@ export default function SettingsSalones() {
       setSalones(nextSalones);
       setDisabledSalones(nextDisabledSalones);
       setSalonCapacities(nextCapacities);
-      
       toast(isNew ? 'Salon agregado' : 'Salon actualizado');
       resetForm();
     } catch (err) {
@@ -173,7 +159,6 @@ export default function SettingsSalones() {
   const handleToggleActive = async (name) => {
     const isCurrentlyActive = !disabledSalones.includes(name);
     const confirmText = isCurrentlyActive ? 'inhabilitar' : 'reactivar';
-    
     const isConfirmed = await modernConfirm({
       title: `${isCurrentlyActive ? 'Inhabilitar' : 'Reactivar'} Salón`,
       message: `¿Desea ${confirmText} el salón "${name}"?`,
@@ -193,11 +178,8 @@ export default function SettingsSalones() {
 
       const currentState = await loadCrmState();
       await saveCrmState({ ...currentState, disabledSalones: nextDisabled });
-
       setDisabledSalones(nextDisabled);
       toast(isCurrentlyActive ? 'Salon inhabilitado' : 'Salon reactivado');
-      
-      // Update form fields if editing this salon
       if (selectedSalon === name) {
         setSalonActive(!isCurrentlyActive);
       }
@@ -227,27 +209,17 @@ export default function SettingsSalones() {
             <div className="modalTitle" id="salonesTitle">Salones</div>
             <div className="modalSubtitle">Agrega, edita e inhabilita salones</div>
           </div>
-          <button 
-            className="iconBtn" 
-            id="btnSalonesClose" 
-            type="button" 
-            title="Cerrar" 
-            onClick={handleClose}
-          >
-            &#10005;
+          <button className="btn-exit" id="btnSalonesClose" type="button" title="Cerrar" onClick={handleClose}>
+            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
           </button>
         </div>
 
-        <div className="modalBody" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="row2" style={{ display: 'flex', gap: '16px' }}>
-            <label className="field" style={{ flex: 1 }}>
+        <div className="modalBody">
+          {/* Row 1: Select existing + Status */}
+          <div className="settings-field-group">
+            <label className="settings-modern-field">
               <span>Salon existente</span>
-              <select 
-                id="salonEditSelect" 
-                value={selectedSalon} 
-                onChange={handleSalonSelectChange}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-              >
+              <select id="salonEditSelect" value={selectedSalon} onChange={handleSalonSelectChange}>
                 <option value="">-- Crear nuevo salon --</option>
                 {salones.map(s => (
                   <option key={s} value={s}>
@@ -256,75 +228,44 @@ export default function SettingsSalones() {
                 ))}
               </select>
             </label>
-            
-            <div className="field" style={{ width: '160px' }}>
+            <div className="settings-modern-field">
               <span>Estado</span>
-              <label 
-                className="statusSwitchInline" 
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '8px', 
-                  marginTop: '8px', 
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  color: salonActive ? '#16a34a' : '#dc2626'
-                }}
-              >
-                <input 
-                  id="salonActive" 
-                  type="checkbox" 
-                  checked={salonActive} 
-                  onChange={(e) => setSalonActive(e.target.checked)}
-                  style={{ width: '18px', height: '18px' }}
-                />
+              <label className="settings-switch-inline">
+                <input id="salonActive" type="checkbox" checked={salonActive} onChange={(e) => setSalonActive(e.target.checked)} />
                 <span>{salonActive ? 'Salon activo' : 'Salon inactivo'}</span>
               </label>
             </div>
           </div>
 
-          <div className="row2" style={{ display: 'flex', gap: '16px' }}>
-            <label className="field" style={{ flex: 2 }}>
+          {/* Row 2: Name + Capacity */}
+          <div className="settings-field-group">
+            <label className="settings-modern-field">
               <span>Nombre del salon</span>
-              <input 
-                id="salonNameInput" 
-                type="text" 
-                placeholder="Ej: Salon Aurora" 
-                value={salonNameInput}
-                onChange={(e) => setSalonNameInput(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-              />
+              <input id="salonNameInput" type="text" placeholder="Ej: Salon Aurora" value={salonNameInput} onChange={(e) => setSalonNameInput(e.target.value)} />
             </label>
-
-            <label className="field" style={{ flex: 1 }}>
+            <label className="settings-modern-field">
               <span>Capacidad PAX *</span>
-              <input 
-                id="salonCapacityInput" 
-                type="number" 
-                placeholder="Ej: 500" 
-                value={salonCapacityInput}
-                onChange={(e) => setSalonCapacityInput(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-              />
+              <input id="salonCapacityInput" type="number" placeholder="Ej: 500" value={salonCapacityInput} onChange={(e) => setSalonCapacityInput(e.target.value)} />
             </label>
           </div>
 
-          <div className="field">
+          {/* Salones table */}
+          <div className="settings-modern-field">
             <span>Salones registrados</span>
-            <div className="quoteTableWrap" style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', marginTop: '6px' }}>
-              <table className="quoteTable" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1, borderBottom: '1px solid #cbd5e1' }}>
+            <div className="settings-table-wrap" style={{ maxHeight: '200px' }}>
+              <table className="settings-table" style={{ minWidth: '0' }}>
+                <thead>
                   <tr>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', color: '#475569' }}>Nombre</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', color: '#475569' }}>Capacidad</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', color: '#475569' }}>Estado</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#475569' }}>Acciones</th>
+                    <th>Nombre</th>
+                    <th>Capacidad</th>
+                    <th>Estado</th>
+                    <th style={{ textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody id="salonesBody">
                   {salones.length === 0 ? (
                     <tr>
-                      <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+                      <td colSpan="4" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
                         No hay salones registrados
                       </td>
                     </tr>
@@ -333,45 +274,27 @@ export default function SettingsSalones() {
                       const isDisabled = disabledSalones.includes(s);
                       const capacity = salonCapacities[s] || '2000 (Límite defecto)';
                       return (
-                        <tr key={s} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '8px 12px', fontWeight: '600', color: '#0f172a' }}>{s}</td>
-                          <td style={{ padding: '8px 12px', color: '#475569' }}>{capacity} PAX</td>
-                          <td style={{ padding: '8px 12px' }}>
-                            <span style={{ 
-                              padding: '2px 8px', 
-                              borderRadius: '4px', 
-                              fontSize: '11px', 
-                              fontWeight: '700',
+                        <tr key={s}>
+                          <td style={{ fontWeight: '600' }}>{s}</td>
+                          <td>{capacity} PAX</td>
+                          <td>
+                            <span className="settings-role-badge" style={{
                               background: isDisabled ? '#fee2e2' : '#dcfce7',
-                              color: isDisabled ? '#991b1b' : '#15803d'
+                              color: isDisabled ? '#991b1b' : '#15803d',
+                              borderColor: isDisabled ? '#fecaca' : '#bbf7d0',
                             }}>
                               {isDisabled ? 'Inhabilitado' : 'Activo'}
                             </span>
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                              <button 
-                                type="button" 
-                                title="Editar" 
-                                onClick={() => loadSalonForEdit(s)}
-                                style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                              >
+                          <td style={{ textAlign: 'center' }}>
+                            <div className="settings-table-actions">
+                              <button type="button" title="Editar" onClick={() => loadSalonForEdit(s)}>
                                 ✎
                               </button>
-                              <button 
-                                type="button" 
-                                title={isDisabled ? 'Reactivar' : 'Inhabilitar'} 
+                              <button
+                                type="button"
+                                title={isDisabled ? 'Reactivar' : 'Inhabilitar'}
                                 onClick={() => handleToggleActive(s)}
-                                style={{ 
-                                  background: isDisabled ? '#f0fdf4' : '#fff1f2', 
-                                  border: '1px solid', 
-                                  borderColor: isDisabled ? '#bbf7d0' : '#fecdd3', 
-                                  color: isDisabled ? '#16a34a' : '#e11d48', 
-                                  padding: '4px 8px', 
-                                  borderRadius: '4px', 
-                                  cursor: 'pointer',
-                                  fontWeight: 'bold'
-                                }}
                               >
                                 {isDisabled ? '↻' : '🚫'}
                               </button>
@@ -387,40 +310,17 @@ export default function SettingsSalones() {
           </div>
         </div>
 
-        <div className="modalFooter" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+        <div className="modalFooter">
           <div className="leftActions">
-            <button 
-              className="btn-cancelar" 
-              id="btnSalonDisable" 
-              type="button" 
-              disabled={!selectedSalon}
-              onClick={handleDisableBtn}
-              style={{
-                opacity: selectedSalon ? 1 : 0.5,
-                cursor: selectedSalon ? 'pointer' : 'not-allowed'
-              }}
-            >
+            <button className="settings-danger-btn" id="btnSalonDisable" type="button" disabled={!selectedSalon} onClick={handleDisableBtn}>
               {selectedSalon && disabledSalones.includes(selectedSalon) ? 'Reactivar' : 'Inhabilitar'}
             </button>
           </div>
-          <div className="rightActions" style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              className="btn-cancel" 
-              id="btnSalonReset" 
-              type="button" 
-              onClick={resetForm}
-              style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}
-            >
+          <div className="rightActions">
+            <button className="settings-cancel-btn" id="btnSalonReset" type="button" onClick={resetForm}>
               Nuevo salon
             </button>
-            <button 
-              className="btn-teal" 
-              id="btnSalonSave" 
-              type="button" 
-              disabled={saving}
-              onClick={handleSave}
-              style={{ background: '#005954', color: 'white', border: 'none', padding: '8px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
+            <button className="settings-primary-btn" id="btnSalonSave" type="button" disabled={saving} onClick={handleSave}>
               {saving ? 'Guardando...' : 'Guardar salon'}
             </button>
           </div>

@@ -222,257 +222,307 @@ export default function ReportsInstitucion({ onClose }) {
 
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  const styles = {
-    empty: { padding: '18px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700 },
-    summaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' },
-    summaryCard: { padding: '14px', border: '1px solid #dbe7f5', borderRadius: '14px', background: '#ffffff' },
-    summaryLabel: { display: 'block', fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.08em' },
-    summaryValue: { display: 'block', marginTop: '8px', fontSize: '22px', fontWeight: 900, color: '#0f172a' },
-    summaryMeta: { display: 'block', marginTop: '4px', fontSize: '12px', color: '#64748b' },
-    metricRow: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: '10px', alignItems: 'center', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#ffffff' },
-    metricList: { display: 'grid', gap: '8px' },
-    barTrack: { height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' },
-    tableStatus: (color) => ({ color, background: `${color}18`, border: `1px solid ${color}40`, borderRadius: '999px', padding: '4px 8px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }),
-  };
+  const NAV_SECTIONS = [
+    ['institutionSectionOverview', 'Resumen'],
+    ['institutionSectionCharts', 'Gráficas'],
+    ['institutionSectionSalons', 'Salones'],
+    ['institutionSectionDishes', 'Platillos'],
+    ['institutionSectionManagers', 'Encargados'],
+    ['institutionSectionTimeline', 'Historial'],
+    ['institutionSectionEvents', 'Eventos'],
+  ];
+
+  const kpiCards = [
+    { label: 'Eventos', value: filteredRows.length, accent: '#10c972', meta: `${summary.confirmed} confirmados` },
+    { label: 'Total Cotizado', value: money(summary.total), accent: '#2563eb', meta: `Abonado ${money(summary.advances)}` },
+    { label: 'Saldo Pendiente', value: money(summary.pending), accent: summary.pending > 0 ? '#b91c1c' : '#15803d', meta: summary.pending > 0 ? 'por cobrar' : 'al día' },
+    { label: 'PAX Totales', value: summary.pax.toLocaleString(), accent: '#10c972', meta: `Prom. ${filteredRows.length ? Math.round(summary.pax / filteredRows.length) : 0}` },
+    { label: 'Última Visita', value: summary.lastVisit, accent: '#2563eb', meta: 'más reciente' },
+  ];
+
+  const overviewCards = [
+    { label: 'Empresa / Grupo', value: selectedCompany?.name || 'Todas', meta: selectedCompany?.contact || 'Filtro general', accent: '#2563eb' },
+    { label: 'Contacto Principal', value: filteredRows.find((row) => row.contact)?.contact || '-', meta: filteredRows.find((row) => row.contactPhone)?.contactPhone || 'Sin teléfono', accent: '#7c3aed' },
+    { label: 'NIT', value: filteredRows.find((row) => row.nit)?.nit || '-', meta: 'Dato cotización', accent: '#0d9488' },
+    { label: 'Vendedor Frecuente', value: rankBy((row) => row.userName)[0]?.label || '-', meta: 'Por eventos', accent: '#d97706' },
+  ];
 
   const renderMetricList = (items, emptyText = 'Sin datos para el rango seleccionado.') => (
-    <div style={styles.metricList}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {items.length ? items.map((item) => (
-        <div key={item.label} style={styles.metricRow}>
-          <strong style={{ color: '#0f172a' }}>{item.label}</strong>
-          <span style={{ color: '#64748b', fontSize: 12 }}>{item.count} registro(s)</span>
-          <span style={{ color: '#0f172a', fontWeight: 900 }}>{money(item.amount)}</span>
+        <div key={item.label} style={{
+          display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center',
+          padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#ffffff',
+          transition: 'all 0.15s ease',
+        }}>
+          <strong style={{ color: '#0f172a', fontSize: '14px' }}>{item.label}</strong>
+          <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{item.count} registro(s)</span>
+          <span style={{ color: '#0f172a', fontWeight: 900, fontSize: '14px', whiteSpace: 'nowrap' }}>{money(item.amount)}</span>
         </div>
-      )) : <div style={styles.empty}>{emptyText}</div>}
+      )) : (
+        <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+          {emptyText}
+        </div>
+      )}
     </div>
   );
 
   return (
-    <div className="modalBackdrop" id="institutionReportBackdrop">
-      <div className="modal dashboardReportModal institutionReportModal" role="dialog" aria-modal="true" aria-labelledby="institutionReportTitle">
-        <div className="modalHeader">
-          <div className="reportBrandHeader">
-            <div className="reportBrandBadge" style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px', borderRadius: '14px', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid #c7d8ec', background: '#f5faff', flex: '0 0 56px' }}>
-              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo" style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px', maxWidth: '40px', maxHeight: '40px', objectFit: 'contain', display: 'block' }} />
-            </div>
-            <div className="reportBrandCopy">
-              <div className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
-              <div className="modalTitle" id="institutionReportTitle">Reporte por institucion</div>
-              <div className="modalSubtitle">Dashboard de clientes, consumo y comportamiento historico</div>
-            </div>
+    <div className="reports-page-container">
+      {/* ── Header ── */}
+      <div className="reports-page-header">
+        <div className="reports-brand-header">
+          <div className="reports-brand-badge">
+            <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reports-brand-logo" />
           </div>
-          <button className="iconBtn reportModalClose" id="btnInstitutionReportClose" type="button" title="Cerrar" onClick={() => onClose?.()}>&#10005;</button>
+          <div>
+            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-title">Reporte por Institución</div>
+            <div className="reports-subtitle">Dashboard de clientes, consumo y comportamiento histórico</div>
+          </div>
         </div>
+        <button className="btn-exit" type="button" onClick={() => onClose?.()}>
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+          Volver
+        </button>
+      </div>
 
-        <div className="modalBody dashboardReportBody institutionReportBody">
-          <section className="reportHeroPanel institutionReportHeroPanel">
-            <div className="reportSectionIntro">
-              <div>
-                <div className="reportSectionEyebrow">Relacion comercial</div>
-                <div className="reportSectionTitle">Cliente, consumo e historial en una vista premium</div>
-                <div className="reportSectionText">Encuentra instituciones clave, revisa comportamiento y baja al detalle con datos reales del CRM.</div>
-              </div>
-            </div>
-            <div className="dashboardReportFilters institutionReportFilters">
-              <label className="field institutionSearchField">
-                <span>Buscar institucion</span>
-                <input id="institutionReportCompanySearch" type="text" placeholder="Escribe nombre, contacto o correo" value={search} onChange={(event) => setSearch(event.target.value)} />
-                {!!search && (
-                  <div className="institutionSearchResults" id="institutionReportCompanyResults">
-                    {visibleCompanyOptions.slice(0, 5).map((company) => (
-                      <button key={company.token} type="button" className="btn" onClick={() => setCompanyToken(company.token)}>{company.name}</button>
-                    ))}
-                  </div>
-                )}
-              </label>
-              <label className="field">
-                <span>Institucion</span>
-                <select id="institutionReportCompany" value={companyToken} onChange={(event) => setCompanyToken(event.target.value)}>
-                  <option value="all">Todas las instituciones</option>
-                  {visibleCompanyOptions.map((company) => <option key={company.token} value={company.token}>{company.name}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                <span>Desde</span>
-                <input id="institutionReportFrom" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-              </label>
-              <label className="field">
-                <span>Hasta</span>
-                <input id="institutionReportTo" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-              </label>
-              <div className="rightActions dashboardReportActions">
-                <button className="btn" id="btnInstitutionReportCurrentYear" type="button" onClick={() => { setFromDate(`${currentYear}-01-01`); setToDate(`${currentYear}-12-31`); }}>Anio actual</button>
-                <button className="btn" id="btnInstitutionReportReset" type="button" onClick={resetFilters}>Limpiar filtros</button>
-              </div>
-            </div>
-          </section>
-
-          <div className="dashboardCard institutionHeadlineCard" id="institutionReportHeadline">
+      <div className="reports-page-body">
+        {/* ── Hero + Filters ── */}
+        <section className="reports-hero-panel">
+          <div className="reports-section-intro">
             <div>
-              <div className="reportSectionEyebrow">{selectedCompany ? 'Institucion seleccionada' : 'Todas las instituciones'}</div>
-              <h3 style={{ margin: '8px 0 4px', color: '#0f172a', fontSize: 24 }}>{selectedCompany?.name || 'Cartera completa'}</h3>
-              <p style={{ margin: 0, color: '#64748b' }}>{getDateRangeLabel(fromDate, toDate)} | {filteredRows.length} evento(s) encontrados.</p>
+              <span className="reports-eyebrow">Relación comercial</span>
+              <h3 className="reports-section-title">Cliente, consumo e historial en una vista premium</h3>
+              <p className="reports-section-text">Encuentra instituciones clave, revisa comportamiento y baja al detalle con datos reales del CRM.</p>
             </div>
           </div>
 
-          <div className="institutionReportSummary" id="institutionReportSummary" style={styles.summaryGrid}>
-            {[
-              ['Eventos', filteredRows.length, `${summary.confirmed} confirmado(s)`],
-              ['Total cotizado', money(summary.total), `Abonado ${money(summary.advances)}`],
-              ['Saldo pendiente', money(summary.pending), 'Calculado desde anticipos registrados'],
-              ['PAX total', summary.pax, `Promedio ${filteredRows.length ? Math.round(summary.pax / filteredRows.length) : 0}`],
-              ['Ultima visita', summary.lastVisit, 'Segun eventos del rango'],
-            ].map(([label, value, meta]) => (
-              <article key={label} style={styles.summaryCard}>
-                <span style={styles.summaryLabel}>{label}</span>
-                <strong style={styles.summaryValue}>{value}</strong>
-                <small style={styles.summaryMeta}>{meta}</small>
-              </article>
+          {/* Bento KPI Grid */}
+          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+            {kpiCards.map((k, i) => (
+              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${k.accent}` }}>
+                <span className="reports-eyebrow">{k.label}</span>
+                <strong>{k.value}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{k.meta}</span>
+              </div>
             ))}
           </div>
 
-          <div className="institutionReportNav" id="institutionReportNav">
-            {[
-              ['institutionSectionOverview', 'Resumen'],
-              ['institutionSectionCharts', 'Graficas'],
-              ['institutionSectionSalons', 'Salones'],
-              ['institutionSectionDishes', 'Platillos'],
-              ['institutionSectionManagers', 'Encargados'],
-              ['institutionSectionTimeline', 'Historial'],
-              ['institutionSectionEvents', 'Eventos'],
-            ].map(([id, label]) => <button key={id} className="btn" type="button" onClick={() => scrollTo(id)}>{label}</button>)}
-          </div>
-
-          <div className="institutionReportContent" id="institutionReportContent">
-            <section className="dashboardCard institutionDetailCard" id="institutionSectionOverview">
-              <header className="dashboardCardHead">
-                <strong>Resumen ejecutivo</strong>
-                <small>Lectura rapida de la relacion comercial</small>
-              </header>
-              <div className="institutionOverviewGrid" id="institutionOverviewGrid" style={styles.summaryGrid}>
-                {[
-                  ['Empresa / grupo', selectedCompany?.name || 'Todas', selectedCompany?.contact || 'Filtro general'],
-                  ['Contacto principal', filteredRows.find((row) => row.contact)?.contact || '-', filteredRows.find((row) => row.contactPhone)?.contactPhone || 'Sin telefono'],
-                  ['NIT', filteredRows.find((row) => row.nit)?.nit || '-', 'Dato tomado del catalogo o cotizacion'],
-                  ['Vendedor frecuente', rankBy((row) => row.userName)[0]?.label || '-', 'Por cantidad de eventos'],
-                ].map(([label, value, meta]) => (
-                  <article key={label} style={styles.summaryCard}>
-                    <span style={styles.summaryLabel}>{label}</span>
-                    <strong style={{ ...styles.summaryValue, fontSize: 18 }}>{value}</strong>
-                    <small style={styles.summaryMeta}>{meta}</small>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <section className="dashboardCard institutionDetailCard" id="institutionSectionCharts">
-              <header className="dashboardCardHead">
-                <strong>Graficas interactivas</strong>
-                <small>Montos y estados calculados con los filtros activos</small>
-              </header>
-              <div className="institutionChartsGrid" id="institutionReportChartsBody" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', alignItems: 'stretch' }}>
-                <div style={styles.summaryCard}>
-                  <span style={styles.summaryLabel}>Consumo por mes</span>
-                  <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-                    {monthlyRank.length ? monthlyRank.map((item) => (
-                      <div key={item.label}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800 }}><span>{item.label}</span><span>{money(item.amount)}</span></div>
-                        <div style={styles.barTrack}><div style={{ height: '100%', width: `${Math.max(4, (item.amount / maxMonthlyAmount) * 100)}%`, background: '#2563eb' }} /></div>
-                      </div>
-                    )) : <div style={styles.empty}>Sin consumo para graficar.</div>}
-                  </div>
+          {/* Toolbar */}
+          <div className="reports-toolbar">
+            <label className="field institutionSearchField">
+              <span>Buscar institución</span>
+              <input type="text" placeholder="Escribe nombre, contacto o correo" value={search} onChange={(event) => setSearch(event.target.value)} />
+              {!!search && (
+                <div className="institutionSearchResults">
+                  {visibleCompanyOptions.slice(0, 5).map((company) => (
+                    <button key={company.token} type="button" className="btn" onClick={() => setCompanyToken(company.token)}>{company.name}</button>
+                  ))}
                 </div>
-                <div style={styles.summaryCard}>
-                  <span style={styles.summaryLabel}>Eventos por estado</span>
-                  <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-                    {statusRank.length ? statusRank.map((item) => {
-                      const color = STATUS_META[item.label]?.color || '#64748b';
-                      return (
-                        <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                          <span style={styles.tableStatus(color)}>{item.label}</span>
-                          <strong>{item.count}</strong>
-                        </div>
-                      );
-                    }) : <div style={styles.empty}>Sin estados para mostrar.</div>}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="dashboardCard institutionDetailCard" id="institutionSectionSalons">
-              <header className="dashboardCardHead">
-                <strong>Salones mas usados</strong>
-                <small>Ranking por frecuencia dentro del rango</small>
-              </header>
-              <div className="institutionMetricList" id="institutionReportSalonBody">{renderMetricList(salonRank)}</div>
-            </section>
-
-            <section className="dashboardCard institutionDetailCard" id="institutionSectionDishes">
-              <header className="dashboardCardHead">
-                <strong>Platillos y servicios mas pedidos</strong>
-                <small>Consolidado de cotizaciones por cantidad</small>
-              </header>
-              <div className="institutionMetricList" id="institutionReportDishBody">{renderMetricList(dishRank, 'Sin platillos o servicios cotizados en el rango.')}</div>
-            </section>
-
-            <section className="dashboardCard institutionDetailCard" id="institutionSectionManagers">
-              <header className="dashboardCardHead">
-                <strong>Encargados con mas actividad</strong>
-                <small>Quien genera mas eventos con nosotros</small>
-              </header>
-              <div className="institutionMetricList" id="institutionReportManagerBody">{renderMetricList(managerRank)}</div>
-            </section>
-
-            <section className="dashboardCard institutionDetailCard" id="institutionSectionTimeline">
-              <header className="dashboardCardHead">
-                <strong>Historial y comportamiento</strong>
-                <small>Meses fuertes y ultima visita</small>
-              </header>
-              <div className="institutionTimelineGrid" id="institutionReportTimelineBody">{renderMetricList(monthlyRank, 'Sin historial para el rango seleccionado.')}</div>
-            </section>
-
-            <section className="dashboardCard institutionDetailCard" id="institutionSectionEvents">
-              <header className="dashboardCardHead">
-                <strong>Eventos del rango</strong>
-                <small>Detalle para bajar a un caso especifico</small>
-              </header>
-              <div className="salesReportTableWrap institutionEventsWrap">
-                <table className="quoteTable institutionEventsTable">
-                  <thead>
-                    <tr>
-                      <th>Estado</th>
-                      <th>Reserva</th>
-                      <th>Fecha</th>
-                      <th>Evento</th>
-                      <th>Salon</th>
-                      <th>Encargado</th>
-                      <th>PAX</th>
-                      <th>Total</th>
-                      <th>Ultima visita</th>
-                    </tr>
-                  </thead>
-                  <tbody id="institutionReportEventsBody">
-                    {filteredRows.length ? filteredRows.map((row) => (
-                      <tr key={row.reservationKey || row.id}>
-                        <td><span style={styles.tableStatus(row.statusColor)}>{row.status || '-'}</span></td>
-                        <td>{row.reservationKey || row.id}</td>
-                        <td>{row.eventDate || '-'}</td>
-                        <td>{row.name || '-'}</td>
-                        <td>{row.salon || '-'}</td>
-                        <td>{row.contact || row.userName || '-'}</td>
-                        <td>{row.pax || 0}</td>
-                        <td>{money(row.total)}</td>
-                        <td>{row.lastVisit || '-'}</td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan="9"><div style={styles.empty}>No hay eventos con los filtros actuales.</div></td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              )}
+            </label>
+            <label className="field">
+              <span>Institución</span>
+              <select value={companyToken} onChange={(event) => setCompanyToken(event.target.value)}>
+                <option value="all">Todas las instituciones</option>
+                {visibleCompanyOptions.map((company) => <option key={company.token} value={company.token}>{company.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Desde</span>
+              <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Hasta</span>
+              <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+            </label>
+            <div className="reports-actions">
+              <button type="button" onClick={() => { setFromDate(`${currentYear}-01-01`); setToDate(`${currentYear}-12-31`); }}>Año actual</button>
+              <button className="btnPrimary" type="button" onClick={resetFilters}>Limpiar filtros</button>
+            </div>
           </div>
+        </section>
+
+        {/* ── Storytelling ── */}
+        <div className="reports-storytelling-card">
+          <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>
+            {selectedCompany ? 'Institución seleccionada' : 'Todas las instituciones'}
+          </span>
+          <p className="reports-story-text">
+            <strong className="highlight-slate">{selectedCompany?.name || 'Cartera completa'}</strong>
+            {' — '}Período <strong className="highlight-slate">{getDateRangeLabel(fromDate, toDate)}</strong>.
+            Se registran <strong className="highlight-blue">{filteredRows.length}</strong> evento(s) con un valor cotizado total de <strong className="highlight-green">{money(summary.total)}</strong>,
+            de los cuales <strong className="highlight-green">{summary.confirmed}</strong> están confirmados.
+            El saldo pendiente asciende a <strong className={summary.pending > 0 ? 'highlight-orange' : 'highlight-green'}>{money(summary.pending)}</strong>.
+          </p>
         </div>
+
+        {/* ── Navigation Tabs ── */}
+        <div className="reports-nav-tabs">
+          {NAV_SECTIONS.map(([id, label]) => (
+            <button key={id} className="reports-nav-tab-btn" type="button" onClick={() => scrollTo(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Resumen Ejecutivo ── */}
+        <section className="reports-detail-section" id="institutionSectionOverview">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Resumen ejecutivo</div>
+            <div className="reports-detail-section-subtitle">Lectura rápida de la relación comercial</div>
+          </div>
+          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            {overviewCards.map((c, i) => (
+              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${c.accent}`, gap: '4px' }}>
+                <span className="reports-eyebrow">{c.label}</span>
+                <strong style={{ fontSize: '14px', lineHeight: '1.3' }}>{c.value}</strong>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{c.meta}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Gráficas ── */}
+        <section className="reports-detail-section" id="institutionSectionCharts">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Gráficas interactivas</div>
+            <div className="reports-detail-section-subtitle">Montos y estados calculados con los filtros activos</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '12px', alignItems: 'stretch' }}>
+            {/* Consumo por mes */}
+            <div className="bento-tile" style={{ padding: '16px', gap: '12px' }}>
+              <span className="reports-eyebrow">Consumo por mes</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                {monthlyRank.length ? monthlyRank.map((item) => (
+                  <div key={item.label}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 800, marginBottom: '4px' }}>
+                      <span style={{ color: '#1e293b' }}>{item.label}</span>
+                      <span style={{ color: '#2563eb' }}>{money(item.amount)}</span>
+                    </div>
+                    <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${Math.max(4, (item.amount / maxMonthlyAmount) * 100)}%`, background: 'linear-gradient(90deg, #2563eb, #3b82f6)', borderRadius: '999px', transition: 'width 0.4s ease' }} />
+                    </div>
+                  </div>
+                )) : (
+                  <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+                    Sin consumo para graficar.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Eventos por estado */}
+            <div className="bento-tile" style={{ padding: '16px', gap: '12px' }}>
+              <span className="reports-eyebrow">Eventos por estado</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                {statusRank.length ? statusRank.map((item) => {
+                  const color = STATUS_META[item.label]?.color || '#64748b';
+                  return (
+                    <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color, background: `${color}18`, border: `1px solid ${color}40`, borderRadius: '999px', padding: '3px 10px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                        {item.label}
+                      </span>
+                      <strong style={{ color: '#0f172a', fontSize: '16px' }}>{item.count}</strong>
+                    </div>
+                  );
+                }) : (
+                  <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+                    Sin estados para mostrar.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Salones ── */}
+        <section className="reports-detail-section" id="institutionSectionSalons">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Salones más usados</div>
+            <div className="reports-detail-section-subtitle">Ranking por frecuencia dentro del rango</div>
+          </div>
+          {renderMetricList(salonRank)}
+        </section>
+
+        {/* ── Platillos ── */}
+        <section className="reports-detail-section" id="institutionSectionDishes">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Platillos y servicios más pedidos</div>
+            <div className="reports-detail-section-subtitle">Consolidado de cotizaciones por cantidad</div>
+          </div>
+          {renderMetricList(dishRank, 'Sin platillos o servicios cotizados en el rango.')}
+        </section>
+
+        {/* ── Encargados ── */}
+        <section className="reports-detail-section" id="institutionSectionManagers">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Encargados con más actividad</div>
+            <div className="reports-detail-section-subtitle">Quién genera más eventos con nosotros</div>
+          </div>
+          {renderMetricList(managerRank)}
+        </section>
+
+        {/* ── Historial ── */}
+        <section className="reports-detail-section" id="institutionSectionTimeline">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Historial y comportamiento</div>
+            <div className="reports-detail-section-subtitle">Meses fuertes y última visita</div>
+          </div>
+          {renderMetricList(monthlyRank, 'Sin historial para el rango seleccionado.')}
+        </section>
+
+        {/* ── Eventos ── */}
+        <section className="reports-detail-section" id="institutionSectionEvents">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Eventos del rango</div>
+            <div className="reports-detail-section-subtitle">Detalle para bajar a un caso específico</div>
+          </div>
+          <div className="reports-table-wrap">
+            <table className="reports-table" style={{ minWidth: '900px' }}>
+              <thead>
+                <tr>
+                  <th>Estado</th>
+                  <th>Reserva</th>
+                  <th>Fecha</th>
+                  <th>Evento</th>
+                  <th>Salón</th>
+                  <th>Encargado</th>
+                  <th style={{ textAlign: 'right' }}>PAX</th>
+                  <th style={{ textAlign: 'right' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.length ? filteredRows.map((row) => {
+                  const color = STATUS_META[row.status]?.color || '#64748b';
+                  return (
+                    <tr key={row.reservationKey || row.id}>
+                      <td>
+                        <span style={{ color, background: `${color}18`, border: `1px solid ${color}40`, borderRadius: '999px', padding: '3px 10px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                          {row.status || '-'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 600, color: '#475569' }}>{row.reservationKey || row.id}</td>
+                      <td>{row.eventDate || '-'}</td>
+                      <td style={{ fontWeight: 700 }}>{row.name || '-'}</td>
+                      <td>{row.salon || '-'}</td>
+                      <td style={{ color: '#475569' }}>{row.contact || row.userName || '-'}</td>
+                      <td style={{ fontWeight: 700, textAlign: 'right' }}>{row.pax || 0}</td>
+                      <td style={{ fontWeight: 700, textAlign: 'right', color: '#0f172a' }}>{money(row.total)}</td>
+                    </tr>
+                  );
+                }) : (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                      No hay eventos con los filtros actuales.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   );

@@ -1,15 +1,21 @@
-﻿import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import { STATUS_META } from './constants';
 import ReservationForm from './components/ReservationForm';
 import { toast } from '../../utils/toast';
+import '../../styles/tooltips.css';
 
 const HOUR_HEIGHT = 56;
 const HOUR_START = 6;
 const HOUR_END = 24;
 
 function formatDate(date) {
-  return date.toISOString().split('T')[0];
+  if (!date) return '';
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function addDays(date, days) {
@@ -192,6 +198,20 @@ export default function Calendar() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const todayRef = useRef(null);
+
+  useEffect(() => {
+    if (viewMode === 'week' && todayRef.current) {
+      setTimeout(() => {
+        todayRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+      }, 100);
+    }
+  }, [viewMode, currentDate]);
+
   const [selectionActive, setSelectionActive] = useState(false);
   const [selectionStart, setSelectionStart] = useState(null);
   const [selectionCurrent, setSelectionCurrent] = useState(null);
@@ -224,7 +244,7 @@ export default function Calendar() {
     };
   }, [selectionActive, selectionStart, selectionCurrent, navigate]);
 
-  const weekStart = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
+  const weekStart = useMemo(() => currentDate, [currentDate]);
 
   const todayStr = formatDate(new Date());
 
@@ -327,7 +347,7 @@ export default function Calendar() {
               const isWeekend = day.getDay() === 0 || day.getDay() === 6;
               
               return (
-                <div key={idx} style={{ 
+                <div key={idx} ref={isToday ? todayRef : null} style={{ 
                   flex: 1, 
                   minWidth: '220px',
                   height: '68px',
@@ -526,7 +546,8 @@ export default function Calendar() {
                     return (
                       <div
                         key={ev.id}
-                        title={getEventTooltip(ev)}
+                        data-tooltip={getEventTooltip(ev)}
+                        className="cal-tooltip"
                         onClick={(e) => { e.stopPropagation(); handleEventClick(ev.id); }}
                         style={{
                           position: 'absolute',
@@ -539,7 +560,6 @@ export default function Calendar() {
                           borderRadius: '10px',
                           padding: '7px 9px',
                           cursor: 'pointer',
-                          overflow: 'hidden',
                           zIndex: 1 + lane,
                           boxShadow: '0 3px 10px rgba(15, 23, 42, 0.08)',
                           transition: 'background 0.2s',
@@ -748,18 +768,23 @@ export default function Calendar() {
                 }}>{item.date.getDate()}</div>
                 {dayEvents.slice(0, 2).map(ev => {
                   const color = STATUS_META[ev.status]?.color || '#64748b';
+                  const tooltipText = `Reserva: ${ev.name || ''}\nEstado: ${ev.status || ''}\nHorario: ${ev.startTime || ''} - ${ev.endTime || ''}\nSalón: ${ev.salon || 'Sin salón'}${ev.pax ? `\nPAX: ${ev.pax}` : ''}`;
                   return (
-                    <div key={ev.id} style={{
-                      fontSize: '10.5px',
-                      padding: '2px 4px',
-                      borderRadius: '4px',
-                      background: `${color}20`,
-                      color: color,
-                      fontWeight: '600',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}>
+                    <div
+                      key={ev.id}
+                      data-tooltip={tooltipText}
+                      className="cal-tooltip"
+                      style={{
+                        fontSize: '10.5px',
+                        padding: '2px 4px',
+                        borderRadius: '4px',
+                        background: `${color}20`,
+                        color: color,
+                        fontWeight: '600',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '100%'
+                      }}
+                    >
                       {ev.name}
                     </div>
                   );
@@ -1171,7 +1196,8 @@ export default function Calendar() {
                               : '#334155',
                         transition: 'all 0.15s'
                       }}
-                      title={hasEvents ? `${dayEvents.length} reservas:\n${dayEvents.map(e => `- ${e.name} (${e.status})`).join('\n')}` : ''}
+                      data-tooltip={hasEvents ? `${dayEvents.length} reservas:\n${dayEvents.map(e => `- ${e.name} (${e.status})`).join('\n')}` : ''}
+                      className={hasEvents ? 'cal-tooltip' : ''}
                       onMouseEnter={e => {
                         if (!isToday) {
                           e.currentTarget.style.background = hasEvents ? `${eventColor}25` : '#f1f5f9';

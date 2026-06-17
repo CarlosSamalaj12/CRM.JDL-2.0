@@ -1,4 +1,6 @@
 import { modernAlert } from './toast';
+import { loadState } from '../services/stateService';
+import { numberToWords } from './numberToWords';
 
 function escapeHtml(unsafe) {
   return String(unsafe || "")
@@ -10,8 +12,32 @@ function escapeHtml(unsafe) {
 }
 
 function buildTemplatePrintContextFromQuoteData(quote, user) {
-  const d = quote.date ? new Date(`${quote.date}T00:00:00`) : new Date();
-  const monthName = d.toLocaleDateString("es-GT", { month: "long" });
+  const rawDate = quote.date || quote.docDate || quote.eventDate;
+  let d = new Date();
+  if (rawDate) {
+    let dateStr = String(rawDate);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      dateStr = `${dateStr}T00:00:00`;
+    }
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      d = parsed;
+    }
+  }
+
+  let monthName = "";
+  try {
+    monthName = d.toLocaleDateString("es-GT", { month: "long" });
+  } catch {
+    monthName = "";
+  }
+
+  let formattedDate = "";
+  try {
+    formattedDate = d.toLocaleDateString("es-GT");
+  } catch {
+    formattedDate = "";
+  }
 
   return {
     VENDEDOR_NOMBRE: user?.name || "Vendedor",
@@ -20,10 +46,10 @@ function buildTemplatePrintContextFromQuoteData(quote, user) {
     VENDEDOR_FIRMA_URL: user?.signatureDataUrl || "",
     NO_DOC: quote?.code || "",
     LUGAR: quote?.venue || "Panajachel, Sololá",
-    FECHA: d.toLocaleDateString("es-GT"),
-    DIA: String(d.getDate()),
+    FECHA: formattedDate,
+    DIA: String(d.getDate() || ""),
     MES: monthName,
-    ANIO: String(d.getFullYear())
+    ANIO: String(d.getFullYear() || "")
   };
 }
 
@@ -39,8 +65,9 @@ function fillTemplateHtmlTokens(htmlText, contextMap) {
   return out;
 }
 
-function quoteMoney(value) {
-  return `Q ${Number(value || 0).toFixed(2)}`;
+function quoteMoney(value, currency = 'GTQ') {
+  const sym = currency === 'USD' ? '$' : 'Q';
+  return `${sym} ${Number(value || 0).toFixed(2)}`;
 }
 
 function normalizeDocDate(value) {
@@ -87,7 +114,7 @@ function classifyQuoteItem(item) {
   return "Miscelaneos";
 }
 
-function buildQuoteRowsHtml(items) {
+function buildQuoteRowsHtml(items, docCurrency = 'GTQ') {
   const grouped = new Map();
   items.forEach((item) => {
     const dateKey = normalizeDocDate(item?.serviceDate || item?.date || item?.eventDate || "") || "Servicios";
@@ -123,8 +150,8 @@ function buildQuoteRowsHtml(items) {
               <div style="font-weight:700;">${escapeHtml(item?.name || "")}</div>
               ${item?.description ? `<div style="font-size:10px;color:#577082;margin-top:2px;">${escapeHtml(item.description)}</div>` : ""}
             </td>
-            <td>${quoteMoney(price)}</td>
-            <td>${quoteMoney(total)}</td>
+            <td>${quoteMoney(price, docCurrency)}</td>
+            <td>${quoteMoney(total, docCurrency)}</td>
           </tr>
         `);
       });
@@ -133,7 +160,7 @@ function buildQuoteRowsHtml(items) {
         rows.push(`
           <tr class="daySubtotalRow">
             <td colspan="2">Subtotal ${escapeHtml(dateKey)}</td>
-            <td colspan="2" style="text-align:right;">${quoteMoney(daySubtotal)}</td>
+            <td colspan="2" style="text-align:right;">${quoteMoney(daySubtotal, docCurrency)}</td>
           </tr>
         `);
       }
@@ -143,7 +170,7 @@ function buildQuoteRowsHtml(items) {
     .join("");
 }
 
-export const generateQuotePrintDocument = async (quote, user) => {
+export const generateQuotePrintDocument = async (quote, user, printOption = "standard", event = null) => {
   const printWin = window.open("", "_blank");
   if (!printWin) {
     modernAlert({ icon: "warning", title: "Bloqueador activo", text: "Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización." });
@@ -158,7 +185,7 @@ export const generateQuotePrintDocument = async (quote, user) => {
     let htmlContent = "";
     let isServiHospTemplate = false;
 
-    if (quote.templateId) {
+    if (quote.templateId && printOption !== "sin_precios") {
       let fileName = "";
       if (quote.templateId === "contrato_corp" || quote.templateId === "contrato_social") {
         fileName = "Jardines.html";
@@ -195,6 +222,16 @@ export const generateQuotePrintDocument = async (quote, user) => {
             tplDoc.body
               .querySelectorAll(".contract-header, .contract-header-print, .contract-footer, .contract-footer-print, script")
               .forEach((node) => node.remove());
+
+            // Remove trailing empty elements (such as empty paragraphs/divs/spans)
+            let lastChild = tplDoc.body.lastElementChild;
+            while (lastChild && 
+                   (lastChild.tagName === "P" || lastChild.tagName === "DIV" || lastChild.tagName === "SPAN") && 
+                   !lastChild.textContent.trim()) {
+              const prev = lastChild.previousElementSibling;
+              lastChild.remove();
+              lastChild = prev;
+            }
 
             if (headerImg || footerImg) {
               const repeatHead = headerImg ? `<tr class="contractPrintHead"><td class="contractPrintCell">${headerImg.outerHTML}</td></tr>` : "";
@@ -238,6 +275,21 @@ export const generateQuotePrintDocument = async (quote, user) => {
       }
     }
 
+    let companies = [];
+    let users = [];
+    try {
+      const crmState = await loadState();
+      companies = Array.isArray(crmState?.companies) ? crmState.companies : [];
+      users = Array.isArray(crmState?.users) ? crmState.users : [];
+    } catch (err) {
+      console.error("Error loading CRM state for print:", err);
+    }
+
+    let mmContentHtml = "";
+    if ((printOption === "completa" || printOption === "sin_precios") && quote.menuMontajeEntries?.length) {
+      mmContentHtml = buildMenuMontajeSectionHtmlOnly(event, quote, "full", { companies, users });
+    }
+
     const items = Array.isArray(quote.items) ? quote.items : [];
     const subtotalDoc = Number(quote.subtotal || items.reduce((sum, item) => {
       const qty = Number(item?.qty ?? item?.quantity ?? 0);
@@ -246,6 +298,10 @@ export const generateQuotePrintDocument = async (quote, user) => {
     }, 0));
     const discountDoc = Number(quote.discountAmount || 0);
     const totalDoc = Number(quote.total || Math.max(0, subtotalDoc - discountDoc));
+    const docCurrency = quote.currency || 'GTQ';
+    const wordsVal = numberToWords(totalDoc);
+    const currencyName = docCurrency === 'USD' ? 'DÓLARES' : 'QUETZALES';
+    const totalInWords = `${wordsVal} ${currencyName}`;
     const advances = Array.isArray(quote.advances) ? quote.advances : [];
     const totalAnticiposDoc = advances.reduce((sum, advance) => sum + Number(advance?.amount || 0), 0);
     const saldoDoc = Math.max(0, totalDoc - totalAnticiposDoc);
@@ -255,7 +311,7 @@ export const generateQuotePrintDocument = async (quote, user) => {
     const discountLabel = Number(discountDoc) > 0 && quote.discountType === "PERCENT" && Number(quote.discountValue || 0) > 0
       ? `DESCUENTO (${Number(quote.discountValue).toFixed(2)}%)`
       : "DESCUENTO";
-    const itemsRowsHtml = buildQuoteRowsHtml(items);
+    const itemsRowsHtml = buildQuoteRowsHtml(items, docCurrency);
     const sellerSignatureHtml = user?.signatureDataUrl
       ? `<img class="signatureImage" src="${escapeHtml(user.signatureDataUrl)}" alt="Firma vendedor" />`
       : "";
@@ -273,6 +329,157 @@ export const generateQuotePrintDocument = async (quote, user) => {
       { label: "Hospedaje terceros", amount: groupedSummary["Hospedaje terceros"] || 0 },
       { label: "Miscelaneos", amount: groupedSummary["Miscelaneos"] || 0 }
     ];
+
+    const printNoPricesStyles = printOption === "sin_precios" ? `
+      .quoteItemsTablePrint col.priceCol,
+      .quoteItemsTablePrint col.totalCol,
+      .quoteItemsTablePrint th:nth-child(3),
+      .quoteItemsTablePrint th:nth-child(4),
+      .quoteItemsTablePrint td:nth-child(3),
+      .quoteItemsTablePrint td:nth-child(4),
+      .quoteItemsTablePrint tfoot,
+      .daySubtotalRow,
+      .cargoSummarySection {
+        display: none !important;
+      }
+      .quoteItemsTablePrint col.qtyCol { width: 15% !important; }
+      .quoteItemsTablePrint col.descCol { width: 85% !important; }
+    ` : "";
+
+    const mmStyles = mmContentHtml ? `
+      .mmReportWrap {
+        --ink:#0f172a;
+        --line:#bdd0e9;
+        --line2:#d9e2f2;
+        --soft:#edf5ff;
+        --brand:#0f3c67;
+        --brand2:#165d90;
+        padding: 0;
+        margin-top: 20px;
+      }
+      .mmReportCard {
+        width: 100%;
+        margin: 0 auto 20px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 10px 28px rgba(15,23,42,0.12);
+      }
+      .mmReportHead {
+        background: linear-gradient(135deg, var(--brand), var(--brand2));
+        color: #fff;
+        padding: 12px 14px;
+        font-size: 20px;
+        font-weight: 900;
+        letter-spacing: .3px;
+        text-transform: uppercase;
+      }
+      .mmReportMeta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(240px, 1fr));
+        gap: 8px 12px;
+        padding: 12px 14px;
+        background: var(--soft);
+        border-top: 1px solid #c9d8ee;
+        border-bottom: 1px solid #c9d8ee;
+        font-size: 14px;
+      }
+      .mmReportBlock {
+        padding: 14px;
+        border-bottom: 1px solid var(--line2);
+      }
+      .mmReportBlock:last-child { border-bottom: none; }
+      .mmReportTitle {
+        margin: 0 0 8px;
+        font-size: 18px;
+        line-height: 1.1;
+        font-weight: 900;
+        color: #0a3f67;
+        text-transform: uppercase;
+      }
+      .mmReportText {
+        margin: 0;
+        white-space: pre-wrap;
+        font-size: 12.5px;
+        line-height: 1.35;
+        color: var(--ink);
+      }
+      .mmReportSection {
+        margin-top: 10px;
+      }
+      .mmReportSection:first-child {
+        margin-top: 0;
+      }
+      .mmReportSubtitle {
+        margin: 0 0 6px;
+        font-size: 15px;
+        font-weight: 900;
+        letter-spacing: .45px;
+        color: #0a3f67;
+        text-transform: uppercase;
+        border-left: 4px solid #0a5a92;
+        padding-left: 8px;
+      }
+      .mmReportStack {
+        display: grid;
+        gap: 6px;
+        margin-left: 10px;
+      }
+      .mmReportInlineFlow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        margin-left: 10px;
+        align-items: baseline;
+      }
+      .mmReportInlinePair {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        white-space: nowrap;
+      }
+      .mmReportInlineLabel {
+        font-size: 12.5px;
+        line-height: 1.45;
+        font-weight: 900;
+        letter-spacing: .2px;
+        text-transform: uppercase;
+        color: #0a4b80;
+        white-space: nowrap;
+      }
+      .mmReportMiniValue {
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: #0f172a;
+        white-space: nowrap;
+      }
+      .mmReportSectionLine {
+        margin: 0 0 8px 12px;
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: #0f172a;
+      }
+      .mmReportHr {
+        margin: 10px 0;
+        border: none;
+        border-top: 1px solid #9ab4d6;
+      }
+      @media print {
+        .mmReportGrid {
+          grid-template-columns: repeat(2, minmax(260px, 1fr));
+        }
+        article.mmReportCard {
+          box-shadow: none;
+          margin: 0 0 10mm 0;
+          page-break-after: always;
+        }
+        article.mmReportCard:last-of-type {
+          page-break-after: avoid !important;
+          break-after: avoid !important;
+        }
+      }
+    ` : "";
 
     const finalHtml = `
       <!doctype html>
@@ -476,13 +683,94 @@ export const generateQuotePrintDocument = async (quote, user) => {
               font-weight:700;
               cursor:pointer;
             }
+            @page {
+              size: letter;
+              margin: 10mm;
+            }
             @media print{
-              html,body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+              html,body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; background:#fff; margin:0; padding:0; }
               .actions{ display:none !important; }
               .page-break{ break-before:page; page-break-before:always; }
-              body{ background:#fff; }
-              .doc{ box-shadow:none; }
+              .doc{ box-shadow:none; margin:0; padding:0; background:transparent; }
+              
+              /* Optimize heights and paddings on print to avoid page overflows */
+              .quoteContractHeader img {
+                max-height: 70px !important;
+              }
+              .head {
+                padding: 6px 12px !important;
+                font-size: 11.5px !important;
+              }
+              .quoteMetaTable {
+                margin: 0 0 6px !important;
+              }
+              .quoteMetaTable td {
+                padding: 4px 6px !important;
+                font-size: 10.5px !important;
+              }
+              .quoteMetaTable tr.metaGap td {
+                height: 5px !important;
+              }
+              thead th {
+                padding: 4px 6px !important;
+                font-size: 10.5px !important;
+              }
+              tbody td {
+                padding: 4px 6px !important;
+                font-size: 10.5px !important;
+              }
+              tfoot td {
+                padding: 4px 6px !important;
+                font-size: 10px !important;
+              }
+              .policyTitle {
+                margin-top: 6px !important;
+                padding: 3px 6px !important;
+                font-size: 10.5px !important;
+              }
+              .policyBox {
+                padding: 4px 6px !important;
+                font-size: 9.5px !important;
+                line-height: 1.25 !important;
+              }
+              .policyBox p {
+                margin: 0 0 3px !important;
+              }
+              .cargoTable th, .cargoTable td {
+                padding: 4px 6px !important;
+              }
+              .cargoSummaryWrap {
+                margin: 0 0 6px !important;
+              }
+              .signatureSection {
+                margin: 6px 0 0 !important;
+                padding: 8px 10px 4px !important;
+              }
+              .signatureCard {
+                min-height: 90px !important;
+                padding: 2px 6px !important;
+              }
+              .signatureSignArea {
+                min-height: 48px !important;
+                margin-bottom: 4px !important;
+              }
+              .signatureImage {
+                max-height: 44px !important;
+              }
+              
+              /* Keep sections together */
+              .policyBox,
+              .cargoSummarySection,
+              .signatureSection {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+              
+              .templateAttachBody{ border:none !important; background:transparent !important; }
+              .templateAttach{ border:none !important; background:transparent !important; padding:0 !important; margin:0 !important; }
             }
+            ${printNoPricesStyles}
+            ${mmStyles}
           </style>
         </head>
         <body>
@@ -582,17 +870,22 @@ export const generateQuotePrintDocument = async (quote, user) => {
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">SUBTOTAL EVENTO</td>
-                  <td class="sumValue">${quoteMoney(subtotalDoc)}</td>
+                  <td class="sumValue">${quoteMoney(subtotalDoc, docCurrency)}</td>
                 </tr>
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">${escapeHtml(discountLabel)}</td>
-                  <td class="sumValue">${quoteMoney(discountDoc)}</td>
+                  <td class="sumValue">${quoteMoney(discountDoc, docCurrency)}</td>
                 </tr>
                 <tr class="sumTotal">
                   <td colspan="2"></td>
                   <td class="sumLabel">TOTAL EVENTO</td>
-                  <td class="sumValue">${quoteMoney(totalDoc)}</td>
+                  <td class="sumValue">${quoteMoney(totalDoc, docCurrency)}</td>
+                </tr>
+                <tr class="sumTotalWords">
+                  <td colspan="4" style="text-align: left; font-size: 11px; font-weight: 700; color: #103b52; background: #e9f5f7; padding: 8px 10px; border: 1px solid #c8d7e0; border-top: 2px solid #144c59;">
+                    CANTIDAD EN LETRAS: ${totalInWords}
+                  </td>
                 </tr>
               </tfoot>
             </table>
@@ -606,48 +899,50 @@ export const generateQuotePrintDocument = async (quote, user) => {
               <p>No se reembolsa el anticipo si no realiza su evento por cualquier causa.</p>
             </div>
 
-            <div class="policyTitle">RESUMEN DE CARGOS</div>
-            <div class="cargoSummaryWrap">
-              <table class="cargoTable">
-                <colgroup><col /><col /></colgroup>
-                <thead>
-                  <tr>
-                    <th>Descripcion</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${summaryRows.map((row) => `
+            <div class="cargoSummarySection">
+              <div class="policyTitle">RESUMEN DE CARGOS</div>
+              <div class="cargoSummaryWrap">
+                <table class="cargoTable">
+                  <colgroup><col /><col /></colgroup>
+                  <thead>
                     <tr>
-                      <td class="cargoLabel">${escapeHtml(row.label)}</td>
-                      <td class="cargoAmount">${row.amount > 0 ? escapeHtml(quoteMoney(row.amount)) : "-"}</td>
+                      <th>Descripcion</th>
+                      <th>Total</th>
                     </tr>
-                  `).join("")}
-                  <tr class="cargoEm">
-                    <td class="cargoLabel">Total contratado</td>
-                    <td class="cargoAmount">${totalDoc > 0 ? escapeHtml(quoteMoney(totalDoc)) : "-"}</td>
-                  </tr>
-                  ${advances.length ? advances.map((advance) => `
-                    <tr>
-                      <td class="cargoLabel">${escapeHtml(`${normalizeDocDate(advance?.date || "")} - ${formatAdvanceDetail(advance)}`)}</td>
-                      <td class="cargoAmount">${Number(advance?.amount || 0) > 0 ? escapeHtml(quoteMoney(advance.amount)) : "-"}</td>
+                  </thead>
+                  <tbody>
+                    ${summaryRows.map((row) => `
+                      <tr>
+                        <td class="cargoLabel">${escapeHtml(row.label)}</td>
+                        <td class="cargoAmount">${row.amount > 0 ? escapeHtml(quoteMoney(row.amount, docCurrency)) : "-"}</td>
+                      </tr>
+                    `).join("")}
+                    <tr class="cargoEm">
+                      <td class="cargoLabel">Total contratado</td>
+                      <td class="cargoAmount">${totalDoc > 0 ? escapeHtml(quoteMoney(totalDoc, docCurrency)) : "-"}</td>
                     </tr>
-                  `).join("") : `
-                    <tr>
-                      <td class="cargoLabel">Anticipos: sin registros</td>
-                      <td class="cargoAmount">-</td>
+                    ${advances.length ? advances.map((advance) => `
+                      <tr>
+                        <td class="cargoLabel">${escapeHtml(`${normalizeDocDate(advance?.date || "")} - ${formatAdvanceDetail(advance)}`)}</td>
+                        <td class="cargoAmount">${Number(advance?.amount || 0) > 0 ? escapeHtml(quoteMoney(advance.amount, docCurrency)) : "-"}</td>
+                      </tr>
+                    `).join("") : `
+                      <tr>
+                        <td class="cargoLabel">Anticipos: sin registros</td>
+                        <td class="cargoAmount">-</td>
+                      </tr>
+                    `}
+                    <tr class="cargoEm">
+                      <td class="cargoLabel">Total anticipos</td>
+                      <td class="cargoAmount">${totalAnticiposDoc > 0 ? escapeHtml(quoteMoney(totalAnticiposDoc, docCurrency)) : "-"}</td>
                     </tr>
-                  `}
-                  <tr class="cargoEm">
-                    <td class="cargoLabel">Total anticipos</td>
-                    <td class="cargoAmount">${totalAnticiposDoc > 0 ? escapeHtml(quoteMoney(totalAnticiposDoc)) : "-"}</td>
-                  </tr>
-                  <tr class="cargoEm cargoEmFinal">
-                    <td class="cargoLabel">Saldo</td>
-                    <td class="cargoAmount">${saldoDoc > 0 ? escapeHtml(quoteMoney(saldoDoc)) : "-"}</td>
-                  </tr>
-                </tbody>
-              </table>
+                    <tr class="cargoEm cargoEmFinal">
+                      <td class="cargoLabel">Saldo</td>
+                      <td class="cargoAmount">${saldoDoc > 0 ? escapeHtml(quoteMoney(saldoDoc, docCurrency)) : "-"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <section class="signatureSection">
@@ -671,7 +966,9 @@ export const generateQuotePrintDocument = async (quote, user) => {
               </div>
             </section>
 
-            ${htmlContent ? `<div class="page-break templateAttach">${htmlContent}</div>` : ""}
+            ${mmContentHtml ? `<div class="page-break mmReportWrap">${mmContentHtml}</div>` : ""}
+
+            ${htmlContent ? `<div class="page-break templateAttachWrap">${htmlContent}</div>` : ""}
 
             <div class="actions">
               <button onclick="window.print()">Imprimir</button>
@@ -822,7 +1119,7 @@ export function renderMenuMontajeRichText(rawText) {
   return htmlParts.join("") || `<p class="mmReportText">-</p>`;
 }
 
-export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", { companies = [], users = [] } = {}) {
+export function buildMenuMontajeSectionHtmlOnly(ev, quoteLike, reportMode = "full", { companies = [], users = [] } = {}) {
   const quote = quoteLike || {};
   const entries = (Array.isArray(quote?.menuMontajeEntries) ? quote.menuMontajeEntries : [])
     .filter((x) => String(x?.date || "").trim() && String(x?.salon || "").trim());
@@ -839,7 +1136,7 @@ export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", {
   }
   const orderedDates = Array.from(byDate.keys()).sort((a, b) => a.localeCompare(b));
 
-  const sectionHtml = orderedDates.map((date) => {
+  return orderedDates.map((date, idx) => {
     const rows = byDate.get(date) || [];
     rows.sort((a, b) => String(a.salon || "").localeCompare(String(b.salon || "")));
     const blocks = rows.map((r) => `
@@ -853,8 +1150,12 @@ export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", {
         ${renderMenuMontajeRichText(String(r.montajeDescription || ""))}
       </div>`}
     `).join("");
+
+    const isLast = idx === orderedDates.length - 1;
+    const pageBreakStyle = isLast ? "" : "page-break-after: always;";
+
     return `
-      <article class="mmReportCard" style="page-break-after: always;">
+      <article class="mmReportCard" style="${pageBreakStyle}">
         <div class="mmReportHead">${escapeHtml(institutionName)} - MENU & MONTAJE - ${escapeHtml(date)}</div>
         <div class="mmReportMeta">
           <div><b>Encargado evento:</b> ${escapeHtml(String(manager?.name || quote.contact || "-"))}</div>
@@ -872,6 +1173,14 @@ export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", {
       </article>
     `;
   }).join("");
+}
+
+export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", { companies = [], users = [] } = {}) {
+  const quote = quoteLike || {};
+  const company = (companies || []).find((c) => String(c.id || "") === String(quote.companyId || ""));
+  const institutionName = String(company?.name || quote.companyName || "-").trim() || "-";
+
+  const sectionHtml = buildMenuMontajeSectionHtmlOnly(ev, quoteLike, reportMode, { companies, users });
 
   const liveStyles = collectCurrentDocumentStyles();
   const docTitle = reportMode === "menu_only"

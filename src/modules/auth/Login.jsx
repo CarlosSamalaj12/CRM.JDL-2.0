@@ -34,6 +34,7 @@ export default function Login() {
         const localUser = await authService.loginFirebase(firebaseUser);
         if (cancelled) return;
 
+        document.activeElement?.blur();
         Swal.fire({
           icon: 'success',
           title: '¡Sesión Iniciada!',
@@ -45,6 +46,7 @@ export default function Login() {
       } catch (err) {
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
+          document.activeElement?.blur();
           Swal.fire({ icon: 'error', title: 'Error de Autenticación', text: err.message || 'No se pudo completar el inicio de sesión con Google.' });
         }
       } finally {
@@ -88,6 +90,7 @@ export default function Login() {
   // Handle local login
   const handleLocalLogin = async () => {
     if (!username.trim()) {
+      document.activeElement?.blur();
       Swal.fire({ icon: 'warning', title: 'Usuario requerido', text: 'Selecciona o escribe tu nombre de usuario.' });
       return;
     }
@@ -98,6 +101,7 @@ export default function Login() {
       );
       const userId = matchedUser?.id || username;
       const localUser = await authService.loginLocal(userId, password);
+      document.activeElement?.blur();
       Swal.fire({
         icon: 'success', title: '¡Sesión Iniciada!',
         text: `Bienvenido, ${localUser.fullName || localUser.name}`,
@@ -105,6 +109,7 @@ export default function Login() {
       });
       setTimeout(() => navigate('/calendar'), 1500);
     } catch (err) {
+      document.activeElement?.blur();
       Swal.fire({ icon: 'error', title: 'Error de Autenticación', text: err.message || 'Credenciales inválidas.' });
     } finally {
       setLoading(false);
@@ -118,6 +123,7 @@ export default function Login() {
       const firebaseUser = await firebaseService.loginWithGoogle();
       if (!firebaseUser) return;
       const localUser = await authService.loginFirebase(firebaseUser);
+      document.activeElement?.blur();
       Swal.fire({
         icon: 'success', title: '¡Sesión Iniciada!',
         text: `Bienvenido, ${localUser.fullName || localUser.name}`,
@@ -134,6 +140,7 @@ export default function Login() {
         err.message?.includes('dummy') || 
         err.message?.includes('AIzaSyDummy')
       ) {
+        document.activeElement?.blur();
         Swal.fire({
           icon: 'warning', title: 'Configuración de Firebase Requerida',
           html: '<div style="text-align: left; font-size: 14px; line-height: 1.6; color: #475569;">' +
@@ -149,6 +156,7 @@ export default function Login() {
           confirmButtonColor: '#0b1c30', confirmButtonText: 'Entendido'
         });
       } else {
+        document.activeElement?.blur();
         Swal.fire({ icon: 'error', title: 'Error de Autenticación', text: err.message || 'No se pudo iniciar sesión con tu cuenta de Google.' });
       }
     } finally {

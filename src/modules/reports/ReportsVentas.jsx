@@ -12,7 +12,6 @@ export default function ReportsVentas({ onClose }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [salonFilter, setSalonFilter] = useState('all');
 
-  // Utilidades para agrupar series de eventos y consolidar metadatos
   const getEventSeries = (ev, allEvents) => {
     if (!ev) return [];
     if (!ev.groupId) return [ev];
@@ -64,21 +63,12 @@ export default function ReportsVentas({ onClose }) {
   };
 
   const allStatuses = [
-    'Pre reserva',
-    'Reserva sin Cotizacion',
-    '1er Cotizacion',
-    'Seguimiento',
-    'Lista de Espera',
-    'Confirmado',
-    'Cancelado',
-    'Mantenimiento',
-    'Perdido',
-    'Realizado'
+    'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
+    'Lista de Espera', 'Confirmado', 'Cancelado', 'Mantenimiento', 'Perdido', 'Realizado'
   ];
 
   const reportData = useMemo(() => {
     if (!events) return [];
-    
     const rows = [];
     const seenReservations = new Set();
     
@@ -119,7 +109,6 @@ export default function ReportsVentas({ onClose }) {
     }
 
     let filtered = rows;
-
     if (search) {
       const term = search.toLowerCase();
       filtered = filtered.filter(r => 
@@ -131,26 +120,11 @@ export default function ReportsVentas({ onClose }) {
         r.eventType?.toLowerCase().includes(term)
       );
     }
-
-    if (dateFrom) {
-      filtered = filtered.filter(r => r.eventDate >= dateFrom);
-    }
-
-    if (dateTo) {
-      filtered = filtered.filter(r => r.eventDate <= dateTo);
-    }
-
-    if (userFilter !== 'all') {
-      filtered = filtered.filter(r => r.userId === userFilter);
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(r => r.status === statusFilter);
-    }
-
-    if (salonFilter !== 'all') {
-      filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
-    }
+    if (dateFrom) filtered = filtered.filter(r => r.eventDate >= dateFrom);
+    if (dateTo) filtered = filtered.filter(r => r.eventDate <= dateTo);
+    if (userFilter !== 'all') filtered = filtered.filter(r => r.userId === userFilter);
+    if (statusFilter !== 'all') filtered = filtered.filter(r => r.status === statusFilter);
+    if (salonFilter !== 'all') filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
 
     return filtered.sort((a, b) => a.eventDate.localeCompare(b.eventDate));
   }, [events, users, search, dateFrom, dateTo, userFilter, statusFilter, salonFilter]);
@@ -160,19 +134,12 @@ export default function ReportsVentas({ onClose }) {
     const totalPax = reportData.reduce((sum, r) => sum + (r.pax || 0), 0);
     const totalVentas = reportData.reduce((sum, r) => sum + (r.total || 0), 0);
     const confirmados = reportData.filter(r => r.status === 'Confirmado').length;
-    const cotizaciones = reportData.filter(r => r.status === '1er Cotizacion' || r.quote?.items?.length > 0).length;
-    
-    return { totalEvents, totalPax, totalVentas, confirmados, cotizaciones };
+    return { totalEvents, totalPax, totalVentas, confirmados };
   }, [reportData]);
-
-  const pipelinePct = useMemo(() => {
-    const totalUnfiltered = events ? new Set(events.map(ev => ev.groupId || ev.id)).size : 0;
-    return totalUnfiltered ? Math.max(0, Math.round((reportData.length / totalUnfiltered) * 100)) : 0;
-  }, [events, reportData]);
 
   const conversionPct = useMemo(() => {
     const confirmedCount = reportData.filter((r) => r.status === 'Confirmado').length;
-    return reportData.length ? Math.max(0, Math.round((confirmedCount / reportData.length) * 100)) : 0;
+    return reportData.length ? Math.round((confirmedCount / reportData.length) * 100) : 0;
   }, [reportData]);
 
   const avgTicket = useMemo(() => {
@@ -181,35 +148,13 @@ export default function ReportsVentas({ onClose }) {
   }, [reportData]);
 
   const topSeller = useMemo(() => {
-    const topSellerMap = new Map();
+    const map = new Map();
     for (const row of reportData) {
       const seller = String(row?.userName || "Sin vendedor").trim() || "Sin vendedor";
-      topSellerMap.set(seller, Number(topSellerMap.get(seller) || 0) + Math.max(0, Number(row?.total || 0)));
+      map.set(seller, Number(map.get(seller) || 0) + Math.max(0, Number(row?.total || 0)));
     }
-    const sorted = Array.from(topSellerMap.entries()).sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0));
-    return sorted[0]?.[0] || null;
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
   }, [reportData]);
-
-  const getInitials = (name) => {
-    if (!name || name === 'Sin asignar') return 'SA';
-    const parts = name.split(' ').filter(Boolean);
-    if (parts.length === 0) return 'SA';
-    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  };
-
-  const getFilterSummaryText = () => {
-    const parts = [];
-    if (dateFrom || dateTo) parts.push(`Rango: ${dateFrom || "..."} a ${dateTo || "..."}`);
-    if (userFilter && userFilter !== 'all') {
-      const u = users?.find(x => x.id === userFilter);
-      parts.push(`Vendedor: ${u?.fullName || u?.name}`);
-    }
-    if (statusFilter && statusFilter !== 'all') parts.push(`Estado: ${statusFilter}`);
-    if (salonFilter && salonFilter !== 'all') parts.push(`Salon: ${salonFilter}`);
-    if (search) parts.push(`Buscar: ${search}`);
-    return parts.length ? parts.join(" | ") : "Sin filtros";
-  };
 
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
@@ -226,23 +171,11 @@ export default function ReportsVentas({ onClose }) {
 
   const handleExportExcel = () => {
     const headers = ['Estado', 'ID Cotización', 'Vendedor', 'Fecha', 'Evento', 'Horario', 'Salón', 'PAX', 'Monto'];
-    const rows = reportData.map(r => [
-      r.status,
-      r.refId,
-      r.userName,
-      r.eventDate,
-      r.eventType,
-      `${r.startTime} - ${r.endTime}`,
-      r.salon,
-      r.pax,
-      r.total
-    ]);
-
+    const rows = reportData.map(r => [r.status, r.refId, r.userName, r.eventDate, r.eventType, `${r.startTime} - ${r.endTime}`, r.salon, r.pax, r.total]);
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
     ].join('\n');
-
     const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -251,463 +184,155 @@ export default function ReportsVentas({ onClose }) {
   };
 
   return (
-    <div className="modalBackdrop" id="salesReportBackdrop" onClick={(e) => { if (e.target.id === 'salesReportBackdrop') onClose(); }}>
-      <style>{`
-        #salesReportBackdrop .salesReportModal {
-          width: min(1280px, calc(100vw - 32px)) !important;
-          height: 92vh !important;
-          max-height: 92vh !important;
-          display: flex !important;
-          flex-direction: column !important;
-          overflow: hidden !important;
-          box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4) !important;
-          border-radius: 16px !important;
-        }
-        #salesReportBackdrop .salesReportBody {
-          flex: 1 1 auto !important;
-          min-height: 0 !important;
-          padding: 16px 24px !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 14px !important;
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-        }
-        #salesReportBackdrop .salesReportHeroPanel {
-          padding: 12px 18px !important;
-          margin-bottom: 0 !important;
-          border-radius: 16px !important;
-          background: #f8fafc !important;
-          border: 1px solid #e2e8f0 !important;
-        }
-        #salesReportBackdrop .reportSectionIntro {
-          margin-bottom: 8px !important;
-          display: flex !important;
-          justify-content: space-between !important;
-          align-items: flex-start !important;
-        }
-        #salesReportBackdrop .reportSectionEyebrow {
-          font-size: 9px !important;
-          font-weight: 800 !important;
-          text-transform: uppercase !important;
-          color: #64748b !important;
-          letter-spacing: 0.05em !important;
-        }
-        #salesReportBackdrop .reportSectionTitle {
-          font-size: 16px !important;
-          font-weight: 800 !important;
-          color: #0f172a !important;
-          margin-top: 2px !important;
-        }
-        #salesReportBackdrop .reportSectionText {
-          font-size: 11px !important;
-          color: #64748b !important;
-          margin-top: 2px !important;
-        }
-        #salesReportBackdrop .reportFilterMeta {
-          font-size: 11px !important;
-          font-weight: 700 !important;
-          color: #1e3a5f !important;
-          background: #e0f2fe !important;
-          padding: 4px 10px !important;
-          border-radius: 999px !important;
-        }
-        #salesReportBackdrop .salesReportSummary {
-          display: grid !important;
-          grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-          gap: 10px !important;
-        }
-        #salesReportBackdrop .salesSummaryCard {
-          min-width: 0 !important;
-          min-height: 84px !important;
-          padding: 8px 12px !important;
-          gap: 2px !important;
-          border-radius: 10px !important;
-          border: 1px solid #cbd5e1 !important;
-        }
-        #salesReportBackdrop .salesSummaryCard strong {
-          font-size: 1.4rem !important;
-          font-weight: 800 !important;
-        }
-        #salesReportBackdrop .salesSummaryCard small {
-          font-size: 10.5px !important;
-          font-weight: 700 !important;
-        }
-        #salesReportBackdrop .salesSummaryEyebrow {
-          font-size: 9px !important;
-          font-weight: 800 !important;
-        }
-        #salesReportBackdrop .salesSummaryMeta {
-          padding: 2px 8px !important;
-          font-size: 9.5px !important;
-          margin-top: 4px !important;
-          font-weight: 700 !important;
-        }
-        #salesReportBackdrop .salesSummaryIcon {
-          font-size: 18px !important;
-        }
-        #salesReportBackdrop .salesReportFiltersInline {
-          grid-template-columns: repeat(6, 1fr) !important;
-          gap: 8px !important;
-          padding: 12px 16px !important;
-          background: #f8fafc !important;
-          border-radius: 12px !important;
-          border: 1px solid #cbd5e1 !important;
-          align-items: flex-end !important;
-        }
-        #salesReportBackdrop .salesReportFiltersInline .field {
-          margin-bottom: 0 !important;
-          display: flex !important;
-          flex-direction: column !important;
-        }
-        #salesReportBackdrop .salesReportFiltersInline .field span {
-          font-size: 10px !important;
-          font-weight: 700 !important;
-          color: #475569 !important;
-          margin-bottom: 4px !important;
-          text-transform: uppercase !important;
-        }
-        #salesReportBackdrop .salesReportFiltersInline input,
-        #salesReportBackdrop .salesReportFiltersInline select {
-          padding: 6px 8px !important;
-          font-size: 12px !important;
-          height: 32px !important;
-          border: 1px solid #cbd5e1 !important;
-          border-radius: 6px !important;
-          background: #ffffff !important;
-          color: #0f172a !important;
-          font-weight: 600 !important;
-        }
-        #salesReportBackdrop .salesReportActions {
-          grid-column: span 6 !important;
-          margin-top: 6px !important;
-          display: flex !important;
-          gap: 8px !important;
-          justify-content: flex-end !important;
-        }
-        #salesReportBackdrop .salesReportActions button {
-          height: 32px !important;
-          padding: 0 16px !important;
-          font-size: 12px !important;
-          font-weight: 700 !important;
-          border-radius: 6px !important;
-        }
-        #salesReportBackdrop .salesReportTableWrap {
-          flex: 1 1 auto !important;
-          min-height: 260px !important;
-          max-height: none !important;
-          margin-top: 4px !important;
-          border-radius: 12px !important;
-          border: 1px solid #cbd5e1 !important;
-          overflow: auto !important;
-        }
-        #salesReportBackdrop .salesReportTable {
-          min-width: 980px !important;
-          table-layout: fixed !important;
-        }
-        #salesReportBackdrop .salesReportTable th:nth-child(1),
-        #salesReportBackdrop .salesReportTable td:nth-child(1) { width: 130px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(2),
-        #salesReportBackdrop .salesReportTable td:nth-child(2) { width: 150px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(3),
-        #salesReportBackdrop .salesReportTable td:nth-child(3) { width: 160px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(4),
-        #salesReportBackdrop .salesReportTable td:nth-child(4) { width: 110px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(5),
-        #salesReportBackdrop .salesReportTable td:nth-child(5) { width: 190px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(6),
-        #salesReportBackdrop .salesReportTable td:nth-child(6) { width: 120px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(7),
-        #salesReportBackdrop .salesReportTable td:nth-child(7) { width: 160px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(8),
-        #salesReportBackdrop .salesReportTable td:nth-child(8) { width: 70px !important; }
-        #salesReportBackdrop .salesReportTable th:nth-child(9),
-        #salesReportBackdrop .salesReportTable td:nth-child(9) { width: 110px !important; }
-        #salesReportBackdrop .salesReportTable thead th {
-          padding: 8px 10px !important;
-          font-size: 10.5px !important;
-          font-weight: 800 !important;
-        }
-        #salesReportBackdrop .salesReportTable tbody td {
-          padding: 8px 10px !important;
-          font-size: 12px !important;
-        }
-        #salesReportBackdrop .salesSellerAvatar {
-          width: 24px !important;
-          height: 24px !important;
-          font-size: 10px !important;
-        }
-        @media (max-width: 1180px) {
-          #salesReportBackdrop .salesReportSummary {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
-          #salesReportBackdrop .salesReportFiltersInline {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
-          #salesReportBackdrop .salesReportActions {
-            grid-column: span 3 !important;
-          }
-        }
-        @media (max-width: 760px) {
-          #salesReportBackdrop .salesReportSummary {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 8px !important;
-          }
-          #salesReportBackdrop .salesReportFiltersInline {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 10px !important;
-          }
-          #salesReportBackdrop .salesReportFiltersInline .field:nth-child(1) {
-            grid-column: span 2 !important;
-          }
-          #salesReportBackdrop .salesReportFiltersInline .field:nth-child(6) {
-            grid-column: span 2 !important;
-          }
-          #salesReportBackdrop .salesReportActions {
-            grid-column: span 2 !important;
-            justify-content: stretch !important;
-            display: flex !important;
-            flex-direction: row !important;
-            gap: 8px !important;
-            width: 100% !important;
-            margin-top: 8px !important;
-          }
-          #salesReportBackdrop .salesReportActions button {
-            flex: 1 1 0 !important;
-            width: 100% !important;
-          }
-        }
-      `}</style>
+    <div className="reports-page-container">
+      {/* Header */}
+      <div className="reports-page-header">
+        <div className="reports-brand-header">
+          <div className="reports-brand-badge">
+            <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+          </div>
+          <div>
+            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-title">Reporte de Ventas</div>
+            <div className="reports-subtitle">Pipeline comercial, cotizaciones y facturación</div>
+          </div>
+        </div>
+        <button className="btn-exit" type="button" onClick={onClose}>
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+          Volver
+        </button>
+      </div>
 
-      <div className="modal salesReportModal" role="dialog" aria-modal="true" aria-labelledby="salesReportTitle">
-        <div className="modalHeader">
-          <div className="reportBrandHeader">
-            <div className="reportBrandBadge salesReportBrandBadge" style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px', borderRadius: '14px', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid #c7d8ec', background: '#f5faff', flex: '0 0 56px' }}>
-              <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reportBrandLogo salesReportBrandLogo" style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px', maxWidth: '40px', maxHeight: '40px', objectFit: 'contain', display: 'block' }} />
+      {/* Body */}
+      <div className="reports-page-body">
+        {/* KPI Bento Grid */}
+        <section className="reports-hero-panel">
+          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+            <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#2563eb' }}>
+              <span className="reports-eyebrow">Eventos en cartera</span>
+              <strong>{summary.totalEvents}</strong>
+              <span style={{ fontSize: 12, color: '#64748b' }}>{summary.confirmados} confirmados</span>
             </div>
-            <div className="reportBrandCopy">
-              <div className="reportBrandEyebrow">CRM Reservas | Jardines del Lago</div>
-              <div className="modalTitle" id="salesReportTitle">Reporte de ventas</div>
-              <div className="modalSubtitle" id="salesReportSubtitle">Listado de eventos y cotizaciones con lectura ejecutiva</div>
+            <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#16a34a', gridColumn: 'span 2' }}>
+              <span className="reports-eyebrow">Facturación</span>
+              <strong>{formatMoney(summary.totalVentas)}</strong>
+              <span style={{ fontSize: 12, color: '#64748b' }}>valor total</span>
+            </div>
+            <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#2563eb' }}>
+              <span className="reports-eyebrow">PAX Totales</span>
+              <strong>{summary.totalPax.toLocaleString()}</strong>
+              <span style={{ fontSize: 12, color: '#64748b' }}>personas atendidas</span>
+            </div>
+            <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#f59e0b' }}>
+              <span className="reports-eyebrow">Ticket Promedio</span>
+              <strong>{formatMoney(avgTicket)}</strong>
+              <span style={{ fontSize: 12, color: '#64748b' }}>por reserva</span>
+            </div>
+            <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#8b5cf6' }}>
+              <span className="reports-eyebrow">Conversión</span>
+              <strong>{conversionPct}%</strong>
+              <span style={{ fontSize: 12, color: '#64748b' }}>confirmados</span>
+            </div>
+            {topSeller && (
+              <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#06b6d4' }}>
+                <span className="reports-eyebrow">Vendedor Top</span>
+                <strong style={{ fontSize: 16 }}>{topSeller}</strong>
+                <span style={{ fontSize: 12, color: '#64748b' }}>mayor ingreso</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Filters + Table */}
+        <section className="reports-hero-panel" style={{ gap: '12px' }}>
+          <div className="reports-toolbar">
+            <label className="field">
+              <span>Buscar</span>
+              <input type="text" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>Desde</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>Hasta</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>Vendedor</span>
+              <select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
+                <option value="all">Todos</option>
+                {users?.map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Estado</span>
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                <option value="all">Todos</option>
+                {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Salón</span>
+              <select value={salonFilter} onChange={e => setSalonFilter(e.target.value)}>
+                <option value="all">Todos</option>
+                {salones?.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <div className="reports-actions">
+              <button type="button" onClick={clearFilters}>Limpiar</button>
+              <button className="btnPrimary" type="button" onClick={handleExportExcel}>Exportar Excel</button>
             </div>
           </div>
-          <button className="iconBtn reportModalClose" id="btnSalesReportClose" type="button" title="Cerrar" onClick={onClose}>&#10005;</button>
-        </div>
 
-        <div className="modalBody salesReportBody">
-          <section className="reportHeroPanel salesReportHeroPanel">
-            <div className="reportSectionIntro">
-              <div>
-                <div className="reportSectionEyebrow">Vision comercial</div>
-                <div className="reportSectionTitle">Seguimiento premium del pipeline y la facturacion</div>
-                <div className="reportSectionText">Filtra rapido, detecta volumen, vendedores y estados clave sin perder contexto operativo.</div>
-              </div>
-              <div className="reportFilterMeta" id="salesReportFiltersMeta">{getFilterSummaryText()}</div>
-            </div>
-            
-            {/* Sales Summary Cards */}
-            <div className="salesReportSummary" id="salesReportSummary">
-              <article className="salesSummaryCard salesSummaryCard--primary" title="Pipeline = cuantos registros u oportunidades tienes activas en el flujo">
-                <div className="salesSummaryHead">
-                  <span className="salesSummaryIcon material-symbols-outlined">inventory_2</span>
-                  <span className="salesSummaryTrend">+{pipelinePct}%</span>
-                </div>
-                <span className="salesSummaryEyebrow">Pipeline</span>
-                <small>Registros visibles</small>
-                <strong>{summary.totalEvents}</strong>
-                <div className="salesSummaryMeta">Registros visibles</div>
-              </article>
-
-              <article className="salesSummaryCard salesSummaryCard--success" title="Conversion = cuantas ya pasaron a confirmados">
-                <div className="salesSummaryHead">
-                  <span className="salesSummaryIcon material-symbols-outlined">check_circle</span>
-                  <span className="salesSummaryTrend">{conversionPct}%</span>
-                </div>
-                <span className="salesSummaryEyebrow">Conversion</span>
-                <small>Confirmado</small>
-                <strong>{summary.confirmados}</strong>
-                <div className="salesSummaryMeta">Confirmado</div>
-              </article>
-
-              <article className="salesSummaryCard salesSummaryCard--info" title="Capacidad = volumen o PAX asociado">
-                <div className="salesSummaryHead">
-                  <span className="salesSummaryIcon material-symbols-outlined">groups</span>
-                </div>
-                <span className="salesSummaryEyebrow">Capacidad</span>
-                <small>PAX total</small>
-                <strong>{summary.totalPax.toLocaleString()}</strong>
-                <div className="salesSummaryMeta">PAX total</div>
-              </article>
-
-              <article className="salesSummaryCard salesSummaryCard--ticket" title="Ticket Promedio = Por evento">
-                <div className="salesSummaryHead">
-                  <span className="salesSummaryIcon material-symbols-outlined">payments</span>
-                </div>
-                <span className="salesSummaryEyebrow">Ticket Promedio</span>
-                <small>Por evento</small>
-                <strong>{formatMoney(avgTicket)}</strong>
-                <div className="salesSummaryMeta">Por evento</div>
-              </article>
-
-              <article className="salesSummaryCard salesSummaryCard--accent" title="Facturacion = cuanto dinero representa ese pipeline o lo ya cerrado">
-                <div className="salesSummaryHead">
-                  <span className="salesSummaryIcon material-symbols-outlined">trending_up</span>
-                  {topSeller && <span className="salesSummaryTrend">Top: {topSeller}</span>}
-                </div>
-                <span className="salesSummaryEyebrow">Facturacion</span>
-                <small>Total cotizado</small>
-                <strong>{formatMoney(summary.totalVentas)}</strong>
-                <div className="salesSummaryMeta">{topSeller ? `Top vendedor ${topSeller}` : 'Total cotizado'}</div>
-              </article>
-            </div>
-          </section>
-
-          <section className="reportDataSection salesReportDataSection">
-            <div className="salesReportFilters salesReportFiltersInline">
-              <label className="field">
-                <span>Buscar</span>
-                <input 
-                  id="salesReportSearch" 
-                  type="text" 
-                  placeholder="Buscar..." 
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>Desde</span>
-                <input 
-                  id="salesReportFrom" 
-                  type="date" 
-                  value={dateFrom}
-                  onChange={e => setDateFrom(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>Hasta</span>
-                <input 
-                  id="salesReportTo" 
-                  type="date" 
-                  value={dateTo}
-                  onChange={e => setDateTo(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>Vendedor</span>
-                <select 
-                  id="salesReportUser"
-                  value={userFilter}
-                  onChange={e => setUserFilter(e.target.value)}
-                >
-                  <option value="all">Todos</option>
-                  {users?.map(u => (
-                    <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Estado</span>
-                <select 
-                  id="salesReportStatus"
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                >
-                  <option value="all">Todos</option>
-                  {allStatuses.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Salón</span>
-                <select 
-                  id="salesReportSalon"
-                  value={salonFilter}
-                  onChange={e => setSalonFilter(e.target.value)}
-                >
-                  <option value="all">Todos</option>
-                  {salones?.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="rightActions salesReportActions">
-                <button className="btn" id="btnSalesReportReset" type="button" onClick={clearFilters}>Limpiar</button>
-                <button className="btnPrimary" id="btnSalesReportExportExcel" type="button" onClick={handleExportExcel}>Exportar Excel</button>
-              </div>
-            </div>
-
-            <div className="salesReportTableWrap" style={{ overflowX: 'auto' }}>
-              <table className="quoteTable salesReportTable">
-                <thead>
+          {/* Event Table */}
+          <div className="reports-table-wrap">
+            <table className="reports-table">
+              <thead>
+                <tr>
+                  <th>Estado</th>
+                  <th>Cotización</th>
+                  <th>Vendedor</th>
+                  <th>Fecha</th>
+                  <th>Evento</th>
+                  <th>Horario</th>
+                  <th>Salón</th>
+                  <th>PAX</th>
+                  <th style={{ textAlign: 'right' }}>Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportData.length === 0 ? (
                   <tr>
-                    <th>Estado</th>
-                    <th>ID Cotización</th>
-                    <th>Vendedor</th>
-                    <th>Fecha</th>
-                    <th>Evento</th>
-                    <th>Horario</th>
-                    <th>Salón</th>
-                    <th>PAX</th>
-                    <th>Monto</th>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                      Sin eventos para los filtros seleccionados.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {reportData.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                        Sin resultados para los filtros seleccionados.
-                      </td>
-                    </tr>
-                  ) : (
-                    reportData.map(r => (
-                      <tr key={r.id}>
-                        <td>
-                          <span className="salesStatusBadge" style={{
-                            background: `${r.statusColor}25`,
-                            borderColor: `${r.statusColor}60`,
-                            color: '#0f172a',
-                            border: '1px solid',
-                            padding: '3px 8px',
-                            borderRadius: '999px',
-                            fontSize: '10.5px',
-                            fontWeight: '700'
-                          }}>
-                            {r.status || "-"}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: '700', color: '#1e293b' }}>{r.refId}</td>
-                        <td className="salesSellerCell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="salesSellerAvatar" style={{
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '50%',
-                            background: '#e2e8f0',
-                            color: '#475569',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '10px',
-                            fontWeight: '700'
-                          }}>
-                            {getInitials(r.userName)}
-                          </span>
-                          <span style={{ fontWeight: '500' }}>{r.userName || "-"}</span>
-                        </td>
-                        <td>{r.eventDate}</td>
-                        <td style={{ fontWeight: '600', color: '#0f172a' }}>{r.eventType}</td>
-                        <td>{r.startTime} - {r.endTime}</td>
-                        <td>{r.salon}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{r.pax}</td>
-                        <td style={{ textAlign: 'right', fontWeight: '700', color: '#059669' }}>{formatMoney(r.total)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
+                ) : reportData.map(r => (
+                  <tr key={r.id}>
+                    <td>
+                      <span className="reports-table-status" style={{
+                        background: `${r.statusColor}18`,
+                        color: r.statusColor,
+                        border: `1px solid ${r.statusColor}30`,
+                      }}>
+                        {r.status || '-'}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 700 }}>{r.refId}</td>
+                    <td>{r.userName}</td>
+                    <td>{r.eventDate}</td>
+                    <td>{r.eventType || r.name}</td>
+                    <td>{r.startTime} - {r.endTime}</td>
+                    <td>{r.salon}</td>
+                    <td style={{ fontWeight: 700, textAlign: 'center' }}>{r.pax}</td>
+                    <td style={{ fontWeight: 700, textAlign: 'right', color: '#059669' }}>{formatMoney(r.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   );

@@ -4,15 +4,24 @@ import Swal from 'sweetalert2';
 import authService from '../../../services/authService';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
-import MenuMontajePanel from './MenuMontajePanel';
 
-const uid = () => `row_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
-const moneyGT = (amount) => {
+
+const uid = () => `row_${Math.random().toString(36).substr(2, 8)}`;
+const moneyGT = (amount, currency = 'GTQ') => {
   const val = Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `Q ${val}`;
+  return currency === 'USD' ? `$ ${val}` : `Q ${val}`;
 };
 const quoteSnapshot = (quote) => JSON.stringify(quote || {});
 const todayISO = () => new Date().toISOString().split('T')[0];
+const calculateDueDate = (eventDateStr) => {
+  if (!eventDateStr) return '';
+  const d = new Date(eventDateStr + 'T00:00:00');
+  d.setDate(d.getDate() - 30);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 const normalizeAdvancePaymentType = (rawType) => {
   const value = String(rawType || '').trim().toLowerCase();
   if (value === 'credito') return 'Credito';
@@ -89,10 +98,20 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       || document.getElementById('menuMontajeSelectableBackdrop')
       || document.getElementById('qp-root')
       || document.body;
-    if (args.length === 1 && typeof args[0] === 'object') {
-      return Swal.fire({ ...args[0], target });
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
     }
-    return Swal.fire({ title: args[0], text: args[1], icon: args[2], target });
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        let swalPromise;
+        if (args.length === 1 && typeof args[0] === 'object') {
+          swalPromise = Swal.fire({ ...args[0], target });
+        } else {
+          swalPromise = Swal.fire({ title: args[0], text: args[1], icon: args[2], target });
+        }
+        resolve(swalPromise);
+      }, 0);
+    });
   };
 
   const [companies, setCompanies] = useState([]);
@@ -116,9 +135,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [editingManagerId, setEditingManagerId] = useState('');
   const [creatingCompany, setCreatingCompany] = useState(false);
   const [serviceDraft, setServiceDraft] = useState(emptyServiceDraft);
-  const [showMenuMontajeModal, setShowMenuMontajeModal] = useState(false);
-  const [menuMontajeMode, setMenuMontajeMode] = useState('builder');
-  const [menuMontajeDirty, setMenuMontajeDirty] = useState(false);
+
   const [showAdvancesModal, setShowAdvancesModal] = useState(false);
   const [advanceEditingId, setAdvanceEditingId] = useState('');
   const [advanceEvidenceFile, setAdvanceEvidenceFile] = useState(null);
@@ -199,14 +216,47 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   }, [loadState]);
 
   const availableServiceDates = useMemo(() => {
-    if (!quote.eventDate) return [event?.date || new Date().toISOString().split('T')[0]];
-    const dates = [];
-    const s = new Date(quote.eventDate + 'T00:00:00');
-    const e = new Date((quote.endDate || quote.eventDate) + 'T00:00:00');
-    const curr = new Date(s);
-    while (curr <= e) { dates.push(curr.toISOString().split('T')[0]); curr.setDate(curr.getDate() + 1); }
-    return dates.length ? dates : [event?.date || new Date().toISOString().split('T')[0]];
-  }, [quote.eventDate, quote.endDate, event?.date]);
+    const datesSet = new Set();
+
+    const addRange = (startStr, endStr) => {
+      if (!startStr) return;
+      const s = new Date(startStr + 'T00:00:00');
+      const e = new Date((endStr || startStr) + 'T00:00:00');
+      if (isNaN(s.getTime()) || isNaN(e.getTime())) return;
+      const curr = new Date(s);
+      let count = 0;
+      while (curr <= e && count < 100) {
+        datesSet.add(curr.toISOString().split('T')[0]);
+        curr.setDate(curr.getDate() + 1);
+        count++;
+      }
+    };
+
+    // 1. Add range from quote.eventDate & quote.endDate
+    if (quote.eventDate) {
+      addRange(quote.eventDate, quote.endDate || quote.eventDate);
+    }
+
+    // 2. Add range from event.date & event.endDate
+    if (event?.date) {
+      addRange(event.date, event.endDate || event.date);
+    }
+
+    // 3. Add ranges from event.slots
+    if (Array.isArray(event?.slots)) {
+      event.slots.forEach(slot => {
+        if (slot.dateStart) {
+          addRange(slot.dateStart, slot.dateEnd || slot.dateStart);
+        }
+      });
+    }
+
+    // Convert Set to sorted Array
+    const sortedDates = Array.from(datesSet).sort((a, b) => a.localeCompare(b));
+
+    return sortedDates.length ? sortedDates : [event?.date || new Date().toISOString().split('T')[0]];
+  }, [quote.eventDate, quote.endDate, event?.date, event?.endDate, event?.slots]);
+
 
   useEffect(() => {
     if (availableServiceDates.length > 0 && !availableServiceDates.includes(selectedServiceDate))
@@ -252,7 +302,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       address: company.address || '',
       eventType: company.eventType || prev.eventType,
       managerId: manager?.id || '',
-      managerName: manager?.name || ''
+      managerName: manager?.name || '',
+      dueDate: prev.eventDate ? calculateDueDate(prev.eventDate) : prev.dueDate
     }));
   };
 
@@ -492,7 +543,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         change: [
           `Abono registrado: ${advance.date || 'sin fecha'}`,
           formatAdvanceDetail(advance),
-          moneyGT(advance.amount || 0)
+          moneyGT(advance.amount || 0, quote.currency)
         ].filter(Boolean).join(' | ')
       }));
   }, [quote.advanceLogs, advanceRows]);
@@ -500,13 +551,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (!hasUnsavedQuoteChanges && !(showMenuMontajeModal && menuMontajeDirty)) return;
+      if (!hasUnsavedQuoteChanges) return;
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedQuoteChanges, showMenuMontajeModal, menuMontajeDirty]);
+  }, [hasUnsavedQuoteChanges]);
 
   const handleRequestClose = async () => {
     if (!hasUnsavedQuoteChanges) {
@@ -549,6 +600,20 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const handleSelectAllToggle = () => {
     const allSelected = quote.items.length > 0 && quote.items.every(i => selectedItemIds.has(i.rowId));
     setSelectedItemIds(allSelected ? new Set() : new Set(quote.items.map(i => i.rowId)));
+  };
+
+  const handleSelectAllDayToggle = (date) => {
+    const dayItems = quote.items.filter(i => i.serviceDate === date);
+    if (dayItems.length === 0) return;
+    const allDaySelected = dayItems.every(i => selectedItemIds.has(i.rowId));
+    setSelectedItemIds(prev => {
+      const next = new Set(prev);
+      dayItems.forEach(i => {
+        if (allDaySelected) next.delete(i.rowId);
+        else next.add(i.rowId);
+      });
+      return next;
+    });
   };
 
   const handleSelectRowToggle = (rowId) => {
@@ -609,11 +674,82 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       };
 
       if (typeof onSave === 'function') {
-        await onSave(finalQuote);
+        await onSave(finalQuote, { keepOpen: true });
       }
       
-      await localSwal({ icon: 'success', title: '¡Cotización guardada!', text: 'Código: ' + finalQuote.code, timer: 1800, showConfirmButton: false });
       savedQuoteSnapshotRef.current = quoteSnapshot(finalQuote);
+
+      const result = await localSwal({
+        icon: 'success',
+        title: '¡Cotización guardada!',
+        text: `Código: ${finalQuote.code}\n¿Qué deseas hacer ahora?`,
+        showConfirmButton: true,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: '🖨️ Imprimir / PDF',
+        denyButtonText: '💬 WhatsApp',
+        cancelButtonText: '❌ Cerrar',
+        confirmButtonColor: '#3085d6',
+        denyButtonColor: '#25d366',
+        cancelButtonColor: '#6e7881'
+      });
+
+      if (result.isConfirmed) {
+        const user = authService.getCurrentUser();
+        await generateQuotePrintDocument(finalQuote, user);
+      } else if (result.isDenied) {
+        const showGuidedAlert = async () => {
+          const waResult = await localSwal({
+            icon: 'info',
+            title: 'Enviar por WhatsApp',
+            html: `
+              <div style="text-align: left; font-size: 14px; line-height: 1.5; padding: 0 10px;">
+                <p>Por políticas de WhatsApp, no es posible adjuntar archivos automáticamente mediante enlaces. Por favor realiza los siguientes pasos:</p>
+                <ol>
+                  <li style="margin-bottom: 8px;">Presiona <strong>"1. Generar PDF"</strong> para abrir y guardar la cotización en tu equipo.</li>
+                  <li style="margin-bottom: 8px;">Presiona <strong>"2. Abrir WhatsApp"</strong> para iniciar el chat con el mensaje pre-cargado.</li>
+                  <li><strong>Arrastra o adjunta</strong> el archivo PDF guardado en el chat.</li>
+                </ol>
+              </div>
+            `,
+            showConfirmButton: true,
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: '📄 1. Generar PDF',
+            denyButtonText: '💬 2. Abrir WhatsApp',
+            cancelButtonText: 'Listo',
+            confirmButtonColor: '#3085d6',
+            denyButtonColor: '#25d366',
+            cancelButtonColor: '#6e7881',
+            allowOutsideClick: false,
+          });
+
+          if (waResult.isConfirmed) {
+            const user = authService.getCurrentUser();
+            await generateQuotePrintDocument(finalQuote, user);
+            // Mostrar la guía nuevamente para continuar con el paso 2
+            await showGuidedAlert();
+          } else if (waResult.isDenied) {
+            const cleanPhone = (finalQuote.phone || '').replace(/\D/g, '');
+            const formattedPhone = cleanPhone.length === 8 ? `502${cleanPhone}` : cleanPhone;
+            const message = `*Jardines del Lago - Cotización ${finalQuote.code}*\n\n` +
+              `¡Hola! Te compartimos los detalles de la cotización realizada:\n\n` +
+              `• *Cliente:* ${finalQuote.contact || ''}\n` +
+              (finalQuote.companyName ? `• *Institución:* ${finalQuote.companyName}\n` : '') +
+              `• *Evento:* ${finalQuote.eventType || ''}\n` +
+              `• *Fecha del evento:* ${finalQuote.eventDate || ''}\n` +
+              `• *Total:* ${moneyGT(finalQuote.total || 0, quote.currency)}\n\n` +
+              `Te he enviado el documento adjunto. Quedamos a las órdenes para cualquier duda o comentario.`;
+            const whatsappUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+            // Mostrar la guía nuevamente
+            await showGuidedAlert();
+          }
+        };
+
+        await showGuidedAlert();
+      }
+
       onClose();
 
     } catch (err) {
@@ -675,8 +811,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         : [...currentServices, savedService];
       await saveCrmState({ ...currentState, services: nextServices });
       setCatalogServices(nextServices);
+      
+      // Seleccionar automáticamente el servicio creado o editado
+      setSelectedCatalogService(savedService);
+      setServiceSearch(savedService.name);
+      
       resetServiceDraft();
-      localSwal('Éxito', exists ? 'Servicio actualizado' : 'Servicio creado', 'success');
+      setShowCreateServiceModal(false);
+      localSwal('Éxito', exists ? 'Servicio actualizado' : 'Servicio creado y seleccionado automáticamente', 'success');
     } catch { localSwal('Error', 'No se pudo guardar el servicio', 'error'); }
   };
 
@@ -709,24 +851,18 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     localSwal('Éxito', `Plantilla "${template.name}" aplicada`, 'success');
   };
 
-  const handleOpenMenuMontaje = (mode = 'builder') => {
-    setMenuMontajeMode(mode);
-    setMenuMontajeDirty(false);
-    setShowMenuMontajeModal(true);
-  };
-
-  const handlePersistMenuMontajeQuote = async (nextQuote) => {
-    if (typeof onSave !== 'function') return;
-    const quoteToPersist = {
-      ...nextQuote,
-      subtotal: totals.subtotal,
-      discountAmount: totals.discountAmount,
-      total: totals.total,
-      quotedAt: nextQuote.quotedAt || quote.quotedAt || new Date().toISOString(),
-    };
-    await onSave(quoteToPersist, { keepOpen: true, source: 'menuMontaje' });
-    setQuote(prev => ({ ...prev, ...quoteToPersist }));
-    savedQuoteSnapshotRef.current = quoteSnapshot(quoteToPersist);
+  const handleOpenMenuMontaje = () => {
+    const eventId = event?.id || eventProp?.id || eventData?.id;
+    const isSaved = eventId && !String(eventId).startsWith('evt_');
+    if (isSaved) {
+      window.open(`/informe/pos/${eventId}`, '_blank');
+    } else {
+      localSwal({
+        icon: 'warning',
+        title: 'Reserva no guardada',
+        text: 'Por favor, guarde la reserva antes de configurar el Menú y Montaje en el nuevo sistema.',
+      });
+    }
   };
 
   const getCurrentActor = () => {
@@ -850,7 +986,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             evidenceType: evidenceType || previous.evidenceType || ''
           };
         });
-        const change = `Anticipo editado: ${previous.date || ''} ${formatAdvanceDetail(previous)} ${moneyGT(previous.amount || 0)} -> ${date} ${formatAdvanceDetail({ paymentType, voucherNumber, description })} ${moneyGT(amount || 0)}`;
+        const change = `Anticipo editado: ${previous.date || ''} ${formatAdvanceDetail(previous)} ${moneyGT(previous.amount || 0, quote.currency)} -> ${date} ${formatAdvanceDetail({ paymentType, voucherNumber, description })} ${moneyGT(amount || 0, quote.currency)}`;
         return {
           ...prev,
           advances: nextAdvances,
@@ -872,7 +1008,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         createdByUserId: actor.id,
         createdByName: actor.name
       };
-      const change = `Anticipo agregado: ${date} ${formatAdvanceDetail(advanceEntry)} ${moneyGT(amount || 0)}`;
+      const change = `Anticipo agregado: ${date} ${formatAdvanceDetail(advanceEntry)} ${moneyGT(amount || 0, quote.currency)}`;
       return {
         ...prev,
         advances: [...currentAdvances, advanceEntry],
@@ -904,7 +1040,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       advances: (prev.advances || []).filter(a => String(a.id || '') !== String(advanceId)),
       advanceLogs: [
         ...(prev.advanceLogs || []),
-        buildAdvanceLog('deleted', 'Eliminado', `Anticipo eliminado: ${item.date || ''} ${formatAdvanceDetail(item)} ${moneyGT(item.amount || 0)}`, actor)
+        buildAdvanceLog('deleted', 'Eliminado', `Anticipo eliminado: ${item.date || ''} ${formatAdvanceDetail(item)} ${moneyGT(item.amount || 0, quote.currency)}`, actor)
       ]
     }));
     if (String(advanceEditingId) === String(advanceId)) resetAdvanceForm();
@@ -992,6 +1128,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         #qp-body::-webkit-scrollbar-track { background: #f1f5f9; }
         #qp-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         #quoteAdvanceBackdrop .modal > .modalHeader + div[style] { display: none !important; }
+        body:not(.informes-theme) #quoteAdvanceBackdrop,
         #quoteAdvanceBackdrop {
           z-index: 10000001 !important;
           display: flex !important;
@@ -2578,23 +2715,94 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           width: 36px !important;
           height: 36px !important;
           border-radius: 50% !important;
-          border: 1px solid #cbd5e1 !important;
-          background: #f8fafc !important;
-          color: #475569 !important;
-          font-size: 16px !important;
-          font-weight: bold !important;
+          border: none !important;
+          background: transparent !important;
+          color: #64748b !important;
           cursor: pointer !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
           transition: all 0.2s ease !important;
           padding: 0 !important;
-          box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+          box-shadow: none !important;
+          outline: none !important;
         }
         .qp-close-btn:hover {
-          background: #f1f5f9 !important;
-          color: #0f172a !important;
-          border-color: #94a3b8 !important;
+          background: rgba(239, 68, 68, 0.1) !important;
+          color: #ef4444 !important;
+        }
+        .qp-close-btn:active {
+          transform: scale(0.88) !important;
+        }
+        .qp-close-btn svg {
+          transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+          flex-shrink: 0;
+        }
+        .qp-close-btn:hover svg {
+          transform: rotate(90deg) scale(1.15) !important;
+        }
+        
+        .qp-switch-inline {
+          display: flex !important;
+          align-items: center !important;
+          gap: 10px !important;
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          padding: 8px 12px !important;
+          border-radius: 10px !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+          min-height: 40px !important;
+          box-sizing: border-box !important;
+          width: 100% !important;
+        }
+        .qp-switch-inline:hover {
+          background: #f8fafc !important;
+          border-color: #cbd5e1 !important;
+        }
+        .qp-switch-inline input[type="checkbox"] {
+          appearance: none !important;
+          -webkit-appearance: none !important;
+          display: inline-block !important;
+          width: 42px !important;
+          height: 24px !important;
+          min-width: 42px !important;
+          max-width: 42px !important;
+          min-height: 24px !important;
+          max-height: 24px !important;
+          border-radius: 999px !important;
+          background: #cbd5e1 !important;
+          position: relative !important;
+          outline: none !important;
+          cursor: pointer !important;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          margin: 0 !important;
+          flex-shrink: 0 !important;
+          border: 1px solid #cbd5e1 !important;
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+          box-sizing: border-box !important;
+          padding: 0 !important;
+        }
+        .qp-switch-inline input[type="checkbox"]:checked {
+          background: #10b981 !important;
+          border-color: #059669 !important;
+        }
+        .qp-switch-inline input[type="checkbox"]::after {
+          content: '' !important;
+          position: absolute !important;
+          width: 18px !important;
+          height: 18px !important;
+          border-radius: 50% !important;
+          top: 2px !important;
+          left: 2px !important;
+          background: white !important;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0, 0, 0, 0.05) !important;
+          border: 0.5px solid rgba(0, 0, 0, 0.04) !important;
+          box-sizing: border-box !important;
+        }
+        .qp-switch-inline input[type="checkbox"]:checked::after {
+          transform: translateX(20px) !important;
         }
         
         @media (max-width: 768px) {
@@ -2671,7 +2879,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               {event?.name || 'Nuevo Evento'} — {quote.venue || '(sin salón)'} — {quote.eventDate || '---'}{quote.schedule ? ` — ${quote.schedule}` : ''}
             </div>
           </div>
-          <button className="qp-close-btn" onClick={handleRequestClose} aria-label="Cerrar">×</button>
+          <button className="qp-close-btn" onClick={handleRequestClose} aria-label="Cerrar">
+            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+              <path d="M4 4l10 10M14 4l-10 10" />
+            </svg>
+          </button>
         </div>
 
         {/* ── BODY SCROLLABLE ── */}
@@ -2693,6 +2905,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 {quickTemplates.filter(t => t.id !== 'contrato_corp' && t.id !== 'tpl-contrato-corp').map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
+              </select>
+            </div>
+            <div style={{ flex: '1 1 140px' }}>
+              <label style={fieldLabel}>Moneda</label>
+              <select style={fieldSelect} value={quote.currency || 'GTQ'} onChange={e => setQuote(p => ({ ...p, currency: e.target.value }))}>
+                <option value="GTQ">Quetzales (Q)</option>
+                <option value="USD">Dólares ($)</option>
               </select>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
@@ -2828,7 +3047,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           if (f.key === 'people') {
                             val = val.replace(/\D/g, '');
                           }
-                          setQuote(p => ({ ...p, [f.key]: val }));
+                          setQuote(p => {
+                            const next = { ...p, [f.key]: val };
+                            if (f.key === 'eventDate' && (p.companyId || p.companyName)) {
+                              next.dueDate = calculateDueDate(val);
+                            }
+                            return next;
+                          });
                         }} 
                       />
                     </div>
@@ -2909,7 +3134,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           style={{ padding: '7px 11px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid #f1f5f9', color: '#334155' }}
                         >
                           <div style={{ fontWeight: 600 }}>{s.name}</div>
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{s.category} — {moneyGT(s.price)}</div>
+                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{s.category} — {moneyGT(s.price, quote.currency)}</div>
                         </div>
                       ))}
                     </div>
@@ -2978,11 +3203,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     { label: 'Descuento', val: totals.discountAmount },
                   ].map(r => (
                     <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
-                      <span>{r.label}</span><strong>{moneyGT(r.val)}</strong>
+                      <span>{r.label}</span><strong>{moneyGT(r.val, quote.currency)}</strong>
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 900, color: '#0f172a', paddingTop: 4, borderTop: '1px solid #e2e8f0', marginTop: 2 }}>
-                    <span>Total</span><strong>{moneyGT(totals.total)}</strong>
+                    <span>Total</span><strong>{moneyGT(totals.total, quote.currency)}</strong>
                   </div>
                 </div>
               </div>
@@ -3039,64 +3264,101 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   </div>
                 )}
 
-                <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 8, background: '#ffffff' }}>
-                  <table className="qp-tbl">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 36 }}>
-                          <input type="checkbox"
-                            checked={quote.items.length > 0 && quote.items.every(i => selectedItemIds.has(i.rowId))}
-                            onChange={handleSelectAllToggle}
-                          />
-                        </th>
-                        <th>Fecha</th>
-                        <th>Cant.</th>
-                        <th>Servicio</th>
-                        <th>Precio</th>
-                        <th>Total</th>
-                        <th style={{ width: 36 }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quote.items.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} style={{ padding: '36px 16px', textAlign: 'center', background: '#ffffff' }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Tu carrito aún está vacío</div>
-                            <div style={{ fontSize: 11, color: '#cbd5e1' }}>Busca un servicio en el panel izquierdo</div>
-                          </td>
-                        </tr>
-                      ) : (
-                        quote.items.map(item => {
-                          const lineTotal = Number(item.qty || 0) * Number(item.price || 0);
-                          return (
-                            <tr key={item.rowId} className={selectedItemIds.has(item.rowId) ? 'sel' : ''}>
-                              <td style={{ textAlign: 'center' }}>
-                                <input type="checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
-                              </td>
-                              <td>
-                                <select value={item.serviceDate} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, serviceDate: e.target.value } : i) }))}>
-                                  {availableServiceDates.map(d => <option key={d} value={d}>{d}</option>)}
-                                </select>
-                              </td>
-                              <td>
-                                <input type="number" value={item.qty} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, qty: parseInt(e.target.value) || 1 } : i) }))} />
-                              </td>
-                              <td>
-                                <input type="text" value={item.name} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, name: e.target.value } : i) }))} />
-                              </td>
-                              <td>
-                                <input type="number" value={item.price} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, price: parseFloat(e.target.value) || 0 } : i) }))} />
-                              </td>
-                              <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{moneyGT(lineTotal)}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button onClick={() => removeServiceItem(item.rowId)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '2px 4px', lineHeight: 1 }}>Eliminar</button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {quote.items.length === 0 ? (
+                    <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Tu carrito aún está vacío</div>
+                      <div style={{ fontSize: 11, color: '#cbd5e1' }}>Busca un servicio en el panel izquierdo</div>
+                    </div>
+                  ) : (
+                    availableServiceDates.map(date => {
+                      const dayItems = quote.items.filter(item => item.serviceDate === date);
+                      const isAllDaySelected = dayItems.length > 0 && dayItems.every(i => selectedItemIds.has(i.rowId));
+                      const daySubtotal = dayItems.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
+
+                      return (
+                        <div key={date} style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }}>
+                          <div style={{ 
+                            background: '#f8fafc', 
+                            padding: '10px 14px', 
+                            borderBottom: '1px solid #e2e8f0', 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: 8
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 13, fontWeight: 900, color: '#0f172a' }}>📅 {date}</span>
+                              <span style={{ background: '#e2e8f0', color: '#334155', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+                                {dayItems.length} {dayItems.length === 1 ? 'servicio' : 'servicios'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#0f172a', fontWeight: 800 }}>
+                              Subtotal: <span style={{ color: '#0f172a' }}>{moneyGT(daySubtotal, quote.currency)}</span>
+                            </div>
+                          </div>
+                          
+                          {dayItems.length === 0 ? (
+                            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12, fontStyle: 'italic', background: '#ffffff' }}>
+                              Sin servicios asignados a este día.
+                            </div>
+                          ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                              <table className="qp-tbl">
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 36 }}>
+                                      <input type="checkbox"
+                                        checked={isAllDaySelected}
+                                        onChange={() => handleSelectAllDayToggle(date)}
+                                      />
+                                    </th>
+                                    <th>Fecha</th>
+                                    <th>Cant.</th>
+                                    <th>Servicio</th>
+                                    <th>Precio</th>
+                                    <th>Total</th>
+                                    <th style={{ width: 36 }}></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {dayItems.map(item => {
+                                    const lineTotal = Number(item.qty || 0) * Number(item.price || 0);
+                                    return (
+                                      <tr key={item.rowId} className={selectedItemIds.has(item.rowId) ? 'sel' : ''}>
+                                        <td style={{ textAlign: 'center' }}>
+                                          <input type="checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
+                                        </td>
+                                        <td>
+                                          <select value={item.serviceDate} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, serviceDate: e.target.value } : i) }))}>
+                                            {availableServiceDates.map(d => <option key={d} value={d}>{d}</option>)}
+                                          </select>
+                                        </td>
+                                        <td>
+                                          <input type="number" value={item.qty} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, qty: parseInt(e.target.value) || 1 } : i) }))} />
+                                        </td>
+                                        <td>
+                                          <input type="text" value={item.name} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, name: e.target.value } : i) }))} />
+                                        </td>
+                                        <td>
+                                          <input type="number" value={item.price} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, price: parseFloat(e.target.value) || 0 } : i) }))} />
+                                        </td>
+                                        <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{moneyGT(lineTotal, quote.currency)}</td>
+                                        <td style={{ textAlign: 'center' }}>
+                                          <button onClick={() => removeServiceItem(item.rowId)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '2px 4px', lineHeight: 1 }}>Eliminar</button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
                 {/* Totales / descuento */}
@@ -3105,7 +3367,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <div>
                       <label style={fieldLabel}>Descuento</label>
                       <select style={{ ...fieldSelect, width: 120 }} value={quote.discountType} onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}>
-                        <option value="AMOUNT">Monto (Q)</option>
+                        <option value="AMOUNT">Monto ({quote.currency === 'USD' ? '$' : 'Q'})</option>
                         <option value="PERCENT">Porcentaje (%)</option>
                       </select>
                     </div>
@@ -3116,13 +3378,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
-                      Subtotal: <strong style={{ color: '#334155' }}>{moneyGT(totals.subtotal)}</strong>
+                      Subtotal: <strong style={{ color: '#334155' }}>{moneyGT(totals.subtotal, quote.currency)}</strong>
                     </div>
                     <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
-                      Descuento: <strong style={{ color: '#334155' }}>{moneyGT(totals.discountAmount)}</strong>
+                      Descuento: <strong style={{ color: '#334155' }}>{moneyGT(totals.discountAmount, quote.currency)}</strong>
                     </div>
                     <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>
-                      Total cotización: <span style={{ color: '#0f172a' }}>{moneyGT(totals.total)}</span>
+                      Total cotización: <span style={{ color: '#0f172a' }}>{moneyGT(totals.total, quote.currency)}</span>
                     </div>
                   </div>
                 </div>
@@ -3136,10 +3398,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', margin: 0 }}>Estado de cuenta</div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ color: '#475569' }}>Total: <strong>{moneyGT(totals.total)}</strong></span>
-                    <span style={{ color: '#475569' }}>Abonado: <strong>{moneyGT(abonosTotal)}</strong></span>
+                    <span style={{ color: '#475569' }}>Total: <strong>{moneyGT(totals.total, quote.currency)}</strong></span>
+                    <span style={{ color: '#475569' }}>Abonado: <strong>{moneyGT(abonosTotal, quote.currency)}</strong></span>
                     <span style={{ color: abonosTotal >= totals.total ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                      Saldo: <strong>{moneyGT(saldoPendiente)}</strong>
+                      Saldo: <strong>{moneyGT(saldoPendiente, quote.currency)}</strong>
                     </span>
                   </div>
                 </div>
@@ -3215,41 +3477,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       </div>
       {/* fin qp-root */}
 
-      {showMenuMontajeModal && createPortal(
-        <div
-          className="modalBackdrop"
-          id="menuMontajePosBackdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 10000000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 0,
-            background: 'rgba(2,6,23,0.72)',
-            overflow: 'hidden'
-          }}
-        >
-          <div className="modal menuMontajeModal" role="dialog" aria-modal="true">
-            <div className="modalBody menuMontajeBody">
-              <MenuMontajePanel
-                event={event}
-                quote={quote}
-                setQuote={setQuote}
-                initialMode={menuMontajeMode}
-                onDirtyChange={setMenuMontajeDirty}
-                onPersistQuote={handlePersistMenuMontajeQuote}
-                onClose={() => {
-                  setMenuMontajeDirty(false);
-                  setShowMenuMontajeModal(false);
-                }}
-              />
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+
 
       {/* ── Modal: Cargar versión ── */}
       {showCreateCompanyModal && (
@@ -3260,7 +3488,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>{companyDraftId ? 'Editar empresa' : 'Nueva empresa'}</div>
                 <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>Se usara en cotizacion</div>
               </div>
-              <button className="qp-btn" type="button" onClick={resetCreateCompanyModal}>Cerrar</button>
+              <button className="qp-close-btn" type="button" onClick={resetCreateCompanyModal} aria-label="Cerrar">
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                  <path d="M4 4l10 10M14 4l-10 10" />
+                </svg>
+              </button>
             </div>
 
             <div style={{ padding: 18, overflow: 'auto' }}>
@@ -3274,9 +3506,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   </select>
                 </label>
                 <div style={fieldLabel}>Estado
-                  <label style={{ minHeight: 40, display: 'flex', alignItems: 'center', gap: 10, color: '#334155', fontSize: 12, fontWeight: 800, textTransform: 'none', letterSpacing: 0 }}>
+                  <label className="qp-switch-inline" style={{ color: '#334155', fontSize: 12, fontWeight: 800, textTransform: 'none', letterSpacing: 0 }}>
                     <input type="checkbox" checked={companyDraftActive} onChange={e => setCompanyDraftActive(e.target.checked)} />
-                    Empresa activa
+                    <span>Empresa activa</span>
                   </label>
                 </div>
                 <label style={fieldLabel}>Nombre de la Organizacion<input style={fieldInput} value={companyDraft.name} onChange={e => setCompanyDraft(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Eventos del Lago" /></label>
@@ -3360,7 +3592,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     onClick={() => handleLoadVersion(v)}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Versión {v.version || idx + 1}</div>
                     <div style={{ fontSize: 10, color: '#64748b' }}>{v.savedAt || 'Sin fecha'} — {v.items?.length || 0} items</div>
-                    <div style={{ fontSize: 10, color: '#94a3b8' }}>Total: {moneyGT(v.total || 0)}</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>Total: {moneyGT(v.total || 0, v.currency || quote.currency)}</div>
                   </div>
                 ))}
               </div>
@@ -3378,12 +3610,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           <div style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(900px, 96vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div><div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Nuevo servicio</div><div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>Se agregara al catalogo de cotizacion</div></div>
-              <button className="qp-btn" type="button" onClick={() => { setShowCreateServiceModal(false); resetServiceDraft(); }}>Cerrar</button>
+              <button className="qp-close-btn" type="button" onClick={() => { setShowCreateServiceModal(false); resetServiceDraft(); }} aria-label="Cerrar">
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                  <path d="M4 4l10 10M14 4l-10 10" />
+                </svg>
+              </button>
             </div>
             <div style={{ padding: 18, overflow: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(240px, 1fr))', gap: '10px 14px' }}>
                 <label style={fieldLabel}>Servicio existente<select style={fieldSelect} value={serviceDraft.id} onChange={e => { const service = catalogServices.find(item => String(item.id || '') === String(e.target.value || '')); if (service) handleEditServiceDraft(service); else resetServiceDraft(); }}><option value="">Crear nuevo servicio</option>{catalogServices.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
-                <div style={fieldLabel}>Estado<label style={{ minHeight: 40, display: 'flex', alignItems: 'center', gap: 10, color: '#334155', fontSize: 12, fontWeight: 800, textTransform: 'none', letterSpacing: 0 }}><input type="checkbox" checked={serviceDraft.active} onChange={e => setServiceDraft(p => ({ ...p, active: e.target.checked }))} />Servicio activo</label></div>
+                <div style={fieldLabel}>Estado<label className="qp-switch-inline" style={{ color: '#334155', fontSize: 12, fontWeight: 800, textTransform: 'none', letterSpacing: 0 }}><input type="checkbox" checked={serviceDraft.active} onChange={e => setServiceDraft(p => ({ ...p, active: e.target.checked }))} /><span>Servicio activo</span></label></div>
                 <label style={fieldLabel}>Nombre del servicio<input style={fieldInput} value={serviceDraft.name} onChange={e => setServiceDraft(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Catering premium" /></label>
                 <label style={fieldLabel}>Precio base<input style={fieldInput} type="number" min="0" step="0.01" value={serviceDraft.price} onChange={e => setServiceDraft(p => ({ ...p, price: e.target.value }))} placeholder="Ej: 150.00" /></label>
                 <label style={fieldLabel}>Categoria<input list="quoteServiceCategories" style={fieldInput} value={serviceDraft.category} onChange={e => setServiceDraft(p => ({ ...p, category: e.target.value, subcategory: '' }))} placeholder="Ej: Alimentos & Bebidas" /><datalist id="quoteServiceCategories">{serviceCategories.map(category => <option key={category} value={category} />)}</datalist></label>
@@ -3421,7 +3657,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div className="modalTitle" id="quoteAdvanceTitle">Anticipos</div>
                 <div className="modalSubtitle">Registra pagos anticipados para restar saldo del evento</div>
               </div>
-              <button className="iconBtn" type="button" title="Cerrar" onClick={() => { resetAdvanceForm(); setShowAdvancesModal(false); }}>Cerrar</button>
+              <button className="qp-close-btn" type="button" title="Cerrar" onClick={() => { resetAdvanceForm(); setShowAdvancesModal(false); }}>
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                  <path d="M4 4l10 10M14 4l-10 10" />
+                </svg>
+              </button>
             </div>
 
             <div className="modalBody quoteAdvanceBody">
@@ -3476,15 +3716,15 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               <div className="quoteAdvanceSummary">
                 <div className="quoteAdvanceMetric quoteAdvanceMetric--total">
                   <span>Total anticipos</span>
-                  <strong>{moneyGT(abonosTotal)}</strong>
+                  <strong>{moneyGT(abonosTotal, quote.currency)}</strong>
                 </div>
                 <div className="quoteAdvanceMetric quoteAdvanceMetric--pending">
                   <span>Saldo pendiente</span>
-                  <strong>{moneyGT(saldoPendiente)}</strong>
+                  <strong>{moneyGT(saldoPendiente, quote.currency)}</strong>
                 </div>
                 <div className="quoteAdvanceMetric quoteAdvanceMetric--credit">
                   <span>Saldo a favor</span>
-                  <strong>{moneyGT(Math.max(0, abonosTotal - totals.total))}</strong>
+                  <strong>{moneyGT(Math.max(0, abonosTotal - totals.total), quote.currency)}</strong>
                 </div>
               </div>
 
@@ -3505,7 +3745,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Tipo</span><span>{adv.paymentType || '-'}</span></div>
                       <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">No. boleta</span><span>{adv.voucherNumber || '-'}</span></div>
                       <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Descripcion</span><span>{adv.description || '-'}</span></div>
-                      <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Monto</span><strong>{moneyGT(adv.amount)}</strong></div>
+                      <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Monto</span><strong>{moneyGT(adv.amount, quote.currency)}</strong></div>
                       <div className="quoteAdvanceLedgerCell quoteAdvanceLedgerCell--evidence">
                         <span className="quoteAdvanceLedgerLabel">Evidencia</span>
                         {adv.evidenceDataUrl ? (

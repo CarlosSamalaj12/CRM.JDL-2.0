@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS salones (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS usuarios (
-  id VARCHAR(80) NOT NULL,
+  id VARCHAR(30) NOT NULL,
   nombre VARCHAR(160) NOT NULL,
   nombre_usuario VARCHAR(120) NULL,
   nombre_completo VARCHAR(200) NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS empresas (
-  id VARCHAR(80) NOT NULL,
+  id VARCHAR(30) NOT NULL,
   nombre VARCHAR(200) NOT NULL,
   encargado_principal VARCHAR(200) NULL,
   correo VARCHAR(200) NULL,
@@ -43,8 +43,8 @@ CREATE TABLE IF NOT EXISTS empresas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS encargados_empresa (
-  id VARCHAR(80) NOT NULL,
-  id_empresa VARCHAR(80) NOT NULL,
+  id VARCHAR(30) NOT NULL,
+  id_empresa VARCHAR(30) NOT NULL,
   nombre VARCHAR(200) NOT NULL,
   telefono VARCHAR(80) NULL,
   correo VARCHAR(200) NULL,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS encargados_empresa (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS servicios (
-  id VARCHAR(80) NOT NULL,
+  id VARCHAR(30) NOT NULL,
   nombre VARCHAR(220) NOT NULL,
   precio DECIMAL(12,2) NOT NULL DEFAULT 0,
   descripcion TEXT NULL,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS subcategorias_servicio (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS eventos (
-  id VARCHAR(80) NOT NULL,
+  id VARCHAR(30) NOT NULL,
   id_grupo VARCHAR(120) NULL,
   nombre VARCHAR(240) NOT NULL,
   nombre_salon VARCHAR(120) NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS eventos (
   hora_inicio TIME NOT NULL,
   hora_fin TIME NOT NULL,
   estado VARCHAR(80) NOT NULL,
-  id_usuario VARCHAR(80) NULL,
+  id_usuario VARCHAR(30) NULL,
   pax INT NULL,
   notas TEXT NULL,
   cotizacion_json LONGTEXT NULL,
@@ -120,9 +120,9 @@ CREATE TABLE IF NOT EXISTS eventos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS cotizaciones_evento (
-  id_evento VARCHAR(80) NOT NULL,
-  id_empresa VARCHAR(80) NULL,
-  id_encargado VARCHAR(80) NULL,
+  id_evento VARCHAR(30) NOT NULL,
+  id_empresa VARCHAR(30) NULL,
+  id_encargado VARCHAR(30) NULL,
   nombre_empresa VARCHAR(200) NULL,
   nombre_encargado VARCHAR(200) NULL,
   contacto VARCHAR(200) NULL,
@@ -158,9 +158,9 @@ CREATE TABLE IF NOT EXISTS cotizaciones_evento (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS items_cotizacion_evento (
-  id VARCHAR(80) NOT NULL,
-  id_evento VARCHAR(80) NOT NULL,
-  id_servicio VARCHAR(80) NULL,
+  id VARCHAR(200) NOT NULL,
+  id_evento VARCHAR(30) NOT NULL,
+  id_servicio VARCHAR(30) NULL,
   fecha_servicio DATE NULL,
   cantidad DECIMAL(12,2) NOT NULL DEFAULT 0,
   precio DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS historial_evento (
   clave_evento VARCHAR(120) NOT NULL,
   cambiado_en_iso VARCHAR(50) NULL,
   cambiado_en DATETIME NULL,
-  id_usuario_actor VARCHAR(80) NULL,
+  id_usuario_actor VARCHAR(30) NULL,
   nombre_actor VARCHAR(200) NULL,
   cambio_texto TEXT NOT NULL,
   creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS historial_evento (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS recordatorios_evento (
-  id VARCHAR(80) NOT NULL,
+  id VARCHAR(30) NOT NULL,
   clave_evento VARCHAR(120) NOT NULL,
   fecha_recordatorio DATE NULL,
   hora_recordatorio TIME NULL,
@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS recordatorios_evento (
   notas TEXT NULL,
   creado_en_iso VARCHAR(50) NULL,
   creado_en DATETIME NULL,
-  id_usuario_creador VARCHAR(80) NULL,
+  id_usuario_creador VARCHAR(30) NULL,
   creado_en_fila TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_recordatorios_clave_evento (clave_evento),
@@ -207,8 +207,8 @@ CREATE TABLE IF NOT EXISTS recordatorios_evento (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS anticipos_evento (
-  id VARCHAR(100) NOT NULL,
-  id_evento VARCHAR(80) NOT NULL,
+  id VARCHAR(30) NOT NULL,
+  id_evento VARCHAR(30) NOT NULL,
   fecha_anticipo DATE NOT NULL,
   monto DECIMAL(12,2) NOT NULL DEFAULT 0,
   tipo_pago VARCHAR(40) NOT NULL DEFAULT 'Efectivo',

@@ -23,7 +23,7 @@ export default function MainLayout() {
   };
 
   const [viewMode, setViewMode] = useState('week');
-  const [currentDate, setCurrentDate] = useState(getStartOfWeek(new Date()));
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [customTitle, setCustomTitle] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,14 +33,14 @@ export default function MainLayout() {
   // Siempre iniciar en la semana actual cuando se cambia a vista semanal
   useEffect(() => {
     if (viewMode === 'week') {
-      setCurrentDate(getStartOfWeek(new Date()));
+      setCurrentDate(new Date());
     }
   }, [viewMode]);
 
   // Handler para cambio de vista
   const handleViewModeChange = (newMode) => {
     if (newMode === 'week') {
-      setCurrentDate(getStartOfWeek(new Date()));
+      setCurrentDate(new Date());
     }
     setViewMode(newMode);
   };
@@ -79,16 +79,10 @@ export default function MainLayout() {
 
   useEffect(() => {
     if (!authService.getCurrentUser()) {
-      authService.saveSession({
-        id: 1,
-        name: 'Admin',
-        fullName: 'Administrador',
-        username: 'admin',
-        email: 'admin@jardinesdellago.com',
-        role: 'admin',
-        avatarDataUrl: ''
-      });
+      navigate('/login', { replace: true });
+      return undefined;
     }
+
     socketService.connect();
 
     loadInitialData();
@@ -180,9 +174,6 @@ export default function MainLayout() {
       return currentDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
     } else if (viewMode === 'week') {
       const start = new Date(currentDate);
-      const day = start.getDay();
-      const diff = start.getDate() - day;
-      start.setDate(diff);
       
       const end = new Date(start);
       end.setDate(start.getDate() + 6);

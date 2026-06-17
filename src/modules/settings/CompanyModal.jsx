@@ -212,12 +212,14 @@ export default function CompanyModal({ onClose }) {
             <div className="modalTitle" id="companyTitle">{selectedId ? 'Editar empresa' : 'Nueva empresa'}</div>
             <div className="modalSubtitle">Se usara en cotizacion</div>
           </div>
-          <button className="iconBtn" id="btnCompanyClose" type="button" title="Cerrar" onClick={handleClose}>&#10005;</button>
+          <button className="btn-exit" id="btnCompanyClose" type="button" title="Cerrar" onClick={handleClose}>
+            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
+          </button>
         </div>
 
         <form className="modalBody" id="companyForm" autoComplete="off" onSubmit={handleSubmit}>
-          <div className="row2">
-            <label className="field">
+          <div className="settings-field-group">
+            <label className="settings-modern-field">
               <span>Empresa existente</span>
               <select id="companyEditSelect" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
                 <option value="">Crear nueva empresa</option>
@@ -231,28 +233,28 @@ export default function CompanyModal({ onClose }) {
                   ))}
               </select>
             </label>
-            <div className="field">
+            <div className="settings-modern-field">
               <span>Estado</span>
-              <label className="statusSwitchInline">
+              <label className="settings-switch-inline">
                 <input id="companyActive" type="checkbox" checked={companyActive} onChange={(e) => setCompanyActive(e.target.checked)} />
                 <span>Empresa activa</span>
               </label>
             </div>
           </div>
 
-          <div className="row2">
-            <label className="field"><span>Nombre de la Organizacion</span><input id="companyName" type="text" value={company.name} onChange={(e) => handleCompanyChange('name', e.target.value)} placeholder="Ej: Eventos del Lago" required /></label>
-            <label className="field"><span>Encargado de la Organizacion</span><input id="companyOwner" type="text" value={company.owner} onChange={(e) => handleCompanyChange('owner', e.target.value)} placeholder="Nombre del encargado principal" required /></label>
+          <div className="settings-field-group">
+            <label className="settings-modern-field"><span>Nombre de la Organizacion</span><input id="companyName" type="text" value={company.name} onChange={(e) => handleCompanyChange('name', e.target.value)} placeholder="Ej: Eventos del Lago" required /></label>
+            <label className="settings-modern-field"><span>Encargado de la Organizacion</span><input id="companyOwner" type="text" value={company.owner} onChange={(e) => handleCompanyChange('owner', e.target.value)} placeholder="Nombre del encargado principal" required /></label>
           </div>
 
-          <div className="row2">
-            <label className="field"><span>Correo</span><input id="companyEmail" type="email" value={company.email} onChange={(e) => handleCompanyChange('email', e.target.value)} placeholder="correo@empresa.com" required autoComplete="off" /></label>
-            <label className="field"><span>NIT</span><input id="companyNIT" type="text" value={company.nit} onChange={(e) => handleCompanyChange('nit', e.target.value)} placeholder="NIT" required /></label>
+          <div className="settings-field-group">
+            <label className="settings-modern-field"><span>Correo</span><input id="companyEmail" type="email" value={company.email} onChange={(e) => handleCompanyChange('email', e.target.value)} placeholder="correo@empresa.com" required autoComplete="off" /></label>
+            <label className="settings-modern-field"><span>NIT</span><input id="companyNIT" type="text" value={company.nit} onChange={(e) => handleCompanyChange('nit', e.target.value)} placeholder="NIT" required /></label>
           </div>
 
-          <div className="row2">
-            <label className="field"><span>Facturar A</span><input id="companyBusinessName" type="text" value={company.businessName} onChange={(e) => handleCompanyChange('businessName', e.target.value)} placeholder="Nombre para facturacion" required /></label>
-            <label className="field">
+          <div className="settings-field-group">
+            <label className="settings-modern-field"><span>Facturar A</span><input id="companyBusinessName" type="text" value={company.businessName} onChange={(e) => handleCompanyChange('businessName', e.target.value)} placeholder="Nombre para facturacion" required /></label>
+            <label className="settings-modern-field">
               <span>Tipo Evento</span>
               <select id="companyEventType" value={company.eventType} onChange={(e) => handleCompanyChange('eventType', e.target.value)} required>
                 <option value="">Selecciona tipo</option>
@@ -263,15 +265,15 @@ export default function CompanyModal({ onClose }) {
             </label>
           </div>
 
-          <div className="row2">
-            <label className="field"><span>Direccion</span><input id="companyAddress" type="text" value={company.address} onChange={(e) => handleCompanyChange('address', e.target.value)} placeholder="Direccion" required /></label>
-            <label className="field"><span>Telefono</span><input id="companyPhone" type="text" value={company.phone} onChange={(e) => handleCompanyChange('phone', e.target.value)} placeholder="Telefono" required /></label>
+          <div className="settings-field-group">
+            <label className="settings-modern-field"><span>Direccion</span><input id="companyAddress" type="text" value={company.address} onChange={(e) => handleCompanyChange('address', e.target.value)} placeholder="Direccion" required /></label>
+            <label className="settings-modern-field"><span>Telefono</span><input id="companyPhone" type="text" value={company.phone} onChange={(e) => handleCompanyChange('phone', e.target.value)} placeholder="Telefono" required /></label>
           </div>
 
-          <label className="field"><span>Observacion</span><textarea id="companyNotes" rows="2" value={company.notes} onChange={(e) => handleCompanyChange('notes', e.target.value)} placeholder="Alguna observacion" /></label>
+          <label className="settings-modern-field"><span>Observacion</span><textarea id="companyNotes" rows="2" value={company.notes} onChange={(e) => handleCompanyChange('notes', e.target.value)} placeholder="Alguna observacion" /></label>
 
           {selectedCompany && (
-            <div className="field" id="companyRecordSection">
+            <div className="settings-modern-field" id="companyRecordSection">
               <span>Record de la empresa</span>
               <div className="companyRecordSummary" id="companyRecordSummary">
                 <span className="pill">Encargados: {managers.length}</span>
@@ -280,33 +282,35 @@ export default function CompanyModal({ onClose }) {
             </div>
           )}
 
-          <div className="field">
+          <div className="settings-modern-field">
             <span>Encargados de la empresa</span>
-            <div className="row2">
-              <input id="managerName" type="text" value={managerDraft.name} onChange={(e) => handleManagerChange('name', e.target.value)} placeholder="Nombre del encargado" />
-              <input id="managerPhone" type="text" value={managerDraft.phone} onChange={(e) => handleManagerChange('phone', e.target.value)} placeholder="Telefono" />
+            <div className="settings-field-group">
+              <input id="managerName" type="text" className="settings-input-compact" value={managerDraft.name} onChange={(e) => handleManagerChange('name', e.target.value)} placeholder="Nombre del encargado" />
+              <input id="managerPhone" type="text" className="settings-input-compact" value={managerDraft.phone} onChange={(e) => handleManagerChange('phone', e.target.value)} placeholder="Telefono" />
             </div>
-            <div className="row2">
-              <input id="managerEmail" type="email" value={managerDraft.email} onChange={(e) => handleManagerChange('email', e.target.value)} placeholder="Correo" autoComplete="off" />
-              <input id="managerAddress" type="text" value={managerDraft.address} onChange={(e) => handleManagerChange('address', e.target.value)} placeholder="Direccion (opcional)" />
+            <div className="settings-field-group" style={{ marginTop: 0 }}>
+              <input id="managerEmail" type="email" className="settings-input-compact" value={managerDraft.email} onChange={(e) => handleManagerChange('email', e.target.value)} placeholder="Correo" autoComplete="off" />
+              <input id="managerAddress" type="text" className="settings-input-compact" value={managerDraft.address} onChange={(e) => handleManagerChange('address', e.target.value)} placeholder="Direccion (opcional)" />
             </div>
             <div className="rightActions">
-              <button className="btn-cotizar" type="button" id="btnAddManager" onClick={addOrUpdateManager}>{editingManagerId ? 'Actualizar encargado' : '+ Encargado'}</button>
+              <button className="settings-accent-btn" type="button" id="btnAddManager" onClick={addOrUpdateManager}>{editingManagerId ? 'Actualizar encargado' : '+ Encargado'}</button>
             </div>
-            <div className="quoteTableWrap">
-              <table className="quoteTable">
+            <div className="settings-table-wrap" style={{ marginTop: 10 }}>
+              <table className="settings-table">
                 <thead><tr><th>Nombre</th><th>Telefono</th><th>Correo</th><th>Direccion</th><th></th></tr></thead>
                 <tbody id="managersBody">
-                  {!managers.length && <tr><td colSpan="5">Sin encargados agregados.</td></tr>}
+                  {!managers.length && <tr><td colSpan="5" className="settings-td-center">Sin encargados agregados.</td></tr>}
                   {managers.map((manager) => (
-                    <tr key={manager.id} className={String(editingManagerId) === String(manager.id) ? 'isEditingRow' : ''}>
+                    <tr key={manager.id} className={String(editingManagerId) === String(manager.id) ? 'settings-usr-row-editing' : ''}>
                       <td>{manager.name}</td>
                       <td>{manager.phone}</td>
                       <td>{manager.email}</td>
                       <td>{manager.address || ''}</td>
-                      <td className="tableActionsCell">
-                        <button type="button" className="apptIconBtn apptEdit" title="Editar encargado" aria-label="Editar encargado" onClick={() => editManager(manager)}>&#9998;</button>
-                        <button type="button" className="apptIconBtn apptDelete" title="Eliminar encargado" aria-label="Eliminar encargado" onClick={() => removeManager(manager.id)}>&#8854;</button>
+                      <td className="settings-td-center">
+                        <div className="settings-table-actions">
+                          <button type="button" title="Editar encargado" aria-label="Editar encargado" onClick={() => editManager(manager)}>&#9998;</button>
+                          <button type="button" className="danger" title="Eliminar encargado" aria-label="Eliminar encargado" onClick={() => removeManager(manager.id)}>&#8854;</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -317,10 +321,10 @@ export default function CompanyModal({ onClose }) {
 
           <div className="modalFooter">
             <div className="leftActions">
-              <button className="btn-cancelar" id="btnCompanyDisable" type="button" disabled={!selectedId} onClick={toggleCompanyDisabled}>{companyActive ? 'Inhabilitar' : 'Reactivar'}</button>
+              <button className="settings-danger-btn" id="btnCompanyDisable" type="button" disabled={!selectedId} onClick={toggleCompanyDisabled}>{companyActive ? 'Inhabilitar' : 'Reactivar'}</button>
             </div>
             <div className="rightActions">
-              <button className="btn-teal" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar empresa'}</button>
+              <button className="settings-primary-btn" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar empresa'}</button>
             </div>
           </div>
         </form>

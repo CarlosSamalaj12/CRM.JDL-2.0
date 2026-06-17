@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
+import '../../styles/tooltips.css';
 
 const LEADS_PIPELINE_STATUSES = [
   'Reserva sin Cotizacion',
@@ -10,6 +11,15 @@ const LEADS_PIPELINE_STATUSES = [
   'Pre reserva',
   'Perdido'
 ];
+
+const STATUS_DESCRIPTIONS = {
+  'Reserva sin Cotizacion': 'Cliente potencial recién agregado, sin cotización creada',
+  '1er Cotizacion': 'Se generó la primera cotización, pendiente de revisión',
+  'Seguimiento': 'Cotización enviada, en proceso de seguimiento con el cliente',
+  'Lista de Espera': 'Cliente interesado pero sin fecha confirmada, en espera',
+  'Pre reserva': 'Apartado provisional, pendiente de confirmación final',
+  'Perdido': 'Oportunidad cerrada, el cliente no concretó',
+};
 
 export default function CustomersModule() {
   const navigate = useNavigate();
@@ -111,18 +121,21 @@ export default function CustomersModule() {
             </div>
               <button 
                 onClick={() => navigate('/calendar')}
-                className="iconBtn"
-                title="Cerrar"
-                style={{ 
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '20px',
-                  cursor: 'pointer',
-                  color: '#64748b',
-                  padding: '4px 8px',
-                  lineHeight: '1'
+                className="btn-exit"
+                data-tooltip="Cerrar"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  padding: '0',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
-              >&#10005;</button>
+              >
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
+                  <path d="M4 4l10 10M14 4l-10 10" />
+                </svg>
+              </button>
           </div>
         </div>
 
@@ -134,7 +147,7 @@ export default function CustomersModule() {
                 placeholder="Buscar por nombre, cliente, salón..." 
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '13px', height: '38px', boxSizing: 'border-box', background: '#fff', color: '#1e293b' }}
               />
             </div>
             
@@ -143,7 +156,7 @@ export default function CustomersModule() {
               <select 
                 value={statusFilter} 
                 onChange={e => setStatusFilter(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box', background: '#fff', color: '#1e293b' }}
               >
                 <option value="all">Todos los estados</option>
                 {LEADS_PIPELINE_STATUSES.map(s => (
@@ -157,7 +170,7 @@ export default function CustomersModule() {
               <select 
                 value={userFilter} 
                 onChange={e => setUserFilter(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box', background: '#fff', color: '#1e293b' }}
               >
                 <option value="all">Todos los vendedores</option>
                 {users?.map(u => (
@@ -172,7 +185,7 @@ export default function CustomersModule() {
                 type="date" 
                 value={dateFrom} 
                 onChange={e => setDateFrom(e.target.value)}
-                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }} 
+                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box', background: '#fff', color: '#1e293b' }} 
               />
             </div>
 
@@ -182,7 +195,7 @@ export default function CustomersModule() {
                 type="date" 
                 value={dateTo} 
                 onChange={e => setDateTo(e.target.value)}
-                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box' }} 
+                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box', background: '#fff', color: '#1e293b' }} 
               />
             </div>
 
@@ -194,6 +207,40 @@ export default function CustomersModule() {
           </div>
         </div>
 
+        <style>{`
+          .btn-exit {
+            background: transparent !important;
+            color: #94a3b8 !important;
+            border: none !important;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            overflow: visible;
+            outline: none;
+            font-family: inherit;
+          }
+          .btn-exit:hover {
+            background: rgba(239, 68, 68, 0.08) !important;
+            color: #ef4444 !important;
+          }
+          .btn-exit:focus-visible {
+            outline: 2px solid #ef4444;
+            outline-offset: 2px;
+          }
+          .btn-exit:active {
+            transform: scale(0.88);
+          }
+          .btn-exit svg {
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+          }
+          .btn-exit:hover svg {
+            transform: scale(1.2);
+          }
+          .btn-exit:hover .crm-icon-x {
+            transform: rotate(90deg) scale(1.2);
+          }
+        `}</style>
         <div className="module-table-wrapper" style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflowX: 'auto', overflowY: 'auto', flex: 1, width: '100%', minHeight: 0 }}>
             <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
@@ -225,16 +272,25 @@ export default function CustomersModule() {
                       <td style={{ padding: '14px 16px', fontSize: '13px', color: '#475569' }}>{l.salon}</td>
                       <td style={{ padding: '14px 16px', fontSize: '13px', color: '#475569' }}>{l.pax || '-'}</td>
                       <td style={{ padding: '14px 16px' }}>
-                        <span style={{ 
-                          display: 'inline-block', 
-                          padding: '4px 10px', 
+                        <span className="chip-tooltip" data-desc={STATUS_DESCRIPTIONS[l.status] || ''} style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '6px',
+                          padding: '6px 12px', 
                           borderRadius: '20px', 
-                          fontSize: '11px', 
+                          fontSize: '11.5px', 
                           fontWeight: '700', 
-                          background: `${getStatusColor(l.status)}15`,
+                          background: `${getStatusColor(l.status)}22`,
                           color: getStatusColor(l.status),
-                          border: `1px solid ${getStatusColor(l.status)}30`
                         }}>
+                          <span style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            background: getStatusColor(l.status),
+                            display: 'inline-block',
+                            flexShrink: 0,
+                          }} />
                           {l.status}
                         </span>
                       </td>

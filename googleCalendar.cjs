@@ -307,7 +307,7 @@ async function syncEventsToGoogle(oldEvents, newEvents) {
  * @param {string} params.time       - Hora HH:MM: "10:00"
  * @param {string} params.notes      - Descripción / notas de la cita
  */
-async function createUserReminder({ userEmail, eventName, date, time, notes }) {
+async function createUserReminder({ userEmail, eventName, date, time, notes, reminderId }) {
   if (!calendar) {
     console.warn('⚠️ Google Calendar: No inicializado. Revisa las credenciales en .env');
     return { ok: false, mode: null };
@@ -328,6 +328,9 @@ async function createUserReminder({ userEmail, eventName, date, time, notes }) {
   const pad = (n) => String(n).padStart(2, '0');
   const fmtDt = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 
+  // Usar un ID determinístico basado en el reminderId para poder eliminar el evento después
+  const googleEventId = reminderId ? getGoogleEventId(reminderId) : undefined;
+
   const resource = {
     summary: eventName,
     description: notes || '',
@@ -343,6 +346,10 @@ async function createUserReminder({ userEmail, eventName, date, time, notes }) {
     },
   };
 
+  if (googleEventId) {
+    resource.id = googleEventId;
+  }
+
   // INTENTO 1: Escribir directamente al calendario personal del usuario.
   // Funciona si el usuario compartía su Google Calendar con la Service Account.
   try {
@@ -352,7 +359,7 @@ async function createUserReminder({ userEmail, eventName, date, time, notes }) {
       sendUpdates: 'none',
     });
     console.log(`✅ Google Calendar [directo]: Cita "${eventName}" creada en el calendario de ${userEmail}`);
-    return { ok: true, mode: 'direct' };
+    return { ok: true, mode: 'direct', googleEventId };
   } catch (errDirect) {
     // 403 = no tiene acceso al calendario, 404 = calendario no encontrado
     if (errDirect.code === 403 || errDirect.code === 404) {
@@ -372,11 +379,41 @@ async function createUserReminder({ userEmail, eventName, date, time, notes }) {
       sendUpdates: 'all',     // Envía email de invitación al asistente
     });
     console.log(`✅ Google Calendar [invitación]: Cita "${eventName}" creada. Invitación enviada a ${userEmail}`);
-    return { ok: true, mode: 'invite' };
+    return { ok: true, mode: 'invite', googleEventId };
   } catch (errInvite) {
     console.error(`❌ Google Calendar [invitación]: Error ->`, errInvite.message);
     return { ok: false, mode: null };
   }
+}
+
+async function deleteUserReminder(reminderId, userEmail) {
+  if (!calendar || !reminderId) {
+    return { ok: false };
+  }
+
+  const googleEventId = getGoogleEventId(reminderId);
+  const calendarsToTry = [];
+
+  if (userEmail && userEmail.includes('@')) {
+    calendarsToTry.push(userEmail);
+  }
+  calendarsToTry.push(calendarId || 'primary');
+
+  for (const calId of calendarsToTry) {
+    try {
+      await calendar.events.delete({
+        calendarId: calId,
+        eventId: googleEventId,
+      });
+      console.log(`🗑️ Google Calendar: Cita eliminada exitosamente de "${calId}" -> ID: ${reminderId}`);
+    } catch (err) {
+      if (err.code !== 404) {
+        console.error(`❌ Google Calendar: Error al eliminar cita "${reminderId}" del calendario "${calId}":`, err.message);
+      }
+    }
+  }
+
+  return { ok: true };
 }
 
 module.exports = {
@@ -385,6 +422,7 @@ module.exports = {
   updateGoogleEvent,
   deleteGoogleEvent,
   createUserReminder,
+  deleteUserReminder,
   getAuthUrl,
   handleAuthCallback
 };

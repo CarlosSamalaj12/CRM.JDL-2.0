@@ -43,7 +43,7 @@ export const IMPORT_MANAGER_COLUMNS = [
 ];
 
 export function uid(prefix = 'ev') {
-  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+  return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
 export function normalizeKey(value) {

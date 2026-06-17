@@ -47,7 +47,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
         // ya que la API de Google no nos devolvió un eventId rastreable en el recordatorio anterior.
         // Se actualiza en el CRM para que el vendedor tenga la fecha correcta.
       } else {
-        await reminderService.add(eventId, newReminder);
+        const savedReminder = await reminderService.add(eventId, newReminder);
         
         // Enviar a Google Calendar si el usuario tiene email configurado
         if (currentUser && currentUser.email) {        try {
@@ -57,6 +57,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
             eventName: `Cita: ${eventName}`,
             email: currentUser.email,
             notes: `Medio: ${newReminder.channel}. ${newReminder.notes}`,
+            reminderId: savedReminder?.id,
           });
           if (res?.mode === 'direct') {
             console.log("✅ Cita registrada directamente en tu Google Calendar");
@@ -98,6 +99,14 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
 
     try {
       await reminderService.delete(eventId, reminderId);
+
+      // Eliminar también del Google Calendar
+      try {
+        await api.post('/api/calendar/delete-reminder', { reminderId, email: currentUser?.email });
+      } catch (calendarError) {
+        console.error('Error eliminando cita de Google Calendar:', calendarError);
+      }
+
       await loadReminders();
       if (onSaved) onSaved();
     } catch (error) {
@@ -183,10 +192,52 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
     borderRadius: '10px',
     border: '2px solid #f1f5f9',
     fontSize: '14px',
-    fontWeight: '600'
+    fontWeight: '600',
+    background: '#ffffff',
+    color: '#0f172a'
   };
 
   return (
+    <>
+      <style>{`
+        .btn-exit {
+          background: rgba(255,255,255,0.1);
+          color: white !important;
+          border: none !important;
+          border-radius: 50%;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          position: relative;
+          overflow: visible;
+          outline: none;
+        }
+        .btn-exit:hover {
+          background: rgba(239, 68, 68, 0.3) !important;
+          color: #fca5a5 !important;
+        }
+        .btn-exit:focus-visible {
+          outline: 2px solid #fca5a5;
+          outline-offset: 2px;
+        }
+        .btn-exit:active {
+          transform: scale(0.88);
+        }
+        .btn-exit svg {
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .btn-exit:hover svg {
+          transform: scale(1.2);
+        }
+        .btn-exit:hover .crm-icon-x {
+          transform: rotate(90deg) scale(1.2);
+        }
+      `}</style>
     <div style={{
       width: '480px',
       background: 'white',
@@ -200,16 +251,14 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
           <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>📅 Citas y Recordatorios</h2>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>{eventName}</p>
         </div>
-        <button onClick={onClose} style={{
-          background: 'rgba(255,255,255,0.1)',
-          border: 'none',
-          width: '36px',
-          height: '36px',
-          borderRadius: '50%',
-          fontSize: '20px',
-          cursor: 'pointer',
-          color: 'white'
-        }}>×</button>
+        <button onClick={onClose} className="btn-exit" style={{
+          width: '36px', height: '36px', borderRadius: '50%', padding: '0',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
+            <path d="M4 4l10 10M14 4l-10 10" />
+          </svg>
+        </button>
       </div>
 
       {/* Body */}
@@ -265,7 +314,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
                     </div>
                     
                     {/* Botones de acción: Solo visibles si el creador es el usuario actual */}
-                    {(!rem.createdBy || rem.createdBy === currentUser?.id) && (
+                    {(!(rem.createdBy || rem.createdByUserId) || (rem.createdBy || rem.createdByUserId) === currentUser?.id) && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <button onClick={() => handleEditClick(rem)} style={{
                           padding: '6px 12px',
@@ -357,5 +406,6 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
         onCancel={() => setConfirmConfig({ isOpen: false, reminderId: null })}
       />
     </div>
+    </>
   );
 }

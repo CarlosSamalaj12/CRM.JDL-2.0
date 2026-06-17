@@ -165,6 +165,14 @@ export default function Sidebar() {
                 <span>Reportes</span>
               </button>
               <button 
+                className={`drawer-nav-item ${location.pathname === '/kanban' ? 'isActive' : ''}`} 
+                onClick={() => { setIsMobileOpen(false); navigate('/kanban'); }}
+              >
+                <span className="material-symbols-outlined">grid_view</span>
+                <span>Tablero Ocupación</span>
+              </button>
+
+              <button 
                 className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
                 onClick={() => { setIsMobileOpen(false); navigate('/settings'); }}
               >
@@ -239,7 +247,7 @@ export default function Sidebar() {
                 <span className="material-symbols-outlined">support_agent</span>
                 <span>Soporte</span>
               </button>
-              <button className="drawer-footer-btn" onClick={handleLogout}>
+              <button className="drawer-footer-btn danger" onClick={handleLogout}>
                 <span className="material-symbols-outlined">logout</span>
                 <span>Cerrar sesión</span>
               </button>
@@ -333,10 +341,10 @@ export default function Sidebar() {
             width: 54px;
             height: 54px;
             border-radius: 50%;
-            background: #0b1c30; /* Azul marino corporativo */
+            background: #0f172a; /* Slate-900 */
             color: #ffffff;
-            border: 2px solid #14b8a6; /* Borde turquesa para destacar */
-            box-shadow: 0 6px 20px rgba(11, 28, 48, 0.4);
+            border: 2px solid #6366f1; /* Borde indigo */
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
             z-index: 10001;
             align-items: center;
             justify-content: center;
@@ -365,7 +373,7 @@ export default function Sidebar() {
           .mobile-drawer-content {
             width: 290px;
             height: 100%;
-            background: #0b1c30; /* Azul oscuro */
+            background: #0f172a; /* Slate-900 */
             box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
@@ -442,11 +450,11 @@ export default function Sidebar() {
             color: #94a3b8;
           }
           .drawer-nav-item:hover, .drawer-nav-item.isActive {
-            background: rgba(56, 189, 248, 0.08);
-            color: #38bdf8;
+            background: rgba(99, 102, 241, 0.08);
+            color: #818cf8;
           }
           .drawer-nav-item:hover span.material-symbols-outlined, .drawer-nav-item.isActive span.material-symbols-outlined {
-            color: #38bdf8;
+            color: #818cf8;
           }
 
           .mobile-drawer-profile {
@@ -468,7 +476,7 @@ export default function Sidebar() {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            border: 1px solid #14b8a6;
+            border: 1px solid #6366f1;
           }
           .profile-text {
             display: flex;
@@ -584,6 +592,24 @@ export default function Sidebar() {
           .drawer-footer-btn:hover {
             color: #cbd5e1;
           }
+          .drawer-footer-btn.danger:hover {
+            color: #f87171 !important;
+          }
+          .drawer-footer-btn.danger:hover span {
+            color: #f87171 !important;
+          }
+
+          /* ─── Exit/Close Button (minimalist, red on hover) ─── */
+          .lum-sideItem.exit-btn {
+            transition: all 0.15s ease;
+          }
+          .lum-sideItem.exit-btn:hover {
+            background: rgba(239, 68, 68, 0.12) !important;
+            color: #f87171 !important;
+          }
+          .lum-sideItem.exit-btn:hover span.material-symbols-outlined {
+            color: #f87171 !important;
+          }
 
           @media (max-width: 768px) {
             .mobile-hamburger-btn {
@@ -639,6 +665,17 @@ export default function Sidebar() {
         </button>
 
         <button 
+          className={`lum-sideItem ${location.pathname === '/kanban' ? 'isActive' : ''}`} 
+          type="button"
+          onClick={() => navigate('/kanban')}
+        >
+          <span className="material-symbols-outlined">grid_view</span>
+          <span>Tablero Ocupación</span>
+        </button>
+
+
+        
+        <button 
           className={`lum-sideItem ${location.pathname === '/settings' ? 'isActive' : ''}`} 
           type="button"
           onClick={() => navigate('/settings')}
@@ -664,7 +701,7 @@ export default function Sidebar() {
             height: '34px', 
             borderRadius: '50%', 
             overflow: 'hidden',
-            border: '1px solid #14b8a6',
+            border: '1px solid #6366f1',
             flexShrink: 0
           }}>
             <img src={user.avatarDataUrl || user.avatar} alt="User" style={{ width: '100%', height: '100%' }} />
@@ -834,15 +871,14 @@ export default function Sidebar() {
         >
           <span className="material-symbols-outlined">support_agent</span>
           <span>Soporte</span>
-        </button>
-        <button 
-          className="lum-sideItem" 
-          type="button" 
-          onClick={handleLogout}
-        >
-          <span className="material-symbols-outlined">logout</span>
-          <span>Cerrar sesión</span>
-        </button>
+        </button>          <button 
+            className="lum-sideItem exit-btn" 
+            type="button" 
+            onClick={handleLogout}
+          >
+            <span className="material-symbols-outlined">logout</span>
+            <span>Cerrar sesión</span>
+          </button>
       </div>
     </aside>
     </>

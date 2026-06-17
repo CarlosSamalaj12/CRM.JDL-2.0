@@ -1,159 +1,191 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// Importar los reportes que el usuario ya creó
 import ReportsVentas from './ReportsVentas';
 import ReportsContabilidad from './ReportsContabilidad';
 import ReportsOcupacion from './ReportsOcupacion';
 import ReportsInstitucion from './ReportsInstitucion';
 import ReportsDashboard from './ReportsDashboard';
+import './reports.css';
 
+const BENTO_CARDS = [
+  { 
+    id: 'ventas', title: 'Reporte de Ventas', 
+    desc: 'Resumen comercial, cotizaciones y montos del pipeline',
+    badge: 'Ventas • Cotizaciones • Comisiones',
+    icon: '📊', variant: 'blue', featured: true,
+  },
+  { 
+    id: 'contabilidad', title: 'Estado de Cuenta',
+    desc: 'Ventas netas, cobros y control financiero por empresa',
+    badge: 'Contabilidad • Cartera • Pagos',
+    icon: '💳', variant: 'green',
+  },
+  { 
+    id: 'ocupacion', title: 'Ocupación',
+    desc: 'Uso de salones, disponibilidad y operación semanal',
+    badge: 'Salones • PAX • Ocupación',
+    icon: '📅', variant: 'purple',
+  },
+  { 
+    id: 'dashboard', title: 'Dashboard',
+    desc: 'KPIs, metas comerciales y rendimiento ejecutivo',
+    badge: 'KPIs • Metas • Rendimiento',
+    icon: '📈', variant: 'amber',
+  },
+  { 
+    id: 'institucion', title: 'Por Institución',
+    desc: 'Dashboard detallado por cliente, consumo e historial',
+    badge: 'Clientes • Historial • Análisis',
+    icon: '🏢', variant: 'rose',
+  },
+];
+
+const ICON_BG = {
+  blue: '#2563eb', green: '#16a34a', purple: '#7c3aed',
+  amber: '#d97706', rose: '#e11d48',
+};
+
+const reports = {
+  ventas: (handleClose) => <ReportsVentas onClose={handleClose} />,
+  contabilidad: (handleClose) => <ReportsContabilidad onClose={handleClose} />,
+  ocupacion: (handleClose) => <ReportsOcupacion onClose={handleClose} />,
+  dashboard: (handleClose) => <ReportsDashboard onClose={handleClose} />,
+  institucion: (handleClose) => <ReportsInstitucion onClose={handleClose} />,
+};
 
 export default function ReportsModule() {
   const navigate = useNavigate();
   const [selectedReport, setSelectedReport] = useState(null);
+  const [hoveredId, setHoveredId] = useState(null);
 
   const handleClose = () => setSelectedReport(null);
 
-  const reportCards = [
-    { 
-      id: 'ventas',
-      title: 'Reporte Ventas', 
-      desc: 'Resumen comercial y montos', 
-      icon: 'bar_chart',
-      component: <ReportsVentas onClose={handleClose} />
-    },
-    { 
-      id: 'contabilidad',
-      title: 'Reporte Contabilidad', 
-      desc: 'Ventas netas y control para Excel', 
-      icon: 'credit_card',
-      component: <ReportsContabilidad onClose={handleClose} />
-    },
-    { 
-      id: 'ocupacion',
-      title: 'Reporte Ocupacion', 
-      desc: 'Uso de salones y disponibilidad', 
-      icon: 'calendar_view_day',
-      component: <ReportsOcupacion onClose={handleClose} />
-    },
-    { 
-      id: 'dashboard',
-      title: 'Reporte Dashboard', 
-      desc: 'Indicadores y vista ejecutiva', 
-      icon: 'dashboard',
-      component: <ReportsDashboard onClose={handleClose} />
-    },
-
-    { 
-      id: 'institucion',
-      title: 'Reporte por institucion', 
-      desc: 'Dashboard y detalle por cliente', 
-      icon: 'corporate_fare',
-      component: <ReportsInstitucion onClose={handleClose} />
-    }
-  ];
-
-  // Si hay un reporte seleccionado, renderizar el componente correspondiente
-  if (selectedReport) {
-    const activeReport = reportCards.find(r => r.id === selectedReport);
-    return activeReport.component; // Quitamos el envoltorio extra para que el reporte use su propio diseño
+  if (selectedReport && reports[selectedReport]) {
+    return reports[selectedReport](handleClose);
   }
 
   return (
+    <>
+      <style>{`
+        .btn-exit {
+          background: transparent !important;
+          color: #94a3b8 !important;
+          border: none !important;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          position: relative;
+          overflow: visible;
+          outline: none;
+          font-family: inherit;
+        }
+        .btn-exit:hover {
+          background: rgba(239, 68, 68, 0.08) !important;
+          color: #ef4444 !important;
+        }
+        .btn-exit:focus-visible {
+          outline: 2px solid #ef4444;
+          outline-offset: 2px;
+        }
+        .btn-exit:active {
+          transform: scale(0.88);
+        }
+        .btn-exit svg {
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .btn-exit:hover svg {
+          transform: scale(1.2);
+        }
+        .btn-exit:hover .crm-icon-x {
+          transform: rotate(90deg) scale(1.2);
+        }
+      `}</style>
     <div style={{ 
-      padding: '40px', 
-      height: '100%', 
-      background: '#fff', 
-      display: 'flex', 
-      flexDirection: 'column' 
+      padding: '32px 40px', height: '100%', background: '#ffffff',
+      display: 'flex', flexDirection: 'column', overflow: 'auto',
     }}>
-      
-      {/* Header Estilo Screenshot */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'flex-start',
-        marginBottom: '30px'
-      }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
         <div>
-          <h1 style={{ 
-            fontSize: '48px', 
-            fontWeight: '900', 
-            color: '#1e293b', 
-            margin: 0,
-            letterSpacing: '-0.02em'
-          }}>Reportes</h1>
-          <p style={{ 
-            color: '#64748b', 
-            fontSize: '16px', 
-            marginTop: '8px',
-            fontWeight: '500'
-          }}>Elige el reporte que deseas consultar</p>
+          <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', marginBottom: '4px' }}>
+            CRM Reservas | Jardines del Lago
+          </div>
+          <h1 style={{ fontSize: '40px', fontWeight: '900', color: '#0f172a', margin: 0, letterSpacing: '-0.03em', lineHeight: '1.1' }}>
+            Reportes
+          </h1>
+          <p style={{ color: '#64748b', fontSize: '15px', marginTop: '6px', fontWeight: '500' }}>
+            Elige el reporte que deseas consultar
+          </p>
         </div>
         <button 
           onClick={() => navigate('/calendar')}
-          className="iconBtn"
-          title="Cerrar"
-          style={{ 
-            background: 'none',
-            border: 'none',
-            fontSize: '24px',
-            cursor: 'pointer',
-            color: '#64748b',
-            padding: '4px 8px',
-            lineHeight: '1'
+          data-tooltip="Cerrar"
+          className="btn-exit"
+          style={{
+            width: '36px', height: '36px', padding: '0',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '50%',
           }}
-        >&#10005;</button>
+        >
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
+            <path d="M4 4l10 10M14 4l-10 10" />
+          </svg>
+        </button>
       </div>
 
-      {/* Grid de Tarjetas */}
-      <div className="reports-menu-grid">
-        {reportCards.map((card, i) => (
-          <div key={i} 
-            onClick={() => setSelectedReport(card.id)}
-            style={{ 
-              background: '#fff', 
-              padding: '24px', 
-              borderRadius: '16px', 
-              border: '1.5px solid #bfdbfe',
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '16px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.borderColor = '#3b82f6';
-              e.currentTarget.style.background = '#f0f7ff';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.borderColor = '#bfdbfe';
-              e.currentTarget.style.background = '#fff';
-            }}
-          >
-            <div style={{ 
-              width: '52px', 
-              height: '52px', 
-              borderRadius: '14px', 
-              background: '#f0f7ff', 
-              display: 'grid', 
-              placeItems: 'center',
-              color: '#3b82f6'
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>{card.icon}</span>
-            </div>
-            <div>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{card.title}</div>
-              <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>{card.desc}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Bento Grid */}
+      <div className="reports-bento">
+        {BENTO_CARDS.map((card) => {
+          const isHovered = hoveredId === card.id;
+          return (
+            <div
+              key={card.id}
+              className={`reports-bento-card reports-bento-card--${card.variant} ${card.featured ? 'reports-bento__featured' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedReport(card.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedReport(card.id); }}
+              onMouseEnter={() => setHoveredId(card.id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
+              <div className="reports-bento-top">
+                <div 
+                  className="reports-bento-icon"
+                  style={{ 
+                    background: ICON_BG[card.variant],
+                    fontSize: card.featured ? '28px' : '22px',
+                    width: card.featured ? '60px' : '48px',
+                    height: card.featured ? '60px' : '48px',
+                    transform: isHovered ? 'scale(1.08)' : 'scale(1)',
+                    transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease',
+                  }}
+                >
+                  {card.icon}
+                </div>
+                <div className="reports-bento-arrow">→</div>
+              </div>
 
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div className="reports-bento-title" style={{ fontSize: card.featured ? '22px' : '18px' }}>
+                  {card.title}
+                </div>
+                <div className="reports-bento-desc">{card.desc}</div>
+              </div>
+
+              <div className="reports-bento-meta" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className={`reports-bento-badge reports-bento-badge--${card.variant}`}>
+                  {card.badge}
+                </span>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', opacity: isHovered ? 1 : 0.5, transition: 'opacity 0.2s ease' }}>
+                  Abrir →
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
+    </>
   );
 }

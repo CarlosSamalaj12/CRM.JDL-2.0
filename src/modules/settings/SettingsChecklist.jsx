@@ -90,12 +90,6 @@ export default function SettingsChecklist() {
     window.dispatchEvent(new Event('stateUpdated'));
   };
 
-  const persistEvents = async (updatedEvents) => {
-    const currentState = await loadCrmState();
-    await saveCrmState({ ...currentState, events: updatedEvents });
-    window.dispatchEvent(new Event('stateUpdated'));
-  };
-
   // ──────────────────────────────────────
   //  Close helpers
   // ──────────────────────────────────────
@@ -344,16 +338,18 @@ export default function SettingsChecklist() {
         const state = await loadCrmState();
         const loadedTemplates = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
         const events = Array.isArray(state.events) ? state.events : [];
+        const eventChecklistsObj = state.eventChecklists && typeof state.eventChecklists === 'object' ? state.eventChecklists : {};
         const evt = events.find(e => e.id === evtId);
 
         setTemplates(loadedTemplates);
         setEventId(evtId);
         setEventData(evt || null);
 
-        if (evt && evt.checklist) {
-          setEventTemplateId(String(evt.checklist.templateId || ''));
-          setEventNotes(evt.checklist.notes || '');
-          setEventItems(evt.checklist.items || []);
+        const chk = eventChecklistsObj[evtId] || evt?.checklist;
+        if (chk) {
+          setEventTemplateId(String(chk.templateId || ''));
+          setEventNotes(chk.notes || '');
+          setEventItems(chk.items || []);
         } else {
           setEventTemplateId('');
           setEventNotes('');
@@ -431,22 +427,24 @@ export default function SettingsChecklist() {
     setSaving(true);
     try {
       const currentState = await loadCrmState();
-      const events = Array.isArray(currentState.events) ? currentState.events : [];
+      const currentChecklists = currentState.eventChecklists && typeof currentState.eventChecklists === 'object' ? currentState.eventChecklists : {};
 
-      const updatedEvents = events.map(ev => {
-        if (ev.id !== eventId) return ev;
-        return {
-          ...ev,
-          checklist: {
-            templateId: eventTemplateId ? Number(eventTemplateId) : null,
-            notes: eventNotes,
-            items: eventItems
-          }
-        };
+      const nextChecklists = {
+        ...currentChecklists,
+        [eventId]: {
+          templateId: eventTemplateId ? Number(eventTemplateId) : null,
+          notes: eventNotes,
+          items: eventItems
+        }
+      };
+
+      await saveCrmState({
+        ...currentState,
+        eventChecklists: nextChecklists
       });
-
-      await persistEvents(updatedEvents);
       toast('Check list guardado');
+      window.dispatchEvent(new Event('stateUpdated'));
+      handleCloseEvent();
     } catch (err) {
       console.error(err);
       toast('Error al guardar check list');
@@ -474,16 +472,17 @@ export default function SettingsChecklist() {
               <div className="modalTitle" id="checklistTemplateTitle">Configurar Check List</div>
               <div className="modalSubtitle">Define plantillas, secciones y puntos para eventos</div>
             </div>
-            <button className="iconBtn" id="btnChecklistTemplateClose" type="button" title="Cerrar" onClick={handleCloseTemplate}>&#10005;</button>
+            <button className="btn-exit" id="btnChecklistTemplateClose" type="button" title="Cerrar" onClick={handleCloseTemplate}>
+            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
+          </button>
           </div>
           <div className="modalBody">
             {/* Row 1: Template select + name */}
-            <div className="row2">
-              <label className="field">
+            <div className="settings-field-group">
+              <label className="settings-modern-field">
                 <span>Plantilla existente</span>
                 <select
                   id="checklistTemplateSelect"
-                  className="uniformFieldControl"
                   value={selectedTemplateId}
                   onChange={handleTemplateSelectChange}
                 >
@@ -495,11 +494,10 @@ export default function SettingsChecklist() {
                   ))}
                 </select>
               </label>
-              <label className="field">
+              <label className="settings-modern-field">
                 <span>Nombre de plantilla</span>
                 <input
                   id="checklistTemplateName"
-                  className="uniformFieldControl"
                   type="text"
                   placeholder="Ej: Checklist corporativo"
                   value={templateName}
@@ -509,10 +507,10 @@ export default function SettingsChecklist() {
             </div>
 
             {/* Row 2: Active + actions */}
-            <div className="row2">
-              <div className="field">
+                        <div className="settings-field-group">
+              <div className="settings-modern-field">
                 <span>Estado plantilla</span>
-                <label className="statusSwitchInline uniformFieldControl">
+                <label className="settings-switch-inline">
                   <input
                     id="checklistTemplateActive"
                     type="checkbox"
@@ -522,33 +520,31 @@ export default function SettingsChecklist() {
                   <span>{templateActive ? 'Plantilla activa' : 'Plantilla inactiva'}</span>
                 </label>
               </div>
-              <div className="field">
+                            <div className="settings-modern-field">
                 <span>Acciones plantilla</span>
                 <div className="rightActions">
-                  <button className="btn-cancel" id="btnChecklistTemplateNew" type="button" onClick={handleNewTemplate}>Nueva plantilla</button>
-                  <button className="btn-cancelar" id="btnChecklistTemplateDisable" type="button" onClick={handleDisableTemplate} disabled={!selectedTemplateId}>Inhabilitar</button>
+                  <button className="settings-cancel-btn" id="btnChecklistTemplateNew" type="button" onClick={handleNewTemplate}>Nueva plantilla</button>
+                  <button className="settings-danger-btn" id="btnChecklistTemplateDisable" type="button" onClick={handleDisableTemplate} disabled={!selectedTemplateId}>Inhabilitar</button>
                 </div>
               </div>
             </div>
 
             {/* Row 3: Point input + section selector for adding */}
-            <div className="row2">
-              <label className="field">
+                        <div className="settings-field-group">
+              <label className="settings-modern-field">
                 <span>Punto a chequear</span>
                 <input
                   id="checklistTemplateInput"
-                  className="uniformFieldControl"
                   type="text"
                   placeholder="Ej: Montaje de mesas completo"
                   value={itemText}
                   onChange={(e) => setItemText(e.target.value)}
                 />
               </label>
-              <label className="field">
+              <label className="settings-modern-field">
                 <span>Seccion</span>
                 <select
                   id="checklistTemplateSectionSelect"
-                  className="uniformFieldControl"
                   value={itemSectionId}
                   onChange={(e) => setItemSectionId(e.target.value)}
                 >
@@ -561,12 +557,11 @@ export default function SettingsChecklist() {
             </div>
 
             {/* Row 4: Section edit + section name */}
-            <div className="row2">
-              <label className="field">
+                        <div className="settings-field-group">
+              <label className="settings-modern-field">
                 <span>Seccion a editar</span>
                 <select
                   id="checklistTemplateSectionEditSelect"
-                  className="uniformFieldControl"
                   value={selectedSectionId}
                   onChange={(e) => {
                     const sid = e.target.value;
@@ -585,11 +580,10 @@ export default function SettingsChecklist() {
                   ))}
                 </select>
               </label>
-              <label className="field">
+                            <label className="settings-modern-field">
                 <span>Nueva o editar seccion</span>
                 <input
                   id="checklistTemplateSectionInput"
-                  className="uniformFieldControl"
                   type="text"
                   placeholder="Ej: Salon"
                   value={sectionName}
@@ -599,25 +593,25 @@ export default function SettingsChecklist() {
             </div>
 
             {/* Row 5: Section actions + point actions */}
-            <div className="row2">
-              <div className="field">
+                        <div className="settings-field-group">
+              <div className="settings-modern-field">
                 <span>Acciones seccion</span>
                 <div className="rightActions">
-                  <button className="btn-cotizar" id="btnChecklistTemplateAddSection" type="button" onClick={handleSaveSection}>Guardar seccion</button>
-                  <button className="btn-cancel" id="btnChecklistTemplateResetSection" type="button" onClick={resetSectionForm}>Nueva seccion</button>
+                  <button className="settings-accent-btn" id="btnChecklistTemplateAddSection" type="button" onClick={handleSaveSection}>Guardar seccion</button>
+                  <button className="settings-cancel-btn" id="btnChecklistTemplateResetSection" type="button" onClick={resetSectionForm}>Nueva seccion</button>
                 </div>
               </div>
-              <div className="field">
+              <div className="settings-modern-field">
                 <span>Acciones punto</span>
                 <div className="rightActions">
-                  <button className="btn-teal" id="btnChecklistTemplateAdd" type="button" onClick={handleAddPoint}>Agregar punto</button>
+                  <button className="settings-primary-btn" id="btnChecklistTemplateAdd" type="button" onClick={handleAddPoint}>Agregar punto</button>
                 </div>
               </div>
             </div>
 
             {/* Sections table */}
-            <div className="quoteTableWrap">
-              <table className="quoteTable">
+                        <div className="settings-table-wrap">
+              <table className="settings-table">
                 <thead>
                   <tr>
                     <th>Seccion</th>
@@ -628,7 +622,7 @@ export default function SettingsChecklist() {
                 <tbody id="checklistTemplateSectionsBody">
                   {(!selectedTemplate || selectedTemplate.sections.length === 0) ? (
                     <tr>
-                      <td colSpan="3" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>
+                      <td colSpan="3" className="settings-td-center settings-empty-row">
                         {selectedTemplate ? 'No hay secciones' : 'Seleccione una plantilla'}
                       </td>
                     </tr>
@@ -637,21 +631,18 @@ export default function SettingsChecklist() {
                       <tr key={s.id}>
                         <td>{s.name}</td>
                         <td>{s.items.length} punto(s)</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                        <td className="settings-td-center">
+                          <div className="settings-table-actions">
                             <button
                               type="button"
                               title="Editar sección"
-                              className="btn-cancel"
                               onClick={() => handleEditSection(s)}
-                              style={{ padding: '2px 8px', fontSize: '12px' }}
                             >✎</button>
                             <button
                               type="button"
                               title="Eliminar sección"
-                              className="btn-cancelar"
+                              className="danger"
                               onClick={() => handleDeleteSection(s.id)}
-                              style={{ padding: '2px 8px', fontSize: '12px' }}
                             >✕</button>
                           </div>
                         </td>
@@ -663,8 +654,8 @@ export default function SettingsChecklist() {
             </div>
 
             {/* Items table */}
-            <div className="quoteTableWrap">
-              <table className="quoteTable">
+                        <div className="settings-table-wrap">
+              <table className="settings-table">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -677,7 +668,7 @@ export default function SettingsChecklist() {
                 <tbody id="checklistTemplateBody">
                   {allItems.length === 0 ? (
                     <tr>
-                      <td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>
+                      <td colSpan="5" className="settings-td-center settings-empty-row">
                         {selectedTemplate ? 'No hay puntos' : 'Seleccione una plantilla'}
                       </td>
                     </tr>
@@ -688,14 +679,15 @@ export default function SettingsChecklist() {
                         <td>{item.sectionName}</td>
                         <td>{item.text}</td>
                         <td>{item.order}</td>
-                        <td>
-                          <button
-                            type="button"
-                            title="Eliminar punto"
-                            className="btn-cancelar"
-                            onClick={() => handleDeletePoint(item.sectionId, item.id)}
-                            style={{ padding: '2px 8px', fontSize: '12px' }}
-                          >✕</button>
+                        <td className="settings-td-center">
+                          <div className="settings-table-actions">
+                            <button
+                              type="button"
+                              title="Eliminar punto"
+                              className="danger"
+                              onClick={() => handleDeletePoint(item.sectionId, item.id)}
+                            >✕</button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -709,9 +701,9 @@ export default function SettingsChecklist() {
           <div className="modalFooter">
             <div></div>
             <div className="rightActions">
-              <button className="btn-cancel" type="button" onClick={handleCloseTemplate}>Cerrar</button>
+              <button className="btn-exit" type="button" onClick={handleCloseTemplate}>Cerrar</button>
               <button
-                className="btn-teal"
+                className="settings-primary-btn"
                 id="btnChecklistTemplateSave"
                 type="button"
                 disabled={saving}
@@ -740,29 +732,29 @@ export default function SettingsChecklist() {
                 {eventData ? `${eventData.eventName || eventData.client || ''} — ${eventData.date || ''}` : '-'}
               </div>
             </div>
-            <button className="iconBtn" id="btnEventChecklistClose" type="button" title="Cerrar" onClick={handleCloseEvent}>&#10005;</button>
+            <button className="btn-exit" id="btnEventChecklistClose" type="button" title="Cerrar" onClick={handleCloseEvent}>
+            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
+          </button>
           </div>
           <div className="modalBody">
             {/* Template select */}
-            <div className="row1">
-              <label className="field">
-                <span>Plantilla</span>
-                <select
-                  id="eventChecklistTemplateSelect"
-                  value={eventTemplateId}
-                  onChange={handleEventTemplateChange}
+            <div className="settings-modern-field">
+              <span>Plantilla</span>
+              <select
+                id="eventChecklistTemplateSelect"
+                value={eventTemplateId}
+                onChange={handleEventTemplateChange}
                 >
                   <option value="">-- Seleccione plantilla --</option>
                   {templates.filter(t => t.active).map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
-              </label>
             </div>
 
             {/* Date + Event name */}
-            <div className="row2">
-              <label className="field">
+            <div className="settings-field-group">
+              <label className="settings-modern-field">
                 <span>Fecha</span>
                 <input
                   id="eventChecklistDate"
@@ -771,7 +763,7 @@ export default function SettingsChecklist() {
                   value={eventData?.date || eventData?.eventDate || ''}
                 />
               </label>
-              <label className="field">
+              <label className="settings-modern-field">
                 <span>Evento</span>
                 <input
                   id="eventChecklistEventName"
@@ -783,7 +775,7 @@ export default function SettingsChecklist() {
             </div>
 
             {/* Notes */}
-            <label className="field">
+            <label className="settings-modern-field">
               <span>Sugerencias / comentarios</span>
               <textarea
                 id="eventChecklistNotes"
@@ -810,8 +802,8 @@ export default function SettingsChecklist() {
             </div>
 
             {/* Items table */}
-            <div className="quoteTableWrap">
-              <table className="quoteTable">
+            <div className="settings-table-wrap">
+              <table className="settings-table">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -823,7 +815,7 @@ export default function SettingsChecklist() {
                 <tbody id="eventChecklistBody">
                   {eventItems.length === 0 ? (
                     <tr>
-                      <td colSpan="4" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>
+                      <td colSpan="4" className="settings-td-center settings-empty-row">
                         Seleccione una plantilla para cargar puntos
                       </td>
                     </tr>
@@ -836,7 +828,7 @@ export default function SettingsChecklist() {
                           <select
                             value={item.status}
                             onChange={(e) => handleEventItemStatus(item.id, e.target.value)}
-                            className="uniformFieldControl"
+                            className="settings-input-compact"
                           >
                             <option value="pendiente">Pendiente</option>
                             <option value="en_proceso">En proceso</option>
@@ -850,7 +842,7 @@ export default function SettingsChecklist() {
                             value={item.comment}
                             onChange={(e) => handleEventItemComment(item.id, e.target.value)}
                             placeholder="Comentario"
-                            className="uniformFieldControl"
+                            className="settings-input-compact"
                           />
                         </td>
                       </tr>
@@ -863,9 +855,9 @@ export default function SettingsChecklist() {
           <div className="modalFooter">
             <div></div>
             <div className="rightActions">
-              <button className="btn-cancel" id="btnEventChecklistDiscard" type="button" onClick={handleCloseEvent}>Cerrar</button>
+              <button className="btn-exit" id="btnEventChecklistDiscard" type="button" onClick={handleCloseEvent}>Cerrar</button>
               <button
-                className="btn-teal"
+                className="settings-primary-btn"
                 id="btnEventChecklistSave"
                 type="button"
                 disabled={saving}

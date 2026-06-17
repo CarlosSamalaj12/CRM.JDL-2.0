@@ -3,8 +3,23 @@ const express = require("express");
 const mariadb = require("mariadb");
 const crypto = require("crypto");
 const fs = require("fs");
+const http = require("http");
+const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const { createGoogleEvent, createUserReminder } = require("./googleCalendar.cjs");
+const { createGoogleEvent, createUserReminder, deleteUserReminder } = require("./googleCalendar.cjs");
+
+const JWT_SECRET = process.env.JWT_SECRET || 'sistema_informes_secret_key_change_in_prod';
+
+// Normaliza roles del CRM a formato capitalizado que esperan los controllers de Informes Eventos
+// 'admin' → 'Admin', 'vendedor' → 'Vendedor', 'recepcionista' → 'FrontOffice'
+function normalizeRoleForJWT(role) {
+  const raw = String(role || '').trim().toLowerCase();
+  if (raw === 'admin') return 'Admin';
+  if (raw === 'recepcionista' || raw === 'frontoffice' || raw === 'front_office') return 'FrontOffice';
+  if (raw === 'vendedor' || raw === 'vendedor(a)' || raw === 'sales') return 'Vendedor';
+  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : 'Vendedor';
+}
 
 const APP_PORT = Number(process.env.APP_PORT || 3000);
 const DB_HOST = process.env.DB_HOST || "127.0.0.1";
@@ -18,9 +33,6 @@ const REQUIRED_TABLES = [
   "usuarios",
   "empresas",
   "encargados_empresa",
-  "categorias_servicio",
-  "subcategorias_servicio",
-  "servicios",
   "eventos",
   "cotizaciones_evento",
   "items_cotizacion_evento",
@@ -29,23 +41,6 @@ const REQUIRED_TABLES = [
   "historial_evento",
   "recordatorios_evento",
   "anticipos_evento",
-  "menu_platos_fuertes",
-  "menu_preparaciones",
-  "menu_salsas",
-  "menu_preparacion_salsa_sugerida",
-  "menu_preparacion_postre_sugerido",
-  "menu_plato_guarnicion_sugerida",
-  "menu_guarniciones",
-  "menu_postres",
-  "menu_bebidas",
-  "menu_comentarios_adicionales",
-  "montaje_tipos",
-  "montaje_adicionales",
-  "montaje_tipo_adicional_sugerido",
-  "menu_montaje_plantillas",
-  "menu_montaje_plantilla_detalle",
-  "menu_montaje_plantilla_guarnicion",
-  "menu_montaje_plantilla_adicional",
 ];
 
 const pool = mariadb.createPool({
@@ -61,8 +56,8 @@ const pool = mariadb.createPool({
 const app = express();
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   
   // Desactivar caché del navegador para todas las rutas de la API para evitar datos obsoletos (stale state)
   if (req.path.startsWith("/api/")) {
@@ -371,8 +366,8 @@ async function reserveNextDocCode(scope = "COT") {
 function buildQuoteItemPrimaryKey(eventId, item, idx) {
   const e = str(eventId).trim() || "ev";
   const raw = str(item?.rowId).trim() || `row_${idx + 1}`;
-  const composed = `${e}__${raw}__${idx + 1}`;
-  return composed.slice(0, 100);
+  const composed = `${e.slice(0, 100)}__${raw.slice(0, 50)}__${idx + 1}`;
+  return composed.slice(0, 200);
 }
 
 function calculateQuoteTotals(quote) {
@@ -390,107 +385,7 @@ function calculateQuoteTotals(quote) {
 }
 
 async function ensureServiceCatalogStructure() {
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS categorias_servicio (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(140) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_categorias_servicio_nombre (nombre)
-      )
-    `);
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS subcategorias_servicio (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        id_categoria BIGINT UNSIGNED NOT NULL,
-        nombre VARCHAR(140) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_subcategorias_servicio (id_categoria, nombre),
-        KEY idx_subcategorias_servicio_categoria (id_categoria),
-        CONSTRAINT fk_subcategorias_categoria
-          FOREIGN KEY (id_categoria) REFERENCES categorias_servicio(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    const catCols = await conn.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'categorias_servicio'`,
-      [DB_NAME]
-    );
-    const catColSet = new Set(catCols.map((r) => String(r.column_name || "").toLowerCase()));
-    if (!catColSet.has("activo")) {
-      await conn.query("ALTER TABLE categorias_servicio ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1");
-    }
-
-    const subcatCols = await conn.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'subcategorias_servicio'`,
-      [DB_NAME]
-    );
-    const subcatColSet = new Set(subcatCols.map((r) => String(r.column_name || "").toLowerCase()));
-    if (!subcatColSet.has("activo")) {
-      await conn.query("ALTER TABLE subcategorias_servicio ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1");
-    }
-
-    const cols = await conn.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'servicios'`,
-      [DB_NAME]
-    );
-    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
-    if (!colSet.has("id_categoria")) {
-      await conn.query("ALTER TABLE servicios ADD COLUMN id_categoria BIGINT UNSIGNED NULL");
-    }
-    if (!colSet.has("id_subcategoria")) {
-      await conn.query("ALTER TABLE servicios ADD COLUMN id_subcategoria BIGINT UNSIGNED NULL");
-    }
-    if (!colSet.has("modo_cantidad")) {
-      await conn.query("ALTER TABLE servicios ADD COLUMN modo_cantidad VARCHAR(12) NOT NULL DEFAULT 'MANUAL'");
-    }
-
-    const stats = await conn.query(
-      `SELECT DISTINCT index_name FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'servicios'`,
-      [DB_NAME]
-    );
-    const idxSet = new Set(stats.map((r) => String(r.index_name || "").toLowerCase()));
-    if (!idxSet.has("idx_servicios_categoria")) {
-      await conn.query("ALTER TABLE servicios ADD KEY idx_servicios_categoria (id_categoria)");
-    }
-    if (!idxSet.has("idx_servicios_subcategoria")) {
-      await conn.query("ALTER TABLE servicios ADD KEY idx_servicios_subcategoria (id_subcategoria)");
-    }
-
-    const constraints = await conn.query(
-      `SELECT constraint_name FROM information_schema.table_constraints WHERE table_schema = ? AND table_name = 'servicios' AND constraint_type = 'FOREIGN KEY'`,
-      [DB_NAME]
-    );
-    const fkSet = new Set(constraints.map((r) => String(r.constraint_name || "").toLowerCase()));
-    if (!fkSet.has("fk_servicios_categoria")) {
-      await conn.query(`
-        ALTER TABLE servicios
-        ADD CONSTRAINT fk_servicios_categoria
-          FOREIGN KEY (id_categoria) REFERENCES categorias_servicio(id)
-          ON DELETE SET NULL
-          ON UPDATE CASCADE
-      `);
-    }
-    if (!fkSet.has("fk_servicios_subcategoria")) {
-      await conn.query(`
-        ALTER TABLE servicios
-        ADD CONSTRAINT fk_servicios_subcategoria
-          FOREIGN KEY (id_subcategoria) REFERENCES subcategorias_servicio(id)
-          ON DELETE SET NULL
-          ON UPDATE CASCADE
-      `);
-    }
-  } finally {
-    if (conn) conn.release();
-  }
+  // Catalogo de servicios deshabilitado / removido.
 }
 
 async function ensureQuoteVersionStructure() {
@@ -500,7 +395,7 @@ async function ensureQuoteVersionStructure() {
     await conn.query(`
       CREATE TABLE IF NOT EXISTS cotizacion_versiones_evento (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        id_evento VARCHAR(100) NOT NULL,
+        id_evento VARCHAR(30) NOT NULL,
         version_num INT NOT NULL,
         subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
         descuento_tipo VARCHAR(12) NOT NULL DEFAULT 'AMOUNT',
@@ -518,10 +413,10 @@ async function ensureQuoteVersionStructure() {
     await conn.query(`
       CREATE TABLE IF NOT EXISTS items_cotizacion_version_evento (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        id_evento VARCHAR(100) NOT NULL,
+        id_evento VARCHAR(30) NOT NULL,
         version_num INT NOT NULL,
         fila_num INT NOT NULL,
-        id_servicio VARCHAR(100) NULL,
+        id_servicio VARCHAR(30) NULL,
         fecha_servicio DATE NULL,
         cantidad DECIMAL(12,2) NOT NULL DEFAULT 0,
         precio DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -651,7 +546,7 @@ async function ensureAdvancesStructure() {
       [DB_NAME]
     );
     const idMeta = idMetaRows?.[0] || {};
-    const colType = String(idMeta.column_type || "varchar(80)").trim();
+    const colType = String(idMeta.column_type || "varchar(30)").trim();
     const charset = String(idMeta.character_set_name || "").trim();
     const collation = String(idMeta.collation_name || "").trim();
     const idEventoColumnSql = [
@@ -718,421 +613,23 @@ async function ensureAdvancesStructure() {
 }
 
 async function ensureMenuMontajeCatalogStructure() {
+  // Catalogo de menus y montajes deshabilitado / removido.
+}
+
+async function ensureQuoteItemPrimaryKeyColumnSize() {
   let conn;
   try {
     conn = await pool.getConnection();
-    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_platos_fuertes (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(180) NOT NULL,
-        tipo_plato VARCHAR(20) NOT NULL DEFAULT 'NORMAL',
-        es_sin_proteina TINYINT(1) NOT NULL DEFAULT 0,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_platos_fuertes_nombre (nombre)
-      )
-    `);
-
-    const menuPlatoCols = await conn.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'menu_platos_fuertes'`,
+    const cols = await conn.query(
+      `SELECT column_name, character_maximum_length FROM information_schema.columns WHERE table_schema = ? AND table_name = 'items_cotizacion_evento' AND column_name = 'id'`,
       [DB_NAME]
     );
-    const menuPlatoColSet = new Set(menuPlatoCols.map((r) => String(r.column_name || "").toLowerCase()));
-    if (!menuPlatoColSet.has("tipo_plato")) {
-      await conn.query("ALTER TABLE menu_platos_fuertes ADD COLUMN tipo_plato VARCHAR(20) NOT NULL DEFAULT 'NORMAL'");
-    }
-    if (!menuPlatoColSet.has("es_sin_proteina")) {
-      await conn.query("ALTER TABLE menu_platos_fuertes ADD COLUMN es_sin_proteina TINYINT(1) NOT NULL DEFAULT 0");
-    }
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_preparaciones (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        nombre VARCHAR(180) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_preparaciones_plato_nombre (id_plato_fuerte, nombre),
-        KEY idx_menu_preparaciones_plato (id_plato_fuerte),
-        CONSTRAINT fk_menu_preparaciones_plato
-          FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_salsas (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(180) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_salsas_nombre (nombre)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_preparacion_salsa_sugerida (
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_salsa BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_preparacion, id_salsa),
-        KEY idx_menu_preparacion_salsa_sugerida_salsa (id_salsa),
-        CONSTRAINT fk_menu_preparacion_sugerida_preparacion
-          FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_preparacion_sugerida_salsa
-          FOREIGN KEY (id_salsa) REFERENCES menu_salsas(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_preparacion_postre_sugerido (
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_postre BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_preparacion, id_postre),
-        KEY idx_menu_preparacion_postre_sugerido_postre (id_postre),
-        CONSTRAINT fk_menu_preparacion_postre_preparacion
-          FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_preparacion_postre_postre
-          FOREIGN KEY (id_postre) REFERENCES menu_postres(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_plato_guarnicion_sugerida (
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        id_guarnicion BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_plato_fuerte, id_guarnicion),
-        KEY idx_menu_plato_guarnicion_sugerida_guarnicion (id_guarnicion),
-        CONSTRAINT fk_menu_plato_guarnicion_plato
-          FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_plato_guarnicion_guarnicion
-          FOREIGN KEY (id_guarnicion) REFERENCES menu_guarniciones(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_plato_preparacion_salsa_sugerida (
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_salsa BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_plato_fuerte, id_preparacion, id_salsa),
-        KEY idx_menu_pp_salsa_salsa (id_salsa),
-        CONSTRAINT fk_menu_pp_salsa_plato FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_salsa_preparacion FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_salsa_item FOREIGN KEY (id_salsa) REFERENCES menu_salsas(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_plato_preparacion_postre_sugerido (
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_postre BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_plato_fuerte, id_preparacion, id_postre),
-        KEY idx_menu_pp_postre_postre (id_postre),
-        CONSTRAINT fk_menu_pp_postre_plato FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_postre_preparacion FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_postre_item FOREIGN KEY (id_postre) REFERENCES menu_postres(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_plato_preparacion_guarnicion_sugerida (
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_guarnicion BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_plato_fuerte, id_preparacion, id_guarnicion),
-        KEY idx_menu_pp_guarnicion_guarnicion (id_guarnicion),
-        CONSTRAINT fk_menu_pp_guarnicion_plato FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_guarnicion_preparacion FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_guarnicion_item FOREIGN KEY (id_guarnicion) REFERENCES menu_guarniciones(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_plato_preparacion_bebida_sugerida (
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_bebida BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_plato_fuerte, id_preparacion, id_bebida),
-        KEY idx_menu_pp_bebida_bebida (id_bebida),
-        CONSTRAINT fk_menu_pp_bebida_plato FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_bebida_preparacion FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_bebida_item FOREIGN KEY (id_bebida) REFERENCES menu_bebidas(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_plato_preparacion_montaje_tipo_sugerido (
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_montaje_tipo BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_plato_fuerte, id_preparacion, id_montaje_tipo),
-        KEY idx_menu_pp_montaje_tipo_tipo (id_montaje_tipo),
-        CONSTRAINT fk_menu_pp_montaje_tipo_plato FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_montaje_tipo_preparacion FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_montaje_tipo_item FOREIGN KEY (id_montaje_tipo) REFERENCES montaje_tipos(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_plato_preparacion_montaje_adicional_sugerido (
-        id_plato_fuerte BIGINT UNSIGNED NOT NULL,
-        id_preparacion BIGINT UNSIGNED NOT NULL,
-        id_adicional BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_plato_fuerte, id_preparacion, id_adicional),
-        KEY idx_menu_pp_montaje_adicional_adicional (id_adicional),
-        CONSTRAINT fk_menu_pp_montaje_adicional_plato FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_montaje_adicional_preparacion FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_pp_montaje_adicional_item FOREIGN KEY (id_adicional) REFERENCES montaje_adicionales(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_guarniciones (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(180) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_guarniciones_nombre (nombre)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_postres (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(180) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_postres_nombre (nombre)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_bebidas (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(180) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_bebidas_nombre (nombre)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_comentarios_adicionales (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(240) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_comentarios_adicionales_nombre (nombre)
-      )
-    `);
-
-    // Migracion legacy: si bebidas existian en app_state_kv JSON, pasarlas a tabla relacional.
-    try {
-      const legacyRows = await conn.query(
-        "SELECT valor_json FROM app_state_kv WHERE clave = 'menuMontajeBebidas' LIMIT 1"
-      );
-      const raw = str(legacyRows?.[0]?.valor_json);
-      if (raw) {
-        let parsed = [];
-        try {
-          parsed = JSON.parse(raw);
-        } catch (_) {
-          parsed = [];
-        }
-        if (Array.isArray(parsed)) {
-          for (const row of parsed) {
-            const nombre = str(row?.nombre || row?.name || row).trim();
-            if (!nombre) continue;
-            const activo = row?.activo === false ? 0 : 1;
-            await conn.query(
-              `INSERT INTO menu_bebidas (nombre, activo) VALUES (?, ?)
-               ON DUPLICATE KEY UPDATE activo = VALUES(activo)`,
-              [nombre, activo]
-            );
-          }
-        }
+    if (cols.length > 0) {
+      const currentLen = Number(cols[0].character_maximum_length);
+      if (currentLen < 200) {
+        await conn.query("ALTER TABLE items_cotizacion_evento MODIFY COLUMN id VARCHAR(200) NOT NULL");
       }
-    } catch (_) {
-      // app_state_kv puede no existir todavia en instalaciones viejas durante bootstrap.
     }
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS montaje_tipos (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(180) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_montaje_tipos_nombre (nombre)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS montaje_adicionales (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(180) NOT NULL,
-        tipo VARCHAR(120) NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_montaje_adicionales_nombre (nombre)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS montaje_tipo_adicional_sugerido (
-        id_montaje_tipo BIGINT UNSIGNED NOT NULL,
-        id_adicional BIGINT UNSIGNED NOT NULL,
-        prioridad INT NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_montaje_tipo, id_adicional),
-        KEY idx_montaje_tipo_adicional_sugerido_adicional (id_adicional),
-        CONSTRAINT fk_montaje_tipo_adicional_sugerido_tipo
-          FOREIGN KEY (id_montaje_tipo) REFERENCES montaje_tipos(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_montaje_tipo_adicional_sugerido_adicional
-          FOREIGN KEY (id_adicional) REFERENCES montaje_adicionales(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_montaje_plantillas (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        nombre VARCHAR(200) NOT NULL,
-        activo TINYINT(1) NOT NULL DEFAULT 1,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_menu_montaje_plantillas_nombre (nombre)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_montaje_plantilla_detalle (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        id_plantilla BIGINT UNSIGNED NOT NULL,
-        id_plato_fuerte BIGINT UNSIGNED NULL,
-        id_preparacion BIGINT UNSIGNED NULL,
-        id_salsa BIGINT UNSIGNED NULL,
-        id_postre BIGINT UNSIGNED NULL,
-        cantidad INT NULL,
-        notas TEXT NULL,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY idx_menu_montaje_plantilla_detalle_plantilla (id_plantilla),
-        KEY idx_menu_montaje_plantilla_detalle_plato (id_plato_fuerte),
-        KEY idx_menu_montaje_plantilla_detalle_preparacion (id_preparacion),
-        KEY idx_menu_montaje_plantilla_detalle_salsa (id_salsa),
-        KEY idx_menu_montaje_plantilla_detalle_postre (id_postre),
-        CONSTRAINT fk_menu_montaje_plantilla_detalle_plantilla
-          FOREIGN KEY (id_plantilla) REFERENCES menu_montaje_plantillas(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_montaje_plantilla_detalle_plato
-          FOREIGN KEY (id_plato_fuerte) REFERENCES menu_platos_fuertes(id)
-          ON DELETE SET NULL
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_montaje_plantilla_detalle_preparacion
-          FOREIGN KEY (id_preparacion) REFERENCES menu_preparaciones(id)
-          ON DELETE SET NULL
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_montaje_plantilla_detalle_salsa
-          FOREIGN KEY (id_salsa) REFERENCES menu_salsas(id)
-          ON DELETE SET NULL
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_montaje_plantilla_detalle_postre
-          FOREIGN KEY (id_postre) REFERENCES menu_postres(id)
-          ON DELETE SET NULL
-          ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_montaje_plantilla_guarnicion (
-        id_detalle BIGINT UNSIGNED NOT NULL,
-        id_guarnicion BIGINT UNSIGNED NOT NULL,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_detalle, id_guarnicion),
-        KEY idx_menu_montaje_plantilla_guarnicion_guarnicion (id_guarnicion),
-        CONSTRAINT fk_menu_montaje_plantilla_guarnicion_detalle
-          FOREIGN KEY (id_detalle) REFERENCES menu_montaje_plantilla_detalle(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_montaje_plantilla_guarnicion_guarnicion
-          FOREIGN KEY (id_guarnicion) REFERENCES menu_guarniciones(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS menu_montaje_plantilla_adicional (
-        id_detalle BIGINT UNSIGNED NOT NULL,
-        id_montaje_tipo BIGINT UNSIGNED NULL,
-        id_adicional BIGINT UNSIGNED NOT NULL,
-        cantidad INT NULL,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id_detalle, id_adicional),
-        KEY idx_menu_montaje_plantilla_adicional_tipo (id_montaje_tipo),
-        KEY idx_menu_montaje_plantilla_adicional_adicional (id_adicional),
-        CONSTRAINT fk_menu_montaje_plantilla_adicional_detalle
-          FOREIGN KEY (id_detalle) REFERENCES menu_montaje_plantilla_detalle(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_montaje_plantilla_adicional_tipo
-          FOREIGN KEY (id_montaje_tipo) REFERENCES montaje_tipos(id)
-          ON DELETE SET NULL
-          ON UPDATE CASCADE,
-        CONSTRAINT fk_menu_montaje_plantilla_adicional_adicional
-          FOREIGN KEY (id_adicional) REFERENCES montaje_adicionales(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-    await conn.query("SET FOREIGN_KEY_CHECKS = 1");
   } finally {
     if (conn) conn.release();
   }
@@ -1166,75 +663,60 @@ async function readStateFromTables() {
       usuarios,
       empresas,
       encargados,
-      servicios,
       eventos,
       historial,
       recordatorios,
-      bebidasCatalog,
       appStateRows,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
       conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, rol FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
-      conn.query(`
-        SELECT
-          s.id,
-          s.nombre,
-          s.precio,
-          s.descripcion,
-          s.id_categoria,
-          s.id_subcategoria,
-          s.modo_cantidad,
-          c.nombre AS categoria_nombre,
-          sc.nombre AS subcategoria_nombre
-        FROM servicios s
-        LEFT JOIN categorias_servicio c ON c.id = s.id_categoria
-        LEFT JOIN subcategorias_servicio sc ON sc.id = s.id_subcategoria
-        ORDER BY s.creado_en, s.id
-      `),
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT id, nombre, activo FROM menu_bebidas ORDER BY nombre ASC"),      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities')"),
     ]);
 
-    const hasData = salones.length || usuarios.length || empresas.length || servicios.length || eventos.length;
+    let dbServicesList = [];
+    const servicesRow = appStateRows.find((r) => String(r.clave) === "services");
+    if (servicesRow?.valor_json) {
+      try {
+        const parsed = JSON.parse(servicesRow.valor_json);
+        if (Array.isArray(parsed)) {
+          dbServicesList = parsed.map((s) => ({
+            id: String(s.id),
+            name: String(s.name),
+            price: Number(s.price || 0),
+            description: String(s.description || s.desc || ""),
+            category: String(s.category || 'General'),
+            subcategory: String(s.subcategory || ''),
+            quantityMode: String(s.quantityMode || 'MANUAL'),
+            active: s.active !== false
+          }));
+        }
+      } catch (_) {}
+    }
+    const bebidasCatalog = [];
+
+    const hasData = salones.length || usuarios.length || empresas.length || eventos.length;
     if (!hasData) return null;
 
-    const [
-      dbPlatosFuertes,
-      dbPreparaciones,
-      dbSalsas,
-      dbGuarniciones,
-      dbPostres,
-      dbBebidas,
-      dbComentarios,
-      dbMontajeTipos,
-      dbMontajeAdicionales,
-      sugSalsas,
-      sugPostres,
-      sugGuarniciones,
-      sugBebidas,
-      sugMontajeTipos,
-      sugMontajeAdicionales,
-    ] = await Promise.all([
-      conn.query("SELECT id, nombre, activo, tipo_plato, es_sin_proteina FROM menu_platos_fuertes ORDER BY nombre ASC"),
-      conn.query("SELECT id, id_plato_fuerte, nombre, activo FROM menu_preparaciones ORDER BY nombre ASC"),
-      conn.query("SELECT id, nombre, activo FROM menu_salsas ORDER BY nombre ASC"),
-      conn.query("SELECT id, nombre, activo FROM menu_guarniciones ORDER BY nombre ASC"),
-      conn.query("SELECT id, nombre, activo FROM menu_postres ORDER BY nombre ASC"),
-      conn.query("SELECT id, nombre, activo FROM menu_bebidas ORDER BY nombre ASC"),
-      conn.query("SELECT id, nombre, activo FROM menu_comentarios_adicionales ORDER BY nombre ASC"),
-      conn.query("SELECT id, nombre, activo FROM montaje_tipos ORDER BY nombre ASC"),
-      conn.query("SELECT id, nombre, activo, tipo FROM montaje_adicionales ORDER BY nombre ASC"),
-      conn.query("SELECT id_plato_fuerte, id_preparacion, id_salsa FROM menu_plato_preparacion_salsa_sugerida ORDER BY prioridad"),
-      conn.query("SELECT id_plato_fuerte, id_preparacion, id_postre FROM menu_plato_preparacion_postre_sugerido ORDER BY prioridad"),
-      conn.query("SELECT id_plato_fuerte, id_preparacion, id_guarnicion FROM menu_plato_preparacion_guarnicion_sugerida ORDER BY prioridad"),
-      conn.query("SELECT id_plato_fuerte, id_preparacion, id_bebida FROM menu_plato_preparacion_bebida_sugerida ORDER BY prioridad"),
-      conn.query("SELECT id_plato_fuerte, id_preparacion, id_montaje_tipo FROM menu_plato_preparacion_montaje_tipo_sugerido ORDER BY prioridad"),
-      conn.query("SELECT id_plato_fuerte, id_preparacion, id_adicional FROM menu_plato_preparacion_montaje_adicional_sugerido ORDER BY prioridad"),
-    ]);
+    const dbPlatosFuertes = [];
+    const dbPreparaciones = [];
+    const dbSalsas = [];
+    const dbGuarniciones = [];
+    const dbPostres = [];
+    const dbBebidas = [];
+    const dbComentarios = [];
+    const dbMontajeTipos = [];
+    const dbMontajeAdicionales = [];
+    const sugSalsas = [];
+    const sugPostres = [];
+    const sugGuarniciones = [];
+    const sugBebidas = [];
+    const sugMontajeTipos = [];
+    const sugMontajeAdicionales = [];
 
     const menuCatalogList = [];
     for (const r of dbPlatosFuertes) {
@@ -1415,17 +897,7 @@ async function readStateFromTables() {
         notes: str(c.notes),
         managers: managersByCompany.get(str(c.id)) || [],
       })),
-      services: servicios.map((s) => ({
-        id: str(s.id),
-        name: str(s.nombre),
-        price: Number(s.precio || 0),
-        description: str(s.descripcion),
-        categoryId: s.id_categoria == null ? null : Number(s.id_categoria),
-        subcategoryId: s.id_subcategoria == null ? null : Number(s.id_subcategoria),
-        category: str(s.categoria_nombre),
-        subcategory: str(s.subcategoria_nombre),
-        quantityMode: normalizeQuantityMode(s.modo_cantidad),
-      })),
+      services: dbServicesList,
       quickTemplates: [],
       quoteServiceTemplates: [],
       disabledCompanies: [],
@@ -1649,683 +1121,78 @@ async function readSalonesFromTables() {
 }
 
 async function readCategoriasServicioFromTables() {
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const rows = await conn.query(
-      "SELECT id, nombre, activo FROM categorias_servicio ORDER BY nombre ASC"
-    );
-    return rows.map((r) => ({ id: Number(r.id), nombre: str(r.nombre), activo: Number(r.activo) !== 0 }));
-  } finally {
-    if (conn) conn.release();
-  }
+  return [];
 }
 
 async function readSubcategoriasServicioFromTables(categoriaId = null) {
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    let rows;
-    if (categoriaId !== null && categoriaId !== undefined && Number.isFinite(Number(categoriaId))) {
-      rows = await conn.query(
-        "SELECT id, id_categoria, nombre, activo FROM subcategorias_servicio WHERE id_categoria = ? ORDER BY nombre ASC",
-        [Number(categoriaId)]
-      );
-    } else {
-      rows = await conn.query(
-        "SELECT id, id_categoria, nombre, activo FROM subcategorias_servicio ORDER BY id_categoria ASC, nombre ASC"
-      );
-    }
-    return rows.map((r) => ({
-      id: Number(r.id),
-      id_categoria: Number(r.id_categoria),
-      nombre: str(r.nombre),
-      activo: Number(r.activo) !== 0,
-    }));
-  } finally {
-    if (conn) conn.release();
-  }
+  return [];
 }
 
 async function createCategoriaServicioInTable(nombre) {
-  const clean = str(nombre).trim();
-  if (!clean) throw new Error("Nombre de categoria es obligatorio.");
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const result = await conn.query("INSERT INTO categorias_servicio (nombre) VALUES (?)", [clean]);
-    return { id: Number(result?.insertId || 0), nombre: clean };
-  } catch (error) {
-    if (error && (Number(error?.errno) === 1062 || String(error?.code || "") === "ER_DUP_ENTRY")) {
-      throw new Error("Esa categoria ya existe.");
-    }
-    throw error;
-  } finally {
-    if (conn) conn.release();
-  }
+  return { id: 1, nombre: str(nombre).trim() };
 }
 
 async function updateCategoriaServicioInTable(id, nombre) {
-  const clean = str(nombre).trim();
-  const categoryId = Number(id);
-  if (!Number.isFinite(categoryId) || categoryId <= 0) throw new Error("Categoria invalida.");
-  if (!clean) throw new Error("Nombre de categoria es obligatorio.");
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const existing = await conn.query("SELECT id FROM categorias_servicio WHERE id = ? LIMIT 1", [categoryId]);
-    if (!existing.length) throw new Error("Categoria no encontrada.");
-    await conn.query("UPDATE categorias_servicio SET nombre = ? WHERE id = ?", [clean, categoryId]);
-    return { id: categoryId, nombre: clean };
-  } catch (error) {
-    if (error && (Number(error?.errno) === 1062 || String(error?.code || "") === "ER_DUP_ENTRY")) {
-      throw new Error("Esa categoria ya existe.");
-    }
-    throw error;
-  } finally {
-    if (conn) conn.release();
-  }
+  return { id: Number(id), nombre: str(nombre).trim() };
 }
 
 async function createSubcategoriaServicioInTable(idCategoria, nombre) {
-  const clean = str(nombre).trim();
-  const categoryId = Number(idCategoria);
-  if (!Number.isFinite(categoryId) || categoryId <= 0) throw new Error("Categoria invalida.");
-  if (!clean) throw new Error("Nombre de subcategoria es obligatorio.");
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const category = await conn.query("SELECT id FROM categorias_servicio WHERE id = ? LIMIT 1", [categoryId]);
-    if (!category.length) throw new Error("Categoria no encontrada.");
-    const result = await conn.query(
-      "INSERT INTO subcategorias_servicio (id_categoria, nombre) VALUES (?, ?)",
-      [categoryId, clean]
-    );
-    return { id: Number(result?.insertId || 0), id_categoria: categoryId, nombre: clean };
-  } catch (error) {
-    if (error && (Number(error?.errno) === 1062 || String(error?.code || "") === "ER_DUP_ENTRY")) {
-      throw new Error("Esa subcategoria ya existe en la categoria seleccionada.");
-    }
-    throw error;
-  } finally {
-    if (conn) conn.release();
-  }
+  return { id: 1, id_categoria: Number(idCategoria), nombre: str(nombre).trim() };
 }
 
 async function updateSubcategoriaServicioInTable(id, idCategoria, nombre) {
-  const clean = str(nombre).trim();
-  const subcategoryId = Number(id);
-  const categoryId = Number(idCategoria);
-  if (!Number.isFinite(subcategoryId) || subcategoryId <= 0) throw new Error("Subcategoria invalida.");
-  if (!Number.isFinite(categoryId) || categoryId <= 0) throw new Error("Categoria invalida.");
-  if (!clean) throw new Error("Nombre de subcategoria es obligatorio.");
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const category = await conn.query("SELECT id FROM categorias_servicio WHERE id = ? LIMIT 1", [categoryId]);
-    if (!category.length) throw new Error("Categoria no encontrada.");
-    const existing = await conn.query("SELECT id FROM subcategorias_servicio WHERE id = ? LIMIT 1", [subcategoryId]);
-    if (!existing.length) throw new Error("Subcategoria no encontrada.");
-    await conn.query(
-      "UPDATE subcategorias_servicio SET id_categoria = ?, nombre = ? WHERE id = ?",
-      [categoryId, clean, subcategoryId]
-    );
-    return { id: subcategoryId, id_categoria: categoryId, nombre: clean };
-  } catch (error) {
-    if (error && (Number(error?.errno) === 1062 || String(error?.code || "") === "ER_DUP_ENTRY")) {
-      throw new Error("Esa subcategoria ya existe en la categoria seleccionada.");
-    }
-    throw error;
-  } finally {
-    if (conn) conn.release();
-  }
+  return { id: Number(id), id_categoria: Number(idCategoria), nombre: str(nombre).trim() };
 }
 
 async function setCategoriaServicioActivoInTable(id, activo) {
-  const categoryId = Number(id);
-  const activeValue = Number(activo) ? 1 : 0;
-  if (!Number.isFinite(categoryId) || categoryId <= 0) throw new Error("Categoria invalida.");
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const existing = await conn.query("SELECT id FROM categorias_servicio WHERE id = ? LIMIT 1", [categoryId]);
-    if (!existing.length) throw new Error("Categoria no encontrada.");
-    await conn.query("UPDATE categorias_servicio SET activo = ? WHERE id = ?", [activeValue, categoryId]);
-    return { id: categoryId, activo: activeValue === 1 };
-  } finally {
-    if (conn) conn.release();
-  }
+  return { id: Number(id), activo: !!activo };
 }
 
 async function setSubcategoriaServicioActivoInTable(id, activo) {
-  const subcategoryId = Number(id);
-  const activeValue = Number(activo) ? 1 : 0;
-  if (!Number.isFinite(subcategoryId) || subcategoryId <= 0) throw new Error("Subcategoria invalida.");
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const existing = await conn.query("SELECT id FROM subcategorias_servicio WHERE id = ? LIMIT 1", [subcategoryId]);
-    if (!existing.length) throw new Error("Subcategoria no encontrada.");
-    await conn.query("UPDATE subcategorias_servicio SET activo = ? WHERE id = ?", [activeValue, subcategoryId]);
-    return { id: subcategoryId, activo: activeValue === 1 };
-  } finally {
-    if (conn) conn.release();
-  }
-}
-
-async function ensureCategoriaByNameInConn(conn, nombre) {
-  const clean = str(nombre).trim();
-  if (!clean) return null;
-  const res = await conn.query(
-    "INSERT INTO categorias_servicio (nombre, activo) VALUES (?, 1) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), activo = 1",
-    [clean]
-  );
-  const insertId = Number(res?.insertId || 0);
-  if (insertId > 0) return insertId;
-  const row = await conn.query("SELECT id FROM categorias_servicio WHERE nombre = ? LIMIT 1", [clean]);
-  const id = Number(row?.[0]?.id || 0);
-  return id > 0 ? id : null;
-}
-
-async function ensureSubcategoriaByNameInConn(conn, idCategoria, nombre) {
-  const categoryId = Number(idCategoria);
-  const clean = str(nombre).trim();
-  if (!Number.isFinite(categoryId) || categoryId <= 0 || !clean) return null;
-  const res = await conn.query(
-    "INSERT INTO subcategorias_servicio (id_categoria, nombre, activo) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), activo = 1",
-    [categoryId, clean]
-  );
-  const insertId = Number(res?.insertId || 0);
-  if (insertId > 0) return insertId;
-  const row = await conn.query(
-    "SELECT id FROM subcategorias_servicio WHERE id_categoria = ? AND nombre = ? LIMIT 1",
-    [categoryId, clean]
-  );
-  const id = Number(row?.[0]?.id || 0);
-  return id > 0 ? id : null;
-}
-
-function inferCatalogForServiceName(rawName) {
-  const name = str(rawName).toLowerCase();
-  const isThirdPartyStay =
-    name.includes("otro hotel") ||
-    name.includes("tercero") ||
-    name.includes("externo");
-  const isRoom = name.includes("habitacion") || name.includes("hospedaje");
-  if (isRoom && isThirdPartyStay) {
-    return { categoria: "Hospedaje Terceros", subcategoria: "Habitaciones Terceros" };
-  }
-  if (isRoom) {
-    return { categoria: "Habitaciones", subcategoria: "Habitaciones JDL" };
-  }
-
-  const isFood =
-    name.includes("desayuno") ||
-    name.includes("almuerzo") ||
-    name.includes("cena") ||
-    name.includes("coffee") ||
-    name.includes("boquita") ||
-    name.includes("refaccion") ||
-    name.includes("bebida") ||
-    name.includes("refresco") ||
-    name.includes("buffet") ||
-    name.includes("menu") ||
-    name.includes("plato") ||
-    name.includes("postre");
-  if (isFood) {
-    if (name.includes("desayuno")) return { categoria: "Alimentos y Bebidas", subcategoria: "Desayunos" };
-    if (name.includes("almuerzo")) return { categoria: "Alimentos y Bebidas", subcategoria: "Almuerzos" };
-    if (name.includes("cena")) return { categoria: "Alimentos y Bebidas", subcategoria: "Cenas" };
-    if (name.includes("coffee")) return { categoria: "Alimentos y Bebidas", subcategoria: "Coffee Break" };
-    if (name.includes("boquita")) return { categoria: "Alimentos y Bebidas", subcategoria: "Boquitas" };
-    if (name.includes("bebida") || name.includes("refresco")) return { categoria: "Alimentos y Bebidas", subcategoria: "Bebidas" };
-    if (name.includes("refaccion")) return { categoria: "Alimentos y Bebidas", subcategoria: "Refacciones" };
-    return { categoria: "Alimentos y Bebidas", subcategoria: "Otros" };
-  }
-
-  if (name.includes("montaje") || name.includes("decor")) {
-    return { categoria: "Miscelaneos", subcategoria: "Montaje y Decoracion" };
-  }
-  if (name.includes("luz") || name.includes("sonido") || name.includes("audio") || name.includes("video")) {
-    return { categoria: "Miscelaneos", subcategoria: "Equipo y Audiovisual" };
-  }
-  return { categoria: "Miscelaneos", subcategoria: "Otros" };
+  return { id: Number(id), activo: !!activo };
 }
 
 async function recoverServiceCatalogFromServices(options = {}) {
-  const forceRelink = options?.forceRelink === true;
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    await conn.beginTransaction();
-
-    const defaults = [
-      { categoria: "Alimentos y Bebidas", subcategorias: ["Desayunos", "Almuerzos", "Cenas", "Coffee Break", "Boquitas", "Bebidas", "Refacciones", "Otros"] },
-      { categoria: "Habitaciones", subcategorias: ["Habitaciones JDL", "Paquetes Habitacion", "Otros"] },
-      { categoria: "Hospedaje Terceros", subcategorias: ["Habitaciones Terceros", "Otros"] },
-      { categoria: "Miscelaneos", subcategorias: ["Montaje y Decoracion", "Equipo y Audiovisual", "Musica y Entretenimiento", "Transporte", "Otros"] },
-    ];
-
-    const categoryIdByName = new Map();
-    const subcategoryIdByKey = new Map();
-    for (const row of defaults) {
-      const categoryId = await ensureCategoriaByNameInConn(conn, row.categoria);
-      if (!categoryId) continue;
-      categoryIdByName.set(row.categoria, categoryId);
-      for (const subName of row.subcategorias) {
-        const subId = await ensureSubcategoriaByNameInConn(conn, categoryId, subName);
-        if (subId) subcategoryIdByKey.set(`${categoryId}|${subName}`, subId);
-      }
-    }
-
-    const services = await conn.query(
-      "SELECT id, nombre, descripcion, id_categoria, id_subcategoria FROM servicios ORDER BY id ASC"
-    );
-    let updated = 0;
-    for (const s of services) {
-      const currentCategoryId = Number(s?.id_categoria || 0);
-      const currentSubcategoryId = Number(s?.id_subcategoria || 0);
-      const needsRelink =
-        forceRelink ||
-        !(Number.isFinite(currentCategoryId) && currentCategoryId > 0) ||
-        !(Number.isFinite(currentSubcategoryId) && currentSubcategoryId > 0);
-      if (!needsRelink) continue;
-
-      const guess = inferCatalogForServiceName(`${str(s?.nombre)} ${str(s?.descripcion)}`);
-      const categoryId = categoryIdByName.get(guess.categoria);
-      const subcategoryId = subcategoryIdByKey.get(`${categoryId}|${guess.subcategoria}`);
-      if (!categoryId || !subcategoryId) continue;
-      await conn.query(
-        "UPDATE servicios SET id_categoria = ?, id_subcategoria = ? WHERE id = ?",
-        [categoryId, subcategoryId, str(s?.id)]
-      );
-      updated++;
-    }
-
-    await conn.commit();
-    return { updated, categoriesCreated: categoryIdByName.size };
-  } catch (error) {
-    if (conn) await conn.rollback();
-    throw error;
-  } finally {
-    if (conn) conn.release();
-  }
+  return { updated: 0, categoriesCreated: 0 };
 }
 
-const MENU_CATALOG_TABLES = {
-  plato_fuerte: "menu_platos_fuertes",
-  salsa: "menu_salsas",
-  guarnicion: "menu_guarniciones",
-  postre: "menu_postres",
-  bebida: "menu_bebidas",
-  comentario: "menu_comentarios_adicionales",
-  montaje_tipo: "montaje_tipos",
-  montaje_adicional: "montaje_adicionales",
-};
-
 async function readSimpleMenuCatalog(kind) {
-  const table = MENU_CATALOG_TABLES[String(kind || "").trim()];
-  if (!table) return [];
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const rows = await conn.query(
-      table === "menu_platos_fuertes"
-        ? `SELECT id, nombre, activo, tipo_plato, es_sin_proteina FROM ${table} ORDER BY nombre ASC`
-        : (
-      table === "montaje_adicionales"
-        ? `SELECT id, nombre, activo, tipo FROM ${table} ORDER BY nombre ASC`
-        : `SELECT id, nombre, activo FROM ${table} ORDER BY nombre ASC`
-        )
-    );
-    return rows.map((r) => ({
-      id: Number(r.id),
-      nombre: str(r.nombre),
-      activo: Number(r.activo) !== 0,
-      tipo: str(r.tipo),
-      tipo_plato: normalizeMenuDishType(r.tipo_plato),
-      es_sin_proteina: Number(r.es_sin_proteina) !== 0,
-    }));
-  } finally {
-    if (conn) conn.release();
-  }
+  return [];
 }
 
 async function createSimpleMenuCatalog(kind, nombre, extras = {}) {
-  const table = MENU_CATALOG_TABLES[String(kind || "").trim()];
-  if (!table) throw new Error("catalog_kind_invalid");
-  const cleanName = str(nombre).trim();
-  if (!cleanName) throw new Error("catalog_name_required");
-
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    if (table === "menu_platos_fuertes") {
-      const tipoPlato = normalizeMenuDishType(extras?.tipo_plato);
-      const esSinProteina = Number(extras?.es_sin_proteina) ? 1 : 0;
-      await conn.query(
-        `INSERT INTO menu_platos_fuertes (nombre, tipo_plato, es_sin_proteina, activo) VALUES (?, ?, ?, 1)
-         ON DUPLICATE KEY UPDATE
-           nombre = VALUES(nombre),
-           tipo_plato = VALUES(tipo_plato),
-           es_sin_proteina = VALUES(es_sin_proteina),
-           activo = 1`,
-        [cleanName, tipoPlato, esSinProteina]
-      );
-      return;
-    }
-    if (table === "montaje_adicionales") {
-      const tipo = str(extras?.tipo).trim() || null;
-      await conn.query(
-        `INSERT INTO montaje_adicionales (nombre, tipo, activo) VALUES (?, ?, 1)
-         ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), tipo = COALESCE(VALUES(tipo), tipo), activo = 1`,
-        [cleanName, tipo]
-      );
-      return;
-    }
-    await conn.query(
-      `INSERT INTO ${table} (nombre, activo) VALUES (?, 1)
-       ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = 1`,
-      [cleanName]
-    );
-  } finally {
-    if (conn) conn.release();
-  }
+  return;
 }
 
 async function readPreparacionesByPlato(idPlatoFuerte) {
-  const id = Number(idPlatoFuerte);
-  if (!Number.isFinite(id) || id <= 0) return [];
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const rows = await conn.query(
-      `SELECT id, id_plato_fuerte, nombre, activo
-       FROM menu_preparaciones
-       WHERE id_plato_fuerte = ?
-       ORDER BY nombre ASC`,
-      [id]
-    );
-    return rows.map((r) => ({
-      id: Number(r.id),
-      id_plato_fuerte: Number(r.id_plato_fuerte),
-      nombre: str(r.nombre),
-      activo: Number(r.activo) !== 0,
-    }));
-  } finally {
-    if (conn) conn.release();
-  }
+  return [];
 }
 
 async function createPreparacionForPlato(idPlatoFuerte, nombre) {
-  const id = Number(idPlatoFuerte);
-  const cleanName = str(nombre).trim();
-  if (!Number.isFinite(id) || id <= 0) throw new Error("plato_fuerte_required");
-  if (!cleanName) throw new Error("preparacion_required");
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    await conn.query(
-      `INSERT INTO menu_preparaciones (id_plato_fuerte, nombre, activo)
-       VALUES (?, ?, 1)
-       ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = 1`,
-      [id, cleanName]
-    );
-  } finally {
-    if (conn) conn.release();
-  }
+  return;
 }
 
 async function updateSimpleMenuCatalog(kind, id, changes = {}) {
-  const table = MENU_CATALOG_TABLES[String(kind || "").trim()];
-  const itemId = Number(id);
-  if (!table) throw new Error("catalog_kind_invalid");
-  if (!Number.isFinite(itemId) || itemId <= 0) throw new Error("catalog_id_invalid");
-
-  const hasName = Object.prototype.hasOwnProperty.call(changes || {}, "nombre");
-  const hasActive = Object.prototype.hasOwnProperty.call(changes || {}, "activo");
-  const hasTipo = table === "montaje_adicionales" && Object.prototype.hasOwnProperty.call(changes || {}, "tipo");
-  const hasTipoPlato = table === "menu_platos_fuertes" && Object.prototype.hasOwnProperty.call(changes || {}, "tipo_plato");
-  const hasSinProteina = table === "menu_platos_fuertes" && Object.prototype.hasOwnProperty.call(changes || {}, "es_sin_proteina");
-
-  const setParts = [];
-  const values = [];
-  if (hasName) {
-    const cleanName = str(changes.nombre).trim();
-    if (!cleanName) throw new Error("catalog_name_required");
-    setParts.push("nombre = ?");
-    values.push(cleanName);
-  }
-  if (hasActive) {
-    setParts.push("activo = ?");
-    values.push(Number(changes.activo) ? 1 : 0);
-  }
-  if (hasTipo) {
-    const tipo = str(changes.tipo).trim() || null;
-    setParts.push("tipo = ?");
-    values.push(tipo);
-  }
-  if (hasTipoPlato) {
-    setParts.push("tipo_plato = ?");
-    values.push(normalizeMenuDishType(changes.tipo_plato));
-  }
-  if (hasSinProteina) {
-    setParts.push("es_sin_proteina = ?");
-    values.push(Number(changes.es_sin_proteina) ? 1 : 0);
-  }
-  if (!setParts.length) throw new Error("catalog_changes_required");
-
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    await conn.query(
-      `UPDATE ${table} SET ${setParts.join(", ")} WHERE id = ?`,
-      [...values, itemId]
-    );
-  } finally {
-    if (conn) conn.release();
-  }
+  return;
 }
 
 async function updatePreparacionById(id, changes = {}) {
-  const itemId = Number(id);
-  if (!Number.isFinite(itemId) || itemId <= 0) throw new Error("catalog_id_invalid");
-
-  const hasName = Object.prototype.hasOwnProperty.call(changes || {}, "nombre");
-  const hasActive = Object.prototype.hasOwnProperty.call(changes || {}, "activo");
-  const hasPlato = Object.prototype.hasOwnProperty.call(changes || {}, "id_plato_fuerte");
-  const setParts = [];
-  const values = [];
-
-  if (hasName) {
-    const cleanName = str(changes.nombre).trim();
-    if (!cleanName) throw new Error("preparacion_required");
-    setParts.push("nombre = ?");
-    values.push(cleanName);
-  }
-  if (hasActive) {
-    setParts.push("activo = ?");
-    values.push(Number(changes.activo) ? 1 : 0);
-  }
-  if (hasPlato) {
-    const platoId = Number(changes.id_plato_fuerte);
-    if (!Number.isFinite(platoId) || platoId <= 0) throw new Error("plato_fuerte_required");
-    setParts.push("id_plato_fuerte = ?");
-    values.push(platoId);
-  }
-  if (!setParts.length) throw new Error("catalog_changes_required");
-
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    await conn.query(
-      `UPDATE menu_preparaciones SET ${setParts.join(", ")} WHERE id = ?`,
-      [...values, itemId]
-    );
-  } finally {
-    if (conn) conn.release();
-  }
-}
-
-function normalizeIdList(rawList) {
-  if (!Array.isArray(rawList)) return [];
-  const out = [];
-  for (const x of rawList) {
-    const n = Number(x);
-    if (!Number.isFinite(n) || n <= 0) continue;
-    out.push(Math.floor(n));
-  }
-  return Array.from(new Set(out));
+  return;
 }
 
 async function readMenuSuggestionLinks({ idPlatoFuerte, idPreparacion }) {
-  const platoId = Number(idPlatoFuerte);
-  const prepId = Number(idPreparacion);
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const [salsas, postres, guarniciones, bebidas, montajeTipos, montajeAdicionales, legacySalsas, legacyPostres, legacyGuarniciones] = await Promise.all([
-      Number.isFinite(platoId) && platoId > 0 && Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_salsa FROM menu_plato_preparacion_salsa_sugerida WHERE id_plato_fuerte = ? AND id_preparacion = ? ORDER BY prioridad, id_salsa",
-          [platoId, prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(platoId) && platoId > 0 && Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_postre FROM menu_plato_preparacion_postre_sugerido WHERE id_plato_fuerte = ? AND id_preparacion = ? ORDER BY prioridad, id_postre",
-          [platoId, prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(platoId) && platoId > 0 && Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_guarnicion FROM menu_plato_preparacion_guarnicion_sugerida WHERE id_plato_fuerte = ? AND id_preparacion = ? ORDER BY prioridad, id_guarnicion",
-          [platoId, prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(platoId) && platoId > 0 && Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_bebida FROM menu_plato_preparacion_bebida_sugerida WHERE id_plato_fuerte = ? AND id_preparacion = ? ORDER BY prioridad, id_bebida",
-          [platoId, prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(platoId) && platoId > 0 && Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_montaje_tipo FROM menu_plato_preparacion_montaje_tipo_sugerido WHERE id_plato_fuerte = ? AND id_preparacion = ? ORDER BY prioridad, id_montaje_tipo",
-          [platoId, prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(platoId) && platoId > 0 && Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_adicional FROM menu_plato_preparacion_montaje_adicional_sugerido WHERE id_plato_fuerte = ? AND id_preparacion = ? ORDER BY prioridad, id_adicional",
-          [platoId, prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_salsa FROM menu_preparacion_salsa_sugerida WHERE id_preparacion = ? ORDER BY prioridad, id_salsa",
-          [prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(prepId) && prepId > 0
-        ? conn.query(
-          "SELECT id_postre FROM menu_preparacion_postre_sugerido WHERE id_preparacion = ? ORDER BY prioridad, id_postre",
-          [prepId]
-        )
-        : Promise.resolve([]),
-      Number.isFinite(platoId) && platoId > 0
-        ? conn.query(
-          "SELECT id_guarnicion FROM menu_plato_guarnicion_sugerida WHERE id_plato_fuerte = ? ORDER BY prioridad, id_guarnicion",
-          [platoId]
-        )
-        : Promise.resolve([]),
-    ]);
-    return {
-      salsaIds: (salsas.length ? salsas : legacySalsas).map((r) => Number(r.id_salsa)).filter((x) => Number.isFinite(x)),
-      postreIds: (postres.length ? postres : legacyPostres).map((r) => Number(r.id_postre)).filter((x) => Number.isFinite(x)),
-      guarnicionIds: (guarniciones.length ? guarniciones : legacyGuarniciones).map((r) => Number(r.id_guarnicion)).filter((x) => Number.isFinite(x)),
-      bebidaIds: bebidas.map((r) => Number(r.id_bebida)).filter((x) => Number.isFinite(x)),
-      montajeTipoIds: montajeTipos.map((r) => Number(r.id_montaje_tipo)).filter((x) => Number.isFinite(x)),
-      montajeAdicionalIds: montajeAdicionales.map((r) => Number(r.id_adicional)).filter((x) => Number.isFinite(x)),
-    };
-  } finally {
-    if (conn) conn.release();
-  }
+  return {
+    salsaIds: [],
+    postreIds: [],
+    guarnicionIds: [],
+    bebidaIds: [],
+    montajeTipoIds: [],
+    montajeAdicionalIds: []
+  };
 }
 
 async function saveMenuSuggestionLinks({ idPlatoFuerte, idPreparacion, salsaIds, postreIds, guarnicionIds, bebidaIds, montajeTipoIds, montajeAdicionalIds }) {
-  const platoId = Number(idPlatoFuerte);
-  const prepId = Number(idPreparacion);
-  if (!Number.isFinite(platoId) || platoId <= 0) throw new Error("plato_fuerte_required");
-  if (!Number.isFinite(prepId) || prepId <= 0) throw new Error("preparacion_required");
-
-  const salsaList = normalizeIdList(salsaIds);
-  const postreList = normalizeIdList(postreIds);
-  const guarnicionList = normalizeIdList(guarnicionIds);
-  const bebidaList = normalizeIdList(bebidaIds);
-  const montajeTipoList = normalizeIdList(montajeTipoIds);
-  const montajeAdicionalList = normalizeIdList(montajeAdicionalIds);
-
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    await conn.beginTransaction();
-
-    await conn.query("DELETE FROM menu_plato_preparacion_salsa_sugerida WHERE id_plato_fuerte = ? AND id_preparacion = ?", [platoId, prepId]);
-    for (let i = 0; i < salsaList.length; i++) {
-      await conn.query(
-        "INSERT INTO menu_plato_preparacion_salsa_sugerida (id_plato_fuerte, id_preparacion, id_salsa, prioridad) VALUES (?, ?, ?, ?)",
-        [platoId, prepId, salsaList[i], i + 1]
-      );
-    }
-
-    await conn.query("DELETE FROM menu_plato_preparacion_postre_sugerido WHERE id_plato_fuerte = ? AND id_preparacion = ?", [platoId, prepId]);
-    for (let i = 0; i < postreList.length; i++) {
-      await conn.query(
-        "INSERT INTO menu_plato_preparacion_postre_sugerido (id_plato_fuerte, id_preparacion, id_postre, prioridad) VALUES (?, ?, ?, ?)",
-        [platoId, prepId, postreList[i], i + 1]
-      );
-    }
-
-    await conn.query("DELETE FROM menu_plato_preparacion_guarnicion_sugerida WHERE id_plato_fuerte = ? AND id_preparacion = ?", [platoId, prepId]);
-    for (let i = 0; i < guarnicionList.length; i++) {
-      await conn.query(
-        "INSERT INTO menu_plato_preparacion_guarnicion_sugerida (id_plato_fuerte, id_preparacion, id_guarnicion, prioridad) VALUES (?, ?, ?, ?)",
-        [platoId, prepId, guarnicionList[i], i + 1]
-      );
-    }
-
-    await conn.query("DELETE FROM menu_plato_preparacion_bebida_sugerida WHERE id_plato_fuerte = ? AND id_preparacion = ?", [platoId, prepId]);
-    for (let i = 0; i < bebidaList.length; i++) {
-      await conn.query(
-        "INSERT INTO menu_plato_preparacion_bebida_sugerida (id_plato_fuerte, id_preparacion, id_bebida, prioridad) VALUES (?, ?, ?, ?)",
-        [platoId, prepId, bebidaList[i], i + 1]
-      );
-    }
-
-    await conn.query("DELETE FROM menu_plato_preparacion_montaje_tipo_sugerido WHERE id_plato_fuerte = ? AND id_preparacion = ?", [platoId, prepId]);
-    for (let i = 0; i < montajeTipoList.length; i++) {
-      await conn.query(
-        "INSERT INTO menu_plato_preparacion_montaje_tipo_sugerido (id_plato_fuerte, id_preparacion, id_montaje_tipo, prioridad) VALUES (?, ?, ?, ?)",
-        [platoId, prepId, montajeTipoList[i], i + 1]
-      );
-    }
-
-    await conn.query("DELETE FROM menu_plato_preparacion_montaje_adicional_sugerido WHERE id_plato_fuerte = ? AND id_preparacion = ?", [platoId, prepId]);
-    for (let i = 0; i < montajeAdicionalList.length; i++) {
-      await conn.query(
-        "INSERT INTO menu_plato_preparacion_montaje_adicional_sugerido (id_plato_fuerte, id_preparacion, id_adicional, prioridad) VALUES (?, ?, ?, ?)",
-        [platoId, prepId, montajeAdicionalList[i], i + 1]
-      );
-    }
-
-    await conn.commit();
-  } catch (error) {
-    if (conn) await conn.rollback();
-    throw error;
-  } finally {
-    if (conn) conn.release();
-  }
+  return;
 }
 
 async function readLoginUsers() {
@@ -2362,7 +1229,7 @@ async function authenticateUser(userId, password) {
     conn = await pool.getConnection();
     const rows = await conn.query(
       `
-        SELECT id, nombre, nombre_usuario, nombre_completo, contrasena, avatar_data_url, firma_data_url, rol
+        SELECT id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, firma_data_url, rol
         FROM usuarios
         WHERE id = ? AND activo = 1
         LIMIT 1
@@ -2378,6 +1245,7 @@ async function authenticateUser(userId, password) {
       name: str(row.nombre),
       fullName: str(row.nombre_completo) || str(row.nombre),
       username: str(row.nombre_usuario),
+      email: str(row.correo),
       avatarDataUrl: str(row.avatar_data_url),
       signatureDataUrl: str(row.firma_data_url),
       role: str(row.rol || 'vendedor'),
@@ -2425,6 +1293,7 @@ async function writeStateToTables(state) {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
 
     const salones = Array.isArray(state.salones) ? state.salones : [];
     const users = Array.isArray(state.users) ? state.users : [];
@@ -2463,16 +1332,9 @@ async function writeStateToTables(state) {
       await ensureDocSequenceAtLeast(conn, "COT", maxDesiredQuoteCodeNum);
     }
 
-    await conn.query("DELETE FROM items_cotizacion_evento");
-    await conn.query("DELETE FROM items_cotizacion_version_evento");
-    await conn.query("DELETE FROM cotizacion_versiones_evento");
-    await conn.query("DELETE FROM cotizaciones_evento");
-    await conn.query("DELETE FROM recordatorios_evento");
-    await conn.query("DELETE FROM historial_evento");
-    await conn.query("DELETE FROM eventos");
+    // === UPSERT: salones, usuarios, empresas (delete+rewrite for config tables) ===
     await conn.query("DELETE FROM encargados_empresa");
     await conn.query("DELETE FROM empresas");
-    await conn.query("DELETE FROM servicios");
     await conn.query("DELETE FROM usuarios");
     await conn.query("DELETE FROM salones");
 
@@ -2507,6 +1369,19 @@ async function writeStateToTables(state) {
           INSERT INTO usuarios
             (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, rol)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            nombre = VALUES(nombre),
+            nombre_usuario = VALUES(nombre_usuario),
+            nombre_completo = VALUES(nombre_completo),
+            correo = VALUES(correo),
+            telefono = VALUES(telefono),
+            contrasena = VALUES(contrasena),
+            firma_data_url = VALUES(firma_data_url),
+            avatar_data_url = VALUES(avatar_data_url),
+            activo = VALUES(activo),
+            influye_meta_ventas = VALUES(influye_meta_ventas),
+            metas_mensuales_json = VALUES(metas_mensuales_json),
+            rol = VALUES(rol)
         `,
         [
           id,
@@ -2534,6 +1409,16 @@ async function writeStateToTables(state) {
           INSERT INTO empresas
             (id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            nombre = VALUES(nombre),
+            encargado_principal = VALUES(encargado_principal),
+            correo = VALUES(correo),
+            nit = VALUES(nit),
+            razon_social = VALUES(razon_social),
+            tipo_evento = VALUES(tipo_evento),
+            direccion = VALUES(direccion),
+            telefono = VALUES(telefono),
+            notas = VALUES(notas)
         `,
         [
           id,
@@ -2559,6 +1444,11 @@ async function writeStateToTables(state) {
             INSERT INTO encargados_empresa
               (id, id_empresa, nombre, telefono, correo, direccion)
             VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              nombre = VALUES(nombre),
+              telefono = VALUES(telefono),
+              correo = VALUES(correo),
+              direccion = VALUES(direccion)
           `,
           [
             managerId,
@@ -2572,85 +1462,9 @@ async function writeStateToTables(state) {
       }
     }
 
-    const existingCategories = await conn.query("SELECT id, nombre FROM categorias_servicio");
-    const categoryMap = new Map(existingCategories.map((r) => [String(r.nombre || "").trim().toLowerCase(), Number(r.id)]));
-    const categoryById = new Set(existingCategories.map((r) => Number(r.id)));
+    // Las tablas de servicios y categorias fueron eliminadas y se manejan en el modulo de informes.
 
-    const existingSubcategories = await conn.query("SELECT id, id_categoria, nombre FROM subcategorias_servicio");
-    const subcategoryMap = new Map(
-      existingSubcategories.map((r) => [`${Number(r.id_categoria)}|${String(r.nombre || "").trim().toLowerCase()}`, Number(r.id)])
-    );
-    const subcategoryById = new Map(existingSubcategories.map((r) => [Number(r.id), Number(r.id_categoria)]));
-
-    async function findCategoryIdByName(categoryName) {
-      const clean = str(categoryName).trim();
-      if (!clean) return null;
-      const key = clean.toLowerCase();
-      if (categoryMap.has(key)) return Number(categoryMap.get(key));
-      const fallback = await conn.query("SELECT id FROM categorias_servicio WHERE nombre = ? LIMIT 1", [clean]);
-      const fallbackId = Number(fallback?.[0]?.id || 0);
-      if (fallbackId > 0) {
-        categoryMap.set(key, fallbackId);
-        categoryById.add(fallbackId);
-        return fallbackId;
-      }
-      return null;
-    }
-
-    async function findSubcategoryIdByName(categoryId, subcategoryName) {
-      const catId = Number(categoryId);
-      const clean = str(subcategoryName).trim();
-      if (!Number.isFinite(catId) || catId <= 0 || !clean) return null;
-      const key = `${catId}|${clean.toLowerCase()}`;
-      if (subcategoryMap.has(key)) return Number(subcategoryMap.get(key));
-      const fallback = await conn.query(
-        "SELECT id FROM subcategorias_servicio WHERE id_categoria = ? AND nombre = ? LIMIT 1",
-        [catId, clean]
-      );
-      const fallbackId = Number(fallback?.[0]?.id || 0);
-      if (fallbackId > 0) {
-        subcategoryMap.set(key, fallbackId);
-        subcategoryById.set(fallbackId, catId);
-        return fallbackId;
-      }
-      return null;
-    }
-
-    for (const s of services) {
-      const id = str(s?.id).trim();
-      const nombre = str(s?.name).trim();
-      if (!id || !nombre) continue;
-      const categoryName = str(s?.category || s?.categoria).trim();
-      const subcategoryName = str(s?.subcategory || s?.subcategoria).trim();
-      let categoryId = Number(s?.categoryId || s?.idCategoria || NaN);
-      if (!Number.isFinite(categoryId) || categoryId <= 0 || !categoryById.has(categoryId)) {
-        categoryId = categoryName ? await findCategoryIdByName(categoryName) : null;
-      }
-
-      let subcategoryId = Number(s?.subcategoryId || s?.idSubcategoria || NaN);
-      if (!Number.isFinite(subcategoryId) || subcategoryId <= 0 || !subcategoryById.has(subcategoryId)) {
-        subcategoryId = (categoryId && subcategoryName)
-          ? await findSubcategoryIdByName(categoryId, subcategoryName)
-          : null;
-      } else if (categoryId && Number(subcategoryById.get(subcategoryId)) !== Number(categoryId)) {
-        subcategoryId = (categoryId && subcategoryName)
-          ? await findSubcategoryIdByName(categoryId, subcategoryName)
-          : null;
-      }
-      await conn.query(
-        "INSERT INTO servicios (id, nombre, precio, descripcion, id_categoria, id_subcategoria, modo_cantidad) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [
-          id,
-          nombre,
-          Number(s?.price || 0),
-          str(s?.description).trim() || null,
-          categoryId,
-          subcategoryId,
-          normalizeQuantityMode(s?.quantityMode || s?.modoCantidad || s?.indicadorCantidad),
-        ]
-      );
-    }
-
+    // === UPSERT: eventos (preservar existentes, no borrar) ===
     for (const e of events) {
       const id = str(e?.id).trim();
       if (!id) continue;
@@ -2659,6 +1473,20 @@ async function writeStateToTables(state) {
           INSERT INTO eventos
             (id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            id_grupo = VALUES(id_grupo),
+            nombre = VALUES(nombre),
+            nombre_salon = VALUES(nombre_salon),
+            fecha_evento = VALUES(fecha_evento),
+            fecha_inicio_reserva = VALUES(fecha_inicio_reserva),
+            fecha_fin_reserva = VALUES(fecha_fin_reserva),
+            hora_inicio = VALUES(hora_inicio),
+            hora_fin = VALUES(hora_fin),
+            estado = VALUES(estado),
+            id_usuario = VALUES(id_usuario),
+            pax = VALUES(pax),
+            notas = VALUES(notas),
+            cotizacion_json = VALUES(cotizacion_json)
         `,
         [
           id,
@@ -2678,6 +1506,7 @@ async function writeStateToTables(state) {
         ]
       );
 
+      // === UPSERT: cotizaciones (borrar y re-insertar items de la cotizacion) ===
       if (e?.quote && typeof e.quote === "object") {
         const q = e.quote;
         const desiredCodeNum = parseQuoteCodeNumber(q.code);
@@ -2707,6 +1536,38 @@ async function writeStateToTables(state) {
             INSERT INTO cotizaciones_evento
               (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              id_empresa = VALUES(id_empresa),
+              id_encargado = VALUES(id_encargado),
+              nombre_empresa = VALUES(nombre_empresa),
+              nombre_encargado = VALUES(nombre_encargado),
+              contacto = VALUES(contacto),
+              correo = VALUES(correo),
+              facturar_a = VALUES(facturar_a),
+              direccion = VALUES(direccion),
+              tipo_evento = VALUES(tipo_evento),
+              lugar = VALUES(lugar),
+              horario_texto = VALUES(horario_texto),
+              codigo = VALUES(codigo),
+              fecha_documento = VALUES(fecha_documento),
+              telefono = VALUES(telefono),
+              nit = VALUES(nit),
+              personas = VALUES(personas),
+              fecha_evento = VALUES(fecha_evento),
+              folio = VALUES(folio),
+              fecha_fin = VALUES(fecha_fin),
+              fecha_max_pago = VALUES(fecha_max_pago),
+              tipo_pago = VALUES(tipo_pago),
+              notas_internas = VALUES(notas_internas),
+              notas = VALUES(notas),
+              version_actual = VALUES(version_actual),
+              subtotal = VALUES(subtotal),
+              descuento_tipo = VALUES(descuento_tipo),
+              descuento_valor = VALUES(descuento_valor),
+              descuento_monto = VALUES(descuento_monto),
+              total_neto = VALUES(total_neto),
+              cotizado_en_iso = VALUES(cotizado_en_iso),
+              json_crudo = VALUES(json_crudo)
           `,
           [
             id,
@@ -2744,6 +1605,8 @@ async function writeStateToTables(state) {
           ]
         );
 
+        // Borrar items viejos y re-insertar los nuevos
+        await conn.query("DELETE FROM items_cotizacion_evento WHERE id_evento = ?", [id]);
         const items = Array.isArray(q.items) ? q.items : [];
         for (let itemIdx = 0; itemIdx < items.length; itemIdx++) {
           const item = items[itemIdx];
@@ -2753,6 +1616,17 @@ async function writeStateToTables(state) {
               INSERT INTO items_cotizacion_evento
                 (id, id_evento, id_servicio, fecha_servicio, cantidad, precio, precio_unitario, modo_cantidad, total_linea, nombre, descripcion)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON DUPLICATE KEY UPDATE
+                id_evento = VALUES(id_evento),
+                id_servicio = VALUES(id_servicio),
+                fecha_servicio = VALUES(fecha_servicio),
+                cantidad = VALUES(cantidad),
+                precio = VALUES(precio),
+                precio_unitario = VALUES(precio_unitario),
+                modo_cantidad = VALUES(modo_cantidad),
+                total_linea = VALUES(total_linea),
+                nombre = VALUES(nombre),
+                descripcion = VALUES(descripcion)
             `,
             [
               itemId,
@@ -2770,6 +1644,9 @@ async function writeStateToTables(state) {
           );
         }
 
+        // Versiones: borrar viejas y re-insertar nuevas
+        await conn.query("DELETE FROM cotizacion_versiones_evento WHERE id_evento = ?", [id]);
+        await conn.query("DELETE FROM items_cotizacion_version_evento WHERE id_evento = ?", [id]);
         const versionRows = [];
         const rawVersions = Array.isArray(q.versions) ? q.versions : [];
         for (const v of rawVersions) {
@@ -2839,6 +1716,8 @@ async function writeStateToTables(state) {
       }
     }
 
+    // === UPSERT: historial_evento (limpiar y re-insertar para evitar duplicación) ===
+    await conn.query("DELETE FROM historial_evento");
     for (const [eventKey, rows] of Object.entries(changeHistory)) {
       if (!Array.isArray(rows)) continue;
       for (const row of rows) {
@@ -2860,6 +1739,7 @@ async function writeStateToTables(state) {
       }
     }
 
+    // === UPSERT: recordatorios (preservar y agregar nuevos) ===
     for (const [eventKey, rows] of Object.entries(reminders)) {
       if (!Array.isArray(rows)) continue;
       for (const row of rows) {
@@ -2869,6 +1749,15 @@ async function writeStateToTables(state) {
             INSERT INTO recordatorios_evento
               (id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, creado_en, id_usuario_creador)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              clave_evento = VALUES(clave_evento),
+              fecha_recordatorio = VALUES(fecha_recordatorio),
+              hora_recordatorio = VALUES(hora_recordatorio),
+              medio = VALUES(medio),
+              notas = VALUES(notas),
+              creado_en_iso = VALUES(creado_en_iso),
+              creado_en = VALUES(creado_en),
+              id_usuario_creador = VALUES(id_usuario_creador)
           `,
           [
             reminderId,
@@ -3021,164 +1910,25 @@ async function writeStateToTables(state) {
       `,
       [JSON.stringify(salonCapacities)]
     );
-    if (Array.isArray(state.menuCatalog)) {
-      // Deactivate all first
-      await conn.query("UPDATE menu_platos_fuertes SET activo = 0");
-      await conn.query("UPDATE menu_preparaciones SET activo = 0");
-      await conn.query("UPDATE menu_salsas SET activo = 0");
-      await conn.query("UPDATE menu_guarniciones SET activo = 0");
-      await conn.query("UPDATE menu_postres SET activo = 0");
-      await conn.query("UPDATE menu_bebidas SET activo = 0");
-      await conn.query("UPDATE menu_comentarios_adicionales SET activo = 0");
-      await conn.query("UPDATE montaje_tipos SET activo = 0");
-      await conn.query("UPDATE montaje_adicionales SET activo = 0");
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('services', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(services)]
+    );
+    // Las tablas de menu y sugerencias de montaje fueron eliminadas y se manejan en el modulo de informes.
 
-      for (const item of state.menuCatalog) {
-        const id = Number(item.id);
-        const name = str(item.name || item.nombre).trim();
-        const active = item.active === false ? 0 : 1;
-        if (!id || !name) continue;
-
-        if (item.kind === "plato_fuerte") {
-          const tipoPlato = str(item.dishType || "NORMAL").trim();
-          const esSinProteina = item.noProtein === true ? 1 : 0;
-          await conn.query(
-            `INSERT INTO menu_platos_fuertes (id, nombre, tipo_plato, es_sin_proteina, activo)
-             VALUES (?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), tipo_plato = VALUES(tipo_plato), es_sin_proteina = VALUES(es_sin_proteina), activo = VALUES(activo)`,
-            [id, name, tipoPlato, esSinProteina, active]
-          );
-        } else if (item.kind === "preparacion") {
-          const proteinId = Number(item.proteinId);
-          if (!proteinId) continue;
-          await conn.query(
-            `INSERT INTO menu_preparaciones (id, id_plato_fuerte, nombre, activo)
-             VALUES (?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE id_plato_fuerte = VALUES(id_plato_fuerte), nombre = VALUES(nombre), activo = VALUES(activo)`,
-            [id, proteinId, name, active]
-          );
-        } else if (item.kind === "salsa") {
-          await conn.query(
-            `INSERT INTO menu_salsas (id, nombre, activo)
-             VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = VALUES(activo)`,
-            [id, name, active]
-          );
-        } else if (item.kind === "guarnicion") {
-          await conn.query(
-            `INSERT INTO menu_guarniciones (id, nombre, activo)
-             VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = VALUES(activo)`,
-            [id, name, active]
-          );
-        } else if (item.kind === "postre") {
-          await conn.query(
-            `INSERT INTO menu_postres (id, nombre, activo)
-             VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = VALUES(activo)`,
-            [id, name, active]
-          );
-        } else if (item.kind === "bebida") {
-          await conn.query(
-            `INSERT INTO menu_bebidas (id, nombre, activo)
-             VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = VALUES(activo)`,
-            [id, name, active]
-          );
-        } else if (item.kind === "comentario") {
-          await conn.query(
-            `INSERT INTO menu_comentarios_adicionales (id, nombre, activo)
-             VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = VALUES(activo)`,
-            [id, name, active]
-          );
-        } else if (item.kind === "montaje_tipo") {
-          await conn.query(
-            `INSERT INTO montaje_tipos (id, nombre, activo)
-             VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = VALUES(activo)`,
-            [id, name, active]
-          );
-        } else if (item.kind === "montaje_adicional") {
-          const tipo = str(item.tipo).trim() || null;
-          await conn.query(
-            `INSERT INTO montaje_adicionales (id, nombre, tipo, activo)
-             VALUES (?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), tipo = VALUES(tipo), activo = VALUES(activo)`,
-            [id, name, tipo, active]
-          );
-        }
-      }
-    }
-
-    if (Array.isArray(state.menuSuggestions)) {
-      // Clear suggestions
-      await conn.query("DELETE FROM menu_plato_preparacion_salsa_sugerida");
-      await conn.query("DELETE FROM menu_plato_preparacion_postre_sugerido");
-      await conn.query("DELETE FROM menu_plato_preparacion_guarnicion_sugerida");
-      await conn.query("DELETE FROM menu_plato_preparacion_bebida_sugerida");
-      await conn.query("DELETE FROM menu_plato_preparacion_montaje_tipo_sugerido");
-      await conn.query("DELETE FROM menu_plato_preparacion_montaje_adicional_sugerido");
-
-      for (const sug of state.menuSuggestions) {
-        const pfId = Number(sug.proteinId);
-        const prepId = Number(sug.preparationId);
-        if (!pfId || !prepId) continue;
-
-        if (Array.isArray(sug.salsas)) {
-          for (let i = 0; i < sug.salsas.length; i++) {
-            await conn.query(
-              "INSERT INTO menu_plato_preparacion_salsa_sugerida (id_plato_fuerte, id_preparacion, id_salsa, prioridad) VALUES (?, ?, ?, ?)",
-              [pfId, prepId, Number(sug.salsas[i]), i + 1]
-            );
-          }
-        }
-        if (Array.isArray(sug.postres)) {
-          for (let i = 0; i < sug.postres.length; i++) {
-            await conn.query(
-              "INSERT INTO menu_plato_preparacion_postre_sugerido (id_plato_fuerte, id_preparacion, id_postre, prioridad) VALUES (?, ?, ?, ?)",
-              [pfId, prepId, Number(sug.postres[i]), i + 1]
-            );
-          }
-        }
-        if (Array.isArray(sug.guarniciones)) {
-          for (let i = 0; i < sug.guarniciones.length; i++) {
-            await conn.query(
-              "INSERT INTO menu_plato_preparacion_guarnicion_sugerida (id_plato_fuerte, id_preparacion, id_guarnicion, prioridad) VALUES (?, ?, ?, ?)",
-              [pfId, prepId, Number(sug.guarniciones[i]), i + 1]
-            );
-          }
-        }
-        if (Array.isArray(sug.bebidas)) {
-          for (let i = 0; i < sug.bebidas.length; i++) {
-            await conn.query(
-              "INSERT INTO menu_plato_preparacion_bebida_sugerida (id_plato_fuerte, id_preparacion, id_bebida, prioridad) VALUES (?, ?, ?, ?)",
-              [pfId, prepId, Number(sug.bebidas[i]), i + 1]
-            );
-          }
-        }
-        if (Array.isArray(sug.montajeTipos)) {
-          for (let i = 0; i < sug.montajeTipos.length; i++) {
-            await conn.query(
-              "INSERT INTO menu_plato_preparacion_montaje_tipo_sugerido (id_plato_fuerte, id_preparacion, id_montaje_tipo, prioridad) VALUES (?, ?, ?, ?)",
-              [pfId, prepId, Number(sug.montajeTipos[i]), i + 1]
-            );
-          }
-        }
-        if (Array.isArray(sug.montajeAdicionales)) {
-          for (let i = 0; i < sug.montajeAdicionales.length; i++) {
-            await conn.query(
-              "INSERT INTO menu_plato_preparacion_montaje_adicional_sugerido (id_plato_fuerte, id_preparacion, id_adicional, prioridad) VALUES (?, ?, ?, ?)",
-              [pfId, prepId, Number(sug.montajeAdicionales[i]), i + 1]
-            );
-          }
-        }
-      }
-    }
-
+    await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     await conn.commit();
   } catch (error) {
-    if (conn) await conn.rollback();
+    if (conn) {
+      try {
+        await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+      } catch (err) {}
+      await conn.rollback();
+    }
     throw error;
   } finally {
     if (conn) conn.release();
@@ -3201,6 +1951,7 @@ app.get("/api/health", async (_req, res) => {
 });
 
 app.get("/api/state", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   console.log(`[${new Date().toLocaleTimeString()}] 🔍 GET /api/state - Consultando base de datos MariaDB...`);
   try {
     const result = await readStateFromTables();
@@ -3261,7 +2012,17 @@ app.post("/api/login", async (req, res) => {
     if (!user) {
       return res.status(401).json({ ok: false, message: "Usuario o contrasena incorrecta." });
     }
-    return res.json({ ok: true, user });
+    const token = jwt.sign(
+      {
+        id: user.id,
+        nombre: user.name,
+        email: user.email || `${user.id}@dominio.com`,
+        rol: normalizeRoleForJWT(user.role)
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    return res.json({ ok: true, user, token });
   } catch (error) {
     return res.status(500).json({ ok: false, message: "Error validando credenciales.", detail: error.message });
   }
@@ -3302,6 +2063,17 @@ app.post("/api/auth/firebase", async (req, res) => {
         u.rol = "admin";
       }
 
+      const token = jwt.sign(
+        {
+          id: str(u.id),
+          nombre: str(u.nombre),
+          email: str(u.correo || email),
+          rol: normalizeRoleForJWT(u.rol)
+        },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
       return res.json({
         ok: true,
         user: {
@@ -3312,7 +2084,8 @@ app.post("/api/auth/firebase", async (req, res) => {
           avatarDataUrl: str(u.avatar_data_url),
           signatureDataUrl: str(u.firma_data_url),
           role: str(u.rol || 'vendedor'),
-        }
+        },
+        token
       });
     }
 
@@ -3364,6 +2137,17 @@ app.post("/api/auth/firebase", async (req, res) => {
       await conn.query("SET FOREIGN_KEY_CHECKS = 1");
       await conn.commit();
 
+      const token = jwt.sign(
+        {
+          id: uid,
+          nombre: str(u.nombre),
+          email: email,
+          rol: normalizeRoleForJWT(targetRole)
+        },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
       return res.json({
         ok: true,
         user: {
@@ -3374,7 +2158,8 @@ app.post("/api/auth/firebase", async (req, res) => {
           avatarDataUrl: str(u.avatar_data_url) || photoURL,
           signatureDataUrl: str(u.firma_data_url),
           role: targetRole,
-        }
+        },
+        token
       });
     }
 
@@ -3391,6 +2176,17 @@ app.post("/api/auth/firebase", async (req, res) => {
         [uid, displayName, username, displayName, email, photoURL]
       );
 
+      const token = jwt.sign(
+        {
+          id: uid,
+          nombre: displayName,
+          email: email,
+          rol: 'Admin'
+        },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
       return res.json({
         ok: true,
         user: {
@@ -3401,7 +2197,8 @@ app.post("/api/auth/firebase", async (req, res) => {
           avatarDataUrl: photoURL,
           signatureDataUrl: null,
           role: 'admin',
-        }
+        },
+        token
       });
     }
 
@@ -4004,7 +2801,7 @@ app.get("/auth/google/sync", async (req, res) => {
 });
 
 app.post("/api/calendar/invite", async (req, res) => {
-  const { date, time, eventName, email, notes } = req.body;
+  const { date, time, eventName, email, notes, reminderId } = req.body;
   if (!date || !time || !eventName) {
     return res.status(400).json({ error: "Faltan campos requeridos: date, time, eventName" });
   }
@@ -4019,6 +2816,7 @@ app.post("/api/calendar/invite", async (req, res) => {
       date,
       time,
       notes: notes || '',
+      reminderId,
     });
 
     if (!result.ok) {
@@ -4034,6 +2832,21 @@ app.post("/api/calendar/invite", async (req, res) => {
   } catch (error) {
     console.error("❌ Error creando cita en Google Calendar:", error.message);
     return res.status(500).json({ error: "Error creando evento en Google Calendar", details: error.message });
+  }
+});
+
+app.post("/api/calendar/delete-reminder", async (req, res) => {
+  const { reminderId, email } = req.body;
+  if (!reminderId) {
+    return res.status(400).json({ error: "reminderId es requerido" });
+  }
+
+  try {
+    const result = await deleteUserReminder(reminderId, email);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("❌ Error eliminando cita de Google Calendar:", error.message);
+    return res.status(500).json({ error: "Error eliminando cita de Google Calendar", details: error.message });
   }
 });
 
@@ -4053,16 +2866,7 @@ app.get("/sw.js", (req, res) => {
 // Frontend desactivado en el puerto 3001 para que actúe 100% como API Backend.
 // app.use(express.static(path.join(__dirname, "dist")));
 
-app.get("*", (req, res) => {
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ message: "Ruta API no encontrada." });
-  }
-  return res.status(200).json({ 
-    service: "CRM API Backend (server.cjs)",
-    status: "online",
-    message: "El servidor Node está funcionando únicamente como API. Para ver la interfaz, entra al puerto 5173 (Vite)."
-  });
-});
+
 
 async function start() {
   try {
@@ -4074,10 +2878,53 @@ async function start() {
     await ensureMenuMontajeCatalogStructure();
     await ensureDocumentSequenceStructure();
     await ensureUsersExtendedStructure();
+    await ensureQuoteItemPrimaryKeyColumnSize();
     await ensureRequiredTables();
     await ensureDefaultUserCarlos();
-    app.listen(APP_PORT, () => {
-      console.log(`CRM listo en http://192.168.10.2:${APP_PORT}`);
+
+    // Crear directorio de uploads para imágenes de informes si no existe
+    const uploadsDir = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    app.use("/uploads", express.static(uploadsDir));
+
+    const server = http.createServer(app);
+    const io = new Server(server, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+      }
+    });
+
+    app.use((req, res, next) => {
+      req.io = io;
+      next();
+    });
+
+    io.on("connection", (socket) => {
+      socket.on("join", (room) => socket.join(room));
+      socket.on("leave", (room) => socket.leave(room));
+    });
+
+    // Cargar dinámicamente rutas ESM del módulo de informes
+    const reportsRouter = await import("./backend/src/app_routes.js");
+    app.use("/api", reportsRouter.default);
+
+    // Fallback wildcard handler registered AFTER dynamic ESM routes
+    app.get("*", (req, res) => {
+      if (req.path.startsWith("/api/")) {
+        return res.status(404).json({ message: "Ruta API no encontrada." });
+      }
+      return res.status(200).json({ 
+        service: "CRM API Backend (server.cjs)",
+        status: "online",
+        message: "El servidor Node está funcionando únicamente como API. Para ver la interfaz, entra al puerto 5173 (Vite)."
+      });
+    });
+
+    server.listen(APP_PORT, () => {
+      console.log(`CRM y Socket.io listo en http://localhost:${APP_PORT}`);
       console.log(`MariaDB -> ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}`);
       console.log("Persistencia activa en tablas relacionales.");
     });

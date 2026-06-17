@@ -8730,12 +8730,7 @@ body div.swal2-container div.swal2-popup.swal2-modal {
   border: 1px solid #cbd5e1 !important;
   box-shadow: none !important;
 }
-.swal2-icon {
-  width: 48px !important;
-  height: 48px !important;
-  margin: 8px auto 12px !important;
-  transform: scale(0.85) !important;
-}
+
 
 /* === MOBILE RESPONSIVE LAYOUT UPGRADES FOR REPORTS === */
 

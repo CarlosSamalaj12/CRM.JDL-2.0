@@ -97,37 +97,155 @@ export default function SettingsImport() {
   };
 
   return (
-    <div className="settingsExportPanel" aria-label="Importar datos desde Excel">
-      <div className="settingsExportIntro">
-        <strong>Importacion por plantilla</strong>
-        <span>Descarga la plantilla, llenala en Excel y guardala como CSV UTF-8 para cargar eventos o encargados con su empresa.</span>
-      </div>
+    <div className="settings-data-section">
+      <style>{`
+        .settings-import-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+          margin: 12px 0 6px 0;
+        }
+        .settings-import-card {
+          border: 1px solid var(--ui-border);
+          border-radius: 14px;
+          padding: 16px;
+          background: var(--ui-surface-soft) !important;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .settings-import-card-title {
+          font-size: 14px;
+          font-weight: 800;
+          color: var(--ui-text) !important;
+          margin: 0;
+        }
+        .settings-import-card-desc {
+          font-size: 12.5px;
+          color: var(--ui-text-soft) !important;
+          line-height: 1.45;
+          margin: 0;
+          flex-grow: 1;
+        }
+        .settings-import-card-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .settings-import-btn-outline {
+          min-height: 36px;
+          padding: 0 12px;
+          background: var(--ui-surface) !important;
+          color: var(--ui-text-soft) !important;
+          border: 1px solid var(--ui-border-strong) !important;
+          border-radius: 10px;
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: none !important;
+        }
+        .settings-import-btn-outline:hover {
+          background: var(--ui-surface-muted) !important;
+          color: var(--ui-text) !important;
+        }
+        .settings-import-btn-primary {
+          min-height: 36px;
+          padding: 0 12px;
+          background: var(--ui-primary) !important;
+          color: #ffffff !important;
+          border: 1px solid transparent !important;
+          border-radius: 10px;
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: none !important;
+        }
+        .settings-import-btn-primary:hover {
+          background: var(--ui-primary-strong) !important;
+        }
+        @media (max-width: 640px) {
+          .settings-import-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
 
-      <div className="moduleActionGrid settingsActionGridEnhanced" style={{ gridTemplateColumns: 'repeat(2, minmax(240px, 1fr))' }}>
-        <section className="settingsExportExample" style={{ margin: 0 }}>
-          <strong>Importar eventos</strong>
-          <span>Usa empresa_id/encargado_id o los nombres para relacionarlos. Si la empresa o encargado no existen, el CRM los crea.</span>
-          <div className="rightActions" style={{ justifyContent: 'flex-start', marginTop: 14 }}>
-            <button className="btn-ghost" id="btnSettingsDownloadEventsTemplate" type="button" onClick={downloadEventsTemplate}>Descargar plantilla</button>
-            <button className="btn-cotizar" id="btnSettingsImportEventsCsv" type="button" onClick={() => eventsInputRef.current?.click()}>{working === 'eventos' ? 'Importando...' : 'Importar CSV'}</button>
+      <p className="settings-data-desc">
+        Carga masivamente reservas, salones o contactos corporativos descargando la plantilla del sistema, completándola en Excel y subiéndola en formato CSV UTF-8.
+      </p>
+
+      <div className="settings-import-grid">
+        <div className="settings-import-card">
+          <h4 className="settings-import-card-title">1. Importar Eventos</h4>
+          <p className="settings-import-card-desc">
+            Carga bloques de fechas, horarios y salones. El CRM vinculará las empresas y encargados correspondientes o los creará en el momento.
+          </p>
+          <div className="settings-import-card-actions">
+            <button 
+              className="settings-import-btn-outline" 
+              type="button" 
+              onClick={downloadEventsTemplate}
+            >
+              Descargar plantilla
+            </button>
+            <button 
+              className="settings-import-btn-primary" 
+              type="button" 
+              disabled={!!working}
+              onClick={() => eventsInputRef.current?.click()}
+            >
+              {working === 'eventos' ? 'Importando...' : 'Subir CSV'}
+            </button>
           </div>
-        </section>
+        </div>
 
-        <section className="settingsExportExample" style={{ margin: 0 }}>
-          <strong>Importar encargados con empresa</strong>
-          <span>Cada fila puede crear o actualizar una empresa y agregar su encargado relacionado.</span>
-          <div className="rightActions" style={{ justifyContent: 'flex-start', marginTop: 14 }}>
-            <button className="btn-ghost" id="btnSettingsDownloadManagersTemplate" type="button" onClick={downloadManagersTemplate}>Descargar plantilla</button>
-            <button className="btn-cotizar" id="btnSettingsImportManagersCsv" type="button" onClick={() => managersInputRef.current?.click()}>{working === 'encargados' ? 'Importando...' : 'Importar CSV'}</button>
+        <div className="settings-import-card">
+          <h4 className="settings-import-card-title">2. Importar Contactos y Empresas</h4>
+          <p className="settings-import-card-desc">
+            Carga o actualiza tu base de datos de clientes corporativos (instituciones) y los contactos encargados relacionados de forma masiva.
+          </p>
+          <div className="settings-import-card-actions">
+            <button 
+              className="settings-import-btn-outline" 
+              type="button" 
+              onClick={downloadManagersTemplate}
+            >
+              Descargar plantilla
+            </button>
+            <button 
+              className="settings-import-btn-primary" 
+              type="button" 
+              disabled={!!working}
+              onClick={() => managersInputRef.current?.click()}
+            >
+              {working === 'encargados' ? 'Importando...' : 'Subir CSV'}
+            </button>
           </div>
-        </section>
+        </div>
       </div>
 
-      <div className="settingsExportExample">
-        <strong>Formato para importar</strong>
-        <span>Eventos: evento_id, nombre_evento, estado, fecha_inicio_evento, fecha_fin_evento, fecha_bloque, hora_inicio, hora_final, salon_principal, empresa_id, empresa, encargado_id, encargado, pax_total.</span>
-        <span>Encargados con empresa: empresa_id, nombre_comercial, razon_social_facturar, nit, correo_empresa, telefono_empresa, direccion_empresa, encargado_id, nombre_encargado, telefono_encargado, correo_encargado.</span>
-      </div>
+      <details className="settings-columns-details">
+        <summary style={{ fontSize: '13px', fontWeight: '700', cursor: 'pointer', color: 'var(--ui-primary)', outline: 'none' }}>
+          Ver columnas y formato requerido para la importación
+        </summary>
+        <div style={{ marginTop: '12px', borderTop: '1px solid var(--ui-border)', paddingTop: '8px' }}>
+          <div className="settings-columns-details-title" style={{ marginTop: 0 }}>Columnas requeridas para Eventos</div>
+          <div className="settings-column-badges" style={{ marginBottom: '10px' }}>
+            {IMPORT_EVENT_COLUMNS.map(col => (
+              <span key={col} className="settings-column-badge">{col}</span>
+            ))}
+          </div>
+
+          <div className="settings-columns-details-title">Columnas requeridas para Contactos y Empresas</div>
+          <div className="settings-column-badges">
+            {IMPORT_MANAGER_COLUMNS.map(col => (
+              <span key={col} className="settings-column-badge">{col}</span>
+            ))}
+          </div>
+        </div>
+      </details>
 
       <input ref={eventsInputRef} type="file" id="settingsImportEventsFile" accept=".csv" hidden onChange={(event) => handleFile('eventos', event.target.files?.[0])} />
       <input ref={managersInputRef} type="file" id="settingsImportManagersFile" accept=".csv" hidden onChange={(event) => handleFile('encargados', event.target.files?.[0])} />
