@@ -23,6 +23,7 @@ export default function ReportsOcupacion({ onClose }) {
   
   const [companies, setCompanies] = useState([]);
   const [eventChecklists, setEventChecklists] = useState({});
+  const [checklistFilter, setChecklistFilter] = useState('');
 
   const formatTimestamp = (ts) => {
     if (!ts) return '-';
@@ -83,7 +84,7 @@ export default function ReportsOcupacion({ onClose }) {
   const rows = useMemo(() => {
     if (!events) return [];
     const fromIso = weekDays[0], toIso = weekDays[6];
-    return events
+    let result = events
       .filter(ev => {
         const d = String(ev.date || '');
         return d && d >= fromIso && d <= toIso && ALLOWED_STATUSES.has(String(ev.status || ''));
@@ -108,7 +109,20 @@ export default function ReportsOcupacion({ onClose }) {
         const t = a.startTime.localeCompare(b.startTime);
         return t || a.salon.localeCompare(b.salon);
       });
-  }, [events, users, weekDays, eventChecklists]);
+
+    // Apply checklist status filter
+    if (checklistFilter) {
+      result = result.filter(r => {
+        const chk = r.rawEvent.checklist;
+        if (checklistFilter === 'pendiente') return !chk?.items?.length;
+        if (checklistFilter === 'en_proceso') return chk?.items?.length && !chk.items.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
+        if (checklistFilter === 'completo') return chk?.items?.length && chk.items.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
+        return true;
+      });
+    }
+
+    return result;
+  }, [events, users, weekDays, eventChecklists, checklistFilter]);
 
   const summary = useMemo(() => {
     const totalEvents = rows.length;
@@ -431,6 +445,23 @@ export default function ReportsOcupacion({ onClose }) {
               <span className="reports-eyebrow">Operación Detallada</span>
               <h3 className="reports-section-title">Tabla de eventos y resultados</h3>
               <p className="reports-section-text">Estado, salón, vendedor, cotización, checklist y montos</p>
+            </div>
+            <div className="reports-actions" style={{ gap: '8px', flexWrap: 'nowrap' }}>
+              <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <span style={{ fontSize: '11px', whiteSpace: 'nowrap', fontWeight: 700, color: '#64748b' }}>Check List:</span>
+                <select value={checklistFilter} onChange={e => setChecklistFilter(e.target.value)}
+                  style={{
+                    height: '32px', padding: '0 8px', borderRadius: '6px',
+                    border: '1px solid #d1d9e6', fontSize: '12px', fontWeight: 600,
+                    background: checklistFilter ? '#eff4ff' : '#ffffff',
+                    color: '#0f172a', cursor: 'pointer',
+                  }}>
+                  <option value="">Todos</option>
+                  <option value="pendiente">⏳ Pendiente</option>
+                  <option value="en_proceso">🔄 En proceso</option>
+                  <option value="completo">✅ Completo</option>
+                </select>
+              </label>
             </div>
           </div>
 

@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 
-export default function SettingsSalones() {
-  const backdropRef = useRef(null);
-  const [isOpen, setIsOpen] = useState(false);
+export default function SettingsSalones({ inline, onBack }) {
   const [salones, setSalones] = useState([]);
   const [disabledSalones, setDisabledSalones] = useState([]);
   const [salonCapacities, setSalonCapacities] = useState({});
@@ -17,25 +15,8 @@ export default function SettingsSalones() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      if (backdropRef.current) {
-        setIsOpen(!backdropRef.current.hidden);
-      }
-    });
-
-    if (backdropRef.current) {
-      observer.observe(backdropRef.current, { attributes: true, attributeFilter: ['hidden'] });
-      setIsOpen(!backdropRef.current.hidden);
-    }
-
-    return () => observer.disconnect();
+    loadData();
   }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen]);
 
   const loadData = async () => {
     try {
@@ -54,10 +35,7 @@ export default function SettingsSalones() {
   };
 
   const handleClose = () => {
-    if (backdropRef.current) {
-      backdropRef.current.hidden = true;
-      setIsOpen(false);
-    }
+    if (onBack) onBack();
   };
 
   const resetForm = () => {
@@ -161,7 +139,7 @@ export default function SettingsSalones() {
     const confirmText = isCurrentlyActive ? 'inhabilitar' : 'reactivar';
     const isConfirmed = await modernConfirm({
       title: `${isCurrentlyActive ? 'Inhabilitar' : 'Reactivar'} Salón`,
-      message: `¿Desea ${confirmText} el salón "${name}"?`,
+      message: `¿Desea ${confirmText} el salón \"${name}\"?`,
       confirmText: isCurrentlyActive ? 'Inhabilitar' : 'Reactivar',
       cancelText: 'Cancelar'
     });
@@ -195,137 +173,162 @@ export default function SettingsSalones() {
     }
   };
 
-  return (
-    <div 
-      className="modalBackdrop" 
-      id="salonesBackdrop" 
-      ref={backdropRef}
-      hidden 
-      onClick={(e) => { if (e.target.id === 'salonesBackdrop') handleClose(); }}
-    >
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="salonesTitle">
-        <div className="modalHeader">
-          <div>
-            <div className="modalTitle" id="salonesTitle">Salones</div>
-            <div className="modalSubtitle">Agrega, edita e inhabilita salones</div>
-          </div>
-          <button className="btn-exit" id="btnSalonesClose" type="button" title="Cerrar" onClick={handleClose}>
-            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
+  const content = (
+    <>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <div>
+          <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>🏢 Gestión de Salones</div>
+          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Agrega, edita e inhabilita salones del recinto</div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="settings-danger-btn" type="button" disabled={!selectedSalon} onClick={handleDisableBtn}>
+            {selectedSalon && disabledSalones.includes(selectedSalon) ? 'Reactivar' : 'Inhabilitar'}
+          </button>
+          <button className="settings-primary-btn" type="button" disabled={saving} onClick={handleSave}>
+            {saving ? 'Guardando...' : (selectedSalon ? 'Guardar' : 'Agregar salón')}
           </button>
         </div>
+      </div>
 
-        <div className="modalBody">
-          {/* Row 1: Select existing + Status */}
-          <div className="settings-field-group">
-            <label className="settings-modern-field">
-              <span>Salon existente</span>
-              <select id="salonEditSelect" value={selectedSalon} onChange={handleSalonSelectChange}>
-                <option value="">-- Crear nuevo salon --</option>
-                {salones.map(s => (
-                  <option key={s} value={s}>
-                    {s} {disabledSalones.includes(s) ? '(Inhabilitado)' : '(Activo)'}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="settings-modern-field">
-              <span>Estado</span>
-              <label className="settings-switch-inline">
-                <input id="salonActive" type="checkbox" checked={salonActive} onChange={(e) => setSalonActive(e.target.checked)} />
-                <span>{salonActive ? 'Salon activo' : 'Salon inactivo'}</span>
-              </label>
-            </div>
-          </div>
+      {/* Row 1: Select existing + Status */}
+      <div className="settings-field-group">
+        <label className="settings-modern-field">
+          <span>Salon existente</span>
+          <select value={selectedSalon} onChange={handleSalonSelectChange}>
+            <option value="">-- Crear nuevo salon --</option>
+            {salones.map(s => (
+              <option key={s} value={s}>
+                {s} {disabledSalones.includes(s) ? '(Inhabilitado)' : '(Activo)'}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="settings-modern-field">
+          <span>Estado</span>
+          <label className="settings-switch-inline">
+            <input type="checkbox" checked={salonActive} onChange={(e) => setSalonActive(e.target.checked)} />
+            <span>{salonActive ? 'Salon activo' : 'Salon inactivo'}</span>
+          </label>
+        </div>
+      </div>
 
-          {/* Row 2: Name + Capacity */}
-          <div className="settings-field-group">
-            <label className="settings-modern-field">
-              <span>Nombre del salon</span>
-              <input id="salonNameInput" type="text" placeholder="Ej: Salon Aurora" value={salonNameInput} onChange={(e) => setSalonNameInput(e.target.value)} />
-            </label>
-            <label className="settings-modern-field">
-              <span>Capacidad PAX *</span>
-              <input id="salonCapacityInput" type="number" placeholder="Ej: 500" value={salonCapacityInput} onChange={(e) => setSalonCapacityInput(e.target.value)} />
-            </label>
-          </div>
+      {/* Row 2: Name + Capacity */}
+      <div className="settings-field-group">
+        <label className="settings-modern-field">
+          <span>Nombre del salon</span>
+          <input type="text" placeholder="Ej: Salon Aurora" value={salonNameInput} onChange={(e) => setSalonNameInput(e.target.value)} />
+        </label>
+        <label className="settings-modern-field">
+          <span>Capacidad PAX *</span>
+          <input type="number" placeholder="Ej: 500" value={salonCapacityInput} onChange={(e) => setSalonCapacityInput(e.target.value)} />
+        </label>
+      </div>
 
-          {/* Salones table */}
-          <div className="settings-modern-field">
-            <span>Salones registrados</span>
-            <div className="settings-table-wrap" style={{ maxHeight: '200px' }}>
-              <table className="settings-table" style={{ minWidth: '0' }}>
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Capacidad</th>
-                    <th>Estado</th>
-                    <th style={{ textAlign: 'center' }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="salonesBody">
-                  {salones.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
-                        No hay salones registrados
+      {/* Salones table */}
+      <div className="settings-modern-field">
+        <span>Salones registrados</span>
+        <div className="settings-table-wrap" style={{ maxHeight: '260px' }}>
+          <table className="settings-table" style={{ minWidth: '0' }}>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Capacidad</th>
+                <th>Estado</th>
+                <th style={{ textAlign: 'center' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salones.length === 0 ? (
+                <tr>
+                  <td colSpan="4" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
+                    No hay salones registrados
+                  </td>
+                </tr>
+              ) : (
+                salones.map(s => {
+                  const isDisabled = disabledSalones.includes(s);
+                  const capacity = salonCapacities[s] || '2000';
+                  return (
+                    <tr key={s}>
+                      <td style={{ fontWeight: '600' }}>{s}</td>
+                      <td>{capacity} PAX</td>
+                      <td>
+                        <span className="settings-role-badge" style={{
+                          background: isDisabled ? '#fee2e2' : '#dcfce7',
+                          color: isDisabled ? '#991b1b' : '#15803d',
+                          borderColor: isDisabled ? '#fecaca' : '#bbf7d0',
+                        }}>
+                          {isDisabled ? 'Inhabilitado' : 'Activo'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="settings-table-actions">
+                          <button type="button" title="Editar" onClick={() => loadSalonForEdit(s)}>✎</button>
+                          <button type="button" title={isDisabled ? 'Reactivar' : 'Inhabilitar'} onClick={() => handleToggleActive(s)}>
+                            {isDisabled ? '↻' : '🚫'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ) : (
-                    salones.map(s => {
-                      const isDisabled = disabledSalones.includes(s);
-                      const capacity = salonCapacities[s] || '2000 (Límite defecto)';
-                      return (
-                        <tr key={s}>
-                          <td style={{ fontWeight: '600' }}>{s}</td>
-                          <td>{capacity} PAX</td>
-                          <td>
-                            <span className="settings-role-badge" style={{
-                              background: isDisabled ? '#fee2e2' : '#dcfce7',
-                              color: isDisabled ? '#991b1b' : '#15803d',
-                              borderColor: isDisabled ? '#fecaca' : '#bbf7d0',
-                            }}>
-                              {isDisabled ? 'Inhabilitado' : 'Activo'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <div className="settings-table-actions">
-                              <button type="button" title="Editar" onClick={() => loadSalonForEdit(s)}>
-                                ✎
-                              </button>
-                              <button
-                                type="button"
-                                title={isDisabled ? 'Reactivar' : 'Inhabilitar'}
-                                onClick={() => handleToggleActive(s)}
-                              >
-                                {isDisabled ? '↻' : '🚫'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
+      </div>
+    </>
+  );
 
-        <div className="modalFooter">
-          <div className="leftActions">
-            <button className="settings-danger-btn" id="btnSalonDisable" type="button" disabled={!selectedSalon} onClick={handleDisableBtn}>
-              {selectedSalon && disabledSalones.includes(selectedSalon) ? 'Reactivar' : 'Inhabilitar'}
+  /* ── INLINE MODE ── */
+  if (inline) {
+    return (
+      <div>
+        <button type="button" onClick={handleClose} className="btn-exit" style={{ marginBottom: '12px' }}>
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+          Volver a Configuración
+        </button>
+        <div className="settings-section-card" style={{ overflow: 'visible' }}>
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── MODAL MODE (legacy) ── */
+  return (
+    <>
+      <style>{`#salonesBackdrop{display:none;}`}</style>
+      <div className="modalBackdrop" id="salonesBackdrop" hidden onClick={(e) => { if (e.target.id === 'salonesBackdrop') handleClose(); }}>
+        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="salonesTitle">
+          <div className="modalHeader">
+            <div>
+              <div className="modalTitle" id="salonesTitle">Salones</div>
+              <div className="modalSubtitle">Agrega, edita e inhabilita salones</div>
+            </div>
+            <button className="btn-exit" type="button" title="Cerrar" onClick={handleClose}>
+              <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
             </button>
           </div>
-          <div className="rightActions">
-            <button className="settings-cancel-btn" id="btnSalonReset" type="button" onClick={resetForm}>
-              Nuevo salon
-            </button>
-            <button className="settings-primary-btn" id="btnSalonSave" type="button" disabled={saving} onClick={handleSave}>
-              {saving ? 'Guardando...' : 'Guardar salon'}
-            </button>
+          <div className="modalBody">
+            {content}
+          </div>
+          <div className="modalFooter">
+            <div className="leftActions">
+              <button className="settings-danger-btn" type="button" disabled={!selectedSalon} onClick={handleDisableBtn}>
+                {selectedSalon && disabledSalones.includes(selectedSalon) ? 'Reactivar' : 'Inhabilitar'}
+              </button>
+            </div>
+            <div className="rightActions">
+              <button className="settings-cancel-btn" type="button" onClick={resetForm}>Nuevo salon</button>
+              <button className="settings-primary-btn" type="button" disabled={saving} onClick={handleSave}>
+                {saving ? 'Guardando...' : 'Guardar salon'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

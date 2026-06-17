@@ -9227,3 +9227,36 @@ body div.swal2-container div.swal2-popup.swal2-modal {
 }
 
 
+
+/* === CHECKLIST MODALS SCROLL FIX === */
+#checklistTemplateBackdrop,
+#eventChecklistBackdrop {
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#checklistTemplateBackdrop .modal,
+#eventChecklistBackdrop .modal {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  max-height: 92vh !important;
+  min-height: 0 !important;
+}
+
+#checklistTemplateBackdrop .modalBody,
+#eventChecklistBackdrop .modalBody {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+#checklistTemplateBackdrop .modalFooter,
+#eventChecklistBackdrop .modalFooter {
+  flex-shrink: 0 !important;
+  margin-top: 0 !important;
+}
+/* === END CHECKLIST MODALS SCROLL FIX ===*/

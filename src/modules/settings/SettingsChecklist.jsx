@@ -3,874 +3,739 @@ import { loadState as loadCrmState, saveState as saveCrmState } from '../../serv
 import { toast, modernConfirm } from '../../utils/toast';
 import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
 
-export default function SettingsChecklist() {
-  // ── Refs for both modals ──
-  const templateBackdropRef = useRef(null);
-  const eventBackdropRef = useRef(null);
+const XIcon = () => (
+  <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+    <path d="M4 4l10 10M14 4l-10 10" />
+  </svg>
+);
 
-  // ── Modal-open flags ──
-  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
+const SECTION_TYPE_OPTIONS = [
+  { value: 'operativa', label: '⚙️ Operativa', desc: 'Pendiente / Cumplido' },
+  { value: 'evaluacion', label: '⭐ Evaluación', desc: 'Malo / Regular / Bueno / Excelente' },
+];
 
-  // ── Shared data ──
+const RATING_LEVELS = [
+  { value: 'malo', label: 'Malo', emoji: '🔴', score: 1 },
+  { value: 'regular', label: 'Regular', emoji: '🟡', score: 2 },
+  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 3 },
+  { value: 'excelente', label: 'Excelente', emoji: '💎', score: 4 },
+];
+
+/* ══════════════════════════════════════════════
+   EDITOR INLINE DE PLANTILLAS (mismo estilo que los demás settings)
+   ══════════════════════════════════════════════ */
+export function ChecklistTemplateEditor() {
   const [templates, setTemplates] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [selTplId, setSelTplId] = useState('');
+  const [tplName, setTplName] = useState('');
+  const [tplActive, setTplActive] = useState(true);
+  const [secName, setSecName] = useState('');
+  const [editSecId, setEditSecId] = useState('');
+  const [pointTextBySec, setPointTextBySec] = useState({});
+  const [dragOverSecId, setDragOverSecId] = useState(null);
+  const [dragOverItemKey, setDragOverItemKey] = useState(null);
+  const dragSecIdx = useRef(null);
+  const dragItemKey = useRef(null);
 
-  // ══════════════════════════════════════
-  //  MODAL 1 — Template Editor state
-  // ══════════════════════════════════════
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [templateName, setTemplateName] = useState('');
-  const [templateActive, setTemplateActive] = useState(true);
+  const selTpl = templates.find(t => t.id === Number(selTplId)) || null;
 
-  // Section form
-  const [selectedSectionId, setSelectedSectionId] = useState('');
-  const [sectionName, setSectionName] = useState('');
+  useEffect(() => { loadData(); }, []);
 
-  // Item form
-  const [itemText, setItemText] = useState('');
-  const [itemSectionId, setItemSectionId] = useState('');
-
-  // ══════════════════════════════════════
-  //  MODAL 2 — Event Checklist state
-  // ══════════════════════════════════════
-  const [eventId, setEventId] = useState(null);
-  const [eventData, setEventData] = useState(null);
-  const [eventTemplateId, setEventTemplateId] = useState('');
-  const [eventNotes, setEventNotes] = useState('');
-  const [eventItems, setEventItems] = useState([]);
-
-  // ── Derived: currently-selected template object ──
-  const selectedTemplate = templates.find(t => t.id === Number(selectedTemplateId)) || null;
-
-  // ──────────────────────────────────────
-  //  MutationObservers: detect modal open
-  // ──────────────────────────────────────
-  useEffect(() => {
-    const obs1 = new MutationObserver(() => {
-      if (templateBackdropRef.current) {
-        setIsTemplateOpen(!templateBackdropRef.current.hidden);
-      }
-    });
-    if (templateBackdropRef.current) {
-      obs1.observe(templateBackdropRef.current, { attributes: true, attributeFilter: ['hidden'] });
-      setIsTemplateOpen(!templateBackdropRef.current.hidden);
-    }
-
-    const obs2 = new MutationObserver(() => {});
-    if (eventBackdropRef.current) {
-      obs2.observe(eventBackdropRef.current, { attributes: true, attributeFilter: ['hidden'] });
-    }
-
-    return () => { obs1.disconnect(); obs2.disconnect(); };
-  }, []);
-
-  // ── Reload when template modal opens ──
-  useEffect(() => {
-    if (isTemplateOpen) loadData();
-  }, [isTemplateOpen]);
-
-  // ──────────────────────────────────────
-  //  Load / persist helpers
-  // ──────────────────────────────────────
   const loadData = async () => {
     try {
       const state = await loadCrmState();
-      const loaded = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
-      setTemplates(loaded);
-      resetTemplateForm();
-    } catch (err) {
-      console.error('Error al cargar checklist templates:', err);
-      toast('Error al cargar plantillas de checklist');
-    }
+      setTemplates(Array.isArray(state.checklistTemplates) ? state.checklistTemplates : []);
+    } catch (err) { console.error(err); toast('Error al cargar plantillas'); }
   };
 
-  const persistTemplates = async (updatedTemplates) => {
-    const currentState = await loadCrmState();
-    await saveCrmState({ ...currentState, checklistTemplates: updatedTemplates });
+  const persist = async (updated) => {
+    const state = await loadCrmState();
+    await saveCrmState({ ...state, checklistTemplates: updated });
     window.dispatchEvent(new Event('stateUpdated'));
   };
 
-  // ──────────────────────────────────────
-  //  Close helpers
-  // ──────────────────────────────────────
-  const handleCloseTemplate = () => {
-    if (templateBackdropRef.current) {
-      templateBackdropRef.current.hidden = true;
-      setIsTemplateOpen(false);
-    }
-  };
+  const getPointText = (secId) => pointTextBySec[secId] || '';
 
-  const handleCloseEvent = () => {
-    if (eventBackdropRef.current) {
-      eventBackdropRef.current.hidden = true;
-    }
-  };
-
-  // ══════════════════════════════════════════════
-  //  TEMPLATE EDITOR — handlers
-  // ══════════════════════════════════════════════
-
-  const resetTemplateForm = () => {
-    setSelectedTemplateId('');
-    setTemplateName('');
-    setTemplateActive(true);
-    resetSectionForm();
-    setItemText('');
-    setItemSectionId('');
-  };
-
-  const resetSectionForm = () => {
-    setSelectedSectionId('');
-    setSectionName('');
-  };
-
-  // ── Template select ──
-  const handleTemplateSelectChange = (e) => {
-    const id = e.target.value;
-    setSelectedTemplateId(id);
+  const selectTemplate = (id) => {
+    setSelTplId(id);
+    setPointTextBySec({});
+    setSecName(''); setEditSecId('');
     if (id) {
       const tpl = templates.find(t => t.id === Number(id));
-      if (tpl) {
-        setTemplateName(tpl.name);
-        setTemplateActive(tpl.active);
-        resetSectionForm();
-        setItemText('');
-        setItemSectionId(tpl.sections.length > 0 ? String(tpl.sections[0].id) : '');
-      }
+      if (tpl) { setTplName(tpl.name); setTplActive(tpl.active !== false); }
     } else {
-      resetTemplateForm();
+      setTplName(''); setTplActive(true);
     }
   };
 
-  // ── New template button ──
-  const handleNewTemplate = () => {
-    resetTemplateForm();
-  };
-
-  // ── Disable button ──
-  const handleDisableTemplate = async () => {
-    if (!selectedTemplate) return;
-    const confirmed = await modernConfirm({
-      title: 'Inhabilitar Plantilla',
-      message: `¿Desea inhabilitar la plantilla "${selectedTemplate.name}"?`,
-      confirmText: 'Inhabilitar',
-      cancelText: 'Cancelar'
-    });
-    if (!confirmed) return;
-
+  /* ─── GUARDAR PLANTILLA ─── */
+  const handleSaveTpl = async () => {
+    if (!tplName.trim()) { toast('Escribe un nombre para la plantilla'); return; }
+    setSaving(true);
     try {
-      const updated = templates.map(t =>
-        t.id === selectedTemplate.id ? { ...t, active: false } : t
-      );
-      await persistTemplates(updated);
+      let updated;
+      if (!selTplId) {
+        const nt = { id: Date.now(), name: tplName.trim(), active: tplActive, sections: [] };
+        updated = [...templates, nt];
+        setSelTplId(String(nt.id));
+      } else {
+        updated = templates.map(t => t.id === Number(selTplId) ? { ...t, name: tplName.trim(), active: tplActive } : t);
+      }
+      await persist(updated);
       setTemplates(updated);
-      setTemplateActive(false);
-      toast('Plantilla inhabilitada');
-    } catch (err) {
-      console.error(err);
-      toast('Error al inhabilitar plantilla');
-    }
+      toast(selTplId ? 'Plantilla guardada ✓' : 'Plantilla creada ✓');
+    } catch (err) { console.error(err); toast('Error al guardar'); }
+    finally { setSaving(false); }
   };
 
-  // ── Section: save / create ──
-  const handleSaveSection = () => {
-    const name = sectionName.trim();
-    if (!name) { toast('Nombre de sección es requerido'); return; }
-    if (!selectedTemplate) { toast('Primero seleccione o guarde una plantilla'); return; }
+  /* ─── INHABILITAR ─── */
+  const handleDisable = async () => {
+    if (!selTpl) return;
+    const ok = await modernConfirm({ title: 'Inhabilitar', message: `¿Inhabilitar "${selTpl.name}"?`, confirmText: 'Inhabilitar', cancelText: 'Cancelar' });
+    if (!ok) return;
+    const updated = templates.map(t => t.id === selTpl.id ? { ...t, active: false } : t);
+    await persist(updated); setTemplates(updated); setTplActive(false);
+    toast('Plantilla inhabilitada');
+  };
 
-    let updatedTemplates;
-    if (selectedSectionId) {
-      // Edit existing section name
-      updatedTemplates = templates.map(t => {
-        if (t.id !== selectedTemplate.id) return t;
-        return {
-          ...t,
-          sections: t.sections.map(s =>
-            s.id === Number(selectedSectionId) ? { ...s, name } : s
-          )
-        };
+  const handleDeleteTpl = async () => {
+    if (!selTpl) return;
+    const ok = await modernConfirm({ title: 'Eliminar plantilla', message: `¿Eliminar "${selTpl.name}" y todas sus secciones?`, confirmText: 'Eliminar', cancelText: 'Cancelar' });
+    if (!ok) return;
+    const updated = templates.filter(t => t.id !== selTpl.id);
+    await persist(updated); setTemplates(updated);
+    setSelTplId(''); setTplName(''); setTplActive(true);
+    toast('Plantilla eliminada');
+  };
+
+  /* ─── SECCIÓN CRUD ─── */
+  const handleSaveSection = () => {
+    const name = secName.trim();
+    if (!name) { toast('Escribe un nombre para la sección'); return; }
+    if (!selTpl) { toast('Primero selecciona o crea una plantilla'); return; }
+    let updated;
+    if (editSecId) {
+      updated = templates.map(t => t.id !== selTpl.id ? t : {
+        ...t, sections: t.sections.map(s => s.id === Number(editSecId) ? { ...s, name } : s)
       });
     } else {
-      // New section
-      const newSection = { id: Date.now(), name, items: [] };
-      updatedTemplates = templates.map(t => {
-        if (t.id !== selectedTemplate.id) return t;
-        return { ...t, sections: [...t.sections, newSection] };
+      updated = templates.map(t => t.id !== selTpl.id ? t : {
+        ...t, sections: [...t.sections, { id: Date.now(), name, type: 'operativa', items: [] }]
       });
     }
-    setTemplates(updatedTemplates);
-    resetSectionForm();
-    toast(selectedSectionId ? 'Sección actualizada' : 'Sección agregada');
+    setTemplates(updated);
+    setSecName(''); setEditSecId('');
+    toast(editSecId ? 'Sección actualizada' : 'Sección agregada');
   };
 
-  // ── Section: edit from table ──
-  const handleEditSection = (section) => {
-    setSelectedSectionId(String(section.id));
-    setSectionName(section.name);
-  };
-
-  // ── Section: delete ──
-  const handleDeleteSection = async (sectionId) => {
-    const confirmed = await modernConfirm({
-      title: 'Eliminar Sección',
-      message: '¿Desea eliminar esta sección y todos sus puntos?',
-      confirmText: 'Eliminar',
-      cancelText: 'Cancelar'
-    });
-    if (!confirmed) return;
-
-    const updatedTemplates = templates.map(t => {
-      if (t.id !== selectedTemplate.id) return t;
-      return { ...t, sections: t.sections.filter(s => s.id !== sectionId) };
-    });
-    setTemplates(updatedTemplates);
-    if (String(sectionId) === selectedSectionId) resetSectionForm();
-    if (String(sectionId) === itemSectionId) setItemSectionId('');
+  const handleDeleteSection = async (sid) => {
+    const ok = await modernConfirm({ title: 'Eliminar sección', message: '¿Eliminar esta sección y todos sus puntos?', confirmText: 'Eliminar', cancelText: 'Cancelar' });
+    if (!ok) return;
+    const updated = templates.map(t => t.id !== selTpl.id ? t : { ...t, sections: t.sections.filter(s => s.id !== sid) });
+    setTemplates(updated);
+    if (String(sid) === editSecId) { setSecName(''); setEditSecId(''); }
     toast('Sección eliminada');
   };
 
-  // ── Add point ──
-  const handleAddPoint = () => {
-    const text = itemText.trim();
-    if (!text) { toast('Texto del punto es requerido'); return; }
-    if (!selectedTemplate) { toast('Primero seleccione o guarde una plantilla'); return; }
-    if (!itemSectionId) { toast('Seleccione una sección para el punto'); return; }
-
-    const updatedTemplates = templates.map(t => {
-      if (t.id !== selectedTemplate.id) return t;
-      return {
-        ...t,
-        sections: t.sections.map(s => {
-          if (s.id !== Number(itemSectionId)) return s;
-          const newItem = { id: Date.now(), text, order: s.items.length + 1 };
-          return { ...s, items: [...s.items, newItem] };
-        })
-      };
+  /* ─── PUNTO CRUD ─── */
+  const handleAddPoint = (secId) => {
+    const text = getPointText(secId).trim();
+    if (!text) { toast('Escribe el texto del punto'); return; }
+    if (!selTpl) { toast('Selecciona una plantilla'); return; }
+    const updated = templates.map(t => {
+      if (t.id !== selTpl.id) return t;
+      return { ...t, sections: t.sections.map(s => {
+        if (s.id !== secId) return s;
+        return { ...s, items: [...s.items, { id: Date.now(), text, order: s.items.length + 1 }] };
+      }) };
     });
-    setTemplates(updatedTemplates);
-    setItemText('');
+    setTemplates(updated);
+    setPointTextBySec(prev => ({ ...prev, [secId]: '' }));
     toast('Punto agregado');
   };
 
-  // ── Delete point ──
-  const handleDeletePoint = async (sectionId, itemId) => {
-    const confirmed = await modernConfirm({
-      title: 'Eliminar Punto',
-      message: '¿Desea eliminar este punto?',
-      confirmText: 'Eliminar',
-      cancelText: 'Cancelar'
+  const handleDeletePoint = async (secId, itemId) => {
+    const ok = await modernConfirm({ title: 'Eliminar punto', message: '¿Eliminar este punto?', confirmText: 'Eliminar', cancelText: 'Cancelar' });
+    if (!ok) return;
+    const updated = templates.map(t => {
+      if (t.id !== selTpl.id) return t;
+      return { ...t, sections: t.sections.map(s => {
+        if (s.id !== secId) return s;
+        const filtered = s.items.filter(i => i.id !== itemId);
+        return { ...s, items: filtered.map((i, idx) => ({ ...i, order: idx + 1 })) };
+      }) };
     });
-    if (!confirmed) return;
-
-    const updatedTemplates = templates.map(t => {
-      if (t.id !== selectedTemplate.id) return t;
-      return {
-        ...t,
-        sections: t.sections.map(s => {
-          if (s.id !== sectionId) return s;
-          const filtered = s.items.filter(i => i.id !== itemId);
-          // Re-order
-          const reordered = filtered.map((item, idx) => ({ ...item, order: idx + 1 }));
-          return { ...s, items: reordered };
-        })
-      };
-    });
-    setTemplates(updatedTemplates);
+    setTemplates(updated);
     toast('Punto eliminado');
   };
 
-  // ── Save template (persist) ──
+  const showEditor = !!(selTpl);
 
-  // Save template sections & items (full persist of in-memory state) ──
-  const handleSaveAll = async () => {
-    const name = templateName.trim();
-    if (!name) { toast('Nombre de plantilla es requerido'); return; }
-
-    setSaving(true);
-    try {
-      let updatedTemplates;
-      const isNew = !selectedTemplateId;
-
-      if (isNew) {
-        // Create template first
-        const tplSections = selectedTemplate ? selectedTemplate.sections : [];
-        const newTemplate = {
-          id: Date.now(),
-          name,
-          active: templateActive,
-          sections: tplSections
-        };
-        updatedTemplates = [...templates, newTemplate];
-        setSelectedTemplateId(String(newTemplate.id));
-      } else {
-        // Update existing — merge current sections state from memory
-        updatedTemplates = templates.map(t => {
-          if (t.id !== Number(selectedTemplateId)) return t;
-          return { ...t, name, active: templateActive };
-        });
-      }
-
-      await persistTemplates(updatedTemplates);
-      setTemplates(updatedTemplates);
-      toast(isNew ? 'Plantilla creada' : 'Plantilla guardada');
-    } catch (err) {
-      console.error(err);
-      toast('Error al guardar plantilla');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Flatten all items for the items table ──
-  const allItems = selectedTemplate
-    ? selectedTemplate.sections.flatMap(s =>
-        s.items.map(item => ({ ...item, sectionName: s.name, sectionId: s.id }))
-      )
-    : [];
-
-  // ══════════════════════════════════════════════
-  //  EVENT CHECKLIST — handlers
-  // ══════════════════════════════════════════════
-
-  useEffect(() => {
-    const openChecklist = async (evtId) => {
-      try {
-        const state = await loadCrmState();
-        const loadedTemplates = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
-        const events = Array.isArray(state.events) ? state.events : [];
-        const eventChecklistsObj = state.eventChecklists && typeof state.eventChecklists === 'object' ? state.eventChecklists : {};
-        const evt = events.find(e => e.id === evtId);
-
-        setTemplates(loadedTemplates);
-        setEventId(evtId);
-        setEventData(evt || null);
-
-        const chk = eventChecklistsObj[evtId] || evt?.checklist;
-        if (chk) {
-          setEventTemplateId(String(chk.templateId || ''));
-          setEventNotes(chk.notes || '');
-          setEventItems(chk.items || []);
-        } else {
-          setEventTemplateId('');
-          setEventNotes('');
-          setEventItems([]);
-        }
-
-        if (eventBackdropRef.current) {
-          eventBackdropRef.current.hidden = false;
-        }
-      } catch (err) {
-        console.error(err);
-        toast('Error al abrir checklist del evento');
-      }
-    };
-
-    const handleOpenChecklistEvent = (event) => {
-      const evtId = event?.detail?.eventId;
-      if (evtId) openChecklist(evtId);
-    };
-
-    window.addEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handleOpenChecklistEvent);
-    return () => {
-      window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handleOpenChecklistEvent);
-    };
-  }, []);
-
-  // ── Apply template to event ──
-  const handleEventTemplateChange = (e) => {
-    const tplId = e.target.value;
-    setEventTemplateId(tplId);
-
-    if (!tplId) {
-      setEventItems([]);
-      return;
-    }
-
-    const tpl = templates.find(t => t.id === Number(tplId));
-    if (!tpl) return;
-
-    // Build flat items list from template
-    const items = tpl.sections.flatMap(s =>
-      s.items.map(item => ({
-        id: item.id,
-        text: item.text,
-        sectionName: s.name,
-        status: 'pendiente',
-        comment: ''
-      }))
-    );
-    setEventItems(items);
-  };
-
-  // ── Update item status ──
-  const handleEventItemStatus = (itemId, status) => {
-    setEventItems(prev => prev.map(i => i.id === itemId ? { ...i, status } : i));
-  };
-
-  // ── Update item comment ──
-  const handleEventItemComment = (itemId, comment) => {
-    setEventItems(prev => prev.map(i => i.id === itemId ? { ...i, comment } : i));
-  };
-
-  // ── Progress calculations ──
-  const totalItems = eventItems.length;
-  const cumplidos = eventItems.filter(i => i.status === 'cumplido').length;
-  const enProceso = eventItems.filter(i => i.status === 'en_proceso').length;
-  const noAplica = eventItems.filter(i => i.status === 'no_aplica').length;
-  const avance = totalItems > 0 ? Math.round(((cumplidos + enProceso + noAplica) / totalItems) * 100) : 0;
-  const satisfaccion = (totalItems - noAplica) > 0 ? Math.round((cumplidos / (totalItems - noAplica)) * 100) : 0;
-
-  // ── Save event checklist ──
-  const handleSaveEventChecklist = async () => {
-    if (!eventId) { toast('No hay evento seleccionado'); return; }
-
-    setSaving(true);
-    try {
-      const currentState = await loadCrmState();
-      const currentChecklists = currentState.eventChecklists && typeof currentState.eventChecklists === 'object' ? currentState.eventChecklists : {};
-
-      const nextChecklists = {
-        ...currentChecklists,
-        [eventId]: {
-          templateId: eventTemplateId ? Number(eventTemplateId) : null,
-          notes: eventNotes,
-          items: eventItems
-        }
-      };
-
-      await saveCrmState({
-        ...currentState,
-        eventChecklists: nextChecklists
-      });
-      toast('Check list guardado');
-      window.dispatchEvent(new Event('stateUpdated'));
-      handleCloseEvent();
-    } catch (err) {
-      console.error(err);
-      toast('Error al guardar check list');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ══════════════════════════════════════════════
-  //  RENDER
-  // ══════════════════════════════════════════════
   return (
-    <>
-      {/* ═══ MODAL 1: Template Editor ═══ */}
-      <div
-        className="modalBackdrop"
-        id="checklistTemplateBackdrop"
-        ref={templateBackdropRef}
-        hidden
-        onClick={(e) => { if (e.target.id === 'checklistTemplateBackdrop') handleCloseTemplate(); }}
-      >
-        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="checklistTemplateTitle">
-          <div className="modalHeader">
-            <div>
-              <div className="modalTitle" id="checklistTemplateTitle">Configurar Check List</div>
-              <div className="modalSubtitle">Define plantillas, secciones y puntos para eventos</div>
-            </div>
-            <button className="btn-exit" id="btnChecklistTemplateClose" type="button" title="Cerrar" onClick={handleCloseTemplate}>
-            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
-          </button>
-          </div>
-          <div className="modalBody">
-            {/* Row 1: Template select + name */}
-            <div className="settings-field-group">
-              <label className="settings-modern-field">
-                <span>Plantilla existente</span>
-                <select
-                  id="checklistTemplateSelect"
-                  value={selectedTemplateId}
-                  onChange={handleTemplateSelectChange}
-                >
-                  <option value="">-- Crear nueva plantilla --</option>
-                  {templates.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.active ? '(Activa)' : '(Inhabilitada)'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="settings-modern-field">
-                <span>Nombre de plantilla</span>
-                <input
-                  id="checklistTemplateName"
-                  type="text"
-                  placeholder="Ej: Checklist corporativo"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                />
-              </label>
-            </div>
+    <div>
+      {/* ── Row: Select + Actions ── */}
+      <div className="settings-field-group">
+        <label className="settings-modern-field">
+          <span>Plantilla existente</span>
+          <select value={selTplId} onChange={e => selectTemplate(e.target.value)}>
+            <option value="">-- Crear nueva plantilla --</option>
+            {templates.map(t => (
+              <option key={t.id} value={t.id}>{t.name} {t.active !== false ? '' : '(inactiva)'}</option>
+            ))}
+          </select>
+        </label>
+        <label className="settings-modern-field">
+          <span>Estado</span>
+          <label className="settings-switch-inline" style={{ cursor: 'pointer' }}>
+            <input type="checkbox" checked={tplActive} onChange={e => setTplActive(e.target.checked)} />
+            <span>{tplActive ? 'Plantilla activa' : 'Plantilla inactiva'}</span>
+          </label>
+        </label>
+      </div>
 
-            {/* Row 2: Active + actions */}
-                        <div className="settings-field-group">
-              <div className="settings-modern-field">
-                <span>Estado plantilla</span>
-                <label className="settings-switch-inline">
-                  <input
-                    id="checklistTemplateActive"
-                    type="checkbox"
-                    checked={templateActive}
-                    onChange={(e) => setTemplateActive(e.target.checked)}
-                  />
-                  <span>{templateActive ? 'Plantilla activa' : 'Plantilla inactiva'}</span>
-                </label>
-              </div>
-                            <div className="settings-modern-field">
-                <span>Acciones plantilla</span>
-                <div className="rightActions">
-                  <button className="settings-cancel-btn" id="btnChecklistTemplateNew" type="button" onClick={handleNewTemplate}>Nueva plantilla</button>
-                  <button className="settings-danger-btn" id="btnChecklistTemplateDisable" type="button" onClick={handleDisableTemplate} disabled={!selectedTemplateId}>Inhabilitar</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3: Point input + section selector for adding */}
-                        <div className="settings-field-group">
-              <label className="settings-modern-field">
-                <span>Punto a chequear</span>
-                <input
-                  id="checklistTemplateInput"
-                  type="text"
-                  placeholder="Ej: Montaje de mesas completo"
-                  value={itemText}
-                  onChange={(e) => setItemText(e.target.value)}
-                />
-              </label>
-              <label className="settings-modern-field">
-                <span>Seccion</span>
-                <select
-                  id="checklistTemplateSectionSelect"
-                  value={itemSectionId}
-                  onChange={(e) => setItemSectionId(e.target.value)}
-                >
-                  <option value="">-- Seleccione sección --</option>
-                  {selectedTemplate && selectedTemplate.sections.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {/* Row 4: Section edit + section name */}
-                        <div className="settings-field-group">
-              <label className="settings-modern-field">
-                <span>Seccion a editar</span>
-                <select
-                  id="checklistTemplateSectionEditSelect"
-                  value={selectedSectionId}
-                  onChange={(e) => {
-                    const sid = e.target.value;
-                    setSelectedSectionId(sid);
-                    if (sid && selectedTemplate) {
-                      const sec = selectedTemplate.sections.find(s => s.id === Number(sid));
-                      if (sec) setSectionName(sec.name);
-                    } else {
-                      setSectionName('');
-                    }
-                  }}
-                >
-                  <option value="">-- Nueva sección --</option>
-                  {selectedTemplate && selectedTemplate.sections.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </label>
-                            <label className="settings-modern-field">
-                <span>Nueva o editar seccion</span>
-                <input
-                  id="checklistTemplateSectionInput"
-                  type="text"
-                  placeholder="Ej: Salon"
-                  value={sectionName}
-                  onChange={(e) => setSectionName(e.target.value)}
-                />
-              </label>
-            </div>
-
-            {/* Row 5: Section actions + point actions */}
-                        <div className="settings-field-group">
-              <div className="settings-modern-field">
-                <span>Acciones seccion</span>
-                <div className="rightActions">
-                  <button className="settings-accent-btn" id="btnChecklistTemplateAddSection" type="button" onClick={handleSaveSection}>Guardar seccion</button>
-                  <button className="settings-cancel-btn" id="btnChecklistTemplateResetSection" type="button" onClick={resetSectionForm}>Nueva seccion</button>
-                </div>
-              </div>
-              <div className="settings-modern-field">
-                <span>Acciones punto</span>
-                <div className="rightActions">
-                  <button className="settings-primary-btn" id="btnChecklistTemplateAdd" type="button" onClick={handleAddPoint}>Agregar punto</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Sections table */}
-                        <div className="settings-table-wrap">
-              <table className="settings-table">
-                <thead>
-                  <tr>
-                    <th>Seccion</th>
-                    <th>Puntos</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="checklistTemplateSectionsBody">
-                  {(!selectedTemplate || selectedTemplate.sections.length === 0) ? (
-                    <tr>
-                      <td colSpan="3" className="settings-td-center settings-empty-row">
-                        {selectedTemplate ? 'No hay secciones' : 'Seleccione una plantilla'}
-                      </td>
-                    </tr>
-                  ) : (
-                    selectedTemplate.sections.map(s => (
-                      <tr key={s.id}>
-                        <td>{s.name}</td>
-                        <td>{s.items.length} punto(s)</td>
-                        <td className="settings-td-center">
-                          <div className="settings-table-actions">
-                            <button
-                              type="button"
-                              title="Editar sección"
-                              onClick={() => handleEditSection(s)}
-                            >✎</button>
-                            <button
-                              type="button"
-                              title="Eliminar sección"
-                              className="danger"
-                              onClick={() => handleDeleteSection(s.id)}
-                            >✕</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Items table */}
-                        <div className="settings-table-wrap">
-              <table className="settings-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Seccion</th>
-                    <th>Punto</th>
-                    <th>Orden</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="checklistTemplateBody">
-                  {allItems.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" className="settings-td-center settings-empty-row">
-                        {selectedTemplate ? 'No hay puntos' : 'Seleccione una plantilla'}
-                      </td>
-                    </tr>
-                  ) : (
-                    allItems.map((item, idx) => (
-                      <tr key={item.id}>
-                        <td>{idx + 1}</td>
-                        <td>{item.sectionName}</td>
-                        <td>{item.text}</td>
-                        <td>{item.order}</td>
-                        <td className="settings-td-center">
-                          <div className="settings-table-actions">
-                            <button
-                              type="button"
-                              title="Eliminar punto"
-                              className="danger"
-                              onClick={() => handleDeletePoint(item.sectionId, item.id)}
-                            >✕</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="modalFooter">
-            <div></div>
-            <div className="rightActions">
-              <button className="btn-exit" type="button" onClick={handleCloseTemplate}>Cerrar</button>
-              <button
-                className="settings-primary-btn"
-                id="btnChecklistTemplateSave"
-                type="button"
-                disabled={saving}
-                onClick={handleSaveAll}
-              >
-                {saving ? 'Guardando...' : 'Guardar plantilla'}
-              </button>
-            </div>
+      {/* ── Row: Nombre + Acciones ── */}
+      <div className="settings-field-group" style={{ marginBottom: '14px' }}>
+        <label className="settings-modern-field">
+          <span>O escribe el nombre de la plantilla</span>
+          <input type="text" value={tplName} onChange={e => setTplName(e.target.value)}
+            placeholder="Ej: Check List Salón de Eventos" />
+        </label>
+        <div className="settings-modern-field">
+          <span>&nbsp;</span>
+          <div style={{ display: 'flex', gap: '6px', height: '40px', alignItems: 'center' }}>
+            <button className="settings-primary-btn" type="button" onClick={handleSaveTpl}
+              disabled={saving || !tplName.trim()}>
+              {saving ? 'Guardando...' : (selTplId ? '💾 Guardar plantilla' : '✓ Crear plantilla')}
+            </button>
+            {selTpl && (
+              <>
+                <button className="settings-danger-btn" type="button" onClick={handleDisable}>
+                  Inhabilitar
+                </button>
+                <button className="settings-danger-btn" type="button" onClick={handleDeleteTpl}
+                  style={{ borderColor: '#fecaca', background: '#fef2f2', color: '#dc2626' }}>
+                  Eliminar
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ═══ MODAL 2: Event Checklist Fill ═══ */}
+      {/* ── Editor de secciones y puntos ── */}
+      {!showEditor ? (
+        <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic', border: '1px dashed #e2e8f0', borderRadius: '10px', background: '#f8fafc' }}>
+          📋 Selecciona una plantilla existente o escribe el nombre y presiona "Crear plantilla" para empezar.
+        </div>
+      ) : (
+        <>
+          {/* Agregar sección */}
+          <div style={{ marginBottom: '12px' }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '6px' }}>
+              {editSecId ? '✎ Editar sección' : '➕ Agregar sección'}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input type="text" value={secName} onChange={e => setSecName(e.target.value)}
+                placeholder="Ej: Salón, Cocina, Baños, Jardín..."
+                style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #d1d9e6', fontSize: '0.82rem', color: '#0f172a', outline: 'none', background: '#fff', fontFamily: 'inherit' }}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveSection(); }} />
+              <button className={editSecId ? 'settings-cancel-btn' : 'settings-accent-btn'} type="button" onClick={handleSaveSection}>
+                {editSecId ? 'Actualizar' : '+ Sección'}
+              </button>
+              {editSecId && (
+                <button className="settings-cancel-btn" type="button" onClick={() => { setSecName(''); setEditSecId(''); }}>
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Lista de secciones con sus puntos */}
+          {selTpl.sections.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.82rem', fontStyle: 'italic', border: '1px dashed #e2e8f0', borderRadius: '10px', background: '#fff' }}>
+              Sin secciones aún. Escribe el nombre de la primera área y presiona "+ Sección".
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {selTpl.sections.map((sec, secIdx) => (
+                <div
+                  key={sec.id}
+                  onDragOver={e => {
+                    e.preventDefault();
+                    setDragOverSecId(sec.id);
+                  }}
+                  onDragLeave={() => setDragOverSecId(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverSecId(null);
+                    const fromIdx = dragSecIdx.current;
+                    if (fromIdx === null || fromIdx === secIdx) return;
+                    const reordered = [...selTpl.sections];
+                    const [moved] = reordered.splice(fromIdx, 1);
+                    reordered.splice(secIdx, 0, moved);
+                    const updated = templates.map(t => t.id !== selTpl.id ? t : { ...t, sections: reordered });
+                    setTemplates(updated);
+                    persist(updated);
+                    dragSecIdx.current = null;
+                  }}
+                  style={{
+                    border: dragOverSecId === sec.id
+                      ? '2px dashed #6366f1'
+                      : (editSecId === String(sec.id) ? '2px solid #6366f1' : '1px solid #e2e8f0'),
+                    borderRadius: '10px', overflow: 'hidden', background: '#fff',
+                    transition: 'border 0.15s ease',
+                  }}>
+                  {/* Header sección */}
+                  <div
+                    draggable
+                    onDragStart={e => {
+                      dragSecIdx.current = secIdx;
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', '');
+                    }}
+                    onDragEnd={() => { dragSecIdx.current = null; setDragOverSecId(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', cursor: 'grab', userSelect: 'none' }}
+                  >
+                    <span style={{ color: '#94a3b8', fontSize: '0.85rem', cursor: 'grab', lineHeight: 1, flexShrink: 0 }}>⠿</span>
+                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a', flex: 1 }}>
+                      {sec.type === 'evaluacion' ? '📊' : '📂'} {sec.name}
+                    </span>
+                    {/* Toggle tipo de sección */}
+                    <div style={{ display: 'flex', gap: '3px', background: '#e2e8f0', borderRadius: '6px', padding: '2px', flexShrink: 0 }}>
+                      {SECTION_TYPE_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            const updated = templates.map(t =>
+                              t.id !== selTpl.id ? t : {
+                                ...t,
+                                sections: t.sections.map(s =>
+                                  s.id !== sec.id ? s : { ...s, type: opt.value }
+                                ),
+                              }
+                            );
+                            setTemplates(updated);
+                            persist(updated);
+                            toast(`Sección cambiada a "${opt.label}"`);
+                          }}
+                          title={opt.desc}
+                          style={{
+                            padding: '2px 6px', borderRadius: '5px', border: 'none',
+                            fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer',
+                            background: (sec.type || 'operativa') === opt.value ? '#fff' : 'transparent',
+                            color: (sec.type || 'operativa') === opt.value ? '#0f172a' : '#94a3b8',
+                            boxShadow: (sec.type || 'operativa') === opt.value ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                            transition: 'all 0.12s', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 800, color: '#fff',
+                      background: sec.items.length > 0 ? '#6366f1' : '#cbd5e1',
+                      padding: '2px 10px', borderRadius: '999px',
+                    }}>
+                      {sec.items.length} punto{sec.items.length !== 1 ? 's' : ''}
+                    </span>
+                    <button type="button" onClick={() => { setEditSecId(String(sec.id)); setSecName(sec.name); }}
+                      className="settings-usr-icon-btn" style={{ color: '#6366f1' }}>✎</button>
+                    <button type="button" onClick={() => handleDeleteSection(sec.id)}
+                      className="settings-usr-icon-btn" style={{ color: '#dc2626' }}>✕</button>
+                  </div>
+
+                  {/* Items */}
+                  <div style={{ padding: '8px 12px' }}>
+                    {sec.items.length === 0 ? (
+                      <div style={{ fontSize: '0.73rem', color: '#94a3b8', fontStyle: 'italic', padding: '4px 0' }}>Sin puntos. Escribe abajo y presiona + Punto.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '8px' }}>
+                        {sec.items.map((item, idx) => {
+                          const itemKey = `${sec.id}_${item.id}`;
+                          return (
+                            <div
+                              key={item.id}
+                              draggable
+                              onDragStart={e => {
+                                dragItemKey.current = itemKey;
+                                e.dataTransfer.effectAllowed = 'move';
+                                e.dataTransfer.setData('text/plain', '');
+                              }}
+                              onDragEnd={() => { dragItemKey.current = null; setDragOverItemKey(null); }}
+                              onDragOver={e => {
+                                e.preventDefault();
+                                setDragOverItemKey(itemKey);
+                              }}
+                              onDragLeave={() => setDragOverItemKey(null)}
+                              onDrop={e => {
+                                e.preventDefault();
+                                setDragOverItemKey(null);
+                                const fromKey = dragItemKey.current;
+                                if (!fromKey || fromKey === itemKey) return;
+                                const [fromSecId, fromItemId] = fromKey.split('_').map(Number);
+                                const toIdx = idx;
+                                const updated = templates.map(t => {
+                                  if (t.id !== selTpl.id) return t;
+                                  return {
+                                    ...t,
+                                    sections: t.sections.map(s => {
+                                      if (s.id !== sec.id) return s;
+                                      // Only reorder if same section
+                                      if (s.id !== fromSecId) return s;
+                                      const items = [...s.items];
+                                      const fromPos = items.findIndex(i => i.id === fromItemId);
+                                      if (fromPos === -1) return s;
+                                      const [moved] = items.splice(fromPos, 1);
+                                      items.splice(toIdx, 0, moved);
+                                      return { ...s, items: items.map((i, pos) => ({ ...i, order: pos + 1 })) };
+                                    }),
+                                  };
+                                });
+                                setTemplates(updated);
+                                persist(updated);
+                                dragItemKey.current = null;
+                              }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', borderRadius: '6px',
+                                background: dragOverItemKey === itemKey ? '#eef2ff' : '#f8fafd',
+                                border: dragOverItemKey === itemKey ? '1.5px dashed #6366f1' : '1px solid #f1f5f9',
+                                cursor: 'grab', transition: 'background 0.12s, border 0.12s',
+                              }}
+                            >
+                              <span style={{ color: '#94a3b8', fontSize: '0.7rem', cursor: 'grab', lineHeight: 1, flexShrink: 0 }}>⠿</span>
+                              <span style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid #d1d9e6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', flexShrink: 0 }}>{idx + 1}</span>
+                              <span style={{ flex: 1, fontSize: '0.82rem', color: '#0f172a' }}>{item.text}</span>
+                              <button type="button" onClick={() => handleDeletePoint(sec.id, item.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '0.75rem', padding: '2px 4px', borderRadius: '4px' }}
+                                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* Agregar punto */}
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input type="text"
+                        value={getPointText(sec.id)}
+                        onChange={e => setPointTextBySec(prev => ({ ...prev, [sec.id]: e.target.value }))}
+                        placeholder="Escribe el punto a evaluar..."
+                        style={{ flex: 1, padding: '6px 10px', borderRadius: '7px', border: '1.5px solid #d1d9e6', fontSize: '0.78rem', color: '#0f172a', outline: 'none', background: '#fff', fontFamily: 'inherit' }}
+                        onKeyDown={e => { if (e.key === 'Enter') handleAddPoint(sec.id); }} />
+                      <button type="button" onClick={() => handleAddPoint(sec.id)}
+                        disabled={!getPointText(sec.id).trim()}
+                        style={{
+                          padding: '6px 12px', borderRadius: '7px', border: 'none',
+                          background: getPointText(sec.id).trim() ? '#6366f1' : '#e2e8f0',
+                          color: '#fff', fontSize: '0.75rem', fontWeight: 700,
+                          cursor: getPointText(sec.id).trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+                        }}>
+                        + Punto
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   COMPONENTE PRINCIPAL — solo mantiene el Modal
+   del Event Checklist (abierto desde el calendario)
+   ══════════════════════════════════════════════ */
+export default function SettingsChecklist() {
+  const eventRef = useRef(null);
+
+  const [templates, setTemplates] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [evtId, setEvtId] = useState(null);
+  const [evtData, setEvtData] = useState(null);
+  const [evtTplId, setEvtTplId] = useState('');
+  const [evtNotes, setEvtNotes] = useState('');
+  const [evtItems, setEvtItems] = useState([]);
+
+  const s = {
+    label: { fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' },
+    input: { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', color: '#0f172a', fontSize: '0.83rem', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' },
+    select: { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', color: '#0f172a', fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit' },
+  };
+
+  useEffect(() => {
+    const handler = async (e) => {
+      const id = e?.detail?.eventId;
+      if (!id) return;
+      try {
+        const state = await loadCrmState();
+        setTemplates(Array.isArray(state.checklistTemplates) ? state.checklistTemplates : []);
+        const events = Array.isArray(state.events) ? state.events : [];
+        const checklists = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
+        const ev = events.find(x => x.id === id);
+        setEvtId(id);
+        setEvtData(ev || null);
+        const chk = checklists[id] || ev?.checklist;
+        setEvtTplId(String(chk?.templateId || ''));
+        setEvtNotes(chk?.notes || '');
+        setEvtItems(chk?.items || []);
+        if (eventRef.current) eventRef.current.style.display = 'flex';
+      } catch (err) { console.error(err); toast('Error al abrir checklist'); }
+    };
+    window.addEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
+    return () => window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
+  }, []);
+
+  const closeEvent = () => { if (eventRef.current) eventRef.current.style.display = 'none'; };
+
+  const handleEvtTpl = (e) => {
+    const id = e.target.value;
+    setEvtTplId(id);
+    if (!id) { setEvtItems([]); return; }
+    const tpl = templates.find(t => t.id === Number(id));
+    if (!tpl) return;
+    setEvtItems(tpl.sections.flatMap(s =>
+      s.items.map(item => ({ 
+        id: item.id, text: item.text, sectionName: s.name,
+        sectionType: s.type || 'operativa',
+        status: 'pendiente',
+        rating: null,
+        comment: '' 
+      }))
+    ));
+  };
+
+  const setRating = (id, rating) => setEvtItems(prev => prev.map(i => i.id === id ? { ...i, rating } : i));
+
+  const setSt = (id, status) => setEvtItems(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+  const setCm = (id, comment) => setEvtItems(prev => prev.map(i => i.id === id ? { ...i, comment } : i));
+
+  const evtTotal = evtItems.length;
+  const evtDone = evtItems.filter(i => i.status === 'cumplido').length;
+  const evtProgress = evtTotal > 0 ? Math.round(((evtDone + evtItems.filter(i => i.status === 'en_proceso' || i.status === 'no_aplica').length) / evtTotal) * 100) : 0;
+  const evtSat = (evtTotal - evtItems.filter(i => i.status === 'no_aplica').length) > 0
+    ? Math.round((evtDone / (evtTotal - evtItems.filter(i => i.status === 'no_aplica').length)) * 100) : 0;
+
+  // Satisfaction calculations
+  const evalItems = evtItems.filter(i => i.sectionType === 'evaluacion');
+  const ratedItems = evalItems.filter(i => i.rating !== null);
+  const satisfactionAvg = ratedItems.length > 0
+    ? (ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0) / ratedItems.length)
+    : 0;
+  const satisfactionPct = Math.round((satisfactionAvg / 4) * 100);
+
+  const handleSaveEvent = async () => {
+    if (!evtId) { toast('No hay evento'); return; }
+    setSaving(true);
+    try {
+      const state = await loadCrmState();
+      const cur = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
+      await saveCrmState({ ...state, eventChecklists: { ...cur, [evtId]: { templateId: evtTplId ? Number(evtTplId) : null, notes: evtNotes, items: evtItems } } });
+      toast('Check list guardado ✓');
+      window.dispatchEvent(new Event('stateUpdated'));
+      closeEvent();
+    } catch (err) { console.error(err); toast('Error al guardar'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <>
+      {/* ═══ MODAL: Check List del Evento (abierto desde calendario) ═══ */}
       <div
-        className="modalBackdrop"
+        ref={eventRef}
         id="eventChecklistBackdrop"
-        ref={eventBackdropRef}
-        hidden
-        onClick={(e) => { if (e.target.id === 'eventChecklistBackdrop') handleCloseEvent(); }}
+        onClick={e => { if (e.target.id === 'eventChecklistBackdrop') closeEvent(); }}
+        style={{
+          display: 'none',
+          position: 'fixed', inset: 0, zIndex: 3000,
+          background: 'rgba(15,23,42,0.35)',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '16px',
+        }}
       >
-        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="eventChecklistTitle">
-          <div className="modalHeader">
+        <div role="dialog" style={{
+          width: 'min(94vw, 820px)',
+          height: 'min(92vh, 860px)',
+          display: 'flex', flexDirection: 'column',
+          background: '#ffffff', border: '1px solid #e2e8f0',
+          borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+          overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#fff', flexShrink: 0 }}>
             <div>
-              <div className="modalTitle" id="eventChecklistTitle">Hotel Jardines del Lago - Check List</div>
-              <div className="modalSubtitle" id="eventChecklistSubtitle">
-                {eventData ? `${eventData.eventName || eventData.client || ''} — ${eventData.date || ''}` : '-'}
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>✅ Check List — Evento</div>
+              <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>
+                {evtData ? `${evtData.eventName || evtData.client || evtData.name || ''} — ${evtData.date || evtData.eventDate || ''}` : ''}
               </div>
             </div>
-            <button className="btn-exit" id="btnEventChecklistClose" type="button" title="Cerrar" onClick={handleCloseEvent}>
-            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
-          </button>
+            <button className="btn-exit" type="button" onClick={closeEvent}><XIcon /></button>
           </div>
-          <div className="modalBody">
-            {/* Template select */}
-            <div className="settings-modern-field">
-              <span>Plantilla</span>
-              <select
-                id="eventChecklistTemplateSelect"
-                value={eventTemplateId}
-                onChange={handleEventTemplateChange}
-                >
-                  <option value="">-- Seleccione plantilla --</option>
-                  {templates.filter(t => t.active).map(t => (
+
+          {/* Body */}
+          <div style={{ flex: '1 1 0', overflowY: 'scroll', overflowX: 'hidden', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <div>
+                <span style={s.label}>Plantilla</span>
+                <select value={evtTplId} onChange={handleEvtTpl} style={s.select}>
+                  <option value="">-- Seleccionar --</option>
+                  {templates.filter(t => t.active !== false).map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <span style={s.label}>Fecha</span>
+                <input type="text" readOnly value={evtData?.date || evtData?.eventDate || ''} style={{ ...s.input, background: '#f8fafc' }} />
+              </div>
+              <div>
+                <span style={s.label}>Evento</span>
+                <input type="text" readOnly value={evtData?.eventName || evtData?.client || evtData?.name || ''} style={{ ...s.input, background: '#f8fafc' }} />
+              </div>
             </div>
 
-            {/* Date + Event name */}
-            <div className="settings-field-group">
-              <label className="settings-modern-field">
-                <span>Fecha</span>
-                <input
-                  id="eventChecklistDate"
-                  type="text"
-                  readOnly
-                  value={eventData?.date || eventData?.eventDate || ''}
-                />
-              </label>
-              <label className="settings-modern-field">
-                <span>Evento</span>
-                <input
-                  id="eventChecklistEventName"
-                  type="text"
-                  readOnly
-                  value={eventData?.eventName || eventData?.client || ''}
-                />
-              </label>
+            <div>
+              <span style={s.label}>Notas / Sugerencias</span>
+              <textarea value={evtNotes} onChange={e => setEvtNotes(e.target.value)}
+                rows={2} placeholder="Observaciones generales..."
+                style={{ ...s.input, resize: 'vertical', minHeight: '50px' }} />
             </div>
 
-            {/* Notes */}
-            <label className="settings-modern-field">
-              <span>Sugerencias / comentarios</span>
-              <textarea
-                id="eventChecklistNotes"
-                rows="2"
-                placeholder="Observaciones generales del check list"
-                value={eventNotes}
-                onChange={(e) => setEventNotes(e.target.value)}
-              ></textarea>
-            </label>
+            {/* Progress + Satisfaction */}
+            <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
+                <span>Avance <span style={{ color: '#6366f1' }}>{evtProgress}%</span></span>
+                <span>Operativo <span style={{ color: '#10b981' }}>{evtSat}%</span></span>
+              </div>
+              <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg,#6366f1,#10b981)', width: `${evtProgress}%`, transition: 'width 0.3s ease' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
+                <span>✅ {evtDone} cumplido(s)</span>
+                <span>🔄 {evtItems.filter(i => i.status === 'en_proceso').length} en proceso</span>
+                <span>⏳ {evtItems.filter(i => i.status === 'pendiente').length} pendiente(s)</span>
+                <span>🚫 {evtItems.filter(i => i.status === 'no_aplica').length} no aplica</span>
+              </div>
 
-            {/* Progress */}
-            <div className="checklistProgressCard">
-              <div className="checklistProgressHead">
-                <strong id="eventChecklistProgressLabel">Avance {avance}%</strong>
-                <span id="eventChecklistSatisfactionLabel">Satisfaccion {satisfaccion}%</span>
-              </div>
-              <div className="checklistProgressTrack" aria-hidden="true">
-                <div
-                  className="checklistProgressFill"
-                  id="eventChecklistProgressFill"
-                  style={{ width: `${avance}%` }}
-                ></div>
-              </div>
+              {/* Satisfaction score bar */}
+              {evalItems.length > 0 && (
+                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
+                    <span>⭐ Satisfacción del Cliente</span>
+                    <span style={{
+                      color: satisfactionAvg >= 3.5 ? '#16a34a' : satisfactionAvg >= 2.5 ? '#d97706' : '#dc2626',
+                      fontSize: '0.9rem',
+                    }}>
+                      {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 4.0 (${satisfactionPct}%)` : '—'}
+                    </span>
+                  </div>
+                  <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: '999px', 
+                      background: satisfactionAvg >= 3.5 ? '#22c55e' : satisfactionAvg >= 2.5 ? '#eab308' : '#ef4444',
+                      width: ratedItems.length > 0 ? `${satisfactionPct}%` : '0%',
+                      transition: 'width 0.4s ease' 
+                    }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
+                    <span>💎 Excelente: {evalItems.filter(i => i.rating === 'excelente').length}</span>
+                    <span>🟢 Bueno: {evalItems.filter(i => i.rating === 'bueno').length}</span>
+                    <span>🟡 Regular: {evalItems.filter(i => i.rating === 'regular').length}</span>
+                    <span>🔴 Malo: {evalItems.filter(i => i.rating === 'malo').length}</span>
+                    <span>⚪ Sin calificar: {evalItems.filter(i => i.rating === null).length}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Items table */}
-            <div className="settings-table-wrap">
-              <table className="settings-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Punto a chequear</th>
-                    <th>Estado</th>
-                    <th>Comentario</th>
-                  </tr>
-                </thead>
-                <tbody id="eventChecklistBody">
-                  {eventItems.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" className="settings-td-center settings-empty-row">
-                        Seleccione una plantilla para cargar puntos
-                      </td>
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', background: '#ffffff' }}>
+              {evtItems.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                  Selecciona una plantilla para cargar los puntos a evaluar
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '36px' }}>#</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase' }}>Punto</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '200px' }}>
+                        {evtItems.some(i => i.sectionType === 'evaluacion') ? 'Calificación' : 'Estado'}
+                      </th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '180px' }}>Comentario</th>
                     </tr>
-                  ) : (
-                    eventItems.map((item, idx) => (
-                      <tr key={item.id}>
-                        <td>{idx + 1}</td>
-                        <td>{item.sectionName ? `[${item.sectionName}] ` : ''}{item.text}</td>
-                        <td>
-                          <select
-                            value={item.status}
-                            onChange={(e) => handleEventItemStatus(item.id, e.target.value)}
-                            className="settings-input-compact"
-                          >
-                            <option value="pendiente">Pendiente</option>
-                            <option value="en_proceso">En proceso</option>
-                            <option value="cumplido">Cumplido</option>
-                            <option value="no_aplica">No aplica</option>
-                          </select>
+                  </thead>
+                  <tbody>
+                    {evtItems.map((item, idx) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: item.sectionType === 'evaluacion' ? '#faf5ff' : 'transparent' }}>
+                        <td style={{ padding: '6px 10px', color: '#94a3b8', fontWeight: 600, fontSize: '0.72rem' }}>{idx + 1}</td>
+                        <td style={{ padding: '6px 10px' }}>
+                          <span style={{ color: '#6366f1', fontSize: '0.7rem', fontWeight: 600 }}>
+                            {item.sectionName ? `[${item.sectionName}] ` : ''}
+                            {item.sectionType === 'evaluacion' && <span style={{ color: '#7c3aed', fontWeight: 700 }}>⭐ </span>}
+                          </span>
+                          <span style={{ color: '#0f172a', fontWeight: 500 }}>{item.text}</span>
                         </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={item.comment}
-                            onChange={(e) => handleEventItemComment(item.id, e.target.value)}
-                            placeholder="Comentario"
-                            className="settings-input-compact"
-                          />
+                        <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                          {item.sectionType === 'evaluacion' ? (
+                            <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                              {RATING_LEVELS.map(r => (
+                                <button
+                                  key={r.value}
+                                  type="button"
+                                  onClick={() => setRating(item.id, item.rating === r.value ? null : r.value)}
+                                  title={r.label}
+                                  style={{
+                                    padding: '4px 7px', borderRadius: '6px', border: item.rating === r.value ? `2px solid ${r.value === 'malo' ? '#ef4444' : r.value === 'regular' ? '#eab308' : r.value === 'bueno' ? '#22c55e' : '#a855f7'}` : '1.5px solid #e2e8f0',
+                                    background: item.rating === r.value ? (r.value === 'malo' ? '#fef2f2' : r.value === 'regular' ? '#fffbeb' : r.value === 'bueno' ? '#f0fdf4' : '#faf5ff') : '#fff',
+                                    fontSize: '0.7rem', fontWeight: 700,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.12s',
+                                    color: item.rating === r.value ? (r.value === 'malo' ? '#dc2626' : r.value === 'regular' ? '#ca8a04' : r.value === 'bueno' ? '#16a34a' : '#9333ea') : '#94a3b8',
+                                    opacity: item.rating && item.rating !== r.value ? 0.5 : 1,
+                                  }}
+                                >
+                                  {r.emoji} {r.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <select value={item.status} onChange={e => setSt(item.id, e.target.value)}
+                              style={{ padding: '4px 8px', borderRadius: '6px', border: '1.5px solid #d1d9e6', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', background: item.status === 'cumplido' ? '#f0fdf4' : item.status === 'en_proceso' ? '#fffbeb' : item.status === 'no_aplica' ? '#f0f9ff' : '#ffffff', color: item.status === 'cumplido' ? '#16a34a' : item.status === 'en_proceso' ? '#d97706' : item.status === 'no_aplica' ? '#0ea5e9' : '#64748b', appearance: 'auto' }}>
+                              <option value="pendiente">Pendiente</option>
+                              <option value="en_proceso">En proceso</option>
+                              <option value="cumplido">Cumplido</option>
+                              <option value="no_aplica">No aplica</option>
+                            </select>
+                          )}
+                        </td>
+                        <td style={{ padding: '6px 10px' }}>
+                          <input type="text" value={item.comment} onChange={e => setCm(item.id, e.target.value)}
+                            placeholder="..." style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1.5px solid #e2e8f0', fontSize: '0.75rem', outline: 'none', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
-          <div className="modalFooter">
-            <div></div>
-            <div className="rightActions">
-              <button className="btn-exit" id="btnEventChecklistDiscard" type="button" onClick={handleCloseEvent}>Cerrar</button>
-              <button
-                className="settings-primary-btn"
-                id="btnEventChecklistSave"
-                type="button"
-                disabled={saving}
-                onClick={handleSaveEventChecklist}
-              >
-                {saving ? 'Guardando...' : 'Guardar check list'}
-              </button>
-            </div>
+
+          {/* Footer */}
+          <div style={{ flexShrink: 0, padding: '12px 18px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
+            <button className="btn-exit" type="button" onClick={closeEvent}>Cerrar</button>
+            <button type="button" onClick={handleSaveEvent} disabled={saving}
+              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+              {saving ? 'Guardando...' : 'Guardar check list'}
+            </button>
           </div>
         </div>
       </div>
     </>
   );
 }
-
-

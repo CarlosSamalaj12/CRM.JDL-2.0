@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { IconMapPin, IconClock, IconUser, IconFileText, IconEye, IconGripVertical, IconMessageCircle, IconAtSign } from './Icons.jsx';
 import ReactionTooltip from './ReactionTooltip.jsx';
+import { emitOpenEventChecklist } from '../../../utils/appEvents';
 
 const statusMap = {
   4: { label: 'Confirmado', color: 'green' },
@@ -20,7 +21,7 @@ function getMencionFilter(text) {
   return after;
 }
 
-export default function EventCard({ event, dragHandleProps }) {
+export default function EventCard({ event, dragHandleProps, checklistStatus }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -155,10 +156,33 @@ export default function EventCard({ event, dragHandleProps }) {
     : [];
 
   return (
-    <article className={cardClass}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div className={`event-tag event-tag-${status.color}`}>
-          {status.label}
+    <article className={cardClass}>        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className={`event-tag event-tag-${status.color}`}>
+            {status.label}
+          </div>
+          {checklistStatus && checklistStatus !== 'pendiente' && (
+            <span
+              data-tooltip={
+                checklistStatus === 'completo' ? '✅ Checklist completo' :
+                checklistStatus === 'en_proceso' ? '🔄 Checklist en proceso' :
+                '⏳ Checklist pendiente'
+              }
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '2px',
+                padding: '0.1rem 0.35rem', borderRadius: '999px',
+                fontSize: '0.58rem', fontWeight: 700, lineHeight: 1.2,
+                background: checklistStatus === 'completo' ? '#f0fdf4' : '#fffbeb',
+                color: checklistStatus === 'completo' ? '#16a34a' : '#d97706',
+                border: '1px solid',
+                borderColor: checklistStatus === 'completo' ? '#bbf7d0' : '#fde68a',
+                whiteSpace: 'nowrap',
+                cursor: 'default',
+              }}
+            >
+              {checklistStatus === 'completo' ? '✅' : '🔄'}
+            </span>
+          )}
         </div>
         {dragHandleProps && (
           <span className="drag-handle" {...dragHandleProps}>
@@ -238,6 +262,9 @@ export default function EventCard({ event, dragHandleProps }) {
         )}
         <button type="button" onClick={() => navigate(`/informe/${event.Idocupacion}`)} data-tooltip="Ver informe existente">
           <IconEye size={13} /> Ver
+        </button>
+        <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{background:'var(--primary-bg)',color:'var(--primary)',fontWeight:700}}>
+          ✅ CHK
         </button>
         <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${notas.length > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={notas.length > 0 ? `${notas.length} nota(s)` : 'Agregar nota'}>
           <IconMessageCircle size={13} />

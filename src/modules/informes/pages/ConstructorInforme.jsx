@@ -22,6 +22,8 @@ import {
   IconMessageCircle, IconStar, IconHistory
 } from '../components/Icons.jsx';
 import ReactionTooltip from '../components/ReactionTooltip.jsx';
+import SettingsChecklist from '../../settings/SettingsChecklist';
+import { emitOpenEventChecklist } from '../../../utils/appEvents';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTES
@@ -1281,6 +1283,9 @@ export default function ConstructorInforme() {
         <button className="pos-bottom-btn" onClick={() => navigate('/kanban')}>
           <IconSearch size={15} /> Buscar
         </button>
+        <button className="pos-bottom-btn" onClick={() => emitOpenEventChecklist(id_ocupacion)} style={{background:'var(--primary-bg)',color:'var(--primary)',fontWeight:700}}>
+          ✅ CHK
+        </button>
         <button className="pos-bottom-btn" onClick={addDia}>
           <IconPlus size={15} /> Día
         </button>
@@ -1414,6 +1419,7 @@ export default function ConstructorInforme() {
           </div>
         </div>
       )}
+      <SettingsChecklist />
       {hoveredTooltip && (
         <ReactionTooltip
           emoji={hoveredTooltip.emoji}

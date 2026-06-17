@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { fetchEvents } from '../services/api.js';
+import { loadState } from '../../../services/stateService';
 import EventCard from '../components/EventCard.jsx';
 
 import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload } from '../components/Icons.jsx';
+import SettingsChecklist from '../../settings/SettingsChecklist';
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -60,6 +62,7 @@ export default function Kanban() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState([]);
   const [eventsTotal, setEventsTotal] = useState(0);
+  const [eventChecklists, setEventChecklists] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
@@ -75,11 +78,17 @@ export default function Kanban() {
 
   useEffect(() => {
     setLoading(true);
-    fetchEvents(selectedDate)
-      .then((data) => {
-        const expanded = data.flatMap(expandEventByDay);
+    Promise.all([
+      fetchEvents(selectedDate),
+      loadState({ cacheBust: false }).catch(() => ({})),
+    ])
+      .then(([eventsData, crmState]) => {
+        const expanded = eventsData.flatMap(expandEventByDay);
         setEvents(expanded);
         setEventsTotal(expanded.length);
+        const eck = (crmState?.eventChecklists && typeof crmState.eventChecklists === 'object')
+          ? crmState.eventChecklists : {};
+        setEventChecklists(eck);
       })
       .catch((err) => setError(err.message || 'Error desconocido'))
       .finally(() => setLoading(false));
@@ -244,9 +253,17 @@ export default function Kanban() {
                 {column.items.length === 0 ? (
                   <p className="kanban-empty">Sin eventos este día</p>
                 ) : (
-                  column.items.map((event) => (
-                    <EventCard key={`${event.Idocupacion}-${event.displayDate}`} event={event} />
-                  ))
+                  column.items.map((event) => {
+                    const chk = eventChecklists[event.Idocupacion];
+                    let chkStatus = 'pendiente';
+                    if (chk?.items?.length) {
+                      const allDone = chk.items.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
+                      chkStatus = allDone ? 'completo' : 'en_proceso';
+                    }
+                    return (
+                      <EventCard key={`${event.Idocupacion}-${event.displayDate}`} event={event} checklistStatus={chkStatus} />
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -316,6 +333,7 @@ export default function Kanban() {
           </table>
         </div>
       )}
+      <SettingsChecklist />
     </section>
   );
 }

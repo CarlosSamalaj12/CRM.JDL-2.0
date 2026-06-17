@@ -6,6 +6,7 @@ import ReportsContabilidad from './ReportsContabilidad';
 import ReportsOcupacion from './ReportsOcupacion';
 import ReportsInstitucion from './ReportsInstitucion';
 import ReportsDashboard from './ReportsDashboard';
+import ReportsSatisfaccion from './ReportsSatisfaccion';
 import './reports.css';
 
 const BENTO_CARDS = [
@@ -39,6 +40,12 @@ const BENTO_CARDS = [
     badge: 'Clientes • Historial • Análisis',
     icon: '🏢', variant: 'rose',
   },
+  { 
+    id: 'satisfaccion', title: 'Satisfacción',
+    desc: 'Ratings de servicio, evaluación por evento y tendencias',
+    badge: 'Calidad • Ratings • Clientes',
+    icon: '⭐', variant: 'teal', featured: true,
+  },
 ];
 
 const ICON_BG = {
@@ -52,6 +59,7 @@ const reports = {
   ocupacion: (handleClose) => <ReportsOcupacion onClose={handleClose} />,
   dashboard: (handleClose) => <ReportsDashboard onClose={handleClose} />,
   institucion: (handleClose) => <ReportsInstitucion onClose={handleClose} />,
+  satisfaccion: (handleClose) => <ReportsSatisfaccion onClose={handleClose} />,
 };
 
 export default function ReportsModule() {
