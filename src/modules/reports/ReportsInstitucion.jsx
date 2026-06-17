@@ -3,6 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import { loadState as loadCrmState } from '../../services/stateService';
 import { STATUS_META } from '../calendar/constants';
 
+const API = '';
+
 const normalizeText = (value) => String(value || '').trim().toLowerCase();
 const money = (value) => `Q ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -34,6 +36,9 @@ export default function ReportsInstitucion({ onClose }) {
   const { events = [], users = [] } = useOutletContext();
   const currentYear = String(new Date().getFullYear());
   const [companies, setCompanies] = useState([]);
+  const [catalogServices, setCatalogServices] = useState([]);
+  const [menuRankings, setMenuRankings] = useState(null);
+  const [menuLoading, setMenuLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [companyToken, setCompanyToken] = useState('all');
   const [fromDate, setFromDate] = useState(`${currentYear}-01-01`);
@@ -43,10 +48,12 @@ export default function ReportsInstitucion({ onClose }) {
     let mounted = true;
     loadCrmState()
       .then((response) => {
-        if (mounted) setCompanies(Array.isArray(response?.companies) ? response.companies : []);
+        if (!mounted) return;
+        setCompanies(Array.isArray(response?.companies) ? response.companies : []);
+        setCatalogServices(Array.isArray(response?.services) ? response.services : []);
       })
       .catch(() => {
-        if (mounted) setCompanies([]);
+        if (mounted) { setCompanies([]); setCatalogServices([]); }
       });
     return () => { mounted = false; };
   }, []);
@@ -198,6 +205,33 @@ export default function ReportsInstitucion({ onClose }) {
     return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 8);
   }, [filteredRows]);
 
+  const subcategoryRank = useMemo(() => {
+    const map = new Map();
+    filteredRows.forEach((row) => {
+      row.items.forEach((item) => {
+        const catalogItem = catalogServices.find((s) => String(s.id) === String(item.serviceId));
+        const subcat = catalogItem?.subcategory || '';
+        if (!subcat) return;
+        const current = map.get(subcat) || { label: subcat, count: 0, amount: 0 };
+        current.count += Number(item.qty || 1);
+        current.amount += Number(item.qty || 1) * Number(item.price || 0);
+        map.set(subcat, current);
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount);
+  }, [filteredRows, catalogServices]);
+
+  useEffect(() => {
+    if (!filteredRows.length) { setMenuRankings(null); return; }
+    const eventIds = filteredRows.map((r) => r.id).filter(Boolean);
+    if (!eventIds.length) { setMenuRankings(null); return; }
+    setMenuLoading(true);
+    fetch(`${API}/api/reportes/menu-items?ids=${eventIds.join(',')}`)
+      .then((r) => r.json())
+      .then((data) => { setMenuRankings(data); setMenuLoading(false); })
+      .catch(() => { setMenuRankings(null); setMenuLoading(false); });
+  }, [filteredRows]);
+
   const monthlyRank = useMemo(() => {
     const map = new Map();
     filteredRows.forEach((row) => {
@@ -227,6 +261,8 @@ export default function ReportsInstitucion({ onClose }) {
     ['institutionSectionCharts', 'Gráficas'],
     ['institutionSectionSalons', 'Salones'],
     ['institutionSectionDishes', 'Platillos'],
+    ['institutionSectionSubcategories', 'Subcategorías'],
+    ['institutionSectionMenu', 'Menú'],
     ['institutionSectionManagers', 'Encargados'],
     ['institutionSectionTimeline', 'Historial'],
     ['institutionSectionEvents', 'Eventos'],
@@ -453,6 +489,48 @@ export default function ReportsInstitucion({ onClose }) {
             <div className="reports-detail-section-subtitle">Consolidado de cotizaciones por cantidad</div>
           </div>
           {renderMetricList(dishRank, 'Sin platillos o servicios cotizados en el rango.')}
+        </section>
+
+        {/* ── Subcategorías ── */}
+        <section className="reports-detail-section" id="institutionSectionSubcategories">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Servicios por subcategoría</div>
+            <div className="reports-detail-section-subtitle">Desayunos, almuerzos, refacciones y más</div>
+          </div>
+          {renderMetricList(subcategoryRank, 'Sin servicios con subcategoría en el rango.')}
+        </section>
+
+        {/* ── Menú (proteinas, guarniciones, bebidas) ── */}
+        <section className="reports-detail-section" id="institutionSectionMenu">
+          <div className="reports-detail-section-header">
+            <div className="reports-detail-section-title">Menú más pedido</div>
+            <div className="reports-detail-section-subtitle">Proteinas, guarniciones, bebidas y postres</div>
+          </div>
+          {menuLoading ? (
+            <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+              Cargando...
+            </div>
+          ) : menuRankings && Object.keys(menuRankings).length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+              {Object.entries(menuRankings).map(([tipo, items]) => (
+                <div key={tipo} className="bento-tile" style={{ padding: '14px', gap: '8px' }}>
+                  <span className="reports-eyebrow" style={{ textTransform: 'capitalize' }}>{tipo}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {items.slice(0, 6).map((item) => (
+                      <div key={item.nombre} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', padding: '4px 0', borderBottom: '1px solid #f1f5f9' }}>
+                        <span style={{ fontWeight: 700, color: '#1e293b' }}>{item.nombre}</span>
+                        <span style={{ fontWeight: 800, color: '#2563eb' }}>{item.total}x</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+              Sin datos de menú para el rango seleccionado.
+            </div>
+          )}
         </section>
 
         {/* ── Encargados ── */}

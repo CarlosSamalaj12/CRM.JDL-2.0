@@ -83,7 +83,7 @@ const emptyServiceDraft = {
   active: true
 };
 
-export default function QuoteModal({ event: eventProp, eventData, slots = [], onClose, onSave }) {
+export default function QuoteModal({ event: eventProp, eventData, slots = [], onClose, onSave, openAdvancesOnMount, inlineMode }) {
   const event = useMemo(() => ({
     ...(eventData || {}),
     ...(eventProp || {}),
@@ -208,6 +208,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       }
     } catch (err) { console.error('Error:', err); }
   }, [quote.code, setQuote]);
+
+  useEffect(() => {
+    if (openAdvancesOnMount) {
+      const timer = setTimeout(() => handleOpenAdvances(), 100);
+      return () => { clearTimeout(timer); };
+    }
+  }, []);
 
   useEffect(() => {
     loadState();
@@ -1068,7 +1075,144 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const fieldSelect = { width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' };
   const card = { background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px' };
 
-  return (
+  return inlineMode ? (
+    <div style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Anticipos</div>
+          <div style={{ fontSize: '11px', color: '#64748b' }}>Registra pagos anticipados para restar saldo del evento</div>
+        </div>
+      </div>
+
+      <div className="quoteAdvanceFormGrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '16px' }}>
+        <label className="field quoteAdvanceField--amount" style={{ gridColumn: 'span 2' }}>
+          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Monto</span>
+          <input id="quoteAdvanceAmount" type="number" min="0" step="0.01" value={newAdvance.amount} onChange={e => setNewAdvance(p => ({ ...p, amount: e.target.value }))} placeholder="Ej: 1500.00" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
+        </label>
+        <label className="field quoteAdvanceField--type" style={{ gridColumn: 'span 2' }}>
+          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Forma de pago</span>
+          <select value={newAdvance.paymentType} onChange={e => setNewAdvance(p => ({ ...p, paymentType: e.target.value }))} style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}>
+            <option value="Credito">Credito</option>
+            <option value="Deposito">Deposito</option>
+            <option value="Efectivo">Efectivo</option>
+            <option value="Tarjeta">Tarjeta</option>
+          </select>
+        </label>
+        <label className="field quoteAdvanceField--date" style={{ gridColumn: 'span 2' }}>
+          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Fecha</span>
+          <input type="date" value={newAdvance.date} onChange={e => setNewAdvance(p => ({ ...p, date: e.target.value }))} style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
+        </label>
+        <label className="field quoteAdvanceField--voucher" style={{ gridColumn: 'span 2' }}>
+          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>No. boleta</span>
+          <input type="text" value={newAdvance.voucherNumber} onChange={e => setNewAdvance(p => ({ ...p, voucherNumber: e.target.value }))} placeholder="Ej: BOL-000123" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
+        </label>
+        <label className="field quoteAdvanceDescriptionField" style={{ gridColumn: 'span 4' }}>
+          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Descripcion</span>
+          <input type="text" value={newAdvance.description} onChange={e => setNewAdvance(p => ({ ...p, description: e.target.value }))} placeholder="Detalle del anticipo" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
+        </label>
+        <label className="field quoteAdvanceField--evidence" style={{ gridColumn: 'span 4' }}>
+          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Evidencia (archivo)</span>
+          <input key={advanceEvidenceInputKey} type="file" accept="image/*,application/pdf" onChange={e => { const file = e.target.files?.[0] || null; setAdvanceEvidenceFile(file); setNewAdvance(p => ({ ...p, evidenceName: file?.name || p.evidenceName })); }} style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#fff' }} />
+          <small style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', display: 'block' }}>
+            {advanceEvidenceFile ? `Archivo seleccionado: ${advanceEvidenceFile.name}` : (newAdvance.evidenceName ? `Archivo actual: ${newAdvance.evidenceName}` : 'Sin archivo adjunto')}
+          </small>
+        </label>
+        <div className="rightActions quoteAdvanceAddAction" style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'flex-end', gap: '6px', paddingBottom: '2px' }}>
+          <button className="btnPrimary" type="button" onClick={handleSaveAdvanceEntry} style={{ padding: '7px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>{advanceEditingId ? 'Guardar cambios' : 'Agregar anticipo'}</button>
+          <button className="btn" type="button" onClick={resetAdvanceForm} style={{ padding: '7px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>Limpiar</button>
+        </div>
+      </div>
+
+      <div className="quoteAdvanceSummary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+        <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '12px', borderLeft: '3px solid #0f172a' }}>
+          <span style={{ fontSize: '9px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total anticipos</span>
+          <strong style={{ display: 'block', fontSize: '15px', fontWeight: 850, color: '#0f172a', marginTop: '3px' }}>{moneyGT(abonosTotal, quote.currency)}</strong>
+        </div>
+        <div style={{ background: saldoPendiente > 0 ? '#fef2f2' : '#f0fdf4', borderRadius: '8px', padding: '12px', borderLeft: `3px solid ${saldoPendiente > 0 ? '#dc2626' : '#16a34a'}` }}>
+          <span style={{ fontSize: '9px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Saldo pendiente</span>
+          <strong style={{ display: 'block', fontSize: '15px', fontWeight: 850, color: saldoPendiente > 0 ? '#dc2626' : '#16a34a', marginTop: '3px' }}>{moneyGT(saldoPendiente, quote.currency)}</strong>
+        </div>
+        <div style={{ background: '#eff6ff', borderRadius: '8px', padding: '12px', borderLeft: '3px solid #2563eb' }}>
+          <span style={{ fontSize: '9px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Saldo a favor</span>
+          <strong style={{ display: 'block', fontSize: '15px', fontWeight: 850, color: '#2563eb', marginTop: '3px' }}>{moneyGT(Math.max(0, abonosTotal - totals.total), quote.currency)}</strong>
+        </div>
+      </div>
+
+      <div className="quoteTableWrap quoteAdvanceTableWrap" style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
+        <div className="quoteAdvanceLedgerHead" style={{ display: 'grid', gridTemplateColumns: '110px 110px 130px 1fr 110px 118px 160px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+          <span style={{ padding: '8px 10px' }}>Fecha</span>
+          <span style={{ padding: '8px 10px' }}>Tipo</span>
+          <span style={{ padding: '8px 10px' }}>No. boleta</span>
+          <span style={{ padding: '8px 10px' }}>Descripcion</span>
+          <span style={{ padding: '8px 10px', textAlign: 'right' }}>Monto</span>
+          <span style={{ padding: '8px 10px' }}>Evidencia</span>
+          <span style={{ padding: '8px 10px' }}>Acciones</span>
+        </div>
+        <div className="quoteAdvanceLedgerBody">
+          {advanceRows.length > 0 ? advanceRows.map(adv => (
+            <div className={`quoteAdvanceLedgerRow${String(adv.id) === String(advanceEditingId) ? ' isEditing' : ''}`} key={adv.id} style={{ display: 'grid', gridTemplateColumns: '110px 110px 130px 1fr 110px 118px 160px', borderBottom: '1px solid #f1f5f9', fontSize: '11px', transition: 'background 0.12s' }}>
+              <div style={{ padding: '7px 10px', color: '#334155' }}>{adv.date || '-'}</div>
+              <div style={{ padding: '7px 10px', fontWeight: 600 }}>{adv.paymentType || '-'}</div>
+              <div style={{ padding: '7px 10px' }}>{adv.voucherNumber || '-'}</div>
+              <div style={{ padding: '7px 10px', color: '#475569', fontSize: '10px' }}>{adv.description || '-'}</div>
+              <div style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{moneyGT(adv.amount, quote.currency)}</div>
+              <div style={{ padding: '7px 10px' }}>
+                {adv.evidenceDataUrl ? (
+                  <a className="btn quoteAdvanceEvidenceLink" href={adv.evidenceDataUrl} download={adv.evidenceName || `evidencia_${adv.id}.pdf`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver</a>
+                ) : (
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{adv.evidenceName || '-'}</span>
+                )}
+              </div>
+              <div style={{ padding: '7px 10px', display: 'flex', gap: '4px' }}>
+                <button className="apptIconBtn apptEdit" type="button" onClick={() => handleStartEditAdvance(adv.id)} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 700, borderRadius: '4px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>Editar</button>
+                <button className="apptIconBtn apptDelete" type="button" onClick={() => handleDeleteAdvanceEntry(adv.id)} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 700, borderRadius: '4px', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>Eliminar</button>
+              </div>
+            </div>
+          )) : (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>Sin anticipos registrados.</div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
+        <div style={{ padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 800, color: '#1e293b' }}>Log de pagos y movimientos</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+          <thead>
+            <tr style={{ background: '#fafbfc' }}>
+              <th style={{ padding: '7px 10px', fontWeight: 700, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>Fecha/Hora</th>
+              <th style={{ padding: '7px 10px', fontWeight: 700, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>Usuario</th>
+              <th style={{ padding: '7px 10px', fontWeight: 700, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>Movimiento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {advanceLogRows.length > 0 ? advanceLogRows.map(log => (
+              <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <td style={{ padding: '7px 10px', color: '#475569', whiteSpace: 'nowrap' }}>{log.at ? new Date(log.at).toLocaleString('es-GT') : '-'}</td>
+                <td style={{ padding: '7px 10px', fontWeight: 600 }}>{log.actorName || 'Sistema'}</td>
+                <td style={{ padding: '7px 10px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#475569' }}>
+                    <span style={{
+                      padding: '1px 6px', borderRadius: '3px', fontWeight: 700, fontSize: '9px',
+                      background: log.tone === 'added' ? '#dcfce7' : log.tone === 'edited' ? '#dbeafe' : log.tone === 'deleted' ? '#fee2e2' : '#f1f5f9',
+                      color: log.tone === 'added' ? '#16a34a' : log.tone === 'edited' ? '#2563eb' : log.tone === 'deleted' ? '#dc2626' : '#64748b'
+                    }}>{log.label || 'Agregado'}</span>
+                    <span>{log.change || '-'}</span>
+                  </span>
+                </td>
+              </tr>
+            )) : (
+              <tr><td colSpan={3} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>Sin movimientos de pagos registrados.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+        <button className="btn" type="button" onClick={() => { resetAdvanceForm(); onClose?.(); }} style={{ padding: '8px 18px', fontSize: '11px', fontWeight: 700, borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>Cancelar</button>
+        <button className="btnPrimary" type="button" onClick={() => { onSave?.(quote); onClose?.(); }} style={{ padding: '8px 18px', fontSize: '11px', fontWeight: 800, borderRadius: '7px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer' }}>Guardar y salir</button>
+      </div>
+    </div>
+  ) : (
     <>
       {/* ── CSS global ── */}
       <style>{`

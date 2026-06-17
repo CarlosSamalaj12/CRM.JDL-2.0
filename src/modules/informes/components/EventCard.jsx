@@ -4,7 +4,7 @@ import { getNotas, createNota, getUsuarios, toggleReaccionNota } from '../servic
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
-import { IconMapPin, IconClock, IconUser, IconFileText, IconEye, IconGripVertical, IconMessageCircle, IconAtSign } from './Icons.jsx';
+import { IconMapPin, IconClock, IconUser, IconFileText, IconEye, IconGripVertical, IconMessageCircle, IconAtSign, IconClipboardList } from './Icons.jsx';
 import ReactionTooltip from './ReactionTooltip.jsx';
 import { emitOpenEventChecklist } from '../../../utils/appEvents';
 
@@ -21,7 +21,7 @@ function getMencionFilter(text) {
   return after;
 }
 
-export default function EventCard({ event, dragHandleProps, checklistStatus }) {
+export default function EventCard({ event, dragHandleProps }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -156,33 +156,12 @@ export default function EventCard({ event, dragHandleProps, checklistStatus }) {
     : [];
 
   return (
-    <article className={cardClass}>        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+    <article className={cardClass}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <div className={`event-tag event-tag-${status.color}`}>
             {status.label}
           </div>
-          {checklistStatus && checklistStatus !== 'pendiente' && (
-            <span
-              data-tooltip={
-                checklistStatus === 'completo' ? '✅ Checklist completo' :
-                checklistStatus === 'en_proceso' ? '🔄 Checklist en proceso' :
-                '⏳ Checklist pendiente'
-              }
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '2px',
-                padding: '0.1rem 0.35rem', borderRadius: '999px',
-                fontSize: '0.58rem', fontWeight: 700, lineHeight: 1.2,
-                background: checklistStatus === 'completo' ? '#f0fdf4' : '#fffbeb',
-                color: checklistStatus === 'completo' ? '#16a34a' : '#d97706',
-                border: '1px solid',
-                borderColor: checklistStatus === 'completo' ? '#bbf7d0' : '#fde68a',
-                whiteSpace: 'nowrap',
-                cursor: 'default',
-              }}
-            >
-              {checklistStatus === 'completo' ? '✅' : '🔄'}
-            </span>
-          )}
         </div>
         {dragHandleProps && (
           <span className="drag-handle" {...dragHandleProps}>
@@ -256,17 +235,17 @@ export default function EventCard({ event, dragHandleProps, checklistStatus }) {
           </div>
         )}
         {user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) && (
-          <button type="button" onClick={() => navigate(`/informe/pos/${event.Idocupacion}`)} data-tooltip="Nuevo informe">
+          <button type="button" onClick={() => navigate(`/informe/pos/${event.Idocupacion}`)} data-tooltip="Nuevo informe" style={{flexShrink:0}}>
             <IconFileText size={13} /> + Informe
           </button>
         )}
-        <button type="button" onClick={() => navigate(`/informe/${event.Idocupacion}`)} data-tooltip="Ver informe existente">
-          <IconEye size={13} /> Ver
+        <button type="button" onClick={() => navigate(`/informe/${event.Idocupacion}`)} data-tooltip="Ver informe existente" style={{flex:'0 0 30px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
+          <IconEye size={13} />
         </button>
-        <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{background:'var(--primary-bg)',color:'var(--primary)',fontWeight:700}}>
-          ✅ CHK
+        <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{flex:'0 0 32px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
+          <IconClipboardList size={13} />
         </button>
-        <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${notas.length > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={notas.length > 0 ? `${notas.length} nota(s)` : 'Agregar nota'}>
+        <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${notas.length > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={notas.length > 0 ? `${notas.length} nota(s)` : 'Agregar nota'} style={{background:'var(--primary-bg)',color:'var(--primary)',borderColor:notasOpen ? 'var(--primary)' : 'transparent'}}>
           <IconMessageCircle size={13} />
           {notas.length > 0 && <span className="notas-badge">{notas.length}</span>}
         </button>

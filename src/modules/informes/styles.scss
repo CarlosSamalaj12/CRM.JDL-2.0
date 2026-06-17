@@ -1513,19 +1513,21 @@ body.informes-theme {
   
   .event-actions {
     display: flex;
-      gap: 0.4rem;
+      gap: 0.3rem;
       margin-top: 0.25rem;
   }
   
   .event-actions button {
-    flex: 1;
-      padding: 0.4rem 0.6rem;
-      font-size: 0.72rem;
+    flex: 1 1 0;
+      min-width: 0;
+      padding: 0.4rem 0.4rem;
+      font-size: 0.7rem;
       font-weight: 600;
       background: var(--bg-elevated);
       color: var(--text-secondary);
       border: 1px solid var(--border);
       overflow: visible !important;
+      white-space: nowrap;
   }
   
   .event-actions button:first-child {
@@ -1538,13 +1540,9 @@ body.informes-theme {
     background: rgba(99, 102, 241, 0.15);
   }
   
-  .event-actions button:last-child:hover {
-    background: var(--border);
-      color: var(--text-main);
-  }
-  
   .event-actions .notas-btn {
     position: relative;
+      flex: 0 0 32px;
       min-width: 32px;
       justify-content: center;
       overflow: visible !important;

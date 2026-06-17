@@ -5,6 +5,7 @@ import SettingsEmpresas from './SettingsEmpresas';
 import SettingsSalones from './SettingsSalones';
 import SettingsGlobalGoals from './SettingsGlobalGoals';
 import SettingsUsuarios from './SettingsUsuarios';
+import SettingsServicios from './SettingsServicios';
 import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
@@ -39,6 +40,15 @@ export default function SettingsMain() {
         <svg viewBox="0 0 24 24">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
           <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+      ),
+    },
+    {
+      id: 'servicios',
+      label: 'Servicios y Catálogos',
+      icon: (
+        <svg viewBox="0 0 24 24">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
         </svg>
       ),
     },
@@ -159,6 +169,32 @@ export default function SettingsMain() {
         </div>
         <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
           <SettingsUsuarios inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'servicios') {
+    return (
+      <div className="settings-page">
+        <div className="reports-page-header" style={{ flexShrink: 0 }}>
+          <div className="reports-brand-header">
+            <div className="reports-brand-badge">
+              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+            </div>
+            <div>
+              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-title">Panel de Configuración</div>
+              <div className="reports-subtitle">Gestión de servicios, categorías y subcategorías</div>
+            </div>
+          </div>
+          <button className="btn-exit" type="button" onClick={closeView}>
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+            Volver
+          </button>
+        </div>
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <SettingsServicios inline onBack={closeView} />
         </div>
       </div>
     );
@@ -361,6 +397,46 @@ export default function SettingsMain() {
                       <h3 className="settings-bento-title">Plantillas de Checklists</h3>
                       <p className="settings-bento-desc">
                         Crea y edita las plantillas de verificación que se asignan a los eventos.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                </div>
+              </>
+            )}
+
+            {/* ── TAB: Servicios y Catálogos ── */}
+            {activeTab === 'servicios' && (
+              <>
+                <div className="settings-hero-section">
+                  <div className="settings-category-header">
+                    <h2 className="settings-category-title">Servicios y Catálogos</h2>
+                    <p className="settings-category-subtitle">
+                      Administra los servicios ofrecidos, categorías y subcategorías para las cotizaciones
+                    </p>
+                  </div>
+                  <div className="settings-storytelling-card">
+                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Catálogo de servicios</span>
+                    <p className="settings-story-text">
+                      Gestiona el <strong className="highlight-blue">catálogo de servicios</strong>, las
+                      <strong className="highlight-blue"> categorías</strong> y
+                      <strong className="highlight-blue"> subcategorías</strong> que se utilizan en las cotizaciones de eventos.
+                      Puedes importar y exportar servicios desde archivos CSV.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="settings-bento-card" onClick={() => openView('servicios')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                      </svg>
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Servicios, Categorías y Subcategorías</h3>
+                      <p className="settings-bento-desc">
+                        CRUD completo de servicios con importación/exportación CSV, más administración de categorías y subcategorías.
                       </p>
                     </div>
                   </div>

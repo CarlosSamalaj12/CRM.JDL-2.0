@@ -1,9 +1,30 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 
 const STATUS = { CONFIRMADO: 'Confirmado', PRERESERVA: 'Pre reserva' };
 const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
 const isGoalStatus = (s) => s === STATUS.CONFIRMADO || s === STATUS.PRERESERVA;
+
+const SAT_RATING_LEVELS = [
+  { value: 'malo', label: 'Malo', score: 1, color: '#ef4444', bg: '#fef2f2' },
+  { value: 'regular', label: 'Regular', score: 2, color: '#eab308', bg: '#fffbeb' },
+  { value: 'bueno', label: 'Bueno', score: 3, color: '#22c55e', bg: '#f0fdf4' },
+  { value: 'excelente', label: 'Excelente', score: 4, color: '#a855f7', bg: '#faf5ff' },
+];
+
+function getSatColor(avg) {
+  if (avg >= 3.5) return '#22c55e';
+  if (avg >= 2.5) return '#eab308';
+  if (avg >= 1.5) return '#f97316';
+  return '#ef4444';
+}
+
+function getSatLabel(avg) {
+  if (avg >= 3.5) return 'Excelente';
+  if (avg >= 2.5) return 'Bueno';
+  if (avg >= 1.5) return 'Regular';
+  return 'Malo';
+}
 
 export default function ReportsDashboard({ onClose }) {
   const { events, users } = useOutletContext();
@@ -13,6 +34,21 @@ export default function ReportsDashboard({ onClose }) {
   const [role, setRole] = useState(USER_ROLES.SELLER);
   const [scope, setScope] = useState('all');
   const [selectedSellerId, setSelectedSellerId] = useState('');
+
+  // ── Satisfaction data ──
+  const [checklists, setChecklists] = useState({});
+  const [satLoading, setSatLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { loadState } = await import('../../services/stateService');
+        const state = await loadState({ cacheBust: true });
+        setChecklists((state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {});
+      } catch (err) { console.error(err); }
+      finally { setSatLoading(false); }
+    })();
+  }, []);
 
   const formatMoneyGT = (v) => 'Q ' + Number(v||0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const getMonthName = (m) => ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m-1] || '';
@@ -93,10 +129,50 @@ export default function ReportsDashboard({ onClose }) {
     }));
   }, [filteredRows]);
 
+  // ── Satisfaction metrics ──
+  const satisfactionData = useMemo(() => {
+    if (satLoading || !events) return null;
+    const { from, to } = getDateRange();
+    const results = [];
+    for (const [evtId, chk] of Object.entries(checklists)) {
+      const ev = Array.isArray(events) ? events.find(e => String(e.id) === evtId) : null;
+      if (!ev) continue;
+      const date = ev.date || ev.eventDate || '';
+      if (date < from || date > to) continue;
+      const items = Array.isArray(chk.items) ? chk.items : [];
+      const evalItems = items.filter(i => i.sectionType === 'evaluacion');
+      const ratedItems = evalItems.filter(i => i.rating !== null && i.rating !== undefined);
+      if (ratedItems.length === 0) continue;
+      const totalScore = ratedItems.reduce((sum, i) => sum + (SAT_RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0);
+      const avg = totalScore / ratedItems.length;
+      const dist = { malo: 0, regular: 0, bueno: 0, excelente: 0 };
+      ratedItems.forEach(i => { if (dist[i.rating] !== undefined) dist[i.rating]++; });
+      results.push({ eventId: evtId, avg, total: ratedItems.length, distribution: dist, items: ratedItems.map(i => ({ rating: i.rating, score: SAT_RATING_LEVELS.find(r => r.value === i.rating)?.score || 0 })) });
+    }
+    return results;
+  }, [checklists, events, getDateRange, satLoading]);
+
+  const satMetrics = useMemo(() => {
+    if (!satisfactionData || satisfactionData.length === 0) return null;
+    const totalRatings = satisfactionData.reduce((sum, ev) => sum + ev.total, 0);
+    const allScores = satisfactionData.flatMap(ev => ev.items.map(i => i.score));
+    const globalAvg = totalRatings > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+    const totalDist = { malo: 0, regular: 0, bueno: 0, excelente: 0 };
+    satisfactionData.forEach(ev => { Object.entries(ev.distribution).forEach(([k, v]) => { totalDist[k] += v; }); });
+    return { totalEvents: satisfactionData.length, totalRatings, globalAvg, totalDist };
+  }, [satisfactionData]);
+
   const handleReset = () => { const n = new Date(); setMonthKey(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`); setFromDate(''); setToDate(''); setRole(USER_ROLES.SELLER); setScope('all'); setSelectedSellerId(''); };
 
   const visSeg = statusSummary.seg.filter(s => s.count > 0);
   const dateRange = getDateRange();
+
+  const kpiGradient = (accent) => {
+    if (accent === '#16a34a') return 'linear-gradient(135deg, #f0fdf4, #ecfdf5)';
+    if (accent === '#e11d48') return 'linear-gradient(135deg, #fef2f2, #fff1f2)';
+    if (accent === '#f59e0b') return 'linear-gradient(135deg, #fffbeb, #fef3c7)';
+    return 'linear-gradient(135deg, #eff6ff, #f8fafc)';
+  };
 
   // ── Bento KPI cards data ──
   const kpiCards = [
@@ -212,55 +288,98 @@ export default function ReportsDashboard({ onClose }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            {/* Hero card: Eficiencia */}
-            <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#2563eb', gridColumn: 'span 2' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            {/* Hero card: Eficiencia premium */}
+            <div className="bento-tile" style={{
+              gridColumn: 'span 2', border: 'none',
+              background: 'linear-gradient(135deg, #f8fafc, #eff6ff)',
+              borderLeft: '4px solid #2563eb',
+              boxShadow: '0 1px 3px rgba(37,99,235,0.12), 0 4px 12px rgba(37,99,235,0.06)',
+              transition: 'all 0.25s ease',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.18), 0 8px 24px rgba(37,99,235,0.08)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(37,99,235,0.12), 0 4px 12px rgba(37,99,235,0.06)'; }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
                 <div>
-                  <span className="reports-eyebrow">Eficiencia ({getRoleLabel(role)})</span>
-                  <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{dateRange.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: '#2563eb', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 0 2px rgba(37,99,235,0.2)' }} />
+                    <span className="reports-eyebrow">Eficiencia ({getRoleLabel(role)})</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{dateRange.label}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <strong style={{ fontSize: '28px', fontWeight: '900', display: 'block', lineHeight: 1, color: '#0f172a' }}>{statusSummary.pct.toFixed(1)}%</strong>
-                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Confirmado</span>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginBottom: '2px' }}>Confirmado</div>
+                  <strong style={{ fontSize: '28px', fontWeight: '900', display: 'block', lineHeight: 1, color: '#0f172a', letterSpacing: '-0.03em' }}>{statusSummary.pct.toFixed(1)}%</strong>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, marginTop: '2px' }}>
+                    {statusSummary.total} eventos · {statusSummary.confirmed} conf.
+                  </div>
                 </div>
               </div>
-              {/* Barra de estados */}
-              <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', display: 'flex', gap: '2px', margin: '10px 0', overflow: 'hidden' }}>
+              {/* Barra de estados premium */}
+              <div style={{
+                height: '10px', borderRadius: '999px', background: '#e2e8f0', display: 'flex',
+                gap: '3px', margin: '12px 0 8px', overflow: 'hidden',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
+              }}>
                 {visSeg.slice(0,5).map((s,i) => (
-                  <div key={i} style={{ height: '100%', width: `${Math.max(2,s.pct)}%`, background: s.c, borderRadius: '2px', transition: 'width 0.5s ease' }} />
+                  <div key={i} style={{
+                    height: '100%', width: `${Math.max(3,s.pct)}%`, background: s.c,
+                    borderRadius: '4px', transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
+                    boxShadow: s.pct > 0 ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : 'none',
+                  }} />
                 ))}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '10px', color: '#64748b' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', fontSize: '10px', color: '#64748b' }}>
                 {visSeg.slice(0,5).map((s,i) => (
-                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.c, display: 'inline-block', flexShrink: 0 }} />
-                    {s.l.substring(0,12)} {s.pct.toFixed(0)}%
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600, background: '#ffffff80', padding: '2px 8px', borderRadius: '999px', backdropFilter: 'blur(4px)' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.c, display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${s.c}20` }} />
+                    {s.l.substring(0,12)} <strong style={{ color: '#0f172a' }}>{s.pct.toFixed(0)}%</strong>
                   </span>
                 ))}
               </div>
-              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-                {statusSummary.total} evento(s) · {statusSummary.confirmed} confirmados
-              </div>
             </div>
 
-            {/* KPI Cards con estilo bento */}
+            {/* KPI Cards premium */}
             {kpiCards.map((kpi, i) => (
-              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${kpi.accent}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <span className="reports-eyebrow">{kpi.label}</span>
+              <div
+                key={i}
+                className="bento-tile reports-kpi-tile"
+                style={{
+                  border: 'none',
+                  background: kpiGradient(kpi.accent),
+                  borderLeft: `4px solid ${kpi.accent}`,
+                  boxShadow: `0 1px 3px ${kpi.accent}15, 0 4px 12px ${kpi.accent}08`,
+                  transition: 'all 0.25s ease',
+                  cursor: 'default',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 12px ${kpi.accent}20, 0 8px 24px ${kpi.accent}10`; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 1px 3px ${kpi.accent}15, 0 4px 12px ${kpi.accent}08`; }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: kpi.accent, display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${kpi.accent}20` }} />
+                    <span className="reports-eyebrow" style={{ fontSize: '10px' }}>{kpi.label}</span>
+                  </div>
                   {kpi.subtitle && (
-                    <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 700, textAlign: 'right', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, textAlign: 'right', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {kpi.subtitle}
                     </span>
                   )}
                 </div>
-                <strong style={{ fontSize: '1.5rem', fontWeight: '850', color: '#0f172a', lineHeight: '1.1', letterSpacing: '-0.02em' }}>{kpi.value}</strong>
+                <strong style={{
+                  fontSize: '1.55rem', fontWeight: '900', color: '#0f172a', lineHeight: '1.1',
+                  letterSpacing: '-0.03em', display: 'block', marginBottom: '4px',
+                }}>
+                  {kpi.value}
+                </strong>
                 {kpi.trend && (
                   <span style={{
-                    fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '999px',
+                    fontSize: '10px', fontWeight: '800', padding: '3px 10px', borderRadius: '999px',
                     background: kpi.trendBg || '#f1f5f9', color: kpi.trendColor || '#475569',
-                    width: 'fit-content',
+                    width: 'fit-content', display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    boxShadow: `inset 0 1px 2px rgba(0,0,0,0.04)`,
                   }}>
+                    <span style={{ fontSize: '10px' }}>{kpi.accent === '#16a34a' ? '↑' : kpi.accent === '#e11d48' ? '↓' : '→'}</span>
                     {kpi.trend}
                   </span>
                 )}
@@ -269,17 +388,99 @@ export default function ReportsDashboard({ onClose }) {
           </div>
         </section>
 
-        {/* ── 3. Storytelling ── */}
+        {/* ── 3. Satisfacción premium ── */}
+        {satMetrics && (
+          <section className="reports-hero-panel" style={{ gap: '12px' }}>
+            <div className="reports-section-intro">
+              <div>
+                <span className="reports-eyebrow">Satisfacción del Cliente</span>
+                <h3 className="reports-section-title">Calificaciones de servicio</h3>
+                <p className="reports-section-text">Ratings Malo / Regular / Bueno / Excelente en checklist de eventos.</p>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div style={{
+                gridColumn: 'span 2', border: 'none', borderRadius: '14px', padding: '20px',
+                background: `linear-gradient(135deg, ${getSatColor(satMetrics.globalAvg)}06, #ffffff)`,
+                borderLeft: `4px solid ${getSatColor(satMetrics.globalAvg)}`,
+                boxShadow: `0 1px 3px ${getSatColor(satMetrics.globalAvg)}15, 0 4px 12px ${getSatColor(satMetrics.globalAvg)}08`,
+                transition: 'all 0.25s ease',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 12px ${getSatColor(satMetrics.globalAvg)}20, 0 8px 24px ${getSatColor(satMetrics.globalAvg)}10`; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 1px 3px ${getSatColor(satMetrics.globalAvg)}15, 0 4px 12px ${getSatColor(satMetrics.globalAvg)}08`; }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: getSatColor(satMetrics.globalAvg), display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${getSatColor(satMetrics.globalAvg)}20` }} />
+                    <span className="reports-eyebrow" style={{ fontSize: '10px' }}>Calificación global</span>
+                  </div>
+                  <span style={{
+                    fontSize: '11px', fontWeight: '800', padding: '3px 12px', borderRadius: '999px',
+                    background: getSatColor(satMetrics.globalAvg) + '18',
+                    color: getSatColor(satMetrics.globalAvg),
+                    border: `1px solid ${getSatColor(satMetrics.globalAvg)}30`,
+                  }}>
+                    {getSatLabel(satMetrics.globalAvg)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '6px' }}>
+                  <strong style={{ fontSize: '2.2rem', fontWeight: '900', color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                    {satMetrics.globalAvg.toFixed(1)}
+                  </strong>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: getSatColor(satMetrics.globalAvg) }}>/ 4.0</span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, marginLeft: '4px' }}>
+                    · {satMetrics.totalRatings} calif. en {satMetrics.totalEvents} eventos
+                  </span>
+                </div>
+                <div style={{ height: '10px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', marginTop: '4px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}>
+                  <div style={{ height: '100%', borderRadius: '999px', background: `linear-gradient(90deg, ${getSatColor(satMetrics.globalAvg)}, ${getSatColor(satMetrics.globalAvg)}cc)`, width: `${(satMetrics.globalAvg / 4) * 100}%`, transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)', boxShadow: `0 0 8px ${getSatColor(satMetrics.globalAvg)}40` }} />
+                </div>
+
+                {/* Distribution bar premium */}
+                <div style={{ display: 'flex', height: '24px', borderRadius: '8px', overflow: 'hidden', marginTop: '14px', gap: '3px' }}>
+                  {SAT_RATING_LEVELS.map(r => {
+                    const cnt = satMetrics.totalDist[r.value] || 0;
+                    const pct = satMetrics.totalRatings > 0 ? (cnt / satMetrics.totalRatings) * 100 : 0;
+                    if (pct === 0) return null;
+                    return (
+                      <div key={r.value} style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(180deg, ${r.color}, ${r.color}dd)`, borderRadius: '5px', minWidth: '6px', transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)', position: 'relative', boxShadow: `inset 0 1px 0 rgba(255,255,255,0.25)` }}>
+                        <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.35)', letterSpacing: '0.02em' }}>
+                          {pct > 10 ? `${r.label} ${pct.toFixed(0)}%` : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', gap: '14px', marginTop: '10px', fontSize: '10px', flexWrap: 'wrap' }}>
+                  {SAT_RATING_LEVELS.map(r => {
+                    const cnt = satMetrics.totalDist[r.value] || 0;
+                    const pct = satMetrics.totalRatings > 0 ? (cnt / satMetrics.totalRatings) * 100 : 0;
+                    return (
+                      <span key={r.value} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 700, background: r.bg, padding: '3px 10px', borderRadius: '999px', border: `1px solid ${r.color}25` }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: r.color, display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${r.color}20` }} />
+                        {r.label}: <span style={{ color: '#0f172a', fontWeight: 800 }}>{cnt}</span> <span style={{ color: '#94a3b8', fontWeight: 600 }}>({pct.toFixed(0)}%)</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── 4. Storytelling ── */}
         <div className="reports-storytelling-card">
           <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Narración ejecutiva</span>
           <p className="reports-story-text">
             En el periodo <strong className="highlight-slate">{dateRange.label}</strong>, el equipo de {getRoleLabel(role).toLowerCase()}s gestionó <strong className="highlight-blue">{statusSummary.total}</strong> eventos con una tasa de confirmación del <strong className="highlight-green">{statusSummary.pct.toFixed(1)}%</strong>. 
             La meta global del rol es de <strong className="highlight-blue">{formatMoneyGT(globalGoal)}</strong> con un avance del <strong className="highlight-green">{gProg.toFixed(1)}%</strong>.
             {focusedUser ? ` El desempeño de ${focusedUser.fullName || ''} muestra ${personalAchieved >= personalGoal ? 'un cumplimiento sobresaliente de la meta personal.' : `un avance del ${pProg.toFixed(1)}% sobre su meta personal de ${formatMoneyGT(personalGoal)}.`}` : ''}
+            {satMetrics && ` En satisfacción, la calificación global es de ${satMetrics.globalAvg.toFixed(1)} / 4.0 (${getSatLabel(satMetrics.globalAvg)}) con ${satMetrics.totalEvents} eventos evaluados.`}
           </p>
         </div>
 
-        {/* ── 4. Charts Grid ── */}
+        {/* ── 5. Charts Grid ── */}
         <section className="reports-hero-panel" style={{ gap: '12px' }}>
           <div className="reports-section-intro">
             <div>
@@ -289,23 +490,27 @@ export default function ReportsDashboard({ onClose }) {
           </div>
 
           <div className="reports-charts-grid">
-            {/* Salones chart */}
-            <div className="reports-chart-card">
-              <div className="reports-chart-title">Áreas más utilizadas</div>
+            {/* Salones chart premium */}
+            <div className="reports-chart-card" style={{ border: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)', borderRadius: '14px' }}>
+              <div className="reports-chart-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Áreas más utilizadas</div>
               <div className="reports-chart-subtitle">Distribución de salones en el periodo</div>
               {salonData ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginTop: '16px' }}>
                   <div style={{
                     width: '100px', height: '100px', borderRadius: '50%', flexShrink: 0,
                     background: `conic-gradient(${salonData.slices.join(',')})`,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.3)',
+                    border: '2px solid #fff',
                   }} />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: '#64748b', flex: 1 }}>
                     {salonData.o.map((it,i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: it.c, display: 'inline-block', flexShrink: 0 }} />
-                        <strong style={{ color: '#1e293b', fontWeight: 700 }}>{it.l.substring(0,18)}</strong>
-                        <span style={{ marginLeft: 'auto' }}>{((it.n/salonData.tot)*100).toFixed(0)}%</span>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', borderRadius: '8px', background: '#f8fafc', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
+                      >
+                        <span style={{ width: '10px', height: '10px', borderRadius: '4px', background: `linear-gradient(135deg, ${it.c}, ${it.c}aa)`, display: 'inline-block', flexShrink: 0 }} />
+                        <strong style={{ color: '#1e293b', fontWeight: 700, fontSize: '12px' }}>{it.l.substring(0,18)}</strong>
+                        <span style={{ marginLeft: 'auto', fontWeight: 800, color: '#0f172a' }}>{((it.n/salonData.tot)*100).toFixed(0)}%</span>
                       </div>
                     ))}
                   </div>
@@ -315,21 +520,26 @@ export default function ReportsDashboard({ onClose }) {
               )}
             </div>
 
-            {/* Event types chart */}
-            <div className="reports-chart-card">
-              <div className="reports-chart-title">Ventas por tipo de evento</div>
+            {/* Event types chart premium */}
+            <div className="reports-chart-card" style={{ border: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)', borderRadius: '14px' }}>
+              <div className="reports-chart-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Ventas por tipo de evento</div>
               <div className="reports-chart-subtitle">Corporativo, Social y Otros</div>
               <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
                 {eventTypeData.some(item => item.count > 0) ? eventTypeData.map(item => (
                   <div key={item.key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                      <span>{item.label} ({item.count})</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: item.color, display: 'inline-block' }} />
+                        {item.label} <span style={{ color: '#94a3b8', fontWeight: 600 }}>({item.count})</span>
+                      </span>
                       <span style={{ color: '#0f172a', fontWeight: 800 }}>{formatMoneyGT(item.amount)}</span>
                     </div>
-                    <div style={{ height: '10px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden' }}>
+                    <div style={{ height: '12px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}>
                       <div style={{
-                        width: `${Math.max(4, item.pct)}%`, height: '100%', background: item.color,
-                        borderRadius: '999px', transition: 'width 0.6s ease',
+                        width: `${Math.max(4, item.pct)}%`, height: '100%',
+                        background: `linear-gradient(90deg, ${item.color}, ${item.color}cc)`,
+                        borderRadius: '999px', transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
+                        boxShadow: `0 0 6px ${item.color}30`,
                       }} />
                     </div>
                   </div>
@@ -341,7 +551,7 @@ export default function ReportsDashboard({ onClose }) {
           </div>
         </section>
 
-        {/* ── 5. Seller Cards ── */}
+        {/* ── 6. Seller Cards ── */}
         <section className="reports-hero-panel" style={{ gap: '12px' }}>
           <div className="reports-section-intro">
             <div>
@@ -351,39 +561,51 @@ export default function ReportsDashboard({ onClose }) {
           </div>
 
           <div className="reports-seller-grid">
-            {sellerMetrics.length ? sellerMetrics.map(s => (
-              <div key={s.id} className="reports-seller-card" style={{ position: 'relative', paddingTop: '20px' }}>
-                {/* Avatar */}
-                <div style={{
-                  width: '40px', height: '40px', borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #2563eb, #60a5fa)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '14px', fontWeight: '800', color: '#fff',
-                  boxShadow: '0 4px 10px rgba(37,99,235,0.2)',
-                }}>
-                  {s.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="reports-seller-value" style={{ fontSize: '16px' }}>{formatMoneyGT(s.amount)}</div>
-                {/* Bar chart */}
-                <div style={{
-                  width: '32px', height: '60px', borderRadius: '8px',
-                  background: '#f1f5f9', display: 'flex', alignItems: 'flex-end',
-                  overflow: 'hidden', margin: '4px 0',
-                }}>
+            {sellerMetrics.length ? sellerMetrics.map((s, idx) => {
+              const colors = [['#2563eb','#60a5fa'], ['#7c3aed','#a78bfa'], ['#059669','#34d399'], ['#d97706','#fbbf24'], ['#dc2626','#f87171']];
+              const [c1, c2] = colors[idx % colors.length];
+              const pct = maxAmt > 0 ? Math.max(8, (s.amount / maxAmt) * 80) : 8;
+              return (
+                <div key={s.id} className="reports-seller-card" style={{
+                  position: 'relative', paddingTop: '20px', border: 'none',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
+                  borderRadius: '14px', transition: 'all 0.25s ease',
+                  background: '#ffffff',
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.06)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)'; }}
+                >
                   <div style={{
-                    width: '100%',
-                    height: `${Math.max(10, (s.amount / maxAmt) * 80)}%`,
-                    background: 'linear-gradient(180deg, #60a5fa, #2563eb)',
-                    borderRadius: '0 0 6px 6px',
-                    transition: 'height 0.5s ease',
-                  }} />
+                    width: '44px', height: '44px', borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${c1}, ${c2})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '15px', fontWeight: '800', color: '#fff',
+                    boxShadow: `0 4px 12px ${c1}30`,
+                    marginBottom: '6px',
+                  }}>
+                    {s.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: '17px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.02em' }}>{formatMoneyGT(s.amount)}</div>
+                  <div style={{
+                    width: '36px', height: '70px', borderRadius: '10px',
+                    background: '#f1f5f9', display: 'flex', alignItems: 'flex-end',
+                    overflow: 'hidden', margin: '6px 0', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.06)',
+                  }}>
+                    <div style={{
+                      width: '100%',
+                      height: `${pct}%`,
+                      background: `linear-gradient(180deg, ${c2}, ${c1})`,
+                      borderRadius: '0 0 8px 8px',
+                      transition: 'height 0.5s cubic-bezier(0.22,1,0.36,1)',
+                    }} />
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '12px', color: '#0f172a', textAlign: 'center' }}>{s.name}</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center', fontWeight: 600 }}>
+                    <span style={{ color: '#16a34a', fontWeight: 800 }}>{s.confirmed}</span> de {s.total} confirmados
+                  </div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '12px', color: '#0f172a', textAlign: 'center' }}>{s.name}</div>
-                <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center' }}>
-                  {s.confirmed} de {s.total} confirmados
-                </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', gridColumn: '1/-1', padding: '40px' }}>
                 No hay asesores comerciales con metas asignadas.
               </div>

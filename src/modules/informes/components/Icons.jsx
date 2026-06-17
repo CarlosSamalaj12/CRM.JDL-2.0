@@ -36,7 +36,8 @@ import {
   Sun,
   Moon,
   Settings,
-  Bell
+  Bell,
+  ClipboardList,
 } from 'lucide-react';
 
 // Wrapper helper that sets standard props, adds our modern styles and micro-animations
@@ -89,3 +90,4 @@ export const IconSun = wrapIcon(Sun, 'crm-icon-sun');
 export const IconMoon = wrapIcon(Moon, 'crm-icon-moon');
 export const IconSettings = wrapIcon(Settings, 'crm-icon-settings');
 export const IconBell = wrapIcon(Bell, 'crm-icon-bell');
+export const IconClipboardList = wrapIcon(ClipboardList, 'crm-icon-clipboard');

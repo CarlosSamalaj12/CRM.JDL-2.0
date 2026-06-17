@@ -416,6 +416,7 @@ export default function ReservationForm() {
   const urlEndDate = searchParams.get('endDate') || urlDate;
   const urlStart = searchParams.get('start');
   const urlEnd = searchParams.get('end');
+  const urlOpenAdvances = searchParams.get('openAdvances') === 'true';
 
   const getDefaultDate = useCallback(() => urlDate || new Date().toISOString().split('T')[0], [urlDate]);
   const getDefaultEndDate = useCallback(() => urlEndDate || getDefaultDate(), [urlEndDate, getDefaultDate]);
@@ -591,6 +592,12 @@ export default function ReservationForm() {
       }]);
     }
   }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate]);
+
+  useEffect(() => {
+    if (urlOpenAdvances && id) {
+      setShowQuoteModal(true);
+    }
+  }, [urlOpenAdvances, id]);
 
   const showNotification = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -1622,7 +1629,20 @@ export default function ReservationForm() {
         </div>
       )}
 
-      {showQuoteModal && id && createPortal(
+      {showQuoteModal && id && (urlOpenAdvances ? (
+        <QuoteModal
+          event={{
+            ...(events.find(ev => String(ev.id) === String(id)) || { ...formData, id, slots }),
+            quote: formData.quote || events.find(ev => String(ev.id) === String(id))?.quote || null
+          }}
+          eventData={formData}
+          slots={slots}
+          onClose={() => { setShowQuoteModal(false); }}
+          onSave={handleQuoteSave}
+          openAdvancesOnMount={true}
+          inlineMode={true}
+        />
+      ) : createPortal(
         <div id="appShell" className="lum-calendar" style={{ position: 'absolute', zIndex: 9999999, top: 0, left: 0 }}>
           <QuoteModal
             event={{
@@ -1636,7 +1656,7 @@ export default function ReservationForm() {
           />
         </div>,
         document.body
-      )}
+      ))}
 
       <ConfirmModal
         isOpen={confirmConfig.isOpen}

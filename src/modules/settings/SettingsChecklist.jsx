@@ -31,6 +31,7 @@ export function ChecklistTemplateEditor() {
   const [tplName, setTplName] = useState('');
   const [tplActive, setTplActive] = useState(true);
   const [secName, setSecName] = useState('');
+  const [secType, setSecType] = useState('operativa');
   const [editSecId, setEditSecId] = useState('');
   const [pointTextBySec, setPointTextBySec] = useState({});
   const [dragOverSecId, setDragOverSecId] = useState(null);
@@ -60,7 +61,7 @@ export function ChecklistTemplateEditor() {
   const selectTemplate = (id) => {
     setSelTplId(id);
     setPointTextBySec({});
-    setSecName(''); setEditSecId('');
+    setSecName(''); setEditSecId(''); setSecType('operativa');
     if (id) {
       const tpl = templates.find(t => t.id === Number(id));
       if (tpl) { setTplName(tpl.name); setTplActive(tpl.active !== false); }
@@ -121,11 +122,11 @@ export function ChecklistTemplateEditor() {
       });
     } else {
       updated = templates.map(t => t.id !== selTpl.id ? t : {
-        ...t, sections: [...t.sections, { id: Date.now(), name, type: 'operativa', items: [] }]
+        ...t, sections: [...t.sections, { id: Date.now(), name, type: secType, items: [] }]
       });
     }
     setTemplates(updated);
-    setSecName(''); setEditSecId('');
+    setSecName(''); setEditSecId(''); setSecType('operativa');
     toast(editSecId ? 'Sección actualizada' : 'Sección agregada');
   };
 
@@ -240,11 +241,33 @@ export function ChecklistTemplateEditor() {
                 placeholder="Ej: Salón, Cocina, Baños, Jardín..."
                 style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #d1d9e6', fontSize: '0.82rem', color: '#0f172a', outline: 'none', background: '#fff', fontFamily: 'inherit' }}
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveSection(); }} />
+              {!editSecId && (
+                <div style={{ display: 'flex', gap: '3px', background: '#e2e8f0', borderRadius: '6px', padding: '2px', flexShrink: 0, alignSelf: 'center' }}>
+                  {SECTION_TYPE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setSecType(opt.value)}
+                      title={opt.desc}
+                      style={{
+                        padding: '6px 10px', borderRadius: '5px', border: 'none',
+                        fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer',
+                        background: secType === opt.value ? '#fff' : 'transparent',
+                        color: secType === opt.value ? '#0f172a' : '#94a3b8',
+                        boxShadow: secType === opt.value ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        transition: 'all 0.12s', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <button className={editSecId ? 'settings-cancel-btn' : 'settings-accent-btn'} type="button" onClick={handleSaveSection}>
                 {editSecId ? 'Actualizar' : '+ Sección'}
               </button>
               {editSecId && (
-                <button className="settings-cancel-btn" type="button" onClick={() => { setSecName(''); setEditSecId(''); }}>
+                <button className="settings-cancel-btn" type="button" onClick={() => { setSecName(''); setEditSecId(''); setSecType('operativa'); }}>
                   Cancelar
                 </button>
               )}

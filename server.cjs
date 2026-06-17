@@ -607,6 +607,48 @@ async function ensureAdvancesStructure() {
         console.warn("No se pudo agregar FK fk_anticipos_evento:", fkError?.message || fkError);
       }
     }
+
+    // === Migracion: columnas adicionales para normalizar pagos ===
+    const migrationColumns = [
+      { name: "numero_boleta", sql: "ALTER TABLE anticipos_evento ADD COLUMN numero_boleta VARCHAR(100) NULL" },
+      { name: "id_usuario_creador", sql: "ALTER TABLE anticipos_evento ADD COLUMN id_usuario_creador VARCHAR(100) NULL" },
+      { name: "nombre_usuario_creador", sql: "ALTER TABLE anticipos_evento ADD COLUMN nombre_usuario_creador VARCHAR(255) NULL" },
+      { name: "nombre_evidencia", sql: "ALTER TABLE anticipos_evento ADD COLUMN nombre_evidencia VARCHAR(255) NULL" },
+      { name: "tipo_evidencia", sql: "ALTER TABLE anticipos_evento ADD COLUMN tipo_evidencia VARCHAR(100) NULL" },
+      { name: "datos_evidencia", sql: "ALTER TABLE anticipos_evento ADD COLUMN datos_evidencia MEDIUMTEXT NULL" },
+      { name: "editado_por_id", sql: "ALTER TABLE anticipos_evento ADD COLUMN editado_por_id VARCHAR(100) NULL" },
+      { name: "editado_por_nombre", sql: "ALTER TABLE anticipos_evento ADD COLUMN editado_por_nombre VARCHAR(255) NULL" },
+      { name: "editado_en_iso", sql: "ALTER TABLE anticipos_evento ADD COLUMN editado_en_iso VARCHAR(50) NULL" },
+    ];
+    for (const col of migrationColumns) {
+      try {
+        const exists = await conn.query(
+          `SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = 'anticipos_evento' AND column_name = ? LIMIT 1`,
+          [DB_NAME, col.name]
+        );
+        if (exists.length === 0) {
+          await conn.query(col.sql);
+        }
+      } catch (_) {}
+    }
+
+    // === Crear tabla historial_anticipos para bitacora de operaciones ===
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS historial_anticipos (
+        id VARCHAR(100) NOT NULL,
+        id_anticipo VARCHAR(100) NOT NULL,
+        id_evento ${idEventoColumnSql},
+        accion VARCHAR(20) NOT NULL DEFAULT 'added',
+        id_usuario_actor VARCHAR(100) NULL,
+        nombre_usuario_actor VARCHAR(255) NULL,
+        detalle TEXT NULL,
+        creado_en_iso VARCHAR(50) NULL,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_historial_anticipos_evento (id_evento),
+        KEY idx_historial_anticipos_anticipo (id_anticipo)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } finally {
     if (conn) conn.release();
   }
@@ -667,6 +709,7 @@ async function readStateFromTables() {
       historial,
       recordatorios,
       appStateRows,
+      dbAnticipos,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
       conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, rol FROM usuarios ORDER BY creado_en, id"),
@@ -675,7 +718,8 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities')"),
+      conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
     let dbServicesList = [];
@@ -921,33 +965,60 @@ async function readStateFromTables() {
       salonCapacities: {},
       changeHistory: {},
       reminders: {},
-      events: eventos.map((e) => {
-        let quote = null;
-        if (e.cotizacion_json) {
-          try {
-            quote = JSON.parse(e.cotizacion_json);
-          } catch (_) {
-            quote = null;
-          }
+      events: (() => {
+        const advancesByEvent = new Map();
+        for (const a of dbAnticipos) {
+          const eid = str(a.id_evento);
+          if (!eid) continue;
+          if (!advancesByEvent.has(eid)) advancesByEvent.set(eid, []);
+          advancesByEvent.get(eid).push({
+            id: str(a.id),
+            amount: Number(a.monto),
+            paymentType: str(a.tipo_pago),
+            date: toIsoDate(a.fecha_anticipo),
+            voucherNumber: str(a.numero_boleta || ""),
+            description: str(a.descripcion || ""),
+            evidenceDataUrl: str(a.datos_evidencia || ""),
+            evidenceName: str(a.nombre_evidencia || ""),
+            evidenceType: str(a.tipo_evidencia || ""),
+            createdAt: str(a.creado_en_iso || ""),
+            createdByUserId: str(a.id_usuario_creador || ""),
+            createdByName: str(a.nombre_usuario_creador || ""),
+          });
         }
-        return {
-          id: str(e.id),
-          groupId: e.id_grupo ? str(e.id_grupo) : null,
-          name: str(e.nombre),
-          salon: str(e.nombre_salon),
-          date: toIsoDate(e.fecha_evento),
-          eventDateStart: toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
-          eventDateEnd: toIsoDate(e.fecha_fin_reserva) || toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
-          endDate: toIsoDate(e.fecha_fin_reserva) || toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
-          status: str(e.estado),
-          startTime: toHHmm(e.hora_inicio),
-          endTime: toHHmm(e.hora_fin),
-          userId: str(e.id_usuario),
-          pax: e.pax === null || e.pax === undefined ? null : Number(e.pax),
-          notes: str(e.notes),
-          quote,
-        };
-      }),
+        return eventos.map((e) => {
+          let quote = null;
+          if (e.cotizacion_json) {
+            try {
+              quote = JSON.parse(e.cotizacion_json);
+            } catch (_) {
+              quote = null;
+            }
+          }
+          const tableAdvances = advancesByEvent.get(str(e.id));
+          if (tableAdvances && tableAdvances.length > 0) {
+            if (!quote || typeof quote !== "object") quote = {};
+            quote.advances = tableAdvances;
+          }
+          return {
+            id: str(e.id),
+            groupId: e.id_grupo ? str(e.id_grupo) : null,
+            name: str(e.nombre),
+            salon: str(e.nombre_salon),
+            date: toIsoDate(e.fecha_evento),
+            eventDateStart: toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
+            eventDateEnd: toIsoDate(e.fecha_fin_reserva) || toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
+            endDate: toIsoDate(e.fecha_fin_reserva) || toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
+            status: str(e.estado),
+            startTime: toHHmm(e.hora_inicio),
+            endTime: toHHmm(e.hora_fin),
+            userId: str(e.id_usuario),
+            pax: e.pax === null || e.pax === undefined ? null : Number(e.pax),
+            notes: str(e.notes),
+            quote,
+          };
+        });
+      })(),
     };
 
     for (const row of historial) {
@@ -1087,6 +1158,14 @@ async function readStateFromTables() {
       state.salonCapacities = {};
     }
 
+
+    const serviceCategoriesRow = appStateRows.find((r) => str(r.clave) === "serviceCategories");
+    try {
+      const parsed = JSON.parse(str(serviceCategoriesRow?.valor_json) || "[]");
+      state.serviceCategories = Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      state.serviceCategories = [];
+    }
 
     for (const row of recordatorios) {
       const key = str(row.clave_evento);
@@ -1299,6 +1378,7 @@ async function writeStateToTables(state) {
     const users = Array.isArray(state.users) ? state.users : [];
     const companies = Array.isArray(state.companies) ? state.companies : [];
     const services = Array.isArray(state.services) ? state.services : [];
+    const serviceCategories = Array.isArray(state.serviceCategories) ? state.serviceCategories : [];
     const quickTemplates = Array.isArray(state.quickTemplates) ? state.quickTemplates : [];
     const quoteServiceTemplates = Array.isArray(state.quoteServiceTemplates) ? state.quoteServiceTemplates : [];
     const disabledCompanies = Array.isArray(state.disabledCompanies) ? state.disabledCompanies : [];
@@ -1502,9 +1582,127 @@ async function writeStateToTables(state) {
           str(e?.userId).trim() || null,
           e?.pax === null || e?.pax === undefined || e?.pax === "" ? null : Math.max(0, Number(e.pax)),
           str(e?.notes).trim() || null,
-          e?.quote ? JSON.stringify(e.quote) : null,
+          e?.quote && typeof e.quote === "object" ? JSON.stringify(Object.assign({}, e.quote, { advances: undefined })) : e?.quote ? JSON.stringify(e.quote) : null,
         ]
       );
+
+      // === UPSERT: anticipos_evento (normalizar pagos en tabla propia) ===
+      const existingAdvancesById = new Map();
+      try {
+        const dbExisting = await conn.query("SELECT id, creado_en_iso, id_usuario_creador, nombre_usuario_creador FROM anticipos_evento WHERE id_evento = ?", [id]);
+        for (const ea of dbExisting) {
+          existingAdvancesById.set(str(ea.id), { createdAt: str(ea.creado_en_iso || ""), createdByUserId: str(ea.id_usuario_creador || ""), createdByName: str(ea.nombre_usuario_creador || "") });
+        }
+      } catch (_) {}
+
+      const advanceLogs = Array.isArray(e?.quote?.advanceLogs) ? e.quote.advanceLogs : [];
+      const nowIso = new Date().toISOString();
+
+      if (e?.quote && typeof e.quote === "object") {
+        const incomingAdvances = Array.isArray(e.quote.advances) ? e.quote.advances : [];
+        const incomingIds = new Set(incomingAdvances.map(a => str(a.id)));
+
+        // Borrar solo los que ya no estan en la lista entrante y registrarlos en historial
+        for (const [existingId, _] of existingAdvancesById) {
+          if (!incomingIds.has(existingId)) {
+            const delLog = advanceLogs.findLast(l => str(l.tone) === "deleted");
+            const actorId = str(delLog?.actorId || "").trim() || null;
+            const actorName = str(delLog?.actorName || "Sistema").trim();
+            const detalle = str(delLog?.change || "Anticipo eliminado").trim();
+            const logAt = str(delLog?.at || nowIso).trim();
+            await conn.query(
+              `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, 'deleted', ?, ?, ?, ?)`,
+              [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, existingId, id, actorId, actorName, detalle, logAt]
+            );
+          }
+        }
+
+        const deleteIds = [...existingAdvancesById.keys()].filter(eid => !incomingIds.has(eid));
+        if (deleteIds.length > 0) {
+          const placeholders = deleteIds.map(() => "?").join(",");
+          await conn.query(`DELETE FROM anticipos_evento WHERE id_evento = ? AND id IN (${placeholders})`, [id, ...deleteIds]);
+        }
+
+        // Insertar o actualizar cada advance con ON DUPLICATE KEY UPDATE
+        for (const adv of incomingAdvances) {
+          const advId = str(adv.id).trim() || `adv_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+          const existingMeta = existingAdvancesById.get(advId);
+          let editadoPorId = null;
+          let editadoPorNombre = null;
+          let editadoEnIso = null;
+          if (existingMeta) {
+            const editedLog = advanceLogs.findLast(l => str(l.tone) === "edited");
+            editadoPorId = str(editedLog?.actorId || "").trim() || null;
+            editadoPorNombre = str(editedLog?.actorName || "").trim() || null;
+            editadoEnIso = str(editedLog?.at || "").trim() || null;
+          }
+          await conn.query(
+            `INSERT INTO anticipos_evento
+               (id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso, editado_por_id, editado_por_nombre, editado_en_iso)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               fecha_anticipo = VALUES(fecha_anticipo),
+               monto = VALUES(monto),
+               tipo_pago = VALUES(tipo_pago),
+               descripcion = VALUES(descripcion),
+               numero_boleta = VALUES(numero_boleta),
+               nombre_evidencia = VALUES(nombre_evidencia),
+               tipo_evidencia = VALUES(tipo_evidencia),
+               datos_evidencia = VALUES(datos_evidencia),
+               editado_por_id = VALUES(editado_por_id),
+               editado_por_nombre = VALUES(editado_por_nombre),
+               editado_en_iso = VALUES(editado_en_iso)`,
+            [
+              advId,
+              id,
+              asDate(adv.date || ""),
+              Math.max(0, Number(adv.amount || 0)),
+              str(adv.paymentType || "Efectivo").trim(),
+              str(adv.description || "").trim() || null,
+              str(adv.voucherNumber || "").trim() || null,
+              existingMeta?.createdByUserId || str(adv.createdByUserId || "").trim() || null,
+              existingMeta?.createdByName || str(adv.createdByName || "").trim() || null,
+              str(adv.evidenceName || "").trim() || null,
+              str(adv.evidenceType || "").trim() || null,
+              str(adv.evidenceDataUrl || "").trim() || null,
+              existingMeta?.createdAt || str(adv.createdAt || "").trim() || null,
+              editadoPorId,
+              editadoPorNombre,
+              editadoEnIso,
+            ]
+          );
+          const accion = existingMeta ? "edited" : "added";
+          const logEntry = advanceLogs.findLast(l => str(l.tone) === accion);
+          let haActorId = str(logEntry?.actorId || "").trim() || null;
+          let haActorName = str(logEntry?.actorName || "").trim() || "Sistema";
+          let haDetalle = str(logEntry?.change || "").trim();
+          let haAt = str(logEntry?.at || "").trim() || nowIso;
+          if (!logEntry) {
+            haActorId = str(adv.createdByUserId || "").trim() || null;
+            haActorName = str(adv.createdByName || "").trim() || "Sistema";
+            haDetalle = `${accion === "added" ? "Agregado" : "Editado"} anticipo: Q ${Math.max(0, Number(adv.amount || 0)).toFixed(2)}`;
+            haAt = str(adv.createdAt || "").trim() || nowIso;
+          }
+          await conn.query(
+            `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, advId, id, accion, haActorId, haActorName, haDetalle, haAt]
+          );
+        }
+      } else if (existingAdvancesById.size > 0) {
+        // Evento sin quote: eliminar todos los advances y registrarlos en historial
+        for (const [deletedId, _] of existingAdvancesById) {
+          const delLog = advanceLogs.findLast(l => str(l.tone) === "deleted");
+          const actorId = str(delLog?.actorId || "").trim() || null;
+          const actorName = str(delLog?.actorName || "Sistema").trim();
+          const detalle = str(delLog?.change || "Anticipo eliminado").trim();
+          const logAt = str(delLog?.at || nowIso).trim();
+          await conn.query(
+            `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, 'deleted', ?, ?, ?, ?)`,
+            [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, deletedId, id, actorId, actorName, detalle, logAt]
+          );
+        }
+        await conn.query("DELETE FROM anticipos_evento WHERE id_evento = ?", [id]);
+      }
 
       // === UPSERT: cotizaciones (borrar y re-insertar items de la cotizacion) ===
       if (e?.quote && typeof e.quote === "object") {
@@ -1917,6 +2115,14 @@ async function writeStateToTables(state) {
         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
       `,
       [JSON.stringify(services)]
+    );
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('serviceCategories', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(serviceCategories)]
     );
     // Las tablas de menu y sugerencias de montaje fueron eliminadas y se manejan en el modulo de informes.
 
@@ -2408,6 +2614,70 @@ app.put("/api/menu-suggestions", async (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     return res.status(400).json({ message: "No se pudieron guardar las sugerencias de Menu.", detail: error.message });
+  }
+});
+
+app.get("/api/anticipos/historial/:eventId", async (req, res) => {
+  const eventId = str(req.params.eventId || "").trim();
+  if (!eventId) return res.status(400).json({ message: "eventId requerido." });
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      "SELECT id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso FROM historial_anticipos WHERE id_evento = ? ORDER BY creado_en_iso DESC, creado_en DESC",
+      [eventId]
+    );
+    const result = rows.map(r => ({
+      id: str(r.id),
+      advanceId: str(r.id_anticipo),
+      action: str(r.accion),
+      actorId: str(r.id_usuario_actor || ""),
+      actorName: str(r.nombre_usuario_actor || ""),
+      detail: str(r.detalle || ""),
+      createdAt: str(r.creado_en_iso || ""),
+    }));
+    return res.json(result);
+  } catch (error) {
+    console.error("Error al obtener historial_anticipos:", error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.get("/api/reportes/menu-items", async (req, res) => {
+  const idsParam = str(req.query.ids || "").trim();
+  if (!idsParam) return res.json({});
+  const eventIds = idsParam.split(",").map((s) => str(s).trim()).filter(Boolean);
+  if (!eventIds.length) return res.json({});
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const placeholders = eventIds.map(() => "?").join(",");
+    const [rows] = await conn.query(
+      `SELECT i.tipo, i.nombre, SUM(COALESCE(d.cantidad_total,1)) as total
+       FROM informes_eventos ie
+       JOIN informe_dias_detalle dd ON ie.id = dd.informe_id
+       JOIN informe_dia_menu_detalle d ON dd.id = d.dia_id
+       JOIN cat_ingredientes i ON d.ingrediente_id = i.id
+       WHERE ie.id_ocupacion IN (${placeholders})
+       GROUP BY i.tipo, i.nombre
+       ORDER BY i.tipo, total DESC`,
+      eventIds
+    );
+    if (!Array.isArray(rows)) return res.json({});
+    const result = {};
+    for (const r of rows) {
+      const tipo = str(r.tipo || "otro").trim();
+      if (!result[tipo]) result[tipo] = [];
+      result[tipo].push({ nombre: str(r.nombre), total: Number(r.total || 0) });
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Error en menu-items:", error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
