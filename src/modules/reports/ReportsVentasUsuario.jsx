@@ -17,7 +17,13 @@ function daysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();
 }
 
-export default function ReportsEficenciaConfirmacion({ onClose }) {
+// Statuses considered as active sales
+const ACTIVE_STATUSES = new Set([
+  'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
+  'Lista de Espera', 'Confirmado', 'Realizado',
+]);
+
+export default function ReportsVentasUsuario({ onClose }) {
   const { events, users } = useOutletContext();
 
   const today = new Date();
@@ -28,8 +34,12 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
-  const [sortBy, setSortBy] = useState('amount');
-  const [userFilter, setUserFilter] = useState('all'); // 'amount' | 'events' | 'name'
+  const [hoveredTableCellPos, setHoveredTableCellPos] = useState(null);
+  const [hoveredTableCellData, setHoveredTableCellData] = useState(null);
+  const [sortBy, setSortBy] = useState('amount'); // 'amount' | 'events' | 'name'
+  const [userFilter, setUserFilter] = useState('all');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const reportRef = useRef(null);
 
   // ── Generate months ──
   const monthList = useMemo(() => {
@@ -53,7 +63,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     return months;
   }, [fromDate, toDate]);
 
-  // ── Aggregate confirmed events by user ──
+  // ── Aggregate sales by user ──
   const userData = useMemo(() => {
     if (!events || !monthList.length) return [];
 
@@ -66,14 +76,19 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < from || d > to) continue;
-      if (String(ev.status || '').trim() !== 'Confirmado') continue;
+
+      // Only include events with active status AND a quote total
+      const status = String(ev.status || '').trim();
+      if (!ACTIVE_STATUSES.has(status)) continue;
+
+      const amount = Math.max(0, Number(ev.quote?.total || 0));
+      if (amount <= 0) continue; // Only events with actual monetary value
 
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
       if (userFilter !== 'all' && userId !== userFilter) continue;
 
       const monthKey = d.substring(0, 7);
-      const amount = Math.max(0, Number(ev.quote?.total || 0));
 
       if (!userAgg[userId]) {
         userAgg[userId] = { count: 0, totalAmount: 0, monthBreakdown: {} };
@@ -140,7 +155,6 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
         year: m.year,
         count: monthCount,
         totalAmount: monthAmount,
-        // Per-user breakdown for this month
         userRows: userData.map(u => ({
           userId: u.userId,
           name: u.name,
@@ -152,7 +166,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   }, [userData, monthList]);
 
   // ── Aggregated KPIs ──
-  const totalConfirmedEvents = useMemo(() => userData.reduce((s, u) => s + u.count, 0), [userData]);
+  const totalEvents = useMemo(() => userData.reduce((s, u) => s + u.count, 0), [userData]);
   const totalAmount = useMemo(() => userData.reduce((s, u) => s + u.totalAmount, 0), [userData]);
   const totalUsers = userData.length;
   const maxAmount = useMemo(() => userData.length > 0 ? Math.max(...userData.map(u => u.totalAmount)) : 0, [userData]);
@@ -220,7 +234,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     const escCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
 
     // Sheet 1: Summary by vendor
-    const summaryHeaders = ['Vendedor', 'Eventos Confirmados', 'Monto Total (GTQ)', 'Porcentaje (%)', 'Promedio por Evento (GTQ)'];
+    const summaryHeaders = ['Vendedor', 'Eventos', 'Monto Total (GTQ)', 'Porcentaje (%)', 'Promedio por Evento (GTQ)'];
     const summaryRows = userData.map(u => [
       escCsv(u.name),
       u.count,
@@ -230,14 +244,14 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     ]);
     const totalRow = [
       escCsv('TOTAL'),
-      totalConfirmedEvents,
+      totalEvents,
       totalAmount.toFixed(2),
       '100',
-      (totalConfirmedEvents > 0 ? totalAmount / totalConfirmedEvents : 0).toFixed(2),
+      (totalEvents > 0 ? totalAmount / totalEvents : 0).toFixed(2),
     ];
 
     // Sheet 2: Monthly breakdown by vendor
-    const monthHeaders = ['Mes', 'Vendedor', 'Eventos Confirmados', 'Monto (GTQ)', '% del Mes'];
+    const monthHeaders = ['Mes', 'Vendedor', 'Eventos', 'Monto (GTQ)', '% del Mes'];
     const monthRows = [];
     for (const m of monthlyData) {
       const label = `${m.monthName} ${m.year}`;
@@ -255,11 +269,13 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     }
 
     const csvContent = [
-      escCsv('RESUMEN POR VENDEDOR - EFICIENCIA DE CONFIRMACIÓN'),
+      // Summary sheet
+      escCsv('RESUMEN POR VENDEDOR'),
       summaryHeaders.join(','),
       ...summaryRows.map(r => r.join(',')),
       totalRow.join(','),
       '',
+      // Monthly breakdown sheet
       escCsv('DESGLOSE MENSUAL POR VENDEDOR'),
       monthHeaders.join(','),
       ...monthRows.map(r => r.join(',')),
@@ -268,8 +284,39 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `eficiencia_confirmacion_${fromDate}_a_${toDate}.csv`;
+    link.download = `ventas_por_usuario_${fromDate}_a_${toDate}.csv`;
     link.click();
+  };
+
+  const handleExportPDF = async () => {
+    setPdfLoading(true);
+    try {
+      const { default: html2canvas } = await import('html2canvas');
+      const { default: jsPDF } = await import('jspdf');
+      const el = reportRef.current;
+      if (!el) { setPdfLoading(false); return; }
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = (canvas.height * pdfW) / canvas.width;
+      let heightLeft = pdfH;
+      let position = 0;
+      const pageH = pdf.internal.pageSize.getHeight();
+      pdf.addImage(imgData, 'PNG', 0, position, pdfW, pdfH);
+      heightLeft -= pageH;
+      while (heightLeft > 0) {
+        position -= pageH;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfW, pdfH);
+        heightLeft -= pageH;
+      }
+      pdf.save(`ventas_por_usuario_${fromDate}_a_${toDate}.pdf`);
+    } catch (err) {
+      console.error('Error al exportar PDF:', err);
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const sectionStyle = (delay) => ({
@@ -289,7 +336,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   };
 
   return (
-    <div className="reports-page-container">
+    <div className="reports-page-container" ref={reportRef}>
       <style>{`@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       {/* Header */}
       <div className="reports-page-header">
@@ -299,8 +346,8 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
           </div>
           <div>
             <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
-            <div className="reports-title">📊 Eficiencia de Confirmación de Eventos</div>
-            <div className="reports-subtitle">Eventos confirmados por vendedor · Montos en Quetzales · Porcentajes</div>
+            <div className="reports-title">💰 Ventas por Usuario</div>
+            <div className="reports-subtitle">Montos en Quetzales generados por vendedor · Conteo de eventos · Porcentajes</div>
           </div>
         </div>
         <button className="btn-exit" type="button" onClick={onClose}>
@@ -314,10 +361,10 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
         <section className="reports-hero-panel" style={sectionStyle(50)}>
           <div className="reports-section-intro">
             <div>
-              <span className="reports-eyebrow">Confirmación por vendedor</span>
-              <h3 className="reports-section-title">Eventos Confirmados × Vendedor</h3>
+              <span className="reports-eyebrow">Ventas por vendedor</span>
+              <h3 className="reports-section-title">Ventas × Vendedor</h3>
               <p className="reports-section-text">
-                Cada barra representa un vendedor. La altura muestra el monto total en Quetzales de eventos en estado <strong>Confirmado</strong>.
+                Cada barra representa un vendedor. La altura muestra el monto total en Quetzales de eventos con valor económico en estado activo.
                 Pasa el mouse sobre cada barra para ver detalles.
               </p>
             </div>
@@ -337,16 +384,25 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
               <button type="button" onClick={handleReset}>Mes Actual</button>
             </div>
 
-            {/* Sort selector */}
-            <label className="field" style={{ flex: '0 0 160px' }}>
-              <span>Ordenar por</span>
-              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-                style={{ fontSize: '11px', fontWeight: 700, padding: '6px 8px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>
-                <option value="amount">Monto (Q)</option>
-                <option value="events">Cantidad eventos</option>
-                <option value="name">Nombre</option>
-              </select>
-            </label>
+            {/* Export PDF */}
+            <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
+              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
+              borderRadius: '8px', border: '1.5px solid #dc2626',
+              background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#fff', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              transition: 'all 0.15s ease',
+              opacity: pdfLoading ? 0.7 : 1,
+            }}
+              onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.borderColor = '#b91c1c'; }}}
+              onMouseLeave={e => { if (!pdfLoading) { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}}
+            >
+              <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
+                <path d="M5 8l4 4 4-4" />
+                <path d="M9 12V2" />
+              </svg>
+              {pdfLoading ? 'Generando...' : 'Exportar PDF'}
+            </button>
 
             {/* User filter */}
             <label className="field" style={{ flex: '0 0 150px' }}>
@@ -360,6 +416,17 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
                 {users?.map(u => (
                   <option key={u.id} value={String(u.id)}>{u.fullName || u.name || u.username}</option>
                 ))}
+              </select>
+            </label>
+
+            {/* Sort selector */}
+            <label className="field" style={{ flex: '0 0 160px' }}>
+              <span>Ordenar por</span>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                style={{ fontSize: '11px', fontWeight: 700, padding: '6px 8px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>
+                <option value="amount">Monto (Q)</option>
+                <option value="events">Cantidad eventos</option>
+                <option value="name">Nombre</option>
               </select>
             </label>
 
@@ -383,9 +450,9 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
             </button>
 
             {/* Mini KPI chips */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📋 <strong style={{ color: '#0f172a' }}>{totalConfirmedEvents}</strong> {totalConfirmedEvents === 1 ? 'evento confirmado' : 'eventos confirmados'}
+                📋 <strong style={{ color: '#0f172a' }}>{totalEvents}</strong> {totalEvents === 1 ? 'evento' : 'eventos'}
               </span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 💰 <strong style={{ color: '#0f172a' }}>{formatMoney(totalAmount)}</strong>
@@ -406,10 +473,10 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
         <div className="reports-storytelling-card" style={sectionStyle(200)}>
           <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Análisis del período</span>
           <p className="reports-story-text">
-            En el rango del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> se confirmaron <strong className="highlight-blue">{totalConfirmedEvents}</strong> eventos por un total de <strong className="highlight-green">{formatMoney(totalAmount)}</strong>,
+            En el rango del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> se registraron <strong className="highlight-blue">{totalEvents}</strong> eventos con valor económico por un total de <strong className="highlight-green">{formatMoney(totalAmount)}</strong>,
             distribuidos entre <strong className="highlight-slate">{totalUsers}</strong> {totalUsers === 1 ? 'vendedor' : 'vendedores'}.
-            {topSeller ? <> El vendedor líder es <strong className="highlight-blue">{topSeller.name}</strong> con <strong className="highlight-green">{formatMoney(topSeller.totalAmount)}</strong> ({Math.round(topSeller.pct)}% del total) en <strong className="highlight-slate">{topSeller.count}</strong> {topSeller.count === 1 ? 'evento' : 'eventos'} confirmados.</> : ''}
-            El promedio por evento confirmado es de <strong className="highlight-accent">{formatMoney(totalConfirmedEvents > 0 ? totalAmount / totalConfirmedEvents : 0)}</strong>.
+            {topSeller ? <> El vendedor con mayor facturación es <strong className="highlight-blue">{topSeller.name}</strong> con <strong className="highlight-green">{formatMoney(topSeller.totalAmount)}</strong> ({Math.round(topSeller.pct)}% del total) en <strong className="highlight-slate">{topSeller.count}</strong> {topSeller.count === 1 ? 'evento' : 'eventos'}.</> : ''}
+            El ticket promedio por evento es de <strong className="highlight-accent">{formatMoney(totalEvents > 0 ? totalAmount / totalEvents : 0)}</strong>.
           </p>
         </div>
 
@@ -418,7 +485,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Gráfico de barras por vendedor</span>
-              <h3 className="reports-section-title">Montos Confirmados × Vendedor</h3>
+              <h3 className="reports-section-title">Ventas × Vendedor</h3>
               <p className="reports-section-text">Pasa el mouse sobre cada barra para ver eventos, monto y porcentaje del vendedor</p>
             </div>
             {/* Legend */}
@@ -478,7 +545,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
                     flexDirection: 'column', gap: '8px',
                   }}>
                     <span style={{ fontSize: '32px' }}>📭</span>
-                    <span>No hay eventos confirmados en este período</span>
+                    <span>No hay ventas registradas en este período</span>
                   </div>
                 ) : (
                   userData.map((u, i) => {
@@ -595,14 +662,76 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
                     {u.name}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px', color: '#cbd5e1' }}>
-                    <span style={{ color: '#94a3b8' }}>💰 Total</span>
+                    <span style={{ color: '#94a3b8' }}>💰 Total vendido</span>
                     <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(u.totalAmount)}</span>
                     <span style={{ color: '#94a3b8' }}>📋 Eventos</span>
                     <span style={{ fontWeight: 700, color: '#fff' }}>{u.count}</span>
                     <span style={{ color: '#94a3b8' }}>📊 Porcentaje</span>
                     <span style={{ fontWeight: 800, color: '#60a5fa' }}>{Math.round(u.pct)}%</span>
-                    <span style={{ color: '#94a3b8' }}>📈 Promedio</span>
+                    <span style={{ color: '#94a3b8' }}>📈 Ticket promedio</span>
                     <span style={{ fontWeight: 700, color: '#fff' }}>{formatMoney(u.avgAmount)} / evento</span>
+                  </div>
+                </div>
+                <div style={{
+                  position: 'absolute', top: '100%', left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 0, height: 0,
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderTop: '6px solid #0f172a',
+                }} />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Premium Tooltip for table cells (fixed position, outside overflow containers) ── */}
+        {hoveredTableCellData && hoveredTableCellPos && (() => {
+          const d = hoveredTableCellData;
+          return (
+            <div style={{
+              position: 'fixed',
+              left: `${Math.min(hoveredTableCellPos.x, window.innerWidth - 260)}px`,
+              top: `${Math.max(10, hoveredTableCellPos.y - 10)}px`,
+              transform: 'translate(-50%, -100%)',
+              zIndex: 99998,
+              pointerEvents: 'none',
+            }}>
+              <div style={{
+                background: '#0f172a', color: '#fff',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                fontSize: '11px', fontWeight: 600,
+                boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
+                minWidth: '200px',
+                maxWidth: '300px',
+                animation: 'tooltipFadeIn 0.15s ease-out both',
+              }}>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 900, marginBottom: '6px', letterSpacing: '-0.01em' }}>
+                    {d.isMonthTotal ? '📅' : ''} {d.name}
+                    {d.month !== 'Total' && <span style={{ fontWeight: 600, color: '#94a3b8', marginLeft: '6px' }}>{d.month} {d.year}</span>}
+                    {d.month === 'Total' && <span style={{ fontWeight: 600, color: '#94a3b8', marginLeft: '6px' }}>({d.month})</span>}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px', color: '#cbd5e1' }}>
+                    <span style={{ color: '#94a3b8' }}>💰 Monto</span>
+                    <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(d.amount)}</span>
+                    <span style={{ color: '#94a3b8' }}>📋 Eventos</span>
+                    <span style={{ fontWeight: 700, color: '#fff' }}>{d.count}</span>
+                    {!d.isMonthTotal && (
+                      <>
+                        <span style={{ color: '#94a3b8' }}>📊 Porcentaje</span>
+                        <span style={{ fontWeight: 800, color: '#60a5fa' }}>{Math.round(d.pct)}%</span>
+                      </>
+                    )}
+                    {d.isMonthTotal && (
+                      <>
+                        <span style={{ color: '#94a3b8' }}>📊 % del total</span>
+                        <span style={{ fontWeight: 800, color: '#60a5fa' }}>{Math.round(d.pct)}%</span>
+                      </>
+                    )}
+                    <span style={{ color: '#94a3b8' }}>📈 Promedio</span>
+                    <span style={{ fontWeight: 700, color: '#fff' }}>{formatMoney(d.count > 0 ? d.amount / d.count : 0)} / evento</span>
                   </div>
                 </div>
                 <div style={{
@@ -649,14 +778,61 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
                   return (
                     <tr key={m.monthKey} style={{ background: isCurrentMonth ? '#eff6ff' : 'transparent' }}>
                       <td style={{ fontWeight: 700 }}>{m.monthName} {m.year}</td>
-                      <td style={{ fontWeight: 800, color: '#0f172a' }}>{m.count}</td>
-                      <td style={{ fontWeight: 700, color: '#059669' }}>{m.totalAmount > 0 ? formatMoney(m.totalAmount) : '—'}</td>
+                      <td style={{ fontWeight: 800, color: '#0f172a', cursor: 'pointer' }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredTableCellPos({ x: rect.left + rect.width / 2, y: rect.top });
+                          setHoveredTableCellData({
+                            name: 'Total del mes',
+                            month: m.monthName,
+                            year: m.year,
+                            count: m.count,
+                            amount: m.totalAmount,
+                            pct: totalAmount > 0 ? (m.totalAmount / totalAmount) * 100 : 0,
+                            isMonthTotal: true,
+                          });
+                        }}
+                        onMouseLeave={() => { setHoveredTableCellPos(null); setHoveredTableCellData(null); }}
+                      >{m.count}</td>
+                      <td style={{ fontWeight: 700, color: '#059669', cursor: 'pointer' }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredTableCellPos({ x: rect.left + rect.width / 2, y: rect.top });
+                          setHoveredTableCellData({
+                            name: 'Total del mes',
+                            month: m.monthName,
+                            year: m.year,
+                            count: m.count,
+                            amount: m.totalAmount,
+                            pct: totalAmount > 0 ? (m.totalAmount / totalAmount) * 100 : 0,
+                            isMonthTotal: true,
+                          });
+                        }}
+                        onMouseLeave={() => { setHoveredTableCellPos(null); setHoveredTableCellData(null); }}
+                      >{m.totalAmount > 0 ? formatMoney(m.totalAmount) : '—'}</td>
                       {userData.map(u => {
                         const row = m.userRows.find(r => r.userId === u.userId);
                         const count = row?.count || 0;
                         const amount = row?.amount || 0;
                         return (
-                          <td key={u.userId} style={{ textAlign: 'center', padding: '8px 4px', fontSize: '10px' }}>
+                          <td
+                            key={u.userId}
+                            style={{ textAlign: 'center', padding: '8px 4px', fontSize: '10px', cursor: count > 0 ? 'pointer' : 'default' }}
+                            onMouseEnter={(e) => {
+                              if (count <= 0) return;
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHoveredTableCellPos({ x: rect.left + rect.width / 2, y: rect.top });
+                              setHoveredTableCellData({
+                                name: u.name,
+                                month: m.monthName,
+                                year: m.year,
+                                count,
+                                amount,
+                                pct: totalAmount > 0 ? (amount / totalAmount) * 100 : 0,
+                              });
+                            }}
+                            onMouseLeave={() => { setHoveredTableCellPos(null); setHoveredTableCellData(null); }}
+                          >
                             {count > 0 ? (
                               <>
                                 <div style={{ fontWeight: 700, fontSize: '11px', color: '#0f172a' }}>{count}</div>
@@ -677,10 +853,26 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
                 <tfoot>
                   <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
                     <td style={{ fontWeight: 800, color: '#0f172a' }}>Total</td>
-                    <td style={{ fontWeight: 800, color: '#0f172a' }}>{totalConfirmedEvents}</td>
+                    <td style={{ fontWeight: 800, color: '#0f172a' }}>{totalEvents}</td>
                     <td style={{ fontWeight: 800, color: '#059669' }}>{formatMoney(totalAmount)}</td>
                     {userData.map(u => (
-                      <td key={u.userId} style={{ textAlign: 'center', padding: '8px 4px', fontSize: '10px' }}>
+                      <td
+                        key={u.userId}
+                        style={{ textAlign: 'center', padding: '8px 4px', fontSize: '10px', cursor: 'pointer' }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredTableCellPos({ x: rect.left + rect.width / 2, y: rect.top });
+                          setHoveredTableCellData({
+                            name: u.name,
+                            month: 'Total',
+                            year: '',
+                            count: u.count,
+                            amount: u.totalAmount,
+                            pct: totalAmount > 0 ? (u.totalAmount / totalAmount) * 100 : 0,
+                          });
+                        }}
+                        onMouseLeave={() => { setHoveredTableCellPos(null); setHoveredTableCellData(null); }}
+                      >
                         <div style={{ fontWeight: 700, fontSize: '11px', color: '#0f172a' }}>{u.count}</div>
                         <div style={{ fontWeight: 600, color: '#059669' }}>{formatMoney(u.totalAmount)}</div>
                       </td>

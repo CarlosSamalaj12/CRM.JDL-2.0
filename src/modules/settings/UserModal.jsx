@@ -21,10 +21,16 @@ export default function UserModal({ onClose }) {
   const [active, setActive] = useState(true);
   const [salesTargetEnabled, setSalesTargetEnabled] = useState(false);
   const [monthlyGoals, setMonthlyGoals] = useState([]);
+  const [goalTiers, setGoalTiers] = useState([]);
   
   // Goal inputs
   const [goalMonth, setGoalMonth] = useState('');
   const [goalAmount, setGoalAmount] = useState('');
+  
+  // Tier inputs
+  const [tierName, setTierName] = useState('');
+  const [tierAmount, setTierAmount] = useState('');
+  const [tierPercentage, setTierPercentage] = useState('');
 
   // Media files states
   const [avatarDataUrl, setAvatarDataUrl] = useState('');
@@ -53,10 +59,14 @@ export default function UserModal({ onClose }) {
     setActive(true);
     setSalesTargetEnabled(false);
     setMonthlyGoals([]);
+    setGoalTiers([]);
     setAvatarDataUrl('');
     setSignatureDataUrl('');
     setGoalMonth('');
     setGoalAmount('');
+    setTierName('');
+    setTierAmount('');
+    setTierPercentage('');
   }
 
   useEffect(() => {
@@ -92,6 +102,7 @@ export default function UserModal({ onClose }) {
         setActive(user.active !== false);
         setSalesTargetEnabled(user.salesTargetEnabled === true);
         setMonthlyGoals(user.monthlyGoals || []);
+        setGoalTiers(user.goalTiers || []);
         setAvatarDataUrl(user.avatarDataUrl || '');
         setSignatureDataUrl(user.signatureDataUrl || '');
       }
@@ -184,6 +195,31 @@ export default function UserModal({ onClose }) {
     setMonthlyGoals(prev => prev.filter(g => g.month !== monthToRemove));
   };
 
+  const handleAddTier = () => {
+    if (!tierName || !tierAmount || !tierPercentage) {
+      Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Completa el nombre, monto y porcentaje del nivel.', confirmButtonColor: '#0ea5e9' });
+      return;
+    }
+    const amt = parseFloat(tierAmount);
+    const pct = parseFloat(tierPercentage);
+    if (amt <= 0) {
+      Swal.fire({ icon: 'warning', title: 'Monto inválido', text: 'El monto debe ser mayor a 0.', confirmButtonColor: '#0ea5e9' });
+      return;
+    }
+    if (pct <= 0) {
+      Swal.fire({ icon: 'warning', title: 'Porcentaje inválido', text: 'El porcentaje debe ser mayor a 0.', confirmButtonColor: '#0ea5e9' });
+      return;
+    }
+    setGoalTiers(prev => [...prev, { name: tierName.trim(), amount: amt, percentage: pct }]);
+    setTierName('');
+    setTierAmount('');
+    setTierPercentage('');
+  };
+
+  const handleRemoveTier = (index) => {
+    setGoalTiers(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     if (!fullName || !email || !role) {
@@ -217,6 +253,7 @@ export default function UserModal({ onClose }) {
               active: active,
               salesTargetEnabled: salesTargetEnabled,
               monthlyGoals: monthlyGoals,
+              goalTiers: goalTiers,
               avatarDataUrl: avatarDataUrl,
               signatureDataUrl: signatureDataUrl,
             };
@@ -249,6 +286,7 @@ export default function UserModal({ onClose }) {
           active: active,
           salesTargetEnabled: salesTargetEnabled,
           monthlyGoals: monthlyGoals,
+          goalTiers: goalTiers,
           avatarDataUrl: avatarDataUrl,
           signatureDataUrl: signatureDataUrl,
         };
@@ -492,10 +530,10 @@ export default function UserModal({ onClose }) {
               </div>
             </div>
 
-            {/* Monthly Goals */}
+            {/* Goal Tiers - Comisiones */}
             <div className="settings-goals-section">
               <div className="settings-goals-header">
-                <span className="settings-goals-title">📈 Configuración de Metas Comerciales</span>
+                <span className="settings-goals-title">🎯 Niveles de Meta y Comisiones</span>
                 <label className="settings-goals-toggle">
                   <input
                     id="userSalesTargetEnabled"
@@ -503,90 +541,124 @@ export default function UserModal({ onClose }) {
                     checked={salesTargetEnabled}
                     onChange={(e) => setSalesTargetEnabled(e.target.checked)}
                   />
-                  <span>Influir en metas mensuales</span>
+                  <span>Habilitar metas y comisiones</span>
                 </label>
               </div>
 
               {salesTargetEnabled ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div className="settings-goals-input-row">
-                    <div className="settings-modern-field">
-                      <span>Seleccionar Mes</span>
-                      <input
-                        id="userGoalMonth"
-                        type="month"
-                        value={goalMonth}
-                        onChange={(e) => setGoalMonth(e.target.value)}
-                      />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Tier Inputs */}
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>Niveles de Meta</div>
+                  <div className="settings-goals-input-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                    <div className="settings-modern-field" style={{ flex: '1 1 140px' }}>
+                      <span>Nombre del nivel</span>
+                      <input type="text" placeholder="Ej: Meta Media" value={tierName} onChange={(e) => setTierName(e.target.value)} />
                     </div>
-                    <div className="settings-modern-field">
-                      <span>Monto de la Meta</span>
-                      <input
-                        id="userGoalAmount"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Monto Q."
-                        value={goalAmount}
-                        onChange={(e) => setGoalAmount(e.target.value)}
-                      />
+                    <div className="settings-modern-field" style={{ flex: '0 0 130px' }}>
+                      <span>Monto mínimo Q</span>
+                      <input type="number" min="0" step="0.01" placeholder="Q 160,000" value={tierAmount} onChange={(e) => setTierAmount(e.target.value)} />
                     </div>
-                    <button
-                      className="btn-cotizar"
-                      id="btnUserGoalAdd"
-                      type="button"
-                      onClick={handleAddGoal}
-                    >
-                      Agregar Meta
-                    </button>
+                    <div className="settings-modern-field" style={{ flex: '0 0 110px' }}>
+                      <span>% Comisión</span>
+                      <input type="number" min="0" step="0.1" placeholder="Ej: 2.5" value={tierPercentage} onChange={(e) => setTierPercentage(e.target.value)} />
+                    </div>
+                    <button className="btn-cotizar" type="button" onClick={handleAddTier} style={{ marginBottom: '1px' }}>Agregar</button>
                   </div>
 
+                  {/* Tiers Table */}
                   <div className="settings-modern-field">
-                    <span>Historial de Metas Mensuales del Vendedor</span>
+                    <span>Niveles configurados</span>
                     <div className="settings-goals-table-wrap">
                       <table>
-                        <thead>
-                          <tr>
-                            <th>Mes / Año</th>
-                            <th>Monto asignado</th>
-                            <th style={{ width: '40px' }}></th>
-                          </tr>
-                        </thead>
-                        <tbody id="userGoalsBody">
-                          {monthlyGoals.length === 0 ? (
-                            <tr>
-                              <td colSpan="3" style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
-                                Sin metas mensuales registradas
-                              </td>
-                            </tr>
+                        <thead><tr><th>Nivel</th><th>Monto mínimo</th><th>% Comisión</th><th style={{ width: '40px' }}></th></tr></thead>
+                        <tbody id="userTiersBody">
+                          {goalTiers.length === 0 ? (
+                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Sin niveles configurados. Agrega niveles como Meta Media, Meta Alta, etc.</td></tr>
                           ) : (
-                            monthlyGoals.map(g => (
-                              <tr key={g.month}>
-                                <td style={{ fontWeight: '600' }}>{g.month}</td>
-                                <td style={{ fontWeight: '700', color: '#059669' }}>
-                                  Q {parseFloat(g.amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
+                            goalTiers.map((t, i) => (
+                              <tr key={i}>
+                                <td style={{ fontWeight: '600' }}>{t.name}</td>
+                                <td style={{ fontWeight: '700', color: '#059669' }}>Q {t.amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td style={{ fontWeight: '700', color: '#2563eb' }}>{t.percentage}%</td>
                                 <td style={{ textAlign: 'center' }}>
-                                  <button
-                                    type="button"
-                                    className="settings-goal-delete-btn"
-                                    title="Eliminar meta"
-                                    onClick={() => handleRemoveGoal(g.month)}
-                                  >
-                                    ✕
-                                  </button>
+                                  <button type="button" className="settings-goal-delete-btn" title="Eliminar nivel" onClick={() => handleRemoveTier(i)}>✕</button>
                                 </td>
-                              </tr>
+                            </tr>
                             ))
                           )}
                         </tbody>
                       </table>
                     </div>
                   </div>
+
+                  {/* Monthly Goals (existing) */}
+                  <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '10px' }}>📅 Metas Mensuales</div>
+                    <div className="settings-goals-input-row">
+                      <div className="settings-modern-field">
+                        <span>Seleccionar Mes</span>
+                        <input
+                          id="userGoalMonth"
+                          type="month"
+                          value={goalMonth}
+                          onChange={(e) => setGoalMonth(e.target.value)}
+                        />
+                      </div>
+                      <div className="settings-modern-field">
+                        <span>Monto de la Meta</span>
+                        <input
+                          id="userGoalAmount"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Monto Q."
+                          value={goalAmount}
+                          onChange={(e) => setGoalAmount(e.target.value)}
+                        />
+                      </div>
+                      <button className="btn-cotizar" id="btnUserGoalAdd" type="button" onClick={handleAddGoal}>Agregar Meta</button>
+                    </div>
+
+                    <div className="settings-modern-field">
+                      <span>Historial de Metas Mensuales</span>
+                      <div className="settings-goals-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Mes / Año</th>
+                              <th>Monto asignado</th>
+                              <th style={{ width: '40px' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody id="userGoalsBody">
+                            {monthlyGoals.length === 0 ? (
+                              <tr>
+                                <td colSpan="3" style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
+                                  Sin metas mensuales registradas
+                                </td>
+                              </tr>
+                            ) : (
+                              monthlyGoals.map(g => (
+                                <tr key={g.month}>
+                                  <td style={{ fontWeight: '600' }}>{g.month}</td>
+                                  <td style={{ fontWeight: '700', color: '#059669' }}>
+                                    Q {parseFloat(g.amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <button type="button" className="settings-goal-delete-btn" title="Eliminar meta" onClick={() => handleRemoveGoal(g.month)}>✕</button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', padding: '10px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
-                  Marca la casilla superior para configurar las metas y objetivos comerciales de este vendedor.
+                  Marca la casilla superior para configurar los niveles de meta y comisiones.
                 </div>
               )}
             </div>

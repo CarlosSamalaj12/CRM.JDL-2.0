@@ -228,6 +228,9 @@ async function ensureUsersExtendedStructure() {
     if (!colSet.has("metas_mensuales_json")) {
       await conn.query("ALTER TABLE usuarios ADD COLUMN metas_mensuales_json LONGTEXT NULL");
     }
+    if (!colSet.has("tiers_comision_json")) {
+      await conn.query("ALTER TABLE usuarios ADD COLUMN tiers_comision_json LONGTEXT NULL");
+    }
     if (!colSet.has("rol")) {
       await conn.query("ALTER TABLE usuarios ADD COLUMN rol VARCHAR(50) NOT NULL DEFAULT 'vendedor'");
     }
@@ -712,7 +715,7 @@ async function readStateFromTables() {
       dbAnticipos,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
-      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, rol FROM usuarios ORDER BY creado_en, id"),
+      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
@@ -912,6 +915,19 @@ async function readStateFromTables() {
               .filter((g) => /^\d{4}-\d{2}$/.test(g.month) && Number.isFinite(g.amount) && g.amount > 0);
           }
         } catch (_) { }
+        let goalTiers = [];
+        try {
+          const parsed = JSON.parse(str(u.tiers_comision_json) || "[]");
+          if (Array.isArray(parsed)) {
+            goalTiers = parsed
+              .map((t) => ({
+                name: str(t?.name || ''),
+                amount: Math.max(0, Number(t?.amount || 0)),
+                percentage: Math.max(0, Number(t?.percentage || 0)),
+              }))
+              .filter((t) => t.amount > 0);
+          }
+        } catch (_) { }
         return {
           id: str(u.id),
           name: str(u.nombre),
@@ -925,6 +941,7 @@ async function readStateFromTables() {
           active: Number(u.activo) !== 0,
           salesTargetEnabled: Number(u.influye_meta_ventas) !== 0,
           monthlyGoals,
+          goalTiers,
           role: str(u.rol || 'vendedor'),
         };
       }).filter((u) => u.id && u.name),
@@ -1449,13 +1466,22 @@ async function writeStateToTables(state) {
           .map((g) => ({ month: str(g?.month), amount: Math.max(0, Number(g?.amount || 0)) }))
           .filter((g) => /^\d{4}-\d{2}$/.test(g.month) && Number.isFinite(g.amount) && g.amount > 0)
         : [];
+      const goalTiers = Array.isArray(u?.goalTiers)
+        ? u.goalTiers
+          .map((t) => ({
+            name: str(t?.name || ''),
+            amount: Math.max(0, Number(t?.amount || 0)),
+            percentage: Math.max(0, Number(t?.percentage || 0)),
+          }))
+          .filter((t) => t.amount > 0)
+        : [];
       const rol = str(u?.role || u?.rol || 'vendedor').trim();
       if (!id || !nombre) continue;
       await conn.query(
         `
           INSERT INTO usuarios
-            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, rol)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             nombre = VALUES(nombre),
             nombre_usuario = VALUES(nombre_usuario),
@@ -1468,6 +1494,7 @@ async function writeStateToTables(state) {
             activo = VALUES(activo),
             influye_meta_ventas = VALUES(influye_meta_ventas),
             metas_mensuales_json = VALUES(metas_mensuales_json),
+            tiers_comision_json = VALUES(tiers_comision_json),
             rol = VALUES(rol)
         `,
         [
@@ -1483,6 +1510,7 @@ async function writeStateToTables(state) {
           active,
           salesTargetEnabled,
           JSON.stringify(monthlyGoals),
+          JSON.stringify(goalTiers),
           rol,
         ]
       );

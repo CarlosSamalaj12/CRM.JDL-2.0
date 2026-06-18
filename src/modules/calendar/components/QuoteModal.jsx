@@ -3046,6 +3046,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               <select style={fieldSelect} value={quote.templateId} onChange={e => setQuote(p => ({ ...p, templateId: e.target.value }))}>
                 <option value="">— Sin plantilla —</option>
                 <option value="contrato_corp">Jardines (Corporativo)</option>
+                <option value="contrato_hosp">Servicios de Hospitalidad</option>
                 {quickTemplates.filter(t => t.id !== 'contrato_corp' && t.id !== 'tpl-contrato-corp').map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
