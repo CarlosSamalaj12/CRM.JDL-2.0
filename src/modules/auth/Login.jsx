@@ -366,6 +366,81 @@ export default function Login() {
           box-shadow: 0 12px 24px rgba(11,28,48,0.3) !important;
         }
         .loginGoogleBtn:active { transform: translateY(0); }
+
+        /* Responsive overrides using high specificity prefix to counter global-scoped.css */
+        @media (max-width: 1024px) {
+          body:not(.informes-theme) .loginShell.loginShell {
+            grid-template-columns: 1fr !important;
+            min-height: auto !important;
+            height: auto !important;
+            width: 100% !important;
+            max-width: 480px !important;
+            margin: 0 auto !important;
+            overflow: visible !important;
+            box-shadow: 0 10px 25px rgba(15,23,42,0.08) !important;
+          }
+          body:not(.informes-theme) .loginVisualPanel.loginVisualPanel {
+            min-height: 200px !important;
+            height: 200px !important;
+          }
+          body:not(.informes-theme) .loginVisualQuote.loginVisualQuote {
+            bottom: 20px !important;
+            left: 20px !important;
+            right: 20px !important;
+          }
+          body:not(.informes-theme) .loginVisualQuote strong {
+            font-size: 24px !important;
+          }
+          body:not(.informes-theme) .loginCard.loginCard {
+            padding: 24px 20px 30px !important;
+          }
+          body:not(.informes-theme) .loginBrandBadge.loginBrandBadge {
+            width: 80px !important;
+            height: 80px !important;
+            flex-basis: 80px !important;
+          }
+          body:not(.informes-theme) .loginLogoImg.loginLogoImg {
+            width: 64px !important;
+            height: 64px !important;
+          }
+          body:not(.informes-theme) .loginBrandTitle.loginBrandTitle {
+            font-size: 22px !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          body:not(.informes-theme) .loginScreen.loginScreen {
+            padding: 12px !important;
+            background: linear-gradient(135deg, #f0f4f8, #e2e8f0) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          body:not(.informes-theme) .loginShell.loginShell {
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            max-width: 100% !important;
+          }
+          body:not(.informes-theme) .loginVisualPanel.loginVisualPanel {
+            display: none !important;
+          }
+          body:not(.informes-theme) .loginCard.loginCard {
+            border-radius: 16px !important;
+            background: #ffffff !important;
+            border: 1px solid rgba(148,163,184,0.16) !important;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04) !important;
+            padding: 30px 20px !important;
+          }
+          body:not(.informes-theme) .loginBrandTitle.loginBrandTitle {
+            font-size: 20px !important;
+          }
+          body:not(.informes-theme) .loginSupportWidget.loginSupportWidget {
+            position: fixed !important;
+            left: 16px !important;
+            bottom: 16px !important;
+          }
+        }
       `}</style>
     </div>
   );
