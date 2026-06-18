@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import authService from '../../services/authService';
 import Swal from 'sweetalert2';
 
 const ROLE_COLORS = {
@@ -211,6 +212,13 @@ export default function SettingsUsuarios({ inline, onBack }) {
       }
 
       await saveCrmState({ ...currentState, users: updatedUsers });
+
+      // Sync localStorage if the saved user is the currently logged-in user
+      const currentUser = authService.getCurrentUser();
+      if (currentUser && String(selectedUserId) === String(currentUser.id)) {
+        localStorage.setItem('user', JSON.stringify({ ...currentUser, signatureDataUrl, avatarDataUrl }));
+      }
+
       Swal.fire({ icon: 'success', title: '¡Guardado Exitosamente!', text: selectedUserId ? `Se actualizaron los datos de ${fullName}.` : `Se pre-registró a ${fullName}.`, confirmButtonColor: '#10b981', timer: 2000, showConfirmButton: false });
       await fetchUsers();
       resetForm();

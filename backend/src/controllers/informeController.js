@@ -5,6 +5,53 @@ const OCCUPACION_JOIN = `
   CONVERT(e.Idocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci
 `;
 
+async function fetchInformeWithDias(informeId) {
+  const [rows] = await pool.query(`
+    SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion, e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento, e.Vendedor, e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc
+    FROM informes_eventos i
+    LEFT JOIN tbl_seguimientocotizaciones e ON ${OCCUPACION_JOIN}
+    WHERE i.id = ?
+  `, [informeId]);
+
+  if (rows.length === 0) return null;
+
+  const [detailsRows] = await pool.query(`
+    SELECT d.*, m.nombre_menu, c.nombre AS categoria_nombre
+    FROM informe_dias_detalle d
+    LEFT JOIN cat_menus m ON d.menu_id = m.id
+    LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id
+    WHERE d.informe_id = ?
+    ORDER BY d.fecha_evento ASC
+  `, [rows[0].id]);
+
+  const diaIds = detailsRows.map(d => d.id);
+  const itemsPorDia = {};
+  if (diaIds.length > 0) {
+    const placeholders = diaIds.map(() => '?').join(',');
+    const [items] = await pool.query(`
+      SELECT d.*, i.nombre AS ingrediente_nombre, i.tipo AS ingrediente_tipo,
+             o.nombre_opcion AS opcion_nombre
+      FROM informe_dia_menu_detalle d
+      JOIN cat_ingredientes i ON d.ingrediente_id = i.id
+      LEFT JOIN cat_opciones_ingrediente o ON d.opcion_id = o.id
+      WHERE d.dia_id IN (${placeholders})
+      ORDER BY i.tipo, i.nombre
+    `, diaIds);
+
+    for (const item of items) {
+      if (!itemsPorDia[item.dia_id]) itemsPorDia[item.dia_id] = [];
+      itemsPorDia[item.dia_id].push(item);
+    }
+  }
+
+  const diasConItems = detailsRows.map(d => ({
+    ...d,
+    items: itemsPorDia[d.id] || [],
+  }));
+
+  return { ...rows[0], dias: diasConItems };
+}
+
 // --- INFORMES (ENCABEZADOS) ---
 export async function createInforme(req, res, next) {
   try {
@@ -122,84 +169,88 @@ export async function getInformeById(req, res, next) {
     // Try by informes_eventos.id first (numeric), then by id_ocupacion (alphanumeric)
     const isNumeric = /^\d+$/.test(id);
     
-    let rows;
+    let result = null;
     if (isNumeric) {
-      [rows] = await pool.query(`
-        SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion, e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento, e.Vendedor, e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc
-        FROM informes_eventos i
-        LEFT JOIN tbl_seguimientocotizaciones e ON ${OCCUPACION_JOIN}
-        WHERE i.id = ?
-      `, [id]);
-
+      result = await fetchInformeWithDias(id);
       // Si no es Admin/Vendedor, verificar que sea la última versión
-      if (!puedeVerTodo && rows.length > 0) {
+      if (result && !puedeVerTodo) {
         const [latest] = await pool.query(`
           SELECT id FROM informes_eventos
           WHERE id_ocupacion = ?
           ORDER BY version DESC LIMIT 1
-        `, [rows[0].id_ocupacion]);
-        if (latest.length > 0 && latest[0].id !== rows[0].id) {
+        `, [result.id_ocupacion]);
+        if (latest.length > 0 && latest[0].id !== result.id) {
           return res.status(403).json({ message: 'No tienes permiso para ver esta versión anterior' });
         }
       }
     }
     
     // If not found by id, try by id_ocupacion (get latest informe for that ocupacion)
-    if (!rows || rows.length === 0) {
-      [rows] = await pool.query(`
-        SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion, e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento, e.Vendedor, e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc
-        FROM informes_eventos i
-        LEFT JOIN tbl_seguimientocotizaciones e ON ${OCCUPACION_JOIN}
-        WHERE i.id_ocupacion = ?
-        ORDER BY i.fecha_creacion DESC
+    if (!result) {
+      const [rows] = await pool.query(`
+        SELECT id FROM informes_eventos
+        WHERE id_ocupacion = ?
+        ORDER BY fecha_creacion DESC
         LIMIT 1
       `, [id]);
-    }
-
-    if (rows.length === 0) {
-      return res.status(404).json({ message: 'Informe no encontrado' });
-    }
-
-    // Get Details (Days)
-    const [detailsRows] = await pool.query(`
-      SELECT d.*, m.nombre_menu, c.nombre AS categoria_nombre
-      FROM informe_dias_detalle d
-      LEFT JOIN cat_menus m ON d.menu_id = m.id
-      LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id
-      WHERE d.informe_id = ?
-      ORDER BY d.fecha_evento ASC
-    `, [rows[0].id]);
-
-    // Get detailed menu items for each day
-    const diaIds = detailsRows.map(d => d.id);
-    const itemsPorDia = {};
-    if (diaIds.length > 0) {
-      const placeholders = diaIds.map(() => '?').join(',');
-      const [items] = await pool.query(`
-        SELECT d.*, i.nombre AS ingrediente_nombre, i.tipo AS ingrediente_tipo,
-               o.nombre_opcion AS opcion_nombre
-        FROM informe_dia_menu_detalle d
-        JOIN cat_ingredientes i ON d.ingrediente_id = i.id
-        LEFT JOIN cat_opciones_ingrediente o ON d.opcion_id = o.id
-        WHERE d.dia_id IN (${placeholders})
-        ORDER BY i.tipo, i.nombre
-      `, diaIds);
-
-      for (const item of items) {
-        if (!itemsPorDia[item.dia_id]) itemsPorDia[item.dia_id] = [];
-        itemsPorDia[item.dia_id].push(item);
+      if (rows.length > 0) {
+        result = await fetchInformeWithDias(rows[0].id);
       }
     }
 
-    const diasConItems = detailsRows.map(d => ({
-      ...d,
-      items: itemsPorDia[d.id] || [],
-    }));
+    if (!result) {
+      return res.status(404).json({ message: 'Informe no encontrado' });
+    }
 
-    res.json({
-      ...rows[0],
-      dias: diasConItems
-    });
+    res.json(result);
+  } catch (error) { next(error); }
+}
+
+export async function getInformeByEventFields(req, res, next) {
+  try {
+    const { nombre, fecha, salon } = req.query;
+    if (!fecha) {
+      return res.status(400).json({ message: 'La fecha del evento es requerida' });
+    }
+
+    // Buscar en tbl_seguimientocotizaciones por fecha y opcionalmente nombre/salon
+    let query = `SELECT Idocupacion FROM tbl_seguimientocotizaciones WHERE FechaEvento = ?`;
+    const params = [fecha];
+
+    if (nombre) {
+      query += ` AND (TRIM(Institucion) = TRIM(?) OR TRIM(Institucion) LIKE TRIM(CONCAT('%', ?, '%')))`;
+      params.push(nombre, nombre);
+    }
+    if (salon) {
+      query += ` AND TRIM(Salon) = TRIM(?)`;
+      params.push(salon);
+    }
+    query += ` ORDER BY Idocupacion DESC LIMIT 5`;
+
+    const [rows] = await pool.query(query, params);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'No se encontró evento en la base de datos de informes' });
+    }
+
+    // Try each matching event until we find one with an informe
+    for (const row of rows) {
+      const id_ocupacion = String(row.Idocupacion);
+      const [infRows] = await pool.query(`
+        SELECT id FROM informes_eventos
+        WHERE id_ocupacion = ?
+        ORDER BY fecha_creacion DESC
+        LIMIT 1
+      `, [id_ocupacion]);
+
+      if (infRows.length === 0) continue;
+
+      const result = await fetchInformeWithDias(infRows[0].id);
+      if (result) {
+        return res.json(result);
+      }
+    }
+
+    return res.status(404).json({ message: 'No se encontró informe para este evento' });
   } catch (error) { next(error); }
 }
 

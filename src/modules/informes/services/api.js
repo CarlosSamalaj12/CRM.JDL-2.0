@@ -406,13 +406,18 @@ export async function createComentario(informeId, data) {
 }
 
 export async function marcarInformeLeido(informeId) {
-  const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/informes/${informeId}/leer`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) throw new Error('Error al marcar como leído');
-  return response.json();
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${apiUrl}/api/informes/${informeId}/leer`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) return false;
+    await response.json();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getLecturas(informeId) {

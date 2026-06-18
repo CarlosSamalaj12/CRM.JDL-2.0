@@ -1089,7 +1089,6 @@ button[data-tooltip-bottom]::after {
   transition: all var(--duration-normal) var(--ease);
   cursor: default;
   position: relative;
-  overflow: hidden;
 }
 
 .event-card::before {

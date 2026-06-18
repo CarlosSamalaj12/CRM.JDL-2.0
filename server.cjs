@@ -1448,8 +1448,19 @@ async function writeStateToTables(state) {
       await conn.query("INSERT INTO salones (nombre) VALUES (?)", [nombre]);
     }
 
+    // Validate no duplicate emails before inserting
+    const seenEmails = new Set();
+    const seenIds = new Set();
     for (const u of users) {
       const id = str(u?.id).trim();
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      const emailCheck = str(u?.email).trim().toLowerCase();
+      if (emailCheck && seenEmails.has(emailCheck)) {
+        console.warn(`[writeStateToTables] Email duplicado omitido: "${emailCheck}"`);
+        continue;
+      }
+      if (emailCheck) seenEmails.add(emailCheck);
       const nombre = str(u?.name || u?.fullName).trim();
       const username = str(u?.username).trim() || null;
       const fullName = str(u?.fullName || u?.name).trim() || null;

@@ -106,7 +106,9 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   };
 
   const handleEnterado = async () => {
-    await marcarInformeLeido(informeId);
+    try {
+      await marcarInformeLeido(informeId);
+    } catch { /* ignore */ }
     setUserLeido(true);
     loadAll();
   };

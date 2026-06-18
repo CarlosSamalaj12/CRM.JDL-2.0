@@ -183,7 +183,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
 
   try {
     let htmlContent = "";
-    let isServiHospTemplate = false;
+      let isServiHospTemplate = false;
 
     if (quote.templateId && printOption !== "sin_precios") {
       let fileName = "";
@@ -223,11 +223,14 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               .querySelectorAll(".contract-header, .contract-header-print, .contract-footer, .contract-footer-print, script")
               .forEach((node) => node.remove());
 
-            // Remove trailing empty elements (such as empty paragraphs/divs/spans)
+            // Remove ANY trailing empty element (handles Google Docs extra tables, paragraphs, etc.)
+            function _isTplElEmpty(el) {
+              if (el.textContent.trim()) return false;
+              if (el.querySelector('img, svg, canvas, video, iframe')) return false;
+              return true;
+            }
             let lastChild = tplDoc.body.lastElementChild;
-            while (lastChild && 
-                   (lastChild.tagName === "P" || lastChild.tagName === "DIV" || lastChild.tagName === "SPAN") && 
-                   !lastChild.textContent.trim()) {
+            while (lastChild && _isTplElEmpty(lastChild)) {
               const prev = lastChild.previousElementSibling;
               lastChild.remove();
               lastChild = prev;
@@ -286,8 +289,106 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     }
 
     let mmContentHtml = "";
-    if ((printOption === "completa" || printOption === "sin_precios") && quote.menuMontajeEntries?.length) {
-      mmContentHtml = buildMenuMontajeSectionHtmlOnly(event, quote, "full", { companies, users });
+    if (printOption === "completa" || printOption === "sin_precios") {
+      let quoteWithMm = quote;
+      if (!quote.menuMontajeEntries?.length) {
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        let info = null;
+        const tryFetch = async (url) => {
+          const res = await fetch(url, { headers });
+          if (res.ok) return await res.json();
+          return null;
+        };
+        try {
+          const occId = quote.id || event?.id;
+          if (occId) {
+            info = await tryFetch(`${apiBase}/api/informes/${occId}`);
+          }
+          if (!info) {
+            // Try stripping slot suffix from occId (evt_xxx_s1_20260620 -> evt_xxx)
+            if (occId) {
+              const baseId = String(occId).replace(/_(s|slot)\d+_\d{6,}$/, '');
+              if (baseId !== String(occId)) {
+                info = await tryFetch(`${apiBase}/api/informes/${baseId}`);
+              }
+            }
+          }
+          if (!info) {
+            const nombre = event?.name || quote.companyName;
+            const fecha = event?.date || quote.eventDate;
+            const salon = event?.salon || quote.venue;
+            if (fecha) {
+              const params = new URLSearchParams({ fecha });
+              if (nombre) params.set('nombre', nombre);
+              if (salon) params.set('salon', salon);
+              info = await tryFetch(`${apiBase}/api/informes/por-evento?${params}`);
+            }
+          }
+        } catch (e) {
+          console.warn("No se pudieron cargar menus del POS:", e);
+        }
+        if (info?.dias?.length) {
+          const eventSalon = info.Salon || quote.salon || event?.salon || 'Salón';
+          const entries = info.dias.map(d => {
+            const itemsList = Array.isArray(d.items) ? d.items : [];
+            const menuText = itemsList.map(item =>
+              [item.ingrediente_nombre,
+               item.cantidad_total ? `x${item.cantidad_total}` : '',
+               item.opcion_nombre ? `(${item.opcion_nombre})` : '',
+               item.notas ? `- ${item.notas}` : ''
+              ].filter(Boolean).join(' ')
+            ).join('\n') || 'Sin platillo asignado';
+            let montajeText = '';
+            if (d.descripcion_montaje) {
+              try {
+                const parsed = typeof d.descripcion_montaje === 'string'
+                  ? JSON.parse(d.descripcion_montaje)
+                  : d.descripcion_montaje;
+                if (parsed?._v === 2) {
+                  const mjs = Array.isArray(parsed.montajes) ? parsed.montajes : [];
+                  const LABEL_MAP = { salon: 'Salón', tipo_montaje: 'Tipo de montaje', num_personas: 'No. Personas', horario: 'Horario', equipo_necesario: 'Equipo necesario', manteleria: 'Mantelería', cristaleria: 'Cristalería', mesas: 'Mesas', sillas: 'Sillas' };
+                  montajeText = mjs.map(m => {
+                    const raw = m?.descripcion ?? m ?? '';
+                    if (typeof raw === 'string') return raw;
+                    if (typeof raw === 'object' && raw !== null) {
+                      if (raw.text) return raw.text;
+                      if (Array.isArray(raw.partes)) return raw.partes.map(p => typeof p === 'object' ? (p.text || p.nombre || '') : String(p)).filter(Boolean).join(', ');
+                      const lines = [];
+                      for (const [key, val] of Object.entries(raw)) {
+                        if (val === null || val === undefined || val === '') continue;
+                        const label = LABEL_MAP[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+                        lines.push(`${label}: ${String(val)}`);
+                      }
+                      return lines.join('\n');
+                    }
+                    return String(raw);
+                  }).filter(Boolean).join('\n');
+                  if (parsed.alertaCustom?.trim()) {
+                    montajeText += `\n[Alertas]\n${parsed.alertaCustom}`;
+                  }
+                  if (Array.isArray(parsed.alertas) && parsed.alertas.length) {
+                    montajeText += `\n[Alertas]\n${parsed.alertas.join(', ')}`;
+                  }
+                }
+              } catch { /* ignore */ }
+            }
+            return {
+              date: d.fecha_evento ? d.fecha_evento.slice(0, 10) : '',
+              salon: eventSalon,
+              menuDescription: menuText,
+              montajeDescription: montajeText || 'Sin montaje asignado',
+            };
+          }).filter(e => e.date);
+          if (entries.length) {
+            quoteWithMm = { ...quote, menuMontajeEntries: entries };
+          }
+        }
+      }
+      if (quoteWithMm.menuMontajeEntries?.length) {
+        mmContentHtml = buildMenuMontajeSectionHtmlOnly(event, quoteWithMm, "full", { companies, users });
+      }
     }
 
     const items = Array.isArray(quote.items) ? quote.items : [];
@@ -312,8 +413,9 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       ? `DESCUENTO (${Number(quote.discountValue).toFixed(2)}%)`
       : "DESCUENTO";
     const itemsRowsHtml = buildQuoteRowsHtml(items, docCurrency);
-    const sellerSignatureHtml = user?.signatureDataUrl
-      ? `<img class="signatureImage" src="${escapeHtml(user.signatureDataUrl)}" alt="Firma vendedor" />`
+    const sellerSignatureUrl = user?.signatureDataUrl || (user?.id ? users.find(u => String(u.id) === String(user.id))?.signatureDataUrl : null) || (user?.email ? users.find(u => String(u.email || '').toLowerCase() === String(user.email).toLowerCase())?.signatureDataUrl : null);
+    const sellerSignatureHtml = sellerSignatureUrl
+      ? `<img class="signatureImage" src="${escapeHtml(sellerSignatureUrl)}" alt="Firma vendedor" />`
       : "";
     const groupedSummary = items.reduce((acc, item) => {
       const key = classifyQuoteItem(item);
@@ -349,11 +451,13 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     const mmStyles = mmContentHtml ? `
       .mmReportWrap {
         --ink:#0f172a;
-        --line:#bdd0e9;
-        --line2:#d9e2f2;
-        --soft:#edf5ff;
-        --brand:#0f3c67;
-        --brand2:#165d90;
+        --line:#d0c8b0;
+        --line2:#e5dfd4;
+        --soft:#f7f5f0;
+        --brand:#1e3a5f;
+        --brand2:#2a4b6e;
+        --gold:#c9a961;
+        --gold-light:#e8dcc4;
         padding: 0;
         margin-top: 20px;
       }
@@ -361,109 +465,123 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
         width: 100%;
         margin: 0 auto 20px;
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: 10px;
         overflow: hidden;
         background: #ffffff;
-        box-shadow: 0 10px 28px rgba(15,23,42,0.12);
+        box-shadow: 0 6px 24px rgba(30,58,95,0.10);
+      }
+      .mmReportCard::before {
+        content: "";
+        display: block;
+        height: 4px;
+        background: linear-gradient(90deg, var(--brand), var(--gold), var(--brand));
       }
       .mmReportHead {
         background: linear-gradient(135deg, var(--brand), var(--brand2));
         color: #fff;
-        padding: 12px 14px;
-        font-size: 20px;
-        font-weight: 900;
-        letter-spacing: .3px;
+        padding: 14px 16px;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: .6px;
         text-transform: uppercase;
+        border-bottom: 2px solid var(--gold);
       }
       .mmReportMeta {
         display: grid;
-        grid-template-columns: repeat(2, minmax(240px, 1fr));
-        gap: 8px 12px;
-        padding: 12px 14px;
+        grid-template-columns: repeat(2, minmax(200px, 1fr));
+        gap: 6px 14px;
+        padding: 12px 16px;
         background: var(--soft);
-        border-top: 1px solid #c9d8ee;
-        border-bottom: 1px solid #c9d8ee;
-        font-size: 14px;
+        border-bottom: 1px solid var(--line2);
+        font-size: 12.5px;
+        line-height: 1.5;
+      }
+      .mmReportMeta b {
+        color: var(--brand);
+        font-weight: 700;
       }
       .mmReportBlock {
-        padding: 14px;
+        padding: 14px 16px;
         border-bottom: 1px solid var(--line2);
       }
       .mmReportBlock:last-child { border-bottom: none; }
       .mmReportTitle {
         margin: 0 0 8px;
-        font-size: 18px;
-        line-height: 1.1;
-        font-weight: 900;
-        color: #0a3f67;
+        font-size: 15px;
+        line-height: 1.2;
+        font-weight: 800;
+        color: var(--brand);
         text-transform: uppercase;
+        letter-spacing: .4px;
+        border-bottom: 1px solid var(--gold-light);
+        padding-bottom: 6px;
       }
       .mmReportText {
         margin: 0;
         white-space: pre-wrap;
-        font-size: 12.5px;
-        line-height: 1.35;
+        font-size: 12px;
+        line-height: 1.4;
         color: var(--ink);
       }
       .mmReportSection {
-        margin-top: 10px;
+        margin-top: 8px;
       }
       .mmReportSection:first-child {
         margin-top: 0;
       }
       .mmReportSubtitle {
-        margin: 0 0 6px;
-        font-size: 15px;
-        font-weight: 900;
-        letter-spacing: .45px;
-        color: #0a3f67;
+        margin: 0 0 5px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .3px;
+        color: var(--brand);
         text-transform: uppercase;
-        border-left: 4px solid #0a5a92;
+        border-left: 3px solid var(--gold);
         padding-left: 8px;
       }
       .mmReportStack {
         display: grid;
-        gap: 6px;
+        gap: 5px;
         margin-left: 10px;
       }
       .mmReportInlineFlow {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px 18px;
+        gap: 6px 14px;
         margin-left: 10px;
         align-items: baseline;
       }
       .mmReportInlinePair {
         display: inline-flex;
         align-items: baseline;
-        gap: 4px;
+        gap: 3px;
         white-space: nowrap;
       }
       .mmReportInlineLabel {
-        font-size: 12.5px;
-        line-height: 1.45;
-        font-weight: 900;
-        letter-spacing: .2px;
+        font-size: 12px;
+        line-height: 1.4;
+        font-weight: 800;
+        letter-spacing: .15px;
         text-transform: uppercase;
-        color: #0a4b80;
+        color: var(--brand);
         white-space: nowrap;
       }
       .mmReportMiniValue {
-        font-size: 12.5px;
-        line-height: 1.45;
+        font-size: 12px;
+        line-height: 1.4;
         color: #0f172a;
         white-space: nowrap;
       }
       .mmReportSectionLine {
-        margin: 0 0 8px 12px;
-        font-size: 12.5px;
-        line-height: 1.45;
+        margin: 0 0 6px 12px;
+        font-size: 12px;
+        line-height: 1.4;
         color: #0f172a;
       }
       .mmReportHr {
-        margin: 10px 0;
+        margin: 8px 0;
         border: none;
-        border-top: 1px solid #9ab4d6;
+        border-top: 1px solid var(--gold-light);
       }
       @media print {
         .mmReportGrid {
@@ -490,19 +608,19 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           <style>
             :root{
               --paper:#ffffff;
-              --surface:#fdfefe;
-              --line:#c7dae3;
-              --zebra:#f6fbfd;
-              --brand:#1d6f88;
-              --brand-deep:#144c59;
-              --brand-muted:#e8f5f7;
-              --title:#143f57;
+              --surface:#fcfcfd;
+              --line:#d5dce3;
+              --zebra:#f5f7fa;
+              --brand:#1e3a5f;
+              --brand-deep:#142c47;
+              --brand-muted:#eef1f5;
+              --title:#1a2b3d;
             }
             *{ box-sizing:border-box; }
             html,body{ margin:0; padding:0; }
             body{
               font-family:Arial,sans-serif;
-              background:#edf4f8;
+              background:#f1f3f6;
               color:#1f3b4d;
               -webkit-print-color-adjust:exact;
               print-color-adjust:exact;
@@ -535,7 +653,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               border-collapse:collapse;
               table-layout:fixed;
               margin:0 0 10px;
-              border-top:3px solid rgba(30,167,173,.32);
+              border-top:3px solid rgba(30,58,95,.25);
               border-left:1px solid var(--line);
               border-right:1px solid var(--line);
               background:var(--surface);
@@ -552,10 +670,10 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               background:var(--surface);
             }
             .quoteMetaTable tr td:last-child{ border-right:none; }
-            .quoteMetaTable td.metaLabel{ background:#e7f5f6; color:var(--title); font-weight:700; }
+            .quoteMetaTable td.metaLabel{ background:#eef1f5; color:var(--title); font-weight:700; }
             .quoteMetaTable td.metaValue{ font-weight:600; }
-            .quoteMetaTable tr.metaDivider td{ border-top:2px solid rgba(30,167,173,.35); }
-            .quoteMetaTable tr.metaGap td{ padding:0; height:9px; border:none; background:#f4fafc; }
+            .quoteMetaTable tr.metaDivider td{ border-top:2px solid rgba(30,58,95,.28); }
+            .quoteMetaTable tr.metaGap td{ padding:0; height:9px; border:none; background:#f5f7fa; }
             table{ width:100%; border-collapse:collapse; }
             .quoteItemsTablePrint{ table-layout:fixed; }
             .quoteItemsTablePrint col.qtyCol{ width:11%; }
@@ -563,8 +681,8 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             .quoteItemsTablePrint col.priceCol{ width:16%; }
             .quoteItemsTablePrint col.totalCol{ width:16%; }
             thead th{
-              background:#e5f5f6;
-              border:1px solid #cddde5;
+              background:#eef1f5;
+              border:1px solid #d5dce3;
               padding:6px 8px;
               text-align:center;
               font-size:11.5px;
@@ -579,12 +697,12 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               background:var(--surface);
               color:#1f3b4d;
             }
-            .quoteItemsTablePrint tbody td:nth-child(1){ text-align:center; border-right:2px solid #c7d8e2; }
+            .quoteItemsTablePrint tbody td:nth-child(1){ text-align:center; border-right:2px solid #d5dce3; }
             .quoteItemsTablePrint tbody td:nth-child(3),
             .quoteItemsTablePrint tbody td:nth-child(4){ text-align:right; font-variant-numeric:tabular-nums; }
             tbody tr:nth-child(even):not(.dayHeaderRow):not(.daySubtotalRow) td{ background:var(--zebra); }
             .dayHeaderRow td{
-              background:#215d78;
+              background:var(--brand);
               color:#fff !important;
               font-weight:800;
               text-transform:uppercase;
@@ -592,17 +710,17 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               padding:6px 9px;
             }
             .daySubtotalRow td{
-              background:#e8f5f7 !important;
-              color:#15516b;
+              background:var(--brand-muted) !important;
+              color:var(--title);
               font-weight:700;
             }
-            tfoot td{ border:1px solid #c8d7e0; padding:6px 8px; font-size:11px; background:#e9f5f7; color:#18445a; }
-            .sumLabel{ text-align:right; font-weight:700; color:#15495f; background:#e2f1f3; }
-            .sumValue{ text-align:right; font-weight:800; color:#103b52; background:#e2f1f3; }
+            tfoot td{ border:1px solid #d5dce3; padding:6px 8px; font-size:11px; background:#eef1f5; color:var(--title); }
+            .sumLabel{ text-align:right; font-weight:700; color:var(--title); background:#edf0f4; }
+            .sumValue{ text-align:right; font-weight:800; color:var(--title); background:#edf0f4; }
             .sumTotal .sumLabel,.sumTotal .sumValue{ background:var(--brand-deep); color:#fff; font-size:12.2px; }
             .policyTitle{
               margin-top:9px;
-              background:#1f5f7a;
+              background:var(--brand);
               color:#fff;
               font-weight:800;
               text-align:center;
@@ -610,18 +728,18 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               text-transform:uppercase;
             }
             .policyBox{
-              border:1px solid #b5cad8;
+              border:1px solid #c5ced7;
               border-top:none;
               padding:7px 9px;
               font-size:10.4px;
               line-height:1.4;
-              background:#f9fcfd;
+              background:#fafbfc;
             }
             .policyBox p{ margin:0 0 6px; }
             .policyBox p:last-child{ margin-bottom:0; }
             .cargoSummaryWrap{
               margin:0 0 11px;
-              border:1px solid #c4d7e3;
+              border:1px solid #cdd5dd;
               border-top:none;
               border-radius:0 0 12px 12px;
               overflow:hidden;
@@ -631,19 +749,19 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             .cargoTable col:first-child{ width:72%; }
             .cargoTable col:last-child{ width:28%; }
             .cargoTable th,.cargoTable td{ padding:9px 10px; border-bottom:1px solid var(--line); }
-            .cargoTable thead th{ background:#e6f4f6; color:var(--title); font-size:11px; font-weight:800; text-transform:uppercase; }
+            .cargoTable thead th{ background:#eef1f5; color:var(--title); font-size:11px; font-weight:800; text-transform:uppercase; }
             .cargoTable thead th:first-child{ text-align:left; border-right:1px solid var(--line); }
             .cargoTable thead th:last-child,.cargoAmount{ text-align:right; }
             .cargoTable tbody td:first-child{ border-right:1px solid var(--line); }
-            .cargoLabel{ font-weight:700; color:#1c3f52; }
-            .cargoAmount{ white-space:nowrap; font-weight:800; color:#163f55; }
-            .cargoEm{ font-weight:800; background:#e1f2f4 !important; }
+            .cargoLabel{ font-weight:700; color:#1f3b4d; }
+            .cargoAmount{ white-space:nowrap; font-weight:800; color:var(--title); }
+            .cargoEm{ font-weight:800; background:#edf0f4 !important; }
             .cargoEmFinal{ background:var(--brand-deep) !important; }
             .cargoEmFinal .cargoLabel,.cargoEmFinal .cargoAmount{ color:#fff; }
             .signatureSection{
               margin:10px 12px 0;
               padding:14px 10px 8px;
-              border:1px solid #c7dbe2;
+              border:1px solid #d5dce3;
               border-radius:12px;
               background:#fff;
             }
@@ -657,14 +775,14 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               justify-content:center;
               margin-bottom:8px;
               background:#fff;
-              border:1px solid #d7e1ea;
+              border:1px solid #dfe5ec;
               border-radius:6px;
             }
             .signatureImage{ max-height:68px; width:auto; max-width:320px; object-fit:contain; display:block; padding:2px 6px; }
-            .signatureLine{ width:78%; max-width:320px; border-top:2px solid #6b8798; margin:0 auto; }
-            .signatureRole{ font-weight:800; color:#164d66; text-transform:uppercase; font-size:11px; margin:6px 0; }
-            .signatureData{ margin:2px 0; font-size:11px; color:#2a4b5e; line-height:1.35; width:100%; }
-            .templateAttach{ border-top:1px solid var(--line); background:#f3f9fc; padding:12px 12px 0; }
+            .signatureLine{ width:78%; max-width:320px; border-top:2px solid #8a9aaa; margin:0 auto; }
+            .signatureRole{ font-weight:800; color:var(--title); text-transform:uppercase; font-size:11px; margin:6px 0; }
+            .signatureData{ margin:2px 0; font-size:11px; color:#1f3b4d; line-height:1.35; width:100%; }
+            .templateAttach{ border-top:1px solid var(--line); background:#f5f7fa; padding:12px 12px 0; }
             .templateAttachBody{ background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:visible; font-size:10px; line-height:1.15; }
             .actions{
               padding:12px;
@@ -672,12 +790,12 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               justify-content:flex-end;
               gap:8px;
               border-top:1px solid var(--line);
-              background:#f0f7fa;
+              background:#f3f5f8;
             }
             .actions button{
-              border:1px solid rgba(17,125,143,.32);
+              border:1px solid rgba(30,58,95,.25);
               background:#fff;
-              color:#0f4760;
+              color:var(--title);
               border-radius:10px;
               padding:7px 12px;
               font-weight:700;
@@ -883,7 +1001,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   <td class="sumValue">${quoteMoney(totalDoc, docCurrency)}</td>
                 </tr>
                 <tr class="sumTotalWords">
-                  <td colspan="4" style="text-align: left; font-size: 11px; font-weight: 700; color: #103b52; background: #e9f5f7; padding: 8px 10px; border: 1px solid #c8d7e0; border-top: 2px solid #144c59;">
+                  <td colspan="4" style="text-align: left; font-size: 11px; font-weight: 700; color: var(--title); background: var(--brand-muted); padding: 8px 10px; border: 1px solid var(--line); border-top: 2px solid var(--brand-deep);">
                     CANTIDAD EN LETRAS: ${totalInWords}
                   </td>
                 </tr>
@@ -1196,17 +1314,19 @@ export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", {
   <style>
     :root{
       --ink:#0f172a;
-      --line:#bdd0e9;
-      --line2:#d9e2f2;
-      --soft:#edf5ff;
-      --brand:#0f3c67;
-      --brand2:#165d90;
+      --line:#d0c8b0;
+      --line2:#e5dfd4;
+      --soft:#f7f5f0;
+      --brand:#1e3a5f;
+      --brand2:#2a4b6e;
+      --gold:#c9a961;
+      --gold-light:#e8dcc4;
     }
     *{ box-sizing:border-box; }
     html,body{ margin:0; padding:0; }
     body{
       font-family:"Segoe UI", Arial, sans-serif;
-      background:#eef3fb;
+      background:#f1f3f6;
       color:var(--ink);
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
@@ -1218,96 +1338,110 @@ export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", {
       max-width:1100px;
       margin:0 auto 16px;
       border:1px solid var(--line);
-      border-radius:12px;
+      border-radius:10px;
       overflow:hidden;
       background:#ffffff;
-      box-shadow:0 10px 28px rgba(15,23,42,0.12);
+      box-shadow:0 6px 24px rgba(30,58,95,0.10);
+    }
+    .mmReportCard::before{
+      content:"";
+      display:block;
+      height:4px;
+      background:linear-gradient(90deg, var(--brand), var(--gold), var(--brand));
     }
     .mmReportHead{
       background:linear-gradient(135deg, var(--brand), var(--brand2));
       color:#fff;
-      padding:12px 14px;
-      font-size:20px;
-      font-weight:900;
-      letter-spacing:.3px;
+      padding:14px 16px;
+      font-size:18px;
+      font-weight:800;
+      letter-spacing:.6px;
       text-transform:uppercase;
+      border-bottom:2px solid var(--gold);
     }
     .mmReportMeta{
       display:grid;
-      grid-template-columns:repeat(2, minmax(240px, 1fr));
-      gap:8px 12px;
-      padding:12px 14px;
+      grid-template-columns:repeat(2, minmax(200px, 1fr));
+      gap:6px 14px;
+      padding:12px 16px;
       background:var(--soft);
-      border-top:1px solid #c9d8ee;
-      border-bottom:1px solid #c9d8ee;
-      font-size:14px;
+      border-bottom:1px solid var(--line2);
+      font-size:12.5px;
+      line-height:1.5;
+    }
+    .mmReportMeta b{
+      color:var(--brand);
+      font-weight:700;
     }
     .mmReportBlock{
-      padding:14px;
+      padding:14px 16px;
       border-bottom:1px solid var(--line2);
     }
     .mmReportBlock:last-child{ border-bottom:none; }
     .mmReportTitle{
       margin:0 0 8px;
-      font-size:18px;
-      line-height:1.1;
-      font-weight:900;
-      color:#0a3f67;
+      font-size:15px;
+      line-height:1.2;
+      font-weight:800;
+      color:var(--brand);
       text-transform:uppercase;
+      letter-spacing:.4px;
+      border-bottom:1px solid var(--gold-light);
+      padding-bottom:6px;
     }
     .mmReportText{
       margin:0;
       white-space:pre-wrap;
-      font-size:12.5px;
-      line-height:1.35;
+      font-size:12px;
+      line-height:1.4;
       color:var(--ink);
     }
     .mmReportSection{
-      margin-top:10px;
+      margin-top:8px;
     }
     .mmReportSection:first-child{
       margin-top:0;
     }
     .mmReportSubtitle{
-      margin:0 0 6px;
-      font-size:15px;
-      font-weight:900;
-      letter-spacing:.45px;
-      color:#0a3f67;
+      margin:0 0 5px;
+      font-size:13px;
+      font-weight:800;
+      letter-spacing:.3px;
+      color:var(--brand);
       text-transform:uppercase;
-      border-left:4px solid #0a5a92;
+      border-left:3px solid var(--gold);
       padding-left:8px;
     }
     .mmReportStack{
       display:grid;
-      gap:6px;
+      gap:5px;
       margin-left:10px;
     }
     .mmReportInlineFlow{
       display:flex;
       flex-wrap:wrap;
-      gap:8px 18px;
+      gap:6px 14px;
       margin-left:10px;
       align-items:baseline;
     }
     .mmReportInlinePair{
       display:inline-flex;
       align-items:baseline;
-      gap:4px;
+      gap:3px;
       white-space:nowrap;
     }
     .mmReportInlineLabel{
-      font-size:12.5px;
-      line-height:1.45;
-      font-weight:900;
-      letter-spacing:.2px;
+      font-size:12px;
+      line-height:1.4;
+      font-weight:800;
+      letter-spacing:.15px;
       text-transform:uppercase;
-      color:#0a4b80;
+      color:var(--brand);
       white-space:nowrap;
     }
     .mmReportMiniValue{
-      font-size:12.5px;
-      line-height:1.45;
+      font-size:12px;
+      line-height:1.4;
       color:#0f172a;
       white-space:nowrap;
     }
@@ -1317,15 +1451,15 @@ export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", {
       }
     }
     .mmReportSectionLine{
-      margin:0 0 8px 12px;
-      font-size:12.5px;
-      line-height:1.45;
+      margin:0 0 6px 12px;
+      font-size:12px;
+      line-height:1.4;
       color:#0f172a;
     }
     .mmReportHr{
-      margin:10px 0;
+      margin:8px 0;
       border:none;
-      border-top:1px solid #9ab4d6;
+      border-top:1px solid var(--gold-light);
     }
     @page { size: auto; margin: 10mm; }
     @media print {

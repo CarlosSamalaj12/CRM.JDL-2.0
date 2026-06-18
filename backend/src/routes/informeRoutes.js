@@ -11,6 +11,8 @@ router.get('/', authenticate, informeController.getInformes);
 // Importante: /ocupacion/:id_ocupacion debe ir ANTES de /:id para evitar conflicto
 router.get('/ocupacion/:id_ocupacion', authenticate, informeController.getInformesByOcupacion);
 
+router.get('/por-evento', informeController.getInformeByEventFields);
+
 router.get('/:id', informeController.getInformeById);
 router.put('/:id', authenticate, informeController.updateInforme);
 router.delete('/:id', authenticate, informeController.deleteInforme);

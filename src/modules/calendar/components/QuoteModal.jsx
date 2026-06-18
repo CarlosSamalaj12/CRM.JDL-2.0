@@ -703,7 +703,24 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       if (result.isConfirmed) {
         const user = authService.getCurrentUser();
-        await generateQuotePrintDocument(finalQuote, user);
+        const { value: pf } = await localSwal({
+          title: 'Formato de impresión',
+          input: 'select',
+          inputOptions: {
+            standard: '📄 Estándar — Cotización + Contrato',
+            completa: '📋 Completa — Cotización + Menú Montaje + Contrato',
+            sin_precios: '🔒 Sin precios — Cotización (Q0) + Menú Montaje'
+          },
+          inputPlaceholder: 'Selecciona un formato',
+          showCancelButton: true,
+          confirmButtonText: 'Imprimir',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#1e3a5f',
+          cancelButtonColor: '#6e7881'
+        });
+        if (pf) {
+          await generateQuotePrintDocument(finalQuote, user, pf, event);
+        }
       } else if (result.isDenied) {
         const showGuidedAlert = async () => {
           const waResult = await localSwal({
@@ -733,7 +750,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
           if (waResult.isConfirmed) {
             const user = authService.getCurrentUser();
-            await generateQuotePrintDocument(finalQuote, user);
+            await generateQuotePrintDocument(finalQuote, user, "standard", event);
             // Mostrar la guía nuevamente para continuar con el paso 2
             await showGuidedAlert();
           } else if (waResult.isDenied) {
@@ -1060,9 +1077,26 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       return;
     }
     const user = authService.getCurrentUser();
-    
-    // Usar la nueva utilidad de impresión con plantillas
-    const success = await generateQuotePrintDocument({ ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total }, user);
+
+    const { value: printOption } = await localSwal({
+      title: 'Formato de impresión',
+      input: 'select',
+      inputOptions: {
+        standard: '📄 Estándar — Cotización + Contrato',
+        completa: '📋 Completa — Cotización + Menú Montaje + Contrato',
+        sin_precios: '🔒 Sin precios — Cotización (Q0) + Menú Montaje'
+      },
+      inputPlaceholder: 'Selecciona un formato',
+      showCancelButton: true,
+      confirmButtonText: 'Imprimir',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#1e3a5f',
+      cancelButtonColor: '#6e7881'
+    });
+
+    if (!printOption) return;
+
+    const success = await generateQuotePrintDocument({ ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total }, user, printOption, event);
     
     if (!success) {
       localSwal({ icon: 'error', title: 'Error', text: 'No se pudo generar el documento.' });
@@ -3398,14 +3432,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         V{menuMontajeSummary.version} - {menuMontajeSummary.count} registro(s) - {menuMontajeSummary.datesLabel} - {menuMontajeSummary.salonsLabel}
                       </div>
                     </div>
-                    <button
-                      className="qp-btn"
-                      type="button"
-                      onClick={() => handleOpenMenuMontaje('builder')}
-                      style={{ whiteSpace: 'nowrap', borderColor: '#93c5fd', color: '#1267d8', background: '#ffffff' }}
-                    >
-                      Ver Menu & Montaje
-                    </button>
+
                   </div>
                 )}
 
@@ -3590,14 +3617,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           pointerEvents: 'none'
         }}>
           <div className="qp-floating-footer-inner" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', pointerEvents: 'auto' }}>
-            <button
-              className="qp-btn"
-              type="button"
-              onClick={() => handleOpenMenuMontaje('builder')}
-              style={{ background: '#eef6ff', borderColor: '#9cc7f3', color: '#0f4f8f', boxShadow: '0 6px 14px rgba(15,79,143,.10)' }}
-            >
-              Menu & Montaje
-            </button>
             <button
               className="qp-btn"
               type="button"
