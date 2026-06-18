@@ -7,6 +7,11 @@ import ReportsOcupacion from './ReportsOcupacion';
 import ReportsInstitucion from './ReportsInstitucion';
 import ReportsDashboard from './ReportsDashboard';
 import ReportsSatisfaccion from './ReportsSatisfaccion';
+import ReportsOcupacionBarras from './ReportsOcupacionBarras';
+import ReportsEficenciaEventos from './ReportsEficenciaEventos';
+import ReportsEficenciaConfirmacion from './ReportsEficenciaConfirmacion';
+import ReportsIngresosCategorias from './ReportsIngresosCategorias';
+import ReportsSeguimientosPendientes from './ReportsSeguimientosPendientes';
 import './reports.css';
 
 const BENTO_CARDS = [
@@ -46,11 +51,41 @@ const BENTO_CARDS = [
     badge: 'Calidad • Ratings • Clientes',
     icon: '⭐', variant: 'teal', featured: true,
   },
+  { 
+    id: 'ocupacionBarras', title: 'Porcentaje Ocupación de Eventos',
+    desc: 'Gráfico mensual de ocupación PAX vs capacidad de salones',
+    badge: 'Barras • % Ocupación • Mensual',
+    icon: '📊', variant: 'indigo', featured: true,
+  },
+  { 
+    id: 'eficenciaEventos', title: 'Eficiencia por Estado',
+    desc: 'Distribución porcentual mensual de eventos por estado',
+    badge: 'Estados • % • Apilado',
+    icon: '📈', variant: 'teal', featured: true,
+  },
+  { 
+    id: 'seguimientosPendientes', title: 'Seguimientos Pendientes',
+    desc: 'Eventos en pipeline comercial por vendedor · Pre-Reserva · Negociación · 1ra Cotización',
+    badge: 'Pipeline • Vendedores • Estados',
+    icon: '📋', variant: 'amber', featured: true,
+  },
+  { 
+    id: 'eficenciaConfirmacion', title: 'Eficiencia de Confirmación',
+    desc: 'Eventos confirmados por vendedor · Montos en Quetzales · Porcentajes',
+    badge: 'Confirmados • Montos • Vendedores',
+    icon: '✅', variant: 'green', featured: true,
+  },
+  { 
+    id: 'ingresosCategorias', title: 'Ingresos por Categoría',
+    desc: 'Montos en Quetzales generados por categoría de servicio · Alimentos & Bebidas · Hospedajes · Misceláneos',
+    badge: 'Categorías • Montos • Servicios',
+    icon: '💰', variant: 'indigo', featured: true,
+  },
 ];
 
 const ICON_BG = {
   blue: '#2563eb', green: '#16a34a', purple: '#7c3aed',
-  amber: '#d97706', rose: '#e11d48',
+  amber: '#d97706', rose: '#e11d48', teal: '#0d9488', indigo: '#4f46e5',
 };
 
 const reports = {
@@ -60,6 +95,11 @@ const reports = {
   dashboard: (handleClose) => <ReportsDashboard onClose={handleClose} />,
   institucion: (handleClose) => <ReportsInstitucion onClose={handleClose} />,
   satisfaccion: (handleClose) => <ReportsSatisfaccion onClose={handleClose} />,
+  ocupacionBarras: (handleClose) => <ReportsOcupacionBarras onClose={handleClose} />,
+  eficenciaEventos: (handleClose) => <ReportsEficenciaEventos onClose={handleClose} />,
+  eficenciaConfirmacion: (handleClose) => <ReportsEficenciaConfirmacion onClose={handleClose} />,
+  ingresosCategorias: (handleClose) => <ReportsIngresosCategorias onClose={handleClose} />,
+  seguimientosPendientes: (handleClose) => <ReportsSeguimientosPendientes onClose={handleClose} />,
 };
 
 export default function ReportsModule() {

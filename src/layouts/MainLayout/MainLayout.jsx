@@ -63,7 +63,11 @@ export default function MainLayout() {
       
       setEvents(eventsData);
       setSalones(salonesData);
-      setUsers(usersData);
+
+      // Fallback: si authService.getLoginUsers() devuelve vacío, usar los usuarios del state (/api/state)
+      // que incluye TODOS los usuarios (activos e inactivos), asegurando el lookup por userId en reportes.
+      const stateUsers = stateRes?.state?.users || stateRes?.users || [];
+      setUsers(usersData.length > 0 ? usersData : stateUsers);
 
       const loadedState = stateRes?.state || stateRes || {};
       const loadedOps = (loadedState.occupancyWeeklyOps && typeof loadedState.loadedOps === 'object' || loadedState.occupancyWeeklyOps) 

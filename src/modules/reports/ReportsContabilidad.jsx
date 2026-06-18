@@ -355,6 +355,12 @@ export default function ReportsContabilidad({ onClose }) {
   const [historial, setHistorial] = useState(null);
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialOpen, setHistorialOpen] = useState(false);
+  const [hoveredTooltipPos, setHoveredTooltipPos] = useState(null);
+  const [hoveredTooltipAccount, setHoveredTooltipAccount] = useState(null);
+  const [hoveredEventPos, setHoveredEventPos] = useState(null);
+  const [hoveredEventData, setHoveredEventData] = useState(null);
+  const [hoveredLedgerPos, setHoveredLedgerPos] = useState(null);
+  const [hoveredLedgerData, setHoveredLedgerData] = useState(null);
 
   const fetchHistorial = async (eventId) => {
     if (!eventId) return;
@@ -642,6 +648,7 @@ export default function ReportsContabilidad({ onClose }) {
 
   return (
     <div className="reports-page-container">
+      <style>{`@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       {/* Header */}
       <div className="reports-page-header">
         <div className="reports-brand-header">
@@ -792,7 +799,18 @@ export default function ReportsContabilidad({ onClose }) {
                     onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <td>
+                    <td
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={e => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setHoveredTooltipPos({ x: rect.left + rect.width / 2, y: rect.top });
+                        setHoveredTooltipAccount(acc);
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredTooltipPos(null);
+                        setHoveredTooltipAccount(null);
+                      }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{
                           width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0,
@@ -922,7 +940,18 @@ export default function ReportsContabilidad({ onClose }) {
                                     onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                   >
-                                    <td>
+                                    <td
+                                      style={{ cursor: 'pointer' }}
+                                      onMouseEnter={e => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setHoveredEventPos({ x: rect.left + rect.width / 2, y: rect.top });
+                                        setHoveredEventData(r);
+                                      }}
+                                      onMouseLeave={() => {
+                                        setHoveredEventPos(null);
+                                        setHoveredEventData(null);
+                                      }}
+                                    >
                                       <span className="reports-table-status" style={{
                                         background: `${r.statusColor}18`, color: r.statusColor,
                                         border: `1px solid ${r.statusColor}30`, fontSize: '10px', fontWeight: 700,
@@ -1020,6 +1049,231 @@ export default function ReportsContabilidad({ onClose }) {
           </table>
         </div>
       </div>
+
+      {/* ── Premium Tooltip (fixed) ── */}
+      {hoveredTooltipPos && hoveredTooltipAccount && (() => {
+        const tooltipWidth = 260;
+        const left = Math.min(hoveredTooltipPos.x, window.innerWidth - tooltipWidth - 10);
+        const top = Math.max(10, hoveredTooltipPos.y - 10);
+        const colTone = hoveredTooltipAccount.collectionTone;
+        const toneColors = {
+          overdue: '#dc2626',
+          due: '#eab308',
+          ok: '#22c55e',
+          credit: '#0ea5e9',
+          neutral: '#94a3b8',
+        };
+        const toneColor = toneColors[colTone] || '#94a3b8';
+        return (
+          <div style={{
+            position: 'fixed', left: `${left}px`, top: `${top}px`,
+            transform: 'translate(-50%, -100%)', zIndex: 99999,
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              background: '#0f172a', color: '#fff',
+              borderRadius: '10px', padding: '14px 16px',
+              width: `${tooltipWidth}px`,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2)',
+              animation: 'tooltipFadeIn 0.15s ease-out both',
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <span style={{
+                  width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0,
+                  background: toneColor,
+                  boxShadow: `0 0 0 2px ${toneColor}40`,
+                }} />
+                <strong style={{ fontSize: '12px', fontWeight: 800 }}>{hoveredTooltipAccount.companyName}</strong>
+              </div>
+
+              {/* Status */}
+              <div style={{ fontSize: '10px', color: toneColor, fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '2px', background: toneColor, display: 'inline-block' }} />
+                {hoveredTooltipAccount.collectionLabel}
+              </div>
+
+              {/* Data grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: '11px' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Venta Neta</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff' }}>{formatMoney(hoveredTooltipAccount.netAmount)}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Cobrado</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#4ade80' }}>{formatMoney(hoveredTooltipAccount.collectedAmount)}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Pendiente</span>
+                <span style={{ fontWeight: 800, textAlign: 'right', color: hoveredTooltipAccount.pendingAmount > 0 ? '#f87171' : '#4ade80' }}>{formatMoney(hoveredTooltipAccount.pendingAmount)}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Sdo. Favor</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#60a5fa' }}>{formatMoney(hoveredTooltipAccount.creditAmount)}</span>
+              </div>
+
+              {/* Divider */}
+              <div style={{ margin: '8px 0', height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+
+              {/* Eventos & Dueño */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '10px' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Eventos</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff' }}>{hoveredTooltipAccount.eventsCount}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Pendientes</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: hoveredTooltipAccount.pendingEventsCount > 0 ? '#f87171' : '#4ade80' }}>{hoveredTooltipAccount.pendingEventsCount}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Vendedor</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hoveredTooltipAccount.primarySeller || 'Sin asignar'}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Vto.</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff' }}>{hoveredTooltipAccount.collectionDueLabel || '-'}</span>
+              </div>
+
+              {/* Flecha triangular */}
+              <div style={{
+                position: 'absolute', bottom: '-6px', left: '50%',
+                transform: 'translateX(-50%)',
+                width: '0', height: '0',
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '6px solid #0f172a',
+              }} />
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Premium Tooltip Evento (fixed) ── */}
+      {hoveredEventPos && hoveredEventData && (() => {
+        const tooltipWidth = 280;
+        const left = Math.min(hoveredEventPos.x, window.innerWidth - tooltipWidth - 10);
+        const top = Math.max(10, hoveredEventPos.y - 10);
+        const evData = hoveredEventData;
+        const statusColor = evData.statusColor || '#64748b';
+        return (
+          <div style={{
+            position: 'fixed', left: `${left}px`, top: `${top}px`,
+            transform: 'translate(-50%, -100%)', zIndex: 99998,
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              background: '#0f172a', color: '#fff',
+              borderRadius: '10px', padding: '14px 16px',
+              width: `${tooltipWidth}px`,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2)',
+              animation: 'tooltipFadeIn 0.15s ease-out both',
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <span style={{
+                  width: '10px', height: '10px', borderRadius: '3px', flexShrink: 0,
+                  background: statusColor,
+                  boxShadow: `0 0 0 2px ${statusColor}40`,
+                }} />
+                <strong style={{ fontSize: '12px', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evData.name || evData.refId || 'Evento'}</strong>
+              </div>
+
+              {/* Status + Ref */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '10px', color: statusColor, fontWeight: 700, background: `${statusColor}20`, padding: '2px 8px', borderRadius: '4px' }}>{evData.status || '-'}</span>
+                <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>{evData.refId || ''}</span>
+              </div>
+
+              {/* Data grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px', fontSize: '11px' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Total</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff' }}>{formatMoney(evData.total)}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Cobrado</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#4ade80' }}>{formatMoney(evData.advancesTotal)}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Pendiente</span>
+                <span style={{ fontWeight: 800, textAlign: 'right', color: evData.balancePending > 0 ? '#f87171' : '#4ade80' }}>{formatMoney(evData.balancePending)}</span>
+              </div>
+
+              {/* Divider */}
+              <div style={{ margin: '8px 0', height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+
+              {/* Details */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '10px' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Salón</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evData.salon || '-'}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Fecha</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff' }}>{evData.eventDate || '-'}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Vendedor</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evData.userName || 'Sin asignar'}</span>
+              </div>
+
+              {/* Flecha triangular */}
+              <div style={{
+                position: 'absolute', bottom: '-6px', left: '50%',
+                transform: 'translateX(-50%)',
+                width: '0', height: '0',
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '6px solid #0f172a',
+              }} />
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Premium Tooltip Ledger (fixed) ── */}
+      {hoveredLedgerPos && hoveredLedgerData && (() => {
+        const tooltipWidth = 340;
+        const left = Math.min(hoveredLedgerPos.x, window.innerWidth - tooltipWidth - 10);
+        const top = Math.max(10, hoveredLedgerPos.y - 10);
+        const ed = hoveredLedgerData;
+        const balanceType = ed.runningBalance > 0 ? 'Deudor' : ed.runningBalance < 0 ? 'Acreedor' : 'Saldado';
+        const balanceColor = ed.runningBalance > 0 ? '#f87171' : ed.runningBalance < 0 ? '#60a5fa' : '#4ade80';
+        return (
+          <div style={{
+            position: 'fixed', left: `${left}px`, top: `${top}px`,
+            transform: 'translate(-50%, -100%)', zIndex: 99997,
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              background: '#0f172a', color: '#fff',
+              borderRadius: '10px', padding: '14px 16px',
+              width: `${tooltipWidth}px`,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2)',
+              animation: 'tooltipFadeIn 0.15s ease-out both',
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <span style={{
+                  width: '10px', height: '10px', borderRadius: '3px', flexShrink: 0,
+                  background: ed.debit > 0 ? '#dc2626' : '#16a34a',
+                  boxShadow: ed.debit > 0 ? '0 0 0 2px rgba(220,38,38,0.4)' : '0 0 0 2px rgba(22,163,74,0.4)',
+                }} />
+                <strong style={{ fontSize: '12px', fontWeight: 800 }}>{ed.type || 'Movimiento'}</strong>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginLeft: 'auto' }}>{ed.refId || '-'}</span>
+              </div>
+
+              {/* Concepto completo (sin truncar) */}
+              <div style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '8px', padding: '6px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px' }}>
+                {ed.concept || 'Sin descripcion'}
+              </div>
+
+              {/* Data grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px', fontSize: '11px' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Fecha</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: '#fff' }}>{ed.date || '-'}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Cargo</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: ed.debit > 0 ? '#f87171' : '#94a3b8' }}>{ed.debit > 0 ? formatMoney(ed.debit) : '-'}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Abono</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', color: ed.credit > 0 ? '#4ade80' : '#94a3b8' }}>{ed.credit > 0 ? formatMoney(ed.credit) : '-'}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Saldo</span>
+                <span style={{ fontWeight: 800, textAlign: 'right', color: balanceColor }}>{formatMoney(ed.runningBalance)}</span>
+              </div>
+
+              {/* Balance type badge */}
+              <div style={{ marginTop: '8px', display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: '9px', fontWeight: 700, color: balanceColor, background: `${balanceColor}15`, padding: '2px 8px', borderRadius: '999px', border: `1px solid ${balanceColor}30` }}>{balanceType}</span>
+              </div>
+
+              {/* Flecha triangular */}
+              <div style={{
+                position: 'absolute', bottom: '-6px', left: '50%',
+                transform: 'translateX(-50%)',
+                width: '0', height: '0',
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '6px solid #0f172a',
+              }} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Statement Modal premium ── */}
       {activeStatementAccount && createPortal(
@@ -1351,7 +1605,18 @@ export default function ReportsContabilidad({ onClose }) {
                           >
                             <td style={{ padding: '8px 12px', color: '#334155', fontWeight: 600, whiteSpace: 'nowrap' }}>{entry.date}</td>
                             <td style={{ padding: '8px 12px', fontWeight: 800, color: '#0f172a' }}>{entry.refId}</td>
-                            <td style={{ padding: '8px 12px', color: '#475569', fontSize: '10px', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.concept}</td>
+                            <td
+                              style={{ padding: '8px 12px', color: '#475569', fontSize: '10px', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                              onMouseEnter={e => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setHoveredLedgerPos({ x: rect.left + rect.width / 2, y: rect.top });
+                                setHoveredLedgerData(entry);
+                              }}
+                              onMouseLeave={() => {
+                                setHoveredLedgerPos(null);
+                                setHoveredLedgerData(null);
+                              }}
+                            >{entry.concept}</td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: entry.debit > 0 ? 800 : 400, color: entry.debit > 0 ? '#dc2626' : '#cbd5e1' }}>{entry.debit > 0 ? formatMoney(entry.debit) : '-'}</td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', color: '#16a34a', fontWeight: entry.credit > 0 ? 800 : 400 }}>{entry.credit > 0 ? formatMoney(entry.credit) : '-'}</td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: entry.runningBalance > 0 ? '#dc2626' : '#16a34a', fontSize: '12px' }}>{formatMoney(entry.runningBalance)}</td>

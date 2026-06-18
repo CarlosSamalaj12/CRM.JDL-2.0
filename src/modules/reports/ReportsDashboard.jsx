@@ -12,6 +12,20 @@ const SAT_RATING_LEVELS = [
   { value: 'excelente', label: 'Excelente', score: 4, color: '#a855f7', bg: '#faf5ff' },
 ];
 
+const STATUS_META = [
+  { key: 'Reserva sin Cotizacion', label: 'Reserva sin Cot.', color: '#00A3FF' },
+  { key: '1er Cotizacion', label: '1ra Cotización', color: '#007A64' },
+  { key: 'Seguimiento', label: 'Negociación', color: '#FF8C00' },
+  { key: 'Lista de Espera', label: 'Lista Espera', color: '#FFD700' },
+  { key: 'Pre reserva', label: 'Pre-Reserva', color: '#FF00CC' },
+  { key: 'Confirmado', label: 'Confirmado', color: '#00CC66' },
+  { key: 'Cancelado', label: 'Cancelado', color: '#FF3333' },
+  { key: 'Perdido', label: 'Perdido', color: '#FF9A9E' },
+  { key: 'Mantenimiento', label: 'Mantenimiento', color: '#8A2BE2' },
+  { key: 'Mantenimiento Realizado', label: 'Mant. Realiz.', color: '#94a3b8' },
+  { key: 'Realizado', label: 'Realizado', color: '#22c55e' },
+];
+
 function getSatColor(avg) {
   if (avg >= 3.5) return '#22c55e';
   if (avg >= 2.5) return '#eab308';
@@ -34,10 +48,15 @@ export default function ReportsDashboard({ onClose }) {
   const [role, setRole] = useState(USER_ROLES.SELLER);
   const [scope, setScope] = useState('all');
   const [selectedSellerId, setSelectedSellerId] = useState('');
+  const [hoveredStatusSeg, setHoveredStatusSeg] = useState(null); // { monthIdx, segIdx }
 
   // ── Satisfaction data ──
   const [checklists, setChecklists] = useState({});
   const [satLoading, setSatLoading] = useState(true);
+
+  // ── Global Monthly Goals (from Settings → Metas Globales) ──
+  const [globalMonthlyGoals, setGlobalMonthlyGoals] = useState([]);
+  const [globalGoalsLoading, setGlobalGoalsLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -45,8 +64,11 @@ export default function ReportsDashboard({ onClose }) {
         const { loadState } = await import('../../services/stateService');
         const state = await loadState({ cacheBust: true });
         setChecklists((state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {});
+        setGlobalMonthlyGoals(Array.isArray(state.globalMonthlyGoals) ? state.globalMonthlyGoals : []);
+        setSalonCapacitiesOccupancy((state.salonCapacities && typeof state.salonCapacities === 'object') ? state.salonCapacities : {});
+        setSalonOccupancyEnabled(Array.isArray(state.salonOccupancyEnabled) ? state.salonOccupancyEnabled : []);
       } catch (err) { console.error(err); }
-      finally { setSatLoading(false); }
+      finally { setSatLoading(false); setGlobalGoalsLoading(false); }
     })();
   }, []);
 
@@ -93,6 +115,15 @@ export default function ReportsDashboard({ onClose }) {
   const personalAchieved = focusedUser ? filteredRows.filter(r => r.userId === focusedUser.id && isGoalStatus(r.status)).reduce((a,r) => a+r.total, 0) : 0;
   const gProg = globalGoal ? (globalAchieved/globalGoal)*100 : 0;
   const pProg = personalGoal ? (personalAchieved/personalGoal)*100 : 0;
+
+  // ── Settings Global Monthly Goal (from Settings → Metas Globales) ──
+  const settingsGlobalGoal = useMemo(() => {
+    if (globalGoalsLoading || !globalMonthlyGoals.length) return null;
+    const goal = globalMonthlyGoals.find(g => g.month === monthKey);
+    return goal ? { amount: goal.amount, active: goal.active !== false } : null;
+  }, [globalMonthlyGoals, monthKey, globalGoalsLoading]);
+  const settingsGoalAmount = settingsGlobalGoal?.amount || 0;
+  const settingsGoalProgress = settingsGoalAmount > 0 ? (globalAchieved / settingsGoalAmount) * 100 : 0;
 
   const salonData = useMemo(() => {
     const c = {};
@@ -162,7 +193,123 @@ export default function ReportsDashboard({ onClose }) {
     return { totalEvents: satisfactionData.length, totalRatings, globalAvg, totalDist };
   }, [satisfactionData]);
 
+  // ── Daily Occupancy KPIs (from ReportsOcupacionBarras) ──
+  const ACTIVE_STATUSES = new Set([STATUS.CONFIRMADO, STATUS.PRERESERVA]);
+
+  const [salonCapacitiesOccupancy, setSalonCapacitiesOccupancy] = useState({});
+  const [salonOccupancyEnabled, setSalonOccupancyEnabled] = useState([]);
+
+  const totalMarkedCapacity = useMemo(() => {
+    return salonOccupancyEnabled.reduce((sum, name) => sum + Math.max(0, Number(salonCapacitiesOccupancy[name] || 0)), 0);
+  }, [salonCapacitiesOccupancy, salonOccupancyEnabled]);
+
+  const markedSalonSet = useMemo(() => new Set(salonOccupancyEnabled), [salonOccupancyEnabled]);
+
+  const occupancyData = useMemo(() => {
+    if (!events) return null;
+    const { from, to } = getDateRange();
+    // Generate day list for the range
+    const start = new Date(from + 'T00:00:00');
+    const end = new Date(to + 'T00:00:00');
+    const dayList = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      dayList.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    if (!dayList.length) return null;
+
+    // Sum PAX per day for active events in marked salons
+    const dayPax = {};
+    const dayCounts = {};
+    for (const ev of events) {
+      const d = String(ev.date || '');
+      if (!d || d < from || d > to) continue;
+      if (!ACTIVE_STATUSES.has(String(ev.status || ''))) continue;
+      const evSalon = String(ev.salon || '').trim();
+      if (!markedSalonSet.has(evSalon)) continue;
+      const pax = Math.max(0, Number(ev.pax || 0));
+      if (pax > 0) {
+        dayPax[d] = (dayPax[d] || 0) + pax;
+      }
+      dayCounts[d] = (dayCounts[d] || 0) + 1;
+    }
+
+    const totalPax = Object.values(dayPax).reduce((a, b) => a + b, 0);
+    const totalEvents = Object.values(dayCounts).reduce((a, b) => a + b, 0);
+    const activeDays = Object.keys(dayPax).length;
+    const totalDays = dayList.length;
+    const avgDaily = totalDays > 0 ? totalPax / totalDays : 0;
+    const maxPax = totalMarkedCapacity > 0 ? totalMarkedCapacity : 1;
+
+    let peakDate = '', peakPax = 0, peakCount = 0;
+    for (const [d, p] of Object.entries(dayPax)) {
+      if (p > peakPax) { peakPax = p; peakDate = d; peakCount = dayCounts[d] || 0; }
+    }
+
+    const paxUtilPct = (totalMarkedCapacity > 0 && totalDays > 0)
+      ? (totalPax / (totalMarkedCapacity * totalDays)) * 100
+      : 0;
+
+    return { 
+      totalPax, totalEvents, activeDays, totalDays, avgDaily, 
+      maxPax, peakDate, peakPax, peakCount, 
+      dayPax, dayList, totalMarkedCapacity, paxUtilPct 
+    };
+  }, [events, getDateRange, markedSalonSet, totalMarkedCapacity]);
+
   const handleReset = () => { const n = new Date(); setMonthKey(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`); setFromDate(''); setToDate(''); setRole(USER_ROLES.SELLER); setScope('all'); setSelectedSellerId(''); };
+
+  // ── Status monthly distribution (stacked bar) ──
+  const statusMonthlyData = useMemo(() => {
+    if (!events) return [];
+    const { from, to } = getDateRange();
+    const start = new Date(from + 'T00:00:00');
+    const end = new Date(to + 'T00:00:00');
+    // Build month list from range
+    const months = [];
+    const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = cur.getMonth();
+      months.push({
+        key: `${y}-${String(m + 1).padStart(2, '0')}`,
+        monthName: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m],
+        monthShort: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m],
+      });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    if (!months.length) return [];
+
+    const fromFull = months[0].key + '-01';
+    const lastMonthKey = months[months.length - 1].key;
+    const toFull = lastMonthKey + '-' + String(new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]), 0).getDate()).padStart(2, '0');
+
+    const monthStatusCounts = {};
+    const monthTotals = {};
+    for (const ev of events) {
+      const d = String(ev.date || '');
+      if (!d || d < fromFull || d > toFull) continue;
+      const monthKey = d.substring(0, 7);
+      const status = String(ev.status || 'Reserva sin Cotizacion').trim();
+      if (!monthStatusCounts[monthKey]) { monthStatusCounts[monthKey] = {}; monthTotals[monthKey] = 0; }
+      monthStatusCounts[monthKey][status] = (monthStatusCounts[monthKey][status] || 0) + 1;
+      monthTotals[monthKey] = (monthTotals[monthKey] || 0) + 1;
+    }
+
+    return months.map(m => {
+      const counts = monthStatusCounts[m.key] || {};
+      const total = monthTotals[m.key] || 0;
+      const segments = STATUS_META.map(s => ({
+        statusKey: s.key, label: s.label, color: s.color,
+        count: counts[s.key] || 0,
+        pct: total > 0 ? ((counts[s.key] || 0) / total) * 100 : 0,
+      })).filter(s => s.count > 0);
+      // Sort: larger pct first for visual clarity
+      segments.sort((a, b) => b.pct - a.pct);
+      return { monthKey: m.key, monthName: m.monthName, monthShort: m.monthShort, total, segments };
+    });
+  }, [events, getDateRange]);
 
   const visSeg = statusSummary.seg.filter(s => s.count > 0);
   const dateRange = getDateRange();
@@ -385,6 +532,251 @@ export default function ReportsDashboard({ onClose }) {
                 )}
               </div>
             ))}
+
+            {/* ── Global Monthly Goal Card (from Settings → Metas Globales) ── */}
+            <div className="bento-tile" style={{
+              gridColumn: 'span 2', border: 'none',
+              background: settingsGoalAmount > 0 && settingsGoalProgress >= 100
+                ? 'linear-gradient(135deg, #f0fdf4, #ecfdf5)'
+                : settingsGoalAmount > 0 && settingsGoalProgress >= 80
+                  ? 'linear-gradient(135deg, #fffbeb, #fef3c7)'
+                  : 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+              borderLeft: `4px solid ${settingsGoalAmount > 0 && settingsGoalProgress >= 100 ? '#16a34a' : settingsGoalAmount > 0 && settingsGoalProgress >= 80 ? '#f59e0b' : '#0284c7'}`,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
+              transition: 'all 0.25s ease',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)'; }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{
+                    width: '8px', height: '8px', borderRadius: '3px',
+                    background: settingsGoalAmount > 0 && settingsGoalProgress >= 100 ? '#16a34a' : settingsGoalAmount > 0 && settingsGoalProgress >= 80 ? '#f59e0b' : '#0284c7',
+                    display: 'inline-block', flexShrink: 0,
+                    boxShadow: settingsGoalAmount > 0 && settingsGoalProgress >= 100 ? '0 0 0 2px rgba(22,163,74,0.2)' : settingsGoalAmount > 0 && settingsGoalProgress >= 80 ? '0 0 0 2px rgba(245,158,11,0.2)' : '0 0 0 2px rgba(2,132,199,0.2)',
+                  }} />
+                  <span className="reports-eyebrow">🎯 Meta Global (Configuración)</span>
+                </div>
+                {settingsGoalAmount > 0 && (
+                  <span style={{
+                    fontSize: '10px', fontWeight: '800', padding: '3px 12px', borderRadius: '999px',
+                    background: settingsGoalProgress >= 100 ? '#dcfce7' : settingsGoalProgress >= 80 ? '#fef3c7' : '#e0f2fe',
+                    color: settingsGoalProgress >= 100 ? '#15803d' : settingsGoalProgress >= 80 ? '#b45309' : '#0369a1',
+                  }}>
+                    {settingsGoalProgress.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              {settingsGoalAmount > 0 ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                    <div>
+                      <strong style={{ fontSize: '1.8rem', fontWeight: '900', color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                        {formatMoneyGT(globalAchieved)}
+                      </strong>
+                      <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginLeft: '6px' }}>
+                        de {formatMoneyGT(settingsGoalAmount)}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{ height: '14px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}>
+                    <div style={{
+                      height: '100%', borderRadius: '999px',
+                      background: settingsGoalProgress >= 100
+                        ? 'linear-gradient(90deg, #22c55e, #16a34a)'
+                        : settingsGoalProgress >= 80
+                          ? 'linear-gradient(90deg, #facc15, #eab308)'
+                          : 'linear-gradient(90deg, #38bdf8, #0284c7)',
+                      width: `${Math.min(100, settingsGoalProgress)}%`,
+                      transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
+                      boxShadow: '0 0 8px rgba(0,0,0,0.1)',
+                    }} />
+                  </div>
+                  {/* ── Stats row ── */}
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      💰 <strong style={{ color: '#0f172a' }}>{formatMoneyGT(settingsGoalAmount)}</strong> meta
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      📊 <strong style={{ color: '#0f172a' }}>{settingsGoalProgress.toFixed(1)}%</strong> alcanzado
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      📅 <strong style={{ color: '#0f172a' }}>{getMonthName(parseInt(monthKey.split('-')[1]))}</strong> {monthKey.split('-')[0]}
+                    </span>
+                  </div>
+
+                  {/* ── 🚀 Motivational Indicators ── */}
+                  {(() => {
+                    const now = new Date();
+                    const [yr, mo] = monthKey.split('-').map(Number);
+                    const daysInMo = new Date(yr, mo, 0).getDate();
+                    const isCurrent = yr === now.getFullYear() && mo === now.getMonth() + 1;
+                    const isPast = yr < now.getFullYear() || (yr === now.getFullYear() && mo < now.getMonth() + 1);
+                    const day = isPast ? daysInMo : (isCurrent ? Math.min(now.getDate(), daysInMo) : 0);
+                    const daysLeft = Math.max(0, daysInMo - day);
+                    const daysEl = day;
+                    const needDaily = daysLeft > 0 ? Math.max(0, settingsGoalAmount - globalAchieved) / daysLeft : 0;
+                    const currDaily = daysEl > 0 ? globalAchieved / daysEl : 0;
+                    const projected = currDaily * daysInMo;
+                    const projPct = settingsGoalAmount > 0 ? (projected / settingsGoalAmount) * 100 : 0;
+                    const onPace = currDaily >= needDaily;
+                    const msgs = [
+                      { min: 100, emoji: '🏆', msg: '¡META SUPERADA! Increíble trabajo en equipo', color: '#16a34a', bg: '#f0fdf4' },
+                      { min: 90, emoji: '🎯', msg: '¡Lo tienen al alcance! Un último esfuerzo y la rompen', color: '#16a34a', bg: '#f0fdf4' },
+                      { min: 75, emoji: '⚡', msg: '¡Ya casi llegamos! No bajen el ritmo, sigan así', color: '#ca8a04', bg: '#fefce8' },
+                      { min: 50, emoji: '🚀', msg: 'Van a media máquina, ¡sigan empujando fuerte!', color: '#ca8a04', bg: '#fefce8' },
+                      { min: 25, emoji: '🔥', msg: 'Buen ritmo, van por buen camino ¡aceleren!', color: '#2563eb', bg: '#eff6ff' },
+                      { min: 0, emoji: '💪', msg: '¡Enciendan motores! Todavía hay tiempo para alcanzarla', color: '#2563eb', bg: '#eff6ff' },
+                    ];
+                    const mot = msgs.find(m => settingsGoalProgress >= m.min) || msgs[msgs.length - 1];
+
+                    return (
+                      <>
+                        {/* Separador sutil */}
+                        <div style={{ height: '1px', background: 'linear-gradient(90deg, transparent, #e2e8f0, transparent)', margin: '12px 0 10px' }} />
+
+                        {/* Motivational ribbon */}
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          background: mot.bg, borderRadius: '10px',
+                          padding: '8px 14px', marginBottom: '10px',
+                          border: `1px solid ${mot.color}20`,
+                          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.6)`,
+                        }}>
+                          <span style={{ fontSize: '22px', lineHeight: 1 }}>{mot.emoji}</span>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: mot.color, letterSpacing: '-0.01em' }}>{mot.msg}</div>
+                            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '1px' }}>
+                              Progreso: {settingsGoalProgress.toFixed(1)}% · Meta: {formatMoneyGT(settingsGoalAmount)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Indicators grid: 2 columns */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          {/* Días restantes */}
+                          <div style={{
+                            background: '#f8fafc', borderRadius: '10px', padding: '10px 12px',
+                            border: '1px solid #f1f5f9',
+                          }}>
+                            <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                              ⏱️ Días del mes
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                              <strong style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{day}</strong>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>de {daysInMo}</span>
+                              <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 800, color: daysLeft <= 7 ? '#dc2626' : '#2563eb' }}>
+                                {daysLeft === 1 ? 'Último día' : `Quedan ${daysLeft} días`}
+                              </span>
+                            </div>
+                            {/* Mini day progress bar */}
+                            <div style={{ height: '5px', borderRadius: '999px', background: '#e2e8f0', marginTop: '5px', overflow: 'hidden' }}>
+                              <div style={{
+                                height: '100%', borderRadius: '999px',
+                                background: `linear-gradient(90deg, #3b82f6, ${daysLeft <= 7 ? '#ef4444' : '#2563eb'})`,
+                                width: `${(day / daysInMo) * 100}%`,
+                                transition: 'width 0.4s ease',
+                              }} />
+                            </div>
+                          </div>
+
+                          {/* Proyección mensual */}
+                          <div style={{
+                            background: '#f8fafc', borderRadius: '10px', padding: '10px 12px',
+                            border: '1px solid #f1f5f9',
+                          }}>
+                            <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                              📈 Proyección mensual
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                              <strong style={{ fontSize: '16px', fontWeight: 900, color: onPace ? '#16a34a' : '#dc2626', lineHeight: 1, letterSpacing: '-0.02em' }}>
+                                {formatMoneyGT(projected)}
+                              </strong>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                                vs {formatMoneyGT(settingsGoalAmount)}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                              <span style={{
+                                fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '999px',
+                                background: onPace ? '#dcfce7' : '#fef2f2',
+                                color: onPace ? '#15803d' : '#dc2626',
+                              }}>
+                                {onPace ? '✅ Al ritmo' : '⚠️ Atrás'}
+                              </span>
+                              <span style={{ fontSize: '10px', fontWeight: 700, color: projPct >= 100 ? '#16a34a' : '#64748b' }}>
+                                {projPct.toFixed(0)}% de la meta
+                              </span>
+                            </div>
+                            {/* Mini projection bar */}
+                            <div style={{ height: '5px', borderRadius: '999px', background: '#e2e8f0', marginTop: '5px', overflow: 'hidden' }}>
+                              <div style={{
+                                height: '100%', borderRadius: '999px',
+                                background: onPace ? 'linear-gradient(90deg, #22c55e, #16a34a)' : 'linear-gradient(90deg, #f87171, #dc2626)',
+                                width: `${Math.min(100, projPct)}%`,
+                                transition: 'width 0.4s ease',
+                              }} />
+                            </div>
+                          </div>
+
+                          {/* Ritmo diario — spans full width */}
+                          <div style={{
+                            gridColumn: 'span 2',
+                            background: '#f8fafc', borderRadius: '10px', padding: '10px 12px',
+                            border: '1px solid #f1f5f9',
+                          }}>
+                            <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
+                              💪 Ritmo diario
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                                Necesitas <strong style={{ color: '#dc2626', fontWeight: 800 }}>{formatMoneyGT(needDaily)}</strong>/día
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                                Llevas <strong style={{ color: onPace ? '#16a34a' : '#dc2626', fontWeight: 800 }}>{formatMoneyGT(currDaily)}</strong>/día
+                              </span>
+                            </div>
+                            {/* Dual bar comparison */}
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <span style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', minWidth: '32px' }}>META</span>
+                              <div style={{ flex: 1, height: '8px', borderRadius: '999px', background: '#fee2e2', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}>
+                                <div style={{
+                                  height: '100%', borderRadius: '999px',
+                                  background: 'linear-gradient(90deg, #fca5a5, #ef4444)',
+                                  width: `${Math.min(100, needDaily > 0 && currDaily > 0 ? (needDaily / Math.max(needDaily, currDaily)) * 100 : 0)}%`,
+                                  transition: 'width 0.4s ease',
+                                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
+                                }} />
+                              </div>
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: '#dc2626', minWidth: '58px', textAlign: 'right' }}>{formatMoneyGT(needDaily)}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
+                              <span style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', minWidth: '32px' }}>ACTUAL</span>
+                              <div style={{ flex: 1, height: '8px', borderRadius: '999px', background: '#dcfce7', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}>
+                                <div style={{
+                                  height: '100%', borderRadius: '999px',
+                                  background: 'linear-gradient(90deg, #86efac, #22c55e)',
+                                  width: `${Math.min(100, needDaily > 0 && currDaily > 0 ? (currDaily / Math.max(needDaily, currDaily)) * 100 : currDaily > 0 ? 100 : 0)}%`,
+                                  transition: 'width 0.4s ease 0.1s',
+                                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
+                                }} />
+                              </div>
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: onPace ? '#16a34a' : '#dc2626', minWidth: '58px', textAlign: 'right' }}>{formatMoneyGT(currDaily)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                <div style={{ padding: '12px 0', textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>
+                  {globalGoalsLoading ? 'Cargando...' : `No hay meta global configurada para ${getMonthName(parseInt(monthKey.split('-')[1]))}. Ve a Configuración → Metas Globales para establecerla.`}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
@@ -464,6 +856,314 @@ export default function ReportsDashboard({ onClose }) {
                     );
                   })}
                 </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── 3.5. Ocupación KPIs ── */}
+        {occupancyData && (
+          <section className="reports-hero-panel" style={{ gap: '10px' }}>
+            <div className="reports-section-intro">
+              <div>
+                <span className="reports-eyebrow">Ocupación diaria (PAX)</span>
+                <h3 className="reports-section-title">PAX ocupados vs capacidad de salones</h3>
+                <p className="reports-section-text">Capacidad total de salones marcados: <strong>{occupancyData.totalMarkedCapacity.toLocaleString()}</strong> PAX/día</p>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+              {/* Días activos */}
+              <div className="bento-tile" style={{
+                border: 'none', borderRadius: '14px', padding: '14px 16px',
+                background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+                borderLeft: '4px solid #0284c7',
+                boxShadow: '0 1px 3px rgba(2,132,199,0.12), 0 4px 12px rgba(2,132,199,0.06)',
+                transition: 'all 0.25s ease', cursor: 'default',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(2,132,199,0.18), 0 8px 24px rgba(2,132,199,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(2,132,199,0.12), 0 4px 12px rgba(2,132,199,0.06)'; }}
+              >
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                  📅 Días activos
+                </div>
+                <strong style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                  {occupancyData.activeDays}
+                </strong>
+                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '3px' }}>
+                  de {occupancyData.totalDays} días ({((occupancyData.activeDays / occupancyData.totalDays) * 100).toFixed(0)}%)
+                </div>
+                <div style={{ height: '5px', borderRadius: '999px', background: '#bae6fd', marginTop: '6px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: '999px',
+                    background: 'linear-gradient(90deg, #38bdf8, #0284c7)',
+                    width: `${(occupancyData.activeDays / occupancyData.totalDays) * 100}%`,
+                    transition: 'width 0.5s ease',
+                  }} />
+                </div>
+              </div>
+
+              {/* PAX totales */}
+              <div className="bento-tile" style={{
+                border: 'none', borderRadius: '14px', padding: '14px 16px',
+                background: 'linear-gradient(135deg, #f0fdf4, #ecfdf5)',
+                borderLeft: '4px solid #16a34a',
+                boxShadow: '0 1px 3px rgba(22,163,74,0.12), 0 4px 12px rgba(22,163,74,0.06)',
+                transition: 'all 0.25s ease', cursor: 'default',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(22,163,74,0.18), 0 8px 24px rgba(22,163,74,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(22,163,74,0.12), 0 4px 12px rgba(22,163,74,0.06)'; }}
+              >
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                  🧑 PAX totales
+                </div>
+                <strong style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                  {occupancyData.totalPax.toLocaleString()}
+                </strong>
+                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '3px' }}>
+                  {occupancyData.totalEvents} eventos · Cap. {occupancyData.totalMarkedCapacity.toLocaleString()}/día
+                </div>
+              </div>
+
+              {/* Utilización mensual */}
+              <div className="bento-tile" style={{
+                border: 'none', borderRadius: '14px', padding: '14px 16px',
+                background: 'linear-gradient(135deg, #fefce8, #fffbeb)',
+                borderLeft: '4px solid #ca8a04',
+                boxShadow: '0 1px 3px rgba(202,138,4,0.12), 0 4px 12px rgba(202,138,4,0.06)',
+                transition: 'all 0.25s ease', cursor: 'default',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(202,138,4,0.18), 0 8px 24px rgba(202,138,4,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(202,138,4,0.12), 0 4px 12px rgba(202,138,4,0.06)'; }}
+              >
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#a16207', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                  📊 Utilización mensual
+                </div>
+                <strong style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                  {occupancyData.paxUtilPct.toFixed(1)}%
+                </strong>
+                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '3px' }}>
+                  Prom. {occupancyData.avgDaily.toFixed(0)} PAX / {occupancyData.totalMarkedCapacity.toLocaleString()} cap.
+                </div>
+              </div>
+
+              {/* Día pico */}
+              <div className="bento-tile" style={{
+                border: 'none', borderRadius: '14px', padding: '14px 16px',
+                background: 'linear-gradient(135deg, #fdf2f8, #fce7f3)',
+                borderLeft: '4px solid #db2777',
+                boxShadow: '0 1px 3px rgba(219,39,119,0.12), 0 4px 12px rgba(219,39,119,0.06)',
+                transition: 'all 0.25s ease', cursor: 'default',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(219,39,119,0.18), 0 8px 24px rgba(219,39,119,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(219,39,119,0.12), 0 4px 12px rgba(219,39,119,0.06)'; }}
+              >
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#be185d', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                  🏆 Día pico
+                </div>
+                <strong style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+                  {occupancyData.peakDate || '-'}
+                </strong>
+                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
+                  <strong style={{ color: '#db2777' }}>{occupancyData.peakPax.toLocaleString()}</strong> PAX · {((occupancyData.totalMarkedCapacity > 0 ? occupancyData.peakPax / occupancyData.totalMarkedCapacity : 0) * 100).toFixed(0)}% capacidad
+                </div>
+              </div>
+            </div>
+
+            {/* Mini bar distribution */}
+            <div style={{
+              background: '#ffffff', borderRadius: '14px', padding: '16px 20px',
+              border: '1px solid #f1f5f9',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  📊 Distribución diaria PAX vs Capacidad
+                </div>
+                <div style={{ display: 'flex', gap: '8px', fontSize: '9px', fontWeight: 600, color: '#94a3b8' }}>
+                  <span>◉ ≥90%</span>
+                  <span>◉ 70-89%</span>
+                  <span>◉ 40-69%</span>
+                  <span>◉ 1-39%</span>
+                  <span>◉ 0%</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '48px', position: 'relative' }}>
+                {/* Background grid lines */}
+                {[25, 50, 75].map(pct => (
+                  <div key={pct} style={{
+                    position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
+                    height: '1px', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none', opacity: 0.5,
+                  }} />
+                ))}
+                {occupancyData.dayList.map((dateObj, i) => {
+                  const dStr = dateObj.toISOString().split('T')[0];
+                  const pax = occupancyData.dayPax[dStr] || 0;
+                  const pct = occupancyData.totalMarkedCapacity > 0 ? (pax / occupancyData.totalMarkedCapacity) * 100 : 0;
+                  const barColor = pct >= 90 ? '#10b981' : pct >= 70 ? '#3b82f6' : pct >= 40 ? '#60a5fa' : pct > 0 ? '#a5b4fc' : '#e2e8f0';
+                  const isToday = dStr === new Date().toISOString().split('T')[0];
+                  return (
+                    <div
+                      key={dStr}
+                      title={`${dStr}: ${pax} PAX (${Math.round(pct)}% de ${occupancyData.totalMarkedCapacity.toLocaleString()} PAX)`}
+                      style={{
+                        flex: '1 1 0', minWidth: '4px', maxWidth: '20px',
+                        height: '100%', display: 'flex', flexDirection: 'column',
+                        justifyContent: 'flex-end', alignItems: 'center',
+                        position: 'relative', cursor: 'help',
+                      }}
+                    >
+                      <div style={{
+                        width: '100%',
+                        height: `${Math.max(pct > 0 ? Math.max(3, pct) : 0, 0)}%`,
+                        background: barColor,
+                        borderRadius: '2px 2px 0 0',
+                        transition: 'height 0.3s ease',
+                        minHeight: pax > 0 ? '3px' : '0',
+                        opacity: isToday ? 1 : 0.8,
+                        boxShadow: isToday ? `0 0 4px ${barColor}60` : 'none',
+                      }} />
+                      {isToday && (
+                        <div style={{
+                          position: 'absolute', bottom: '-14px',
+                          fontSize: '6px', fontWeight: 900, color: '#2563eb',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          HOY
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* X-axis date labels */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '8px', fontWeight: 600, color: '#94a3b8' }}>
+                {occupancyData.dayList.length > 0 && (
+                  <span>{occupancyData.dayList[0].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>
+                )}
+                {occupancyData.dayList.length > 10 && (
+                  <span style={{ marginLeft: 'auto' }}>
+                    {occupancyData.dayList[Math.floor(occupancyData.dayList.length / 2)].toLocaleDateString('es', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+                {occupancyData.dayList.length > 0 && (
+                  <span>{occupancyData.dayList[occupancyData.dayList.length - 1].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── 3.7. Eficiencia por Estado (stacked bar) ── */}
+        {statusMonthlyData.length > 0 && (
+          <section className="reports-hero-panel" style={{ gap: '8px' }}>
+            <div className="reports-section-intro">
+              <div>
+                <span className="reports-eyebrow">Eficiencia por Estado</span>
+                <h3 className="reports-section-title">Distribución mensual de eventos</h3>
+                <p className="reports-section-text">Cada barra es un mes. Pasa el mouse sobre los segmentos.</p>
+              </div>
+            </div>
+            <div style={{
+              background: '#ffffff', borderRadius: '12px', padding: '16px 16px 20px',
+              border: '1px solid #f1f5f9',
+            }}>
+              {/* Mini legend */}
+              <div style={{ display: 'flex', gap: '8px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
+                {STATUS_META.map(s => {
+                  const totalCount = statusMonthlyData.reduce((sum, m) => sum + (m.segments.find(seg => seg.statusKey === s.key)?.count || 0), 0);
+                  if (totalCount === 0) return null;
+                  return (
+                    <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: s.color, display: 'inline-block' }} />
+                      {s.label}
+                    </span>
+                  );
+                })}
+              </div>
+              {/* Stacked chart */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '140px', position: 'relative' }}>
+                {statusMonthlyData.map((mData, mIdx) => {
+                  const activeSeg = hoveredStatusSeg?.monthIdx === mIdx
+                    ? mData.segments[hoveredStatusSeg.segIdx]
+                    : null;
+                  return (
+                    <div key={mData.monthKey} style={{
+                      flex: '1 1 0', minWidth: '24px', maxWidth: '50px',
+                      height: '100%', display: 'flex', flexDirection: 'column',
+                      justifyContent: 'flex-end', position: 'relative',
+                    }}>
+                      <div style={{
+                        width: '100%', height: mData.segments.length > 0 ? '100%' : '4px',
+                        borderRadius: '3px 3px 0 0', overflow: 'hidden',
+                        background: mData.segments.length > 0 ? 'transparent' : '#f1f5f9',
+                        display: 'flex', flexDirection: 'column-reverse',
+                      }}>
+                        {mData.segments.map((seg, segIdx) => {
+                          const isHovered = hoveredStatusSeg?.monthIdx === mIdx && hoveredStatusSeg?.segIdx === segIdx;
+                          return (
+                            <div key={seg.statusKey}
+                              style={{
+                                width: '100%', height: `${Math.max(seg.pct, 2)}%`,
+                                background: isHovered
+                                  ? `linear-gradient(180deg, ${seg.color}, ${seg.color}dd)`
+                                  : seg.color,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                borderBottom: '1px solid rgba(255,255,255,0.25)',
+                                filter: isHovered ? 'brightness(1.15)' : 'none',
+                                minHeight: '3px',
+                              }}
+                              onMouseEnter={() => setHoveredStatusSeg({ monthIdx: mIdx, segIdx })}
+                              onMouseLeave={() => setHoveredStatusSeg(null)}
+                            />
+                          );
+                        })}
+                      </div>
+
+                      {/* Tooltip outside overflow:hidden */}
+                      {activeSeg && (
+                        <div style={{
+                          position: 'absolute', bottom: '100%', left: '50%',
+                          transform: 'translateX(-50%)', marginBottom: '6px',
+                          background: '#0f172a', color: '#fff',
+                          padding: '6px 10px', borderRadius: '8px',
+                          fontSize: '10px', fontWeight: 600,
+                          whiteSpace: 'nowrap', zIndex: 9999,
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+                          pointerEvents: 'none',
+                        }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <strong style={{ fontSize: '12px', color: activeSeg.color }}>{activeSeg.label}</strong>
+                            <div style={{ color: '#94a3b8', marginTop: '1px' }}>
+                              {activeSeg.count} {activeSeg.count === 1 ? 'evento' : 'eventos'}
+                            </div>
+                            <div style={{ color: '#fff', fontWeight: 800, fontSize: '12px' }}>
+                              {Math.round(activeSeg.pct)}%
+                            </div>
+                            <div style={{ color: '#64748b', marginTop: '1px', fontSize: '9px' }}>
+                              {mData.monthName} · {mData.total} total
+                            </div>
+                          </div>
+                          <div style={{
+                            position: 'absolute', top: '100%', left: '50%',
+                            transform: 'translateX(-50%)',
+                            width: 0, height: 0,
+                            borderLeft: '5px solid transparent',
+                            borderRight: '5px solid transparent',
+                            borderTop: '5px solid #0f172a',
+                          }} />
+                        </div>
+                      )}
+
+                      <div style={{
+                        fontSize: '8px', fontWeight: 700, color: '#94a3b8',
+                        textAlign: 'center', marginTop: '4px', lineHeight: 1,
+                      }}>
+                        {mData.monthShort}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </section>

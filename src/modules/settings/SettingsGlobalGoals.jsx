@@ -15,7 +15,7 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
   const loadData = async () => {
     try {
       const state = await loadCrmState();
-      setGoals(Array.isArray(state.globalGoals) ? state.globalGoals : []);
+      setGoals(Array.isArray(state.globalMonthlyGoals) ? state.globalMonthlyGoals : []);
     } catch (err) {
       console.error('Error al cargar metas:', err);
       toast('Error al cargar metas');
@@ -31,7 +31,17 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
     setGoalAmount('');
   };
 
-  const handleAddGoal = () => {
+  const persistGoals = async (updatedGoals) => {
+    try {
+      const currentState = await loadCrmState();
+      await saveCrmState({ ...currentState, globalMonthlyGoals: updatedGoals });
+    } catch (err) {
+      console.error('Error al persistir metas:', err);
+      toast('Error al guardar la meta');
+    }
+  };
+
+  const handleAddGoal = async () => {
     if (!goalMonth || !goalAmount) {
       toast('Selecciona un mes y escribe el monto de la meta.');
       return;
@@ -40,11 +50,15 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
       toast('Ya existe una meta para este mes.');
       return;
     }
-    setGoals(prev => [
-      ...prev,
+    const updatedGoals = [
+      ...goals,
       { month: goalMonth, amount: parseFloat(goalAmount) }
-    ].sort((a, b) => b.month.localeCompare(a.month)));
+    ].sort((a, b) => b.month.localeCompare(a.month));
+    setGoals(updatedGoals);
     resetForm();
+    await persistGoals(updatedGoals);
+    window.dispatchEvent(new Event('stateUpdated'));
+    toast('Meta agregada y guardada ✓');
   };
 
   const handleRemoveGoal = async (monthToRemove) => {
@@ -53,14 +67,18 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
       message: `¿Eliminar la meta del mes ${monthToRemove}?`
     });
     if (!confirmed) return;
-    setGoals(prev => prev.filter(g => g.month !== monthToRemove));
+    const updatedGoals = goals.filter(g => g.month !== monthToRemove);
+    setGoals(updatedGoals);
+    await persistGoals(updatedGoals);
+    window.dispatchEvent(new Event('stateUpdated'));
+    toast('Meta eliminada ✓');
   };
 
   const handleSaveAll = async () => {
     setSaving(true);
     try {
       const currentState = await loadCrmState();
-      await saveCrmState({ ...currentState, globalGoals: goals });
+      await saveCrmState({ ...currentState, globalMonthlyGoals: goals });
       toast('Metas guardadas ✓');
       window.dispatchEvent(new Event('stateUpdated'));
       if (onBack) onBack();

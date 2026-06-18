@@ -718,7 +718,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
@@ -1064,6 +1064,7 @@ async function readStateFromTables() {
     const eventChecklistsRow = appStateRows.find((r) => str(r.clave) === "eventChecklists");
     const occupancyWeeklyOpsRow = appStateRows.find((r) => str(r.clave) === "occupancyWeeklyOps");
     const salonCapacitiesRow = appStateRows.find((r) => str(r.clave) === "salonCapacities");
+    const salonOccupancyEnabledRow = appStateRows.find((r) => str(r.clave) === "salonOccupancyEnabled");
 
     const parseArray = (row) => {
       if (!row?.valor_json) return [];
@@ -1157,7 +1158,12 @@ async function readStateFromTables() {
     } catch (_) {
       state.salonCapacities = {};
     }
-
+    try {
+      const parsed = JSON.parse(str(salonOccupancyEnabledRow?.valor_json) || "[]");
+      state.salonOccupancyEnabled = Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      state.salonOccupancyEnabled = [];
+    }
 
     const serviceCategoriesRow = appStateRows.find((r) => str(r.clave) === "serviceCategories");
     try {
@@ -1394,6 +1400,7 @@ async function writeStateToTables(state) {
     const eventChecklists = (state.eventChecklists && typeof state.eventChecklists === "object") ? state.eventChecklists : {};
     const occupancyWeeklyOps = (state.occupancyWeeklyOps && typeof state.occupancyWeeklyOps === "object") ? state.occupancyWeeklyOps : {};
     const salonCapacities = (state.salonCapacities && typeof state.salonCapacities === "object") ? state.salonCapacities : {};
+    const salonOccupancyEnabled = Array.isArray(state.salonOccupancyEnabled) ? state.salonOccupancyEnabled : [];
     const events = Array.isArray(state.events)
       ? state.events.map((e) => ({ ...e, salon: e?.salon ?? "" }))
       : [];
@@ -2111,6 +2118,14 @@ async function writeStateToTables(state) {
     await conn.query(
       `
         INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('salonOccupancyEnabled', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(salonOccupancyEnabled)]
+    );
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
         VALUES ('services', ?)
         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
       `,
@@ -2699,8 +2714,26 @@ app.put("/api/state", async (req, res) => {
       console.warn("⚠️ No se pudieron precargar los eventos anteriores para la comparación de Google Calendar:", err.message);
     }
 
-    await writeStateToTables(nextState);
-    console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! Base de datos MariaDB actualizada correctamente (${nextState.events?.length || 0} eventos registrados).`);
+    // 🛡️ SEGURIDAD: Fusionar state entrante con estado actual de BD
+    // writeStateToTables hace DELETE+INSERT destructivo. Si falta una clave, se pierde.
+    let mergedState = { ...nextState };
+    try {
+      const currentResult = await readStateFromTables();
+      if (currentResult && currentResult.state) {
+        const current = currentResult.state;
+        for (const [key, value] of Object.entries(current)) {
+          if (!(key in nextState)) {
+            mergedState[key] = value;
+          }
+        }
+        console.log(`[${new Date().toLocaleTimeString()}] 🛡️ Merge: ${Object.keys(nextState).length} claves request + preservadas ${Object.keys(current).length - Object.keys(nextState).length} de BD.`);
+      }
+    } catch (err) {
+      console.warn("⚠️ No se pudo leer estado actual para merge, usando solo request:", err.message);
+    }
+
+    await writeStateToTables(mergedState);
+    console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! BD actualizada (${(mergedState.events?.length || nextState.events?.length || 0)} eventos).`);
 
     // Google Calendar sync desactivado del calendario general.
 

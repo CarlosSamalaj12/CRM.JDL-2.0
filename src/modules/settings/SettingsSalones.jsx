@@ -6,12 +6,14 @@ export default function SettingsSalones({ inline, onBack }) {
   const [salones, setSalones] = useState([]);
   const [disabledSalones, setDisabledSalones] = useState([]);
   const [salonCapacities, setSalonCapacities] = useState({});
+  const [salonOccupancyEnabled, setSalonOccupancyEnabled] = useState([]);
   
   // Form State
   const [selectedSalon, setSelectedSalon] = useState('');
   const [salonNameInput, setSalonNameInput] = useState('');
   const [salonCapacityInput, setSalonCapacityInput] = useState('');
   const [salonActive, setSalonActive] = useState(true);
+  const [salonOccupancyCheck, setSalonOccupancyCheck] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -24,9 +26,11 @@ export default function SettingsSalones({ inline, onBack }) {
       const loadedSalones = Array.isArray(state.salones) ? state.salones : [];
       const loadedDisabled = Array.isArray(state.disabledSalones) ? state.disabledSalones : [];
       const loadedCapacities = (state.salonCapacities && typeof state.salonCapacities === 'object') ? state.salonCapacities : {};
+      const loadedOccupancy = Array.isArray(state.salonOccupancyEnabled) ? state.salonOccupancyEnabled : [];
       setSalones(loadedSalones);
       setDisabledSalones(loadedDisabled);
       setSalonCapacities(loadedCapacities);
+      setSalonOccupancyEnabled(loadedOccupancy);
       resetForm();
     } catch (err) {
       console.error('Error al cargar salones:', err);
@@ -43,6 +47,7 @@ export default function SettingsSalones({ inline, onBack }) {
     setSalonNameInput('');
     setSalonCapacityInput('');
     setSalonActive(true);
+    setSalonOccupancyCheck(true);
   };
 
   const handleSalonSelectChange = (e) => {
@@ -52,6 +57,7 @@ export default function SettingsSalones({ inline, onBack }) {
       setSalonNameInput(name);
       setSalonCapacityInput(salonCapacities[name] || '');
       setSalonActive(!disabledSalones.includes(name));
+      setSalonOccupancyCheck(salonOccupancyEnabled.includes(name));
     } else {
       resetForm();
     }
@@ -62,6 +68,7 @@ export default function SettingsSalones({ inline, onBack }) {
     setSalonNameInput(name);
     setSalonCapacityInput(salonCapacities[name] || '');
     setSalonActive(!disabledSalones.includes(name));
+    setSalonOccupancyCheck(salonOccupancyEnabled.includes(name));
   };
 
   const handleSave = async () => {
@@ -89,19 +96,30 @@ export default function SettingsSalones({ inline, onBack }) {
       let nextSalones = [...salones];
       let nextDisabledSalones = [...disabledSalones];
       let nextCapacities = { ...salonCapacities };
+      let nextOccupancyEnabled = [...salonOccupancyEnabled];
 
       if (isNew) {
         nextSalones.push(nameTrimmed);
       } else {
-        nextSalones = nextSalones.map(s => s === selectedSalon ? nameTrimmed : s);
-        if (selectedSalon !== nameTrimmed) {
-          nextCapacities[nameTrimmed] = nextCapacities[selectedSalon];
-          delete nextCapacities[selectedSalon];
-          nextDisabledSalones = nextDisabledSalones.map(s => s === selectedSalon ? nameTrimmed : s);
+        const prevName = selectedSalon;
+        nextSalones = nextSalones.map(s => s === prevName ? nameTrimmed : s);
+        if (prevName !== nameTrimmed) {
+          nextCapacities[nameTrimmed] = nextCapacities[prevName];
+          delete nextCapacities[prevName];
+          nextDisabledSalones = nextDisabledSalones.map(s => s === prevName ? nameTrimmed : s);
+          nextOccupancyEnabled = nextOccupancyEnabled.map(s => s === prevName ? nameTrimmed : s);
         }
       }
 
       nextCapacities[nameTrimmed] = capacityNum;
+
+      if (salonOccupancyCheck) {
+        if (!nextOccupancyEnabled.includes(nameTrimmed)) {
+          nextOccupancyEnabled.push(nameTrimmed);
+        }
+      } else {
+        nextOccupancyEnabled = nextOccupancyEnabled.filter(s => s !== nameTrimmed);
+      }
 
       if (salonActive) {
         nextDisabledSalones = nextDisabledSalones.filter(s => s !== nameTrimmed);
@@ -118,12 +136,14 @@ export default function SettingsSalones({ inline, onBack }) {
         ...currentState,
         salones: nextSalones,
         disabledSalones: nextDisabledSalones,
-        salonCapacities: nextCapacities
+        salonCapacities: nextCapacities,
+        salonOccupancyEnabled: nextOccupancyEnabled
       });
 
       setSalones(nextSalones);
       setDisabledSalones(nextDisabledSalones);
       setSalonCapacities(nextCapacities);
+      setSalonOccupancyEnabled(nextOccupancyEnabled);
       toast(isNew ? 'Salon agregado' : 'Salon actualizado');
       resetForm();
     } catch (err) {
@@ -225,6 +245,22 @@ export default function SettingsSalones({ inline, onBack }) {
         </label>
       </div>
 
+      {/* Row 3: Affects occupancy checkbox */}
+      <div className="settings-field-group">
+        <label className="settings-modern-field">
+          <span>Diagrama de ocupación</span>
+          <label className="settings-switch-inline">
+            <input type="checkbox" checked={salonOccupancyCheck} onChange={(e) => setSalonOccupancyCheck(e.target.checked)} />
+            <span>{salonOccupancyCheck ? 'Influye en el diagrama de ocupación 📊' : 'No influye en el diagrama'}</span>
+          </label>
+        </label>
+        <div className="settings-modern-field" style={{ justifyContent: 'center' }}>
+          <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+            Al marcar este salón, su capacidad PAX se suma al total disponible para el cálculo de % de ocupación en el reporte de Ocupación en Barras.
+          </span>
+        </div>
+      </div>
+
       {/* Salones table */}
       <div className="settings-modern-field">
         <span>Salones registrados</span>
@@ -234,6 +270,7 @@ export default function SettingsSalones({ inline, onBack }) {
               <tr>
                 <th>Nombre</th>
                 <th>Capacidad</th>
+                <th>Ocupación</th>
                 <th>Estado</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
@@ -241,7 +278,7 @@ export default function SettingsSalones({ inline, onBack }) {
             <tbody>
               {salones.length === 0 ? (
                 <tr>
-                  <td colSpan="4" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
+                  <td colSpan="5" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
                     No hay salones registrados
                   </td>
                 </tr>
@@ -249,10 +286,20 @@ export default function SettingsSalones({ inline, onBack }) {
                 salones.map(s => {
                   const isDisabled = disabledSalones.includes(s);
                   const capacity = salonCapacities[s] || '2000';
+                  const affectsOccupancy = salonOccupancyEnabled.includes(s);
                   return (
                     <tr key={s}>
                       <td style={{ fontWeight: '600' }}>{s}</td>
                       <td>{capacity} PAX</td>
+                      <td>
+                        <span className="settings-role-badge" style={{
+                          background: affectsOccupancy ? '#ede9fe' : '#f1f5f9',
+                          color: affectsOccupancy ? '#5b21b6' : '#64748b',
+                          borderColor: affectsOccupancy ? '#c4b5fd' : '#e2e8f0',
+                        }}>
+                          {affectsOccupancy ? '📊 Sí influye' : '—'}
+                        </span>
+                      </td>
                       <td>
                         <span className="settings-role-badge" style={{
                           background: isDisabled ? '#fee2e2' : '#dcfce7',

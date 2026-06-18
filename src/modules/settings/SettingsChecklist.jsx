@@ -127,6 +127,7 @@ export function ChecklistTemplateEditor() {
     }
     setTemplates(updated);
     setSecName(''); setEditSecId(''); setSecType('operativa');
+    persist(updated);
     toast(editSecId ? 'Sección actualizada' : 'Sección agregada');
   };
 
@@ -135,6 +136,7 @@ export function ChecklistTemplateEditor() {
     if (!ok) return;
     const updated = templates.map(t => t.id !== selTpl.id ? t : { ...t, sections: t.sections.filter(s => s.id !== sid) });
     setTemplates(updated);
+    persist(updated);
     if (String(sid) === editSecId) { setSecName(''); setEditSecId(''); }
     toast('Sección eliminada');
   };
@@ -152,6 +154,7 @@ export function ChecklistTemplateEditor() {
       }) };
     });
     setTemplates(updated);
+    persist(updated);
     setPointTextBySec(prev => ({ ...prev, [secId]: '' }));
     toast('Punto agregado');
   };
@@ -168,6 +171,7 @@ export function ChecklistTemplateEditor() {
       }) };
     });
     setTemplates(updated);
+    persist(updated);
     toast('Punto eliminado');
   };
 
