@@ -3253,6 +3253,11 @@ async function start() {
     const reportsRouter = await import("./backend/src/app_routes.js");
     app.use("/api", reportsRouter.default);
 
+    // Error middleware global (después de todas las rutas)
+    const { notFound, errorHandler } = await import("./backend/src/middlewares/errorHandler.js");
+    app.use("/api", notFound);
+    app.use("/api", errorHandler);
+
     // Fallback wildcard handler registered AFTER dynamic ESM routes
     app.get("*", (req, res) => {
       if (req.path.startsWith("/api/")) {

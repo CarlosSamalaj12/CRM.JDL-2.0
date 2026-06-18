@@ -1,5 +1,10 @@
 import api from './api';
 
+api.setOnUnauthorized(() => {
+  authService.clearSession();
+  window.location.href = '/login';
+});
+
 export const authService = {
   // Fetch active users for the login screen dropdown selector
   async getLoginUsers() {

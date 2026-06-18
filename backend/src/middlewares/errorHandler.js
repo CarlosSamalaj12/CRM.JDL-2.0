@@ -1,8 +1,45 @@
-export function notFound(req, res) {
-  res.status(404).json({ message: 'Recurso no encontrado' });
+export class AppError extends Error {
+  constructor(message, statusCode = 500, code = 'INTERNAL_ERROR', details = null) {
+    super(message);
+    this.statusCode = statusCode;
+    this.code = code;
+    this.details = details;
+    this.isOperational = true;
+    Error.captureStackTrace(this, this.constructor);
+  }
 }
 
-export function errorHandler(err, req, res, next) {
-  console.error(err);
-  res.status(500).json({ message: 'Error interno del servidor' });
+export function notFound(req, res) {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: 'Recurso no encontrado',
+    },
+  });
+}
+
+export function errorHandler(err, req, res, _next) {
+  const statusCode = err.statusCode || 500;
+  const code = err.code || 'INTERNAL_ERROR';
+  const message = err.isOperational ? err.message : 'Error interno del servidor';
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  if (!err.isOperational) {
+    console.error('[FATAL] Error no operacional:', err);
+  } else if (isDev) {
+    console.error(`[${code}] ${err.message}`);
+  }
+
+  const response = {
+    success: false,
+    error: {
+      code,
+      message,
+      ...(err.details && { details: err.details }),
+      ...(isDev && { stack: err.stack }),
+    },
+  };
+
+  res.status(statusCode).json(response);
 }

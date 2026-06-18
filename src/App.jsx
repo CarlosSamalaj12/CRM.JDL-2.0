@@ -9,6 +9,7 @@ import SettingsMain from './modules/settings/SettingsMain';
 import { SupportModule } from './modules/shared/GenericModule';
 import authService from './services/authService';
 
+import ErrorBoundary from './components/ErrorBoundary';
 import Kanban from './modules/informes/pages/Kanban';
 import Catalog from './modules/informes/pages/Catalog';
 import ConstructorInforme from './modules/informes/pages/ConstructorInforme';
@@ -31,6 +32,7 @@ function CrmProtectedRoute({ children }) {
 function App() {
   return (
     <Router>
+      <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
           <SocketProvider>
@@ -64,6 +66,7 @@ function App() {
           </SocketProvider>
         </ToastProvider>
       </AuthProvider>
+      </ErrorBoundary>
     </Router>
   );
 }
