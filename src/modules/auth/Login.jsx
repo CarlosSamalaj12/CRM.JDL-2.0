@@ -192,7 +192,7 @@ export default function Login() {
         </section>
 
         {/* CARD DE INICIO DE SESIÓN */}
-        <section className="loginCard" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px' }}>
+        <section className="loginCard" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div className="loginBrand" style={{ marginBottom: '25px' }}>
             <div className="loginBrandBadge">
               <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="loginLogoImg" />
@@ -213,6 +213,7 @@ export default function Login() {
               </label>
               <input
                 ref={inputRef}
+                className="loginInput"
                 type="text"
                 placeholder="Selecciona o escribe tu usuario..."
                 value={username}
@@ -259,6 +260,7 @@ export default function Login() {
                 Contraseña
               </label>
               <input
+                className="loginInput"
                 type="password"
                 placeholder="Ingresa tu contraseña..."
                 value={password}
@@ -271,6 +273,7 @@ export default function Login() {
             {/* BOTÓN DE INICIO DE SESIÓN LOCAL */}
             <button
               type="button"
+              className="loginBtn"
               onClick={handleLocalLogin}
               disabled={loading}
               style={{

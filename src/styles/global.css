@@ -9260,3 +9260,87 @@ body div.swal2-container div.swal2-popup.swal2-modal {
   margin-top: 0 !important;
 }
 /* === END CHECKLIST MODALS SCROLL FIX ===*/
+
+
+/* === LOGIN MOBILE RESPONSIVE === */
+@media (max-width: 640px) {
+  .loginScreen {
+    padding: 12px;
+  }
+  .loginCard {
+    width: min(440px, 100%);
+    padding: 14px 16px 18px;
+    border-radius: 20px;
+  }
+  .loginBrandBadge {
+    width: 64px;
+    height: 64px;
+    font-size: 24px;
+  }
+  .loginLogoImg {
+    width: 50px;
+    height: 50px;
+  }
+  .loginBrandTitle {
+    font-size: 24px;
+    letter-spacing: 0.5px;
+  }
+  .loginBrandSub {
+    font-size: 12px;
+  }
+  .loginAvatar {
+    width: 100px;
+    height: 100px;
+  }
+  .loginInput {
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+  .loginGoogleBtn,
+  .loginBtn {
+    height: 42px !important;
+    font-size: 13px !important;
+    padding: 10px 14px !important;
+  }
+}
+@media (max-width: 480px) {
+  .loginScreen {
+    padding: 6px;
+  }
+  .loginCard {
+    width: 100%;
+    padding: 10px 12px 14px;
+    border-radius: 14px;
+  }
+  .loginBrandBadge {
+    width: 52px;
+    height: 52px;
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+  .loginLogoImg {
+    width: 40px;
+    height: 40px;
+  }
+  .loginBrandTitle {
+    font-size: 18px;
+    letter-spacing: 0.3px;
+  }
+  .loginBrandSub {
+    font-size: 11px;
+  }
+  .loginAvatar {
+    width: 80px;
+    height: 80px;
+  }
+  .loginInput {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+  }
+  .loginGoogleBtn,
+  .loginBtn {
+    height: 38px !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+  }
+}
