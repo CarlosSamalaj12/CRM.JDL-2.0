@@ -95,6 +95,11 @@ export default function SettingsServicios({ inline, onBack }) {
   const handleSaveService = async () => {
     const name = serviceDraft.name.trim();
     if (!name) { toast('El nombre es obligatorio'); return; }
+    const duplicate = services.some(s =>
+      s.name.trim().toLowerCase() === name.toLowerCase() &&
+      String(s.id) !== String(serviceDraft.id)
+    );
+    if (duplicate) { toast('Ya existe un servicio con ese nombre'); return; }
     const saved = {
       id: serviceDraft.id || `svc_${Date.now()}`,
       name,
@@ -133,6 +138,11 @@ export default function SettingsServicios({ inline, onBack }) {
   const handleSaveCategory = async () => {
     const name = categoryDraft.name.trim();
     if (!name) { toast('El nombre es obligatorio'); return; }
+    const duplicate = categories.some(c =>
+      c.name.trim().toLowerCase() === name.toLowerCase() &&
+      String(c.id) !== String(categoryDraft.id)
+    );
+    if (duplicate) { toast('Ya existe una categoría con ese nombre'); return; }
     const saved = { id: categoryDraft.id || `cat_${Date.now()}`, name, subcategories: [] };
     const idx = categories.findIndex(c => String(c.id) === String(saved.id));
     const next = [...categories];
@@ -169,6 +179,13 @@ export default function SettingsServicios({ inline, onBack }) {
     if (!name) { toast('El nombre es obligatorio'); return; }
     const catId = subcategoryDraft.categoryId;
     if (!catId) { toast('Seleccione una categoria'); return; }
+    const cat = categories.find(c => String(c.id) === String(catId));
+    const existingSubs = cat ? (cat.subcategories || []) : [];
+    const duplicate = existingSubs.some(s =>
+      s.name.trim().toLowerCase() === name.toLowerCase() &&
+      String(s.id) !== String(subcategoryDraft.id)
+    );
+    if (duplicate) { toast('Ya existe una subcategoría con ese nombre en esta categoría'); return; }
     const saved = { id: subcategoryDraft.id || `sub_${Date.now()}`, name };
     const next = categories.map(c => {
       if (String(c.id) !== String(catId)) return c;

@@ -819,6 +819,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     try {
       const currentState = await loadCrmState();
       const currentServices = currentState?.services || [];
+      const nameTrimmed2 = serviceDraft.name.trim().toLowerCase();
+      const nameExists2 = currentServices.some(s =>
+        String(s.name || '').trim().toLowerCase() === nameTrimmed2 &&
+        String(s.id || '') !== String(serviceDraft.id)
+      );
+      if (nameExists2) { localSwal('Error', 'Ya existe un servicio con ese nombre', 'error'); return; }
       const savedService = {
         id: serviceDraft.id || `svc_${Date.now()}`,
         name: serviceDraft.name.trim(),

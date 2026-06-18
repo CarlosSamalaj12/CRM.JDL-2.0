@@ -73,6 +73,11 @@ export function ChecklistTemplateEditor() {
   /* ─── GUARDAR PLANTILLA ─── */
   const handleSaveTpl = async () => {
     if (!tplName.trim()) { toast('Escribe un nombre para la plantilla'); return; }
+    const nameTrimmed = tplName.trim();
+    const tplExists = selTplId
+      ? templates.some(t => t.name.trim().toLowerCase() === nameTrimmed.toLowerCase() && t.id !== Number(selTplId))
+      : templates.some(t => t.name.trim().toLowerCase() === nameTrimmed.toLowerCase());
+    if (tplExists) { toast('Ya existe una plantilla con ese nombre'); return; }
     setSaving(true);
     try {
       let updated;
@@ -115,6 +120,11 @@ export function ChecklistTemplateEditor() {
     const name = secName.trim();
     if (!name) { toast('Escribe un nombre para la sección'); return; }
     if (!selTpl) { toast('Primero selecciona o crea una plantilla'); return; }
+    const secExists = selTpl.sections.some(s =>
+      s.name.trim().toLowerCase() === name.toLowerCase() &&
+      String(s.id) !== String(editSecId)
+    );
+    if (secExists) { toast('Ya existe una seccion con ese nombre en esta plantilla'); return; }
     let updated;
     if (editSecId) {
       updated = templates.map(t => t.id !== selTpl.id ? t : {

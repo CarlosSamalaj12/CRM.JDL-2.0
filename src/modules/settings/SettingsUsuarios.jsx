@@ -179,6 +179,16 @@ export default function SettingsUsuarios({ inline, onBack }) {
       const currentUsers = currentState.users || [];
       let updatedUsers = [...currentUsers];
 
+      const nameTrimmed = fullName.trim().toLowerCase();
+      const nameExists = selectedUserId
+        ? currentUsers.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed && u.id !== selectedUserId)
+        : currentUsers.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed);
+      if (nameExists) {
+        Swal.fire({ icon: 'error', title: 'Nombre duplicado', text: 'Ya existe un usuario con ese nombre completo.', confirmButtonColor: '#ef4444' });
+        setLoading(false);
+        return;
+      }
+
       if (selectedUserId) {
         updatedUsers = updatedUsers.map(u => {
           if (u.id === selectedUserId) {

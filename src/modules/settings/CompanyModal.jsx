@@ -173,6 +173,11 @@ export default function CompanyModal({ onClose }) {
     try {
       const nextState = { ...(stateSnapshot || await loadCrmState()) };
       const currentCompanies = Array.isArray(nextState.companies) ? nextState.companies : [];
+      const nameLower = (payload.name || '').trim().toLowerCase();
+      const companyExists = selectedId
+        ? currentCompanies.some(c => String(c.name || '').trim().toLowerCase() === nameLower && String(c.id || '') !== String(payload.id || ''))
+        : currentCompanies.some(c => String(c.name || '').trim().toLowerCase() === nameLower);
+      if (companyExists) { toast('Ya existe una empresa con ese nombre'); setSaving(false); return; }
       const idx = currentCompanies.findIndex((item) => String(item.id || '') === String(payload.id || ''));
       nextState.companies = idx >= 0
         ? currentCompanies.map((item, itemIdx) => itemIdx === idx ? payload : item)
