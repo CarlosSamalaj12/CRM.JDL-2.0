@@ -2,10 +2,12 @@ import { useRef, useState } from 'react';
 import { toast } from '../../utils/toast';
 import {
   IMPORT_EVENT_COLUMNS,
+  IMPORT_COMPANY_COLUMNS,
   IMPORT_MANAGER_COLUMNS,
   downloadCsvTemplate,
   importEventRows,
-  importManagersCompaniesRows,
+  importCompanyRows,
+  importManagerRows,
   loadCrmState,
   parseCsvRows,
   saveCrmState,
@@ -13,6 +15,7 @@ import {
 
 export default function SettingsImport() {
   const eventsInputRef = useRef(null);
+  const companiesInputRef = useRef(null);
   const managersInputRef = useRef(null);
   const [working, setWorking] = useState('');
 
@@ -43,8 +46,8 @@ export default function SettingsImport() {
     });
   };
 
-  const downloadManagersTemplate = () => {
-    downloadCsvTemplate('plantilla_importar_encargados_empresas_crm', IMPORT_MANAGER_COLUMNS, {
+  const downloadCompanyTemplate = () => {
+    downloadCsvTemplate('plantilla_importar_empresas_crm', IMPORT_COMPANY_COLUMNS, {
       empresa_id: 'cmp_001',
       nombre_comercial: 'Empresa Ejemplo, S.A.',
       razon_social_facturar: 'Empresa Ejemplo Sociedad Anonima',
@@ -54,6 +57,12 @@ export default function SettingsImport() {
       direccion_empresa: 'Ciudad de Guatemala',
       tipo_evento_preferido: 'Corporativo',
       notas_empresa: 'Cliente frecuente',
+    });
+  };
+
+  const downloadManagersTemplate = () => {
+    downloadCsvTemplate('plantilla_importar_encargados_crm', IMPORT_MANAGER_COLUMNS, {
+      empresa_id: 'cmp_001',
       encargado_id: 'mgr_001',
       nombre_encargado: 'Ana Lopez',
       telefono_encargado: '5555-5678',
@@ -81,10 +90,14 @@ export default function SettingsImport() {
         const result = importEventRows(state, rows);
         await saveCrmState(state);
         toast(`Importacion lista: ${result.imported} evento(s)${result.skipped ? `, ${result.skipped} fila(s) omitida(s)` : ''}.`);
-      } else {
-        const result = importManagersCompaniesRows(state, rows);
+      } else if (type === 'empresas') {
+        const result = importCompanyRows(state, rows);
         await saveCrmState(state);
-        toast(`Importacion lista: ${result.companiesTouched} empresa(s), ${result.managersTouched} encargado(s).`);
+        toast(`Importacion lista: ${result.companiesTouched} empresa(s) procesadas.`);
+      } else {
+        const result = importManagerRows(state, rows);
+        await saveCrmState(state);
+        toast(`Importacion lista: ${result.managersTouched} encargado(s)${result.skipped ? `, ${result.skipped} fila(s) omitidas (sin empresa_id valido)` : ''}.`);
       }
     } catch (err) {
       console.error('Error importando:', err);
@@ -92,6 +105,7 @@ export default function SettingsImport() {
     } finally {
       setWorking('');
       if (type === 'eventos' && eventsInputRef.current) eventsInputRef.current.value = '';
+      if (type === 'empresas' && companiesInputRef.current) companiesInputRef.current.value = '';
       if (type === 'encargados' && managersInputRef.current) managersInputRef.current.value = '';
     }
   };
@@ -101,7 +115,7 @@ export default function SettingsImport() {
       <style>{`
         .settings-import-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 16px;
           margin: 12px 0 6px 0;
         }
@@ -165,6 +179,11 @@ export default function SettingsImport() {
         .settings-import-btn-primary:hover {
           background: var(--ui-primary-strong) !important;
         }
+        @media (max-width: 860px) {
+          .settings-import-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
         @media (max-width: 640px) {
           .settings-import-grid {
             grid-template-columns: 1fr;
@@ -202,9 +221,33 @@ export default function SettingsImport() {
         </div>
 
         <div className="settings-import-card">
-          <h4 className="settings-import-card-title">2. Importar Contactos y Empresas</h4>
+          <h4 className="settings-import-card-title">2. Importar Empresas</h4>
           <p className="settings-import-card-desc">
-            Carga o actualiza tu base de datos de clientes corporativos (instituciones) y los contactos encargados relacionados de forma masiva.
+            Carga o actualiza tu catálogo de empresas / instituciones. Cada fila debe tener un <strong>empresa_id</strong> único. Luego podrás importar los encargados vinculados a ese ID.
+          </p>
+          <div className="settings-import-card-actions">
+            <button 
+              className="settings-import-btn-outline" 
+              type="button" 
+              onClick={downloadCompanyTemplate}
+            >
+              Descargar plantilla
+            </button>
+            <button 
+              className="settings-import-btn-primary" 
+              type="button" 
+              disabled={!!working}
+              onClick={() => companiesInputRef.current?.click()}
+            >
+              {working === 'empresas' ? 'Importando...' : 'Subir CSV'}
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-import-card">
+          <h4 className="settings-import-card-title">3. Importar Encargados</h4>
+          <p className="settings-import-card-desc">
+            Carga los contactos encargados vinculándolos a una empresa existente. El campo <strong>empresa_id</strong> debe coincidir con el ID de una empresa ya importada en el sistema.
           </p>
           <div className="settings-import-card-actions">
             <button 
@@ -238,7 +281,14 @@ export default function SettingsImport() {
             ))}
           </div>
 
-          <div className="settings-columns-details-title">Columnas requeridas para Contactos y Empresas</div>
+          <div className="settings-columns-details-title">Columnas requeridas para Empresas</div>
+          <div className="settings-column-badges" style={{ marginBottom: '10px' }}>
+            {IMPORT_COMPANY_COLUMNS.map(col => (
+              <span key={col} className="settings-column-badge">{col}</span>
+            ))}
+          </div>
+
+          <div className="settings-columns-details-title">Columnas requeridas para Encargados</div>
           <div className="settings-column-badges">
             {IMPORT_MANAGER_COLUMNS.map(col => (
               <span key={col} className="settings-column-badge">{col}</span>
@@ -248,6 +298,7 @@ export default function SettingsImport() {
       </details>
 
       <input ref={eventsInputRef} type="file" id="settingsImportEventsFile" accept=".csv" hidden onChange={(event) => handleFile('eventos', event.target.files?.[0])} />
+      <input ref={companiesInputRef} type="file" id="settingsImportCompaniesFile" accept=".csv" hidden onChange={(event) => handleFile('empresas', event.target.files?.[0])} />
       <input ref={managersInputRef} type="file" id="settingsImportManagersFile" accept=".csv" hidden onChange={(event) => handleFile('encargados', event.target.files?.[0])} />
     </div>
   );

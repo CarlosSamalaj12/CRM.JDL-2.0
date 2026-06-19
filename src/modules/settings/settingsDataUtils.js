@@ -25,7 +25,7 @@ export const IMPORT_EVENT_COLUMNS = [
   'total_cotizacion',
 ];
 
-export const IMPORT_MANAGER_COLUMNS = [
+export const IMPORT_COMPANY_COLUMNS = [
   'empresa_id',
   'nombre_comercial',
   'razon_social_facturar',
@@ -35,6 +35,10 @@ export const IMPORT_MANAGER_COLUMNS = [
   'direccion_empresa',
   'tipo_evento_preferido',
   'notas_empresa',
+];
+
+export const IMPORT_MANAGER_COLUMNS = [
+  'empresa_id',
   'encargado_id',
   'nombre_encargado',
   'telefono_encargado',
@@ -282,6 +286,38 @@ export function findUserForImport(state, row) {
     if (byName) return byName;
   }
   return users.find((user) => user.active !== false) || users[0] || null;
+}
+
+export function importCompanyRows(state, rows) {
+  let companiesTouched = 0;
+  for (const row of rows) {
+    const company = findCompanyForImport(state, row);
+    if (!company) continue;
+    companiesTouched += 1;
+  }
+  state.companies = (state.companies || []).map(normalizeCompanyRecord);
+  return { companiesTouched };
+}
+
+export function importManagerRows(state, rows) {
+  let managersTouched = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    const empresaId = String(row.empresa_id || '').trim();
+    if (!empresaId) {
+      skipped += 1;
+      continue;
+    }
+    state.companies = Array.isArray(state.companies) ? state.companies : [];
+    const company = state.companies.find((c) => String(c.id || '') === empresaId);
+    if (!company) {
+      skipped += 1;
+      continue;
+    }
+    if (upsertManagerForImport(company, row)) managersTouched += 1;
+  }
+  state.companies = (state.companies || []).map(normalizeCompanyRecord);
+  return { managersTouched, skipped };
 }
 
 export function importManagersCompaniesRows(state, rows) {
