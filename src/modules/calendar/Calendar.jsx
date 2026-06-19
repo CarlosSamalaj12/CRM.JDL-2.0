@@ -307,10 +307,10 @@ export default function Calendar() {
     return (
       <div className="cal-week-view" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>
         {/* Contenedor Desplazable que contiene tanto cabecera como cuerpo */}
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div className="cal-week-scroll-container" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           
           {/* Cabecera Pinned */}
-          <div style={{ 
+          <div className="cal-week-header" style={{ 
             display: 'flex', 
             background: '#ffffff', 
             borderBottom: '2px solid #cbd5e1', 
@@ -320,7 +320,7 @@ export default function Calendar() {
             flexShrink: 0
           }}>
             {/* Espaciador de horas con etiqueta "HORA" */}
-            <div style={{ 
+            <div className="cal-week-hour-column" style={{ 
               width: '70px', 
               flexShrink: 0, 
               borderRight: '1px solid #e2e8f0',
@@ -340,14 +340,14 @@ export default function Calendar() {
             </div>
             
             {/* Encabezados de días */}
-            <div style={{ flex: 1, display: 'flex' }}>
+            <div className="cal-week-header-days" style={{ flex: 1, display: 'flex' }}>
             {weekDates.map((day, idx) => {
               const dateStr = formatDate(day);
               const isToday = dateStr === todayStr;
               const isWeekend = day.getDay() === 0 || day.getDay() === 6;
               
               return (
-                <div key={idx} ref={isToday ? todayRef : null} style={{ 
+                <div key={idx} ref={isToday ? todayRef : null} className="cal-week-header-day" style={{ 
                   flex: 1, 
                   minWidth: '220px',
                   height: '68px',
@@ -391,9 +391,9 @@ export default function Calendar() {
         </div>
 
         {/* Cuerpo */}
-        <div style={{ display: 'flex', position: 'relative' }}>
+        <div className="cal-week-body" style={{ display: 'flex', position: 'relative' }}>
           {/* Columna de etiquetas de horas */}
-          <div style={{ 
+          <div className="cal-week-hour-column" style={{ 
             width: '70px', 
             flexShrink: 0, 
             background: '#f8fafc', 
@@ -430,14 +430,14 @@ export default function Calendar() {
           </div>
 
           {/* Cuadrícula de columnas de días */}
-          <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+          <div className="cal-week-body-days" style={{ flex: 1, display: 'flex', minWidth: 0 }}>
             {weekDates.map((day, idx) => {
               const dateStr = formatDate(day);
               const dayEvents = getEventsForDay(dateStr);
               const layouts = computeEventLayouts(dayEvents);
               
               return (
-                <div key={idx} style={{ 
+                <div key={idx} className="cal-week-body-day" style={{ 
                   flex: 1, 
                   minWidth: '220px',
                   borderLeft: idx > 0 ? '1px solid #e2e8f0' : 'none', 
@@ -1454,52 +1454,57 @@ export default function Calendar() {
             border-left: none !important;
             border-right: none !important;
             margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
           }
 
           /* =========== VISTA SEMANA =========== */
           .cal-week-view {
+            overflow: hidden !important;
+          }
+          .cal-week-scroll-container {
             overflow-x: auto !important;
+            min-width: 100% !important;
+            width: 100% !important;
             -webkit-overflow-scrolling: touch;
           }
-          /* Scroll container — ancho mínimo para scroll horizontal */
-          .cal-week-view > div:nth-child(1) {
-            min-width: 480px !important;
+          .cal-week-header,
+          .cal-week-body {
+            min-width: 750px !important; /* 700px columns + 50px hour spacer */
+            width: max-content !important;
           }
-          /* Cuerpo — ancho mínimo para scroll horizontal */
-          .cal-week-view > div:nth-child(2) {
-            min-width: 480px !important;
+          .cal-week-hour-column {
+            width: 50px !important;
+            flex-shrink: 0 !important;
           }
-          /* HORA label — más angosto */
-          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) {
-            width: 48px !important;
-            font-size: 10px !important;
+          .cal-week-header-days,
+          .cal-week-body-days {
+            flex: 1 !important;
+            display: flex !important;
+            min-width: 700px !important;
           }
-          /* Day headers — más angostos */
-          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div {
-            min-width: 50px !important;
-            height: 54px !important;
+          .cal-week-header-day,
+          .cal-week-body-day {
+            flex: 1 !important;
+            min-width: 100px !important;
           }
-          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div > div:first-child {
-            font-size: 9px !important;
+          .cal-week-header-day {
+            height: 56px !important;
           }
-          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div > div:last-child {
+          .cal-week-header-day > div:first-child {
+            font-size: 9.5px !important;
+          }
+          .cal-week-header-day > div:last-child {
             width: 26px !important;
             height: 26px !important;
             font-size: 12px !important;
           }
-          /* Hour column — más angosta */
-          .cal-week-view > div:nth-child(2) > div:nth-child(1) {
-            width: 48px !important;
-          }
-          .cal-week-view > div:nth-child(2) > div:nth-child(1) span {
+          .cal-week-hour-column span {
             font-size: 9px !important;
           }
-          /* Day columns — más angostas */
-          .cal-week-view > div:nth-child(2) > div:nth-child(2) > div {
-            min-width: 50px !important;
-          }
           /* Eventos en semana — más compactos */
-          .cal-week-view > div:nth-child(2) > div:nth-child(2) > div > div[style*="position: absolute"] {
+          .cal-week-view .cal-tooltip {
             padding: 4px 6px !important;
             border-radius: 6px !important;
             border-left-width: 3px !important;
@@ -1583,24 +1588,34 @@ export default function Calendar() {
 
         /* ─── Móviles pequeños (< 480px) ─── */
         @media (max-width: 480px) {
-          .cal-week-view > div:nth-child(1) {
-            min-width: 420px !important;
+          .cal-week-scroll-container {
+            min-width: 100% !important;
+            width: 100% !important;
           }
-          .cal-week-view > div:nth-child(2) {
-            min-width: 420px !important;
+          .cal-week-header,
+          .cal-week-body {
+            min-width: calc(40px + 7 * (100vw - 40px) / 3) !important;
+            width: max-content !important;
           }
-          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div {
-            min-width: 42px !important;
+          .cal-week-hour-column {
+            width: 40px !important;
+            flex-shrink: 0 !important;
+          }
+          .cal-week-header-days,
+          .cal-week-body-days {
+            flex: 1 !important;
+            display: flex !important;
+            min-width: calc(7 * (100vw - 40px) / 3) !important;
+          }
+          .cal-week-header-day,
+          .cal-week-body-day {
+            flex: 0 0 calc((100vw - 40px) / 3) !important;
+            width: calc((100vw - 40px) / 3) !important;
+            min-width: calc((100vw - 40px) / 3) !important;
+            max-width: calc((100vw - 40px) / 3) !important;
+          }
+          .cal-week-header-day {
             height: 48px !important;
-          }
-          .cal-week-view > div:nth-child(2) > div:nth-child(2) > div {
-            min-width: 42px !important;
-          }
-          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) {
-            width: 40px !important;
-          }
-          .cal-week-view > div:nth-child(2) > div:nth-child(1) {
-            width: 40px !important;
           }
 
           .cal-month-cell {

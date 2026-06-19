@@ -1103,7 +1103,7 @@ export default function ReservationForm() {
         </button>
       </div>
 
-      <div style={{
+      <div className="form-stepper-card" style={{
               background: '#ffffff',
               border: '1px solid #cbd5e1',
               borderRadius: '12px',
@@ -1209,7 +1209,7 @@ export default function ReservationForm() {
                 })}
               </div>
             </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '0 24px 24px 24px' }}>
+        <div className="form-scroll-wrapper" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '0 24px 24px 24px' }}>
           {validationErrors.length > 0 && (
             <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
               <div style={{ color: '#dc2626', fontWeight: '700', marginBottom: '8px' }}>⚠️ Faltan datos por completar:</div>
@@ -1222,7 +1222,7 @@ export default function ReservationForm() {
           <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '16px', alignItems: 'start' }}>
           {/* Columna Izquierda: Información de Reserva y Salones */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <div className="form-main-card" style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Nombre del evento *</label>
                 <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda, Corporativo, Cena" style={{ ...inputStyle, fontSize: '15px', padding: '10px 14px' }} />
@@ -1344,28 +1344,28 @@ export default function ReservationForm() {
           {/* Columna Derecha: Controles de Configuración */}
           <div className="reservation-side-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
             {/* Fecha inicial */}
-            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Fecha inicial *</label>
               <input type="date" name="date" value={formData.date} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px' }} />
             </div>
 
             {/* Fecha final */}
-            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Fecha final *</label>
               <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px' }} />
             </div>
 
             {/* Estado */}
-            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Estado *</label>
               {(() => {
                 return (
                   <div style={{ display: 'grid', gap: '8px' }}>
                     <StatusSelectCustom
-                      size="md"
-                      value={formData.status}
-                      onChange={(val) => applyEventStatus(val)}
-                      options={STATUS_META_LIST}
+                       size="md"
+                       value={formData.status}
+                       onChange={(val) => applyEventStatus(val)}
+                       options={STATUS_META_LIST}
                     />
                     {isMaintenanceStatus(formData.status) && (
                       <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
@@ -1378,7 +1378,7 @@ export default function ReservationForm() {
             </div>
 
             {/* Usuario */}
-            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Usuario (quien bloquea) *</label>
               <select name="userId" value={formData.userId} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px', marginBottom: '8px' }}>
                 <option value="">-- Sin Encargado --</option>
@@ -1404,7 +1404,7 @@ export default function ReservationForm() {
             </div>
 
             {/* Notas */}
-            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
               <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Notas</label>
               <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Detalles u observaciones..." style={{ ...inputStyle, height: '70px', padding: '10px', resize: 'none' }} />
             </div>
@@ -1413,31 +1413,79 @@ export default function ReservationForm() {
       </div>
 
 
-      <div className="reservation-form-footer" style={{ background: '#eff6ff', borderTop: '1px solid #bfdbfe', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '72px', gap: '12px', flexWrap: 'wrap' }}>
-        <div className="reservation-form-actions-left" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
-          {formData.status === 'Mantenimiento' ? (
-            <button onClick={handleReleaseMaintenance} className="btn-agregar-cita">Liberar mantenimiento</button>
-          ) : (
-            <button onClick={handleMaintenance} className="btn-mantenimiento">Poner en mantenimiento</button>
-          )}
-          {id && (
-            <>
-              <button onClick={handleOpenHistory} className="btn-historial">Historial</button>
-              <button onClick={handleOpenAppointments} className="btn-agregar-cita">Agregar cita</button>
-              <button onClick={handleCancelEventClick} className="btn-cancelar">Cancelar evento</button>
-              {(() => {
-                const currentUser = authService.getCurrentUser();
-                const userRole = currentUser?.role || 'vendedor';
-                return userRole !== 'recepcionista' && (
-                  <button onClick={handleOpenQuote} className="btn-cotizar">Cotizar evento</button>
-                );
-              })()}
-            </>
-          )}
-        </div>
+      <div className="reservation-form-footer" style={{ background: '#eff6ff', borderTop: '1px solid #bfdbfe', padding: '14px 24px', display: 'flex', alignItems: 'center', minHeight: '72px', gap: '12px', flexWrap: 'wrap' }}>
+        {formData.status === 'Mantenimiento' ? (
+          <button onClick={handleReleaseMaintenance} className="btn-mantenimiento">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+            </svg>
+            Liberar
+          </button>
+        ) : (
+          <button onClick={handleMaintenance} className="btn-mantenimiento">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            Mantenimiento
+          </button>
+        )}
+
+        {id && (
+          <button onClick={handleOpenAppointments} className="btn-agregar-cita">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="12" y1="14" x2="12" y2="18" />
+              <line x1="10" y1="16" x2="14" y2="16" />
+            </svg>
+            + Cita
+          </button>
+        )}
+
+        {id && (() => {
+          const currentUser = authService.getCurrentUser();
+          const userRole = currentUser?.role || 'vendedor';
+          return userRole !== 'recepcionista' && (
+            <button onClick={handleOpenQuote} className="btn-cotizar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+              Cotizar
+            </button>
+          );
+        })()}
+
+        {id && (
+          <button onClick={handleOpenHistory} className="btn-historial">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            Historial
+          </button>
+        )}
+
+        {id && (
+          <button onClick={handleCancelEventClick} className="btn-cancelar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+            Cancelar
+          </button>
+        )}
         
-        <button onClick={handleSave} disabled={saving} className="btn-guardar">
-          {saving ? 'Guardando...' : 'Guardar'}
+        <button onClick={handleSave} disabled={saving} className="btn-guardar" style={{ marginLeft: 'auto' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Guardar
         </button>
       </div>
 
@@ -1447,120 +1495,124 @@ export default function ReservationForm() {
 
         /* Overrides para superar el !important de design-system.css */
         .btn-mantenimiento {
-          background: #f1f5f9 !important;
-          border: 1px solid #cbd5e1 !important;
+          background: #ffffff !important;
+          border: 1.5px solid #cbd5e1 !important;
           color: #475569 !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
+          padding: 8px 14px !important;
+          border-radius: 8px !important;
           font-weight: 700 !important;
           font-size: 13px !important;
           cursor: pointer !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
           transition: all 0.2s ease !important;
         }
         .btn-mantenimiento:hover {
-          background: #e2e8f0 !important;
+          background: #f8fafc !important;
           color: #1e293b !important;
           border-color: #94a3b8 !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(148, 163, 184, 0.15) !important;
         }
 
         .btn-historial {
-          background: #f5f3ff !important;
-          border: 1px solid #ddd6fe !important;
-          color: #7c3aed !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
+          background: #ffffff !important;
+          border: 1.5px solid #cbd5e1 !important;
+          color: #475569 !important;
+          padding: 8px 14px !important;
+          border-radius: 8px !important;
           font-weight: 700 !important;
           font-size: 13px !important;
           cursor: pointer !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
           transition: all 0.2s ease !important;
         }
         .btn-historial:hover {
-          background: #ede9fe !important;
-          color: #6d28d9 !important;
-          border-color: #c084fc !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15) !important;
+          background: #f8fafc !important;
+          color: #1e293b !important;
+          border-color: #94a3b8 !important;
         }
 
         .btn-agregar-cita {
-          background: #10b981 !important;
-          border: 1px solid #10b981 !important;
-          color: white !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
+          background: #ffffff !important;
+          border: 1.5px solid #cbd5e1 !important;
+          color: #475569 !important;
+          padding: 8px 14px !important;
+          border-radius: 8px !important;
           font-weight: 700 !important;
           font-size: 13px !important;
-          box-shadow: 0 2px 6px rgba(16, 185, 129, 0.15) !important;
           cursor: pointer !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
           transition: all 0.2s ease !important;
         }
         .btn-agregar-cita:hover {
-          background: #059669 !important;
-          color: white !important;
-          border-color: #059669 !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25) !important;
+          background: #f8fafc !important;
+          color: #1e293b !important;
+          border-color: #94a3b8 !important;
         }
 
         .btn-cancelar {
-          background: #fff1f2 !important;
-          border: 1px solid #fecdd3 !important;
+          background: #ffffff !important;
+          border: 1.5px solid #fecdd3 !important;
           color: #e11d48 !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
+          padding: 8px 14px !important;
+          border-radius: 8px !important;
           font-weight: 700 !important;
           font-size: 13px !important;
           cursor: pointer !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
           transition: all 0.2s ease !important;
         }
         .btn-cancelar:hover {
-          background: #ffe4e6 !important;
+          background: #fff1f2 !important;
           color: #be123c !important;
           border-color: #fda4af !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(225, 29, 72, 0.15) !important;
         }
 
         .btn-cotizar {
-          background: #0284c7 !important;
-          border: 1px solid #0284c7 !important;
-          color: white !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
+          background: #ffffff !important;
+          border: 1.5px solid #bfdbfe !important;
+          color: #2563eb !important;
+          padding: 8px 14px !important;
+          border-radius: 8px !important;
           font-weight: 700 !important;
           font-size: 13px !important;
-          box-shadow: 0 2px 6px rgba(2, 132, 199, 0.15) !important;
           cursor: pointer !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
           transition: all 0.2s ease !important;
         }
         .btn-cotizar:hover {
-          background: #0369a1 !important;
-          color: white !important;
-          border-color: #0369a1 !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(3, 105, 161, 0.25) !important;
+          background: #eff6ff !important;
+          color: #1d4ed8 !important;
+          border-color: #93c5fd !important;
         }
 
         .btn-guardar {
-          background: #0d9488 !important;
-          border: 1px solid #0d9488 !important;
+          background: #005954 !important;
+          border: 1.5px solid #005954 !important;
           color: white !important;
-          padding: 12px 36px !important;
-          border-radius: 10px !important;
+          padding: 10px 28px !important;
+          border-radius: 8px !important;
           font-weight: 700 !important;
-          font-size: 15px !important;
-          box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25) !important;
+          font-size: 14px !important;
           cursor: pointer !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          box-shadow: 0 4px 10px rgba(0, 89, 84, 0.2) !important;
           transition: all 0.2s ease !important;
         }
         .btn-guardar:hover {
-          background: #0f766e !important;
-          color: white !important;
-          border-color: #0f766e !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 6px 15px rgba(15, 118, 110, 0.35) !important;
+          background: #004440 !important;
+          border-color: #004440 !important;
+          box-shadow: 0 6px 14px rgba(0, 89, 84, 0.3) !important;
         }
 
         @media (max-width: 1080px) {
@@ -1577,38 +1629,49 @@ export default function ReservationForm() {
           .reservation-side-panel {
             grid-template-columns: 1fr !important;
           }
-          .reservation-form-footer {
-            flex-direction: column !important;
-            align-items: stretch !important;
+          .form-stepper-card {
+            margin: 8px 12px 12px 12px !important;
+            padding: 10px 8px !important;
+            border-radius: 8px !important;
+            border-color: #e2e8f0 !important;
+          }
+          .form-scroll-wrapper {
+            padding: 0 12px 12px 12px !important;
+          }
+          .form-main-card {
             padding: 12px !important;
+            border-radius: 8px !important;
+            border-color: #e2e8f0 !important;
           }
-          .reservation-form-actions-left {
-            display: grid !important;
-            grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)) !important;
-            gap: 8px !important;
-            width: 100% !important;
+          .form-side-card {
+            padding: 12px !important;
+            border-radius: 8px !important;
+            border-color: #e2e8f0 !important;
           }
-          .reservation-form-actions-left > button {
-            width: 100% !important;
-            height: 40px !important;
-            padding: 6px 8px !important;
-            font-size: 12px !important;
+          body:not(.informes-theme) #appShell.lum-calendar .reservation-form-footer {
             display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            justify-content: flex-start !important;
+            padding: 8px !important;
+            min-height: auto !important;
+            gap: 6px !important;
+          }
+          body:not(.informes-theme) #appShell.lum-calendar .reservation-form-footer > button {
+            width: auto !important;
+            height: 34px !important;
+            padding: 4px 6px !important;
+            font-size: 11px !important;
+            border-radius: 8px !important;
+            margin: 0 !important;
+            flex: 1 1 calc(33.33% - 6px) !important;
+            min-width: 80px !important;
+            display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            text-align: center !important;
-            margin: 0 !important;
-            flex: none !important;
           }
-          .reservation-form-footer > button.btn-guardar {
-            width: 100% !important;
-            height: 46px !important;
-            font-size: 15px !important;
-            margin: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            flex: none !important;
+          body:not(.informes-theme) #appShell.lum-calendar .reservation-form-footer > button.btn-guardar {
+            margin-left: 0 !important;
           }
         }
       `}</style>

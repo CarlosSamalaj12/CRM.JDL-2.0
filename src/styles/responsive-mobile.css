@@ -22,7 +22,8 @@ body:not(.informes-theme) #appShell.lum-calendar {
     height: auto !important;
     max-height: none !important;
     min-height: 100vh !important;
-    overflow: visible !important;
+    overflow: hidden !important;
+    overflow-x: hidden !important;
   }
 
   /* Ocultar sidebar lateral en móvil; se usa el drawer flotante */
@@ -37,7 +38,8 @@ body:not(.informes-theme) #appShell.lum-calendar {
     height: auto !important;
     max-height: none !important;
     padding: 0 !important;
-    overflow: visible !important;
+    overflow: hidden !important;
+    overflow-x: hidden !important;
   }
 
   body:not(.informes-theme) .app {
@@ -47,7 +49,7 @@ body:not(.informes-theme) #appShell.lum-calendar {
 
   /* Ajustar el contenedor del Outlet */
   body:not(.informes-theme) #appShell.lum-calendar .lum-main > div:last-child {
-    padding: 8px !important;
+    padding: 0 !important;
   }
 }
 
@@ -65,18 +67,9 @@ body:not(.informes-theme) #appShell.lum-calendar {
     border-right: none !important;
   }
 
-  .topbar-nav-row,
-  .topbar-filters-row {
-    width: 100% !important;
-  }
-
-  .topbar-filters-row {
-    flex-wrap: wrap !important;
-  }
-
-  .topbar-filters-row > div {
+  body:not(.informes-theme) .topbar-search {
     flex: 1 1 auto !important;
-    min-width: 0 !important;
+    width: 100% !important;
   }
 
   .topbar .lum-search {
@@ -86,30 +79,74 @@ body:not(.informes-theme) #appShell.lum-calendar {
 }
 
 @media (max-width: 768px) {
-  body:not(.informes-theme) .topbar .weekLabel {
-    min-width: 100px !important;
-    font-size: 10px !important;
+  body:not(.informes-theme) #appShell.lum-calendar .topbar {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+    padding: 8px !important;
+    min-height: auto !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
   }
 
-  body:not(.informes-theme) .topbar select {
-    min-width: 80px !important;
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-date-nav {
+    grid-column: span 3 !important;
+    width: 100% !important;
+    display: flex !important;
+    gap: 6px !important;
+  }
+  
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-date-nav .nav {
+    flex: 1 !important;
+    display: flex !important;
+  }
+
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-date-nav .weekLabel {
+    flex: 1 !important;
+    min-width: 0 !important;
+    text-align: center !important;
+    font-size: 11px !important;
+  }
+
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-view-select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-status-select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-room-select {
+    grid-column: span 1 !important;
+    width: 100% !important;
+  }
+
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-view-select select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-status-select select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-room-select select {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
     font-size: 10px !important;
     height: 36px !important;
   }
 
-  body:not(.informes-theme) .topbar .btn,
-  body:not(.informes-theme) .topbar .iconBtn {
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-search {
+    grid-column: span 3 !important;
+    width: 100% !important;
+    max-width: 240px !important;
+    margin: 0 !important;
+  }
+
+  body:not(.informes-theme) #appShell.lum-calendar .topbar .btn,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar .iconBtn {
     height: 36px !important;
     min-height: 36px !important;
     padding: 0 8px !important;
     font-size: 11px !important;
   }
 
-  body:not(.informes-theme) .topbar .lum-search {
+  body:not(.informes-theme) #appShell.lum-calendar .topbar .lum-search {
     height: 36px !important;
+    width: 100% !important;
   }
 
-  body:not(.informes-theme) .topbar .lum-search input {
+  body:not(.informes-theme) #appShell.lum-calendar .topbar .lum-search input {
     font-size: 11px !important;
   }
 }
