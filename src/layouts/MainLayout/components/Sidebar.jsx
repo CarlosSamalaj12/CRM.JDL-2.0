@@ -11,6 +11,7 @@ export default function Sidebar() {
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isMobileReminderOpen, setIsMobileReminderOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
 
   const user = authService.getCurrentUser() || {
     name: 'Invitado',
@@ -242,8 +243,56 @@ export default function Sidebar() {
               </div>
             </div>
 
+            {isSupportOpen && (
+              <div className="qp-support-modal-backdrop" onClick={() => setIsSupportOpen(false)}>
+                <div className="qp-support-modal" onClick={e => e.stopPropagation()}>
+                  <div className="qp-support-modal-header">
+                    <span className="material-symbols-outlined">support_agent</span>
+                    <span>Soporte Técnico</span>
+                    <button className="qp-support-modal-close" onClick={() => setIsSupportOpen(false)}>
+                      <span className="material-symbols-outlined">close</span>
+                    </button>
+                  </div>
+                  <div className="qp-support-modal-body">
+                    <div className="qp-support-contact">
+                      <img src="https://ui-avatars.com/api/?name=Sistemas+Hoteles&background=14b8a6&color=fff&size=40" alt="SH" className="qp-support-avatar" />
+                      <div className="qp-support-info">
+                        <span className="qp-support-name">Sistemas Hoteles</span>
+                        <a href="mailto:sistemashotel@jardinesdellago.com" className="qp-support-email">
+                          <span className="material-symbols-outlined">mail</span>
+                          sistemashotel@jardinesdellago.com
+                        </a>
+                        <a href="tel:+50255178100" className="qp-support-phone">
+                          <span className="material-symbols-outlined">call</span>
+                          +502 5517 8100
+                        </a>
+                      </div>
+                    </div>
+                    <div className="qp-support-divider" />
+                    <div className="qp-support-contact">
+                      <img src="https://ui-avatars.com/api/?name=Sistemas+JDL&background=14b8a6&color=fff&size=40" alt="SJ" className="qp-support-avatar" />
+                      <div className="qp-support-info">
+                        <span className="qp-support-name">Sistemas JDL</span>
+                        <a href="mailto:sistema@jardinesdellago.com" className="qp-support-email">
+                          <span className="material-symbols-outlined">mail</span>
+                          sistema@jardinesdellago.com
+                        </a>
+                        <a href="tel:+50256325547" className="qp-support-phone">
+                          <span className="material-symbols-outlined">call</span>
+                          +502 56325547
+                        </a>
+                      </div>
+                    </div>
+                    <div className="qp-support-hours">
+                      <span className="material-symbols-outlined">schedule</span>
+                      Lun-Sáb 8:00-18:00
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="mobile-drawer-footer">
-              <button className="drawer-footer-btn" onClick={() => { setIsMobileOpen(false); navigate('/support'); }}>
+              <button className="drawer-footer-btn" onClick={() => setIsSupportOpen(true)}>
                 <span className="material-symbols-outlined">support_agent</span>
                 <span>Soporte</span>
               </button>
@@ -341,22 +390,23 @@ export default function Sidebar() {
             width: 54px;
             height: 54px;
             border-radius: 50%;
-            background: #0f172a; /* Slate-900 */
-            color: #ffffff;
-            border: 2px solid #6366f1; /* Borde indigo */
-            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+            background: #14b8a6 !important;
+            color: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 4px 14px rgba(20, 184, 166, 0.4) !important;
             z-index: 10001;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.2s ease-in-out;
-            padding: 0;
+            padding: 0 !important;
           }
           .mobile-hamburger-btn:active {
             transform: scale(0.9);
           }
           .mobile-hamburger-btn span {
             font-size: 26px;
+            color: #ffffff !important;
           }
 
           .mobile-drawer-backdrop {
@@ -373,7 +423,7 @@ export default function Sidebar() {
           .mobile-drawer-content {
             width: 290px;
             height: 100%;
-            background: #0f172a; /* Slate-900 */
+            background: #0b1c30;
             box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
@@ -411,17 +461,23 @@ export default function Sidebar() {
             font-weight: 800;
           }
           .close-drawer-btn {
-            background: transparent;
-            border: none;
-            color: #94a3b8;
+            background: transparent !important;
+            border: none !important;
+            color: #94a3b8 !important;
             cursor: pointer;
             padding: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: none !important;
+            outline: none !important;
           }
           .close-drawer-btn span {
             font-size: 24px;
+            color: #94a3b8 !important;
+          }
+          .close-drawer-btn:hover, .close-drawer-btn:hover span {
+            color: #ffffff !important;
           }
 
           .mobile-drawer-nav {
@@ -430,31 +486,52 @@ export default function Sidebar() {
             gap: 6px;
           }
           .drawer-nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            width: 100%;
-            padding: 12px;
-            background: transparent;
-            border: none;
-            color: #cbd5e1;
-            font-size: 14.5px;
-            font-weight: 700;
-            border-radius: 8px;
-            cursor: pointer;
-            text-align: left;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            gap: 12px !important;
+            width: 100% !important;
+            padding: 12px !important;
+            background: transparent !important;
+            border: none !important;
+            color: #cbd5e1 !important;
+            font-size: 14.5px !important;
+            font-weight: 700 !important;
+            border-radius: 8px !important;
+            cursor: pointer !important;
+            text-align: left !important;
             transition: all 0.15s ease-in-out;
+            box-shadow: none !important;
+            outline: none !important;
+            white-space: nowrap !important;
+            overflow: visible !important;
+            margin: 0 !important;
           }
           .drawer-nav-item span.material-symbols-outlined {
+            width: 24px;
+            min-width: 24px;
             font-size: 22px;
-            color: #94a3b8;
+            line-height: 1;
+            color: #94a3b8 !important;
+            flex-shrink: 0;
+            flex: 0 0 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .drawer-nav-item span:last-child {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: left !important;
           }
           .drawer-nav-item:hover, .drawer-nav-item.isActive {
-            background: rgba(99, 102, 241, 0.08);
-            color: #818cf8;
+            background: rgba(56, 189, 248, 0.08) !important;
+            color: #38bdf8 !important;
           }
           .drawer-nav-item:hover span.material-symbols-outlined, .drawer-nav-item.isActive span.material-symbols-outlined {
-            color: #818cf8;
+            color: #38bdf8 !important;
           }
 
           .mobile-drawer-profile {
@@ -476,7 +553,7 @@ export default function Sidebar() {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            border: 1px solid #6366f1;
+            border: 1px solid #14b8a6;
           }
           .profile-text {
             display: flex;
@@ -497,13 +574,15 @@ export default function Sidebar() {
             align-items: center;
             justify-content: space-between;
             width: 100%;
-            background: transparent;
-            border: none;
-            color: #94a3b8;
+            background: transparent !important;
+            border: none !important;
+            color: #94a3b8 !important;
             font-size: 12.5px;
             font-weight: 700;
             cursor: pointer;
             padding: 4px 0;
+            box-shadow: none !important;
+            outline: none !important;
           }
           .drawer-notification-count {
             background: #ef4444;
@@ -545,17 +624,20 @@ export default function Sidebar() {
             word-break: break-word;
           }
           .reminder-card-check {
-            background: transparent;
-            border: none;
-            color: #10b981;
+            background: transparent !important;
+            border: none !important;
+            color: #10b981 !important;
             cursor: pointer;
             padding: 2px;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: none !important;
+            outline: none !important;
           }
           .reminder-card-check span {
             font-size: 18px;
+            color: #10b981 !important;
           }
           .reminder-card-sub {
             font-size: 10.5px;
@@ -568,6 +650,133 @@ export default function Sidebar() {
             padding: 10px 0;
           }
 
+          .qp-support-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .qp-support-modal {
+            width: min(380px, 90vw);
+            background: #0f172a;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+          }
+          .qp-support-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: #f1f5f9;
+            font-size: 15px;
+            font-weight: 800;
+          }
+          .qp-support-modal-header span.material-symbols-outlined:first-child {
+            font-size: 22px;
+            color: #2dd4bf;
+          }
+          .qp-support-modal-close {
+            margin-left: auto;
+            background: transparent !important;
+            border: none !important;
+            color: #64748b !important;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            box-shadow: none !important;
+            outline: none !important;
+          }
+          .qp-support-modal-close span {
+            font-size: 20px;
+            color: #64748b !important;
+          }
+          .qp-support-modal-close:hover,
+          .qp-support-modal-close:hover span {
+            color: #f1f5f9 !important;
+          }
+          .qp-support-modal-body {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+          }
+          .qp-support-contact {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+          }
+          .qp-support-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            flex-shrink: 0;
+          }
+          .qp-support-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+            flex: 1;
+          }
+          .qp-support-name {
+            color: #f1f5f9;
+            font-size: 13px;
+            font-weight: 700;
+          }
+          .qp-support-email,
+          .qp-support-phone {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #94a3b8 !important;
+            font-size: 11.5px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color 0.15s;
+            word-break: break-all;
+          }
+          .qp-support-email:hover,
+          .qp-support-phone:hover {
+            color: #2dd4bf !important;
+          }
+          .qp-support-email span.material-symbols-outlined,
+          .qp-support-phone span.material-symbols-outlined {
+            font-size: 15px;
+            color: #94a3b8 !important;
+            flex-shrink: 0;
+          }
+          .qp-support-email:hover span.material-symbols-outlined,
+          .qp-support-phone:hover span.material-symbols-outlined {
+            color: #2dd4bf !important;
+          }
+          .qp-support-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.06);
+            margin: 0;
+          }
+          .qp-support-hours {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 700;
+            padding-top: 4px;
+          }
+          .qp-support-hours span.material-symbols-outlined {
+            font-size: 16px;
+            color: #64748b !important;
+          }
           .mobile-drawer-footer {
             display: flex;
             justify-content: space-between;
@@ -578,25 +787,56 @@ export default function Sidebar() {
             display: flex;
             align-items: center;
             gap: 6px;
-            background: transparent;
-            border: none;
-            color: #94a3b8;
+            background: transparent !important;
+            border: none !important;
+            color: #94a3b8 !important;
             font-size: 12px;
             font-weight: 700;
             cursor: pointer;
             padding: 6px;
+            box-shadow: none !important;
+            outline: none !important;
           }
           .drawer-footer-btn span {
             font-size: 18px;
+            color: #94a3b8 !important;
           }
           .drawer-footer-btn:hover {
-            color: #cbd5e1;
+            color: #cbd5e1 !important;
+          }
+          .drawer-footer-btn:hover span {
+            color: #cbd5e1 !important;
           }
           .drawer-footer-btn.danger:hover {
             color: #f87171 !important;
           }
           .drawer-footer-btn.danger:hover span {
             color: #f87171 !important;
+          }
+
+          /* ─── Desktop sidebar item alignment ─── */
+          .lum-sideItem {
+            justify-content: flex-start !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+          }
+          .lum-sideItem span.material-symbols-outlined {
+            width: 24px !important;
+            min-width: 24px !important;
+            line-height: 1 !important;
+            flex: 0 0 24px !important;
+            flex-shrink: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .lum-sideItem span:last-child {
+            flex: 1 !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: left !important;
           }
 
           /* ─── Exit/Close Button (minimalist, red on hover) ─── */
@@ -609,6 +849,14 @@ export default function Sidebar() {
           }
           .lum-sideItem.exit-btn:hover span.material-symbols-outlined {
             color: #f87171 !important;
+          }
+
+          /* ─── Desktop support card ─── */
+
+          @container sidebar (max-width: 180px) {
+            .lum-sideFooter .lum-sideItem .material-symbols-outlined:first-child {
+              margin: 0 auto;
+            }
           }
 
           @media (max-width: 768px) {
@@ -701,7 +949,7 @@ export default function Sidebar() {
             height: '34px', 
             borderRadius: '50%', 
             overflow: 'hidden',
-            border: '1px solid #6366f1',
+            border: '1px solid #14b8a6',
             flexShrink: 0
           }}>
             <img src={user.avatarDataUrl || user.avatar} alt="User" style={{ width: '100%', height: '100%' }} />
@@ -863,11 +1111,59 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {isSupportOpen && (
+        <div className="qp-support-modal-backdrop" onClick={() => setIsSupportOpen(false)}>
+          <div className="qp-support-modal" onClick={e => e.stopPropagation()}>
+            <div className="qp-support-modal-header">
+              <span className="material-symbols-outlined">support_agent</span>
+              <span>Soporte Técnico</span>
+              <button className="qp-support-modal-close" onClick={() => setIsSupportOpen(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="qp-support-modal-body">
+              <div className="qp-support-contact">
+                <img src="https://ui-avatars.com/api/?name=Sistemas+Hoteles&background=14b8a6&color=fff&size=40" alt="SH" className="qp-support-avatar" />
+                <div className="qp-support-info">
+                  <span className="qp-support-name">Sistemas Hoteles</span>
+                  <a href="mailto:sistemashotel@jardinesdellago.com" className="qp-support-email">
+                    <span className="material-symbols-outlined">mail</span>
+                    sistemashotel@jardinesdellago.com
+                  </a>
+                  <a href="tel:+50255178100" className="qp-support-phone">
+                    <span className="material-symbols-outlined">call</span>
+                    +502 5517 8100
+                  </a>
+                </div>
+              </div>
+              <div className="qp-support-divider" />
+              <div className="qp-support-contact">
+                <img src="https://ui-avatars.com/api/?name=Sistemas+JDL&background=14b8a6&color=fff&size=40" alt="SJ" className="qp-support-avatar" />
+                <div className="qp-support-info">
+                  <span className="qp-support-name">Sistemas JDL</span>
+                  <a href="mailto:sistema@jardinesdellago.com" className="qp-support-email">
+                    <span className="material-symbols-outlined">mail</span>
+                    sistema@jardinesdellago.com
+                  </a>
+                  <a href="tel:+50256325547" className="qp-support-phone">
+                    <span className="material-symbols-outlined">call</span>
+                    +502 56325547
+                  </a>
+                </div>
+              </div>
+              <div className="qp-support-hours">
+                <span className="material-symbols-outlined">schedule</span>
+                Lun-Sáb 8:00-18:00
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="lum-sideFooter">
         <button 
           className={`lum-sideItem ${location.pathname === '/support' ? 'isActive' : ''}`} 
           type="button"
-          onClick={() => navigate('/support')}
+          onClick={() => setIsSupportOpen(true)}
         >
           <span className="material-symbols-outlined">support_agent</span>
           <span>Soporte</span>

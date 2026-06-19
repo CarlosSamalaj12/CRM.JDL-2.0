@@ -2998,40 +2998,176 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             align-items: center !important;
             padding: 10px 14px !important;
           }
+          .qp-header > div:first-child > div:first-child {
+            font-size: 8px !important;
+          }
+          .qp-header img {
+            height: 20px !important;
+          }
           .qp-floating-footer {
             position: sticky !important;
             bottom: 0 !important;
             right: 0 !important;
             left: 0 !important;
             width: 100% !important;
-            background: #ffffff !important;
+            background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.98)) !important;
             border-top: 1px solid #cbd5e1 !important;
-            padding: 12px !important;
+            padding: 10px 12px !important;
             pointer-events: auto !important;
             margin: 0 !important;
-            box-shadow: 0 -4px 10px rgba(0,0,0,0.05) !important;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.08) !important;
+            z-index: 40 !important;
           }
           .qp-floating-footer-inner {
             display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
+            grid-template-columns: 1fr 1fr !important;
             gap: 8px !important;
             width: 100% !important;
           }
           .qp-floating-footer-inner button {
             width: 100% !important;
             justify-content: center !important;
-            height: 40px !important;
-            font-size: 11px !important;
+            min-height: 44px !important;
+            font-size: 12px !important;
             margin: 0 !important;
           }
           .qp-floating-footer-inner button:last-child {
             grid-column: span 2 !important;
-            height: 44px !important;
-            font-size: 13px !important;
+            min-height: 50px !important;
+            font-size: 15px !important;
+            font-weight: 900 !important;
+            border-radius: 12px !important;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+            box-shadow: 0 8px 24px rgba(37,99,235,0.35) !important;
+            position: relative !important;
+            overflow: hidden !important;
+            transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+          }
+          .qp-floating-footer-inner button:last-child:active {
+            transform: scale(0.97) !important;
+            box-shadow: 0 4px 12px rgba(37,99,235,0.25) !important;
+          }
+          .qp-floating-footer-inner button:last-child::after {
+            content: '' !important;
+            position: absolute !important;
+            top: -50% !important;
+            left: -50% !important;
+            width: 200% !important;
+            height: 200% !important;
+            background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 60%) !important;
+            opacity: 0 !important;
+            animation: qpFabGlow 2.5s ease-in-out infinite !important;
+            pointer-events: none !important;
           }
           #qp-body {
-            padding-bottom: 60px !important;
+            padding-bottom: 80px !important;
           }
+
+          /* ─── Agregar servicio: dropdown como bottom sheet ─── */
+          #qp-root .qp-search-drop {
+            position: fixed !important;
+            top: auto !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100vw !important;
+            max-width: 100vw !important;
+            max-height: 50vh !important;
+            border-radius: 16px 16px 0 0 !important;
+            border: none !important;
+            border-top: 1px solid rgba(148,163,184,0.2) !important;
+            background: #ffffff !important;
+            box-shadow: 0 -8px 40px rgba(0,0,0,0.3) !important;
+            z-index: 99999 !important;
+            animation: bottomSheetIn 0.25s ease-out !important;
+            padding: 12px 0 8px !important;
+          }
+          #qp-root .qp-search-drop::before {
+            content: '' !important;
+            display: block !important;
+            width: 36px !important;
+            height: 4px !important;
+            border-radius: 999px !important;
+            background: rgba(148,163,184,0.35) !important;
+            margin: 0 auto 8px !important;
+          }
+          #qp-root .qp-search-drop > div {
+            padding: 12px 16px !important;
+            font-size: 14px !important;
+            min-height: 48px !important;
+            border-bottom: 1px solid rgba(148,163,184,0.08) !important;
+          }
+
+          /* ─── Agregar servicio: cantidad/fecha + botones en columna ─── */
+          #qp-root .eyebrow + .section-title + div + div,
+          #qp-root .eyebrow + .section-title + div + div + div {
+            flex-direction: column !important;
+          }
+          #qp-root .eyebrow + .section-title + div + div > div {
+            width: 100% !important;
+          }
+          #qp-root .eyebrow + .section-title + div + div + div button {
+            width: 100% !important;
+            min-height: 44px !important;
+          }
+
+          /* ─── Carrito: toolbar buttons apilados ─── */
+          #qp-root .qp-toolbar {
+            width: 100% !important;
+          }
+          #qp-root .qp-toolbar button {
+            flex: 1 !important;
+            min-height: 44px !important;
+          }
+
+          /* ─── Carrito: tabla scroll horizontal ─── */
+          #qp-root .qp-tbl {
+            min-width: 500px !important;
+          }
+          #qp-root .qp-tbl input[type="number"],
+          #qp-root .qp-tbl input[type="text"],
+          #qp-root .qp-tbl select {
+            min-height: 36px !important;
+            font-size: 12px !important;
+          }
+
+          /* ─── Descuento + totales en columna ─── */
+          #qp-root .qp-totals {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          #qp-root .qp-totals > div:first-child {
+            width: 100% !important;
+          }
+          #qp-root .qp-totals > div:first-child > div {
+            flex: 1 !important;
+            min-width: 0 !important;
+          }
+          #qp-root .qp-totals > div:first-child select,
+          #qp-root .qp-totals > div:first-child input {
+            width: 100% !important;
+          }
+          #qp-root .qp-totals > div:last-child {
+            width: 100% !important;
+            text-align: left !important;
+          }
+
+          /* ─── Control financiero en columna ─── */
+          #qp-root .qp-financial > div {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+          #qp-root .qp-financial > div > div:last-child {
+            width: 100% !important;
+            text-align: left !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 4px 16px !important;
+          }
+        }
+        @keyframes qpFabGlow {
+          0%, 100% { opacity: 0; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.2); }
         }
       `}</style>
 
@@ -3304,7 +3440,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     </button>
                   )}
                   {filteredServices.length > 0 && (
-                    <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 200, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 7, maxHeight: 180, overflowY: 'auto', boxShadow: '0 6px 18px rgba(0,0,0,.1)' }}>
+                    <div className="qp-search-drop" style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 200, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 7, maxHeight: 180, overflowY: 'auto', boxShadow: '0 6px 18px rgba(0,0,0,.1)' }}>
                       {filteredServices.map(s => (
                         <div
                           key={s.id}
@@ -3411,7 +3547,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <div className="section-title" style={{ marginBottom: 0 }}>Servicios y productos agregados</div>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Cantidades, precio, fecha, servicio y total.</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div className="qp-toolbar" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button className="qp-btn" type="button" onClick={handleDuplicateSelected}>Duplicar selección</button>
                     <button className="qp-btn" type="button" onClick={() => handleMoveSelected('up')}>↑ Subir</button>
                     <button className="qp-btn" type="button" onClick={() => handleMoveSelected('down')}>↓ Bajar</button>
@@ -3540,7 +3676,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 </div>
 
                 {/* Totales / descuento */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
+                <div className="qp-totals" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <div>
                       <label style={fieldLabel}>Descuento</label>
@@ -3569,7 +3705,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               </div>
 
               {/* Estado de cuenta */}
-              <div style={{ ...card, background: '#f8fafc' }}>
+              <div className="qp-financial" style={{ ...card, background: '#f8fafc' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                   <div>
                     <div className="eyebrow">Control financiero</div>

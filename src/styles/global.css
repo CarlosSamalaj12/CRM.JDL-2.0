@@ -9344,3 +9344,120 @@ body div.swal2-container div.swal2-popup.swal2-modal {
     padding: 8px 12px !important;
   }
 }
+
+/* ============================================================
+   RESPONSIVE GLOBAL — Layout principal y componentes comunes
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .app {
+    padding: 8px !important;
+    gap: 6px !important;
+  }
+  .topbar {
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+  }
+  .topbar .topbar-nav-row {
+    width: 100%;
+  }
+  .topbar .topbar-nav-row > div:first-child {
+    width: 100%;
+  }
+  .topbar .topbar-nav-row > div:first-child .nav {
+    flex: 1;
+  }
+  .topbar .topbar-nav-row > div:first-child .weekLabel {
+    min-width: 0 !important;
+    flex: 1;
+    font-size: 11px !important;
+    padding: 0 4px !important;
+  }
+  .topbar .topbar-filters-row {
+    width: 100%;
+  }
+  .topbar .topbar-filters-row select {
+    min-width: 100px !important;
+    font-size: 11px !important;
+  }
+  .topbar .topbar-filters-row .lum-search input {
+    font-size: 11px !important;
+  }
+  .legend {
+    padding: 6px !important;
+    gap: 4px !important;
+  }
+  .legend .badge {
+    font-size: 10px !important;
+    padding: 4px 8px !important;
+  }
+  .legend .dot {
+    width: 8px !important;
+    height: 8px !important;
+  }
+  .btn, .btnPrimary, .btnDanger {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+  }
+  .iconBtn {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 16px !important;
+  }
+  select, input, textarea {
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+  }
+  .modal {
+    width: min(880px, 98vw) !important;
+    border-radius: 14px !important;
+  }
+  .modalBody {
+    padding: 10px 12px !important;
+  }
+  .modalHeader {
+    padding: 12px 14px 12px 50px !important;
+  }
+  .modalHeader::before {
+    width: 26px !important;
+    height: 26px !important;
+    left: 14px !important;
+  }
+  .row2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 4px !important;
+    gap: 4px !important;
+  }
+  .topbar {
+    padding: 6px 8px !important;
+    border-radius: 10px !important;
+  }
+  .btn, .btnPrimary, .btnDanger {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    border-radius: 8px !important;
+  }
+  select, input, textarea {
+    padding: 6px 8px !important;
+    border-radius: 8px !important;
+  }
+  .modal {
+    border-radius: 12px !important;
+  }
+  .modalHeader {
+    padding: 10px 12px 10px 44px !important;
+  }
+  .modalHeader::before {
+    width: 22px !important;
+    height: 22px !important;
+    left: 12px !important;
+  }
+  .modalTitle {
+    font-size: 14px !important;
+  }
+}

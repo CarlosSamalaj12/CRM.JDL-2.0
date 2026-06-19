@@ -305,7 +305,7 @@ export default function Calendar() {
 
   const renderWeekView = () => {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>
+      <div className="cal-week-view" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>
         {/* Contenedor Desplazable que contiene tanto cabecera como cuerpo */}
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           
@@ -733,7 +733,7 @@ export default function Calendar() {
     }
 
     return (
-      <div style={{ padding: '16px', height: '100%', overflow: 'auto' }}>
+      <div className="cal-month-view" style={{ padding: '16px', height: '100%', overflow: 'auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '16px' }}>
           {['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'].map(d => (
             <div key={d} style={{ textAlign: 'center', fontSize: '12.5px', fontWeight: '800', color: '#64748b', padding: '8px' }}>{d}</div>
@@ -748,6 +748,7 @@ export default function Calendar() {
             return (
               <div
                 key={idx}
+                className="cal-month-cell"
                 onDoubleClick={() => handleDayClick(dateStr)}
                 style={{
                   minHeight: '100px',
@@ -807,7 +808,7 @@ export default function Calendar() {
     const layouts = computeEventLayouts(dayEvents);
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>
+      <div className="cal-day-view" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>
         {/* Cabecera Pinned */}
         <div style={{ 
           height: '60px', 
@@ -1055,7 +1056,7 @@ export default function Calendar() {
     const months = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1));
 
     return (
-      <div style={{ 
+      <div className="cal-year-view" style={{ 
         padding: '24px', 
         height: '100%', 
         overflowY: 'auto', 
@@ -1251,7 +1252,7 @@ export default function Calendar() {
       });
 
     return (
-      <div style={{ 
+      <div className="cal-agenda-view" style={{ 
         padding: '32px 24px', 
         height: '100%', 
         overflowY: 'auto', 
@@ -1431,6 +1432,199 @@ export default function Calendar() {
       overflow: 'hidden',
       boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)'
     }}>
+      <style>{`
+        /* ============================================================
+           CALENDARIO RESPONSIVE — Estilos correctamente orientados
+           ============================================================ */
+
+        /* ─── Tablet & menores ─── */
+        @media (max-width: 1024px) {
+          /* Año: tarjetas más angostas */
+          .cal-year-view {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+            gap: 16px !important;
+            padding: 16px !important;
+          }
+        }
+
+        /* ─── Tablet vertical y móviles grandes ─── */
+        @media (max-width: 768px) {
+          .calendar-container {
+            border-radius: 0 !important;
+            border-left: none !important;
+            border-right: none !important;
+            margin: 0 !important;
+          }
+
+          /* =========== VISTA SEMANA =========== */
+          .cal-week-view {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+          }
+          /* Scroll container — ancho mínimo para scroll horizontal */
+          .cal-week-view > div:nth-child(1) {
+            min-width: 480px !important;
+          }
+          /* Cuerpo — ancho mínimo para scroll horizontal */
+          .cal-week-view > div:nth-child(2) {
+            min-width: 480px !important;
+          }
+          /* HORA label — más angosto */
+          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) {
+            width: 48px !important;
+            font-size: 10px !important;
+          }
+          /* Day headers — más angostos */
+          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div {
+            min-width: 50px !important;
+            height: 54px !important;
+          }
+          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div > div:first-child {
+            font-size: 9px !important;
+          }
+          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div > div:last-child {
+            width: 26px !important;
+            height: 26px !important;
+            font-size: 12px !important;
+          }
+          /* Hour column — más angosta */
+          .cal-week-view > div:nth-child(2) > div:nth-child(1) {
+            width: 48px !important;
+          }
+          .cal-week-view > div:nth-child(2) > div:nth-child(1) span {
+            font-size: 9px !important;
+          }
+          /* Day columns — más angostas */
+          .cal-week-view > div:nth-child(2) > div:nth-child(2) > div {
+            min-width: 50px !important;
+          }
+          /* Eventos en semana — más compactos */
+          .cal-week-view > div:nth-child(2) > div:nth-child(2) > div > div[style*="position: absolute"] {
+            padding: 4px 6px !important;
+            border-radius: 6px !important;
+            border-left-width: 3px !important;
+          }
+
+          /* =========== VISTA DÍA =========== */
+          .cal-day-view > div:nth-child(1) {
+            height: 48px !important;
+          }
+          .cal-day-view > div:nth-child(1) > div {
+            font-size: 12px !important;
+          }
+          .cal-day-view > div:nth-child(2) > div:nth-child(1) {
+            width: 48px !important;
+          }
+          .cal-day-view > div:nth-child(2) > div:nth-child(1) span {
+            font-size: 9px !important;
+          }
+
+          /* =========== VISTA MES =========== */
+          .cal-month-view {
+            padding: 8px !important;
+          }
+          .cal-month-view > div:nth-child(1) {
+            gap: 2px !important;
+            margin-bottom: 8px !important;
+          }
+          .cal-month-view > div:nth-child(1) > div {
+            font-size: 10px !important;
+            padding: 4px !important;
+          }
+          .cal-month-view > div:nth-child(2) {
+            gap: 2px !important;
+          }
+          .cal-month-cell {
+            min-height: 56px !important;
+            padding: 4px !important;
+          }
+          .cal-month-cell > div:first-child {
+            font-size: 12px !important;
+          }
+          .cal-month-cell > div {
+            font-size: 9px !important;
+            padding: 1px 3px !important;
+          }
+          .cal-month-cell > div:last-child {
+            font-size: 9px !important;
+          }
+
+          /* =========== VISTA AÑO =========== */
+          .cal-year-view {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+            gap: 14px !important;
+            padding: 12px !important;
+          }
+
+          /* =========== VISTA AGENDA =========== */
+          .cal-agenda-view {
+            padding: 16px 12px !important;
+            gap: 16px !important;
+          }
+          .cal-agenda-view > div {
+            max-width: 100% !important;
+          }
+          .cal-agenda-view > div > div:nth-child(2) > div {
+            padding: 12px 14px !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+          }
+          .cal-agenda-view > div > div:nth-child(2) > div > div:first-child {
+            width: 40px !important;
+            height: 44px !important;
+          }
+          .cal-agenda-view > div > div:nth-child(2) > div > div:first-child span:first-child {
+            font-size: 14px !important;
+          }
+          .cal-agenda-view > div > div:nth-child(2) > div > div:first-child span:last-child {
+            font-size: 8px !important;
+          }
+        }
+
+        /* ─── Móviles pequeños (< 480px) ─── */
+        @media (max-width: 480px) {
+          .cal-week-view > div:nth-child(1) {
+            min-width: 420px !important;
+          }
+          .cal-week-view > div:nth-child(2) {
+            min-width: 420px !important;
+          }
+          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div {
+            min-width: 42px !important;
+            height: 48px !important;
+          }
+          .cal-week-view > div:nth-child(2) > div:nth-child(2) > div {
+            min-width: 42px !important;
+          }
+          .cal-week-view > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) {
+            width: 40px !important;
+          }
+          .cal-week-view > div:nth-child(2) > div:nth-child(1) {
+            width: 40px !important;
+          }
+
+          .cal-month-cell {
+            min-height: 42px !important;
+            padding: 2px !important;
+          }
+          .cal-month-cell > div:nth-child(n+2) {
+            display: none !important;
+          }
+
+          .cal-year-view {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+            padding: 8px !important;
+          }
+
+          .cal-agenda-view {
+            padding: 12px 8px !important;
+          }
+          .cal-agenda-view > div > div:first-child h2 {
+            font-size: 16px !important;
+          }
+        }
+      `}</style>
       {/* Contenido del calendario */}
       <div style={{ flex: 1, overflow: (viewMode === 'year' || viewMode === 'agenda') ? 'auto' : 'hidden' }}>
         {viewMode === 'week' && renderWeekView()}

@@ -10,6 +10,7 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -346,8 +347,56 @@ export default function Login() {
         </section>
 
         {/* SOPORTE */}
+        {isSupportOpen && (
+          <div className="qp-support-modal-backdrop" onClick={() => setIsSupportOpen(false)}>
+            <div className="qp-support-modal" onClick={e => e.stopPropagation()}>
+              <div className="qp-support-modal-header">
+                <span className="material-symbols-outlined">support_agent</span>
+                <span>Soporte Técnico</span>
+                <button className="qp-support-modal-close" onClick={() => setIsSupportOpen(false)}>
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div className="qp-support-modal-body">
+                <div className="qp-support-contact">
+                  <img src="https://ui-avatars.com/api/?name=Sistemas+Hoteles&background=14b8a6&color=fff&size=40" alt="SH" className="qp-support-avatar" />
+                  <div className="qp-support-info">
+                    <span className="qp-support-name">Sistemas Hoteles</span>
+                    <a href="mailto:sistemashotel@jardinesdellago.com" className="qp-support-email">
+                      <span className="material-symbols-outlined">mail</span>
+                      sistemashotel@jardinesdellago.com
+                    </a>
+                    <a href="tel:+50255178100" className="qp-support-phone">
+                      <span className="material-symbols-outlined">call</span>
+                      +502 5517 8100
+                    </a>
+                  </div>
+                </div>
+                <div className="qp-support-divider" />
+                <div className="qp-support-contact">
+                  <img src="https://ui-avatars.com/api/?name=Sistemas+JDL&background=14b8a6&color=fff&size=40" alt="SJ" className="qp-support-avatar" />
+                  <div className="qp-support-info">
+                    <span className="qp-support-name">Sistemas JDL</span>
+                    <a href="mailto:sistema@jardinesdellago.com" className="qp-support-email">
+                      <span className="material-symbols-outlined">mail</span>
+                      sistema@jardinesdellago.com
+                    </a>
+                    <a href="tel:+50256325547" className="qp-support-phone">
+                      <span className="material-symbols-outlined">call</span>
+                      +502 56325547
+                    </a>
+                  </div>
+                </div>
+                <div className="qp-support-hours">
+                  <span className="material-symbols-outlined">schedule</span>
+                  Lun-Sáb 8:00-18:00
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="loginSupportWidget">
-          <button className="loginSupportBtn" id="btnLoginSupport" type="button" aria-expanded="false" aria-controls="loginSupportPanel">
+          <button className="loginSupportBtn" id="btnLoginSupport" type="button" onClick={() => setIsSupportOpen(true)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 12a8 8 0 0 1 16 0"></path>
               <path d="M5 13h3v5H5a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2z"></path>
@@ -440,6 +489,133 @@ export default function Login() {
             left: 16px !important;
             bottom: 16px !important;
           }
+        }
+        .qp-support-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.6);
+          z-index: 999999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .qp-support-modal {
+          width: min(380px, 90vw);
+          background: #ffffff;
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          border-radius: 16px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15);
+          overflow: hidden;
+        }
+        .qp-support-modal-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 16px 18px;
+          border-bottom: 1px solid #e2e8f0;
+          color: #0f172a;
+          font-size: 15px;
+          font-weight: 800;
+        }
+        .qp-support-modal-header span.material-symbols-outlined:first-child {
+          font-size: 22px;
+          color: #14b8a6;
+        }
+        .qp-support-modal-close {
+          margin-left: auto;
+          background: transparent !important;
+          border: none !important;
+          color: #94a3b8 !important;
+          cursor: pointer;
+          padding: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          box-shadow: none !important;
+          outline: none !important;
+        }
+        .qp-support-modal-close span {
+          font-size: 20px;
+          color: #94a3b8 !important;
+        }
+        .qp-support-modal-close:hover,
+        .qp-support-modal-close:hover span {
+          color: #0f172a !important;
+        }
+        .qp-support-modal-body {
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .qp-support-contact {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        }
+        .qp-support-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .qp-support-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+          flex: 1;
+        }
+        .qp-support-name {
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 700;
+        }
+        .qp-support-email,
+        .qp-support-phone {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #64748b !important;
+          font-size: 11.5px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: color 0.15s;
+          word-break: break-all;
+        }
+        .qp-support-email:hover,
+        .qp-support-phone:hover {
+          color: #14b8a6 !important;
+        }
+        .qp-support-email span.material-symbols-outlined,
+        .qp-support-phone span.material-symbols-outlined {
+          font-size: 15px;
+          color: #64748b !important;
+          flex-shrink: 0;
+        }
+        .qp-support-email:hover span.material-symbols-outlined,
+        .qp-support-phone:hover span.material-symbols-outlined {
+          color: #14b8a6 !important;
+        }
+        .qp-support-divider {
+          height: 1px;
+          background: #e2e8f0;
+          margin: 0;
+        }
+        .qp-support-hours {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #94a3b8;
+          font-size: 11px;
+          font-weight: 700;
+          padding-top: 4px;
+        }
+        .qp-support-hours span.material-symbols-outlined {
+          font-size: 16px;
+          color: #94a3b8 !important;
         }
       `}</style>
     </div>

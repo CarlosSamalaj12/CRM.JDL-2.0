@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 // Importar estilos globales copiados del monolito (scoped to body:not(.informes-theme))
 import './styles/global-scoped.css';
 import './styles/design-system-scoped.css';
+import './styles/responsive-mobile.css';
 
 // SweetAlert2: evitar warning aria-hidden + elemento con foco
 const origFire = Swal.fire.bind(Swal);

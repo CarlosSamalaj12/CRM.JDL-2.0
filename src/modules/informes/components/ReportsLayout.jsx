@@ -19,6 +19,7 @@ export default function ReportsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
 
   const canManageCatalog = user && ['Admin', 'FrontOffice', 'Vendedor'].includes(user.rol);
   const isAdmin = user?.rol === 'Admin';
@@ -166,8 +167,56 @@ export default function ReportsLayout() {
               </div>
             </div>
 
+            {isSupportOpen && (
+              <div className="qp-support-modal-backdrop" onClick={() => setIsSupportOpen(false)}>
+                <div className="qp-support-modal" onClick={e => e.stopPropagation()}>
+                  <div className="qp-support-modal-header">
+                    <span className="material-symbols-outlined">support_agent</span>
+                    <span>Soporte Técnico</span>
+                    <button className="qp-support-modal-close" onClick={() => setIsSupportOpen(false)}>
+                      <span className="material-symbols-outlined">close</span>
+                    </button>
+                  </div>
+                  <div className="qp-support-modal-body">
+                    <div className="qp-support-contact">
+                      <img src="https://ui-avatars.com/api/?name=Sistemas+Hoteles&background=14b8a6&color=fff&size=40" alt="SH" className="qp-support-avatar" />
+                      <div className="qp-support-info">
+                        <span className="qp-support-name">Sistemas Hoteles</span>
+                        <a href="mailto:sistemashotel@jardinesdellago.com" className="qp-support-email">
+                          <span className="material-symbols-outlined">mail</span>
+                          sistemashotel@jardinesdellago.com
+                        </a>
+                        <a href="tel:+50255178100" className="qp-support-phone">
+                          <span className="material-symbols-outlined">call</span>
+                          +502 5517 8100
+                        </a>
+                      </div>
+                    </div>
+                    <div className="qp-support-divider" />
+                    <div className="qp-support-contact">
+                      <img src="https://ui-avatars.com/api/?name=Sistemas+JDL&background=14b8a6&color=fff&size=40" alt="SJ" className="qp-support-avatar" />
+                      <div className="qp-support-info">
+                        <span className="qp-support-name">Sistemas JDL</span>
+                        <a href="mailto:sistema@jardinesdellago.com" className="qp-support-email">
+                          <span className="material-symbols-outlined">mail</span>
+                          sistema@jardinesdellago.com
+                        </a>
+                        <a href="tel:+50256325547" className="qp-support-phone">
+                          <span className="material-symbols-outlined">call</span>
+                          +502 56325547
+                        </a>
+                      </div>
+                    </div>
+                    <div className="qp-support-hours">
+                      <span className="material-symbols-outlined">schedule</span>
+                      Lun-Sáb 8:00-18:00
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="mobile-drawer-footer">
-              <button className="drawer-footer-btn" onClick={() => { setIsMobileOpen(false); navigate('/support'); }}>
+              <button className="drawer-footer-btn" onClick={() => setIsSupportOpen(true)}>
                 <span className="material-symbols-outlined">support_agent</span>
                 <span>Soporte</span>
               </button>
@@ -361,26 +410,45 @@ export default function ReportsLayout() {
           gap: 6px;
         }
         .drawer-nav-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          width: 100%;
-          padding: 12px;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          gap: 12px !important;
+          width: 100% !important;
+          padding: 12px !important;
           background: transparent !important;
           border: none !important;
           color: #cbd5e1 !important;
-          font-size: 14.5px;
-          font-weight: 700;
-          border-radius: 8px;
-          cursor: pointer;
-          text-align: left;
+          font-size: 14.5px !important;
+          font-weight: 700 !important;
+          border-radius: 8px !important;
+          cursor: pointer !important;
+          text-align: left !important;
           transition: all 0.15s ease-in-out;
           box-shadow: none !important;
           outline: none !important;
+          white-space: nowrap !important;
+          overflow: visible !important;
+          margin: 0 !important;
         }
         .drawer-nav-item span.material-symbols-outlined {
+          width: 24px;
+          min-width: 24px;
           font-size: 22px;
+          line-height: 1;
           color: #94a3b8 !important;
+          flex-shrink: 0;
+          flex: 0 0 24px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .drawer-nav-item span:last-child {
+          flex: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-align: left !important;
         }
         .drawer-nav-item:hover, .drawer-nav-item.isActive {
           background: rgba(56, 189, 248, 0.08) !important;
@@ -425,6 +493,133 @@ export default function ReportsLayout() {
           font-size: 10.5px;
         }
 
+        .qp-support-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.6);
+          z-index: 999999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .qp-support-modal {
+          width: min(380px, 90vw);
+          background: #0f172a;
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          border-radius: 16px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+          overflow: hidden;
+        }
+        .qp-support-modal-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 16px 18px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          color: #f1f5f9;
+          font-size: 15px;
+          font-weight: 800;
+        }
+        .qp-support-modal-header span.material-symbols-outlined:first-child {
+          font-size: 22px;
+          color: #38bdf8;
+        }
+        .qp-support-modal-close {
+          margin-left: auto;
+          background: transparent !important;
+          border: none !important;
+          color: #64748b !important;
+          cursor: pointer;
+          padding: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          box-shadow: none !important;
+          outline: none !important;
+        }
+        .qp-support-modal-close span {
+          font-size: 20px;
+          color: #64748b !important;
+        }
+        .qp-support-modal-close:hover,
+        .qp-support-modal-close:hover span {
+          color: #f1f5f9 !important;
+        }
+        .qp-support-modal-body {
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .qp-support-contact {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        }
+        .qp-support-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .qp-support-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+          flex: 1;
+        }
+        .qp-support-name {
+          color: #f1f5f9;
+          font-size: 13px;
+          font-weight: 700;
+        }
+        .qp-support-email,
+        .qp-support-phone {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #94a3b8 !important;
+          font-size: 11.5px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: color 0.15s;
+          word-break: break-all;
+        }
+        .qp-support-email:hover,
+        .qp-support-phone:hover {
+          color: #38bdf8 !important;
+        }
+        .qp-support-email span.material-symbols-outlined,
+        .qp-support-phone span.material-symbols-outlined {
+          font-size: 15px;
+          color: #94a3b8 !important;
+          flex-shrink: 0;
+        }
+        .qp-support-email:hover span.material-symbols-outlined,
+        .qp-support-phone:hover span.material-symbols-outlined {
+          color: #38bdf8 !important;
+        }
+        .qp-support-divider {
+          height: 1px;
+          background: rgba(255, 255, 255, 0.06);
+          margin: 0;
+        }
+        .qp-support-hours {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #64748b;
+          font-size: 11px;
+          font-weight: 700;
+          padding-top: 4px;
+        }
+        .qp-support-hours span.material-symbols-outlined {
+          font-size: 16px;
+          color: #64748b !important;
+        }
         .mobile-drawer-footer {
           display: flex;
           justify-content: space-between;
