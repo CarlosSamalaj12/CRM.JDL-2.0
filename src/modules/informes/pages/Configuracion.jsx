@@ -3,13 +3,9 @@ import {
   getEquipos, createEquipo, updateEquipo, deleteEquipo,
   getSillas, createSilla, updateSilla, deleteSilla,
   getMesas, createMesa, updateMesa, deleteMesa,
-  getUsers, createUser, updateUser, toggleUserActive,
 } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
-import { IconPlus, IconTrash, IconUser, IconSettings, IconSearch, IconX } from '../components/Icons.jsx';
-
-const ROLES = ['Admin', 'Vendedor', 'Coordinador', 'FrontOffice'];
+import { IconPlus, IconTrash, IconSettings, IconSearch, IconX } from '../components/Icons.jsx';
 
 // ─── Componente reutilizable para CRUD con toggle activo/inactivo ───
 function CrudTab({ title, items, onCreate, onDelete, onEdit, onToggleActive, icon }) {
@@ -166,30 +162,22 @@ function CrudTab({ title, items, onCreate, onDelete, onEdit, onToggleActive, ico
 // PÁGINA PRINCIPAL DE CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════
 export default function Configuracion() {
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('equipos');
   const [equipos, setEquipos] = useState([]);
   const [sillas, setSillas] = useState([]);
   const [mesas, setMesas] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
-
-  // New user form
-  const [newUser, setNewUser] = useState({ nombre: '', email: '', password: '', rol: 'Vendedor' });
-  const [editingUser, setEditingUser] = useState(null);
-  const [editUserData, setEditUserData] = useState({});
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [e, s, m, u] = await Promise.all([
-        getEquipos(), getSillas(), getMesas(), getUsers()
+      const [e, s, m] = await Promise.all([
+        getEquipos(), getSillas(), getMesas()
       ]);
       setEquipos(e);
       setSillas(s);
       setMesas(m);
-      setUsers(u);
     } catch (err) {
       toast.error('Error al cargar datos');
     } finally {
@@ -210,45 +198,6 @@ export default function Configuracion() {
     }
   };
 
-  // ─── Usuarios ───
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-    try {
-      await createUser(newUser);
-      setNewUser({ nombre: '', email: '', password: '', rol: 'Vendedor' });
-      toast.success('Usuario creado');
-      loadAll();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
-
-  const startEditUser = (user) => {
-    setEditingUser(user.id);
-    setEditUserData({ nombre: user.nombre, email: user.email, rol: user.rol });
-  };
-
-  const saveEditUser = async () => {
-    if (!editUserData.nombre?.trim()) return;
-    try {
-      await updateUser(editingUser, editUserData);
-      setEditingUser(null);
-      toast.success('Usuario actualizado');
-      loadAll();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleToggleActive = async (id) => {
-    try {
-      await toggleUserActive(id);
-      loadAll();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
-
   if (loading) return (
     <div className="config-loading">
       <div className="config-loading-spinner" />
@@ -262,10 +211,6 @@ export default function Configuracion() {
     { id: 'mesas', label: 'Mesas', icon: '🪑', count: mesas.length },
   ];
 
-  if (user?.rol === 'Admin') {
-    tabs.push({ id: 'usuarios', label: 'Usuarios', icon: <IconUser size={15} />, count: users.length });
-  }
-
   return (
     <div className="config-page">
       <div className="config-page-header">
@@ -273,7 +218,7 @@ export default function Configuracion() {
           <IconSettings size={22} />
           <h1>Configuración</h1>
         </div>
-        <p className="config-page-sub">Gestiona equipos, tipos de sillas, tipos de mesas y usuarios del sistema</p>
+        <p className="config-page-sub">Gestiona equipos, tipos de sillas y tipos de mesas del sistema</p>
       </div>
 
       {/* ─── TABS ─── */}
@@ -325,105 +270,7 @@ export default function Configuracion() {
         />
       )}
 
-      {activeTab === 'usuarios' && (
-        <div className="config-tab">
-          {/* ─── HEADER ─── */}
-          <div className="config-tab-header">
-            <div className="config-tab-title">
-              <IconUser size={16} />
-              <span>Usuarios</span>
-              <span className="config-tab-count">{users.length}</span>
-              {users.filter(u => !u.activo).length > 0 && (
-                <span className="config-tab-inactive-count">
-                  {users.filter(u => !u.activo).length} inactivo(s)
-                </span>
-              )}
-            </div>
-          </div>
 
-          {/* ─── CREATE FORM ─── */}
-          <form className="config-create-form config-create-form-users" onSubmit={handleCreateUser}>
-            <div className="config-create-row">
-              <div className="config-create-field">
-                <label>Nombre</label>
-                <input type="text" placeholder="Nombre completo" value={newUser.nombre}
-                  onChange={e => setNewUser({...newUser, nombre: e.target.value})} required />
-              </div>
-              <div className="config-create-field">
-                <label>Email</label>
-                <input type="email" placeholder="correo@ejemplo.com" value={newUser.email}
-                  onChange={e => setNewUser({...newUser, email: e.target.value})} required />
-              </div>
-              <div className="config-create-field">
-                <label>Contraseña</label>
-                <input type="password" placeholder="••••••" value={newUser.password}
-                  onChange={e => setNewUser({...newUser, password: e.target.value})} required />
-              </div>
-              <div className="config-create-field">
-                <label>Rol</label>
-                <select value={newUser.rol} onChange={e => setNewUser({...newUser, rol: e.target.value})}>
-                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div className="config-create-field config-create-field-btn">
-                <label>&nbsp;</label>
-                <button type="submit" className="btn-primary btn-sm"><IconPlus size={14} /> Crear Usuario</button>
-              </div>
-            </div>
-          </form>
-
-          {/* ─── LIST ─── */}
-          <div className="config-list">
-            {users.length === 0 && <div className="config-empty">Sin usuarios aún — agrega uno arriba</div>}
-            {users.map(u => {
-              const isActive = u.activo !== 0;
-              return (
-                <div key={u.id} className={`config-item ${!isActive ? 'config-item-inactive' : ''}`}>
-                  {editingUser === u.id ? (
-                    <div className="config-item-edit config-item-edit-users">
-                      <input type="text" value={editUserData.nombre}
-                        onChange={e => setEditUserData({...editUserData, nombre: e.target.value})} />
-                      <input type="email" value={editUserData.email}
-                        onChange={e => setEditUserData({...editUserData, email: e.target.value})} />
-                      <select value={editUserData.rol}
-                        onChange={e => setEditUserData({...editUserData, rol: e.target.value})}>
-                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <button className="btn-primary btn-sm" onClick={saveEditUser} data-tooltip="Guardar">✓</button>
-                      <button className="btn-secondary btn-sm" onClick={() => setEditingUser(null)} data-tooltip="Cancelar">✕</button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="config-user-info">
-                        <div className="config-user-avatar">{u.nombre.charAt(0).toUpperCase()}</div>
-                        <div className="config-user-details">
-                          <span className="config-item-name">{u.nombre}</span>
-                          <span className="config-user-email">{u.email}</span>
-                        </div>
-                        <span className={`config-user-rol ${u.rol?.toLowerCase()}`}>{u.rol}</span>
-                        {!isActive && <span className="config-item-badge config-badge-inactive">Inactivo</span>}
-                      </div>
-                      <div className="config-item-actions">
-                        <button className="config-action-btn config-action-edit" onClick={() => startEditUser(u)}
-                          data-tooltip="Editar">
-                          ✏️
-                        </button>
-                        <button
-                          className={`config-action-btn ${isActive ? 'config-action-disable' : 'config-action-enable'}`}
-                          onClick={() => handleToggleActive(u.id)}
-                          data-tooltip={isActive ? 'Inhabilitar' : 'Habilitar'}
-                        >
-                          {isActive ? '🔴' : '🟢'}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

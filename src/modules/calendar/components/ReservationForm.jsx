@@ -799,8 +799,73 @@ export default function ReservationForm() {
     return { ok: issues.length === 0, issues };
   }, [formData, slots, syncEventPaxFromSlots, id, salonCapacities]);
 
-  const handleMaintenance = () => {
-    applyEventStatus('Mantenimiento');
+  const handleMaintenance = async () => {
+    if (saving) return;
+
+    // Validación rápida solo de campos esenciales
+    const issues = [];
+    const firstSlot = slots[0] || {};
+    if (!formData.date.trim()) issues.push('Fecha requerida');
+    if (!firstSlot.salon) issues.push('Salón requerido');
+    if (!firstSlot.startTime || !isValidClockTime(firstSlot.startTime)) issues.push('Hora de inicio requerida');
+    if (!firstSlot.endTime || !isValidClockTime(firstSlot.endTime)) issues.push('Hora de fin requerida');
+    if (firstSlot.startTime && firstSlot.endTime && compareTime(firstSlot.endTime, firstSlot.startTime) <= 0) {
+      issues.push('La hora de inicio debe ser menor a la hora de fin');
+    }
+    if (!formData.userId.trim()) issues.push('Usuario (quien bloquea) requerido');
+
+    if (issues.length > 0) {
+      showNotification(`Completa: ${issues[0]}${issues.length > 1 ? ` (+${issues.length - 1} pendientes)` : ''}`, 'error');
+      return;
+    }
+
+    // Revisar conflictos con eventos Confirmado/Pre reserva
+    const conflictCheck = conflictService.checkAllSlots(
+      slots.map(s => ({ ...s, status: 'Mantenimiento' })),
+      comparableEvents,
+      id
+    );
+    const hardConflicts = conflictCheck.filter(r => r.type === 'conflict' && !r.ok);
+    if (hardConflicts.length > 0) {
+      showNotification(`Conflicto: ${hardConflicts[0].message}`, 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
+      const newName = 'MANTENIMIENTO';
+      
+      setFormData(prev => ({ ...prev, status: 'Mantenimiento', name: newName }));
+      const updatedSlots = slots.map(s => ({ ...s, status: 'Mantenimiento' }));
+      setSlots(updatedSlots);
+
+      const eventData = {
+        ...formData,
+        name: newName,
+        status: 'Mantenimiento',
+        id: id || undefined,
+        groupId: existingEvent?.groupId || undefined,
+        pax: null,
+        slots: updatedSlots,
+        salon: updatedSlots.map(s => s.salon).join(', '),
+        quote: existingEvent?.quote || undefined
+      };
+
+      const savedEvent = await handleAddEvent(eventData);
+
+      if (id && existingEvent) {
+        await historyService.addDetailed(id, existingEvent, eventData);
+      } else {
+        await historyService.add(savedEvent.id, 'Mantenimiento programado');
+      }
+
+      showNotification('Mantenimiento guardado', 'success');
+      setTimeout(() => navigate('/calendar'), 1000);
+    } catch {
+      showNotification('Error al guardar mantenimiento', 'error');
+      setSaving(false);
+    }
   };
 
   const handleReleaseMaintenance = async () => {

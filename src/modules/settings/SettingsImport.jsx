@@ -101,7 +101,17 @@ export default function SettingsImport() {
       }
     } catch (err) {
       console.error('Error importando:', err);
-      toast(err.message || 'No se pudo leer el archivo CSV.');
+      const statusPart = err.status ? ` (HTTP ${err.status})` : '';
+      let detailPart = '';
+      if (err.details) {
+        try {
+          detailPart = ': ' + (typeof err.details === 'string' ? err.details : JSON.stringify(err.details)).slice(0, 200);
+        } catch {
+          detailPart = ': ' + String(err.details).slice(0, 200);
+        }
+      }
+      const codePart = err.code && err.code !== 'API_ERROR' ? ` [${err.code}]` : '';
+      toast(`${err.message || 'Error del servidor'}${statusPart}${codePart}${detailPart}`);
     } finally {
       setWorking('');
       if (type === 'eventos' && eventsInputRef.current) eventsInputRef.current.value = '';
