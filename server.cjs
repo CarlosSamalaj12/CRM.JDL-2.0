@@ -2774,6 +2774,12 @@ app.put("/api/state", async (req, res) => {
     await writeStateToTables(mergedState);
     console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! BD actualizada (${(mergedState.events?.length || nextState.events?.length || 0)} eventos).`);
 
+    // Emitir actualización vía Socket.io en tiempo real a todos los clientes
+    if (req.io) {
+      req.io.emit("state-updated", { timestamp: Date.now() });
+      console.log(`[${new Date().toLocaleTimeString()}] 📡 Evento 'state-updated' emitido vía Socket.io a los clientes.`);
+    }
+
     // Google Calendar sync desactivado del calendario general.
 
     return res.json({ ok: true });
