@@ -193,7 +193,7 @@ export default function SettingsMain() {
             Volver
           </button>
         </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <SettingsServicios inline onBack={closeView} />
         </div>
       </div>

@@ -196,8 +196,12 @@ export default function SettingsServicios({ inline, onBack }) {
       return { ...c, subcategories: subs };
     });
     await saveAll(null, next);
-    setShowSubcategoryModal(false);
-    setSubcategoryDraft(emptySubcategory);
+    if (subcategoryDraft.id) {
+      setShowSubcategoryModal(false);
+      setSubcategoryDraft(emptySubcategory);
+    } else {
+      setSubcategoryDraft(prev => ({ ...prev, name: '' }));
+    }
   };
   const handleDeleteSubcategory = async (cat, sub) => {
     const ok = await modernConfirm('Eliminar subcategoria', `Eliminar "${sub.name}"?`);
@@ -289,7 +293,7 @@ export default function SettingsServicios({ inline, onBack }) {
   });
 
   return (
-    <div style={{ padding: inline ? '0' : '16px 28px 28px', overflowY: 'auto', height: '100%' }}>
+    <div style={{ padding: inline ? '0' : '16px 28px 28px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', minHeight: 0, overflow: 'hidden' }}>
       {!inline && (
         <div className="reports-page-header" style={{ flexShrink: 0 }}>
           <div className="reports-brand-header">
@@ -309,7 +313,7 @@ export default function SettingsServicios({ inline, onBack }) {
         </div>
       )}
 
-      <div style={{ marginBottom: '16px', display: 'flex', gap: '6px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>
+      <div style={{ marginBottom: '16px', display: 'flex', gap: '6px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', flexShrink: 0 }}>
         {[
           { id: 'servicios', label: 'Servicios', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' },
           { id: 'categorias', label: 'Categorías', icon: 'M4 6h16M4 12h16M4 18h16' },
@@ -331,8 +335,8 @@ export default function SettingsServicios({ inline, onBack }) {
 
       {/* ── SECTION: Servicios ── */}
       {activeSection === 'servicios' && (
-        <div>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap', flexShrink: 0 }}>
             <button type="button" onClick={openNewService} style={{ ...btn('primary'), padding: '7px 16px' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
               Nuevo servicio
@@ -347,7 +351,7 @@ export default function SettingsServicios({ inline, onBack }) {
             </button>
           </div>
 
-          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff' }}>
+          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
             {services.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
                 No hay servicios registrados. Crea el primer servicio.
@@ -357,7 +361,7 @@ export default function SettingsServicios({ inline, onBack }) {
                 <thead>
                   <tr style={{ background: '#f8fafc' }}>
                     {['Nombre', 'Precio', 'Categoría', 'Subcategoría', 'Modo', 'Estado', ''].map(h => (
-                      <th key={h} style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase', textAlign: h === 'Precio' ? 'right' : 'left' }}>{h}</th>
+                      <th key={h} style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase', textAlign: h === 'Precio' ? 'right' : 'left', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -397,24 +401,24 @@ export default function SettingsServicios({ inline, onBack }) {
 
       {/* ── SECTION: Categorías ── */}
       {activeSection === 'categorias' && (
-        <div>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexShrink: 0 }}>
             <button type="button" onClick={openNewCategory} style={{ ...btn('primary'), padding: '7px 16px' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
               Nueva categoría
             </button>
           </div>
-          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff' }}>
+          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
             {categories.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>No hay categorías registradas.</div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc' }}>
-                    <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase' }}>Nombre</th>
-                    <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase' }}>Subcategorías</th>
-                    <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase' }}>Servicios</th>
-                    <th style={{ padding: '8px 10px' }}></th>
+                    <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>Nombre</th>
+                    <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>Subcategorías</th>
+                    <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>Servicios</th>
+                    <th style={{ padding: '8px 10px', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -447,8 +451,8 @@ export default function SettingsServicios({ inline, onBack }) {
 
       {/* ── SECTION: Subcategorías ── */}
       {activeSection === 'subcategorias' && (
-        <div>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
             <button type="button" onClick={openNewSubcategory} style={{ ...btn('primary'), padding: '7px 16px' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
               Nueva subcategoría
@@ -458,7 +462,7 @@ export default function SettingsServicios({ inline, onBack }) {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff' }}>
+          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
             {(() => {
               const catFilter = subcategoryFilterCategory;
               const catList = catFilter ? categories.filter(c => String(c.id) === String(catFilter)) : categories;
@@ -470,9 +474,9 @@ export default function SettingsServicios({ inline, onBack }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase' }}>Nombre</th>
-                      <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase' }}>Categoría</th>
-                      <th style={{ padding: '8px 10px' }}></th>
+                      <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>Nombre</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 800, color: '#64748b', borderBottom: '2px solid #e2e8f0', fontSize: '10px', textTransform: 'uppercase', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>Categoría</th>
+                      <th style={{ padding: '8px 10px', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -583,7 +587,33 @@ export default function SettingsServicios({ inline, onBack }) {
       {/* ── MODAL: Subcategory ── */}
       {showSubcategoryModal && (
         <div onClick={() => setShowSubcategoryModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '14px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: '24px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: '#fff', borderRadius: '14px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: '24px' }}>
+            <button
+              onClick={() => setShowSubcategoryModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px',
+                borderRadius: '50%',
+                color: '#64748b',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              title="Cerrar"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
             <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginBottom: '16px' }}>
               {subcategoryDraft.id ? 'Editar subcategoría' : 'Nueva subcategoría'}
             </div>
