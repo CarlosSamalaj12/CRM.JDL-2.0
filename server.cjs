@@ -3251,8 +3251,18 @@ async function start() {
     });
 
     io.on("connection", (socket) => {
-      socket.on("join", (room) => socket.join(room));
-      socket.on("leave", (room) => socket.leave(room));
+      console.log(`[Socket.io] Nuevo cliente conectado. ID: ${socket.id}`);
+      socket.on("join", (room) => {
+        socket.join(room);
+        console.log(`[Socket.io] Cliente ${socket.id} se unió a la sala: ${room}`);
+      });
+      socket.on("leave", (room) => {
+        socket.leave(room);
+        console.log(`[Socket.io] Cliente ${socket.id} abandonó la sala: ${room}`);
+      });
+      socket.on("disconnect", (reason) => {
+        console.log(`[Socket.io] Cliente desconectado. ID: ${socket.id}. Razón: ${reason}`);
+      });
     });
 
     // Cargar dinámicamente rutas ESM del módulo de informes
