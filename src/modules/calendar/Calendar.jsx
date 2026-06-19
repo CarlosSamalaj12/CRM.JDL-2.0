@@ -244,7 +244,164 @@ export default function Calendar() {
     };
   }, [selectionActive, selectionStart, selectionCurrent, navigate]);
 
-  const weekStart = useMemo(() => currentDate, [currentDate]);
+  const weekStart = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
+
+  const navigateCalendar = (direction) => {
+    const amount = direction === 'next' ? 1 : -1;
+    const newDate = new Date(currentDate);
+    if (viewMode === 'day') {
+      newDate.setDate(newDate.getDate() + amount);
+    } else if (viewMode === 'week') {
+      newDate.setDate(newDate.getDate() + amount * 7);
+    } else if (viewMode === 'month') {
+      newDate.setMonth(newDate.getMonth() + amount);
+    } else if (viewMode === 'year') {
+      newDate.setFullYear(newDate.getFullYear() + amount);
+    }
+    setCurrentDate(newDate);
+  };
+
+  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
+  const touchSelectionTimerRef = useRef(null);
+  const lastTapRef = useRef({ time: 0, cell: '' });
+
+  const handleTouchStart = (e) => {
+    if (e.touches.length !== 1) return;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now()
+    };
+  };
+
+  const handleTouchEnd = (e) => {
+    if (e.changedTouches.length !== 1) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const start = touchStartRef.current;
+    const diffX = endX - start.x;
+    const diffY = endY - start.y;
+    const duration = Date.now() - start.time;
+
+    if (duration < 500 && Math.abs(diffX) > 70 && Math.abs(diffY) < 60) {
+      if (viewMode === 'week') {
+        const scrollContainer = document.querySelector('.cal-week-scroll-container');
+        if (scrollContainer) {
+          const scrollLeft = scrollContainer.scrollLeft;
+          const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+          
+          if (diffX > 70 && scrollLeft <= 5) {
+            navigateCalendar('prev');
+          } else if (diffX < -70 && scrollLeft >= maxScrollLeft - 5) {
+            navigateCalendar('next');
+          }
+        }
+      } else if (viewMode === 'month' || viewMode === 'day') {
+        if (diffX > 70) {
+          navigateCalendar('prev');
+        } else if (diffX < -70) {
+          navigateCalendar('next');
+        }
+      }
+    }
+  };
+
+  const handleCellTouchStart = (e, dateStr, hour) => {
+    const now = Date.now();
+    const cellId = `${dateStr}-${hour}`;
+    const lastTap = lastTapRef.current;
+    
+    if (lastTap.cell === cellId && now - lastTap.time < 300) {
+      if (dateStr < todayStr) {
+        toast('No se pueden programar eventos en fechas anteriores a hoy.');
+        return;
+      }
+      navigate(`/nueva-reserva?date=${dateStr}&endDate=${dateStr}&start=${formatTime(hour)}&end=${formatTime(hour + 1)}`);
+      setSelectionActive(false);
+      return;
+    }
+    lastTapRef.current = { time: now, cell: cellId };
+
+    if (dateStr < todayStr) return;
+    
+    if (touchSelectionTimerRef.current) {
+      clearTimeout(touchSelectionTimerRef.current);
+    }
+    
+    const touch = e.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    
+    touchSelectionTimerRef.current = setTimeout(() => {
+      setSelectionStart({ dateStr, hour });
+      setSelectionCurrent({ dateStr, hour });
+      setSelectionActive(true);
+      if (navigator.vibrate) {
+        navigator.vibrate(40);
+      }
+    }, 280);
+    
+    touchStartRef.current = { x: startX, y: startY, time: now };
+  };
+
+  const handleCellTouchMove = (e) => {
+    const touch = e.touches[0];
+    const start = touchStartRef.current;
+    const diffX = touch.clientX - start.x;
+    const diffY = touch.clientY - start.y;
+    
+    if (!selectionActive) {
+      if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+        if (touchSelectionTimerRef.current) {
+          clearTimeout(touchSelectionTimerRef.current);
+          touchSelectionTimerRef.current = null;
+        }
+      }
+      return;
+    }
+    
+    if (selectionActive) {
+      e.preventDefault();
+      const element = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (element) {
+        const cellEl = element.closest('.cal-hour-cell');
+        if (cellEl) {
+          const dateStr = cellEl.getAttribute('data-date');
+          const hour = parseInt(cellEl.getAttribute('data-hour'), 10);
+          if (dateStr && !isNaN(hour)) {
+            setSelectionCurrent({ dateStr, hour });
+          }
+        }
+      }
+    }
+  };
+
+  const handleCellTouchEnd = (e) => {
+    if (touchSelectionTimerRef.current) {
+      clearTimeout(touchSelectionTimerRef.current);
+      touchSelectionTimerRef.current = null;
+    }
+    
+    if (selectionActive) {
+      if (selectionStart && selectionCurrent) {
+        const minDate = selectionStart.dateStr <= selectionCurrent.dateStr ? selectionStart.dateStr : selectionCurrent.dateStr;
+        const maxDate = selectionStart.dateStr <= selectionCurrent.dateStr ? selectionCurrent.dateStr : selectionStart.dateStr;
+        const minHour = Math.min(selectionStart.hour, selectionCurrent.hour);
+        const maxHour = Math.max(selectionStart.hour, selectionCurrent.hour);
+        
+        const isSingleCell = minDate === maxDate && minHour === maxHour;
+        
+        if (!isSingleCell) {
+          navigate(`/nueva-reserva?date=${minDate}&endDate=${maxDate}&start=${formatTime(minHour)}&end=${formatTime(maxHour + 1)}`);
+        } else {
+          navigate(`/nueva-reserva?date=${minDate}&endDate=${maxDate}&start=${formatTime(minHour)}&end=${formatTime(minHour + 1)}`);
+        }
+      }
+      setSelectionActive(false);
+      setSelectionStart(null);
+      setSelectionCurrent(null);
+    }
+  };
 
   const todayStr = formatDate(new Date());
 
@@ -466,6 +623,9 @@ export default function Calendar() {
                     return (
                       <div 
                         key={hour} 
+                        className="cal-hour-cell"
+                        data-date={dateStr}
+                        data-hour={hour}
                         style={{ 
                           height: HOUR_HEIGHT, 
                           boxSizing: 'border-box',
@@ -502,6 +662,9 @@ export default function Calendar() {
                             setSelectionCurrent({ dateStr, hour });
                           }
                         }}
+                        onTouchStart={(e) => handleCellTouchStart(e, dateStr, hour)}
+                        onTouchMove={handleCellTouchMove}
+                        onTouchEnd={handleCellTouchEnd}
                       />
                     );
                   })}
@@ -886,6 +1049,9 @@ export default function Calendar() {
               return (
                 <div 
                   key={hour} 
+                  className="cal-hour-cell"
+                  data-date={dateStr}
+                  data-hour={hour}
                   style={{ 
                     height: HOUR_HEIGHT, 
                     boxSizing: 'border-box',
@@ -922,6 +1088,9 @@ export default function Calendar() {
                       setSelectionCurrent({ dateStr, hour });
                     }
                   }}
+                  onTouchStart={(e) => handleCellTouchStart(e, dateStr, hour)}
+                  onTouchMove={handleCellTouchMove}
+                  onTouchEnd={handleCellTouchEnd}
                 />
               );
             })}
@@ -1421,17 +1590,20 @@ export default function Calendar() {
   };
 
   return (
-    <div className="calendar-container" style={{ 
-      flex: 1, 
-      margin: '0 0 20px 0',
-      display: 'flex', 
-      flexDirection: 'column', 
-      background: 'white',
-      border: '1.5px solid #e2e8f0',
-      borderRadius: '16px',
-      overflow: 'hidden',
-      boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)'
-    }}>
+    <div className="calendar-container" 
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{ 
+        flex: 1, 
+        margin: '0 0 20px 0',
+        display: 'flex', 
+        flexDirection: 'column', 
+        background: 'white',
+        border: '1.5px solid #e2e8f0',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)'
+      }}>
       <style>{`
         /* ============================================================
            CALENDARIO RESPONSIVE — Estilos correctamente orientados
