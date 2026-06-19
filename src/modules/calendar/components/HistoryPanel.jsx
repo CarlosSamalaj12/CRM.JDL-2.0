@@ -58,8 +58,9 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
   };
 
   return (
-    <div style={{
+    <div className="hist-modal-container" style={{
       width: '520px',
+      maxWidth: 'calc(100vw - 40px)',
       background: 'white',
       borderRadius: '20px',
       boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.25)',
@@ -96,9 +97,53 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
         .btn-exit-modal:hover svg {
           transform: rotate(90deg) scale(1.2) !important;
         }
+        @media (max-width: 600px) {
+          .hist-modal-container {
+            max-width: calc(100vw - 32px) !important;
+            width: 100% !important;
+            border-radius: 16px !important;
+            max-height: calc(100dvh - 32px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .hist-modal-header {
+            padding: 14px 16px !important;
+          }
+          .hist-modal-header h2 {
+            font-size: 17px !important;
+          }
+          .hist-modal-header p {
+            font-size: 12px !important;
+          }
+          .hist-modal-body {
+            padding: 16px !important;
+            max-height: calc(100dvh - 200px) !important;
+          }
+          .hist-modal-footer {
+            padding: 12px 16px !important;
+          }
+          .hist-modal-footer button {
+            width: 100% !important;
+          }
+        }
+        @media (max-width: 380px) {
+          .hist-modal-container {
+            max-width: calc(100vw - 16px) !important;
+            max-height: calc(100dvh - 16px) !important;
+          }
+          .hist-modal-header {
+            padding: 10px 12px !important;
+          }
+          .hist-modal-body {
+            padding: 12px !important;
+          }
+          .hist-modal-footer {
+            padding: 10px 12px !important;
+          }
+        }
       `}</style>
       {/* Header */}
-      <div style={headerStyle}>
+      <div className="hist-modal-header" style={headerStyle}>
         <div>
           <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>📋 Historial de Cambios</h2>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>{eventName}</p>
@@ -111,7 +156,7 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
       </div>
 
       {/* Body */}
-      <div style={bodyStyle}>
+      <div className="hist-modal-body" style={bodyStyle}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontWeight: '600' }}>
             Cargando...
@@ -232,7 +277,7 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
       </div>
 
       {/* Footer */}
-      <div style={footerStyle}>
+      <div className="hist-modal-footer" style={footerStyle}>
         <button onClick={onClose} className="btn-cancel" style={{
           padding: '12px 48px',
           borderRadius: '12px',

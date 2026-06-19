@@ -96,8 +96,8 @@ export default function CustomersModule() {
   };
 
   return (
-    <div className="module-container-wrapper" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
-      <div className="module-card-container" style={{ 
+    <div className="module-container-wrapper leads-wrapper" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
+      <div className="module-card-container leads-card" style={{ 
         display: 'flex', 
         flexDirection: 'column',
         height: '100%',
@@ -109,13 +109,13 @@ export default function CustomersModule() {
         border: '1px solid #d3e4fe',
         overflow: 'hidden'
       }}>
-        <div className="module-header-container" style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <div>
-              <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#1e293b', margin: 0 }}>
+        <div className="module-header-container leads-header" style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+          <div className="leads-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div className="leads-title-group">
+              <h1 className="leads-title" style={{ fontSize: '26px', fontWeight: '800', color: '#1e293b', margin: 0 }}>
                 Pipeline de Leads
               </h1>
-              <p style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', margin: 0 }}>
+              <p className="leads-subtitle" style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', margin: 0 }}>
                 {filteredLeads.length} leads en el pipeline
               </p>
             </div>
@@ -139,9 +139,9 @@ export default function CustomersModule() {
           </div>
         </div>
 
-        <div className="module-filters-container" style={{ padding: '16px 24px 12px 24px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
-            <div style={{ flex: '2 1 200px' }}>
+        <div className="module-filters-container leads-filters" style={{ padding: '16px 24px 12px 24px', flexShrink: 0 }}>
+          <div className="leads-filters-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
+            <div className="leads-filter-search" style={{ flex: '2 1 200px' }}>
               <input 
                 type="text" 
                 placeholder="Buscar por nombre, cliente, salón..." 
@@ -151,8 +151,8 @@ export default function CustomersModule() {
               />
             </div>
             
-            <div style={{ flex: '1 1 140px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Estado</label>
+            <div className="leads-filter-select" style={{ flex: '1 1 140px' }}>
+              <label className="leads-filter-label" style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Estado</label>
               <select 
                 value={statusFilter} 
                 onChange={e => setStatusFilter(e.target.value)}
@@ -165,8 +165,8 @@ export default function CustomersModule() {
               </select>
             </div>
 
-            <div style={{ flex: '1 1 140px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Vendedor</label>
+            <div className="leads-filter-select" style={{ flex: '1 1 140px' }}>
+              <label className="leads-filter-label" style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Vendedor</label>
               <select 
                 value={userFilter} 
                 onChange={e => setUserFilter(e.target.value)}
@@ -179,8 +179,8 @@ export default function CustomersModule() {
               </select>
             </div>
 
-            <div style={{ flex: '1 1 130px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Fecha desde</label>
+            <div className="leads-filter-date" style={{ flex: '1 1 130px' }}>
+              <label className="leads-filter-label" style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Fecha desde</label>
               <input 
                 type="date" 
                 value={dateFrom} 
@@ -189,8 +189,8 @@ export default function CustomersModule() {
               />
             </div>
 
-            <div style={{ flex: '1 1 130px' }}>
-              <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Fecha hasta</label>
+            <div className="leads-filter-date" style={{ flex: '1 1 130px' }}>
+              <label className="leads-filter-label" style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>Fecha hasta</label>
               <input 
                 type="date" 
                 value={dateTo} 
@@ -199,7 +199,7 @@ export default function CustomersModule() {
               />
             </div>
 
-            <button onClick={clearFilters} style={{ 
+            <button className="leads-clear-btn" onClick={clearFilters} style={{ 
               background: '#f1f5f9', border: 'none', padding: '10px 16px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', color: '#0351beff', fontSize: '12px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
               Limpiar filtros
@@ -240,10 +240,115 @@ export default function CustomersModule() {
           .btn-exit:hover .crm-icon-x {
             transform: rotate(90deg) scale(1.2);
           }
+
+          /* === Responsive: Tablets / Móviles grandes ≤768px === */
+          @media (max-width: 768px) {
+            .leads-wrapper {
+              padding: 8px !important;
+            }
+            .leads-card {
+              border-radius: 16px !important;
+            }
+            .leads-header {
+              padding: 12px 14px !important;
+            }
+            .leads-title {
+              font-size: 20px !important;
+            }
+            .leads-subtitle {
+              font-size: 12px !important;
+            }
+            .leads-filters {
+              padding: 10px 14px 8px 14px !important;
+            }
+            .leads-filters-row {
+              gap: 8px !important;
+            }
+            .leads-filter-search {
+              flex: 1 1 100% !important;
+              min-width: 0 !important;
+            }
+            .leads-filter-select {
+              flex: 1 1 calc(50% - 8px) !important;
+              min-width: 0 !important;
+            }
+            .leads-filter-date {
+              flex: 1 1 calc(50% - 8px) !important;
+              min-width: 0 !important;
+            }
+            .leads-clear-btn {
+              width: 100% !important;
+            }
+          }
+
+          /* === Tabla responsive === */
+          @media (max-width: 768px) {
+            .leads-table-wrap {
+              padding: 0 14px 14px 14px !important;
+            }
+            .leads-table-scroll {
+              border-radius: 12px !important;
+              -webkit-overflow-scrolling: touch !important;
+            }
+            .leads-table th,
+            .leads-table td {
+              padding: 10px 12px !important;
+              font-size: 11px !important;
+            }
+            .leads-table th {
+              font-size: 10px !important;
+            }
+          }
+
+          /* === Responsive: Móviles pequeños ≤480px === */
+          @media (max-width: 480px) {
+            .leads-wrapper {
+              padding: 6px !important;
+            }
+            .leads-card {
+              border-radius: 12px !important;
+            }
+            .leads-header {
+              padding: 10px 12px !important;
+            }
+            .leads-title {
+              font-size: 17px !important;
+            }
+            .leads-subtitle {
+              font-size: 11px !important;
+            }
+            .leads-filters {
+              padding: 8px 12px 6px 12px !important;
+            }
+            .leads-filters-row {
+              gap: 6px !important;
+            }
+            .leads-filter-select {
+              flex: 1 1 100% !important;
+            }
+            .leads-filter-date {
+              flex: 1 1 100% !important;
+            }
+            .leads-table-wrap {
+              padding: 0 12px 12px 12px !important;
+            }
+            .leads-table-scroll {
+              border-radius: 10px !important;
+            }
+            .leads-table th,
+            .leads-table td {
+              padding: 8px 8px !important;
+              font-size: 10px !important;
+            }
+            .leads-table th {
+              font-size: 9px !important;
+              padding: 8px 8px !important;
+            }
+          }
         `}</style>
-        <div className="module-table-wrapper" style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflowX: 'auto', overflowY: 'auto', flex: 1, width: '100%', minHeight: 0 }}>
-            <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
+        <div className="module-table-wrapper leads-table-wrap" style={{ padding: '0 24px 24px 24px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <div className="leads-table-scroll" style={{ border: '1px solid #e2e8f0', borderRadius: '16px', overflowX: 'auto', overflowY: 'auto', flex: 1, width: '100%', minHeight: 0 }}>
+            <table className="leads-table" style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr>
                   <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', textAlign: 'left', padding: '14px 16px', fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>FECHA</th>

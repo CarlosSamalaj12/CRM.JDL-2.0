@@ -10,18 +10,19 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 10000
+      zIndex: 10000,
+      padding: '8px'
     }}>
-      <div style={{
+      <div className="confirm-modal-card" style={{
         background: 'white',
         borderRadius: '16px',
         width: '400px',
-        maxWidth: '90%',
+        maxWidth: '100%',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
         overflow: 'hidden',
         animation: 'scaleIn 0.2s ease-out'
       }}>
-        <div style={{ padding: '24px' }}>
+        <div className="confirm-modal-body" style={{ padding: '24px' }}>
           <h2 style={{ 
             margin: '0 0 12px 0', 
             fontSize: '20px', 
@@ -38,7 +39,7 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
           </p>
         </div>
         
-        <div style={{ 
+        <div className="confirm-modal-actions" style={{ 
           padding: '16px 24px', 
           background: '#f8fafc', 
           display: 'flex', 
@@ -85,6 +86,41 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
         @keyframes scaleIn {
           from { transform: scale(0.95); opacity: 0; }
           to { transform: scale(1); opacity: 1; }
+        }
+        @media (max-width: 540px) {
+          .confirm-modal-card {
+            border-radius: 12px !important;
+            width: calc(100vw - 32px) !important;
+          }
+          .confirm-modal-body {
+            padding: 18px !important;
+          }
+          .confirm-modal-body h2 {
+            font-size: 17px !important;
+          }
+          .confirm-modal-body p {
+            font-size: 13px !important;
+          }
+          .confirm-modal-actions {
+            padding: 12px 18px !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          .confirm-modal-actions button {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+        }
+        @media (max-width: 380px) {
+          .confirm-modal-card {
+            width: calc(100vw - 16px) !important;
+          }
+          .confirm-modal-body {
+            padding: 14px !important;
+          }
+          .confirm-modal-actions {
+            padding: 10px 14px !important;
+          }
         }
       `}</style>
     </div>

@@ -237,16 +237,104 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
         .btn-exit:hover .crm-icon-x {
           transform: rotate(90deg) scale(1.2);
         }
+        @media (max-width: 540px) {
+          .app-modal-container {
+            max-width: calc(100vw - 32px) !important;
+            width: 100% !important;
+            border-radius: 16px !important;
+            max-height: calc(100dvh - 32px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .app-modal-header {
+            padding: 14px 16px !important;
+          }
+          .app-modal-header h2 {
+            font-size: 17px !important;
+          }
+          .app-modal-header p {
+            font-size: 12px !important;
+          }
+          .app-modal-body {
+            padding: 16px !important;
+            max-height: calc(100dvh - 200px) !important;
+          }
+          .app-modal-footer {
+            padding: 12px 16px !important;
+          }
+          .app-modal-card {
+            padding: 12px !important;
+            gap: 10px !important;
+          }
+          .app-modal-card-icon {
+            width: 38px !important;
+            height: 38px !important;
+            font-size: 17px !important;
+            border-radius: 10px !important;
+          }
+          .app-modal-card-title {
+            font-size: 12.5px !important;
+            flex-wrap: wrap !important;
+          }
+          .app-modal-card-desc {
+            font-size: 11px !important;
+          }
+          .app-modal-action-btn {
+            padding: 5px 10px !important;
+            font-size: 10px !important;
+          }
+          .app-modal-form input,
+          .app-modal-form select,
+          .app-modal-form textarea {
+            padding: 10px !important;
+            font-size: 13px !important;
+          }
+          .app-modal-form label {
+            font-size: 10px !important;
+          }
+          .app-modal-empty-icon {
+            font-size: 36px !important;
+          }
+          .app-modal-empty-title {
+            font-size: 14px !important;
+          }
+          .app-modal-empty-desc {
+            font-size: 12px !important;
+          }
+          .app-modal-btn-row {
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          .app-modal-btn-row button {
+            width: 100% !important;
+          }
+        }
+        @media (max-width: 380px) {
+          .app-modal-container {
+            max-width: calc(100vw - 16px) !important;
+            max-height: calc(100dvh - 16px) !important;
+          }
+          .app-modal-header {
+            padding: 10px 12px !important;
+          }
+          .app-modal-body {
+            padding: 12px !important;
+          }
+          .app-modal-footer {
+            padding: 10px 12px !important;
+          }
+        }
       `}</style>
-    <div style={{
+    <div className="app-modal-container" style={{
       width: '480px',
+      maxWidth: 'calc(100vw - 40px)',
       background: 'white',
       borderRadius: '20px',
       boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.25)',
       overflow: 'hidden'
     }}>
       {/* Header */}
-      <div style={headerStyle}>
+      <div className="app-modal-header" style={headerStyle}>
         <div>
           <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>📅 Citas y Recordatorios</h2>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>{eventName}</p>
@@ -262,7 +350,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
       </div>
 
       {/* Body */}
-      <div style={bodyStyle}>
+      <div className="app-modal-body" style={bodyStyle}>
         {!showForm ? (
           <>
             {loading ? (
@@ -271,15 +359,15 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
               </div>
             ) : reminders.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📭</div>
-                <div style={{ fontWeight: '700', fontSize: '16px', color: '#64748b' }}>No hay citas programadas</div>
-                <div style={{ fontSize: '13px', marginTop: '8px' }}>Agrega recordatorios para dar seguimiento</div>
+                <div className="app-modal-empty-icon" style={{ fontSize: '48px', marginBottom: '12px' }}>📭</div>
+                <div className="app-modal-empty-title" style={{ fontWeight: '700', fontSize: '16px', color: '#64748b' }}>No hay citas programadas</div>
+                <div className="app-modal-empty-desc" style={{ fontSize: '13px', marginTop: '8px' }}>Agrega recordatorios para dar seguimiento</div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {reminders.map(rem => (
-                  <div key={rem.id} style={cardStyle}>
-                    <div style={{
+                  <div key={rem.id} className="app-modal-card" style={cardStyle}>
+                    <div className="app-modal-card-icon" style={{
                       width: '48px',
                       height: '48px',
                       borderRadius: '12px',
@@ -292,7 +380,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
                       flexShrink: 0
                     }}>📅</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="app-modal-card-title" style={{ fontWeight: '800', color: '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {formatDateTime(rem)}
                         {rem.creatorName && (
                           <span style={{ 
@@ -307,7 +395,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>
+                      <div className="app-modal-card-desc" style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>
                         {channelLabels[rem.channel] || rem.channel}
                         {rem.notes && ` • ${rem.notes}`}
                       </div>
@@ -315,8 +403,8 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
                     
                     {/* Botones de acción: Solo visibles si el creador es el usuario actual */}
                     {(!(rem.createdBy || rem.createdByUserId) || (rem.createdBy || rem.createdByUserId) === currentUser?.id) && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <button onClick={() => handleEditClick(rem)} style={{
+                      <div className="app-modal-actions" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <button onClick={() => handleEditClick(rem)} className="app-modal-action-btn" style={{
                           padding: '6px 12px',
                           fontSize: '11px',
                           background: '#f1f5f9',
@@ -328,7 +416,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
                         }}>
                           Editar
                         </button>
-                        <button onClick={() => handleDeleteClick(rem.id)} style={{
+                        <button onClick={() => handleDeleteClick(rem.id)} className="app-modal-action-btn" style={{
                           padding: '6px 12px',
                           fontSize: '11px',
                           background: '#fee2e2',
@@ -348,7 +436,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
             )}
           </>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="app-modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <label style={labelStyle}>Fecha</label>
               <input type="date" value={newReminder.date} onChange={e => setNewReminder(prev => ({ ...prev, date: e.target.value }))} style={inputStyle} />
@@ -371,7 +459,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
               <label style={labelStyle}>Notas</label>
               <textarea value={newReminder.notes} onChange={e => setNewReminder(prev => ({ ...prev, notes: e.target.value }))} placeholder="Detalles de la cita..." style={{ ...inputStyle, minHeight: '80px', resize: 'none' }} />
             </div>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+            <div className="app-modal-btn-row" style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
               <button onClick={() => { setShowForm(false); setEditingReminderId(null); }} className="btn-cancel" style={{ width: '50%', padding: '12px' }}>Cancelar</button>
               <button onClick={handleAddOrUpdate} disabled={saving} className="btn-teal" style={{ width: '50%', padding: '12px', opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Guardando...' : editingReminderId ? 'Actualizar Cita' : 'Guardar Cita'}
@@ -383,7 +471,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
 
       {/* Footer */}
       {!showForm && (
-        <div style={footerStyle}>
+        <div className="app-modal-footer" style={footerStyle}>
           <button onClick={() => setShowForm(true)} className="btn-cotizar" style={{
             width: '100%',
             padding: '14px',
