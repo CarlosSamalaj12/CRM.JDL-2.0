@@ -53,6 +53,7 @@ const pool = mariadb.createPool({
   collation: "utf8mb4_unicode_ci",
 });
 
+let io;
 const app = express();
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -2775,8 +2776,8 @@ app.put("/api/state", async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! BD actualizada (${(mergedState.events?.length || nextState.events?.length || 0)} eventos).`);
 
     // Emitir actualización vía Socket.io en tiempo real a todos los clientes
-    if (req.io) {
-      req.io.emit("state-updated", { timestamp: Date.now() });
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now() });
       console.log(`[${new Date().toLocaleTimeString()}] 📡 Evento 'state-updated' emitido vía Socket.io a los clientes.`);
     }
 
@@ -3238,7 +3239,7 @@ async function start() {
     app.use("/uploads", express.static(uploadsDir));
 
     const server = http.createServer(app);
-    const io = new Server(server, {
+    io = new Server(server, {
       cors: {
         origin: "*",
         methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
@@ -3251,18 +3252,8 @@ async function start() {
     });
 
     io.on("connection", (socket) => {
-      console.log(`[Socket.io] Nuevo cliente conectado. ID: ${socket.id}`);
-      socket.on("join", (room) => {
-        socket.join(room);
-        console.log(`[Socket.io] Cliente ${socket.id} se unió a la sala: ${room}`);
-      });
-      socket.on("leave", (room) => {
-        socket.leave(room);
-        console.log(`[Socket.io] Cliente ${socket.id} abandonó la sala: ${room}`);
-      });
-      socket.on("disconnect", (reason) => {
-        console.log(`[Socket.io] Cliente desconectado. ID: ${socket.id}. Razón: ${reason}`);
-      });
+      socket.on("join", (room) => socket.join(room));
+      socket.on("leave", (room) => socket.leave(room));
     });
 
     // Cargar dinámicamente rutas ESM del módulo de informes
