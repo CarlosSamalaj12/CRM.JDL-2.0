@@ -31,6 +31,8 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   useEffect(() => {
     if (!anchorRef?.current) return;
     
+    let rafId = null;
+    
     const calculatePosition = () => {
       const anchor = anchorRef.current;
       if (!anchor) return;
@@ -55,12 +57,18 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
       setPosition({ top, left });
     };
     
+    const handleScroll = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(calculatePosition);
+    };
+    
     calculatePosition();
     window.addEventListener('resize', calculatePosition);
-    window.addEventListener('scroll', calculatePosition, true);
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
     return () => {
       window.removeEventListener('resize', calculatePosition);
-      window.removeEventListener('scroll', calculatePosition, true);
+      window.removeEventListener('scroll', handleScroll, true);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, [anchorRef]);
 

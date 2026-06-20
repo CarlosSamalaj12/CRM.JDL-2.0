@@ -192,12 +192,15 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     version: event?.quote?.version || 1,
     versions: event?.quote?.versions || [],
     paymentType: event?.quote?.paymentType || '',
+    paymentTypes: event?.quote?.paymentTypes || (event?.quote?.paymentType ? event.quote.paymentType.split(', ').filter(Boolean) : []),
+    folio: event?.quote?.folio || '',
     menuMontajeEntries: event?.quote?.menuMontajeEntries || [],
     menuMontajeVersion: event?.quote?.menuMontajeVersion || 1,
     menuMontajeVersions: event?.quote?.menuMontajeVersions || [],
     advanceLogs: event?.quote?.advanceLogs || []
   });
   const savedQuoteSnapshotRef = useRef(quoteSnapshot(quote));
+  const institutionFieldRef = useRef(null);
 
   const [serviceQty, setServiceQty] = useState(1);
 
@@ -670,8 +673,32 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const handleSaveQuote = async () => {
     if (!quote.companyId) {
-      localSwal({ icon: 'warning', title: 'Falta la institución', text: 'Busca y selecciona una institución del listado antes de guardar.' });
+      localSwal({ 
+        icon: 'warning', 
+        title: 'Falta la empresa', 
+        html: 'Para guardar la cotización es necesario seleccionar una empresa.<br><br><strong>Por favor, busca y selecciona una institución del listado.</strong>',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#2563eb'
+      });
       setShowDocPanel(true);
+      // Scroll automático al campo de Institución
+      setTimeout(() => {
+        if (institutionFieldRef.current) {
+          institutionFieldRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+          });
+          // Resaltar el campo brevemente
+          institutionFieldRef.current.style.transition = 'box-shadow 0.3s';
+          institutionFieldRef.current.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.3)';
+          setTimeout(() => {
+            if (institutionFieldRef.current) {
+              institutionFieldRef.current.style.boxShadow = '';
+            }
+          }, 2000);
+        }
+      }, 300);
       return;
     }
     if (!quote.contact) {
@@ -716,21 +743,76 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       if (result.isConfirmed) {
         const user = authService.getCurrentUser();
-        const { value: pf } = await localSwal({
-          title: 'Formato de impresión',
-          input: 'select',
-          inputOptions: {
-            standard: '📄 Estándar — Cotización + Contrato',
-            completa: '📋 Completa — Cotización + Menú Montaje + Contrato',
-            sin_precios: '🔒 Sin precios — Cotización (Q0) + Menú Montaje'
-          },
-          inputPlaceholder: 'Selecciona un formato',
+        
+        // Modal moderno de selección de formato
+        const formatModal = await localSwal({
+          title: '<strong style="color:#118895">Selecciona el formato</strong>',
+          html: `
+            <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px;padding:0 10px;">
+              <div class="format-card" data-format="standard" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#118895,#0d6b76);display:flex;align-items:center;justify-content:center;font-size:24px;">📄</div>
+                  <div style="flex:1;">
+                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Estándar</div>
+                    <div style="font-size:12px;color:#64748b;">Cotización + Contrato</div>
+                  </div>
+                  <div style="color:#94a3b8;font-size:20px;">→</div>
+                </div>
+              </div>
+              
+              <div class="format-card" data-format="completa" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:24px;">📋</div>
+                  <div style="flex:1;">
+                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Completa</div>
+                    <div style="font-size:12px;color:#64748b;">Cotización + Menú Montaje + Contrato</div>
+                  </div>
+                  <div style="color:#94a3b8;font-size:20px;">→</div>
+                </div>
+              </div>
+              
+              <div class="format-card" data-format="sin_precios" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:24px;">🔒</div>
+                  <div style="flex:1;">
+                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Sin precios</div>
+                    <div style="font-size:12px;color:#64748b;">Cotización (Q0) + Menú Montaje</div>
+                  </div>
+                  <div style="color:#94a3b8;font-size:20px;">→</div>
+                </div>
+              </div>
+            </div>
+          `,
           showCancelButton: true,
-          confirmButtonText: 'Imprimir',
+          showConfirmButton: false,
           cancelButtonText: 'Cancelar',
-          confirmButtonColor: '#1e3a5f',
-          cancelButtonColor: '#6e7881'
+          cancelButtonColor: '#6e7881',
+          width: '480px',
+          didOpen: () => {
+            const cards = document.querySelectorAll('.format-card');
+            cards.forEach(card => {
+              card.addEventListener('mouseenter', function() {
+                this.style.borderColor = '#118895';
+                this.style.boxShadow = '0 4px 12px rgba(17,136,149,0.15)';
+                this.style.transform = 'translateY(-2px)';
+              });
+              card.addEventListener('mouseleave', function() {
+                this.style.borderColor = '#e5e7eb';
+                this.style.boxShadow = 'none';
+                this.style.transform = 'translateY(0)';
+              });
+              card.addEventListener('click', function() {
+                const format = this.getAttribute('data-format');
+                Swal.clickConfirm();
+                window.__selectedPrintFormat = format;
+              });
+            });
+          }
         });
+        
+        const pf = window.__selectedPrintFormat;
+        window.__selectedPrintFormat = null;
+        
         if (pf) {
           await generateQuotePrintDocument(finalQuote, user, pf, event);
         }
@@ -3265,7 +3347,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 {/* col 1 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {/* ── Campo Institución con dropdown ── */}
-                  <div>
+                  <div ref={institutionFieldRef}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <label style={{ ...fieldLabel, marginBottom: 0 }}>Institución</label>
                       <button
@@ -3359,39 +3441,195 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
                 {/* col 2 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[
-                    { label: 'Tipo de evento', key: 'eventType', type: 'text' },
-                    { label: 'Salón / Venue', key: 'venue', type: 'text' },
-                    { label: 'Horario', key: 'schedule', type: 'text' },
-                    { label: 'Código', key: 'code', type: 'text' },
-                    { label: 'Fecha documento', key: 'docDate', type: 'date' },
-                    { label: 'No. personas', key: 'people', type: 'number' },
-                    { label: 'Fecha evento', key: 'eventDate', type: 'date' },
-                    { label: 'Fecha fin', key: 'endDate', type: 'date' },
-                    { label: 'Fecha límite pago', key: 'dueDate', type: 'date' },
-                  ].map(f => (
-                    <div key={f.key}>
-                      <label style={fieldLabel}>{f.label}</label>
-                      <input 
-                        style={fieldInput} 
-                        type={f.type} 
-                        value={quote[f.key] || ''} 
-                        onChange={e => {
-                          let val = e.target.value;
-                          if (f.key === 'people') {
-                            val = val.replace(/\D/g, '');
+                  {/* Tipo de evento - Solo lectura */}
+                  <div>
+                    <label style={fieldLabel}>Tipo de evento</label>
+                    <input 
+                      style={{ ...fieldInput, background: '#f1f5f9', cursor: 'not-allowed' }} 
+                      type="text" 
+                      value={quote.eventType || ''} 
+                      readOnly
+                    />
+                  </div>
+                  
+                  {/* Salón / Venue */}
+                  <div>
+                    <label style={fieldLabel}>Salón / Venue</label>
+                    <input 
+                      style={fieldInput} 
+                      type="text" 
+                      value={quote.venue || ''} 
+                      onChange={e => setQuote(p => ({ ...p, venue: e.target.value }))}
+                    />
+                  </div>
+                  
+                  {/* Horario */}
+                  <div>
+                    <label style={fieldLabel}>Horario</label>
+                    <input 
+                      style={fieldInput} 
+                      type="text" 
+                      value={quote.schedule || ''} 
+                      onChange={e => setQuote(p => ({ ...p, schedule: e.target.value }))}
+                    />
+                  </div>
+                  
+                  {/* Código - Solo lectura */}
+                  <div>
+                    <label style={fieldLabel}>Código</label>
+                    <input 
+                      style={{ ...fieldInput, background: '#f1f5f9', cursor: 'not-allowed' }} 
+                      type="text" 
+                      value={quote.code || ''} 
+                      readOnly
+                    />
+                  </div>
+                  
+                  {/* Número de Folio */}
+                  <div>
+                    <label style={fieldLabel}>No. Folio</label>
+                    <input 
+                      style={fieldInput} 
+                      type="text" 
+                      value={quote.folio || ''} 
+                      onChange={e => setQuote(p => ({ ...p, folio: e.target.value }))}
+                      placeholder="Ej: FOL-001"
+                    />
+                  </div>
+                  
+                  {/* Fecha documento */}
+                  <div>
+                    <label style={fieldLabel}>Fecha documento</label>
+                    <input 
+                      style={fieldInput} 
+                      type="date" 
+                      value={quote.docDate || ''} 
+                      onChange={e => setQuote(p => ({ ...p, docDate: e.target.value }))}
+                    />
+                  </div>
+                  
+                  {/* No. personas */}
+                  <div>
+                    <label style={fieldLabel}>No. personas</label>
+                    <input 
+                      style={fieldInput} 
+                      type="number" 
+                      value={quote.people || ''} 
+                      onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        setQuote(p => ({ ...p, people: val }));
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Fecha evento */}
+                  <div>
+                    <label style={fieldLabel}>Fecha evento</label>
+                    <input 
+                      style={fieldInput} 
+                      type="date" 
+                      value={quote.eventDate || ''} 
+                      onChange={e => {
+                        const val = e.target.value;
+                        setQuote(p => {
+                          const next = { ...p, eventDate: val };
+                          if (val && (p.companyId || p.companyName)) {
+                            next.dueDate = calculateDueDate(val);
                           }
-                          setQuote(p => {
-                            const next = { ...p, [f.key]: val };
-                            if (f.key === 'eventDate' && (p.companyId || p.companyName)) {
-                              next.dueDate = calculateDueDate(val);
-                            }
-                            return next;
-                          });
-                        }} 
-                      />
+                          return next;
+                        });
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Fecha fin */}
+                  <div>
+                    <label style={fieldLabel}>Fecha fin</label>
+                    <input 
+                      style={fieldInput} 
+                      type="date" 
+                      value={quote.endDate || ''} 
+                      onChange={e => setQuote(p => ({ ...p, endDate: e.target.value }))}
+                    />
+                  </div>
+                  
+                  {/* Fecha límite pago */}
+                  <div>
+                    <label style={fieldLabel}>Fecha límite pago</label>
+                    <input 
+                      style={fieldInput} 
+                      type="date" 
+                      value={quote.dueDate || ''} 
+                      onChange={e => setQuote(p => ({ ...p, dueDate: e.target.value }))}
+                    />
+                  </div>
+                  
+                  {/* Forma de pago - Selección múltiple */}
+                  <div>
+                    <label style={fieldLabel}>Forma de pago</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                      {(quote.paymentTypes || []).map((type, idx) => (
+                        <span 
+                          key={idx}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            background: '#e0f2fe',
+                            color: '#0369a1',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {type}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newTypes = (quote.paymentTypes || []).filter((_, i) => i !== idx);
+                              setQuote(p => ({ ...p, paymentTypes: newTypes, paymentType: newTypes.join(', ') }));
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#0369a1',
+                              cursor: 'pointer',
+                              padding: '0',
+                              fontSize: '14px',
+                              lineHeight: 1,
+                              fontWeight: 700,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
                     </div>
-                  ))}
+                    <select 
+                      style={fieldInput}
+                      value=""
+                      onChange={e => {
+                        if (e.target.value) {
+                          const newType = e.target.value;
+                          const currentTypes = quote.paymentTypes || [];
+                          if (!currentTypes.includes(newType)) {
+                            const newTypes = [...currentTypes, newType];
+                            setQuote(p => ({ ...p, paymentTypes: newTypes, paymentType: newTypes.join(', ') }));
+                          }
+                          e.target.value = '';
+                        }
+                      }}
+                    >
+                      <option value="">Seleccionar forma de pago...</option>
+                      <option value="Efectivo">Efectivo</option>
+                      <option value="Crédito">Crédito</option>
+                      <option value="Transferencia">Transferencia</option>
+                      <option value="Tarjeta">Tarjeta</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Depósito">Depósito</option>
+                    </select>
+                  </div>
                 </div>
 
               </div>

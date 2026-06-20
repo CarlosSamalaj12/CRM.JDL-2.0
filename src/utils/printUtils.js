@@ -408,7 +408,16 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     const saldoDoc = Math.max(0, totalDoc - totalAnticiposDoc);
     const docDate = normalizeDocDate(quote.docDate || quote.quotedAt?.split("T")[0] || new Date().toISOString().slice(0, 10));
     const quoteHeaderSrc = isServiHospTemplate ? "/templates/EncabezadoServ.jpg" : "/templates/Encabezadojdl.png";
-    const quoteDocLabel = `COTIZACION ${String(quote.companyName || "JARDINES DEL LAGO").toUpperCase()}`;
+    
+    // Determinar el prefijo según el formato de impresión
+    let docPrefix = "COTIZACIÓN";
+    if (printOption === "completa") {
+      docPrefix = "CONTRATO";
+    } else if (printOption === "sin_precios") {
+      docPrefix = "INFORME";
+    }
+    
+    const quoteDocLabel = `${docPrefix} ${String(quote.companyName || "JARDINES DEL LAGO").toUpperCase()}`;
     const discountLabel = Number(discountDoc) > 0 && quote.discountType === "PERCENT" && Number(quote.discountValue || 0) > 0
       ? `DESCUENTO (${Number(quote.discountValue).toFixed(2)}%)`
       : "DESCUENTO";
@@ -604,26 +613,30 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       <html lang="es">
         <head>
           <meta charset="utf-8" />
-          <title>Cotización ${escapeHtml(quote.code || "")}</title>
+          <title>${docPrefix} ${escapeHtml(quote.code || "")}</title>
           <style>
             :root{
               --paper:#ffffff;
-              --surface:#fcfcfd;
+              --surface:#fafbfc;
               --line:#d5dce3;
-              --zebra:#f5f7fa;
-              --brand:#1e3a5f;
-              --brand-deep:#142c47;
-              --brand-muted:#eef1f5;
-              --title:#1a2b3d;
+              --line-light:#e8edf2;
+              --zebra:#f8fafc;
+              --brand:#118895;
+              --brand-deep:#0d6b76;
+              --brand-muted:#e6f4f6;
+              --title:#0a5a63;
+              --accent:#c9a961;
+              --success:#10b981;
             }
-            *{ box-sizing:border-box; }
+            *{ box-sizing:border-box; margin:0; padding:0; }
             html,body{ margin:0; padding:0; }
             body{
-              font-family:Arial,sans-serif;
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
               background:#f1f3f6;
               color:#1f3b4d;
               -webkit-print-color-adjust:exact;
               print-color-adjust:exact;
+              line-height:1.4;
             }
             .doc{
               width:min(1080px,100%);
@@ -640,170 +653,276 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               object-position:center top;
             }
             .head{
-              background:var(--brand);
+              background:linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
               color:#fff;
-              padding:11px 16px;
+              padding:14px 20px;
               font-weight:800;
-              font-size:13px;
-              letter-spacing:.42px;
+              font-size:14px;
+              letter-spacing:.5px;
               text-transform:uppercase;
+              border-bottom:3px solid var(--accent);
+              display:flex;
+              align-items:center;
+              justify-content:space-between;
+            }
+            .head::after{
+              content:"";
+              display:inline-block;
+              width:40px;
+              height:3px;
+              background:var(--accent);
+              margin-left:10px;
             }
             .quoteMetaTable{
               width:100%;
               border-collapse:collapse;
               table-layout:fixed;
-              margin:0 0 10px;
-              border-top:3px solid rgba(30,58,95,.25);
-              border-left:1px solid var(--line);
-              border-right:1px solid var(--line);
+              margin:0 0 12px;
+              border:1px solid var(--line);
               background:var(--surface);
             }
             .quoteMetaTable col.metaLabel{ width:13%; }
             .quoteMetaTable col.metaValue{ width:20.333%; }
             .quoteMetaTable td{
-              border-bottom:1px solid var(--line);
-              border-right:1px solid var(--line);
-              padding:6px 8px;
-              font-size:12px;
+              border-bottom:1px solid var(--line-light);
+              border-right:1px solid var(--line-light);
+              padding:8px 10px;
+              font-size:12.5px;
               color:#274152;
               vertical-align:middle;
               background:var(--surface);
             }
+            .quoteMetaTable tr:last-child td{ border-bottom:none; }
             .quoteMetaTable tr td:last-child{ border-right:none; }
-            .quoteMetaTable td.metaLabel{ background:#eef1f5; color:var(--title); font-weight:700; }
+            .quoteMetaTable td.metaLabel{ 
+              background:var(--brand-muted); 
+              color:var(--title); 
+              font-weight:700;
+              font-size:11.5px;
+              text-transform:uppercase;
+              letter-spacing:0.3px;
+            }
             .quoteMetaTable td.metaValue{ font-weight:600; }
-            .quoteMetaTable tr.metaDivider td{ border-top:2px solid rgba(30,58,95,.28); }
-            .quoteMetaTable tr.metaGap td{ padding:0; height:9px; border:none; background:#f5f7fa; }
+            .quoteMetaTable tr.metaDivider td{ 
+              border-top:2px solid var(--brand);
+              background:var(--brand-muted);
+            }
+            .quoteMetaTable tr.metaGap td{ padding:0; height:8px; border:none; background:var(--surface); }
             table{ width:100%; border-collapse:collapse; }
-            .quoteItemsTablePrint{ table-layout:fixed; }
+            .quoteItemsTablePrint{ table-layout:fixed; margin-bottom:16px; }
             .quoteItemsTablePrint col.qtyCol{ width:11%; }
             .quoteItemsTablePrint col.descCol{ width:57%; }
             .quoteItemsTablePrint col.priceCol{ width:16%; }
             .quoteItemsTablePrint col.totalCol{ width:16%; }
             thead th{
-              background:#eef1f5;
-              border:1px solid #d5dce3;
-              padding:6px 8px;
+              background:linear-gradient(180deg, var(--brand) 0%, var(--brand-deep) 100%);
+              border:1px solid var(--brand-deep);
+              padding:10px 12px;
               text-align:center;
-              font-size:11.5px;
+              font-size:12px;
               font-weight:800;
-              color:var(--title);
+              color:#fff;
               text-transform:uppercase;
+              letter-spacing:0.5px;
             }
             tbody td{
               border:1px solid var(--line);
-              padding:7px 9px;
-              font-size:12px;
+              padding:9px 12px;
+              font-size:12.5px;
               background:var(--surface);
               color:#1f3b4d;
             }
-            .quoteItemsTablePrint tbody td:nth-child(1){ text-align:center; border-right:2px solid #d5dce3; }
+            .quoteItemsTablePrint tbody td:nth-child(1){ 
+              text-align:center; 
+              border-right:2px solid var(--line);
+              font-weight:700;
+            }
             .quoteItemsTablePrint tbody td:nth-child(3),
-            .quoteItemsTablePrint tbody td:nth-child(4){ text-align:right; font-variant-numeric:tabular-nums; }
+            .quoteItemsTablePrint tbody td:nth-child(4){ 
+              text-align:right; 
+              font-variant-numeric:tabular-nums;
+              font-weight:600;
+            }
             tbody tr:nth-child(even):not(.dayHeaderRow):not(.daySubtotalRow) td{ background:var(--zebra); }
+            tbody tr:hover:not(.dayHeaderRow):not(.daySubtotalRow) td{ background:#f0f4f8; }
             .dayHeaderRow td{
-              background:var(--brand);
+              background:linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
               color:#fff !important;
               font-weight:800;
               text-transform:uppercase;
               text-align:center;
-              padding:6px 9px;
+              padding:8px 12px;
+              letter-spacing:0.5px;
             }
             .daySubtotalRow td{
               background:var(--brand-muted) !important;
               color:var(--title);
               font-weight:700;
+              border-top:2px solid var(--brand);
             }
-            tfoot td{ border:1px solid #d5dce3; padding:6px 8px; font-size:11px; background:#eef1f5; color:var(--title); }
+            tfoot td{ 
+              border:1px solid var(--line); 
+              padding:8px 12px; 
+              font-size:12px; 
+              background:var(--brand-muted); 
+              color:var(--title);
+              font-weight:600;
+            }
             .sumLabel{ text-align:right; font-weight:700; color:var(--title); background:#edf0f4; }
-            .sumValue{ text-align:right; font-weight:800; color:var(--title); background:#edf0f4; }
-            .sumTotal .sumLabel,.sumTotal .sumValue{ background:var(--brand-deep); color:#fff; font-size:12.2px; }
+            .sumValue{ text-align:right; font-weight:800; color:var(--title); background:#edf0f4; font-size:13px; }
+            .sumTotal .sumLabel,.sumTotal .sumValue{ 
+              background:linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); 
+              color:#fff; 
+              font-size:13px;
+              font-weight:800;
+              letter-spacing:0.3px;
+            }
+            .sumTotalWords td{
+              background:var(--accent) !important;
+              color:var(--brand-deep) !important;
+              font-weight:700;
+              font-size:11.5px;
+              padding:10px 12px !important;
+              border-top:2px solid var(--brand-deep) !important;
+            }
             .policyTitle{
-              margin-top:9px;
-              background:var(--brand);
+              margin-top:12px;
+              background:linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
               color:#fff;
               font-weight:800;
               text-align:center;
-              padding:4px 8px;
+              padding:6px 12px;
               text-transform:uppercase;
+              letter-spacing:0.5px;
+              font-size:12px;
             }
             .policyBox{
-              border:1px solid #c5ced7;
+              border:1px solid var(--line);
               border-top:none;
-              padding:7px 9px;
-              font-size:10.4px;
-              line-height:1.4;
-              background:#fafbfc;
+              padding:10px 14px;
+              font-size:11px;
+              line-height:1.5;
+              background:var(--surface);
             }
-            .policyBox p{ margin:0 0 6px; }
+            .policyBox p{ 
+              margin:0 0 8px;
+              padding-left:16px;
+              position:relative;
+            }
+            .policyBox p::before{
+              content:"•";
+              position:absolute;
+              left:0;
+              color:var(--accent);
+              font-weight:bold;
+            }
             .policyBox p:last-child{ margin-bottom:0; }
             .cargoSummaryWrap{
-              margin:0 0 11px;
-              border:1px solid #cdd5dd;
+              margin:0 0 14px;
+              border:1px solid var(--line);
               border-top:none;
               border-radius:0 0 12px 12px;
               overflow:hidden;
               background:var(--surface);
             }
-            .cargoTable{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; }
+            .cargoTable{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:12.5px; }
             .cargoTable col:first-child{ width:72%; }
             .cargoTable col:last-child{ width:28%; }
-            .cargoTable th,.cargoTable td{ padding:9px 10px; border-bottom:1px solid var(--line); }
-            .cargoTable thead th{ background:#eef1f5; color:var(--title); font-size:11px; font-weight:800; text-transform:uppercase; }
-            .cargoTable thead th:first-child{ text-align:left; border-right:1px solid var(--line); }
+            .cargoTable th,.cargoTable td{ padding:10px 14px; border-bottom:1px solid var(--line-light); }
+            .cargoTable thead th{ 
+              background:linear-gradient(180deg, var(--brand) 0%, var(--brand-deep) 100%);
+              color:#fff;
+              font-size:11.5px;
+              font-weight:800;
+              text-transform:uppercase;
+              letter-spacing:0.5px;
+            }
+            .cargoTable thead th:first-child{ text-align:left; border-right:1px solid rgba(255,255,255,0.2); }
             .cargoTable thead th:last-child,.cargoAmount{ text-align:right; }
-            .cargoTable tbody td:first-child{ border-right:1px solid var(--line); }
+            .cargoTable tbody td:first-child{ border-right:1px solid var(--line-light); }
             .cargoLabel{ font-weight:700; color:#1f3b4d; }
             .cargoAmount{ white-space:nowrap; font-weight:800; color:var(--title); }
             .cargoEm{ font-weight:800; background:#edf0f4 !important; }
-            .cargoEmFinal{ background:var(--brand-deep) !important; }
-            .cargoEmFinal .cargoLabel,.cargoEmFinal .cargoAmount{ color:#fff; }
+            .cargoEmFinal{ 
+              background:linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%) !important;
+              color:#fff;
+            }
+            .cargoEmFinal .cargoLabel,.cargoEmFinal .cargoAmount{ color:#fff; font-size:13px; }
             .signatureSection{
-              margin:10px 12px 0;
-              padding:14px 10px 8px;
-              border:1px solid #d5dce3;
+              margin:14px 16px 0;
+              padding:16px 14px 10px;
+              border:1px solid var(--line);
               border-radius:12px;
               background:#fff;
+              box-shadow:0 2px 8px rgba(0,0,0,0.04);
             }
-            .signatureGrid{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-            .signatureCard{ padding:6px 10px; min-height:120px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+            .signatureGrid{ display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+            .signatureCard{ 
+              padding:8px 12px; 
+              min-height:130px; 
+              display:flex; 
+              flex-direction:column; 
+              align-items:center; 
+              text-align:center;
+            }
             .signatureSignArea{
               width:100%;
-              min-height:72px;
+              min-height:80px;
               display:flex;
               align-items:flex-end;
               justify-content:center;
-              margin-bottom:8px;
+              margin-bottom:10px;
               background:#fff;
-              border:1px solid #dfe5ec;
-              border-radius:6px;
+              border:2px dashed var(--line);
+              border-radius:8px;
+              padding:8px;
             }
-            .signatureImage{ max-height:68px; width:auto; max-width:320px; object-fit:contain; display:block; padding:2px 6px; }
-            .signatureLine{ width:78%; max-width:320px; border-top:2px solid #8a9aaa; margin:0 auto; }
-            .signatureRole{ font-weight:800; color:var(--title); text-transform:uppercase; font-size:11px; margin:6px 0; }
-            .signatureData{ margin:2px 0; font-size:11px; color:#1f3b4d; line-height:1.35; width:100%; }
-            .templateAttach{ border-top:1px solid var(--line); background:#f5f7fa; padding:12px 12px 0; }
-            .templateAttachBody{ background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:visible; font-size:10px; line-height:1.15; }
+            .signatureImage{ max-height:72px; width:auto; max-width:320px; object-fit:contain; display:block; padding:2px 6px; }
+            .signatureLine{ width:80%; max-width:320px; border-top:2px solid var(--brand); margin:0 auto; }
+            .signatureRole{ 
+              font-weight:800; 
+              color:var(--brand);
+              text-transform:uppercase; 
+              font-size:11.5px;
+              margin:8px 0 4px;
+              letter-spacing:0.5px;
+            }
+            .signatureData{ 
+              margin:2px 0; 
+              font-size:11.5px; 
+              color:#1f3b4d; 
+              line-height:1.4;
+              width:100%;
+            }
+            .templateAttach{ border-top:1px solid var(--line); background:#f5f7fa; padding:14px 14px 0; }
+            .templateAttachBody{ background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:visible; font-size:10.5px; line-height:1.2; }
             .actions{
-              padding:12px;
+              padding:14px;
               display:flex;
               justify-content:flex-end;
-              gap:8px;
+              gap:10px;
               border-top:1px solid var(--line);
-              background:#f3f5f8;
+              background:var(--surface);
             }
             .actions button{
-              border:1px solid rgba(30,58,95,.25);
-              background:#fff;
-              color:var(--title);
-              border-radius:10px;
-              padding:7px 12px;
+              border:1px solid var(--brand);
+              background:var(--brand);
+              color:#fff;
+              border-radius:8px;
+              padding:8px 16px;
               font-weight:700;
               cursor:pointer;
+              font-size:12px;
+              transition:all 0.2s;
+            }
+            .actions button:hover{
+              background:var(--brand-deep);
+              transform:translateY(-1px);
+              box-shadow:0 4px 8px rgba(30,58,95,0.2);
             }
             @page {
               size: letter;
-              margin: 10mm;
+              margin: 12mm;
             }
             @media print{
               html,body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; background:#fff; margin:0; padding:0; }
@@ -811,72 +930,70 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               .page-break{ break-before:page; page-break-before:always; }
               .doc{ box-shadow:none; margin:0; padding:0; background:transparent; }
               
-              /* Optimize heights and paddings on print to avoid page overflows */
               .quoteContractHeader img {
-                max-height: 70px !important;
+                max-height: 75px !important;
               }
               .head {
-                padding: 6px 12px !important;
-                font-size: 11.5px !important;
+                padding: 10px 16px !important;
+                font-size: 12.5px !important;
               }
               .quoteMetaTable {
-                margin: 0 0 6px !important;
+                margin: 0 0 8px !important;
               }
               .quoteMetaTable td {
-                padding: 4px 6px !important;
-                font-size: 10.5px !important;
+                padding: 5px 8px !important;
+                font-size: 11px !important;
               }
               .quoteMetaTable tr.metaGap td {
-                height: 5px !important;
+                height: 6px !important;
               }
               thead th {
-                padding: 4px 6px !important;
-                font-size: 10.5px !important;
+                padding: 6px 10px !important;
+                font-size: 11px !important;
               }
               tbody td {
-                padding: 4px 6px !important;
-                font-size: 10.5px !important;
+                padding: 6px 10px !important;
+                font-size: 11px !important;
               }
               tfoot td {
-                padding: 4px 6px !important;
-                font-size: 10px !important;
-              }
-              .policyTitle {
-                margin-top: 6px !important;
-                padding: 3px 6px !important;
+                padding: 5px 10px !important;
                 font-size: 10.5px !important;
               }
+              .policyTitle {
+                margin-top: 8px !important;
+                padding: 5px 10px !important;
+                font-size: 11px !important;
+              }
               .policyBox {
-                padding: 4px 6px !important;
-                font-size: 9.5px !important;
-                line-height: 1.25 !important;
+                padding: 6px 10px !important;
+                font-size: 10px !important;
+                line-height: 1.35 !important;
               }
               .policyBox p {
-                margin: 0 0 3px !important;
+                margin: 0 0 4px !important;
               }
               .cargoTable th, .cargoTable td {
-                padding: 4px 6px !important;
+                padding: 6px 10px !important;
               }
               .cargoSummaryWrap {
-                margin: 0 0 6px !important;
+                margin: 0 0 8px !important;
               }
               .signatureSection {
-                margin: 6px 0 0 !important;
-                padding: 8px 10px 4px !important;
+                margin: 8px 0 0 !important;
+                padding: 10px 12px 6px !important;
               }
               .signatureCard {
-                min-height: 90px !important;
-                padding: 2px 6px !important;
+                min-height: 100px !important;
+                padding: 4px 8px !important;
               }
               .signatureSignArea {
-                min-height: 48px !important;
-                margin-bottom: 4px !important;
+                min-height: 55px !important;
+                margin-bottom: 6px !important;
               }
               .signatureImage {
-                max-height: 44px !important;
+                max-height: 50px !important;
               }
               
-              /* Keep sections together */
               .policyBox,
               .cargoSummarySection,
               .signatureSection {
@@ -1001,7 +1118,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   <td class="sumValue">${quoteMoney(totalDoc, docCurrency)}</td>
                 </tr>
                 <tr class="sumTotalWords">
-                  <td colspan="4" style="text-align: left; font-size: 11px; font-weight: 700; color: var(--title); background: var(--brand-muted); padding: 8px 10px; border: 1px solid var(--line); border-top: 2px solid var(--brand-deep);">
+                  <td colspan="4" style="text-align: left;">
                     CANTIDAD EN LETRAS: ${totalInWords}
                   </td>
                 </tr>
