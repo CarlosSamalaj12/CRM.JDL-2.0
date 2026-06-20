@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   createInforme, createInformeDia, saveDiaMenuDetalle,
   getPlatillos, getPlatilloDetalle, fetchEventById,
-  getIngredientes, getMenus, getOpcionesIngrediente, getCategorias,
+  getIngredientes, getMenus, getCategorias,
   getComentarios, createComentario, getDestacados, toggleDestacado,
   getHistorial, getUsuarios, getTiposMontaje, saveMontaje, getMontaje,
   getInformesByOcupacion, getInformeById,
@@ -113,7 +113,6 @@ export default function ConstructorInforme() {
   const [platillos, setPlatillos] = useState([]);
   const [ingredientes, setIngredientes] = useState([]);
   const [menus, setMenus] = useState([]);
-  const [opcionesIng, setOpcionesIng] = useState({});
   const [categorias, setCategorias] = useState([]);
   const [menuCategoriaFiltro, setMenuCategoriaFiltro] = useState(null);
   const [platilloCategoriaFiltro, setPlatilloCategoriaFiltro] = useState(null);
@@ -145,7 +144,6 @@ export default function ConstructorInforme() {
   const [montajeData, setMontajeData] = useState({});
   const [montajeEditIdx, setMontajeEditIdx] = useState(null);
   const [modalPrep, setModalPrep] = useState('');
-  const [modalOpc, setModalOpc] = useState('');
   const [modalQty, setModalQty] = useState(1);
   const [modalNotas, setModalNotas] = useState('');
 
@@ -206,40 +204,28 @@ export default function ConstructorInforme() {
       setMenus(menusData);
       setCategorias(categoriasData);
 
-      // Cargar opciones de ingredientes
-      const opsMap = {};
-      for (const ing of ingredientesData) {
-        try {
-          const ops = await getOpcionesIngrediente(ing.id);
-          opsMap[ing.id] = ops;
-        } catch { opsMap[ing.id] = []; }
-      }
-      setOpcionesIng(opsMap);
-
-      // Cargar configuraciones (equipos, sillas, mesas)
+      // Cargar configuraciones y versiones en paralelo (secundario)
       try {
-        const [eq, si, me] = await Promise.all([
-          getEquipos(), getSillas(), getMesas()
+        const [eq, si, me, vers] = await Promise.all([
+          getEquipos().catch(() => []), getSillas().catch(() => []), getMesas().catch(() => []),
+          getInformesByOcupacion(id_ocupacion).catch(err => {
+            if (err.status === 404 || err.message?.includes('no encontrado')) {
+              toast.info('No hay versiones previas, comenzando desde cero');
+            } else {
+              toast.error('Error al buscar versiones: ' + err.message);
+            }
+            return null;
+          }),
         ]);
         setConfigEquipos(eq.filter(e => e.activo));
         setConfigSillas(si.filter(s => s.activo));
         setConfigMesas(me.filter(m => m.activo));
-      } catch { /* */ }
 
-      // Verificar versiones existentes para esta ocupación
-      try {
-        const vers = await getInformesByOcupacion(id_ocupacion);
         if (vers && vers.length > 0) {
           setVersiones(vers);
           await cargarVersion(vers[0]);
         }
-      } catch (err) {
-        if (err.status === 404 || err.message?.includes('no encontrado')) {
-          toast.info('No hay versiones previas, comenzando desde cero');
-        } else {
-          toast.error('Error al buscar versiones: ' + err.message);
-        }
-      }
+      } catch { /* */ }
     } catch (err) {
       setError('Error al cargar datos: ' + err.message);
       toast.error('Error al cargar datos');
@@ -384,13 +370,12 @@ export default function ConstructorInforme() {
       exists.cantidad = (exists.cantidad || 0) + cantidad;
       if (notas) exists.notas = notas;
     } else {
-      const opc = opcionId ? opcionesIng[ingrediente.id]?.find(o => o.id === opcionId) : null;
       items.push({
         comp_id: Date.now(),
         ingrediente_id: ingrediente.id,
         ingrediente_nombre: ingrediente.nombre,
         opcion_id: opcionId || null,
-        opcion_nombre: opc?.nombre_opcion || null,
+        opcion_nombre: null,
         tipo: ingrediente.tipo,
         metodo_preparacion: metodo || '',
         cantidad,
@@ -447,7 +432,6 @@ export default function ConstructorInforme() {
     if (ing.tipo === 'carne' || ing.tipo === 'proteina') {
       setModalOpciones(ing);
       setModalPrep('');
-      setModalOpc('');
       setModalQty(1);
       setModalNotas('');
     } else {
