@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getNotas, createNota, getUsuarios, toggleReaccionNota } from '../services/api.js';
+import { getNotas, createNota, getUsuarios, toggleReaccionNota, getTareasUsuario } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
-import { IconMapPin, IconClock, IconUser, IconFileText, IconEye, IconGripVertical, IconMessageCircle, IconAtSign, IconClipboardList } from './Icons.jsx';
+import { IconMapPin, IconClock, IconUser, IconFileText, IconEye, IconGripVertical, IconMessageCircle, IconAtSign, IconClipboardList, IconCheckSquare } from './Icons.jsx';
 import ReactionTooltip from './ReactionTooltip.jsx';
+import TaskPanel from './TaskPanel.jsx';
 import { emitOpenEventChecklist } from '../../../utils/appEvents';
 
 const statusMap = {
@@ -37,7 +38,10 @@ export default function EventCard({ event, dragHandleProps }) {
   const [reactingTo, setReactingTo] = useState(null);
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
   const [hoverAlertBadge, setHoverAlertBadge] = useState(false);
+  const [tareasOpen, setTareasOpen] = useState(false);
+  const [tareasCount, setTareasCount] = useState(0);
   const notaInputRef = useRef(null);
+  const tareasButtonRef = useRef(null);
   const userMap = useMemo(() => {
     const map = {};
     usuarios.forEach(u => { map[u.id] = u.nombre; });
@@ -59,6 +63,13 @@ export default function EventCard({ event, dragHandleProps }) {
   useEffect(() => {
     getUsuarios().then(setUsuarios).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!currentUserId || !event.Idocupacion) return;
+    getTareasUsuario(event.Idocupacion, currentUserId)
+      .then(tareas => setTareasCount(tareas.filter(t => !t.completada).length))
+      .catch(() => {});
+  }, [currentUserId, event.Idocupacion, notasOpen, tareasOpen]);
 
   useEffect(() => {
     if (!notasOpen) return;
@@ -244,6 +255,10 @@ export default function EventCard({ event, dragHandleProps }) {
         </button>
         <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{flex:'0 0 32px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
           <IconClipboardList size={13} />
+        </button>
+        <button ref={tareasButtonRef} type="button" className={`tareas-btn ${tareasOpen ? 'active' : ''} ${tareasCount > 0 ? 'has-tareas' : ''}`} onClick={() => setTareasOpen(!tareasOpen)} data-tooltip={tareasCount > 0 ? `${tareasCount} tarea(s) pendiente(s)` : 'Mis tareas'} style={{flex:'0 0 30px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:tareasOpen ? 'var(--primary)' : 'transparent',position:'relative'}}>
+          <IconCheckSquare size={13} />
+          {tareasCount > 0 && <span className="tareas-badge">{tareasCount}</span>}
         </button>
         <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${notas.length > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={notas.length > 0 ? `${notas.length} nota(s)` : 'Agregar nota'} style={{background:'var(--primary-bg)',color:'var(--primary)',borderColor:notasOpen ? 'var(--primary)' : 'transparent'}}>
           <IconMessageCircle size={13} />
@@ -432,6 +447,13 @@ export default function EventCard({ event, dragHandleProps }) {
           x={hoveredTooltip.x}
           y={hoveredTooltip.y}
           onClose={() => setHoveredTooltip(null)}
+        />
+      )}
+      {tareasOpen && (
+        <TaskPanel
+          idOcupacion={event.Idocupacion}
+          onClose={() => setTareasOpen(false)}
+          anchorRef={tareasButtonRef}
         />
       )}
     </article>

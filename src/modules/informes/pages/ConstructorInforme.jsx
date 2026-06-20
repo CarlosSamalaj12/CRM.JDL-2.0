@@ -45,9 +45,10 @@ const CATEGORIAS = [
 ];
 
 const TIPO_LABELS = {
-  carne: 'CARNES', guarnición: 'GUARNICIONES', guarnicion: 'GUARNICIONES',
-  salsa: 'SALSAS', postre: 'POSTRES', bebida: 'BEBIDAS',
-  proteina: 'PROTEÍNA', tortilla_pan: 'TORTILLA/PAN', otros: 'OTROS',
+  carne: 'CARNES', guarnición: 'GUARNICIONES', guarnicion: 'GUARNICIONES', guarniciones: 'GUARNICIONES',
+  salsa: 'SALSAS', salsas: 'SALSAS', postre: 'POSTRES', postres: 'POSTRES', bebida: 'BEBIDAS', bebidas: 'BEBIDAS',
+  proteina: 'PROTEÍNA', proteína: 'PROTEÍNA', proteinas: 'PROTEÍNAS', proteínas: 'PROTEÍNAS',
+  tortilla_pan: 'TORTILLA/PAN', otros: 'OTROS', Otros: 'OTROS',
 };
 
 const METODOS_PREPARACION = [
@@ -515,7 +516,8 @@ export default function ConstructorInforme() {
     if (exists) { eliminarItem(exists.comp_id); return; }
 
     // Solo carnes/proteínas abren modal con preparación, opciones y cantidad
-    if (ing.tipo === 'carne' || ing.tipo === 'proteina') {
+    const tipo = (ing.tipo || '').toLowerCase();
+    if (tipo === 'carne' || tipo === 'proteina' || tipo === 'proteína' || tipo === 'proteinas' || tipo === 'proteínas') {
       setModalOpciones(ing);
       setModalPrep('');
       setModalOpc('');
@@ -676,11 +678,26 @@ export default function ConstructorInforme() {
         }
         return filtrar(base).map(p => ({ ...p, _tipo: 'platillo', _nombre: p.nombre_platillo }));
       }
-      case 'carnes': return filtrar(ingredientes.filter(i => i.tipo === 'carne' || i.tipo === 'proteina')).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'guarniciones': return filtrar(ingredientes.filter(i => i.tipo === 'guarnición' || i.tipo === 'guarnicion')).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'salsas': return filtrar(ingredientes.filter(i => i.tipo === 'salsa')).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'postres': return filtrar(ingredientes.filter(i => i.tipo === 'postre')).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'bebidas': return filtrar(ingredientes.filter(i => i.tipo === 'bebida')).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'carnes': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'carne' || tipo === 'proteina' || tipo === 'proteínas' || tipo === 'proteinas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'guarniciones': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'guarnición' || tipo === 'guarnicion' || tipo === 'guarniciones';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'salsas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'salsa' || tipo === 'salsas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'postres': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'postre' || tipo === 'postres';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'bebidas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'bebida' || tipo === 'bebidas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
       default: return [];
     }
   }, [categoriaActiva, searchElemento, menus, platillos, ingredientes, menuCategoriaFiltro, platilloCategoriaFiltro]);
@@ -833,7 +850,8 @@ export default function ConstructorInforme() {
                   <div key={tipo} className="pos-ticket-grupo">
                     <span className="pos-ticket-tipo">{TIPO_LABELS[tipo] || tipo.toUpperCase()}</span>
                     {items.map(item => {
-                      const esSimple = item.tipo !== 'carne' && item.tipo !== 'proteina';
+                      const tipoItem = (item.tipo || '').toLowerCase();
+                      const esSimple = tipoItem !== 'carne' && tipoItem !== 'proteina' && tipoItem !== 'proteína' && tipoItem !== 'proteinas' && tipoItem !== 'proteínas';
                       return (
                         <div key={item.comp_id} className="pos-ticket-item">
                           <div className="pos-ticket-item-top">

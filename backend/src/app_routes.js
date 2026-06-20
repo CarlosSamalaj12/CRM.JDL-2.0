@@ -12,6 +12,7 @@ import notasRouter from './routes/notasRoutes.js';
 import eventoMetadatosRouter from './routes/eventoMetadatosRoutes.js';
 import configRouter from './routes/configRoutes.js';
 import userRouter from './routes/userRoutes.js';
+import tareasRouter from './routes/tareasRoutes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/notas', notasRouter);
 router.use('/montaje', montajeRouter);
 router.use('/config', configRouter);
 router.use('/users', userRouter);
+router.use('/tareas', tareasRouter);
 
 export default router;

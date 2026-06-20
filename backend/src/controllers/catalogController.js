@@ -111,10 +111,13 @@ export async function getMenuDetalle(req, res, next) {
 
     // Obtener opciones disponibles para CADA ingrediente único
     const ids = [...new Set(items.map(i => i.ingrediente_id))];
-    const [opciones] = await pool.query(
-      `SELECT * FROM cat_opciones_ingrediente WHERE ingrediente_id IN (${ids.map(() => '?').join(',')}) ORDER BY nombre_opcion`,
-      ids
-    );
+    let opciones = [];
+    if (ids.length > 0) {
+      [opciones] = await pool.query(
+        `SELECT * FROM cat_opciones_ingrediente WHERE ingrediente_id IN (${ids.map(() => '?').join(',')}) ORDER BY nombre_opcion`,
+        ids
+      );
+    }
     const opcionesPorIngrediente = {};
     for (const op of opciones) {
       if (!opcionesPorIngrediente[op.ingrediente_id]) opcionesPorIngrediente[op.ingrediente_id] = [];

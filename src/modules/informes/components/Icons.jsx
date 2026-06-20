@@ -7,6 +7,7 @@ import {
   FileText,
   Users,
   CheckCircle,
+  CheckSquare,
   Clock,
   MapPin,
   User,
@@ -38,6 +39,8 @@ import {
   Settings,
   Bell,
   ClipboardList,
+  Check,
+  Edit,
 } from 'lucide-react';
 
 // Wrapper helper that sets standard props, adds our modern styles and micro-animations
@@ -91,3 +94,6 @@ export const IconMoon = wrapIcon(Moon, 'crm-icon-moon');
 export const IconSettings = wrapIcon(Settings, 'crm-icon-settings');
 export const IconBell = wrapIcon(Bell, 'crm-icon-bell');
 export const IconClipboardList = wrapIcon(ClipboardList, 'crm-icon-clipboard');
+export const IconCheckSquare = wrapIcon(CheckSquare, 'crm-icon-checksquare');
+export const IconCheck = wrapIcon(Check, 'crm-icon-check');
+export const IconEdit = wrapIcon(Edit, 'crm-icon-edit');

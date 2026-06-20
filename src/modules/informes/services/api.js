@@ -741,3 +741,55 @@ export function imagenUrl(url) {
   return url;
 }
 
+// --- TAREAS PERSONALES POR EVENTO ---
+
+export async function getTareasUsuario(idOcupacion, usuarioId) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/tareas/${idOcupacion}/usuario?usuario_id=${usuarioId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error('Error al cargar tareas');
+  return response.json();
+}
+
+export async function createTarea(idOcupacion, data) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/tareas/${idOcupacion}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al crear tarea');
+  return response.json();
+}
+
+export async function updateTarea(tareaId, data) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/tareas/${tareaId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al actualizar tarea');
+  return response.json();
+}
+
+export async function deleteTarea(tareaId) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/tareas/${tareaId}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error('Error al eliminar tarea');
+  return response.json();
+}
+
+export async function getTareasEvento(idOcupacion) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/tareas/evento/${idOcupacion}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error('Error al cargar tareas del evento');
+  return response.json();
+}
+

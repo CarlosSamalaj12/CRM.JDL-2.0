@@ -80,7 +80,7 @@ export default function SettingsSalones({ inline, onBack }) {
 
     const capacityNum = parseInt(salonCapacityInput, 10);
     if (isNaN(capacityNum) || capacityNum <= 0) {
-      toast('Capacidad maxima PAX debe ser mayor a 0');
+      toast('Cantidad Max PAX debe ser mayor a 0');
       return;
     }
 
@@ -240,7 +240,7 @@ export default function SettingsSalones({ inline, onBack }) {
           <input type="text" placeholder="Ej: Salon Aurora" value={salonNameInput} onChange={(e) => setSalonNameInput(e.target.value)} />
         </label>
         <label className="settings-modern-field">
-          <span>Capacidad PAX *</span>
+          <span>Cantidad Max PAX *</span>
           <input type="number" placeholder="Ej: 500" value={salonCapacityInput} onChange={(e) => setSalonCapacityInput(e.target.value)} />
         </label>
       </div>
@@ -256,7 +256,7 @@ export default function SettingsSalones({ inline, onBack }) {
         </label>
         <div className="settings-modern-field" style={{ justifyContent: 'center' }}>
           <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
-            Al marcar este salón, su capacidad PAX se suma al total disponible para el cálculo de % de ocupación en el reporte de Ocupación en Barras.
+            Al marcar este salón, su cantidad Max PAX se suma al total disponible para el cálculo de % de ocupación en el reporte de Ocupación en Barras.
           </span>
         </div>
       </div>
@@ -269,7 +269,7 @@ export default function SettingsSalones({ inline, onBack }) {
             <thead>
               <tr>
                 <th>Nombre</th>
-                <th>Capacidad</th>
+                <th>Max PAX</th>
                 <th>Ocupación</th>
                 <th>Estado</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
@@ -290,7 +290,7 @@ export default function SettingsSalones({ inline, onBack }) {
                   return (
                     <tr key={s}>
                       <td style={{ fontWeight: '600' }}>{s}</td>
-                      <td>{capacity} PAX</td>
+                      <td>{capacity} Max PAX</td>
                       <td>
                         <span className="settings-role-badge" style={{
                           background: affectsOccupancy ? '#ede9fe' : '#f1f5f9',
