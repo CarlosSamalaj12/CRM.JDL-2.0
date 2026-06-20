@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useOutletContext } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { loadState as loadCrmState } from '../../services/stateService';
 import authService from '../../services/authService';
@@ -390,16 +391,16 @@ export default function ReportsContabilidad({ onClose }) {
     const date = String(advanceForm.date || '').trim();
     const voucherNumber = String(advanceForm.voucherNumber || '').trim();
     const description = String(advanceForm.description || '').trim();
-    if (!advanceForm.amount || amount <= 0) { Swal.fire('Error', 'El monto es obligatorio y debe ser mayor a 0.', 'error'); return; }
-    if (!date) { Swal.fire('Error', 'La fecha es obligatoria.', 'error'); return; }
-    if (!description) { Swal.fire('Error', 'La descripcion es obligatoria.', 'error'); return; }
-    if (paymentType !== 'Efectivo' && !voucherNumber) { Swal.fire('Error', 'El No. de boleta es obligatorio para este tipo de pago.', 'error'); return; }
+    if (!advanceForm.amount || amount <= 0) { toast.error('El monto es obligatorio y debe ser mayor a 0.'); return; }
+    if (!date) { toast.error('La fecha es obligatoria.'); return; }
+    if (!description) { toast.error('La descripcion es obligatoria.'); return; }
+    if (paymentType !== 'Efectivo' && !voucherNumber) { toast.error('El No. de boleta es obligatorio para este tipo de pago.'); return; }
 
     let evidenceDataUrl = '';
     let evidenceName = '';
     let evidenceType = '';
     if (advanceEvidenceFile) {
-      if (Number(advanceEvidenceFile.size || 0) > 6 * 1024 * 1024) { Swal.fire('Error', 'La evidencia supera 6 MB.', 'error'); return; }
+      if (Number(advanceEvidenceFile.size || 0) > 6 * 1024 * 1024) { toast.error('La evidencia supera 6 MB.'); return; }
       evidenceDataUrl = await readFileAsDataUrl(advanceEvidenceFile);
       evidenceName = String(advanceEvidenceFile.name || '').trim();
       evidenceType = String(advanceEvidenceFile.type || '').trim();
@@ -407,7 +408,7 @@ export default function ReportsContabilidad({ onClose }) {
 
     const actor = getCurrentActor();
     const event = events.find(ev => String(ev.id) === String(eventId));
-    if (!event) { Swal.fire('Error', 'No se encontro el evento.', 'error'); return; }
+    if (!event) { toast.error('No se encontró el evento.'); return; }
     const quote = { ...(event.quote || {}), advances: [...(event.quote?.advances || [])] };
 
     if (advanceEditingId) {
@@ -427,9 +428,9 @@ export default function ReportsContabilidad({ onClose }) {
 
     try {
       await handleAddEvent({ ...event, quote });
-      Swal.fire('Exito', advanceEditingId ? 'Anticipo actualizado.' : 'Anticipo agregado.', 'success');
+      toast.success(advanceEditingId ? 'Anticipo actualizado.' : 'Anticipo agregado.');
       resetAdvanceFormInModal();
-    } catch { Swal.fire('Error', 'No se pudo guardar el anticipo.', 'error'); }
+    } catch { toast.error('No se pudo guardar el anticipo.'); }
   };
 
   const handleDeleteAdvanceInModal = async (eventId, advanceId) => {
@@ -439,7 +440,7 @@ export default function ReportsContabilidad({ onClose }) {
     const event = events.find(ev => String(ev.id) === String(eventId));
     if (!event) return;
     const quote = { ...(event.quote || {}), advances: (event.quote?.advances || []).filter(a => String(a.id) !== String(advanceId)), advanceLogs: [...(event.quote?.advanceLogs || []), { id: `advlog_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, at: new Date().toISOString(), actorName: actor.name, actorId: actor.id, tone: 'deleted', label: 'Eliminado', change: `Anticipo eliminado` }] };
-    try { await handleAddEvent({ ...event, quote }); Swal.fire('Listo', 'Anticipo eliminado.', 'success'); if (String(advanceEditingId) === String(advanceId)) resetAdvanceFormInModal(); } catch { Swal.fire('Error', 'No se pudo eliminar el anticipo.', 'error'); }
+    try { await handleAddEvent({ ...event, quote }); toast.success('Anticipo eliminado.'); if (String(advanceEditingId) === String(advanceId)) resetAdvanceFormInModal(); } catch { toast.error('No se pudo eliminar el anticipo.'); }
   };
 
   const printStatement = (account) => {
@@ -596,7 +597,7 @@ export default function ReportsContabilidad({ onClose }) {
 
   const handleActionClick = (_actionName, eventId) => {
     if (!eventId) {
-      Swal.fire('Sin evento relacionado', 'No se encontro un evento para abrir esta cotizacion.', 'info');
+      toast('No se encontró un evento para abrir esta cotización.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> });
       return;
     }
     onClose?.();
@@ -605,7 +606,7 @@ export default function ReportsContabilidad({ onClose }) {
 
   const handleExportExcel = () => {
     if (!accounts.length) {
-      Swal.fire('Error', 'No hay datos para exportar.', 'error');
+      toast.error('No hay datos para exportar.');
       return;
     }
     const csvRows = [

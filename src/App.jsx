@@ -42,11 +42,11 @@ function App() {
               <Route element={<ReportsLayout />}>
                 <Route path="/informes" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/kanban" element={<ProtectedRoute><Kanban /></ProtectedRoute>} />
-                <Route path="/catalog" element={<ProtectedRoute><Catalog /></ProtectedRoute>} />
+                <Route path="/catalog" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Catalog /></ProtectedRoute>} />
                 <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute><ConstructorInforme /></ProtectedRoute>} />
                 <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute><InformeCreator /></ProtectedRoute>} />
                 <Route path="/informe/:id" element={<ProtectedRoute><InformeView /></ProtectedRoute>} />
-                <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><Configuracion /></ProtectedRoute>} />
+                <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Configuracion /></ProtectedRoute>} />
               </Route>
 
               <Route path="/" element={<CrmProtectedRoute><MainLayout /></CrmProtectedRoute>}>

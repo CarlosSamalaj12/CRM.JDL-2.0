@@ -139,7 +139,7 @@ export default function InformeView() {
             data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}>
             <IconMessageCircle size={16} /> Colaborar
           </button>
-          {user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) && (
+          {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
             <button onClick={() => navigate(`/informe/pos/${informe.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
               <IconFileText size={16} /> Editar
             </button>
@@ -433,13 +433,6 @@ export default function InformeView() {
                     </div>
                   );
                 })()}
-
-                {/* ═══ FOOTER POR DÍA ═══ */}
-                <footer className="iv-footer">
-                  <div className="iv-footer-line" />
-                  <p>Documento generado automáticamente el {fechaCreacion} por el Sistema de Informes de Eventos</p>
-                  <p className="iv-footer-ref">ID de Ocupación: {informe.id_ocupacion} | Informe #{id}{informe.version ? ` | Versión ${informe.version}` : ''} | Día {index + 1}</p>
-                </footer>
               </div>
             ))
           ) : (

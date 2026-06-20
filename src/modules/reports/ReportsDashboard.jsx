@@ -170,9 +170,10 @@ export default function ReportsDashboard({ onClose }) {
       if (!ev) continue;
       const date = ev.date || ev.eventDate || '';
       if (date < from || date > to) continue;
-      const items = Array.isArray(chk.items) ? chk.items : [];
-      const evalItems = items.filter(i => i.sectionType === 'evaluacion');
-      const ratedItems = evalItems.filter(i => i.rating !== null && i.rating !== undefined);
+      const items = Array.isArray(chk?.evaluacion?.items)
+        ? chk.evaluacion.items
+        : (Array.isArray(chk?.items) ? chk.items.filter(i => i.sectionType === 'evaluacion') : []);
+      const ratedItems = items.filter(i => i.rating !== null && i.rating !== undefined);
       if (ratedItems.length === 0) continue;
       const totalScore = ratedItems.reduce((sum, i) => sum + (SAT_RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0);
       const avg = totalScore / ratedItems.length;

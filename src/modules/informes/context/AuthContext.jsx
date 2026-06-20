@@ -8,6 +8,8 @@ function mapRole(role) {
   if (raw === 'admin') return 'Admin';
   if (raw === 'frontoffice' || raw === 'front_office' || raw === 'recepcionista') return 'FrontOffice';
   if (raw === 'vendedor' || raw === 'sales') return 'Vendedor';
+  if (raw === 'coordinador') return 'Coordinador';
+  if (raw === 'eventos') return 'Eventos';
   return role || '';
 }
 

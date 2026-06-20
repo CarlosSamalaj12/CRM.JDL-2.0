@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
-import Swal from 'sweetalert2';
+import toast from 'react-hot-toast';
+
+const ROLE_LABELS = {
+  admin: 'Administrador',
+  recepcionista: 'Recepcionista',
+  vendedor: 'Vendedor',
+  eventos: 'Eventos',
+  coordinador: 'Coordinador',
+};
 
 const ROLE_COLORS = {
   admin: { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
   recepcionista: { bg: '#dbeafe', color: '#1e40af', border: '#93c5fd' },
   vendedor: { bg: '#dcfce7', color: '#166534', border: '#86efac' },
+  eventos: { bg: '#f3e8ff', color: '#6b21a8', border: '#d8b4fe' },
+  coordinador: { bg: '#fff7ed', color: '#9a3412', border: '#fed7aa' },
 };
 
 export default function UserModal({ onClose }) {
@@ -125,17 +135,10 @@ export default function UserModal({ onClose }) {
         const found = updatedUsers.find(u => u.id === userId);
         if (found) setActive(found.active !== false);
       }
-      Swal.fire({
-        icon: 'success',
-        title: 'Estado Actualizado',
-        text: 'El estado del usuario se ha actualizado correctamente.',
-        confirmButtonColor: '#10b981',
-        timer: 1500,
-        showConfirmButton: false
-      });
+      toast.success('Estado actualizado correctamente.', { duration: 1500 });
     } catch (e) {
       console.error('Error modifying user status:', e);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cambiar el estado del usuario.' });
+      toast.error('No se pudo cambiar el estado del usuario.');
     }
   };
 
@@ -163,22 +166,12 @@ export default function UserModal({ onClose }) {
   // Add monthly goal to list
   const handleAddGoal = () => {
     if (!goalMonth || !goalAmount) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Campos incompletos',
-        text: 'Por favor, selecciona un mes y escribe el monto de la meta.',
-        confirmButtonColor: '#0ea5e9'
-      });
+      toast('Selecciona un mes y escribe el monto de la meta.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
 
     if (monthlyGoals.some(g => g.month === goalMonth)) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Meta duplicada',
-        text: 'Ya has registrado una meta para este mes. Modifica o elimina la anterior.',
-        confirmButtonColor: '#0ea5e9'
-      });
+      toast('Meta duplicada — Ya has registrado una meta para este mes.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
 
@@ -197,17 +190,17 @@ export default function UserModal({ onClose }) {
 
   const handleAddTier = () => {
     if (!tierName || !tierAmount || !tierPercentage) {
-      Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Completa el nombre, monto y porcentaje del nivel.', confirmButtonColor: '#0ea5e9' });
+      toast('Completa el nombre, monto y porcentaje del nivel.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
     const amt = parseFloat(tierAmount);
     const pct = parseFloat(tierPercentage);
     if (amt <= 0) {
-      Swal.fire({ icon: 'warning', title: 'Monto inválido', text: 'El monto debe ser mayor a 0.', confirmButtonColor: '#0ea5e9' });
+      toast('El monto debe ser mayor a 0.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
     if (pct <= 0) {
-      Swal.fire({ icon: 'warning', title: 'Porcentaje inválido', text: 'El porcentaje debe ser mayor a 0.', confirmButtonColor: '#0ea5e9' });
+      toast('El porcentaje debe ser mayor a 0.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
     setGoalTiers(prev => [...prev, { name: tierName.trim(), amount: amt, percentage: pct }]);
@@ -223,12 +216,7 @@ export default function UserModal({ onClose }) {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!fullName || !email || !role) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Faltan datos',
-        text: 'Completa el Nombre Completo, Correo y Rol del usuario.',
-        confirmButtonColor: '#0ea5e9'
-      });
+      toast('Completa el Nombre Completo, Correo y Rol del usuario.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
 
@@ -244,7 +232,7 @@ export default function UserModal({ onClose }) {
         ? currentUsers.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed && u.id !== selectedUserId)
         : currentUsers.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed);
       if (nameExists) {
-        Swal.fire({ icon: 'error', title: 'Nombre duplicado', text: 'Ya existe un usuario con ese nombre completo.', confirmButtonColor: '#ef4444' });
+        toast.error('Ya existe un usuario con ese nombre completo.');
         setLoading(false);
         return;
       }
@@ -273,12 +261,7 @@ export default function UserModal({ onClose }) {
       } else {
         const normalizedEmail = email.toLowerCase().trim();
         if (currentUsers.some(u => String(u.email || '').toLowerCase() === normalizedEmail)) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Correo duplicado',
-            text: 'El correo electrónico ingresado ya se encuentra pre-registrado en el sistema.',
-            confirmButtonColor: '#ef4444'
-          });
+          toast.error('El correo electrónico ya se encuentra pre-registrado en el sistema.');
           setLoading(false);
           return;
         }
@@ -306,28 +289,14 @@ export default function UserModal({ onClose }) {
 
       await saveCrmState({ ...currentState, users: updatedUsers });
 
-      Swal.fire({
-        icon: 'success',
-        title: '¡Guardado Exitosamente!',
-        text: selectedUserId 
-          ? `Se han actualizado los datos de ${fullName}.` 
-          : `Se ha pre-registrado y autorizado el correo de ${fullName}.`,
-        confirmButtonColor: '#10b981',
-        timer: 2000,
-        showConfirmButton: false
-      });
+      toast.success(selectedUserId ? `Datos de ${fullName} actualizados.` : `${fullName} pre-registrado y autorizado.`, { duration: 2000 });
 
       await fetchUsers();
       handleClose();
 
     } catch (err) {
       console.error('Error saving user to global state:', err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error al Guardar',
-        text: 'Ocurrió un error al guardar los datos del usuario en el servidor.',
-        confirmButtonColor: '#ef4444'
-      });
+      toast.error('Ocurrió un error al guardar los datos del usuario.');
     } finally {
       setLoading(false);
     }
@@ -472,6 +441,8 @@ export default function UserModal({ onClose }) {
                   <option value="vendedor">Vendedor (Pipeline comercial y Cotizaciones)</option>
                   <option value="recepcionista">Recepcionista (Operación del Calendario)</option>
                   <option value="admin">Administrador (Acceso Total + Metas de Ventas)</option>
+                  <option value="eventos">Eventos (Gestión de checklists y reportes)</option>
+                  <option value="coordinador">Coordinador (Solo lectura: informes, checklists, ocupación)</option>
                 </select>
               </label>
             </div>
@@ -709,7 +680,7 @@ export default function UserModal({ onClose }) {
                   <tbody>
                     {users.map(u => {
                       const isSelected = selectedUserId === u.id;
-                      const roleLabel = u.role === 'admin' ? 'Administrador' : u.role === 'recepcionista' ? 'Recepcionista' : 'Vendedor';
+                      const roleLabel = ROLE_LABELS[u.role] || 'Vendedor';
                       const roleStyle = ROLE_COLORS[u.role] || ROLE_COLORS.vendedor;
                       const avatarUrl = u.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || u.name || '?')}&background=0ea5e9&color=fff&size=80`;
 

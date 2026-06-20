@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
-import Swal from 'sweetalert2';
+import toast from 'react-hot-toast';
 
 const ROLE_LABELS = {
   admin: 'Administrador',
   recepcionista: 'Recepcionista',
   vendedor: 'Vendedor',
+  eventos: 'Eventos',
+  coordinador: 'Coordinador',
 };
 
 const ROLE_COLORS = {
   admin: { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
   recepcionista: { bg: '#dbeafe', color: '#1e40af', border: '#93c5fd' },
   vendedor: { bg: '#dcfce7', color: '#166534', border: '#86efac' },
+  eventos: { bg: '#f3e8ff', color: '#6b21a8', border: '#d8b4fe' },
+  coordinador: { bg: '#fff7ed', color: '#9a3412', border: '#fed7aa' },
 };
 
 export default function SettingsUsers() {
@@ -54,16 +58,9 @@ export default function SettingsUsers() {
       await saveState(updatedUsers);
       setUsers(updatedUsers);
       window.dispatchEvent(new CustomEvent('usersUpdated'));
-      Swal.fire({
-        icon: 'success',
-        title: 'Estado Actualizado',
-        text: 'El estado del usuario se ha actualizado correctamente.',
-        confirmButtonColor: '#10b981',
-        timer: 1500,
-        showConfirmButton: false
-      });
+      toast.success('Estado actualizado correctamente.', { duration: 1500 });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error', text: e.message });
+      toast.error(e.message);
     }
   };
 

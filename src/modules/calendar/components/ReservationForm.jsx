@@ -11,6 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import Swal from 'sweetalert2';
+import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
 
 const pastEventEditAuthorizedKeys = new Set();
@@ -445,7 +446,7 @@ export default function ReservationForm() {
   ]);
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
   const [salonCapacities, setSalonCapacities] = useState({});
 
   const labelStyle = {
@@ -600,8 +601,10 @@ export default function ReservationForm() {
   }, [urlOpenAdvances, id]);
 
   const showNotification = (message, type = 'success') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    document.activeElement?.blur();
+    if (type === 'error') toast.error(message, { duration: 3000 });
+    else if (type === 'warning') toast(message, { duration: 3000, icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
+    else toast.success(message, { duration: 3000 });
   };
 
   const handleChange = (e) => {
@@ -1099,12 +1102,6 @@ export default function ReservationForm() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
-      {toast.show && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', padding: '14px 28px', background: toast.type === 'error' ? '#dc2626' : '#059669', color: 'white', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, fontWeight: '700' }}>
-          {toast.message}
-        </div>
-      )}
-
       {/* Header bar with title and Cerrar button */}
       <div style={{
         display: 'flex',
@@ -1510,19 +1507,15 @@ export default function ReservationForm() {
           </button>
         )}
 
-        {id && (() => {
-          const currentUser = authService.getCurrentUser();
-          const userRole = currentUser?.role || 'vendedor';
-          return userRole !== 'recepcionista' && (
-            <button onClick={handleOpenQuote} className="btn-cotizar">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
-              Cotizar
-            </button>
-          );
-        })()}
+        {id && (
+          <button onClick={handleOpenQuote} className="btn-cotizar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+            Cotizar
+          </button>
+        )}
 
         {id && (
           <button onClick={handleOpenHistory} className="btn-historial">

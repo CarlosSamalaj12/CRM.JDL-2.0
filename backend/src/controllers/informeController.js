@@ -7,9 +7,14 @@ const OCCUPACION_JOIN = `
 
 async function fetchInformeWithDias(informeId) {
   const [rows] = await pool.query(`
-    SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion, e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento, e.Vendedor, e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc
+    SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion,
+           e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento,
+           COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
+           e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc
     FROM informes_eventos i
     LEFT JOIN tbl_seguimientocotizaciones e ON ${OCCUPACION_JOIN}
+    LEFT JOIN eventos ev ON CONVERT(i.id_ocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ev.id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    LEFT JOIN usuarios u ON ev.id_usuario = u.id
     WHERE i.id = ?
   `, [informeId]);
 

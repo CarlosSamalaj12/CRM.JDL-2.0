@@ -21,7 +21,7 @@ export default function ReportsLayout() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
-  const canManageCatalog = user && ['Admin', 'FrontOffice', 'Vendedor'].includes(user.rol);
+  const canManageCatalog = user && ['Admin', 'FrontOffice', 'Vendedor', 'Eventos'].includes(user.rol);
   const isAdmin = user?.rol === 'Admin';
 
   useEffect(() => {
@@ -161,7 +161,7 @@ export default function ReportsLayout() {
                 <div className="profile-text">
                   <span className="profile-name">{user?.nombre || user?.email}</span>
                   <span className="profile-role">
-                    {user?.rol === 'Admin' ? 'Administrador' : user?.rol === 'FrontOffice' ? 'Recepcionista' : 'Vendedor'}
+                    {user?.rol === 'Admin' ? 'Administrador' : user?.rol === 'FrontOffice' ? 'Recepcionista' : user?.rol === 'Coordinador' ? 'Coordinador' : user?.rol === 'Eventos' ? 'Eventos' : 'Vendedor'}
                   </span>
                 </div>
               </div>

@@ -188,7 +188,7 @@ export default function Sidebar() {
                 <div className="profile-text">
                   <span className="profile-name">{user.name}</span>
                   <span className="profile-role">
-                    {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : 'Vendedor'}
+                    {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : user.role === 'eventos' ? 'Eventos' : user.role === 'coordinador' ? 'Coordinador' : 'Vendedor'}
                   </span>
                 </div>
               </div>
@@ -957,7 +957,7 @@ export default function Sidebar() {
           <div className="sideUserName">
             <span style={{ color: '#f8fafc', fontSize: '12px', fontWeight: '600' }}>{user.name}</span>
             <span style={{ color: '#94a3b8', fontSize: '10px' }}>
-              {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : 'Vendedor'}
+              {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : user.role === 'eventos' ? 'Eventos' : user.role === 'coordinador' ? 'Coordinador' : 'Vendedor'}
             </span>
           </div>
         </div>

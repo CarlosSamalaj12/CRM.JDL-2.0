@@ -18,6 +18,15 @@ const getLocalDateString = (d) => {
 const STATUS = { PRERESERVA: 'Pre reserva', CONFIRMADO: 'Confirmado' };
 const ALLOWED_STATUSES = new Set([STATUS.PRERESERVA, STATUS.CONFIRMADO]);
 
+function getAllChkItems(chk) {
+  if (!chk) return [];
+  if (Array.isArray(chk.items)) return chk.items;
+  const all = [];
+  if (chk.operativa?.items) all.push(...chk.operativa.items);
+  if (chk.evaluacion?.items) all.push(...chk.evaluacion.items);
+  return all;
+}
+
 export default function ReportsOcupacion({ onClose }) {
   const { events, users, occupancyWeeklyOps, handleUpdateOccupancyOps } = useOutletContext();
   
@@ -114,9 +123,10 @@ export default function ReportsOcupacion({ onClose }) {
     if (checklistFilter) {
       result = result.filter(r => {
         const chk = r.rawEvent.checklist;
-        if (checklistFilter === 'pendiente') return !chk?.items?.length;
-        if (checklistFilter === 'en_proceso') return chk?.items?.length && !chk.items.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
-        if (checklistFilter === 'completo') return chk?.items?.length && chk.items.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
+        const chkItems = getAllChkItems(chk);
+        if (checklistFilter === 'pendiente') return !chkItems.length;
+        if (checklistFilter === 'en_proceso') return chkItems.length > 0 && !chkItems.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
+        if (checklistFilter === 'completo') return chkItems.length > 0 && chkItems.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
         return true;
       });
     }
@@ -489,8 +499,9 @@ export default function ReportsOcupacion({ onClose }) {
                   const quoteLabel = hasQuote ? `V${ev.quote.version || 1} - ${formatQuoteDate(ev.quote.quotedAt)}` : '-';
                   const hasMenu = !!(ev.quote?.menuMontajeEntries?.length || ev.quote?.menuMontajeVersion);
                   const menuLabel = hasMenu ? `V${ev.quote?.menuMontajeVersion || 1}` : '-';
-                  const hasChecklist = !!(ev.checklist?.items?.length);
-                  const completed = hasChecklist && ev.checklist.items.every(item => item.status === 'cumplido' || item.status === 'no_aplica');
+                  const chkItems = getAllChkItems(ev.checklist);
+                  const hasChecklist = chkItems.length > 0;
+                  const completed = hasChecklist && chkItems.every(item => item.status === 'cumplido' || item.status === 'no_aplica');
                   const checklistLabel = completed ? "Completo" : (hasChecklist ? "En proceso" : "Iniciar");
 
                   return (

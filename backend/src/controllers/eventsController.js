@@ -1,5 +1,10 @@
 import pool from '../config/db.js';
 
+const EVENTO_USER_JOIN = `
+  LEFT JOIN eventos ev ON CONVERT(e.Idocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ev.id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+  LEFT JOIN usuarios u ON ev.id_usuario = u.id
+`;
+
 export async function getEvents(req, res, next) {
   try {
     const { date } = req.query;
@@ -8,7 +13,7 @@ export async function getEvents(req, res, next) {
         e.Institucion,
         e.Pax,
         e.Estatuscotizacion,
-        e.Vendedor,
+        COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
         e.FechaEvento,
         e.FechaSalida,
         e.HoraI,
@@ -20,6 +25,7 @@ export async function getEvents(req, res, next) {
         m.alertas_text
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion
+      ${EVENTO_USER_JOIN}
       WHERE e.Estatuscotizacion IN (4, 7)`;
 
     let params = [];
@@ -49,7 +55,7 @@ export async function getEventById(req, res, next) {
         e.Institucion,
         e.Pax,
         e.Estatuscotizacion,
-        e.Vendedor,
+        COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
         e.FechaEvento,
         e.FechaSalida,
         e.HoraI,
@@ -63,6 +69,7 @@ export async function getEventById(req, res, next) {
         m.alertas_text
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion
+      ${EVENTO_USER_JOIN}
       WHERE e.Idocupacion = ?
     `, [id]);
 

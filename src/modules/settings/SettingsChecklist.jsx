@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
+import authService from '../../services/authService';
 
 const XIcon = () => (
   <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -488,16 +489,66 @@ export function ChecklistTemplateEditor() {
    COMPONENTE PRINCIPAL — solo mantiene el Modal
    del Event Checklist (abierto desde el calendario)
    ══════════════════════════════════════════════ */
+function normalizeRole(role) {
+  const raw = String(role || '').trim().toLowerCase();
+  if (raw === 'admin') return 'Admin';
+  if (raw === 'frontoffice' || raw === 'front_office' || raw === 'recepcionista') return 'FrontOffice';
+  if (raw === 'vendedor' || raw === 'sales') return 'Vendedor';
+  if (raw === 'coordinador') return 'Coordinador';
+  if (raw === 'eventos') return 'Eventos';
+  return role || '';
+}
+
+function buildHistoryEntry(user) {
+  return {
+    userId: user?.id || '',
+    userName: user?.fullName || user?.name || user?.username || 'Desconocido',
+    userRole: normalizeRole(user?.role),
+    timestamp: new Date().toISOString(),
+    action: 'edit',
+  };
+}
+
+function HistoryBadge({ history }) {
+  if (!history || history.length === 0) return null;
+  const last = history[history.length - 1];
+  const d = new Date(last.timestamp);
+  const dateStr = d.toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return (
+    <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500, marginLeft: '8px' }}>
+      {'\u00daltima edici\u00f3n: '}{last.userName} ({dateStr})
+    </span>
+  );
+}
+
+const TAB_OPERATIVA = 'operativa';
+const TAB_EVALUACION = 'evaluacion';
+
 export default function SettingsChecklist() {
   const eventRef = useRef(null);
 
   const [templates, setTemplates] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [savingOp, setSavingOp] = useState(false);
+  const [savingEv, setSavingEv] = useState(false);
   const [evtId, setEvtId] = useState(null);
   const [evtData, setEvtData] = useState(null);
-  const [evtTplId, setEvtTplId] = useState('');
-  const [evtNotes, setEvtNotes] = useState('');
-  const [evtItems, setEvtItems] = useState([]);
+  const [activeTab, setActiveTab] = useState(TAB_OPERATIVA);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Operativa checklist
+  const [opTplId, setOpTplId] = useState('');
+  const [opNotes, setOpNotes] = useState('');
+  const [opItems, setOpItems] = useState([]);
+  const [opHistory, setOpHistory] = useState([]);
+
+  // Evaluacion checklist
+  const [evTplId, setEvTplId] = useState('');
+  const [evNotes, setEvNotes] = useState('');
+  const [evItems, setEvItems] = useState([]);
+  const [evHistory, setEvHistory] = useState([]);
+
+  const isReadOnly = currentUser?.rol === 'Coordinador';
 
   const s = {
     label: { fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' },
@@ -510,17 +561,42 @@ export default function SettingsChecklist() {
       const id = e?.detail?.eventId;
       if (!id) return;
       try {
+        const user = authService.getCurrentUser();
+        setCurrentUser(user ? { ...user, rol: normalizeRole(user.role) } : null);
+
         const state = await loadCrmState();
         setTemplates(Array.isArray(state.checklistTemplates) ? state.checklistTemplates : []);
         const events = Array.isArray(state.events) ? state.events : [];
         const checklists = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
-        const ev = events.find(x => x.id === id);
+        const eventFound = events.find(x => x.id === id);
         setEvtId(id);
-        setEvtData(ev || null);
-        const chk = checklists[id] || ev?.checklist;
-        setEvtTplId(String(chk?.templateId || ''));
-        setEvtNotes(chk?.notes || '');
-        setEvtItems(chk?.items || []);
+        setEvtData(eventFound || null);
+
+        let raw = checklists[id] || eventFound?.checklist;
+        // Migrate old format (single checklist with mixed items) to new format (operativa/evaluacion)
+        if (raw && !raw[TAB_OPERATIVA] && !raw[TAB_EVALUACION] && Array.isArray(raw.items)) {
+          const opItems = raw.items.filter(i => i.sectionType !== TAB_EVALUACION);
+          const evItems = raw.items.filter(i => i.sectionType === TAB_EVALUACION);
+          raw = {
+            [TAB_OPERATIVA]: { templateId: raw.templateId, notes: raw.notes, items: opItems, history: [] },
+            [TAB_EVALUACION]: { templateId: null, notes: '', items: evItems, history: [] },
+          };
+          // Persist migration immediately
+          await saveCrmState({ ...state, eventChecklists: { ...checklists, [id]: raw } });
+        }
+
+        const op = raw?.[TAB_OPERATIVA] || {};
+        const evTabData = raw?.[TAB_EVALUACION] || {};
+        setOpTplId(String(op.templateId || ''));
+        setOpNotes(op.notes || '');
+        setOpItems(op.items || []);
+        setOpHistory(op.history || []);
+        setEvTplId(String(evTabData.templateId || ''));
+        setEvNotes(evTabData.notes || '');
+        setEvItems(evTabData.items || []);
+        setEvHistory(evTabData.history || []);
+        setActiveTab(TAB_OPERATIVA);
+
         if (eventRef.current) eventRef.current.style.display = 'flex';
       } catch (err) { console.error(err); toast('Error al abrir checklist'); }
     };
@@ -530,59 +606,98 @@ export default function SettingsChecklist() {
 
   const closeEvent = () => { if (eventRef.current) eventRef.current.style.display = 'none'; };
 
-  const handleEvtTpl = (e) => {
-    const id = e.target.value;
-    setEvtTplId(id);
-    if (!id) { setEvtItems([]); return; }
-    const tpl = templates.find(t => t.id === Number(id));
+  const handleTpl = (tab) => (e) => {
+    const tid = e.target.value;
+    const prevId = tab === TAB_OPERATIVA ? opTplId : evTplId;
+    const currentItems = tab === TAB_OPERATIVA ? opItems : evItems;
+    if (currentItems.length > 0 && tid !== prevId && !window.confirm('¿Cambiar plantilla? Los items actuales se reemplazarán.')) {
+      if (tab === TAB_OPERATIVA) setOpTplId(prevId);
+      else setEvTplId(prevId);
+      return;
+    }
+    if (tab === TAB_OPERATIVA) setOpTplId(tid);
+    else setEvTplId(tid);
+    if (!tid) {
+      if (tab === TAB_OPERATIVA) setOpItems([]);
+      else setEvItems([]);
+      return;
+    }
+    const tpl = templates.find(t => t.id === Number(tid));
     if (!tpl) return;
-    setEvtItems(tpl.sections.flatMap(s =>
-      s.items.map(item => ({ 
+    const items = tpl.sections.flatMap(s =>
+      (s.items || []).map(item => ({
         id: item.id, text: item.text, sectionName: s.name,
-        sectionType: s.type || 'operativa',
+        sectionType: s.type || TAB_OPERATIVA,
         status: 'pendiente',
         rating: null,
-        comment: '' 
+        comment: ''
       }))
-    ));
+    );
+    if (tab === TAB_OPERATIVA) setOpItems(items);
+    else setEvItems(items);
   };
 
-  const setRating = (id, rating) => setEvtItems(prev => prev.map(i => i.id === id ? { ...i, rating } : i));
+  const setRating = (tab) => (id, rating) => {
+    const fn = tab === TAB_OPERATIVA ? setOpItems : setEvItems;
+    fn(prev => prev.map(i => i.id === id ? { ...i, rating } : i));
+  };
 
-  const setSt = (id, status) => setEvtItems(prev => prev.map(i => i.id === id ? { ...i, status } : i));
-  const setCm = (id, comment) => setEvtItems(prev => prev.map(i => i.id === id ? { ...i, comment } : i));
+  const setSt = (tab) => (id, status) => {
+    const fn = tab === TAB_OPERATIVA ? setOpItems : setEvItems;
+    fn(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+  };
 
-  const evtTotal = evtItems.length;
-  const evtDone = evtItems.filter(i => i.status === 'cumplido').length;
-  const evtProgress = evtTotal > 0 ? Math.round(((evtDone + evtItems.filter(i => i.status === 'en_proceso' || i.status === 'no_aplica').length) / evtTotal) * 100) : 0;
-  const evtSat = (evtTotal - evtItems.filter(i => i.status === 'no_aplica').length) > 0
-    ? Math.round((evtDone / (evtTotal - evtItems.filter(i => i.status === 'no_aplica').length)) * 100) : 0;
+  const setCm = (tab) => (id, comment) => {
+    const fn = tab === TAB_OPERATIVA ? setOpItems : setEvItems;
+    fn(prev => prev.map(i => i.id === id ? { ...i, comment } : i));
+  };
 
-  // Satisfaction calculations
-  const evalItems = evtItems.filter(i => i.sectionType === 'evaluacion');
+  const handleSave = (tab) => async () => {
+    if (!evtId) { toast('No hay evento'); return; }
+    const setSaving = tab === TAB_OPERATIVA ? setSavingOp : setSavingEv;
+    setSaving(true);
+    try {
+      const state = await loadCrmState();
+      const cur = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
+      const existing = cur[evtId] || {};
+      const entry = buildHistoryEntry(currentUser);
+      const tabData = tab === TAB_OPERATIVA
+        ? { templateId: opTplId ? Number(opTplId) : null, notes: opNotes, items: opItems, history: [...opHistory, entry] }
+        : { templateId: evTplId ? Number(evTplId) : null, notes: evNotes, items: evItems, history: [...evHistory, entry] };
+      await saveCrmState({
+        ...state,
+        eventChecklists: { ...cur, [evtId]: { ...existing, [tab]: tabData } }
+      });
+      if (tab === TAB_OPERATIVA) setOpHistory(prev => [...prev, entry]);
+      else setEvHistory(prev => [...prev, entry]);
+      toast(`Check list ${tab === TAB_OPERATIVA ? 'Operativa' : 'Evaluaci\u00f3n'} guardado \u2713`);
+      window.dispatchEvent(new Event('stateUpdated'));
+    } catch (err) { console.error(err); toast('Error al guardar'); }
+    finally { setSaving(false); }
+  };
+
+  // Computed for active tab
+  const activeItems = activeTab === TAB_OPERATIVA ? opItems : evItems;
+  const activeTplId = activeTab === TAB_OPERATIVA ? opTplId : evTplId;
+  const activeNotes = activeTab === TAB_OPERATIVA ? opNotes : evNotes;
+  const activeHistory = activeTab === TAB_OPERATIVA ? opHistory : evHistory;
+  const activeSaving = activeTab === TAB_OPERATIVA ? savingOp : savingEv;
+
+  const total = activeItems.length;
+  const done = activeItems.filter(i => i.status === 'cumplido').length;
+  const progress = total > 0 ? Math.round(((done + activeItems.filter(i => i.status === 'en_proceso' || i.status === 'no_aplica').length) / total) * 100) : 0;
+  const sat = (total - activeItems.filter(i => i.status === 'no_aplica').length) > 0
+    ? Math.round((done / (total - activeItems.filter(i => i.status === 'no_aplica').length)) * 100) : 0;
+
+  const evalItems = activeItems.filter(i => i.sectionType === 'evaluacion');
   const ratedItems = evalItems.filter(i => i.rating !== null);
   const satisfactionAvg = ratedItems.length > 0
     ? (ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0) / ratedItems.length)
     : 0;
   const satisfactionPct = Math.round((satisfactionAvg / 4) * 100);
 
-  const handleSaveEvent = async () => {
-    if (!evtId) { toast('No hay evento'); return; }
-    setSaving(true);
-    try {
-      const state = await loadCrmState();
-      const cur = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
-      await saveCrmState({ ...state, eventChecklists: { ...cur, [evtId]: { templateId: evtTplId ? Number(evtTplId) : null, notes: evtNotes, items: evtItems } } });
-      toast('Check list guardado ✓');
-      window.dispatchEvent(new Event('stateUpdated'));
-      closeEvent();
-    } catch (err) { console.error(err); toast('Error al guardar'); }
-    finally { setSaving(false); }
-  };
-
   return (
     <>
-      {/* ═══ MODAL: Check List del Evento (abierto desde calendario) ═══ */}
       <div
         ref={eventRef}
         id="eventChecklistBackdrop"
@@ -596,8 +711,8 @@ export default function SettingsChecklist() {
         }}
       >
         <div role="dialog" style={{
-          width: 'min(94vw, 820px)',
-          height: 'min(92vh, 860px)',
+          width: 'min(94vw, 880px)',
+          height: 'min(92vh, 880px)',
           display: 'flex', flexDirection: 'column',
           background: '#ffffff', border: '1px solid #e2e8f0',
           borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
@@ -606,7 +721,10 @@ export default function SettingsChecklist() {
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#fff', flexShrink: 0 }}>
             <div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>✅ Check List — Evento</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
+                Check List — Evento
+                {isReadOnly && <span style={{ marginLeft: '8px', fontSize: '0.65rem', fontWeight: 600, color: '#f59e0b', background: '#fffbeb', padding: '2px 8px', borderRadius: '999px' }}>Solo lectura</span>}
+              </div>
               <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>
                 {evtData ? `${evtData.eventName || evtData.client || evtData.name || ''} — ${evtData.date || evtData.eventDate || ''}` : ''}
               </div>
@@ -614,12 +732,38 @@ export default function SettingsChecklist() {
             <button className="btn-exit" type="button" onClick={closeEvent}><XIcon /></button>
           </div>
 
+          {/* Tab bar */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafd', flexShrink: 0 }}>
+            {[
+              { key: TAB_OPERATIVA, label: 'Operativa', icon: '\u2699\uFE0F', desc: 'Pendiente / Cumplido', color: '#6366f1' },
+              { key: TAB_EVALUACION, label: 'Evaluaci\u00f3n', icon: '\u2B50', desc: 'Malo / Regular / Bueno / Excelente', color: '#7c3aed' },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  flex: 1, padding: '10px 16px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+                  background: activeTab === tab.key ? '#ffffff' : 'transparent',
+                  color: activeTab === tab.key ? tab.color : '#94a3b8',
+                  borderBottom: activeTab === tab.key ? `2px solid ${tab.color}` : '2px solid transparent',
+                  transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                }}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: '#94a3b8', marginLeft: '2px' }}>{tab.desc}</span>
+              </button>
+            ))}
+          </div>
+
           {/* Body */}
           <div style={{ flex: '1 1 0', overflowY: 'scroll', overflowX: 'hidden', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
+            {/* Template selector + event info */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div>
                 <span style={s.label}>Plantilla</span>
-                <select value={evtTplId} onChange={handleEvtTpl} style={s.select}>
+                <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={isReadOnly}>
                   <option value="">-- Seleccionar --</option>
                   {templates.filter(t => t.active !== false).map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
@@ -636,62 +780,95 @@ export default function SettingsChecklist() {
               </div>
             </div>
 
+            {/* Notes */}
             <div>
               <span style={s.label}>Notas / Sugerencias</span>
-              <textarea value={evtNotes} onChange={e => setEvtNotes(e.target.value)}
+              <textarea value={activeNotes} onChange={e => {
+                const val = e.target.value;
+                if (activeTab === TAB_OPERATIVA) setOpNotes(val);
+                else setEvNotes(val);
+              }}
                 rows={2} placeholder="Observaciones generales..."
-                style={{ ...s.input, resize: 'vertical', minHeight: '50px' }} />
+                style={{ ...s.input, resize: 'vertical', minHeight: '50px' }}
+                readOnly={isReadOnly} />
             </div>
 
             {/* Progress + Satisfaction */}
             <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                <span>Avance <span style={{ color: '#6366f1' }}>{evtProgress}%</span></span>
-                <span>Operativo <span style={{ color: '#10b981' }}>{evtSat}%</span></span>
+                <span>Avance <span style={{ color: '#6366f1' }}>{progress}%</span></span>
+                {activeTab === TAB_OPERATIVA && <span>Operativo <span style={{ color: '#10b981' }}>{sat}%</span></span>}
               </div>
               <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg,#6366f1,#10b981)', width: `${evtProgress}%`, transition: 'width 0.3s ease' }} />
+                <div style={{ height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg,#6366f1,#10b981)', width: `${progress}%`, transition: 'width 0.3s ease' }} />
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
-                <span>✅ {evtDone} cumplido(s)</span>
-                <span>🔄 {evtItems.filter(i => i.status === 'en_proceso').length} en proceso</span>
-                <span>⏳ {evtItems.filter(i => i.status === 'pendiente').length} pendiente(s)</span>
-                <span>🚫 {evtItems.filter(i => i.status === 'no_aplica').length} no aplica</span>
+                <span>{'\u2705'} {done} cumplido(s)</span>
+                <span>{'\uD83D\uDD04'} {activeItems.filter(i => i.status === 'en_proceso').length} en proceso</span>
+                <span>{'\u23F3'} {activeItems.filter(i => i.status === 'pendiente').length} pendiente(s)</span>
+                <span>{'\uD83D\uDEAB'} {activeItems.filter(i => i.status === 'no_aplica').length} no aplica</span>
               </div>
 
-              {/* Satisfaction score bar */}
-              {evalItems.length > 0 && (
+              {/* Satisfaction score bar (only for evaluacion tab) */}
+              {activeTab === TAB_EVALUACION && evalItems.length > 0 && (
                 <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                    <span>⭐ Satisfacción del Cliente</span>
+                    <span>{'\u2B50'} Satisfacci\u00f3n del Cliente</span>
                     <span style={{
                       color: satisfactionAvg >= 3.5 ? '#16a34a' : satisfactionAvg >= 2.5 ? '#d97706' : '#dc2626',
                       fontSize: '0.9rem',
                     }}>
-                      {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 4.0 (${satisfactionPct}%)` : '—'}
+                      {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 4.0 (${satisfactionPct}%)` : '\u2014'}
                     </span>
                   </div>
                   <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', borderRadius: '999px', 
+                    <div style={{ height: '100%', borderRadius: '999px',
                       background: satisfactionAvg >= 3.5 ? '#22c55e' : satisfactionAvg >= 2.5 ? '#eab308' : '#ef4444',
                       width: ratedItems.length > 0 ? `${satisfactionPct}%` : '0%',
-                      transition: 'width 0.4s ease' 
+                      transition: 'width 0.4s ease'
                     }} />
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
-                    <span>💎 Excelente: {evalItems.filter(i => i.rating === 'excelente').length}</span>
-                    <span>🟢 Bueno: {evalItems.filter(i => i.rating === 'bueno').length}</span>
-                    <span>🟡 Regular: {evalItems.filter(i => i.rating === 'regular').length}</span>
-                    <span>🔴 Malo: {evalItems.filter(i => i.rating === 'malo').length}</span>
-                    <span>⚪ Sin calificar: {evalItems.filter(i => i.rating === null).length}</span>
+                    <span>{'\uD83D\uDC8E'} Excelente: {evalItems.filter(i => i.rating === 'excelente').length}</span>
+                    <span>{'\uD83D\uDFE2'} Bueno: {evalItems.filter(i => i.rating === 'bueno').length}</span>
+                    <span>{'\uD83D\uDFE1'} Regular: {evalItems.filter(i => i.rating === 'regular').length}</span>
+                    <span>{'\uD83D\uDD34'} Malo: {evalItems.filter(i => i.rating === 'malo').length}</span>
+                    <span>{'\u26AA'} Sin calificar: {evalItems.filter(i => i.rating === null).length}</span>
                   </div>
                 </div>
               )}
             </div>
 
+            {/* History toggle */}
+            {activeHistory.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowHistory(!showHistory)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: '#6366f1', padding: '4px 0', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  {showHistory ? '\u25BC' : '\u25B6'} Historial de ediciones ({activeHistory.length})
+                </button>
+                {showHistory && (
+                  <div style={{ marginTop: '6px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#ffffff', padding: '8px 12px', maxHeight: '150px', overflowY: 'auto' }}>
+                    {activeHistory.map((h, i) => {
+                      const d = new Date(h.timestamp);
+                      const dateStr = d.toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      return (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: i < activeHistory.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '0.73rem' }}>
+                          <span style={{ color: '#0f172a', fontWeight: 600 }}>{h.userName}</span>
+                          <span style={{ color: '#94a3b8' }}>{h.userRole} — {dateStr}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Items table */}
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', background: '#ffffff' }}>
-              {evtItems.length === 0 ? (
+              {activeItems.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
                   Selecciona una plantilla para cargar los puntos a evaluar
                 </div>
@@ -701,49 +878,55 @@ export default function SettingsChecklist() {
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
                       <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '36px' }}>#</th>
                       <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase' }}>Punto</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '200px' }}>
-                        {evtItems.some(i => i.sectionType === 'evaluacion') ? 'Calificación' : 'Estado'}
+                      <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '210px' }}>
+                        {activeTab === TAB_EVALUACION ? 'Calificaci\u00f3n' : 'Estado'}
                       </th>
                       <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '180px' }}>Comentario</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {evtItems.map((item, idx) => (
+                    {activeItems.map((item, idx) => (
                       <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: item.sectionType === 'evaluacion' ? '#faf5ff' : 'transparent' }}>
                         <td style={{ padding: '6px 10px', color: '#94a3b8', fontWeight: 600, fontSize: '0.72rem' }}>{idx + 1}</td>
                         <td style={{ padding: '6px 10px' }}>
                           <span style={{ color: '#6366f1', fontSize: '0.7rem', fontWeight: 600 }}>
                             {item.sectionName ? `[${item.sectionName}] ` : ''}
-                            {item.sectionType === 'evaluacion' && <span style={{ color: '#7c3aed', fontWeight: 700 }}>⭐ </span>}
+                            {item.sectionType === 'evaluacion' && <span style={{ color: '#7c3aed', fontWeight: 700 }}>{'\u2B50'} </span>}
                           </span>
                           <span style={{ color: '#0f172a', fontWeight: 500 }}>{item.text}</span>
                         </td>
                         <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                          {item.sectionType === 'evaluacion' ? (
+                          {item.sectionType === TAB_EVALUACION ? (
                             <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
-                              {RATING_LEVELS.map(r => (
-                                <button
-                                  key={r.value}
-                                  type="button"
-                                  onClick={() => setRating(item.id, item.rating === r.value ? null : r.value)}
-                                  title={r.label}
-                                  style={{
-                                    padding: '4px 7px', borderRadius: '6px', border: item.rating === r.value ? `2px solid ${r.value === 'malo' ? '#ef4444' : r.value === 'regular' ? '#eab308' : r.value === 'bueno' ? '#22c55e' : '#a855f7'}` : '1.5px solid #e2e8f0',
-                                    background: item.rating === r.value ? (r.value === 'malo' ? '#fef2f2' : r.value === 'regular' ? '#fffbeb' : r.value === 'bueno' ? '#f0fdf4' : '#faf5ff') : '#fff',
-                                    fontSize: '0.7rem', fontWeight: 700,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.12s',
-                                    color: item.rating === r.value ? (r.value === 'malo' ? '#dc2626' : r.value === 'regular' ? '#ca8a04' : r.value === 'bueno' ? '#16a34a' : '#9333ea') : '#94a3b8',
-                                    opacity: item.rating && item.rating !== r.value ? 0.5 : 1,
-                                  }}
-                                >
-                                  {r.emoji} {r.label}
-                                </button>
-                              ))}
+                              {RATING_LEVELS.map(r => {
+                                const isSelected = item.rating === r.value;
+                                return (
+                                  <button
+                                    key={r.value}
+                                    type="button"
+                                    onClick={() => !isReadOnly && setRating(activeTab)(item.id, isSelected ? null : r.value)}
+                                    title={r.label}
+                                    disabled={isReadOnly}
+                                    style={{
+                                      padding: '4px 7px', borderRadius: '6px',
+                                      border: isSelected ? `2px solid ${r.value === 'malo' ? '#ef4444' : r.value === 'regular' ? '#eab308' : r.value === 'bueno' ? '#22c55e' : '#a855f7'}` : '1.5px solid #e2e8f0',
+                                      background: isSelected ? (r.value === 'malo' ? '#fef2f2' : r.value === 'regular' ? '#fffbeb' : r.value === 'bueno' ? '#f0fdf4' : '#faf5ff') : '#fff',
+                                      fontSize: '0.7rem', fontWeight: 700,
+                                      cursor: isReadOnly ? 'default' : 'pointer',
+                                      opacity: isReadOnly ? 0.85 : (item.rating && !isSelected ? 0.5 : 1),
+                                      color: isSelected ? (r.value === 'malo' ? '#dc2626' : r.value === 'regular' ? '#ca8a04' : r.value === 'bueno' ? '#16a34a' : '#9333ea') : '#94a3b8',
+                                      filter: isReadOnly && !isSelected ? 'grayscale(0.8)' : 'none',
+                                    }}
+                                  >
+                                    {r.emoji} {r.label}
+                                  </button>
+                                );
+                              })}
                             </div>
                           ) : (
-                            <select value={item.status} onChange={e => setSt(item.id, e.target.value)}
-                              style={{ padding: '4px 8px', borderRadius: '6px', border: '1.5px solid #d1d9e6', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', background: item.status === 'cumplido' ? '#f0fdf4' : item.status === 'en_proceso' ? '#fffbeb' : item.status === 'no_aplica' ? '#f0f9ff' : '#ffffff', color: item.status === 'cumplido' ? '#16a34a' : item.status === 'en_proceso' ? '#d97706' : item.status === 'no_aplica' ? '#0ea5e9' : '#64748b', appearance: 'auto' }}>
+                            <select value={item.status} onChange={e => !isReadOnly && setSt(activeTab)(item.id, e.target.value)}
+                              disabled={isReadOnly}
+                              style={{ padding: '4px 8px', borderRadius: '6px', border: '1.5px solid #d1d9e6', fontSize: '0.75rem', fontWeight: 600, cursor: isReadOnly ? 'default' : 'pointer', background: item.status === 'cumplido' ? '#f0fdf4' : item.status === 'en_proceso' ? '#fffbeb' : item.status === 'no_aplica' ? '#f0f9ff' : '#ffffff', color: item.status === 'cumplido' ? '#16a34a' : item.status === 'en_proceso' ? '#d97706' : item.status === 'no_aplica' ? '#0ea5e9' : '#64748b', opacity: isReadOnly ? 0.75 : 1, appearance: isReadOnly ? 'none' : 'auto' }}>
                               <option value="pendiente">Pendiente</option>
                               <option value="en_proceso">En proceso</option>
                               <option value="cumplido">Cumplido</option>
@@ -752,8 +935,9 @@ export default function SettingsChecklist() {
                           )}
                         </td>
                         <td style={{ padding: '6px 10px' }}>
-                          <input type="text" value={item.comment} onChange={e => setCm(item.id, e.target.value)}
-                            placeholder="..." style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1.5px solid #e2e8f0', fontSize: '0.75rem', outline: 'none', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                          <input type="text" value={item.comment} onChange={e => !isReadOnly && setCm(activeTab)(item.id, e.target.value)}
+                            placeholder="..." readOnly={isReadOnly}
+                            style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1.5px solid #e2e8f0', fontSize: '0.75rem', outline: 'none', background: isReadOnly ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
                         </td>
                       </tr>
                     ))}
@@ -764,12 +948,20 @@ export default function SettingsChecklist() {
           </div>
 
           {/* Footer */}
-          <div style={{ flexShrink: 0, padding: '12px 18px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
-            <button className="btn-exit" type="button" onClick={closeEvent}>Cerrar</button>
-            <button type="button" onClick={handleSaveEvent} disabled={saving}
-              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
-              {saving ? 'Guardando...' : 'Guardar check list'}
-            </button>
+          <div style={{ flexShrink: 0, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+              {activeTab === TAB_OPERATIVA ? '\u2699\uFE0F Check List Operativa' : '\u2B50 Check List Evaluaci\u00f3n'}
+              <HistoryBadge history={activeHistory} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn-exit" type="button" onClick={closeEvent}>Cerrar</button>
+              {!isReadOnly && (
+                <button type="button" onClick={handleSave(activeTab)} disabled={activeSaving}
+                  style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: activeSaving ? 0.6 : 1 }}>
+                  {activeSaving ? 'Guardando...' : `Guardar ${activeTab === TAB_OPERATIVA ? 'Operativa' : 'Evaluaci\u00f3n'}`}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

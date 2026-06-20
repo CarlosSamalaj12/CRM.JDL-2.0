@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { fetchEvents } from '../services/api.js';
+import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import EventCard from '../components/EventCard.jsx';
 
 import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload } from '../components/Icons.jsx';
@@ -57,6 +58,17 @@ function formatDateShort(iso) {
   return d.toLocaleDateString('es-ES', { weekday:'short', day:'numeric', month:'short' });
 }
 
+function getWeekMonday(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  return monday.toISOString().slice(0, 10);
+}
+
 export default function Kanban() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState([]);
@@ -67,6 +79,56 @@ export default function Kanban() {
   const [filterExiting, setFilterExiting] = useState(false);
 
   const [viewMode, setViewMode] = useState('kanban');
+  const [occupancyOps, setOccupancyOps] = useState({});
+  const [editingDay, setEditingDay] = useState(null);
+  const [editDes, setEditDes] = useState(0);
+  const [editHab, setEditHab] = useState(0);
+  const currentUser = (() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      const r = String(u.role || '').trim().toLowerCase();
+      let rol = r;
+      if (r === 'admin') rol = 'Admin';
+      else if (r === 'frontoffice' || r === 'front_office' || r === 'recepcionista') rol = 'FrontOffice';
+      else if (r === 'vendedor' || r === 'sales') rol = 'Vendedor';
+      else if (r === 'coordinador') rol = 'Coordinador';
+      else if (r === 'eventos') rol = 'Eventos';
+      return { ...u, rol };
+    } catch { return null; }
+  })();
+  const isOccupancyEditable = currentUser && ['Admin', 'Vendedor', 'FrontOffice'].includes(currentUser.rol);
+
+  useEffect(() => {
+    const loadOcc = () => {
+      loadCrmState().then(state => {
+        setOccupancyOps(state?.occupancyWeeklyOps || {});
+      }).catch(() => {});
+    };
+    loadOcc();
+    window.addEventListener('stateUpdated', loadOcc);
+    return () => window.removeEventListener('stateUpdated', loadOcc);
+  }, []);
+
+  const handleOccupancySave = async (isoDate) => {
+    if (!isoDate) return;
+    const weekStart = getWeekMonday(isoDate);
+    if (!weekStart) return;
+    setEditingDay(null);
+    try {
+      const state = await loadCrmState();
+      const serverWeekly = state?.occupancyWeeklyOps || {};
+      const currentWeekly = serverWeekly[weekStart] || {};
+      const merged = {
+        ...serverWeekly,
+        [weekStart]: { ...currentWeekly, [isoDate]: { breakfasts: Math.max(0, Number(editDes) || 0), rooms: Math.max(0, Number(editHab) || 0) } }
+      };
+      await saveCrmState({ ...state, occupancyWeeklyOps: merged });
+      setOccupancyOps(merged);
+      window.dispatchEvent(new Event('stateUpdated'));
+    } catch { toast?.error?.('Error al guardar ocupación') || console.error('Error saving occupancy'); }
+  };
 
   const filterStatus = searchParams.get('status');
   const filterTipo = searchParams.get('tipo');
@@ -233,12 +295,42 @@ export default function Kanban() {
 
       {!loading && !error && viewMode === 'kanban' && (
         <div className="kanban-board">
-          {filteredColumns.map((column) => (
+          {filteredColumns.map((column) => {
+            const dayOps = (occupancyOps[getWeekMonday(column.isoDate)]?.[column.isoDate]) || { breakfasts: 0, rooms: 0 };
+            const isEditing = editingDay === column.isoDate;
+            return (
             <div key={column.name} className="kanban-column">
               <div className="kanban-column-header">
-                <span>{column.name}</span>
-                <div style={{display:'flex',alignItems:'center',gap:'0.3rem'}}>
-                  <span className="kanban-column-count">{column.items.length}</span>
+                <div style={{display:'flex',flexDirection:'column',gap:'2px',width:'100%'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}}>
+                    <span>{column.name}</span>
+                    <span className="kanban-column-count">{column.items.length}</span>
+                  </div>
+                  {!isEditing ? (
+                    <div style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'0.6rem',fontWeight:600}}>
+                      <span style={{padding:'1px 5px',borderRadius:'4px',background:'#f0fdf4',color:'#16a34a'}}>Des {dayOps.breakfasts}</span>
+                      <span style={{padding:'1px 5px',borderRadius:'4px',background:'#eff6ff',color:'#2563eb'}}>Hab {dayOps.rooms}</span>
+                      {isOccupancyEditable && (
+                        <button type="button" onClick={() => { setEditingDay(column.isoDate); setEditDes(dayOps.breakfasts); setEditHab(dayOps.rooms); }}
+                          style={{padding:'0 5px',border:'1px solid #d1d9e6',borderRadius:'4px',background:'#fff',cursor:'pointer',fontSize:'10px',lineHeight:'18px',color:'#6366f1'}}>
+                          {'\u270F\uFE0F'}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'0.6rem'}}>
+                      <span style={{fontWeight:600,color:'#16a34a'}}>Des</span>
+                      <input type="number" min="0" value={editDes} onChange={e => setEditDes(Number(e.target.value))}
+                        style={{width:'44px',padding:'1px 4px',border:'1px solid #d1d9e6',borderRadius:'4px',fontSize:'0.65rem',fontWeight:600,textAlign:'center'}} />
+                      <span style={{fontWeight:600,color:'#2563eb'}}>Hab</span>
+                      <input type="number" min="0" value={editHab} onChange={e => setEditHab(Number(e.target.value))}
+                        style={{width:'44px',padding:'1px 4px',border:'1px solid #d1d9e6',borderRadius:'4px',fontSize:'0.65rem',fontWeight:600,textAlign:'center'}} />
+                      <button type="button" onClick={() => handleOccupancySave(column.isoDate)}
+                        style={{padding:'0 6px',border:'none',borderRadius:'4px',background:'#10b981',color:'#fff',cursor:'pointer',fontSize:'10px',fontWeight:700,lineHeight:'18px'}}>OK</button>
+                      <button type="button" onClick={() => setEditingDay(null)}
+                        style={{padding:'0 6px',border:'1px solid #d1d9e6',borderRadius:'4px',background:'#fff',cursor:'pointer',fontSize:'10px',lineHeight:'18px',color:'#94a3b8'}}>X</button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="kanban-column-body">
@@ -251,7 +343,8 @@ export default function Kanban() {
                 )}
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 

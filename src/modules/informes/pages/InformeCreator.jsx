@@ -30,15 +30,23 @@ const METODOS_PREPARACION = [
   'Salteado', 'Guisado', 'Crudo / Fresco', 'Otro'
 ];
 
-function crearDiaVacio() {
+function crearDiaVacio(fecha) {
   return {
     id: null,
-    fecha: new Date().toISOString().slice(0, 10),
+    fecha: fecha || new Date().toISOString().slice(0, 10),
     platillo: null,
     platilloDetalle: null,
     selectedItems: [],
     platilloSearch: '',
   };
+}
+
+function sumarDias(fechaStr, dias) {
+  if (!fechaStr) return new Date().toISOString().slice(0, 10);
+  const d = new Date(fechaStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -66,6 +74,19 @@ export default function InformeCreator() {
   }
 
   useEffect(() => { loadInitialData(); }, []);
+
+  useEffect(() => {
+    if (evento?.FechaEvento && dias.length > 0 && !dias[0].id) {
+      const eventDate = String(evento.FechaEvento).slice(0, 10);
+      if (eventDate && eventDate !== dias[0].fecha) {
+        setDias(prev => {
+          const next = [...prev];
+          next[0] = { ...next[0], fecha: eventDate };
+          return next;
+        });
+      }
+    }
+  }, [evento]);
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -140,7 +161,8 @@ export default function InformeCreator() {
 
   // ─── Agregar/quitar días ───
   const addDia = () => {
-    setDias([...dias, crearDiaVacio()]);
+    const ultimaFecha = dias[dias.length - 1]?.fecha;
+    setDias([...dias, crearDiaVacio(sumarDias(ultimaFecha, 1))]);
     setActiveDay(dias.length);
   };
   const removeDia = (index) => {

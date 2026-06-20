@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import authService from '../../../services/authService';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
@@ -90,26 +91,38 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     slots: eventProp?.slots || slots || eventData?.slots || []
   }), [eventProp, eventData, slots]);
   const localSwal = (...args) => {
-    const target = document.getElementById('companyCreateBackdrop')
-      || document.getElementById('serviceCreateBackdrop')
-      || document.getElementById('versionPanelBackdrop')
-      || document.getElementById('quoteAdvanceBackdrop')
-      || document.getElementById('menuMontajePosBackdrop')
-      || document.getElementById('menuMontajeSelectableBackdrop')
-      || document.getElementById('qp-root')
-      || document.body;
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
       document.activeElement.blur();
     }
     return new Promise((resolve) => {
       setTimeout(() => {
-        let swalPromise;
+        let title, description, state, opts;
         if (args.length === 1 && typeof args[0] === 'object') {
-          swalPromise = Swal.fire({ ...args[0], target });
+          const opt = args[0];
+          title = opt.title || '';
+          description = opt.text || opt.html || '';
+          state = opt.icon === 'success' ? 'success' : opt.icon === 'error' ? 'error' : opt.icon === 'warning' ? 'warning' : 'info';
+          opts = opt;
         } else {
-          swalPromise = Swal.fire({ title: args[0], text: args[1], icon: args[2], target });
+          title = args[0] || '';
+          description = args[1] || '';
+          state = args[2] === 'success' ? 'success' : args[2] === 'error' ? 'error' : args[2] === 'warning' ? 'warning' : 'info';
+          opts = {};
         }
-        resolve(swalPromise);
+        if (opts.showCancelButton || opts.showDenyButton || opts.input) {
+          const target = document.getElementById('companyCreateBackdrop')
+            || document.getElementById('serviceCreateBackdrop')
+            || document.getElementById('versionPanelBackdrop')
+            || document.getElementById('quoteAdvanceBackdrop')
+            || document.getElementById('menuMontajePosBackdrop')
+            || document.getElementById('menuMontajeSelectableBackdrop')
+            || document.getElementById('qp-root')
+            || document.body;
+          Swal.fire({ ...opts, target }).then(resolve);
+        } else {
+          toast(`${title}${description ? `: ${description}` : ''}`, { duration: 3500, icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> });
+          resolve({ isConfirmed: true });
+        }
       }, 0);
     });
   };

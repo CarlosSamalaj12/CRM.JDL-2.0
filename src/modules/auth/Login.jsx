@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import toast from 'react-hot-toast';
 import authService from '../../services/authService';
 import firebaseService from '../../services/firebase';
 
@@ -14,6 +14,10 @@ export default function Login() {
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
+  }, []);
 
   // Redirect to calendar immediately if session is already active
   useEffect(() => {
@@ -36,19 +40,13 @@ export default function Login() {
         if (cancelled) return;
 
         document.activeElement?.blur();
-        Swal.fire({
-          icon: 'success',
-          title: '¡Sesión Iniciada!',
-          text: `Bienvenido, ${localUser.fullName || localUser.name}`,
-          timer: 1500,
-          showConfirmButton: false
-        });
+        toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 1500 });
         setTimeout(() => navigate('/calendar'), 1500);
       } catch (err) {
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
           document.activeElement?.blur();
-          Swal.fire({ icon: 'error', title: 'Error de Autenticación', text: err.message || 'No se pudo completar el inicio de sesión con Google.' });
+          toast.error(err.message || 'No se pudo completar el inicio de sesión con Google.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -92,10 +90,11 @@ export default function Login() {
   const handleLocalLogin = async () => {
     if (!username.trim()) {
       document.activeElement?.blur();
-      Swal.fire({ icon: 'warning', title: 'Usuario requerido', text: 'Selecciona o escribe tu nombre de usuario.' });
+      toast('Usuario requerido — Selecciona o escribe tu nombre de usuario.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
     setLoading(true);
+    const loadingToast = toast.loading('Autenticando usuario...');
     try {
       const matchedUser = loginUsers.find(u =>
         (u.fullName || u.name || u.username || '').toLowerCase() === username.toLowerCase()
@@ -103,15 +102,13 @@ export default function Login() {
       const userId = matchedUser?.id || username;
       const localUser = await authService.loginLocal(userId, password);
       document.activeElement?.blur();
-      Swal.fire({
-        icon: 'success', title: '¡Sesión Iniciada!',
-        text: `Bienvenido, ${localUser.fullName || localUser.name}`,
-        timer: 1500, showConfirmButton: false
-      });
-      setTimeout(() => navigate('/calendar'), 1500);
+      toast.dismiss(loadingToast);
+      toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
+      setTimeout(() => navigate('/calendar'), 2000);
     } catch (err) {
       document.activeElement?.blur();
-      Swal.fire({ icon: 'error', title: 'Error de Autenticación', text: err.message || 'Credenciales inválidas.' });
+      toast.dismiss(loadingToast);
+      toast.error(err.message || 'Credenciales inválidas.', { duration: 4000 });
     } finally {
       setLoading(false);
     }
@@ -120,45 +117,34 @@ export default function Login() {
   // Handle Google Login via Firebase
   const handleGoogleLogin = async () => {
     setLoading(true);
+    const loadingToast = toast.loading('Conectando con Google...');
     try {
       const firebaseUser = await firebaseService.loginWithGoogle();
-      if (!firebaseUser) return;
+      if (!firebaseUser) {
+        toast.dismiss(loadingToast);
+        return;
+      }
       const localUser = await authService.loginFirebase(firebaseUser);
       document.activeElement?.blur();
-      Swal.fire({
-        icon: 'success', title: '¡Sesión Iniciada!',
-        text: `Bienvenido, ${localUser.fullName || localUser.name}`,
-        timer: 1500, showConfirmButton: false
-      });
-      setTimeout(() => navigate('/calendar'), 1500);
+      toast.dismiss(loadingToast);
+      toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
+      setTimeout(() => navigate('/calendar'), 2000);
     } catch (err) {
       console.error('Google login error detail:', err);
+      toast.dismiss(loadingToast);
       if (
-        err.code === 'auth/operation-not-allowed' || 
+        err.code === 'auth/operation-not-allowed' ||
         err.code === 'auth/api-key-not-valid' ||
         err.message?.includes('api-key-not-valid') ||
         err.message?.includes('API key not valid') ||
-        err.message?.includes('dummy') || 
+        err.message?.includes('dummy') ||
         err.message?.includes('AIzaSyDummy')
       ) {
         document.activeElement?.blur();
-        Swal.fire({
-          icon: 'warning', title: 'Configuración de Firebase Requerida',
-          html: '<div style="text-align: left; font-size: 14px; line-height: 1.6; color: #475569;">' +
-                '<p>Para que el inicio de sesión con Google funcione con tus credenciales reales, debes configurar tus variables de Firebase en el archivo <code>.env</code> de tu frontend.</p>' +
-                '<p><strong>Pasos para configurarlo:</strong></p>' +
-                '<ol>' +
-                '  <li>Abre el archivo <code>react/CRM.JDL/.env</code>.</li>' +
-                '  <li>Reemplaza los valores de <code>VITE_FIREBASE_API_KEY</code>, etc., con tus credenciales de la consola de Firebase.</li>' +
-                '  <li>Reinicia tu servidor de React.</li>' +
-                '</ol>' +
-                '<p style="margin-top: 15px; font-size: 12px; color: #94a3b8;">* Si necesitas ayuda, consulta la guía <code>auth_implementation_walkthrough.md</code> en tus archivos.</p>' +
-                '</div>',
-          confirmButtonColor: '#0b1c30', confirmButtonText: 'Entendido'
-        });
+        toast('Configuración de Firebase Requerida — Para que el inicio de sesión con Google funcione, configura tus variables de Firebase en el archivo .env', { duration: Infinity, icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       } else {
         document.activeElement?.blur();
-        Swal.fire({ icon: 'error', title: 'Error de Autenticación', text: err.message || 'No se pudo iniciar sesión con tu cuenta de Google.' });
+        toast.error(err.message || 'No se pudo iniciar sesión con tu cuenta de Google.', { duration: 4000 });
       }
     } finally {
       setLoading(false);
@@ -226,6 +212,7 @@ export default function Login() {
               {showDropdown && filteredUsers.length > 0 && (
                 <div
                   ref={dropdownRef}
+                  className="loginDropdown"
                   style={{
                     position: 'absolute', top: '100%', left: 0, right: 0,
                     background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px',
@@ -236,6 +223,7 @@ export default function Login() {
                   {filteredUsers.map(u => (
                     <div
                       key={u.id}
+                      className="loginDropdownItem"
                       onClick={() => selectUser(u)}
                       style={{
                         padding: '10px 14px', cursor: 'pointer', fontSize: '13px',
@@ -335,6 +323,7 @@ export default function Login() {
           <div style={{ textAlign: 'center', marginTop: '16px' }}>
             <button
               type="button"
+              className="loginSkipBtn"
               onClick={() => navigate('/calendar')}
               style={{
                 background: 'none', border: 'none', color: '#94a3b8',
@@ -408,15 +397,333 @@ export default function Login() {
         </div>
       </div>
       <style>{`
+        /* ═══════════════════════════════════════════
+           KEYFRAMES
+           ═══════════════════════════════════════════ */
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loginGoogleBtn:hover {
+        @keyframes loginFadeIn {
+          from { opacity: 0; transform: scale(0.96); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes loginSlideUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes loginLogoPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(51,182,222,0.3); }
+          50%       { box-shadow: 0 0 0 12px rgba(51,182,222,0); }
+        }
+        @keyframes loginBgAurora {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes loginFadeInUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes loginDropdownIn {
+          from { opacity: 0; transform: translateY(-4px) scaleY(0.96); }
+          to   { opacity: 1; transform: translateY(0) scaleY(1); }
+        }
+        @keyframes loginModalIn {
+          from { opacity: 0; transform: scale(0.92) translateY(12px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* ═══════════════════════════════════════════
+           LOGIN SCREEN — Aurora background
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginScreen.loginScreen {
+          animation: loginFadeIn 0.6s ease-out;
+          background:
+            radial-gradient(1200px 700px at 15% 5%, rgba(14,165,233,0.24), transparent 55%),
+            radial-gradient(1000px 700px at 90% 20%, rgba(59,130,246,0.25), transparent 60%),
+            rgba(2,6,23,0.86);
+          background-size: 200% 200%;
+          animation: loginBgAurora 18s ease-in-out infinite, loginFadeIn 0.6s ease-out;
+        }
+
+        /* ═══════════════════════════════════════════
+           LOGIN SHELL — entrance animation
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginShell.loginShell {
+          animation: loginFadeIn 0.5s ease-out;
+        }
+
+        /* ═══════════════════════════════════════════
+           VISUAL PANEL
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginVisualPanel.loginVisualPanel {
+          animation: loginSlideUp 0.6s ease-out 0.1s both;
+        }
+
+        /* ═══════════════════════════════════════════
+           LOGIN CARD — staggered entrance
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginCard.loginCard {
+          animation: loginSlideUp 0.5s ease-out 0.15s both;
+        }
+
+        /* ═══════════════════════════════════════════
+           BRAND BADGE — pulse glow
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginBrandBadge.loginBrandBadge {
+          animation: loginLogoPulse 2.8s ease-in-out infinite;
+        }
+
+        /* ═══════════════════════════════════════════
+           INPUTS — improved focus & transitions
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginInput.loginInput {
+          transition: all 0.2s ease !important;
+        }
+        body:not(.informes-theme) .loginInput.loginInput:focus {
+          border-color: rgba(51,182,222,0.7) !important;
+          box-shadow: 0 0 0 3px rgba(51,182,222,0.15), 0 8px 20px rgba(11,28,48,0.08) !important;
+          transform: translateY(-1px);
+        }
+        body:not(.informes-theme) .loginInput.loginInput:hover {
+          border-color: rgba(148,163,184,0.5);
+        }
+
+        /* ═══════════════════════════════════════════
+           LOGIN BUTTON — refined hover/active
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginBtn.loginBtn {
+          position: relative;
+          overflow: hidden;
+          transition: all 0.25s ease !important;
+        }
+        body:not(.informes-theme) .loginBtn.loginBtn::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 50%);
+          opacity: 0;
+          transition: opacity 0.25s ease;
+        }
+        body:not(.informes-theme) .loginBtn.loginBtn:hover:not(:disabled)::before {
+          opacity: 1;
+        }
+        body:not(.informes-theme) .loginBtn.loginBtn:hover:not(:disabled) {
+          background: #14283f !important;
+          transform: translateY(-1px);
+          box-shadow: 0 8px 24px rgba(11,28,48,0.25) !important;
+        }
+        body:not(.informes-theme) .loginBtn.loginBtn:active:not(:disabled) {
+          transform: translateY(0) scale(0.98);
+        }
+
+        /* ═══════════════════════════════════════════
+           GOOGLE BUTTON — refined hover/active
+           ═══════════════════════════════════════════ */
+        .loginGoogleBtn {
+          position: relative;
+          overflow: hidden;
+          transition: all 0.25s ease !important;
+        }
+        .loginGoogleBtn::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent 50%);
+          opacity: 0;
+          transition: opacity 0.25s ease;
+        }
+        .loginGoogleBtn:hover:not(:disabled)::before {
+          opacity: 1;
+        }
+        .loginGoogleBtn:hover:not(:disabled) {
           background: #14283f !important;
           transform: translateY(-2px);
           box-shadow: 0 12px 24px rgba(11,28,48,0.3) !important;
         }
-        .loginGoogleBtn:active { transform: translateY(0); }
+        .loginGoogleBtn:active:not(:disabled) {
+          transform: translateY(0) scale(0.97) !important;
+        }
 
-        /* Responsive overrides using high specificity prefix to counter global-scoped.css */
+        /* ═══════════════════════════════════════════
+           SUPPORT BUTTON — slide-in
+           ═══════════════════════════════════════════ */
+        body:not(.informes-theme) .loginSupportWidget.loginSupportWidget {
+          animation: loginSlideUp 0.5s ease-out 0.35s both;
+        }
+
+        /* ═══════════════════════════════════════════
+           USER DROPDOWN — smooth animation
+           ═══════════════════════════════════════════ */
+        .loginDropdown.loginDropdown {
+          animation: loginDropdownIn 0.15s ease-out;
+          transform-origin: top center;
+        }
+        .loginDropdown.loginDropdown .loginDropdownItem {
+          transition: background 0.12s ease, transform 0.1s ease;
+        }
+        .loginDropdown.loginDropdown .loginDropdownItem:hover {
+          background: #eef2ff !important;
+        }
+        .loginDropdown.loginDropdown .loginDropdownItem:active {
+          transform: scale(0.98);
+        }
+
+        /* ═══════════════════════════════════════════
+           SKIP LINK — hover refinement
+           ═══════════════════════════════════════════ */
+        .loginSkipBtn.loginSkipBtn {
+          transition: all 0.2s ease;
+        }
+        .loginSkipBtn.loginSkipBtn:hover {
+          color: #64748b !important;
+          text-decoration-color: #64748b;
+        }
+
+        /* ═══════════════════════════════════════════
+           SUPPORT MODAL — entrance animation
+           ═══════════════════════════════════════════ */
+        .qp-support-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.6);
+          z-index: 999999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          animation: loginFadeIn 0.15s ease-out;
+        }
+        .qp-support-modal {
+          width: min(380px, 90vw);
+          background: #ffffff;
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          border-radius: 16px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15);
+          overflow: hidden;
+          animation: loginModalIn 0.25s ease-out;
+        }
+        .qp-support-modal-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 16px 18px;
+          border-bottom: 1px solid #e2e8f0;
+          color: #0f172a;
+          font-size: 15px;
+          font-weight: 800;
+        }
+        .qp-support-modal-header span.material-symbols-outlined:first-child {
+          font-size: 22px;
+          color: #14b8a6;
+        }
+        .qp-support-modal-close {
+          margin-left: auto;
+          background: transparent !important;
+          border: none !important;
+          color: #94a3b8 !important;
+          cursor: pointer;
+          padding: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          box-shadow: none !important;
+          outline: none !important;
+          transition: all 0.15s ease;
+        }
+        .qp-support-modal-close span {
+          font-size: 20px;
+          color: #94a3b8 !important;
+          transition: color 0.15s ease;
+        }
+        .qp-support-modal-close:hover {
+          background: #f1f5f9 !important;
+        }
+        .qp-support-modal-close:hover span {
+          color: #0f172a !important;
+        }
+        .qp-support-modal-body {
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .qp-support-contact {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        }
+        .qp-support-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          transition: transform 0.2s ease;
+        }
+        .qp-support-contact:hover .qp-support-avatar {
+          transform: scale(1.08);
+        }
+        .qp-support-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+          flex: 1;
+        }
+        .qp-support-name {
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 700;
+        }
+        .qp-support-email,
+        .qp-support-phone {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #64748b !important;
+          font-size: 11.5px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: color 0.15s, transform 0.15s;
+          word-break: break-all;
+        }
+        .qp-support-email:hover,
+        .qp-support-phone:hover {
+          color: #14b8a6 !important;
+          transform: translateX(2px);
+        }
+        .qp-support-email span.material-symbols-outlined,
+        .qp-support-phone span.material-symbols-outlined {
+          font-size: 15px;
+          color: #64748b !important;
+          flex-shrink: 0;
+          transition: color 0.15s;
+        }
+        .qp-support-email:hover span.material-symbols-outlined,
+        .qp-support-phone:hover span.material-symbols-outlined {
+          color: #14b8a6 !important;
+        }
+        .qp-support-divider {
+          height: 1px;
+          background: #e2e8f0;
+          margin: 0;
+        }
+        .qp-support-hours {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #94a3b8;
+          font-size: 11px;
+          font-weight: 700;
+          padding-top: 4px;
+        }
+        .qp-support-hours span.material-symbols-outlined {
+          font-size: 16px;
+          color: #94a3b8 !important;
+        }
+
+        /* ═══════════════════════════════════════════
+           RESPONSIVE OVERRIDES
+           ═══════════════════════════════════════════ */
         @media (max-width: 1024px) {
           body:not(.informes-theme) .loginShell.loginShell {
             grid-template-columns: 1fr !important;
@@ -460,162 +767,71 @@ export default function Login() {
         @media (max-width: 640px) {
           body:not(.informes-theme) .loginScreen.loginScreen {
             padding: 12px !important;
-            background: linear-gradient(135deg, #f0f4f8, #e2e8f0) !important;
+            background: #f0f4f8 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
+            animation: none !important;
           }
           body:not(.informes-theme) .loginShell.loginShell {
             border: none !important;
-            box-shadow: none !important;
-            background: transparent !important;
+            box-shadow: 0 10px 30px -5px rgba(0,0,0,0.1) !important;
+            background: #ffffff !important;
             max-width: 100% !important;
+            border-radius: 16px !important;
+            overflow: hidden !important;
           }
           body:not(.informes-theme) .loginVisualPanel.loginVisualPanel {
+            display: block !important;
+            min-height: 130px !important;
+            height: 130px !important;
+          }
+          body:not(.informes-theme) .loginVisualImage.loginVisualImage {
+            object-position: center 30% !important;
+          }
+          body:not(.informes-theme) .loginVisualShade.loginVisualShade {
+            background: linear-gradient(180deg, rgba(3,7,18,.10), rgba(3,7,18,.18) 42%, rgba(3,7,18,.62)) !important;
+          }
+          body:not(.informes-theme) .loginVisualBrand.loginVisualBrand {
+            padding: 12px 16px !important;
+          }
+          body:not(.informes-theme) .loginVisualLogo.loginVisualLogo {
+            width: 28px !important;
+            height: 28px !important;
+          }
+          body:not(.informes-theme) .loginVisualBrand strong {
+            font-size: 11px !important;
+          }
+          body:not(.informes-theme) .loginVisualBrand span {
+            display: none !important;
+          }
+          body:not(.informes-theme) .loginVisualQuote.loginVisualQuote {
             display: none !important;
           }
           body:not(.informes-theme) .loginCard.loginCard {
-            border-radius: 16px !important;
+            border-radius: 0 !important;
             background: #ffffff !important;
-            border: 1px solid rgba(148,163,184,0.16) !important;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04) !important;
-            padding: 30px 20px !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 24px 20px 30px !important;
           }
           body:not(.informes-theme) .loginBrandTitle.loginBrandTitle {
-            font-size: 20px !important;
+            font-size: 18px !important;
+          }
+          body:not(.informes-theme) .loginBrandBadge.loginBrandBadge {
+            width: 56px !important;
+            height: 56px !important;
+            flex-basis: 56px !important;
+          }
+          body:not(.informes-theme) .loginLogoImg.loginLogoImg {
+            width: 44px !important;
+            height: 44px !important;
           }
           body:not(.informes-theme) .loginSupportWidget.loginSupportWidget {
             position: fixed !important;
             left: 16px !important;
             bottom: 16px !important;
           }
-        }
-        .qp-support-modal-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.6);
-          z-index: 999999;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-        }
-        .qp-support-modal {
-          width: min(380px, 90vw);
-          background: #ffffff;
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          border-radius: 16px;
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15);
-          overflow: hidden;
-        }
-        .qp-support-modal-header {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 16px 18px;
-          border-bottom: 1px solid #e2e8f0;
-          color: #0f172a;
-          font-size: 15px;
-          font-weight: 800;
-        }
-        .qp-support-modal-header span.material-symbols-outlined:first-child {
-          font-size: 22px;
-          color: #14b8a6;
-        }
-        .qp-support-modal-close {
-          margin-left: auto;
-          background: transparent !important;
-          border: none !important;
-          color: #94a3b8 !important;
-          cursor: pointer;
-          padding: 4px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 8px;
-          box-shadow: none !important;
-          outline: none !important;
-        }
-        .qp-support-modal-close span {
-          font-size: 20px;
-          color: #94a3b8 !important;
-        }
-        .qp-support-modal-close:hover,
-        .qp-support-modal-close:hover span {
-          color: #0f172a !important;
-        }
-        .qp-support-modal-body {
-          padding: 18px;
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-        .qp-support-contact {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-        }
-        .qp-support-avatar {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          flex-shrink: 0;
-        }
-        .qp-support-info {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          min-width: 0;
-          flex: 1;
-        }
-        .qp-support-name {
-          color: #0f172a;
-          font-size: 13px;
-          font-weight: 700;
-        }
-        .qp-support-email,
-        .qp-support-phone {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          color: #64748b !important;
-          font-size: 11.5px;
-          font-weight: 600;
-          text-decoration: none;
-          transition: color 0.15s;
-          word-break: break-all;
-        }
-        .qp-support-email:hover,
-        .qp-support-phone:hover {
-          color: #14b8a6 !important;
-        }
-        .qp-support-email span.material-symbols-outlined,
-        .qp-support-phone span.material-symbols-outlined {
-          font-size: 15px;
-          color: #64748b !important;
-          flex-shrink: 0;
-        }
-        .qp-support-email:hover span.material-symbols-outlined,
-        .qp-support-phone:hover span.material-symbols-outlined {
-          color: #14b8a6 !important;
-        }
-        .qp-support-divider {
-          height: 1px;
-          background: #e2e8f0;
-          margin: 0;
-        }
-        .qp-support-hours {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: #94a3b8;
-          font-size: 11px;
-          font-weight: 700;
-          padding-top: 4px;
-        }
-        .qp-support-hours span.material-symbols-outlined {
-          font-size: 16px;
-          color: #94a3b8 !important;
         }
       `}</style>
     </div>

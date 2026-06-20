@@ -234,7 +234,7 @@ export default function EventCard({ event, dragHandleProps }) {
             )}
           </div>
         )}
-        {user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) && (
+        {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
           <button type="button" onClick={() => navigate(`/informe/pos/${event.Idocupacion}`)} data-tooltip="Nuevo informe" style={{flexShrink:0}}>
             <IconFileText size={13} /> + Informe
           </button>

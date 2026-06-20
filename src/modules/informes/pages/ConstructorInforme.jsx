@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   createInforme, createInformeDia, saveDiaMenuDetalle,
   getPlatillos, getPlatilloDetalle, fetchEventById,
-  getIngredientes, getMenus, getCategorias,
+  getIngredientes, getMenus, getOpcionesIngrediente, getCategorias,
   getComentarios, createComentario, getDestacados, toggleDestacado,
   getHistorial, getUsuarios, getTiposMontaje, saveMontaje, getMontaje,
   getInformesByOcupacion, getInformeById,
@@ -82,12 +82,20 @@ const MONTAJE_CAMPOS = [
   { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
 ];
 
-function crearDiaVacio() {
+function crearDiaVacio(fecha) {
   return {
-    id: null, fecha: new Date().toISOString().slice(0, 10),
+    id: null, fecha: fecha || new Date().toISOString().slice(0, 10),
     platillo: null, platilloDetalle: null,
     selectedItems: [], menuAsignado: null, montaje: [], alertas: [], alertaCustom: '',
   };
+}
+
+function sumarDias(fechaStr, dias) {
+  if (!fechaStr) return new Date().toISOString().slice(0, 10);
+  const d = new Date(fechaStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -113,6 +121,7 @@ export default function ConstructorInforme() {
   const [platillos, setPlatillos] = useState([]);
   const [ingredientes, setIngredientes] = useState([]);
   const [menus, setMenus] = useState([]);
+  const [opcionesIng, setOpcionesIng] = useState({});
   const [categorias, setCategorias] = useState([]);
   const [menuCategoriaFiltro, setMenuCategoriaFiltro] = useState(null);
   const [platilloCategoriaFiltro, setPlatilloCategoriaFiltro] = useState(null);
@@ -144,6 +153,7 @@ export default function ConstructorInforme() {
   const [montajeData, setMontajeData] = useState({});
   const [montajeEditIdx, setMontajeEditIdx] = useState(null);
   const [modalPrep, setModalPrep] = useState('');
+  const [modalOpc, setModalOpc] = useState('');
   const [modalQty, setModalQty] = useState(1);
   const [modalNotas, setModalNotas] = useState('');
 
@@ -186,6 +196,19 @@ export default function ConstructorInforme() {
   useEffect(() => { if (!loadedRef.current) { loadedRef.current = true; loadAll(); } }, []);
 
   useEffect(() => {
+    if (evento?.FechaEvento && dias.length > 0 && !dias[0].id) {
+      const eventDate = String(evento.FechaEvento).slice(0, 10);
+      if (eventDate && eventDate !== dias[0].fecha) {
+        setDias(prev => {
+          const next = [...prev];
+          next[0] = { ...next[0], fecha: eventDate };
+          return next;
+        });
+      }
+    }
+  }, [evento]);
+
+  useEffect(() => {
     if (!socket || !id_ocupacion) return;
     socket.joinRoom(`evento:${id_ocupacion}`);
     return () => { socket.leaveRoom(`evento:${id_ocupacion}`); };
@@ -204,32 +227,94 @@ export default function ConstructorInforme() {
       setMenus(menusData);
       setCategorias(categoriasData);
 
-      // Cargar configuraciones y versiones en paralelo (secundario)
-      try {
-        const [eq, si, me, vers] = await Promise.all([
-          getEquipos().catch(() => []), getSillas().catch(() => []), getMesas().catch(() => []),
-          getInformesByOcupacion(id_ocupacion).catch(err => {
-            if (err.status === 404 || err.message?.includes('no encontrado')) {
-              toast.info('No hay versiones previas, comenzando desde cero');
-            } else {
-              toast.error('Error al buscar versiones: ' + err.message);
-            }
-            return null;
-          }),
-        ]);
-        setConfigEquipos(eq.filter(e => e.activo));
-        setConfigSillas(si.filter(s => s.activo));
-        setConfigMesas(me.filter(m => m.activo));
+      // Mostrar UI inmediatamente con datos esenciales
+      setLoading(false);
 
-        if (vers && vers.length > 0) {
-          setVersiones(vers);
-          await cargarVersion(vers[0]);
-        }
-      } catch { /* */ }
+      // Cargar datos secundarios en segundo plano (sin bloquear la UI)
+      (async () => {
+        // Opciones de ingredientes
+        try {
+          const opsResults = await Promise.all(
+            ingredientesData.map(ing =>
+              getOpcionesIngrediente(ing.id).catch(() => [])
+            )
+          );
+          const opsMap = {};
+          for (let i = 0; i < ingredientesData.length; i++) {
+            opsMap[ingredientesData[i].id] = opsResults[i];
+          }
+          setOpcionesIng(opsMap);
+        } catch { /* */ }
+
+        // Configuraciones y versiones
+        try {
+          const [eq, si, me, vers] = await Promise.all([
+            getEquipos().catch(() => []), getSillas().catch(() => []), getMesas().catch(() => []),
+            getInformesByOcupacion(id_ocupacion).catch(err => {
+              if (err.status === 404 || err.message?.includes('no encontrado')) {
+                toast.info('No hay versiones previas, comenzando desde cero');
+              } else {
+                toast.error('Error al buscar versiones: ' + err.message);
+              }
+              return null;
+            }),
+          ]);
+          setConfigEquipos(eq.filter(e => e.activo));
+          setConfigSillas(si.filter(s => s.activo));
+          setConfigMesas(me.filter(m => m.activo));
+
+          if (vers && vers.length > 0) {
+            setVersiones(vers);
+            // Cargar versión en segundo plano (sin loading spinner)
+            try {
+              const data = await getInformeById(vers[0].id);
+              setInformeId(data.id);
+              setVersionActiva(data.version || 1);
+              if (data.dias && data.dias.length > 0) {
+                setDias(data.dias.map(d => {
+                  let mont = [], alertas = [], alertaCustom = '';
+                  try {
+                    const parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || []);
+                    if (parsed && parsed._v === 2) {
+                      mont = parsed.montajes || [];
+                      alertas = parsed.alertas || [];
+                      alertaCustom = parsed.alertaCustom || '';
+                    } else {
+                      mont = Array.isArray(parsed) ? parsed : (parsed && Object.keys(parsed).length > 0 ? [parsed] : []);
+                    }
+                  } catch { mont = []; }
+                  return {
+                    id: d.id,
+                    fecha: d.fecha_evento ? d.fecha_evento.slice(0, 10) : new Date().toISOString().slice(0, 10),
+                    platillo: null, platilloDetalle: null,
+                    selectedItems: (d.items || []).map(item => ({
+                      comp_id: Date.now() + Math.random(),
+                      ingrediente_id: item.ingrediente_id,
+                      ingrediente_nombre: item.ingrediente_nombre,
+                      opcion_id: item.opcion_id, opcion_nombre: item.opcion_nombre,
+                      tipo: item.ingrediente_tipo,
+                      metodo_preparacion: item.metodo_preparacion || '',
+                      cantidad: item.cantidad_total || 1,
+                      notas: item.notas || '',
+                    })),
+                    menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
+                    montaje: mont, alertas, alertaCustom,
+                  };
+                }));
+              }
+            } catch (err) {
+              if (err.status === 404 || err.message?.includes('no encontrado')) {
+                toast.error('La versión seleccionada ya no existe');
+              } else {
+                toast.error('Error al cargar la versión: ' + err.message);
+              }
+            }
+          }
+        } catch { /* */ }
+      })();
     } catch (err) {
       setError('Error al cargar datos: ' + err.message);
       toast.error('Error al cargar datos');
-    } finally {
       setLoading(false);
     }
   };
@@ -370,12 +455,13 @@ export default function ConstructorInforme() {
       exists.cantidad = (exists.cantidad || 0) + cantidad;
       if (notas) exists.notas = notas;
     } else {
+      const opc = opcionId ? opcionesIng[ingrediente.id]?.find(o => o.id === opcionId) : null;
       items.push({
         comp_id: Date.now(),
         ingrediente_id: ingrediente.id,
         ingrediente_nombre: ingrediente.nombre,
         opcion_id: opcionId || null,
-        opcion_nombre: null,
+        opcion_nombre: opc?.nombre_opcion || null,
         tipo: ingrediente.tipo,
         metodo_preparacion: metodo || '',
         cantidad,
@@ -432,6 +518,7 @@ export default function ConstructorInforme() {
     if (ing.tipo === 'carne' || ing.tipo === 'proteina') {
       setModalOpciones(ing);
       setModalPrep('');
+      setModalOpc('');
       setModalQty(1);
       setModalNotas('');
     } else {
@@ -441,7 +528,11 @@ export default function ConstructorInforme() {
   };
 
   // ─── Días ───
-  const addDia = () => { setDias([...dias, crearDiaVacio()]); setActiveDay(dias.length); };
+  const addDia = () => {
+    const ultimaFecha = dias[dias.length - 1]?.fecha;
+    setDias([...dias, crearDiaVacio(sumarDias(ultimaFecha, 1))]);
+    setActiveDay(dias.length);
+  };
   const removeDia = (i) => {
     const nd = dias.filter((_, idx) => idx !== i);
     setDias(nd);
@@ -1309,6 +1400,19 @@ export default function ConstructorInforme() {
                 {METODOS_PREPARACION.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
 
+              {/* Opciones de ingrediente */}
+              {opcionesIng[modalOpciones.id]?.length > 0 && (
+                <>
+                  <label>Opción</label>
+                  <select value={modalOpc} onChange={e => setModalOpc(e.target.value)}>
+                    <option value="">Sin especificar</option>
+                    {opcionesIng[modalOpciones.id].map(o => (
+                      <option key={o.id} value={o.id}>{o.nombre_opcion}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
               <label>Cantidad</label>
               <input type="number" min="0.5" step="0.5" value={modalQty} onChange={e => setModalQty(parseFloat(e.target.value) || 1)} />
 
@@ -1318,7 +1422,7 @@ export default function ConstructorInforme() {
             <div className="pos-modal-footer">
               <button className="btn-secondary" onClick={() => setModalOpciones(null)}>Cancelar</button>
               <button className="btn-primary" onClick={() => {
-                agregarItem(modalOpciones, null, modalPrep, modalQty, modalNotas);
+                agregarItem(modalOpciones, modalOpc || null, modalPrep, modalQty, modalNotas);
                 setModalOpciones(null);
               }}><IconCheckCircle size={14} /> Agregar</button>
             </div>

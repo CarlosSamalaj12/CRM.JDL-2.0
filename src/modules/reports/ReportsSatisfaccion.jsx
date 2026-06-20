@@ -69,9 +69,10 @@ export default function ReportsSatisfaccion({ onClose }) {
       const date = ev.date || ev.eventDate || '';
       if (date < fromDate || date > toDate) continue;
 
-      const items = Array.isArray(chk.items) ? chk.items : [];
-      const evalItems = items.filter(i => i.sectionType === 'evaluacion');
-      const ratedItems = evalItems.filter(i => i.rating !== null && i.rating !== undefined);
+      const items = Array.isArray(chk?.evaluacion?.items)
+        ? chk.evaluacion.items
+        : (Array.isArray(chk?.items) ? chk.items.filter(i => i.sectionType === 'evaluacion') : []);
+      const ratedItems = items.filter(i => i.rating !== null && i.rating !== undefined);
 
       if (ratedItems.length === 0) continue;
 

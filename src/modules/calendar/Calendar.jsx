@@ -110,20 +110,7 @@ function computeEventLayouts(dayEvents) {
   return layouts;
 }
 
-function getEventTooltip(ev) {
-  if (!ev) return '';
-  const lines = [
-    `Reserva: ${ev.name || ''}`,
-    `Estado: ${ev.status || ''}`,
-    `Horario: ${ev.startTime || ''} - ${ev.endTime || ''}`,
-    `Salón: ${ev.salon || 'Sin salón'}`,
-    ev.pax ? `PAX: ${ev.pax}` : null,
-    ev.clientName ? `Cliente: ${ev.clientName}` : null,
-    ev.clientPhone ? `Teléfono: ${ev.clientPhone}` : null,
-    ev.notes ? `Notas: ${ev.notes}` : null
-  ].filter(Boolean);
-  return lines.join('\n');
-}
+
 
 function getEventSeriesBadge(ev, allEvents = []) {
   const groupId = String(ev?.groupId || '').trim();
@@ -709,8 +696,6 @@ export default function Calendar() {
                     return (
                       <div
                         key={ev.id}
-                        data-tooltip={getEventTooltip(ev)}
-                        className="cal-tooltip"
                         onClick={(e) => { e.stopPropagation(); handleEventClick(ev.id); }}
                         style={{
                           position: 'absolute',
@@ -932,12 +917,9 @@ export default function Calendar() {
                 }}>{item.date.getDate()}</div>
                 {dayEvents.slice(0, 2).map(ev => {
                   const color = STATUS_META[ev.status]?.color || '#64748b';
-                  const tooltipText = `Reserva: ${ev.name || ''}\nEstado: ${ev.status || ''}\nHorario: ${ev.startTime || ''} - ${ev.endTime || ''}\nSalón: ${ev.salon || 'Sin salón'}${ev.pax ? `\nPAX: ${ev.pax}` : ''}`;
                   return (
                     <div
                       key={ev.id}
-                      data-tooltip={tooltipText}
-                      className="cal-tooltip"
                       style={{
                         fontSize: '10.5px',
                         padding: '2px 4px',
@@ -1366,8 +1348,7 @@ export default function Calendar() {
                               : '#334155',
                         transition: 'all 0.15s'
                       }}
-                      data-tooltip={hasEvents ? `${dayEvents.length} reservas:\n${dayEvents.map(e => `- ${e.name} (${e.status})`).join('\n')}` : ''}
-                      className={hasEvents ? 'cal-tooltip' : ''}
+
                       onMouseEnter={e => {
                         if (!isToday) {
                           e.currentTarget.style.background = hasEvents ? `${eventColor}25` : '#f1f5f9';
