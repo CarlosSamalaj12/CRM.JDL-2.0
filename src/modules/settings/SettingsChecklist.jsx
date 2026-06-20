@@ -698,6 +698,62 @@ export default function SettingsChecklist() {
 
   return (
     <>
+      <style>{`
+        @media (max-width: 768px) {
+          #eventChecklistBackdrop > div {
+            width: 98vw !important;
+            height: 98vh !important;
+            border-radius: 8px !important;
+          }
+          #eventChecklistBackdrop .checklist-header {
+            padding: 12px 14px !important;
+          }
+          #eventChecklistBackdrop .checklist-header-title {
+            font-size: 1rem !important;
+          }
+          #eventChecklistBackdrop .checklist-tab-bar {
+            flex-direction: column !important;
+          }
+          #eventChecklistBackdrop .checklist-tab {
+            padding: 8px 12px !important;
+            font-size: 0.78rem !important;
+          }
+          #eventChecklistBackdrop .checklist-tab-desc {
+            display: none !important;
+          }
+          #eventChecklistBackdrop .checklist-body {
+            padding: 12px 14px !important;
+          }
+          #eventChecklistBackdrop .checklist-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+          #eventChecklistBackdrop .checklist-table {
+            font-size: 0.75rem !important;
+          }
+          #eventChecklistBackdrop .checklist-table th,
+          #eventChecklistBackdrop .checklist-table td {
+            padding: 8px 6px !important;
+          }
+          #eventChecklistBackdrop .checklist-rating-buttons {
+            flex-wrap: wrap !important;
+            gap: 4px !important;
+          }
+          #eventChecklistBackdrop .checklist-rating-btn {
+            padding: 3px 5px !important;
+            font-size: 0.65rem !important;
+          }
+          #eventChecklistBackdrop .checklist-footer {
+            padding: 10px 14px !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          #eventChecklistBackdrop .checklist-footer-buttons {
+            width: 100% !important;
+            justify-content: space-between !important;
+          }
+        }
+      `}</style>
       <div
         ref={eventRef}
         id="eventChecklistBackdrop"
@@ -716,12 +772,12 @@ export default function SettingsChecklist() {
           display: 'flex', flexDirection: 'column',
           background: '#ffffff', border: '1px solid #e2e8f0',
           borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
-          overflow: 'hidden',
+          overflow: 'visible',
         }}>
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#fff', flexShrink: 0 }}>
+          <div className="checklist-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#fff', flexShrink: 0 }}>
             <div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
+              <div className="checklist-header-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
                 Check List — Evento
                 {isReadOnly && <span style={{ marginLeft: '8px', fontSize: '0.65rem', fontWeight: 600, color: '#f59e0b', background: '#fffbeb', padding: '2px 8px', borderRadius: '999px' }}>Solo lectura</span>}
               </div>
@@ -733,7 +789,7 @@ export default function SettingsChecklist() {
           </div>
 
           {/* Tab bar */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafd', flexShrink: 0 }}>
+          <div className="checklist-tab-bar" style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafd', flexShrink: 0 }}>
             {[
               { key: TAB_OPERATIVA, label: 'Operativa', icon: '\u2699\uFE0F', desc: 'Pendiente / Cumplido', color: '#6366f1' },
               { key: TAB_EVALUACION, label: 'Evaluaci\u00f3n', icon: '\u2B50', desc: 'Malo / Regular / Bueno / Excelente', color: '#7c3aed' },
@@ -741,6 +797,7 @@ export default function SettingsChecklist() {
               <button
                 key={tab.key}
                 type="button"
+                className="checklist-tab"
                 onClick={() => setActiveTab(tab.key)}
                 style={{
                   flex: 1, padding: '10px 16px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
@@ -752,15 +809,15 @@ export default function SettingsChecklist() {
               >
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
-                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: '#94a3b8', marginLeft: '2px' }}>{tab.desc}</span>
+                <span className="checklist-tab-desc" style={{ fontSize: '0.6rem', fontWeight: 600, color: '#94a3b8', marginLeft: '2px' }}>{tab.desc}</span>
               </button>
             ))}
           </div>
 
           {/* Body */}
-          <div style={{ flex: '1 1 0', overflowY: 'scroll', overflowX: 'hidden', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
+          <div className="checklist-body" style={{ flex: '1 1 0', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
             {/* Template selector + event info */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+            <div className="checklist-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div>
                 <span style={s.label}>Plantilla</span>
                 <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={isReadOnly}>
@@ -873,7 +930,7 @@ export default function SettingsChecklist() {
                   Selecciona una plantilla para cargar los puntos a evaluar
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <table className="checklist-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
                       <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '36px' }}>#</th>
@@ -897,13 +954,14 @@ export default function SettingsChecklist() {
                         </td>
                         <td style={{ padding: '6px 10px', textAlign: 'center' }}>
                           {item.sectionType === TAB_EVALUACION ? (
-                            <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                            <div className="checklist-rating-buttons" style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
                               {RATING_LEVELS.map(r => {
                                 const isSelected = item.rating === r.value;
                                 return (
                                   <button
                                     key={r.value}
                                     type="button"
+                                    className="checklist-rating-btn"
                                     onClick={() => !isReadOnly && setRating(activeTab)(item.id, isSelected ? null : r.value)}
                                     title={r.label}
                                     disabled={isReadOnly}
@@ -948,12 +1006,12 @@ export default function SettingsChecklist() {
           </div>
 
           {/* Footer */}
-          <div style={{ flexShrink: 0, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
+          <div className="checklist-footer" style={{ flexShrink: 0, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
             <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
               {activeTab === TAB_OPERATIVA ? '\u2699\uFE0F Check List Operativa' : '\u2B50 Check List Evaluaci\u00f3n'}
               <HistoryBadge history={activeHistory} />
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="checklist-footer-buttons" style={{ display: 'flex', gap: '8px' }}>
               <button className="btn-exit" type="button" onClick={closeEvent}>Cerrar</button>
               {!isReadOnly && (
                 <button type="button" onClick={handleSave(activeTab)} disabled={activeSaving}

@@ -75,8 +75,20 @@ export default function Kanban() {
   const [eventsTotal, setEventsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
+  
+  // Función para obtener la fecha inicial (guardada o actual)
+  const getInitialDate = () => {
+    const saved = localStorage.getItem('kanban_selectedDate');
+    return saved || new Date().toLocaleDateString('en-CA');
+  };
+  
+  const [selectedDate, setSelectedDate] = useState(getInitialDate());
   const [filterExiting, setFilterExiting] = useState(false);
+
+  // Guardar fecha seleccionada en localStorage
+  useEffect(() => {
+    localStorage.setItem('kanban_selectedDate', selectedDate);
+  }, [selectedDate]);
 
   const [viewMode, setViewMode] = useState('kanban');
   const [occupancyOps, setOccupancyOps] = useState({});

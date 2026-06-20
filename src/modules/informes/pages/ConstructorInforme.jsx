@@ -215,6 +215,19 @@ export default function ConstructorInforme() {
     return () => { socket.leaveRoom(`evento:${id_ocupacion}`); };
   }, [socket, id_ocupacion]);
 
+  // Listener para comentarios en tiempo real
+  useEffect(() => {
+    if (!socket || !informeId) return;
+    
+    const handleComentarioCreated = () => {
+      // Recargar comentarios cuando llega un nuevo comentario
+      getComentarios(informeId).then(setComentarios).catch(() => {});
+    };
+    
+    const cleanup = socket.onEvent('comentario:created', handleComentarioCreated);
+    return cleanup;
+  }, [socket, informeId]);
+
   const loadAll = async () => {
     setLoading(true);
     try {
