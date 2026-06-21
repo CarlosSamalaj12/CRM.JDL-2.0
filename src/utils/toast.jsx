@@ -44,7 +44,7 @@ export function modernAlert({ icon = "info", title = "", text = "", html = "" })
   });
 }
 
-function ConfirmToast({ t, title, message, confirmText, cancelText, resolve }) {
+function ConfirmToast({ t, title, message, html, confirmText, cancelText, resolve }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '260px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600', fontSize: '14px' }}>
@@ -56,6 +56,7 @@ function ConfirmToast({ t, title, message, confirmText, cancelText, resolve }) {
         {title}
       </div>
       {message && <div style={{ fontSize: '13px', color: '#64748b' }}>{message}</div>}
+      {html && <div dangerouslySetInnerHTML={{ __html: html }} />}
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
         <button
           onClick={() => { toastLib.dismiss(t.id); resolve(false); }}
@@ -74,13 +75,13 @@ function ConfirmToast({ t, title, message, confirmText, cancelText, resolve }) {
   );
 }
 
-export function modernConfirm({ title = "Confirmar", message = "", confirmText = "Confirmar", cancelText = "Cancelar" } = {}) {
+export function modernConfirm({ title = "Confirmar", message = "", html = "", confirmText = "Confirmar", cancelText = "Cancelar" } = {}) {
   return new Promise((resolve) => {
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
       document.activeElement.blur();
     }
     setTimeout(() => {
-      toastLib((t) => <ConfirmToast t={t} title={title} message={message} confirmText={confirmText} cancelText={cancelText} resolve={resolve} />, { duration: Infinity });
+      toastLib((t) => <ConfirmToast t={t} title={title} message={message} html={html} confirmText={confirmText} cancelText={cancelText} resolve={resolve} />, { duration: Infinity });
     }, 0);
   });
 }

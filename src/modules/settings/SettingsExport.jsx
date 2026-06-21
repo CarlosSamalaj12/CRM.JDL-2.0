@@ -3,27 +3,24 @@ import { toast } from '../../utils/toast';
 import { exportRowsToExcel, getLatestQuoteSnapshot, getQuoteTotals, loadCrmState } from './settingsDataUtils';
 
 const companyColumns = [
-  { key: 'empresa_id', label: 'Empresa ID', description: 'Identificador unico para relacionar eventos y encargados.' },
-  { key: 'nombre_comercial', label: 'Nombre comercial', description: 'Nombre visible de la institucion o cliente.' },
-  { key: 'razon_social_facturar', label: 'Razon social / Facturar a', description: 'Nombre fiscal usado para documentos.' },
+  { key: 'empresa_id', label: 'Empresa ID *', description: 'Identificador unico (obligatorio). Debe ser el mismo al importar encargados.' },
+  { key: 'nombre_comercial', label: 'Nombre comercial *', description: 'Nombre visible de la institucion o cliente (obligatorio).' },
+  { key: 'razon_social_facturar', label: 'Razon social / Facturar a', description: 'Nombre fiscal usado para facturacion.' },
   { key: 'nit', label: 'NIT', description: 'NIT de facturacion; usar CF si no existe.' },
   { key: 'correo_empresa', label: 'Correo empresa', description: 'Correo general de la empresa.' },
   { key: 'telefono_empresa', label: 'Telefono empresa', description: 'Telefono general de contacto.' },
   { key: 'direccion_empresa', label: 'Direccion empresa', description: 'Direccion fiscal o comercial.' },
-  { key: 'tipo_evento_preferido', label: 'Tipo evento preferido', description: 'Clasificacion habitual: Social, Corporativo, Individual, etc.' },
-  { key: 'notas', label: 'Notas', description: 'Observaciones internas para migracion.' },
-  { key: 'estado', label: 'Estado', description: 'Activa o Inactiva segun configuracion actual.' },
+  { key: 'tipo_evento_preferido', label: 'Tipo evento preferido', description: 'Clasificacion habitual: Social, Corporativo, etc.' },
+  { key: 'notas_empresa', label: 'Notas', description: 'Observaciones sobre la empresa.' },
 ];
 
 const managerColumns = [
-  { key: 'encargado_id', label: 'Encargado ID', description: 'Identificador unico del responsable.' },
-  { key: 'empresa_id', label: 'Empresa ID', description: 'Identificador de la empresa a la que pertenece.' },
-  { key: 'empresa_nombre', label: 'Empresa nombre', description: 'Nombre comercial para validacion humana.' },
-  { key: 'nombre_encargado', label: 'Nombre encargado', description: 'Nombre completo del contacto.' },
-  { key: 'telefono', label: 'Telefono', description: 'Telefono directo del encargado.' },
-  { key: 'correo', label: 'Correo', description: 'Correo directo del encargado.' },
-  { key: 'direccion', label: 'Direccion', description: 'Direccion del encargado si aplica.' },
-  { key: 'estado', label: 'Estado', description: 'Activo o Inactivo segun configuracion actual.' },
+  { key: 'empresa_id', label: 'Empresa ID *', description: 'Identificador de la empresa a la que pertenece (obligatorio). DEBE existir en el sistema.' },
+  { key: 'encargado_id', label: 'Encargado ID', description: 'Identificador unico del encargado (opcional, se genera automatico).' },
+  { key: 'nombre_encargado', label: 'Nombre encargado *', description: 'Nombre completo del contacto (obligatorio).' },
+  { key: 'telefono_encargado', label: 'Telefono encargado', description: 'Telefono directo del encargado.' },
+  { key: 'correo_encargado', label: 'Correo encargado', description: 'Correo electronico del encargado.' },
+  { key: 'direccion_encargado', label: 'Direccion encargado', description: 'Direccion del encargado si aplica.' },
 ];
 
 const eventColumns = [
@@ -77,8 +74,7 @@ export default function SettingsExport() {
           telefono_empresa: String(company.phone || ''),
           direccion_empresa: String(company.address || ''),
           tipo_evento_preferido: String(company.eventType || ''),
-          notes: String(company.notes || ''),
-          estado: disabledCompanies.has(String(company.id || '')) ? 'Inactiva' : 'Activa',
+          notas_empresa: String(company.notes || ''),
         }));
         if (!rows.length) {
           toast('No hay empresas para exportar.');
@@ -87,7 +83,7 @@ export default function SettingsExport() {
         }
         exportRowsToExcel({
           title: 'CRM Jardines - Exportacion de empresas',
-          subtitle: 'Catalogo de empresas preparado para importarse al nuevo sistema.',
+          subtitle: 'Catalogo de empresas. Importa primero las empresas, luego los encargados.',
           columns: companyColumns,
           example: {
             empresa_id: 'cmp_001',
@@ -98,11 +94,10 @@ export default function SettingsExport() {
             telefono_empresa: '5555-1234',
             direccion_empresa: 'Ciudad de Guatemala',
             tipo_evento_preferido: 'Corporativo',
-            notes: 'Cliente frecuente',
-            estado: 'Activa',
+            notas_empresa: 'Cliente frecuente',
           },
           rows,
-          fileBase: 'exportacion_empresas_nuevo_sistema',
+          fileBase: 'exportacion_empresas',
         });
       }
 
@@ -111,14 +106,12 @@ export default function SettingsExport() {
         for (const company of companies) {
           for (const manager of company.managers || []) {
             rows.push({
-              encargado_id: String(manager.id || ''),
               empresa_id: String(company.id || ''),
-              empresa_nombre: String(company.name || ''),
+              encargado_id: String(manager.id || ''),
               nombre_encargado: String(manager.name || ''),
-              telefono: String(manager.phone || ''),
-              correo: String(manager.email || ''),
-              direccion: String(manager.address || ''),
-              estado: disabledManagers.has(String(manager.id || '')) ? 'Inactivo' : 'Activo',
+              telefono_encargado: String(manager.phone || ''),
+              correo_encargado: String(manager.email || ''),
+              direccion_encargado: String(manager.address || ''),
             });
           }
         }
@@ -129,20 +122,18 @@ export default function SettingsExport() {
         }
         exportRowsToExcel({
           title: 'CRM Jardines - Exportacion de encargados',
-          subtitle: 'Contactos responsables vinculados a empresas para importarse al nuevo sistema.',
+          subtitle: 'Contactos responsables vinculados a empresas. El empresa_id debe coincidir con empresas ya importadas.',
           columns: managerColumns,
           example: {
-            encargado_id: 'mgr_001',
             empresa_id: 'cmp_001',
-            empresa_nombre: 'Empresa Ejemplo, S.A.',
+            encargado_id: 'mgr_001',
             nombre_encargado: 'Ana Lopez',
-            telefono: '5555-5678',
-            correo: 'ana@empresa.com',
-            direccion: 'Ciudad de Guatemala',
-            estado: 'Activo',
+            telefono_encargado: '5555-5678',
+            correo_encargado: 'ana@empresa.com',
+            direccion_encargado: 'Ciudad de Guatemala',
           },
           rows,
-          fileBase: 'exportacion_encargados_nuevo_sistema',
+          fileBase: 'exportacion_encargados',
         });
       }
 

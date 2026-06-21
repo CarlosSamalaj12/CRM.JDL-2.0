@@ -2211,6 +2211,115 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+// ==================== IMPORTACIÓN MASIVA DIRECTA A TABLAS ====================
+
+app.post("/api/import/companies", async (req, res) => {
+  const companies = req.body && req.body.companies;
+  if (!Array.isArray(companies) || !companies.length) {
+    return res.status(400).json({ message: "Se requiere un array de empresas." });
+  }
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const BATCH = 1000;
+    for (let i = 0; i < companies.length; i += BATCH) {
+      const batch = companies.slice(i, i + BATCH);
+      const placeholders = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+      const values = [];
+      for (const c of batch) {
+        values.push(
+          str(c?.id),
+          str(c?.name).trim() || "Empresa",
+          str(c?.owner).trim() || null,
+          str(c?.email).trim() || null,
+          str(c?.nit).trim() || null,
+          str(c?.businessName).trim() || null,
+          str(c?.eventType).trim() || null,
+          str(c?.address).trim() || null,
+          str(c?.phone).trim() || null,
+          str(c?.notes).trim() || null
+        );
+      }
+      await conn.query(
+        `
+          INSERT INTO empresas (id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas)
+          VALUES ${placeholders}
+          ON DUPLICATE KEY UPDATE
+            nombre = VALUES(nombre),
+            encargado_principal = VALUES(encargado_principal),
+            correo = VALUES(correo),
+            nit = VALUES(nit),
+            razon_social = VALUES(razon_social),
+            tipo_evento = VALUES(tipo_evento),
+            direccion = VALUES(direccion),
+            telefono = VALUES(telefono),
+            notas = VALUES(notas)
+        `,
+        values
+      );
+    }
+    await conn.commit();
+    console.log(`[${new Date().toLocaleTimeString()}] ✅ Importadas ${companies.length} empresas vía /api/import/companies`);
+    return res.json({ ok: true, count: companies.length });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en /api/import/companies:`, error);
+    return res.status(500).json({ message: "Error al importar empresas.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.post("/api/import/managers", async (req, res) => {
+  const managers = req.body && req.body.managers;
+  if (!Array.isArray(managers) || !managers.length) {
+    return res.status(400).json({ message: "Se requiere un array de encargados." });
+  }
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const BATCH = 1000;
+    for (let i = 0; i < managers.length; i += BATCH) {
+      const batch = managers.slice(i, i + BATCH);
+      const placeholders = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+      const values = [];
+      for (const m of batch) {
+        values.push(
+          str(m?.id),
+          str(m?.companyId),
+          str(m?.name).trim() || "Encargado",
+          str(m?.phone).trim() || null,
+          str(m?.email).trim() || null,
+          str(m?.address).trim() || null
+        );
+      }
+      await conn.query(
+        `
+          INSERT INTO encargados_empresa (id, id_empresa, nombre, telefono, correo, direccion)
+          VALUES ${placeholders}
+          ON DUPLICATE KEY UPDATE
+            nombre = VALUES(nombre),
+            telefono = VALUES(telefono),
+            correo = VALUES(correo),
+            direccion = VALUES(direccion)
+        `,
+        values
+      );
+    }
+    await conn.commit();
+    console.log(`[${new Date().toLocaleTimeString()}] ✅ Importados ${managers.length} encargados vía /api/import/managers`);
+    return res.json({ ok: true, count: managers.length });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en /api/import/managers:`, error);
+    return res.status(500).json({ message: "Error al importar encargados.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 app.get("/api/state", async (_req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   console.log(`[${new Date().toLocaleTimeString()}] 🔍 GET /api/state - Consultando base de datos MariaDB...`);
