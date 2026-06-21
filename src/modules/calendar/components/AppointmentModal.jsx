@@ -156,7 +156,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
 
   const bodyStyle = {
     padding: '24px',
-    maxHeight: '380px',
+    maxHeight: '550px',
     overflowY: 'auto',
     background: '#f8fafc'
   };

@@ -44,8 +44,6 @@ export default function NotificationBell() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
   }, [load]);
 
   // Escuchar eventos de socket para actualizar notificaciones en tiempo real

@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext.jsx';
 
 const SocketContext = createContext(null);
 const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
-const SOCKET_ENABLED = import.meta.env.VITE_REPORTS_SOCKET === 'true';
+const SOCKET_ENABLED = import.meta.env.VITE_REPORTS_SOCKET !== 'false';
 
 let globalSocket = null;
 

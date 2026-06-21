@@ -89,6 +89,15 @@ export async function createInforme(req, res, next) {
         'INSERT INTO notificaciones (tipo, titulo, mensaje, informe_id, idocupacion) VALUES (?, ?, ?, ?, ?)',
         ['informe', `Informe v${nextVersion} creado`, `Se creó la versión ${nextVersion} del informe para ${nombre}`, result.insertId, id_ocupacion]
       );
+      
+      // Emitir la notificación en tiempo real a todos los usuarios
+      req.io.emit('notificacion:created', {
+        tipo: 'informe',
+        titulo: `Informe v${nextVersion} creado`,
+        mensaje: `Se creó la versión ${nextVersion} del informe para ${nombre}`,
+        informe_id: result.insertId,
+        idocupacion: id_ocupacion
+      });
     } catch (notifErr) {
       console.error('Error al crear notificación (no crítico):', notifErr.message);
     }

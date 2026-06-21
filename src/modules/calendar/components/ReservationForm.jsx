@@ -1448,21 +1448,7 @@ export default function ReservationForm() {
                   <option key={u.id} value={u.id}>👤 {u.fullName || u.name}</option>
                 ))}
               </select>
-              <button
-                style={{
-                  background: '#eff6ff',
-                  color: '#2563eb',
-                  border: '1px solid #bfdbfe',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                + Usuario
-              </button>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>Cada usuario tendra su avatar.</div>
+
             </div>
 
             {/* Notas */}
@@ -1732,7 +1718,7 @@ export default function ReservationForm() {
       `}</style>
 
       {showAppointmentModal && id && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAppointmentModal(false)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()}>
             <AppointmentModal eventId={id} eventName={formData.name} onClose={() => setShowAppointmentModal(false)} onSaved={refreshData} />
           </div>
