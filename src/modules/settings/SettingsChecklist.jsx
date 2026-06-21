@@ -939,24 +939,15 @@ export default function SettingsChecklist() {
           {/* Body */}
           <div className="checklist-body" style={{ flexGrow: 1, flexShrink: 1, flexBasis: '0%', minHeight: '0px', overflowY: 'auto', overflowX: 'visible', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
             {/* Template selector + event info */}
-            <div className="checklist-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-              <div>
-                <span style={s.label}>Plantilla</span>
-                <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={isReadOnly}>
-                  <option value="">-- Seleccionar --</option>
-                  {templates.filter(t => t.active !== false).map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <span style={s.label}>Fecha</span>
-                <input type="text" readOnly value={evtData?.date || evtData?.eventDate || ''} style={{ ...s.input, background: '#f8fafc' }} />
-              </div>
-              <div>
-                <span style={s.label}>Evento</span>
-                <input type="text" readOnly value={evtData?.eventName || evtData?.client || evtData?.name || ''} style={{ ...s.input, background: '#f8fafc' }} />
-              </div>
+            {/* Template selector */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={s.label}>Plantilla</span>
+              <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={isReadOnly}>
+                <option value="">-- Seleccionar --</option>
+                {templates.filter(t => t.active !== false).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Notes */}
@@ -1046,7 +1037,16 @@ export default function SettingsChecklist() {
             )}
 
             {/* Items table */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', background: '#ffffff' }}>
+            <div style={{
+              border: '1px solid #e2e8f0',
+              borderRadius: '10px',
+              overflowY: 'auto',
+              background: '#ffffff',
+              flexGrow: 1,
+              flexShrink: 1,
+              flexBasis: '0%',
+              minHeight: '150px'
+            }}>
               {activeItems.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
                   Selecciona una plantilla para cargar los puntos a evaluar
