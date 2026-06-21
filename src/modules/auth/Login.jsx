@@ -56,22 +56,25 @@ export default function Login() {
 
   // Handle Google Login via Firebase
   const handleGoogleLogin = async () => {
-    setLoading(true);
-    const loadingToast = toast.loading('Conectando con Google...');
+    let loadingToast = null;
     try {
+      // 1. Invocar la ventana emergente de Google INMEDIATAMENTE como respuesta al gesto del usuario.
+      // Esto evita que los navegadores modernos la bloqueen por considerarla una acción asíncrona diferida.
       const firebaseUser = await firebaseService.loginWithGoogle();
-      if (!firebaseUser) {
-        toast.dismiss(loadingToast);
-        return;
-      }
+      if (!firebaseUser) return; // Si es null (porque entró por redirección en el fallback)
+
+      setLoading(true);
+      loadingToast = toast.loading('Sincronizando con el servidor...');
+
       const localUser = await authService.loginFirebase(firebaseUser);
       document.activeElement?.blur();
-      toast.dismiss(loadingToast);
+      if (loadingToast) toast.dismiss(loadingToast);
       toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
       setTimeout(() => navigate('/calendar'), 500);
     } catch (err) {
       console.error('Google login error detail:', err);
-      toast.dismiss(loadingToast);
+      if (loadingToast) toast.dismiss(loadingToast);
+      
       if (
         err.code === 'auth/operation-not-allowed' ||
         err.code === 'auth/api-key-not-valid' ||
@@ -86,7 +89,6 @@ export default function Login() {
         document.activeElement?.blur();
         toast.error(err.message || 'No se pudo iniciar sesión con tu cuenta de Google.', { duration: 4000 });
       }
-    } finally {
       setLoading(false);
     }
   };
