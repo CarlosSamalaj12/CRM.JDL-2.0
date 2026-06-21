@@ -553,7 +553,7 @@ export default function SettingsChecklist() {
   const s = {
     label: { fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' },
     input: { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', color: '#0f172a', fontSize: '0.83rem', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' },
-    select: { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', color: '#0f172a', fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit' },
+    select: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', color: '#0f172a', fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit', minHeight: '44px', WebkitAppearance: 'menulist', appearance: 'menulist' },
   };
 
   useEffect(() => {
@@ -700,10 +700,29 @@ export default function SettingsChecklist() {
     <>
       <style>{`
         @media (max-width: 768px) {
+          #eventChecklistBackdrop {
+            padding: 8px !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
           #eventChecklistBackdrop > div {
-            width: 98vw !important;
-            height: 98vh !important;
-            border-radius: 8px !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            position: relative !important;
+            z-index: 3001 !important;
+          }
+          #eventChecklistBackdrop > div::before {
+            content: '' !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
           }
           #eventChecklistBackdrop .checklist-header {
             padding: 12px 14px !important;
@@ -715,42 +734,90 @@ export default function SettingsChecklist() {
             flex-direction: column !important;
           }
           #eventChecklistBackdrop .checklist-tab {
-            padding: 8px 12px !important;
-            font-size: 0.78rem !important;
+            padding: 12px 14px !important;
+            font-size: 0.85rem !important;
+            min-height: 48px !important;
           }
           #eventChecklistBackdrop .checklist-tab-desc {
             display: none !important;
           }
           #eventChecklistBackdrop .checklist-body {
-            padding: 12px 14px !important;
+            padding: 14px 16px !important;
+            overflow-y: auto !important;
+            overflow-x: visible !important;
+            -webkit-overflow-scrolling: touch !important;
+            padding-bottom: 20px !important;
+            position: relative !important;
+            z-index: 1 !important;
           }
           #eventChecklistBackdrop .checklist-grid {
             grid-template-columns: 1fr !important;
-            gap: 8px !important;
+            gap: 10px !important;
+            position: relative !important;
+            z-index: 10 !important;
+            overflow: visible !important;
+          }
+          #eventChecklistBackdrop .checklist-grid > div {
+            position: relative !important;
+            z-index: 11 !important;
+            overflow: visible !important;
+          }
+          #eventChecklistBackdrop .checklist-grid > div:first-child {
+            z-index: 20 !important;
+          }
+          #eventChecklistBackdrop .checklist-grid select,
+          #eventChecklistBackdrop .checklist-grid input {
+            font-size: 16px !important;
+            min-height: 48px !important;
+            padding: 12px 14px !important;
+            -webkit-appearance: menulist !important;
+            appearance: menulist !important;
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border: 1.5px solid #d1d9e6 !important;
+            border-radius: 8px !important;
+            cursor: pointer !important;
+            -webkit-tap-highlight-color: rgba(99, 102, 241, 0.1) !important;
+            position: relative !important;
+            z-index: 12 !important;
+          }
+          #eventChecklistBackdrop .checklist-grid > div:first-child select {
+            z-index: 21 !important;
+          }
+          #eventChecklistBackdrop .checklist-grid select:focus,
+          #eventChecklistBackdrop .checklist-grid input:focus {
+            outline: none !important;
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
           }
           #eventChecklistBackdrop .checklist-table {
             font-size: 0.75rem !important;
           }
           #eventChecklistBackdrop .checklist-table th,
           #eventChecklistBackdrop .checklist-table td {
-            padding: 8px 6px !important;
+            padding: 10px 8px !important;
           }
           #eventChecklistBackdrop .checklist-rating-buttons {
             flex-wrap: wrap !important;
-            gap: 4px !important;
+            gap: 6px !important;
           }
           #eventChecklistBackdrop .checklist-rating-btn {
-            padding: 3px 5px !important;
-            font-size: 0.65rem !important;
+            padding: 8px 10px !important;
+            font-size: 0.75rem !important;
+            min-height: 40px !important;
           }
           #eventChecklistBackdrop .checklist-footer {
-            padding: 10px 14px !important;
+            padding: 12px 16px !important;
             flex-direction: column !important;
-            gap: 8px !important;
+            gap: 10px !important;
           }
           #eventChecklistBackdrop .checklist-footer-buttons {
             width: 100% !important;
             justify-content: space-between !important;
+          }
+          #eventChecklistBackdrop .checklist-footer-buttons button {
+            min-height: 44px !important;
+            font-size: 0.9rem !important;
           }
         }
       `}</style>
@@ -764,6 +831,7 @@ export default function SettingsChecklist() {
           background: 'rgba(15,23,42,0.35)',
           alignItems: 'center', justifyContent: 'center',
           padding: '16px',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         <div role="dialog" style={{
@@ -773,6 +841,8 @@ export default function SettingsChecklist() {
           background: '#ffffff', border: '1px solid #e2e8f0',
           borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
           overflow: 'visible',
+          position: 'relative',
+          zIndex: 3001,
         }}>
           {/* Header */}
           <div className="checklist-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#fff', flexShrink: 0 }}>
@@ -815,7 +885,7 @@ export default function SettingsChecklist() {
           </div>
 
           {/* Body */}
-          <div className="checklist-body" style={{ flex: '1 1 0', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
+          <div className="checklist-body" style={{ flex: '1 1 0', overflowY: 'auto', overflowX: 'visible', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
             {/* Template selector + event info */}
             <div className="checklist-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div>

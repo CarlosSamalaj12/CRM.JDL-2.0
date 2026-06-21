@@ -62,6 +62,10 @@ export function SocketProvider({ children }) {
       showBrowserNotif('Nueva nota', data.contenido?.slice(0, 80) || 'Nueva nota agregada');
     });
 
+    socket.on('comentario:created', (data) => {
+      showBrowserNotif('Nuevo comentario', data.contenido?.slice(0, 80) || 'Nuevo comentario agregado');
+    });
+
     socket.on('metadatos:updated', (data) => {
       showBrowserNotif('Des/Hab actualizados', `Des: ${data.desayunos} · Hab: ${data.habitaciones}`);
     });

@@ -22,7 +22,7 @@ function getMencionFilter(text) {
   return after;
 }
 
-export default function EventCard({ event, dragHandleProps }) {
+export default function EventCard({ event, dragHandleProps, highlighted = false }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -42,6 +42,7 @@ export default function EventCard({ event, dragHandleProps }) {
   const [tareasCount, setTareasCount] = useState(0);
   const notaInputRef = useRef(null);
   const tareasButtonRef = useRef(null);
+  const cardRef = useRef(null);
   const userMap = useMemo(() => {
     const map = {};
     usuarios.forEach(u => { map[u.id] = u.nombre; });
@@ -167,7 +168,17 @@ export default function EventCard({ event, dragHandleProps }) {
     : [];
 
   return (
-    <article className={cardClass}>
+    <article 
+      ref={cardRef}
+      id={`evento-${event.Idocupacion}`}
+      className={cardClass}
+      style={{
+        border: highlighted ? '2px solid #8b5cf6' : undefined,
+        boxShadow: highlighted ? '0 0 20px rgba(139, 92, 246, 0.4)' : undefined,
+        background: highlighted ? 'rgba(139, 92, 246, 0.05)' : undefined,
+        transition: 'all 0.3s ease',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <div className={`event-tag event-tag-${status.color}`}>

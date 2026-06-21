@@ -84,11 +84,44 @@ export default function Kanban() {
   
   const [selectedDate, setSelectedDate] = useState(getInitialDate());
   const [filterExiting, setFilterExiting] = useState(false);
+  const [eventoResaltado, setEventoResaltado] = useState(null);
 
   // Guardar fecha seleccionada en localStorage
   useEffect(() => {
     localStorage.setItem('kanban_selectedDate', selectedDate);
   }, [selectedDate]);
+
+  // Efecto para resaltar evento desde notificación
+  useEffect(() => {
+    const highlightEventoId = searchParams.get('highlightEvento');
+    if (highlightEventoId && events.length > 0) {
+      // Buscar el evento en la lista
+      const evento = events.find(e => String(e.Idocupacion) === String(highlightEventoId));
+      if (evento) {
+        setEventoResaltado(highlightEventoId);
+        // Navegar a la semana del evento
+        setSelectedDate(evento.FechaEvento || evento.displayDate);
+        
+        // Hacer scroll al evento después de un breve delay
+        setTimeout(() => {
+          const elemento = document.getElementById(`evento-${highlightEventoId}`);
+          if (elemento) {
+            elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500);
+        
+        // Quitar el resaltado después de 5 segundos
+        setTimeout(() => {
+          setEventoResaltado(null);
+          // Limpiar el parámetro de la URL
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete('highlightEvento');
+          newParams.delete('comentarioId');
+          setSearchParams(newParams);
+        }, 5000);
+      }
+    }
+  }, [searchParams, events]);
 
   const [viewMode, setViewMode] = useState('kanban');
   const [occupancyOps, setOccupancyOps] = useState({});
@@ -350,7 +383,11 @@ export default function Kanban() {
                   <p className="kanban-empty">Sin eventos este día</p>
                 ) : (
                   column.items.map((event) => (
-                      <EventCard key={`${event.Idocupacion}-${event.displayDate}`} event={event} />
+                      <EventCard 
+                        key={`${event.Idocupacion}-${event.displayDate}`} 
+                        event={event} 
+                        highlighted={eventoResaltado === String(event.Idocupacion)}
+                      />
                   ))
                 )}
               </div>

@@ -31,16 +31,33 @@ export async function getComentarios(req, res, next) {
         row.menciones = [];
       }
     }
-    res.json(rows);
+
+    // Organizar comentarios en estructura de hilos
+    const comentariosMap = {};
+    const comentariosRaiz = [];
+
+    rows.forEach(c => {
+      comentariosMap[c.id] = { ...c, respuestas: [] };
+    });
+
+    rows.forEach(c => {
+      if (c.parent_id && comentariosMap[c.parent_id]) {
+        comentariosMap[c.parent_id].respuestas.push(comentariosMap[c.id]);
+      } else {
+        comentariosRaiz.push(comentariosMap[c.id]);
+      }
+    });
+
+    res.json(comentariosRaiz);
   } catch (error) { next(error); }
 }
 
 export async function createComentario(req, res, next) {
   try {
     const { id } = req.params;
-    const { contenido, dia_id, mencion_a_id } = req.body;
+    const { contenido, dia_id, mencion_a_id, parent_id } = req.body;
     const usuario_id = req.user?.id;
-    console.log('[DEBUG] createComentario: id =', id, ', usuario_id =', usuario_id);
+    console.log('[DEBUG] createComentario: id =', id, ', usuario_id =', usuario_id, ', parent_id =', parent_id);
 
     if (!usuario_id) {
       return res.status(401).json({ message: 'Debes iniciar sesión para comentar' });
@@ -61,15 +78,33 @@ export async function createComentario(req, res, next) {
     }
 
     const [result] = await pool.query(
-      'INSERT INTO informe_comentarios (informe_id, dia_id, usuario_id, contenido, mencion_a_id) VALUES (?, ?, ?, ?, ?)',
-      [id, dia_id || null, usuario_id, contenido, mencionStr]
+      'INSERT INTO informe_comentarios (informe_id, dia_id, parent_id, usuario_id, contenido, mencion_a_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, dia_id || null, parent_id || null, usuario_id, contenido, mencionStr]
     );
 
     // Registrar en historial
     await pool.query(
       'INSERT INTO informe_historial (informe_id, usuario_id, accion, descripcion) VALUES (?, ?, ?, ?)',
-      [id, usuario_id, 'comentario', 'Agregó un comentario al informe']
+      [id, usuario_id, 'comentario', parent_id ? 'Respondió a un comentario' : 'Agregó un comentario al informe']
     );
+
+    // Si es una respuesta, notificar al autor del comentario padre
+    if (parent_id) {
+      const [parentComment] = await pool.query(
+        'SELECT usuario_id FROM informe_comentarios WHERE id = ?',
+        [parent_id]
+      );
+      
+      if (parentComment.length > 0 && parentComment[0].usuario_id !== usuario_id) {
+        const [userRow] = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id]);
+        const nombreUsuario = userRow[0]?.nombre || 'Alguien';
+        
+        await pool.query(
+          'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, informe_id, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, (SELECT id_ocupacion FROM informes_eventos WHERE id = ?), ?)',
+          [parentComment[0].usuario_id, 'respuesta', `${nombreUsuario} respondió a tu comentario`, `${nombreUsuario} respondió a tu comentario en el informe`, id, id, result.insertId]
+        );
+      }
+    }
 
     // Si hay menciones, crear notificaciones
     if (mencionIds.length > 0) {
@@ -77,8 +112,8 @@ export async function createComentario(req, res, next) {
       const nombreUsuario = userRow[0]?.nombre || 'Alguien';
       for (const mid of mencionIds) {
         await pool.query(
-          'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, informe_id, idocupacion) VALUES (?, ?, ?, ?, ?, (SELECT id_ocupacion FROM informes_eventos WHERE id = ?))',
-          [mid, 'mencion', `Te mencionaron en un comentario`, `${nombreUsuario} te mencionó en el informe`, id, id]
+          'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, informe_id, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, (SELECT id_ocupacion FROM informes_eventos WHERE id = ?), ?)',
+          [mid, 'mencion', `Te mencionaron en un comentario`, `${nombreUsuario} te mencionó en el informe`, id, id, result.insertId]
         );
       }
     }
@@ -94,7 +129,11 @@ export async function createComentario(req, res, next) {
     const comentario = newComment[0];
     const [inf] = await pool.query('SELECT id_ocupacion FROM informes_eventos WHERE id = ?', [id]);
     if (inf.length > 0) {
-      req.io.to(`evento:${inf[0].id_ocupacion}`).emit('comentario:created', comentario);
+      // Emitir el evento con el informe_id incluido
+      req.io.to(`evento:${inf[0].id_ocupacion}`).emit('comentario:created', {
+        ...comentario,
+        informe_id: parseInt(id)
+      });
     }
     res.status(201).json(comentario);
   } catch (error) { next(error); }

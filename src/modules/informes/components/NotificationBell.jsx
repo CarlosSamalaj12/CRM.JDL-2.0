@@ -10,6 +10,7 @@ const TYPE_CONFIG = {
   informe:  { icon: IconFileText,    label: 'Informe',     color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
   comentario: { icon: IconMessageCircle, label: 'Comentario', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
   mencion:  { icon: IconAtSign,     label: 'Mención',     color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+  respuesta: { icon: IconMessageCircle, label: 'Respuesta', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
   alerta:   { icon: IconAlertCircle, label: 'Alerta',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   recordatorio: { icon: IconClock,  label: 'Recordatorio', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
 };
@@ -88,11 +89,60 @@ export default function NotificationBell() {
         setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, leido: 1 } : x));
       } catch { /* ignore */ }
     }
-    if (n.idocupacion) {
-      navigate(`/informe/${n.idocupacion}`);
+    
+    // Si es una mención o respuesta, verificar si existe informe
+    if ((n.tipo === 'mencion' || n.tipo === 'respuesta') && n.idocupacion) {
+      try {
+        // Intentar obtener el informe por id_ocupacion
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/informes/ocupacion/${n.idocupacion}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (response.ok) {
+          const informes = await response.json();
+          // El endpoint devuelve un array de informes
+          if (Array.isArray(informes) && informes.length > 0) {
+            // Usar el primer informe (el más reciente)
+            const informe = informes[0];
+            // Navegar al informe con el comentario resaltado
+            navigate(`/informe/${informe.id}?highlightComentario=${n.comentario_id || ''}`);
+          } else {
+            // Si no existe informe, navegar al Kanban con la tarjeta resaltada
+            navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+          }
+        } else {
+          // Si no existe informe, navegar al Kanban con la tarjeta resaltada
+          navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+        }
+      } catch (error) {
+        console.error('Error verificando informe:', error);
+        // En caso de error, ir al Kanban
+        navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+      }
+    } else if (n.idocupacion) {
+      // Para otros tipos de notificaciones con idocupacion, intentar ir al informe
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/informes/ocupacion/${n.idocupacion}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (response.ok) {
+          const informes = await response.json();
+          if (Array.isArray(informes) && informes.length > 0) {
+            navigate(`/informe/${informes[0].id}`);
+          } else {
+            navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+          }
+        } else {
+          navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+        }
+      } catch {
+        navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+      }
     } else if (n.informe_id) {
       navigate(`/informe/${n.informe_id}`);
     }
+    
     closeDropdown();
   };
 

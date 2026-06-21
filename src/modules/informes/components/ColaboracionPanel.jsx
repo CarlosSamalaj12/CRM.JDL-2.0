@@ -30,7 +30,10 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   const [userLeido, setUserLeido] = useState(false);
   const [reactingTo, setReactingTo] = useState(null);
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
+  const [respondiendoA, setRespondiendoA] = useState(null);
+  const [textoRespuesta, setTextoRespuesta] = useState('');
   const comentarioRef = useRef(null);
+  const respuestaRef = useRef(null);
   const socket = useSocket();
   const userMap = useMemo(() => {
     const map = {};
@@ -105,6 +108,24 @@ export default function ColaboracionPanel({ informeId, diaId }) {
     finally { setLoading(false); }
   };
 
+  const handleResponder = async (parentId) => {
+    if (!textoRespuesta.trim()) return;
+    setLoading(true);
+    try {
+      await createComentario(informeId, {
+        contenido: textoRespuesta,
+        dia_id: diaId || null,
+        parent_id: parentId,
+        mencion_a_id: menciones.length > 0 ? menciones.map(m => m.id) : null,
+      });
+      setTextoRespuesta('');
+      setMenciones([]);
+      setRespondiendoA(null);
+      loadAll();
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+
   const handleEnterado = async () => {
     try {
       await marcarInformeLeido(informeId);
@@ -160,6 +181,13 @@ export default function ColaboracionPanel({ informeId, diaId }) {
         const newText = text.substring(0, atIdx) + `@${user.nombre} `;
         setNuevoComentario(newText);
       }
+      // Mantener el focus en el input después de seleccionar
+      setTimeout(() => {
+        input.focus();
+        // Mover el cursor al final
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+      }, 0);
     }
   };
 
@@ -318,6 +346,164 @@ export default function ColaboracionPanel({ informeId, diaId }) {
                       </div>
                     </div>
                     <p className="colab-comment-text">{c.contenido}</p>
+                    {/* Botón Responder */}
+                    <button
+                      onClick={() => setRespondiendoA(respondiendoA === c.id ? null : c.id)}
+                      style={{
+                        marginTop: '0.3rem',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary)',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '0.2rem 0',
+                      }}
+                    >
+                      💬 Responder
+                    </button>
+                    {/* Input de respuesta */}
+                    {respondiendoA === c.id && (
+                      <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.3rem' }}>
+                        <input
+                          ref={respuestaRef}
+                          type="text"
+                          value={textoRespuesta}
+                          onChange={e => setTextoRespuesta(e.target.value)}
+                          placeholder="Escribe tu respuesta..."
+                          autoFocus
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.6rem',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.78rem',
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && textoRespuesta.trim()) {
+                              handleResponder(c.id);
+                            }
+                          }}
+                        />
+                        <button
+                          className="btn-primary btn-sm"
+                          onClick={() => handleResponder(c.id)}
+                          disabled={!textoRespuesta.trim()}
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          Enviar
+                        </button>
+                        <button
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            setRespondiendoA(null);
+                            setTextoRespuesta('');
+                          }}
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                    {/* Respuestas anidadas */}
+                    {c.respuestas && c.respuestas.length > 0 && (
+                      <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.5rem' }}>
+                        {c.respuestas.map(r => (
+                          <div key={r.id}>
+                            <div className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
+                              <div className="colab-avatar">{r.usuario_nombre?.charAt(0) || '?'}</div>
+                              <div className="colab-comment-body">
+                                <div className="colab-comment-header">
+                                  <strong style={{ fontSize: '0.78rem' }}>{r.usuario_nombre || 'Usuario'}</strong>
+                                  <span className="colab-time">
+                                    {new Date(r.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="colab-comment-text" style={{ fontSize: '0.78rem' }}>{r.contenido}</p>
+                                {/* Botón Responder en respuestas anidadas */}
+                                <button
+                                  onClick={() => setRespondiendoA(respondiendoA === r.id ? null : r.id)}
+                                  style={{
+                                    marginTop: '0.3rem',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--primary)',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    padding: '0.2rem 0',
+                                  }}
+                                >
+                                  💬 Responder
+                                </button>
+                                {/* Input de respuesta para respuesta anidada */}
+                                {respondiendoA === r.id && (
+                                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.3rem' }}>
+                                    <input
+                                      ref={respuestaRef}
+                                      type="text"
+                                      value={textoRespuesta}
+                                      onChange={e => setTextoRespuesta(e.target.value)}
+                                      placeholder="Escribe tu respuesta..."
+                                      autoFocus
+                                      style={{
+                                        flex: 1,
+                                        padding: '0.4rem 0.6rem',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        fontSize: '0.78rem',
+                                      }}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter' && textoRespuesta.trim()) {
+                                          handleResponder(r.id);
+                                        }
+                                      }}
+                                    />
+                                    <button
+                                      className="btn-primary btn-sm"
+                                      onClick={() => handleResponder(r.id)}
+                                      disabled={!textoRespuesta.trim()}
+                                      style={{ fontSize: '0.72rem' }}
+                                    >
+                                      Enviar
+                                    </button>
+                                    <button
+                                      className="btn-secondary btn-sm"
+                                      onClick={() => {
+                                        setRespondiendoA(null);
+                                        setTextoRespuesta('');
+                                      }}
+                                      style={{ fontSize: '0.72rem' }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {/* Sub-respuestas anidadas (nivel 2) */}
+                            {r.respuestas && r.respuestas.length > 0 && (
+                              <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.3rem' }}>
+                                {r.respuestas.map(r2 => (
+                                  <div key={r2.id} className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
+                                    <div className="colab-avatar">{r2.usuario_nombre?.charAt(0) || '?'}</div>
+                                    <div className="colab-comment-body">
+                                      <div className="colab-comment-header">
+                                        <strong style={{ fontSize: '0.78rem' }}>{r2.usuario_nombre || 'Usuario'}</strong>
+                                        <span className="colab-time">
+                                          {new Date(r2.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                      </div>
+                                      <p className="colab-comment-text" style={{ fontSize: '0.78rem' }}>{r2.contenido}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
