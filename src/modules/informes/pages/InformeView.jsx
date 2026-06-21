@@ -35,7 +35,7 @@ export default function InformeView() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
-  const socket = useSocket();
+  const { connected: socketConnected, onEvent, joinRoom, leaveRoom } = useSocket();
   const [informe, setInforme] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -69,14 +69,14 @@ export default function InformeView() {
   }, [id]);
 
   useEffect(() => {
-    if (!socket || !informe?.id_ocupacion) return;
+    if (!socketConnected || !informe?.id_ocupacion) return;
     const room = `evento:${informe.id_ocupacion}`;
-    socket.joinRoom(room);
-    const cleanup = socket.onEvent('informe:created', () => {
+    joinRoom(room);
+    const cleanup = onEvent('informe:created', () => {
       if (informe?.id) getInformeById(id).then(setInforme).catch(() => {});
     });
-    return () => { cleanup(); socket.leaveRoom(room); };
-  }, [socket, informe?.id_ocupacion, id]);
+    return () => { cleanup(); leaveRoom(room); };
+  }, [socketConnected, informe?.id_ocupacion, id, onEvent, joinRoom, leaveRoom]);
 
   const handlePrint = () => window.print();
 

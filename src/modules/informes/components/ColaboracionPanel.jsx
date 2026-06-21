@@ -35,7 +35,7 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   const comentarioRef = useRef(null);
   const respuestaRef = useRef(null);
   const commentListRef = useRef(null);
-  const socket = useSocket();
+  const { connected: socketConnected, onEvent, joinRoom } = useSocket();
   const userMap = useMemo(() => {
     const map = {};
     usuarios.forEach(u => { map[u.id] = u.nombre; });
@@ -92,7 +92,7 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socketConnected) return;
     
     const handler = (data) => {
       if (String(data.informe_id) === String(informeId)) {
@@ -100,9 +100,9 @@ export default function ColaboracionPanel({ informeId, diaId }) {
       }
     };
     
-    const cleanup = socket.onEvent('comentario:created', handler);
+    const cleanup = onEvent('comentario:created', handler);
     return cleanup;
-  }, [socket, informeId, loadAll]);
+  }, [socketConnected, informeId, loadAll, onEvent]);
 
   const handleComentar = async () => {
     if (!nuevoComentario.trim()) return;

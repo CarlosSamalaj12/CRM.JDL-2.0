@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { fetchEvents } from '../services/api.js';
@@ -85,6 +85,16 @@ export default function Kanban() {
   const [selectedDate, setSelectedDate] = useState(getInitialDate());
   const [filterExiting, setFilterExiting] = useState(false);
   const [eventoResaltado, setEventoResaltado] = useState(null);
+  const [mobileDayIndex, setMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
+  const [isMobileView, setIsMobileView] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsMobileView(mq.matches);
+    const handler = (e) => setIsMobileView(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // Guardar fecha seleccionada en localStorage
   useEffect(() => {
@@ -335,16 +345,35 @@ export default function Kanban() {
         </div>
       )}
 
+      {/* Day selector — visible en mobile */}
+      {!loading && !error && viewMode === 'kanban' && (
+        <div className="kanban-day-selector">
+          {filteredColumns.map((col, i) => (
+            <button
+              key={col.isoDate}
+              className={`kanban-day-pill ${mobileDayIndex === i ? 'active' : ''}`}
+              onClick={() => setMobileDayIndex(i)}
+            >
+              <span className="pill-day">{col.name.slice(0, 3).replace('.','')}</span>
+              <span className="pill-date">{col.isoDate.slice(5)}</span>
+              <span className="pill-count">{col.items.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && <p className="status-message">Cargando eventos...</p>}
       {error && <p className="status-message status-error">{error}</p>}
 
       {!loading && !error && viewMode === 'kanban' && (
-        <div className="kanban-board">
-          {filteredColumns.map((column) => {
+        <div className={`kanban-board ${isMobileView ? 'kanban-board--mobile' : ''}`}>
+          {filteredColumns
+            .filter((_, i) => !isMobileView || i === mobileDayIndex)
+            .map((column, ci) => {
             const dayOps = (occupancyOps[getWeekMonday(column.isoDate)]?.[column.isoDate]) || { breakfasts: 0, rooms: 0 };
             const isEditing = editingDay === column.isoDate;
             return (
-            <div key={column.name} className="kanban-column">
+            <div key={column.name} id={`kcol-${ci}`} className="kanban-column">
               <div className="kanban-column-header">
                 <div style={{display:'flex',flexDirection:'column',gap:'2px',width:'100%'}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}}>

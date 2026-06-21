@@ -969,6 +969,72 @@ button[data-tooltip-bottom]::after {
   border-radius: var(--radius-sm);
 }
 
+/* --- Day Selector (mobile) --- */
+.kanban-day-selector {
+  display: none;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 767px) {
+  .kanban-day-selector {
+    display: flex;
+  }
+}
+.kanban-day-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  cursor: pointer;
+  min-width: 56px;
+  flex-shrink: 0;
+  transition: all 0.15s var(--ease);
+  font-family: inherit;
+}
+.kanban-day-pill.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px var(--primary-glow);
+}
+.kanban-day-pill .pill-day {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.kanban-day-pill .pill-date {
+  font-size: 0.6rem;
+  font-weight: 500;
+  opacity: 0.7;
+}
+.kanban-day-pill.active .pill-date { opacity: 0.9; }
+.kanban-day-pill .pill-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--radius-full);
+  min-width: 18px;
+  text-align: center;
+}
+.kanban-day-pill.active .pill-count {
+  background: rgba(255,255,255,0.25);
+  color: white;
+}
+
+/* Mobile board: single column */
+.kanban-board--mobile {
+  grid-template-columns: 1fr !important;
+}
+
 /* ============================================
    VIEW TOGGLE
    ============================================ */
@@ -3816,7 +3882,18 @@ button[data-tooltip-bottom]::after {
   .nav-link { font-size: 0.8rem; padding: 0.4rem 0.7rem; flex-shrink: 0; }
   .catalog-grid { grid-template-columns: 1fr; }
   .builder-layout { grid-template-columns: 1fr; }
-  .kanban-board { grid-template-columns: 1fr; }
+  .kanban-board {
+    grid-template-columns: repeat(7, 1fr);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+  }
+  .kanban-column {
+    scroll-snap-align: start;
+    min-width: 280px;
+  }
   .kanban-header { flex-direction: column; }
   .tabs { width: 100%; }
   .tabs button { flex: 1; text-align: center; font-size: 0.78rem; padding: 0.5rem 0.6rem; }
@@ -3832,9 +3909,49 @@ button[data-tooltip-bottom]::after {
 @media (max-width: 480px) {
   html { font-size: 14px; }
   .form-group { flex-direction: column; }
-  .kanban-filter { flex-direction: column; align-items: stretch; }
-  .kanban-filter input[type="date"] { width: 100%; }
+  .kanban-filter {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.4rem;
+    align-items: stretch;
+  }
+  .kanban-filter .view-toggle {
+    grid-column: 1;
+  }
+  .kanban-filter .view-toggle-btn {
+    min-height: 40px; font-size: 0.75rem; padding: 0.3rem 0.5rem;
+  }
+  .kanban-filter button.btn-ghost {
+    min-height: 40px; font-size: 0.72rem; padding: 0.3rem 0.5rem;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .kanban-filter input[type="date"] {
+    grid-column: 1 / -1;
+    width: 100%; min-height: 40px; font-size: 16px;
+  }
   .stats-grid { grid-template-columns: 1fr; }
+  .kanban-column-body { gap: 0.4rem; }
+  .event-card { padding: 0.75rem; gap: 0.4rem; }
+  .event-card h3 { font-size: 0.9rem; }
+  .event-meta { font-size: 0.75rem; gap: 0.3rem; }
+  .event-details { font-size: 0.75rem; }
+  .event-actions { gap: 0.3rem; }
+  .event-actions button {
+    flex: 1 !important;
+    min-height: 40px;
+    font-size: 0.65rem;
+    padding: 0.3rem 0.25rem;
+    justify-content: center;
+    gap: 0.15rem;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+  .event-actions .notas-btn,
+  .event-actions .tareas-btn {
+    min-width: 0 !important;
+  }
+  .kanban-filter label { display: none; }
 }
 
 /* Mobile responsive: Informe View */
@@ -3895,7 +4012,7 @@ button[data-tooltip-bottom]::after {
 @media (max-width: 768px) {
   .login-card { padding: 1.5rem; }
   .event-actions { flex-wrap: wrap; }
-  .event-actions button { min-width: 80px; flex: none; }
+  .event-actions button { min-width: 80px; flex: none; min-height: 44px; font-size: 0.78rem; }
   .kanban-column { padding: 0.5rem; }
   .catalog-section { padding: 1rem; }
   .form-row { grid-template-columns: 1fr; }

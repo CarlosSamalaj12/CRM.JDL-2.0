@@ -525,7 +525,7 @@ const TAB_OPERATIVA = 'operativa';
 const TAB_EVALUACION = 'evaluacion';
 
 export default function SettingsChecklist() {
-  const eventRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   const [templates, setTemplates] = useState([]);
   const [savingOp, setSavingOp] = useState(false);
@@ -585,26 +585,53 @@ export default function SettingsChecklist() {
           await saveCrmState({ ...state, eventChecklists: { ...checklists, [id]: raw } });
         }
 
+        const tpls = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
         const op = raw?.[TAB_OPERATIVA] || {};
         const evTabData = raw?.[TAB_EVALUACION] || {};
-        setOpTplId(String(op.templateId || ''));
+        const opTpl = String(op.templateId || '');
+        const evTpl = String(evTabData.templateId || '');
+        setOpTplId(opTpl);
         setOpNotes(op.notes || '');
         setOpItems(op.items || []);
         setOpHistory(op.history || []);
-        setEvTplId(String(evTabData.templateId || ''));
+        setEvTplId(evTpl);
         setEvNotes(evTabData.notes || '');
         setEvItems(evTabData.items || []);
         setEvHistory(evTabData.history || []);
+        if (!opTpl && !op.items?.length && tpls.length > 0) {
+          const first = tpls[0];
+          setOpTplId(String(first.id));
+          const items = first.sections.flatMap(s =>
+            (s.items || []).map(item => ({
+              id: item.id, text: item.text, sectionName: s.name,
+              sectionType: s.type || TAB_OPERATIVA,
+              status: 'pendiente', rating: null, comment: ''
+            }))
+          );
+          setOpItems(items);
+        }
+        if (!evTpl && !evTabData.items?.length && tpls.length > 0) {
+          const first = tpls[0];
+          setEvTplId(String(first.id));
+          const items = first.sections.flatMap(s =>
+            (s.items || []).map(item => ({
+              id: item.id, text: item.text, sectionName: s.name,
+              sectionType: s.type || TAB_OPERATIVA,
+              status: 'pendiente', rating: null, comment: ''
+            }))
+          );
+          setEvItems(items);
+        }
         setActiveTab(TAB_OPERATIVA);
 
-        if (eventRef.current) eventRef.current.style.display = 'flex';
+        setIsOpen(true);
       } catch (err) { console.error(err); toast('Error al abrir checklist'); }
     };
     window.addEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
     return () => window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
   }, []);
 
-  const closeEvent = () => { if (eventRef.current) eventRef.current.style.display = 'none'; };
+  const closeEvent = () => { setIsOpen(false); };
 
   const handleTpl = (tab) => (e) => {
     const tid = e.target.value;
@@ -701,18 +728,15 @@ export default function SettingsChecklist() {
       <style>{`
         @media (max-width: 768px) {
           #eventChecklistBackdrop {
-            padding: 8px !important;
-            -webkit-overflow-scrolling: touch !important;
+            padding: 0 !important;
           }
           #eventChecklistBackdrop > div {
             width: 100vw !important;
-            height: 100vh !important;
+            height: 100dvh !important;
             max-width: 100vw !important;
-            max-height: 100vh !important;
+            max-height: 100dvh !important;
             border-radius: 0 !important;
-            overflow: visible !important;
-            position: relative !important;
-            z-index: 3001 !important;
+            overflow: hidden !important;
           }
           #eventChecklistBackdrop > div::before {
             content: '' !important;
@@ -737,6 +761,7 @@ export default function SettingsChecklist() {
             padding: 12px 14px !important;
             font-size: 0.85rem !important;
             min-height: 48px !important;
+            touch-action: manipulation !important;
           }
           #eventChecklistBackdrop .checklist-tab-desc {
             display: none !important;
@@ -744,45 +769,43 @@ export default function SettingsChecklist() {
           #eventChecklistBackdrop .checklist-body {
             padding: 14px 16px !important;
             overflow-y: auto !important;
-            overflow-x: visible !important;
-            -webkit-overflow-scrolling: touch !important;
-            padding-bottom: 20px !important;
-            position: relative !important;
-            z-index: 1 !important;
+            overflow-x: hidden !important;
+            padding-bottom: 24px !important;
+            touch-action: manipulation !important;
           }
           #eventChecklistBackdrop .checklist-grid {
             grid-template-columns: 1fr !important;
             gap: 10px !important;
-            position: relative !important;
-            z-index: 10 !important;
-            overflow: visible !important;
-          }
-          #eventChecklistBackdrop .checklist-grid > div {
-            position: relative !important;
-            z-index: 11 !important;
-            overflow: visible !important;
           }
           #eventChecklistBackdrop .checklist-grid > div:first-child {
-            z-index: 20 !important;
+            display: flex !important;
+            flex-direction: column !important;
           }
           #eventChecklistBackdrop .checklist-grid select,
-          #eventChecklistBackdrop .checklist-grid input {
+          #eventChecklistBackdrop .checklist-grid input,
+          #eventChecklistBackdrop .checklist-table select,
+          #eventChecklistBackdrop .checklist-table input,
+          #eventChecklistBackdrop textarea,
+          #eventChecklistBackdrop .checklist-rating-btn {
             font-size: 16px !important;
             min-height: 48px !important;
             padding: 12px 14px !important;
-            -webkit-appearance: menulist !important;
-            appearance: menulist !important;
             background-color: #ffffff !important;
             color: #0f172a !important;
             border: 1.5px solid #d1d9e6 !important;
             border-radius: 8px !important;
             cursor: pointer !important;
             -webkit-tap-highlight-color: rgba(99, 102, 241, 0.1) !important;
-            position: relative !important;
-            z-index: 12 !important;
+            touch-action: manipulation !important;
           }
-          #eventChecklistBackdrop .checklist-grid > div:first-child select {
-            z-index: 21 !important;
+          #eventChecklistBackdrop .checklist-grid select,
+          #eventChecklistBackdrop .checklist-table select {
+            -webkit-appearance: menulist !important;
+            appearance: menulist !important;
+          }
+          #eventChecklistBackdrop .checklist-table input[type="text"] {
+            min-height: 44px !important;
+            padding: 8px 10px !important;
           }
           #eventChecklistBackdrop .checklist-grid select:focus,
           #eventChecklistBackdrop .checklist-grid input:focus {
@@ -791,20 +814,48 @@ export default function SettingsChecklist() {
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
           }
           #eventChecklistBackdrop .checklist-table {
-            font-size: 0.75rem !important;
+            font-size: 0.72rem !important;
+            display: block !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
           }
           #eventChecklistBackdrop .checklist-table th,
           #eventChecklistBackdrop .checklist-table td {
             padding: 10px 8px !important;
+            white-space: normal !important;
+          }
+          #eventChecklistBackdrop .checklist-table td:first-child {
+            width: 28px !important;
+            min-width: 28px !important;
+          }
+          #eventChecklistBackdrop .checklist-table td:nth-child(3) {
+            min-width: 160px !important;
+          }
+          #eventChecklistBackdrop .checklist-table td:nth-child(4) {
+            min-width: 120px !important;
+          }
+          #eventChecklistBackdrop .checklist-table select {
+            width: 100% !important;
+            padding: 8px !important;
+            font-size: 0.72rem !important;
+            min-height: 44px !important;
+            background: #ffffff !important;
+            border: 1.5px solid #d1d9e6 !important;
+            border-radius: 8px !important;
+            -webkit-appearance: menulist !important;
+            appearance: menulist !important;
+            touch-action: manipulation !important;
           }
           #eventChecklistBackdrop .checklist-rating-buttons {
             flex-wrap: wrap !important;
-            gap: 6px !important;
+            gap: 4px !important;
+            justify-content: center !important;
           }
           #eventChecklistBackdrop .checklist-rating-btn {
-            padding: 8px 10px !important;
-            font-size: 0.75rem !important;
+            padding: 6px 8px !important;
+            font-size: 0.68rem !important;
             min-height: 40px !important;
+            touch-action: manipulation !important;
           }
           #eventChecklistBackdrop .checklist-footer {
             padding: 12px 16px !important;
@@ -815,18 +866,19 @@ export default function SettingsChecklist() {
             width: 100% !important;
             justify-content: space-between !important;
           }
-          #eventChecklistBackdrop .checklist-footer-buttons button {
+          #eventChecklistBackdrop .checklist-footer-buttons button,
+          #eventChecklistBackdrop .btn-exit {
             min-height: 44px !important;
             font-size: 0.9rem !important;
+            touch-action: manipulation !important;
           }
         }
       `}</style>
       <div
-        ref={eventRef}
         id="eventChecklistBackdrop"
         onClick={e => { if (e.target.id === 'eventChecklistBackdrop') closeEvent(); }}
         style={{
-          display: 'none',
+          display: isOpen ? 'flex' : 'none',
           position: 'fixed', inset: 0, zIndex: 3000,
           background: 'rgba(15,23,42,0.35)',
           alignItems: 'center', justifyContent: 'center',

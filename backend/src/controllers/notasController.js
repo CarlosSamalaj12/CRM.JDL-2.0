@@ -114,6 +114,11 @@ export async function createNota(req, res, next) {
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion) VALUES (?, ?, ?, ?, ?)',
           [mid, 'mencion', `Te mencionaron en una nota`, `${nombreUsuario} te mencionó en una nota del evento`, idocupacion]
         );
+        req.io.to(`usuario:${mid}`).emit('notificacion:created', {
+          tipo: 'mencion',
+          titulo: `Te mencionaron en una nota`,
+          mensaje: `${nombreUsuario} te mencionó en una nota del evento`
+        });
       }
     }
 

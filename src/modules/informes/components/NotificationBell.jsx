@@ -20,7 +20,7 @@ const DEFAULT_TYPE = { icon: IconFileText, label: 'Notificación', color: '#6474
 
 export default function NotificationBell() {
   const navigate = useNavigate();
-  const socket = useSocket();
+  const { connected: socketConnected, onEvent } = useSocket();
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [noLeidas, setNoLeidas] = useState(0);
@@ -50,15 +50,15 @@ export default function NotificationBell() {
 
   // Escuchar eventos de socket para actualizar notificaciones en tiempo real
   useEffect(() => {
-    if (!socket) return;
+    if (!socketConnected) return;
     
     const handleNuevaNotificacion = () => {
-      load(); // Recargar notificaciones cuando llega una nueva
+      load();
     };
     
-    const cleanup = socket.onEvent('notificacion:created', handleNuevaNotificacion);
+    const cleanup = onEvent('notificacion:created', handleNuevaNotificacion);
     return cleanup;
-  }, [socket, load]);
+  }, [socketConnected, load, onEvent]);
 
   useEffect(() => {
     function handleClick(e) {

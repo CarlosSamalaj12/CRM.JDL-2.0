@@ -108,7 +108,7 @@ export default function ConstructorInforme() {
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const { user } = useAuth();
-  const socket = useSocket();
+  const { connected: socketConnected, onEvent, joinRoom, leaveRoom } = useSocket();
 
   // State principal
   const [loading, setLoading] = useState(true);
@@ -216,26 +216,23 @@ export default function ConstructorInforme() {
   }, [evento]);
 
   useEffect(() => {
-    if (!socket || !id_ocupacion) return;
-    socket.joinRoom(`evento:${id_ocupacion}`);
-    return () => { socket.leaveRoom(`evento:${id_ocupacion}`); };
-  }, [socket, id_ocupacion]);
+    if (!socketConnected || !id_ocupacion) return;
+    const room = `evento:${id_ocupacion}`;
+    joinRoom(room);
+    return () => { leaveRoom(room); };
+  }, [socketConnected, id_ocupacion, joinRoom, leaveRoom]);
 
   // Listener para comentarios en tiempo real
   useEffect(() => {
-    if (!socket || !informeId) return;
+    if (!socketConnected || !informeId) return;
     
     const handleComentarioCreated = () => {
-      console.log('[Socket] Nuevo comentario recibido, recargando...');
-      // Recargar comentarios cuando llega un nuevo comentario
-      getComentarios(informeId).then(setComentarios).catch(err => {
-        console.error('Error al recargar comentarios:', err);
-      });
+      getComentarios(informeId).then(setComentarios).catch(() => {});
     };
     
-    const cleanup = socket.onEvent('comentario:created', handleComentarioCreated);
+    const cleanup = onEvent('comentario:created', handleComentarioCreated);
     return cleanup;
-  }, [socket, informeId]);
+  }, [socketConnected, informeId, onEvent]);
 
   // Efecto para resaltar comentario desde notificación
   useEffect(() => {

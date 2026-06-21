@@ -26,7 +26,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false 
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
-  const socket = useSocket();
+  const { connected: socketConnected, onEvent, joinRoom, leaveRoom } = useSocket();
   const [notasOpen, setNotasOpen] = useState(false);
   const [notaText, setNotaText] = useState('');
   const [notas, setNotas] = useState([]);
@@ -78,16 +78,17 @@ export default function EventCard({ event, dragHandleProps, highlighted = false 
   }, [notasOpen, event.Idocupacion]);
 
   useEffect(() => {
-    if (!socket || !event.Idocupacion) return;
-    socket.joinRoom(`evento:${event.Idocupacion}`);
+    if (!socketConnected || !event.Idocupacion) return;
+    const room = `evento:${event.Idocupacion}`;
+    joinRoom(room);
     const handler = (data) => {
       if (String(data.idocupacion) === String(event.Idocupacion) && notasOpen) {
         getNotas(event.Idocupacion).then(setNotas).catch(() => {});
       }
     };
-    const cleanup = socket.onEvent('nota:created', handler);
-    return () => { cleanup(); socket.leaveRoom(`evento:${event.Idocupacion}`); };
-  }, [socket, event.Idocupacion, notasOpen]);
+    const cleanup = onEvent('nota:created', handler);
+    return () => { cleanup(); leaveRoom(room); };
+  }, [socketConnected, event.Idocupacion, notasOpen, onEvent, joinRoom, leaveRoom]);
 
   const handleAddNota = async () => {
     if (!notaText.trim() || sending) return;
