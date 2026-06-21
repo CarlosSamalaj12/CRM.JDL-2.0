@@ -34,6 +34,7 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   const [textoRespuesta, setTextoRespuesta] = useState('');
   const comentarioRef = useRef(null);
   const respuestaRef = useRef(null);
+  const commentListRef = useRef(null);
   const socket = useSocket();
   const userMap = useMemo(() => {
     const map = {};
@@ -65,6 +66,13 @@ export default function ColaboracionPanel({ informeId, diaId }) {
       setHistorial(hist);
       setUsuarios(users);
 
+      // Hacer scroll al final después de actualizar
+      setTimeout(() => {
+        if (commentListRef.current) {
+          commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
+        }
+      }, 100);
+
       // Check if current user has already marked as read
       const token = localStorage.getItem('token');
       if (token) {
@@ -76,18 +84,24 @@ export default function ColaboracionPanel({ informeId, diaId }) {
           }
         } catch { /* ignore */ }
       }
-    } catch { /* ignore */ }
+    } catch (err) { 
+      console.error('[ColaboracionPanel] Error en loadAll:', err);
+    }
   }, [informeId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
   useEffect(() => {
     if (!socket) return;
+    
     const handler = (data) => {
-      if (String(data.informe_id) === String(informeId)) loadAll();
+      if (String(data.informe_id) === String(informeId)) {
+        loadAll();
+      }
     };
+    
     const cleanup = socket.onEvent('comentario:created', handler);
-    return () => cleanup();
+    return cleanup;
   }, [socket, informeId, loadAll]);
 
   const handleComentar = async () => {
@@ -224,7 +238,7 @@ export default function ColaboracionPanel({ informeId, diaId }) {
         {/* Tab: COMENTARIOS */}
         {activeTab === 'comentarios' && (
           <div className="colab-comentarios">
-            <div className="colab-comment-list">
+            <div className="colab-comment-list" ref={commentListRef}>
               {comentarios.length === 0 && (
                 <p className="colab-empty">Sin comentarios aún. Usa @ para mencionar a alguien.</p>
               )}
