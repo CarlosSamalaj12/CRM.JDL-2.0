@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
@@ -6,14 +6,8 @@ import firebaseService from '../../services/firebase';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
-  const [loginUsers, setLoginUsers] = useState([]);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
-  const inputRef = useRef(null);
-  const dropdownRef = useRef(null);
 
   useEffect(() => {
     toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
@@ -40,8 +34,8 @@ export default function Login() {
         if (cancelled) return;
 
         document.activeElement?.blur();
-        toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 1500 });
-        setTimeout(() => navigate('/calendar'), 1500);
+        toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
+        setTimeout(() => navigate('/calendar'), 500);
       } catch (err) {
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
@@ -60,60 +54,6 @@ export default function Login() {
     };
   }, [navigate]);
 
-  // Fetch login users on mount
-  useEffect(() => {
-    authService.getLoginUsers().then(setLoginUsers);
-  }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
-          inputRef.current && !inputRef.current.contains(e.target)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const filteredUsers = loginUsers.filter(u =>
-    (u.fullName || u.name || u.username || '').toLowerCase().includes(username.toLowerCase())
-  );
-
-  const selectUser = (u) => {
-    setUsername(u.fullName || u.name || u.username || '');
-    setShowDropdown(false);
-  };
-
-  // Handle local login
-  const handleLocalLogin = async () => {
-    if (!username.trim()) {
-      document.activeElement?.blur();
-      toast('Usuario requerido — Selecciona o escribe tu nombre de usuario.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
-      return;
-    }
-    setLoading(true);
-    const loadingToast = toast.loading('Autenticando usuario...');
-    try {
-      const matchedUser = loginUsers.find(u =>
-        (u.fullName || u.name || u.username || '').toLowerCase() === username.toLowerCase()
-      );
-      const userId = matchedUser?.id || username;
-      const localUser = await authService.loginLocal(userId, password);
-      document.activeElement?.blur();
-      toast.dismiss(loadingToast);
-      toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
-      setTimeout(() => navigate('/calendar'), 2000);
-    } catch (err) {
-      document.activeElement?.blur();
-      toast.dismiss(loadingToast);
-      toast.error(err.message || 'Credenciales inválidas.', { duration: 4000 });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Handle Google Login via Firebase
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -128,7 +68,7 @@ export default function Login() {
       document.activeElement?.blur();
       toast.dismiss(loadingToast);
       toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
-      setTimeout(() => navigate('/calendar'), 2000);
+      setTimeout(() => navigate('/calendar'), 500);
     } catch (err) {
       console.error('Google login error detail:', err);
       toast.dismiss(loadingToast);
@@ -151,11 +91,7 @@ export default function Login() {
     }
   };
 
-  const inputStyle = {
-    width: '100%', padding: '12px 14px', fontSize: '14px',
-    border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none',
-    background: '#fff', color: '#0f172a', boxSizing: 'border-box'
-  };
+
 
   return (
     <div className="loginScreen" id="loginScreen">
@@ -191,97 +127,7 @@ export default function Login() {
             </div>
           </div>
 
-          {/* FORMULARIO DE INICIO DE SESIÓN LOCAL */}
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-            {/* SELECTOR DE USUARIO (combobox) */}
-            <div style={{ position: 'relative' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>
-                Usuario
-              </label>
-              <input
-                ref={inputRef}
-                className="loginInput"
-                type="text"
-                placeholder="Selecciona o escribe tu usuario..."
-                value={username}
-                onChange={(e) => { setUsername(e.target.value); setShowDropdown(true); }}
-                onFocus={() => setShowDropdown(true)}
-                style={inputStyle}
-                autoComplete="off"
-              />
-              {showDropdown && filteredUsers.length > 0 && (
-                <div
-                  ref={dropdownRef}
-                  className="loginDropdown"
-                  style={{
-                    position: 'absolute', top: '100%', left: 0, right: 0,
-                    background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px',
-                    maxHeight: '180px', overflowY: 'auto', zIndex: 100,
-                    boxShadow: '0 8px 16px rgba(0,0,0,0.1)', marginTop: '2px'
-                  }}
-                >
-                  {filteredUsers.map(u => (
-                    <div
-                      key={u.id}
-                      className="loginDropdownItem"
-                      onClick={() => selectUser(u)}
-                      style={{
-                        padding: '10px 14px', cursor: 'pointer', fontSize: '13px',
-                        borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: '#64748b', flexShrink: 0 }}>
-                        {(u.fullName || u.name || '?')[0].toUpperCase()}
-                      </span>
-                      <span>{u.fullName || u.name || u.username}</span>
-                      {u.role && <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: 'auto' }}>{u.role}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
-            {/* CONTRASEÑA */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>
-                Contraseña
-              </label>
-              <input
-                className="loginInput"
-                type="password"
-                placeholder="Ingresa tu contraseña..."
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLocalLogin()}
-                style={inputStyle}
-              />
-            </div>
-
-            {/* BOTÓN DE INICIO DE SESIÓN LOCAL */}
-            <button
-              type="button"
-              className="loginBtn"
-              onClick={handleLocalLogin}
-              disabled={loading}
-              style={{
-                width: '100%', padding: '12px', background: '#0b1c30', border: 'none',
-                borderRadius: '8px', fontSize: '14px', fontWeight: '700', color: 'white',
-                cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1,
-                transition: 'all 0.3s ease'
-              }}
-            >
-              {loading ? 'Autenticando...' : 'Iniciar Sesión'}
-            </button>
-          </div>
-
-          {/* DIVISOR */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-            <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
-            <span style={{ fontSize: '12px', color: '#94a3b8' }}>o</span>
-            <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
-          </div>
 
           {/* BOTÓN DE GOOGLE LOGIN */}
           <div style={{ width: '100%' }}>
@@ -316,21 +162,6 @@ export default function Login() {
                   <span>Continuar con Google</span>
                 </>
               )}
-            </button>
-          </div>
-
-          {/* ENLACE PARA OMITIR LOGIN */}
-          <div style={{ textAlign: 'center', marginTop: '16px' }}>
-            <button
-              type="button"
-              className="loginSkipBtn"
-              onClick={() => navigate('/calendar')}
-              style={{
-                background: 'none', border: 'none', color: '#94a3b8',
-                fontSize: '13px', cursor: 'pointer', textDecoration: 'underline', padding: '8px'
-              }}
-            >
-              Entrar sin iniciar sesión
             </button>
           </div>
         </section>
@@ -736,8 +567,8 @@ export default function Login() {
             box-shadow: 0 10px 25px rgba(15,23,42,0.08) !important;
           }
           body:not(.informes-theme) .loginVisualPanel.loginVisualPanel {
-            min-height: 200px !important;
-            height: 200px !important;
+            min-height: 260px !important;
+            height: 260px !important;
           }
           body:not(.informes-theme) .loginVisualQuote.loginVisualQuote {
             bottom: 20px !important;
@@ -783,8 +614,8 @@ export default function Login() {
           }
           body:not(.informes-theme) .loginVisualPanel.loginVisualPanel {
             display: block !important;
-            min-height: 130px !important;
-            height: 130px !important;
+            min-height: 220px !important;
+            height: 220px !important;
           }
           body:not(.informes-theme) .loginVisualImage.loginVisualImage {
             object-position: center 30% !important;

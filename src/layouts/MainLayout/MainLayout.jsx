@@ -10,6 +10,9 @@ import socketService from '../../services/socketService';
 import { loadState, saveState } from '../../services/stateService';
 import { toast } from '../../utils/toast';
 
+// Caché en memoria para persistencia de datos del CRM entre cambios de layout
+let memoryCache = null;
+
 export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,29 +53,51 @@ export default function MainLayout() {
   const [users, setUsers] = useState([]);
   const [occupancyWeeklyOps, setOccupancyWeeklyOps] = useState({});
 
-  async function loadInitialData() {
+  async function loadInitialData(useCache = true) {
+    if (useCache && memoryCache) {
+      setEvents(memoryCache.events);
+      setSalones(memoryCache.salones);
+      setUsers(memoryCache.users);
+      setOccupancyWeeklyOps(memoryCache.occupancyWeeklyOps);
+      setLoading(false);
+      // Cargar del servidor en segundo plano de forma silenciosa
+      loadInitialDataFromServer(true);
+      return;
+    }
+    await loadInitialDataFromServer(false);
+  }
+
+  async function loadInitialDataFromServer(isBackground) {
     try {
-      setLoading(true);
+      if (!isBackground) {
+        setLoading(true);
+      }
       
-      const [eventsData, salonesData, usersData, stateRes] = await Promise.all([
-        eventService.getAll(),
-        salonService.getAll(),
-        authService.getLoginUsers(),
-        loadState().catch(() => ({}))
+      // Una única petición combinada en lugar de 3 consultas redundantes a /api/state
+      const [stateRes, usersData] = await Promise.all([
+        loadState().catch(() => ({})),
+        authService.getLoginUsers().catch(() => [])
       ]);
       
+      const eventsData = stateRes?.events || [];
+      const salonesData = stateRes?.salones || [];
+      const stateUsers = stateRes?.users || [];
+      const loadedUsers = usersData.length > 0 ? usersData : stateUsers;
+      const loadedOps = (stateRes?.occupancyWeeklyOps && typeof stateRes.occupancyWeeklyOps === 'object') 
+        ? stateRes.occupancyWeeklyOps 
+        : {};
+
+      // Actualizar la caché en memoria para accesos instantáneos futuros
+      memoryCache = {
+        events: eventsData,
+        salones: salonesData,
+        users: loadedUsers,
+        occupancyWeeklyOps: loadedOps
+      };
+
       setEvents(eventsData);
       setSalones(salonesData);
-
-      // Fallback: si authService.getLoginUsers() devuelve vacío, usar los usuarios del state (/api/state)
-      // que incluye TODOS los usuarios (activos e inactivos), asegurando el lookup por userId en reportes.
-      const stateUsers = stateRes?.state?.users || stateRes?.users || [];
-      setUsers(usersData.length > 0 ? usersData : stateUsers);
-
-      const loadedState = stateRes?.state || stateRes || {};
-      const loadedOps = (loadedState.occupancyWeeklyOps && typeof loadedState.loadedOps === 'object' || loadedState.occupancyWeeklyOps) 
-        ? loadedState.occupancyWeeklyOps 
-        : {};
+      setUsers(loadedUsers);
       setOccupancyWeeklyOps(loadedOps);
     } catch (err) {
       console.error('Error cargando datos:', err);
@@ -83,16 +108,17 @@ export default function MainLayout() {
 
   useEffect(() => {
     if (!authService.getCurrentUser()) {
+      memoryCache = null; // Limpiar caché en desautenticación
       navigate('/login', { replace: true });
       return undefined;
     }
 
     socketService.connect();
 
-    loadInitialData();
+    loadInitialData(true);
 
     const unsubscribeState = socketService.on('state-updated', () => {
-      loadInitialData();
+      loadInitialData(true);
     });
 
     return () => {
@@ -111,8 +137,8 @@ export default function MainLayout() {
         savedEvent = await eventService.create(eventData);
       }
 
-      const refreshedEvents = await eventService.getAll();
-      setEvents(refreshedEvents);
+      // Forzar recarga completa del servidor para actualizar la caché en memoria
+      await loadInitialData(false);
       
       return savedEvent;
     } catch (err) {
@@ -125,7 +151,8 @@ export default function MainLayout() {
   const handleDeleteEvent = async (eventId) => {
     try {
       await eventService.delete(eventId);
-      setEvents(prev => prev.filter(ev => ev.id !== eventId));
+      // Forzar recarga completa del servidor para actualizar la caché en memoria
+      await loadInitialData(false);
     } catch (err) {
       console.error('Error eliminando evento:', err);
       toast('Error al eliminar el evento');
@@ -135,7 +162,8 @@ export default function MainLayout() {
   const handleUpdateEventStatus = async (eventId, status) => {
     try {
       await eventService.updateStatus(eventId, status);
-      setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, status } : ev));
+      // Forzar recarga completa del servidor para actualizar la caché en memoria
+      await loadInitialData(false);
     } catch (err) {
       console.error('Error actualizando estado:', err);
       toast('Error al actualizar el estado');
