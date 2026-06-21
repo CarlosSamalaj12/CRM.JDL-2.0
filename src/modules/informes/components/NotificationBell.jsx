@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getNotificaciones, getNoLeidasCount, marcarLeida, marcarTodasLeidas } from '../services/api.js';
+import { useSocket } from '../context/SocketContext.jsx';
 import {
   IconBell, IconCheckCircle, IconFileText, IconMessageCircle,
   IconAlertCircle, IconClock, IconEye, IconAtSign
@@ -19,6 +20,7 @@ const DEFAULT_TYPE = { icon: IconFileText, label: 'Notificación', color: '#6474
 
 export default function NotificationBell() {
   const navigate = useNavigate();
+  const socket = useSocket();
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [noLeidas, setNoLeidas] = useState(0);
@@ -45,6 +47,18 @@ export default function NotificationBell() {
     const interval = setInterval(load, 15000);
     return () => clearInterval(interval);
   }, [load]);
+
+  // Escuchar eventos de socket para actualizar notificaciones en tiempo real
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleNuevaNotificacion = () => {
+      load(); // Recargar notificaciones cuando llega una nueva
+    };
+    
+    const cleanup = socket.onEvent('notificacion:created', handleNuevaNotificacion);
+    return cleanup;
+  }, [socket, load]);
 
   useEffect(() => {
     function handleClick(e) {

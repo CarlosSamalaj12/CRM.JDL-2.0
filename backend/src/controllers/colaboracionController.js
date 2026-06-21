@@ -103,6 +103,13 @@ export async function createComentario(req, res, next) {
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, informe_id, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, (SELECT id_ocupacion FROM informes_eventos WHERE id = ?), ?)',
           [parentComment[0].usuario_id, 'respuesta', `${nombreUsuario} respondió a tu comentario`, `${nombreUsuario} respondió a tu comentario en el informe`, id, id, result.insertId]
         );
+        
+        // Emitir evento de socket para notificación en tiempo real
+        req.io.to(`usuario:${parentComment[0].usuario_id}`).emit('notificacion:created', {
+          tipo: 'respuesta',
+          titulo: `${nombreUsuario} respondió a tu comentario`,
+          mensaje: `${nombreUsuario} respondió a tu comentario en el informe`
+        });
       }
     }
 
@@ -115,6 +122,13 @@ export async function createComentario(req, res, next) {
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, informe_id, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, (SELECT id_ocupacion FROM informes_eventos WHERE id = ?), ?)',
           [mid, 'mencion', `Te mencionaron en un comentario`, `${nombreUsuario} te mencionó en el informe`, id, id, result.insertId]
         );
+        
+        // Emitir evento de socket para notificación en tiempo real
+        req.io.to(`usuario:${mid}`).emit('notificacion:created', {
+          tipo: 'mencion',
+          titulo: `Te mencionaron en un comentario`,
+          mensaje: `${nombreUsuario} te mencionó en el informe`
+        });
       }
     }
 

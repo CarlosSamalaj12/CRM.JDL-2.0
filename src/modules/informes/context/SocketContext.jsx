@@ -54,6 +54,10 @@ export function SocketProvider({ children }) {
     socket.on('connect', () => {
       setConnected(true);
       roomsRef.current.forEach((room) => socket.emit('join', room));
+      // Unirse a la sala personal del usuario para recibir notificaciones
+      if (user?.id) {
+        socket.emit('join', `usuario:${user.id}`);
+      }
     });
 
     socket.on('disconnect', () => setConnected(false));
@@ -72,6 +76,10 @@ export function SocketProvider({ children }) {
 
     socket.on('informe:created', (data) => {
       showBrowserNotif('Nuevo informe', `Versión ${data.version} creada`);
+    });
+
+    socket.on('notificacion:created', (data) => {
+      showBrowserNotif(data.titulo || 'Nueva notificación', data.mensaje || 'Tienes una nueva notificación');
     });
 
     socketRef.current = socket;
