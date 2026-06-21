@@ -212,9 +212,9 @@ export default function Kanban() {
   const columns = dayNames.map((name, index) => {
     const currentDay = new Date(monday);
     currentDay.setDate(monday.getDate() + index);
-    const formattedHeader = currentDay.toLocaleDateString('es-ES', {
-      weekday: 'long', day: 'numeric', month: 'long'
-    });
+    const formattedHeader = isMobileView
+      ? currentDay.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+      : currentDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     const yyyy = currentDay.getFullYear();
     const mm = String(currentDay.getMonth() + 1).padStart(2, '0');
     const dd = String(currentDay.getDate()).padStart(2, '0');
@@ -284,10 +284,10 @@ export default function Kanban() {
     <section className="kanban-shell">
       <div className="kanban-header">
         <div className="kanban-title">
-          <h2>{viewMode === 'kanban' ? <><IconGrid size={22} /> Kanban</> : <><IconFileText size={22} /> Tabla Semanal</>}</h2>
+          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Kanban</> : <><IconFileText size={20} /> Tabla Semanal</>}</h2>
           <p>{totalEvents} eventos en la semana{hasFilter ? ' (filtrados)' : ''}</p>
         </div>
-        <div className="kanban-filter" style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+        <div className="kanban-filter" style={{display:'flex',alignItems:'center',gap:'0.35rem',flexWrap:'wrap',minWidth:0,overflow:'hidden'}}>
           <div className="view-toggle">
             <button className={`view-toggle-btn${viewMode === 'kanban' ? ' active' : ''}`} onClick={() => setViewMode('kanban')}>
               <IconGrid size={13} /> Kanban
@@ -320,8 +320,11 @@ export default function Kanban() {
               <IconPrinter size={14} /> Descargar
             </button>
           )}
-          <label htmlFor="week-filter">Filtrar semana</label>
-          <input id="week-filter" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+          <div style={{display:'flex',alignItems:'center',minWidth:0,overflow:'hidden',maxWidth:'150px'}}>
+            <input id="week-filter" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+              style={{width:'100%',minWidth:0,border:'none',background:'transparent',padding:'4px 2px',fontSize:'0.82rem',cursor:'pointer',color:'inherit'}}
+            />
+          </div>
         </div>
       </div>
 
@@ -376,8 +379,8 @@ export default function Kanban() {
             <div key={column.name} id={`kcol-${ci}`} className="kanban-column">
               <div className="kanban-column-header">
                 <div style={{display:'flex',flexDirection:'column',gap:'2px',width:'100%'}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}}>
-                    <span>{column.name}</span>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',flexWrap:'wrap',gap:'4px'}}>
+                    <span style={{textTransform:'capitalize'}}>{column.name}</span>
                     <span className="kanban-column-count">{column.items.length}</span>
                   </div>
                   {!isEditing ? (

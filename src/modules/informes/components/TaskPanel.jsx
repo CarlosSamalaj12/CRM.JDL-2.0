@@ -35,27 +35,34 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
     
     const calculatePosition = () => {
       const anchor = anchorRef.current;
+      const panel = panelRef.current;
       if (!anchor) return;
-      
+
       const rect = anchor.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
-      const panelWidth = 320;
-      
-      // Calcular posición vertical (debajo del botón)
-      const top = rect.bottom + window.scrollY + 8;
-      
-      // Calcular posición horizontal
-      let left;
-      if (rect.left < viewportWidth / 2) {
-        // Si el anchor está en la mitad izquierda, abrir hacia la derecha
-        left = rect.left + window.scrollX;
+      const panelWidth = Math.min(320, viewportWidth - 16);
+      const panelHeight = panel ? panel.offsetHeight : 350;
+
+      // Mostrar ARRIBA del botón
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      let top;
+      if (spaceAbove >= panelHeight + 8 || spaceAbove >= spaceBelow) {
+        // Hay espacio arriba → mostrar arriba
+        top = rect.top - panelHeight - 8;
       } else {
-        // Si está en la mitad derecha, abrir hacia la izquierda
-        left = rect.right + window.scrollX - panelWidth;
+        // No hay espacio arriba → mostrar abajo
+        top = rect.bottom + 8;
       }
-      
-      setPosition({ top, left });
+
+      // Posición horizontal: centrado en el anchor, contenido en viewport
+      let left = rect.left + rect.width / 2 - panelWidth / 2;
+      left = Math.max(8, Math.min(left, viewportWidth - panelWidth - 8));
+
+      setPosition({ top, left, width: panelWidth });
     };
+
     
     const handleScroll = () => {
       if (rafId) cancelAnimationFrame(rafId);
@@ -160,7 +167,7 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const tareasCompletadas = tareas.filter(t => t.completada);
 
   return createPortal(
-    <div ref={panelRef} className="task-panel" style={position} onClick={(e) => e.stopPropagation()}>
+    <div ref={panelRef} className="task-panel" style={{ top: position.top, left: position.left, width: position.width || 320 }} onClick={(e) => e.stopPropagation()}>
       <div className="task-panel-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <span style={{ fontSize: '0.9rem' }}>📋</span>
@@ -299,9 +306,9 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
 
       <style>{`
         .task-panel {
-          position: absolute;
+          position: fixed;
           width: 320px;
-          max-height: 450px;
+          max-height: 420px;
           background: var(--bg-card, #fff);
           border: 1px solid var(--border, #e2e8f0);
           border-radius: var(--radius-md, 8px);
