@@ -755,7 +755,7 @@ export default function SettingsChecklist() {
             font-size: 1rem !important;
           }
           #eventChecklistBackdrop .checklist-tab-bar {
-            flex-direction: column !important;
+            flex-direction: row !important;
           }
           #eventChecklistBackdrop .checklist-tab {
             padding: 12px 14px !important;
@@ -892,7 +892,7 @@ export default function SettingsChecklist() {
           display: 'flex', flexDirection: 'column',
           background: '#ffffff', border: '1px solid #e2e8f0',
           borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
-          overflow: 'visible',
+          overflow: 'hidden',
           position: 'relative',
           zIndex: 3001,
         }}>
@@ -937,7 +937,7 @@ export default function SettingsChecklist() {
           </div>
 
           {/* Body */}
-          <div className="checklist-body" style={{ flex: '1 1 0', overflowY: 'auto', overflowX: 'visible', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
+          <div className="checklist-body" style={{ flexGrow: 1, flexShrink: 1, flexBasis: '0%', minHeight: '0px', overflowY: 'auto', overflowX: 'visible', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
             {/* Template selector + event info */}
             <div className="checklist-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div>
