@@ -934,51 +934,55 @@ export default function SettingsChecklist() {
                 readOnly={isReadOnly} />
             </div>
 
-            {/* Progress + Satisfaction */}
-            <div className="checklist-progress-container" style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                <span>Avance <span style={{ color: '#6366f1' }}>{progress}%</span></span>
-                {activeTab === TAB_OPERATIVA && <span>Operativo <span style={{ color: '#10b981' }}>{sat}%</span></span>}
-              </div>
-              <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg,#6366f1,#10b981)', width: `${progress}%`, transition: 'width 0.3s ease' }} />
-              </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
-                <span>{'\u2705'} {done} cumplido(s)</span>
-                <span>{'\uD83D\uDD04'} {activeItems.filter(i => i.status === 'en_proceso').length} en proceso</span>
-                <span>{'\u23F3'} {activeItems.filter(i => i.status === 'pendiente').length} pendiente(s)</span>
-                <span>{'\uD83D\uDEAB'} {activeItems.filter(i => i.status === 'no_aplica').length} no aplica</span>
-              </div>
 
-              {/* Satisfaction score bar (only for evaluacion tab) */}
-              {activeTab === TAB_EVALUACION && evalItems.length > 0 && (
-                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                    <span>{'\u2B50'} Satisfacci\u00f3n del Cliente</span>
-                    <span style={{
-                      color: satisfactionAvg >= 3.5 ? '#16a34a' : satisfactionAvg >= 2.5 ? '#d97706' : '#dc2626',
-                      fontSize: '0.9rem',
-                    }}>
-                      {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 4.0 (${satisfactionPct}%)` : '\u2014'}
-                    </span>
-                  </div>
-                  <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', borderRadius: '999px',
-                      background: satisfactionAvg >= 3.5 ? '#22c55e' : satisfactionAvg >= 2.5 ? '#eab308' : '#ef4444',
-                      width: ratedItems.length > 0 ? `${satisfactionPct}%` : '0%',
-                      transition: 'width 0.4s ease'
-                    }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
-                    <span>{'\uD83D\uDC8E'} Excelente: {evalItems.filter(i => i.rating === 'excelente').length}</span>
-                    <span>{'\uD83D\uDFE2'} Bueno: {evalItems.filter(i => i.rating === 'bueno').length}</span>
-                    <span>{'\uD83D\uDFE1'} Regular: {evalItems.filter(i => i.rating === 'regular').length}</span>
-                    <span>{'\uD83D\uDD34'} Malo: {evalItems.filter(i => i.rating === 'malo').length}</span>
-                    <span>{'\u26AA'} Sin calificar: {evalItems.filter(i => i.rating === null).length}</span>
-                  </div>
+            {/* Bloque Avance — solo en pestaña Operativa */}
+            {activeTab === TAB_OPERATIVA && (
+              <div className="checklist-progress-container" style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
+                  <span>Avance <span style={{ color: '#6366f1' }}>{progress}%</span></span>
+                  <span>Operativo <span style={{ color: '#10b981' }}>{sat}%</span></span>
                 </div>
-              )}
-            </div>
+                <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg,#6366f1,#10b981)', width: `${progress}%`, transition: 'width 0.3s ease' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
+                  <span>{'✅'} {done} cumplido(s)</span>
+                  <span>{'🔄'} {activeItems.filter(i => i.status === 'en_proceso').length} en proceso</span>
+                  <span>{'⏳'} {activeItems.filter(i => i.status === 'pendiente').length} pendiente(s)</span>
+                  <span>{'🚫'} {activeItems.filter(i => i.status === 'no_aplica').length} no aplica</span>
+                </div>
+              </div>
+            )}
+
+            {/* Barra de Satisfacción del Cliente — solo en pestaña Evaluación */}
+            {activeTab === TAB_EVALUACION && evalItems.length > 0 && (
+              <div className="checklist-progress-container" style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
+                  <span>⭐ Satisfacción del Cliente</span>
+                  <span style={{
+                    color: satisfactionAvg >= 3.5 ? '#16a34a' : satisfactionAvg >= 2.5 ? '#d97706' : '#dc2626',
+                    fontSize: '0.9rem',
+                  }}>
+                    {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 4.0 (${satisfactionPct}%)` : '—'}
+                  </span>
+                </div>
+                <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: '999px',
+                    background: satisfactionAvg >= 3.5 ? '#22c55e' : satisfactionAvg >= 2.5 ? '#eab308' : '#ef4444',
+                    width: ratedItems.length > 0 ? `${satisfactionPct}%` : '0%',
+                    transition: 'width 0.4s ease'
+                  }} />
+                </div>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
+                  <span>💎 Excelente: {evalItems.filter(i => i.rating === 'excelente').length}</span>
+                  <span>🟢 Bueno: {evalItems.filter(i => i.rating === 'bueno').length}</span>
+                  <span>🟡 Regular: {evalItems.filter(i => i.rating === 'regular').length}</span>
+                  <span>🔴 Malo: {evalItems.filter(i => i.rating === 'malo').length}</span>
+                  <span>⚪ Sin calificar: {evalItems.filter(i => i.rating === null).length}</span>
+                </div>
+              </div>
+            )}
+
 
             {/* History toggle */}
             {activeHistory.length > 0 && (
