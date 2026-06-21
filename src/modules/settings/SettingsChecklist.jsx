@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
@@ -526,6 +527,128 @@ const TAB_EVALUACION = 'evaluacion';
 
 export default function SettingsChecklist() {
   const [isOpen, setIsOpen] = useState(false);
+  const styleElRef = useRef(null);
+
+  // Inyectar/remover estilos del modal directamente en <head>
+  useEffect(() => {
+    if (isOpen) {
+      // Prevenir scroll del body
+      document.body.style.overflow = 'hidden';
+      // Crear el elemento <style> si no existe
+      if (!styleElRef.current) {
+        const el = document.createElement('style');
+        el.id = 'checklist-modal-styles';
+        el.textContent = `
+          #eventChecklistBackdrop {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 999999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: rgba(15,23,42,0.55) !important;
+            overflow: hidden !important;
+          }
+          #eventChecklistBackdrop > [role="dialog"] {
+            width: min(94vw, 880px) !important;
+            height: min(92vh, 880px) !important;
+            height: min(92dvh, 880px) !important;
+            max-width: 100vw !important;
+            max-height: 100dvh !important;
+            margin: 0 auto !important;
+          }
+          #eventChecklistBackdrop .checklist-mobile-rating { display: none !important; }
+          #eventChecklistBackdrop .checklist-desktop-rating { display: flex !important; }
+          @media (max-width: 900px) {
+            #eventChecklistBackdrop .checklist-mobile-rating { display: block !important; }
+            #eventChecklistBackdrop .checklist-desktop-rating { display: none !important; }
+            #eventChecklistBackdrop > [role="dialog"] {
+              width: 100vw !important;
+              height: 100dvh !important;
+              height: 100vh !important;
+              max-width: 100vw !important;
+              max-height: 100dvh !important;
+              border-radius: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+            }
+            #eventChecklistBackdrop .checklist-tab-desc { display: none !important; }
+            #eventChecklistBackdrop .checklist-body {
+              padding: 10px 12px !important;
+              padding-bottom: 24px !important;
+            }
+            #eventChecklistBackdrop .checklist-footer {
+              padding: 10px 12px !important;
+              flex-direction: column !important;
+              gap: 8px !important;
+            }
+            #eventChecklistBackdrop .checklist-footer-buttons {
+              width: 100% !important;
+              justify-content: space-between !important;
+            }
+            #eventChecklistBackdrop .checklist-footer-buttons button,
+            #eventChecklistBackdrop .btn-exit {
+              min-height: 44px !important;
+              font-size: 0.9rem !important;
+            }
+            #eventChecklistBackdrop .checklist-table {
+              font-size: 0.72rem !important;
+              display: block !important;
+              overflow-x: auto !important;
+            }
+            #eventChecklistBackdrop .checklist-table th,
+            #eventChecklistBackdrop .checklist-table td {
+              padding: 8px 6px !important;
+              white-space: normal !important;
+            }
+            #eventChecklistBackdrop .checklist-table select {
+              width: 100% !important;
+              font-size: 0.72rem !important;
+              min-height: 44px !important;
+            }
+            #eventChecklistBackdrop .checklist-table-wrapper {
+              border: none !important;
+              border-radius: 0 !important;
+            }
+            #eventChecklistBackdrop .checklist-progress-container {
+              border: none !important;
+              border-radius: 0 !important;
+              background: transparent !important;
+              padding: 8px 0 !important;
+            }
+            #eventChecklistBackdrop .checklist-grid select,
+            #eventChecklistBackdrop .checklist-grid input,
+            #eventChecklistBackdrop .checklist-table select,
+            #eventChecklistBackdrop .checklist-table input,
+            #eventChecklistBackdrop textarea {
+              font-size: 16px !important;
+              min-height: 48px !important;
+            }
+          }
+        `;
+        document.head.appendChild(el);
+        styleElRef.current = el;
+      }
+    } else {
+      document.body.style.overflow = '';
+      if (styleElRef.current) {
+        document.head.removeChild(styleElRef.current);
+        styleElRef.current = null;
+      }
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
 
   const [templates, setTemplates] = useState([]);
   const [savingOp, setSavingOp] = useState(false);
@@ -716,187 +839,22 @@ export default function SettingsChecklist() {
   const sat = (total - activeItems.filter(i => i.status === 'no_aplica').length) > 0
     ? Math.round((done / (total - activeItems.filter(i => i.status === 'no_aplica').length)) * 100) : 0;
 
-  const evalItems = activeItems.filter(i => i.sectionType === 'evaluacion');
+  const evalItems = activeItems;
   const ratedItems = evalItems.filter(i => i.rating !== null);
   const satisfactionAvg = ratedItems.length > 0
     ? (ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0) / ratedItems.length)
     : 0;
   const satisfactionPct = Math.round((satisfactionAvg / 4) * 100);
 
-  return (
+  const modalContent = (
     <>
-      <style>{`
-        #eventChecklistBackdrop .checklist-mobile-rating {
-          display: none !important;
-        }
-        #eventChecklistBackdrop .checklist-desktop-rating {
-          display: flex !important;
-        }
 
-        @media (max-width: 768px) {
-          #eventChecklistBackdrop .checklist-mobile-rating {
-            display: block !important;
-          }
-          #eventChecklistBackdrop .checklist-desktop-rating {
-            display: none !important;
-          }
-          #eventChecklistBackdrop {
-            padding: 0 !important;
-          }
-          #eventChecklistBackdrop > div {
-            width: 100vw !important;
-            height: 100dvh !important;
-            max-width: 100vw !important;
-            max-height: 100dvh !important;
-            border-radius: 0 !important;
-            overflow: hidden !important;
-          }
-          #eventChecklistBackdrop > div::before {
-            content: '' !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            pointer-events: none !important;
-            z-index: -1 !important;
-          }
-          #eventChecklistBackdrop .checklist-header {
-            padding: 12px 14px !important;
-          }
-          #eventChecklistBackdrop .checklist-header-title {
-            font-size: 1rem !important;
-          }
-          #eventChecklistBackdrop .checklist-tab-bar {
-            flex-direction: row !important;
-          }
-          #eventChecklistBackdrop .checklist-tab {
-            padding: 12px 14px !important;
-            font-size: 0.85rem !important;
-            min-height: 48px !important;
-            touch-action: manipulation !important;
-          }
-          #eventChecklistBackdrop .checklist-tab-desc {
-            display: none !important;
-          }
-          #eventChecklistBackdrop .checklist-body {
-            padding: 14px 16px !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            padding-bottom: 24px !important;
-            touch-action: manipulation !important;
-          }
-          #eventChecklistBackdrop .checklist-grid {
-            grid-template-columns: 1fr !important;
-            gap: 10px !important;
-          }
-          #eventChecklistBackdrop .checklist-grid > div:first-child {
-            display: flex !important;
-            flex-direction: column !important;
-          }
-          #eventChecklistBackdrop .checklist-grid select,
-          #eventChecklistBackdrop .checklist-grid input,
-          #eventChecklistBackdrop .checklist-table select,
-          #eventChecklistBackdrop .checklist-table input,
-          #eventChecklistBackdrop textarea,
-          #eventChecklistBackdrop .checklist-rating-btn {
-            font-size: 16px !important;
-            min-height: 48px !important;
-            padding: 12px 14px !important;
-            background-color: #ffffff !important;
-            color: #0f172a !important;
-            border: 1.5px solid #d1d9e6 !important;
-            border-radius: 8px !important;
-            cursor: pointer !important;
-            -webkit-tap-highlight-color: rgba(99, 102, 241, 0.1) !important;
-            touch-action: manipulation !important;
-          }
-          #eventChecklistBackdrop .checklist-grid select,
-          #eventChecklistBackdrop .checklist-table select {
-            -webkit-appearance: menulist !important;
-            appearance: menulist !important;
-          }
-          #eventChecklistBackdrop .checklist-table input[type="text"] {
-            min-height: 44px !important;
-            padding: 8px 10px !important;
-          }
-          #eventChecklistBackdrop .checklist-grid select:focus,
-          #eventChecklistBackdrop .checklist-grid input:focus {
-            outline: none !important;
-            border-color: #6366f1 !important;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
-          }
-          #eventChecklistBackdrop .checklist-table {
-            font-size: 0.72rem !important;
-            display: block !important;
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch !important;
-          }
-          #eventChecklistBackdrop .checklist-table th,
-          #eventChecklistBackdrop .checklist-table td {
-            padding: 10px 8px !important;
-            white-space: normal !important;
-          }
-          #eventChecklistBackdrop .checklist-table td:first-child {
-            width: 28px !important;
-            min-width: 28px !important;
-          }
-          #eventChecklistBackdrop .checklist-table td:nth-child(3) {
-            min-width: 160px !important;
-          }
-          #eventChecklistBackdrop .checklist-table td:nth-child(4) {
-            min-width: 120px !important;
-          }
-          #eventChecklistBackdrop .checklist-table select {
-            width: 100% !important;
-            padding: 8px !important;
-            font-size: 0.72rem !important;
-            min-height: 44px !important;
-            background: #ffffff !important;
-            border: 1.5px solid #d1d9e6 !important;
-            border-radius: 8px !important;
-            -webkit-appearance: menulist !important;
-            appearance: menulist !important;
-            touch-action: manipulation !important;
-          }
-          #eventChecklistBackdrop .checklist-rating-buttons {
-            flex-wrap: wrap !important;
-            gap: 4px !important;
-            justify-content: center !important;
-          }
-          #eventChecklistBackdrop .checklist-rating-btn {
-            padding: 6px 8px !important;
-            font-size: 0.68rem !important;
-            min-height: 40px !important;
-            touch-action: manipulation !important;
-          }
-          #eventChecklistBackdrop .checklist-footer {
-            padding: 12px 16px !important;
-            flex-direction: column !important;
-            gap: 10px !important;
-          }
-          #eventChecklistBackdrop .checklist-footer-buttons {
-            width: 100% !important;
-            justify-content: space-between !important;
-          }
-          #eventChecklistBackdrop .checklist-footer-buttons button,
-          #eventChecklistBackdrop .btn-exit {
-            min-height: 44px !important;
-            font-size: 0.9rem !important;
-            touch-action: manipulation !important;
-          }
-        }
-      `}</style>
+
       <div
         id="eventChecklistBackdrop"
         onClick={e => { if (e.target.id === 'eventChecklistBackdrop') closeEvent(); }}
         style={{
           display: isOpen ? 'flex' : 'none',
-          position: 'fixed', inset: 0, zIndex: 3000,
-          background: 'rgba(15,23,42,0.35)',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '16px',
-          WebkitOverflowScrolling: 'touch',
         }}
       >
         <div role="dialog" style={{
@@ -977,7 +935,7 @@ export default function SettingsChecklist() {
             </div>
 
             {/* Progress + Satisfaction */}
-            <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <div className="checklist-progress-container" style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
                 <span>Avance <span style={{ color: '#6366f1' }}>{progress}%</span></span>
                 {activeTab === TAB_OPERATIVA && <span>Operativo <span style={{ color: '#10b981' }}>{sat}%</span></span>}
@@ -1050,7 +1008,7 @@ export default function SettingsChecklist() {
             )}
 
             {/* Items table */}
-            <div style={{
+            <div className="checklist-table-wrapper" style={{
               border: '1px solid #e2e8f0',
               borderRadius: '10px',
               overflowY: 'auto',
@@ -1078,17 +1036,17 @@ export default function SettingsChecklist() {
                   </thead>
                   <tbody>
                     {activeItems.map((item, idx) => (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: item.sectionType === 'evaluacion' ? '#faf5ff' : 'transparent' }}>
+                      <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: activeTab === TAB_EVALUACION ? '#faf5ff' : 'transparent' }}>
                         <td style={{ padding: '6px 10px', color: '#94a3b8', fontWeight: 600, fontSize: '0.72rem' }}>{idx + 1}</td>
                         <td style={{ padding: '6px 10px' }}>
                           <span style={{ color: '#6366f1', fontSize: '0.7rem', fontWeight: 600 }}>
                             {item.sectionName ? `[${item.sectionName}] ` : ''}
-                            {item.sectionType === 'evaluacion' && <span style={{ color: '#7c3aed', fontWeight: 700 }}>{'\u2B50'} </span>}
+                            {activeTab === TAB_EVALUACION && <span style={{ color: '#7c3aed', fontWeight: 700 }}>{'\u2B50'} </span>}
                           </span>
                           <span style={{ color: '#0f172a', fontWeight: 500 }}>{item.text}</span>
                         </td>
                         <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                          {item.sectionType === TAB_EVALUACION ? (
+                          {activeTab === TAB_EVALUACION ? (
                             <>
                               {/* Mobile Rating Dropdown */}
                               <div className="checklist-mobile-rating">
@@ -1196,4 +1154,6 @@ export default function SettingsChecklist() {
       </div>
     </>
   );
+
+  return ReactDOM.createPortal(modalContent, document.body);
 }
