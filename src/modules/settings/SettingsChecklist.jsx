@@ -726,7 +726,20 @@ export default function SettingsChecklist() {
   return (
     <>
       <style>{`
+        #eventChecklistBackdrop .checklist-mobile-rating {
+          display: none !important;
+        }
+        #eventChecklistBackdrop .checklist-desktop-rating {
+          display: flex !important;
+        }
+
         @media (max-width: 768px) {
+          #eventChecklistBackdrop .checklist-mobile-rating {
+            display: block !important;
+          }
+          #eventChecklistBackdrop .checklist-desktop-rating {
+            display: none !important;
+          }
           #eventChecklistBackdrop {
             padding: 0 !important;
           }
@@ -1076,33 +1089,69 @@ export default function SettingsChecklist() {
                         </td>
                         <td style={{ padding: '6px 10px', textAlign: 'center' }}>
                           {item.sectionType === TAB_EVALUACION ? (
-                            <div className="checklist-rating-buttons" style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
-                              {RATING_LEVELS.map(r => {
-                                const isSelected = item.rating === r.value;
-                                return (
-                                  <button
-                                    key={r.value}
-                                    type="button"
-                                    className="checklist-rating-btn"
-                                    onClick={() => !isReadOnly && setRating(activeTab)(item.id, isSelected ? null : r.value)}
-                                    title={r.label}
-                                    disabled={isReadOnly}
-                                    style={{
-                                      padding: '4px 7px', borderRadius: '6px',
-                                      border: isSelected ? `2px solid ${r.value === 'malo' ? '#ef4444' : r.value === 'regular' ? '#eab308' : r.value === 'bueno' ? '#22c55e' : '#a855f7'}` : '1.5px solid #e2e8f0',
-                                      background: isSelected ? (r.value === 'malo' ? '#fef2f2' : r.value === 'regular' ? '#fffbeb' : r.value === 'bueno' ? '#f0fdf4' : '#faf5ff') : '#fff',
-                                      fontSize: '0.7rem', fontWeight: 700,
-                                      cursor: isReadOnly ? 'default' : 'pointer',
-                                      opacity: isReadOnly ? 0.85 : (item.rating && !isSelected ? 0.5 : 1),
-                                      color: isSelected ? (r.value === 'malo' ? '#dc2626' : r.value === 'regular' ? '#ca8a04' : r.value === 'bueno' ? '#16a34a' : '#9333ea') : '#94a3b8',
-                                      filter: isReadOnly && !isSelected ? 'grayscale(0.8)' : 'none',
-                                    }}
-                                  >
-                                    {r.emoji} {r.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                            <>
+                              {/* Mobile Rating Dropdown */}
+                              <div className="checklist-mobile-rating">
+                                {(() => {
+                                  const ratingColors = {
+                                    malo: { border: '#ef4444', bg: '#fef2f2', text: '#dc2626' },
+                                    regular: { border: '#eab308', bg: '#fffbeb', text: '#ca8a04' },
+                                    bueno: { border: '#22c55e', bg: '#f0fdf4', text: '#16a34a' },
+                                    excelente: { border: '#a855f7', bg: '#faf5ff', text: '#9333ea' },
+                                  };
+                                  const curColor = ratingColors[item.rating] || { border: '#d1d9e6', bg: '#ffffff', text: '#64748b' };
+                                  return (
+                                    <select
+                                      value={item.rating || ''}
+                                      onChange={e => !isReadOnly && setRating(activeTab)(item.id, e.target.value || null)}
+                                      disabled={isReadOnly}
+                                      style={{
+                                        padding: '4px 8px', borderRadius: '6px',
+                                        border: `1.5px solid ${curColor.border}`,
+                                        fontSize: '0.75rem', fontWeight: 600,
+                                        cursor: isReadOnly ? 'default' : 'pointer',
+                                        background: curColor.bg, color: curColor.text,
+                                        opacity: isReadOnly ? 0.75 : 1, width: '100%'
+                                      }}
+                                    >
+                                      <option value="">-- Calificar --</option>
+                                      {RATING_LEVELS.map(r => (
+                                        <option key={r.value} value={r.value}>{r.emoji} {r.label}</option>
+                                      ))}
+                                    </select>
+                                  );
+                                })()}
+                              </div>
+
+                              {/* Desktop Rating Buttons */}
+                              <div className="checklist-desktop-rating checklist-rating-buttons" style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                                {RATING_LEVELS.map(r => {
+                                  const isSelected = item.rating === r.value;
+                                  return (
+                                    <button
+                                      key={r.value}
+                                      type="button"
+                                      className="checklist-rating-btn"
+                                      onClick={() => !isReadOnly && setRating(activeTab)(item.id, isSelected ? null : r.value)}
+                                      title={r.label}
+                                      disabled={isReadOnly}
+                                      style={{
+                                        padding: '4px 7px', borderRadius: '6px',
+                                        border: isSelected ? `2px solid ${r.value === 'malo' ? '#ef4444' : r.value === 'regular' ? '#eab308' : r.value === 'bueno' ? '#22c55e' : '#a855f7'}` : '1.5px solid #e2e8f0',
+                                        background: isSelected ? (r.value === 'malo' ? '#fef2f2' : r.value === 'regular' ? '#fffbeb' : r.value === 'bueno' ? '#f0fdf4' : '#faf5ff') : '#fff',
+                                        fontSize: '0.7rem', fontWeight: 700,
+                                        cursor: isReadOnly ? 'default' : 'pointer',
+                                        opacity: isReadOnly ? 0.85 : (item.rating && !isSelected ? 0.5 : 1),
+                                        color: isSelected ? (r.value === 'malo' ? '#dc2626' : r.value === 'regular' ? '#ca8a04' : r.value === 'bueno' ? '#16a34a' : '#9333ea') : '#94a3b8',
+                                        filter: isReadOnly && !isSelected ? 'grayscale(0.8)' : 'none',
+                                      }}
+                                    >
+                                      {r.emoji} {r.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
                           ) : (
                             <select value={item.status} onChange={e => !isReadOnly && setSt(activeTab)(item.id, e.target.value)}
                               disabled={isReadOnly}
