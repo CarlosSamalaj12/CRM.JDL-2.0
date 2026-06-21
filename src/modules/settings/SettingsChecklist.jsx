@@ -820,11 +820,13 @@ export default function SettingsChecklist() {
       });
       if (tab === TAB_OPERATIVA) setOpHistory(prev => [...prev, entry]);
       else setEvHistory(prev => [...prev, entry]);
-      toast(`Check list ${tab === TAB_OPERATIVA ? 'Operativa' : 'Evaluaci\u00f3n'} guardado \u2713`);
+      toast(`Check list ${tab === TAB_OPERATIVA ? 'Operativa' : 'Evaluación'} guardado ✓`);
       window.dispatchEvent(new Event('stateUpdated'));
+      closeEvent();
     } catch (err) { console.error(err); toast('Error al guardar'); }
     finally { setSaving(false); }
   };
+
 
   // Computed for active tab
   const activeItems = activeTab === TAB_OPERATIVA ? opItems : evItems;
