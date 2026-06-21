@@ -1,5 +1,16 @@
 import pool from '../config/db.js';
 
+function normalizeTipo(tipo) {
+  if (!tipo) return 'otros';
+  const t = tipo.toLowerCase().trim();
+  if (t === 'salsas' || t === 'salsa') return 'salsa';
+  if (t === 'guarniciones' || t === 'guarnición' || t === 'guarnicion') return 'guarnición';
+  if (t === 'proteínas' || t === 'proteinas' || t === 'proteina' || t === 'carne') return 'proteina';
+  if (t === 'postres' || t === 'postre') return 'postre';
+  if (t === 'bebidas' || t === 'bebida') return 'bebida';
+  return t;
+}
+
 // --- GESTIÓN DE PLATILLOS ---
 
 // Crear un nuevo platillo
@@ -56,8 +67,9 @@ export async function getPlatilloDetalle(req, res, next) {
     `, [id]);
 
     // Agrupar por tipo_componente
+    const normalizedComponentes = componentes.map(c => ({ ...c, ingrediente_tipo: normalizeTipo(c.ingrediente_tipo) }));
     const agrupado = {};
-    for (const c of componentes) {
+    for (const c of normalizedComponentes) {
       const tipo = c.tipo_componente;
       if (!agrupado[tipo]) agrupado[tipo] = [];
       agrupado[tipo].push(c);
@@ -79,7 +91,7 @@ export async function getPlatilloDetalle(req, res, next) {
 
     res.json({
       ...platillo,
-      componentes,
+      componentes: normalizedComponentes,
       componentes_agrupados: agrupado,
       opciones_por_ingrediente: opcionesPorIngrediente,
     });
@@ -99,7 +111,8 @@ export async function getSugerenciasDisponibles(req, res, next) {
     const [ingredientes] = await pool.query('SELECT * FROM cat_ingredientes ORDER BY tipo, nombre');
     const agrupado = {};
     for (const ing of ingredientes) {
-      const tipoNorm = TIPO_MAP[ing.tipo] || ing.tipo;
+      const normTipo = normalizeTipo(ing.tipo);
+      const tipoNorm = TIPO_MAP[normTipo] || normTipo;
       if (!agrupado[tipoNorm]) agrupado[tipoNorm] = [];
       agrupado[tipoNorm].push({ ...ing, tipo: tipoNorm });
     }

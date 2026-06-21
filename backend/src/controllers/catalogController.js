@@ -1,5 +1,16 @@
 import pool from '../config/db.js';
 
+function normalizeTipo(tipo) {
+  if (!tipo) return 'otros';
+  const t = tipo.toLowerCase().trim();
+  if (t === 'salsas' || t === 'salsa') return 'salsa';
+  if (t === 'guarniciones' || t === 'guarnición' || t === 'guarnicion') return 'guarnición';
+  if (t === 'proteínas' || t === 'proteinas' || t === 'proteina' || t === 'carne') return 'proteina';
+  if (t === 'postres' || t === 'postre') return 'postre';
+  if (t === 'bebidas' || t === 'bebida') return 'bebida';
+  return t;
+}
+
 // --- INGREDIENTES ---
 export async function createIngrediente(req, res, next) {
   try {
@@ -12,7 +23,7 @@ export async function createIngrediente(req, res, next) {
 export async function getIngredientes(req, res, next) {
   try {
     const [rows] = await pool.query('SELECT * FROM cat_ingredientes ORDER BY nombre ASC');
-    res.json(rows);
+    res.json(rows.map(r => ({ ...r, tipo: normalizeTipo(r.tipo) })));
   } catch (error) { next(error); }
 }
 
@@ -102,8 +113,9 @@ export async function getMenuDetalle(req, res, next) {
     `, [id]);
 
     // Agrupar por tipo de ingrediente
+    const normalizedItems = items.map(item => ({ ...item, ingrediente_tipo: normalizeTipo(item.ingrediente_tipo) }));
     const agrupado = {};
-    for (const item of items) {
+    for (const item of normalizedItems) {
       const tipo = item.ingrediente_tipo;
       if (!agrupado[tipo]) agrupado[tipo] = [];
       agrupado[tipo].push(item);
@@ -134,7 +146,7 @@ export async function getMenuDetalle(req, res, next) {
     res.json({
       menu: { ...menuRows[0], categoria_nombre },
       items_agrupados: agrupado,
-      items,
+      items: normalizedItems,
       opciones_por_ingrediente: opcionesPorIngrediente,
     });
   } catch (error) { next(error); }
