@@ -2480,46 +2480,6 @@ async function writeStateToTables(state) {
         [svcId, str(svc.name || "Sin nombre").trim(), Number(svc.price || 0), str(svc.description || "").trim() || null, catId, subId, String(svc.quantityMode || "MANUAL").trim(), svc.active !== false ? 1 : 0]
       );
     }
-    // Write services to dedicated tables
-    await conn.query("DELETE FROM servicios");
-    await conn.query("DELETE FROM subcategorias_servicio");
-    await conn.query("DELETE FROM categorias_servicio");
-    for (const cat of serviceCategories) {
-      const catResult = await conn.query("INSERT INTO categorias_servicio (nombre) VALUES (?)", [str(cat.name || "").trim() || "Sin nombre"]);
-      const catId = Number(catResult.insertId);
-      const subs = Array.isArray(cat.subcategories) ? cat.subcategories : [];
-      for (const sub of subs) {
-        const subResult = await conn.query("INSERT INTO subcategorias_servicio (id_categoria, nombre) VALUES (?, ?)", [catId, str(sub.name || "").trim() || "Sin nombre"]);
-        sub._dbId = Number(subResult.insertId);
-      }
-    }
-    // Build a map of subcategory names to IDs for service linking
-    const allSubs = await conn.query("SELECT id, nombre, id_categoria FROM subcategorias_servicio");
-    const subByName = {};
-    for (const srow of allSubs) {
-      const key = String(srow.id_categoria) + "::" + str(srow.nombre).trim().toLowerCase();
-      subByName[key] = Number(srow.id);
-    }
-    const allCats = await conn.query("SELECT id, nombre FROM categorias_servicio");
-    const catByName = {};
-    for (const crow of allCats) {
-      catByName[str(crow.nombre).trim().toLowerCase()] = Number(crow.id);
-    }
-    for (const svc of services) {
-      const catName = str(svc.category || "General").trim();
-      const catId = catByName[catName.toLowerCase()] || null;
-      let subId = null;
-      const subName = str(svc.subcategory || "").trim();
-      if (subName && catId) {
-        subId = subByName[String(catId) + "::" + subName.toLowerCase()] || null;
-      }
-      const svcId = str(svc.id).trim();
-      if (!svcId) continue;
-      await conn.query(
-        "INSERT INTO servicios (id, nombre, precio, descripcion, id_categoria, id_subcategoria, modo_cantidad, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), precio = VALUES(precio), descripcion = VALUES(descripcion), id_categoria = VALUES(id_categoria), id_subcategoria = VALUES(id_subcategoria), modo_cantidad = VALUES(modo_cantidad), activo = VALUES(activo)",
-        [svcId, str(svc.name || "Sin nombre").trim(), Number(svc.price || 0), str(svc.description || "").trim() || null, catId, subId, String(svc.quantityMode || "MANUAL").trim(), svc.active !== false ? 1 : 0]
-      );
-    }
     // Las tablas de menu y sugerencias de montaje fueron eliminadas y se manejan en el modulo de informes.
 
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
@@ -3023,8 +2983,6 @@ app.patch("/api/subcategorias-servicio/:id/activo", async (req, res) => {
   }
 });
 
-});
-
 // ==================== ELIMINAR SUBCATEGORIA DIRECTAMENTE EN app_state_kv ====================
 
 app.delete("/api/categorias-servicio/:catId/subcategorias/:subId", async (req, res) => {
@@ -3057,8 +3015,8 @@ app.delete("/api/categorias-servicio/:catId/subcategorias/:subId", async (req, r
       return res.status(404).json({ message: "Subcategoria no encontrada." });
     }
     await conn.query(
-      "INSERT INTO app_state_kv (clave, valor_json) VALUES ('serviceCategories', ?)
-       ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)",
+      `INSERT INTO app_state_kv (clave, valor_json) VALUES ('serviceCategories', ?)
+       ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
       [JSON.stringify(updated)]
     );
     return res.json({ ok: true });
