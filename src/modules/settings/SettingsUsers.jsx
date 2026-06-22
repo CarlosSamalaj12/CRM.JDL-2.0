@@ -96,8 +96,7 @@ export default function SettingsUsers() {
           id="btnSettingsAddUser"
           type="button"
           onClick={() => {
-            const backdrop = document.getElementById('userBackdrop');
-            if (backdrop) backdrop.hidden = false;
+            window.dispatchEvent(new CustomEvent('openAddUser'));
           }}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#0b1c30', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
         >

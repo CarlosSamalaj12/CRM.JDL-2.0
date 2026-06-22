@@ -80,24 +80,31 @@ export default function UserModal({ onClose }) {
   }
 
   useEffect(() => {
+    const handleOpenAddUser = () => {
+      const backdrop = document.getElementById('userBackdrop');
+      if (backdrop) backdrop.hidden = false;
+      resetForm();
+      fetchUsers();
+    };
+
+    const handleEditUser = (e) => {
+      const backdrop = document.getElementById('userBackdrop');
+      if (backdrop) backdrop.hidden = false;
+      if (e.detail && e.detail.userId) {
+        setSelectedUserId(e.detail.userId);
+      }
+      fetchUsers();
+    };
+
+    window.addEventListener('openAddUser', handleOpenAddUser);
+    window.addEventListener('editUser', handleEditUser);
+
     fetchUsers();
 
-    const backdrop = document.getElementById('userBackdrop');
-    if (!backdrop) return;
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'hidden') {
-          if (!backdrop.hidden) {
-            fetchUsers();
-            resetForm();
-          }
-        }
-      });
-    });
-
-    observer.observe(backdrop, { attributes: true });
-    return () => observer.disconnect();
+    return () => {
+      window.removeEventListener('openAddUser', handleOpenAddUser);
+      window.removeEventListener('editUser', handleEditUser);
+    };
   }, []);
 
   // When a user is selected to be edited
@@ -291,6 +298,7 @@ export default function UserModal({ onClose }) {
 
       toast.success(selectedUserId ? `Datos de ${fullName} actualizados.` : `${fullName} pre-registrado y autorizado.`, { duration: 2000 });
 
+      window.dispatchEvent(new CustomEvent('usersUpdated'));
       await fetchUsers();
       handleClose();
 
@@ -644,96 +652,6 @@ export default function UserModal({ onClose }) {
               )}
             </div>
 
-            {/* Divider */}
-            <div style={{ margin: '24px 0 16px', height: '1px', background: '#f1f5f9' }}></div>
-
-            {/* Users table header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>
-                  Usuarios Registrados ({users.length})
-                </div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                  Lista de cuentas autorizadas. Haz clic en "Editar" para modificar sus datos o metas comerciales.
-                </div>
-              </div>
-            </div>
-
-            {/* Users table */}
-            <div className="settings-table-wrap" style={{ marginBottom: '20px' }}>
-              {loading ? (
-                <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>Cargando usuarios...</div>
-              ) : users.length === 0 ? (
-                <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>No hay usuarios autorizados.</div>
-              ) : (
-                <table className="settings-usr-table">
-                  <thead>
-                    <tr>
-                      <th>Usuario</th>
-                      <th>Correo</th>
-                      <th>Teléfono</th>
-                      <th>Rol</th>
-                      <th style={{ textAlign: 'center' }}>Activo</th>
-                      <th style={{ textAlign: 'center' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(u => {
-                      const isSelected = selectedUserId === u.id;
-                      const roleLabel = ROLE_LABELS[u.role] || 'Vendedor';
-                      const roleStyle = ROLE_COLORS[u.role] || ROLE_COLORS.vendedor;
-                      const avatarUrl = u.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || u.name || '?')}&background=0ea5e9&color=fff&size=80`;
-
-                      return (
-                        <tr
-                          key={u.id}
-                          className={isSelected ? 'settings-usr-row-editing' : ''}
-                        >
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <img
-                                src={avatarUrl}
-                                alt=""
-                                style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #e2e8f0' }}
-                              />
-                              <div>
-                                <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{u.fullName || u.name}</div>
-                                <div style={{ fontSize: '10px', color: '#64748b' }}>{u.username || '—'}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>{u.email || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin correo</span>}</td>
-                          <td>{u.phone || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>—</span>}</td>
-                          <td>
-                            <span className="settings-role-badge" style={{ background: roleStyle.bg, color: roleStyle.color, borderColor: roleStyle.border }}>
-                              {roleLabel}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <label className="settings-usr-switch" title={u.active !== false ? 'Activo - clic para desactivar' : 'Inactivo - clic para activar'}>
-                              <input type="checkbox" checked={u.active !== false} onChange={() => toggleActive(u.id)} />
-                              <span className="settings-usr-slider"></span>
-                            </label>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              className="settings-usr-icon-btn"
-                              title="Editar usuario"
-                              onClick={() => setSelectedUserId(u.id)}
-                            >
-                              <svg viewBox="0 0 24 24" style={{ width: '16px', height: '16px', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }}>
-                                <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              </svg>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
           </div>
 
           {/* Footer */}

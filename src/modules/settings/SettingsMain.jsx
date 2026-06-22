@@ -4,7 +4,7 @@ import SettingsChecklist, { ChecklistTemplateEditor } from './SettingsChecklist'
 import SettingsEmpresas from './SettingsEmpresas';
 import SettingsSalones from './SettingsSalones';
 import SettingsGlobalGoals from './SettingsGlobalGoals';
-import SettingsUsuarios from './SettingsUsuarios';
+import UserModal from './UserModal';
 import SettingsServicios from './SettingsServicios';
 import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
@@ -143,32 +143,6 @@ export default function SettingsMain() {
         </div>
         <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
           <SettingsGlobalGoals inline onBack={closeView} />
-        </div>
-      </div>
-    );
-  }
-
-  if (activeInlineView === 'usuarios') {
-    return (
-      <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Gestión de usuarios y roles</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
-          <SettingsUsuarios inline onBack={closeView} />
         </div>
       </div>
     );
@@ -466,25 +440,6 @@ export default function SettingsMain() {
                   </div>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => isAdmin ? openView('usuarios') : undefined}
-                  style={{ opacity: isAdmin ? 1 : 0.6, cursor: isAdmin ? 'pointer' : 'default' }}>
-                  <div className="settings-bento-card-left">
-                    <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                      </svg>
-                    </div>
-                    <div className="settings-bento-info">
-                      <h3 className="settings-bento-title">Gestión de Usuarios</h3>
-                      <p className="settings-bento-desc">
-                        {isAdmin ? 'Crea cuentas de acceso, asigna roles y define permisos.' : 'Solo disponible para administradores.'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>{isAdmin ? 'Abrir →' : '🔒 Admin'}</span>
-                </div>
-
                 <div className="settings-section-card">
                   <SettingsUsers />
                 </div>
@@ -495,6 +450,7 @@ export default function SettingsMain() {
 
         {/* SettingsChecklist — Event checklist modal (still needed for calendar integration) */}
         <SettingsChecklist />
+        <UserModal />
       </div>
     </div>
   );
