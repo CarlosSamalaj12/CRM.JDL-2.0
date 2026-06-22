@@ -408,7 +408,7 @@ async function ensureServiceCatalogStructure() {
       CREATE TABLE IF NOT EXISTS subcategorias_servicio (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         id_categoria BIGINT UNSIGNED NOT NULL,
-        nombre VARCHAR(200) NOT NULL,
+        nombre VARCHAR(500) NOT NULL,
         creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         activo TINYINT(1) NOT NULL DEFAULT 1,
         PRIMARY KEY (id),
@@ -417,6 +417,10 @@ async function ensureServiceCatalogStructure() {
         CONSTRAINT fk_subcategorias_categoria FOREIGN KEY (id_categoria) REFERENCES categorias_servicio (id) ON DELETE CASCADE ON UPDATE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    // Ensure subcategorias_servicio.nombre column is expanded to VARCHAR(500) if table already exists
+    try {
+      await conn.query("ALTER TABLE subcategorias_servicio MODIFY COLUMN nombre VARCHAR(500) NOT NULL");
+    } catch (_) {}
     // Ensure servicios table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS servicios (
