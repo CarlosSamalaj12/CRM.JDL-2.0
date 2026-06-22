@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import api from '../../services/api';
 import { toast, modernConfirm } from '../../utils/toast';
 
 const emptyService = { id: '', name: '', price: '', category: '', subcategory: '', quantityMode: 'MANUAL', description: '', active: true };
@@ -206,11 +207,20 @@ export default function SettingsServicios({ inline, onBack }) {
   const handleDeleteSubcategory = async (cat, sub) => {
     const ok = await modernConfirm('Eliminar subcategoria', `Eliminar "${sub.name}"?`);
     if (!ok) return;
-    const next = categories.map(c => {
-      if (String(c.id) !== String(cat.id)) return c;
-      return { ...c, subcategories: (c.subcategories || []).filter(s => String(s.id) !== String(sub.id)) };
-    });
-    await saveAll(null, next);
+    setSaving(true);
+    try {
+      await api.delete(`/api/categorias-servicio/${encodeURIComponent(cat.id)}/subcategorias/${encodeURIComponent(sub.id)}`);
+      const next = categories.map(c => {
+        if (String(c.id) !== String(cat.id)) return c;
+        return { ...c, subcategories: (c.subcategories || []).filter(s => String(s.id) !== String(sub.id)) };
+      });
+      setCategories(next);
+      toast('Subcategoria eliminada correctamente');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Error al eliminar subcategoria');
+    }
+    setSaving(false);
   };
 
   // ── Import / Export ──
