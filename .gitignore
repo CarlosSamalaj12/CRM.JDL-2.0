@@ -37,6 +37,7 @@ nul
 # Database dumps, SQL scripts, and Excel files
 /db/*.sql
 /scripts/import_menus.cjs
+/scripts/import_productos_v2.cjs
 /import_menus.bat
 /import_menus.sh
 /src/Menus jdl*.xlsx
