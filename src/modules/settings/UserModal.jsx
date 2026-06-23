@@ -153,6 +153,31 @@ export default function UserModal({ onClose }) {
     }
   };
 
+  const handleDeleteUser = async (userId, userName) => {
+    const confirm = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente al usuario "${userName}"?`);
+    if (!confirm) return;
+
+    try {
+      setLoading(true);
+      const currentState = await loadCrmState();
+      const currentUsers = currentState.users || [];
+      const updatedUsers = currentUsers.filter(u => u.id !== userId);
+
+      await saveCrmState({ ...currentState, users: updatedUsers });
+      toast.success(`Usuario "${userName}" eliminado correctamente.`);
+
+      if (selectedUserId === userId) {
+        resetForm();
+      }
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      toast.error('Ocurrió un error al intentar eliminar el usuario.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleClose = () => {
     document.getElementById('userBackdrop').hidden = true;
     if (onClose) onClose();
