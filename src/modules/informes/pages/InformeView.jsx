@@ -79,14 +79,16 @@ export default function InformeView() {
   }, [socketConnected, informe?.id_ocupacion, id, onEvent, joinRoom, leaveRoom]);
 
   const handlePrint = async () => {
-    // Esperar a que todas las imágenes y fuentes carguen antes de imprimir
+    // Esperar a que todas las imágenes carguen antes de imprimir
     const imgs = Array.from(document.images).filter(img => !img.complete);
     if (imgs.length > 0) {
-      await Promise.all(imgs.map(img => new Promise(r => { img.onload = r; img.onerror = r; })));
+      await Promise.race([
+        Promise.all(imgs.map(img => new Promise(r => { img.onload = r; img.onerror = r; }))),
+        new Promise(r => setTimeout(r, 5000)),
+      ]);
     }
-    await document.fonts.ready;
-    // Pequeño delay extra para que el navegador termine de renderizar
-    await new Promise(r => setTimeout(r, 300));
+    await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2000))]);
+    await new Promise(r => setTimeout(r, 500));
     window.print();
   };
 

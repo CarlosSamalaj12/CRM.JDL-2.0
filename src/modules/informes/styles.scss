@@ -4057,11 +4057,17 @@ body.informes-theme {
       .app.lum-calendar {
         display: block !important;
         min-height: auto !important;
+        overflow: visible !important;
       }
     
       .lum-main {
         display: block !important;
         min-height: auto !important;
+        overflow: visible !important;
+      }
+
+      .lum-main > div {
+        overflow: visible !important;
       }
     
       .informe-view-layout {
@@ -4107,7 +4113,8 @@ body.informes-theme {
       }
     
       .iv-day-block {
-        page-break-inside: avoid;
+        page-break-inside: auto;
+        break-inside: auto;
       }
     
       .iv-day-header {
@@ -4151,48 +4158,42 @@ body.informes-theme {
         color: #4f46e5 !important;
       }
     
-      .iv-day-block {
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-    
-      .iv-day-block + .iv-day-block {
-        page-break-before: always !important;
-        break-before: page !important;
-        border-top: none !important;
-        padding-top: 0 !important;
-      }
-    
       .iv-grupo {
         page-break-inside: avoid;
       }
     
+      /* ─── IMÁGENES EN PRINT: tamaño completo con descripción ─── */
       .iv-imagenes {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin: 0.5rem 0;
+        display: block !important;
+        margin: 1rem 0 !important;
       }
     
       .iv-imagen-item {
-        width: 160px;
-        border: 1px solid #ddd;
+        width: 100% !important;
+        max-width: 100% !important;
+        border: 1px solid #ccc;
         border-radius: 4px;
+        margin-bottom: 1rem;
+        padding: 0;
         overflow: hidden;
       }
     
       .iv-imagen-item img {
-        width: 100%;
-        height: 110px;
-        object-fit: cover;
+        width: 100% !important;
+        max-height: 400px;
+        height: auto !important;
+        object-fit: contain !important;
         display: block;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
     
       .iv-imagen-desc {
-        padding: 0.2rem 0.3rem;
-        font-size: 8pt;
-        color: #666;
+        padding: 0.4rem 0.6rem;
+        font-size: 9pt;
+        color: #333;
         text-align: center;
+        font-style: italic;
       }
   }
   
