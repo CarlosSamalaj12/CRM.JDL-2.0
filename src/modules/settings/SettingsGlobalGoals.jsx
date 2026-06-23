@@ -6,7 +6,7 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
   const [goals, setGoals] = useState([]);
   const [goalMonth, setGoalMonth] = useState('');
   const [goalAmount, setGoalAmount] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [editingMonth, setEditingMonth] = useState('');
 
   useEffect(() => {
     loadData();
@@ -26,9 +26,21 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
     if (onBack) onBack();
   };
 
+  const formatNumberWithCommas = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    const cleanVal = String(value).replace(/[^0-9.]/g, '');
+    const parts = cleanVal.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (parts[1]) {
+      parts[1] = parts[1].slice(0, 2);
+    }
+    return parts.join('.');
+  };
+
   const resetForm = () => {
     setGoalMonth('');
     setGoalAmount('');
+    setEditingMonth('');
   };
 
   const persistGoals = async (updatedGoals) => {
@@ -46,19 +58,37 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
       toast('Selecciona un mes y escribe el monto de la meta.');
       return;
     }
-    if (goals.some(g => g.month === goalMonth)) {
-      toast('Ya existe una meta para este mes.');
+    const cleanAmount = parseFloat(String(goalAmount).replace(/,/g, ''));
+    if (isNaN(cleanAmount) || cleanAmount < 0) {
+      toast('Escribe un monto válido.');
       return;
     }
-    const updatedGoals = [
-      ...goals,
-      { month: goalMonth, amount: parseFloat(goalAmount) }
-    ].sort((a, b) => b.month.localeCompare(a.month));
+
+    let updatedGoals;
+    if (editingMonth) {
+      if (editingMonth !== goalMonth && goals.some(g => g.month === goalMonth)) {
+        toast('Ya existe una meta para este mes.');
+        return;
+      }
+      updatedGoals = goals.map(g => g.month === editingMonth ? { month: goalMonth, amount: cleanAmount } : g);
+      setEditingMonth('');
+    } else {
+      if (goals.some(g => g.month === goalMonth)) {
+        toast('Ya existe una meta para este mes.');
+        return;
+      }
+      updatedGoals = [
+        ...goals,
+        { month: goalMonth, amount: cleanAmount }
+      ];
+    }
+
+    updatedGoals.sort((a, b) => b.month.localeCompare(a.month));
     setGoals(updatedGoals);
     resetForm();
     await persistGoals(updatedGoals);
     window.dispatchEvent(new Event('stateUpdated'));
-    toast('Meta agregada y guardada ✓');
+    toast(editingMonth ? 'Meta actualizada y guardada ✓' : 'Meta agregada y guardada ✓');
   };
 
   const handleRemoveGoal = async (monthToRemove) => {
@@ -74,20 +104,16 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
     toast('Meta eliminada ✓');
   };
 
-  const handleSaveAll = async () => {
-    setSaving(true);
-    try {
-      const currentState = await loadCrmState();
-      await saveCrmState({ ...currentState, globalMonthlyGoals: goals });
-      toast('Metas guardadas ✓');
-      window.dispatchEvent(new Event('stateUpdated'));
-      if (onBack) onBack();
-    } catch (err) {
-      console.error('Error al guardar metas:', err);
-      toast('Error al guardar metas');
-    } finally {
-      setSaving(false);
-    }
+  const handleAmountChange = (e) => {
+    const val = e.target.value;
+    const clean = val.replace(/[^0-9.,]/g, '');
+    setGoalAmount(formatNumberWithCommas(clean));
+  };
+
+  const handleEditGoal = (g) => {
+    setEditingMonth(g.month);
+    setGoalMonth(g.month);
+    setGoalAmount(formatNumberWithCommas(g.amount));
   };
 
   const content = (
@@ -97,25 +123,24 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
           <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>🎯 Metas Globales de Ventas</div>
           <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Establece los objetivos de facturación mensual para la organización</div>
         </div>
-        <button className="settings-primary-btn" type="button" disabled={saving} onClick={handleSaveAll}>
-          {saving ? 'Guardando...' : '💾 Guardar Metas'}
-        </button>
       </div>
 
       {/* Input row */}
       <div className="settings-field-group">
         <label className="settings-modern-field">
           <span>Mes / Año</span>
-          <input type="month" value={goalMonth} onChange={(e) => setGoalMonth(e.target.value)} />
+          <input type="month" value={goalMonth} onChange={(e) => setGoalMonth(e.target.value)} disabled={!!editingMonth} />
         </label>
         <label className="settings-modern-field">
           <span>Monto de la Meta (Q.)</span>
-          <input type="number" min="0" step="0.01" placeholder="Ej: 500000" value={goalAmount} onChange={(e) => setGoalAmount(e.target.value)} />
+          <input type="text" placeholder="Ej: 500,000" value={goalAmount} onChange={handleAmountChange} />
         </label>
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-        <button className="settings-accent-btn" type="button" onClick={handleAddGoal}>➕ Agregar Meta</button>
+        <button className="settings-accent-btn" type="button" onClick={handleAddGoal}>
+          {editingMonth ? '✏️ Actualizar Meta' : '➕ Agregar Meta'}
+        </button>
         <button className="settings-cancel-btn" type="button" onClick={resetForm}>Limpiar</button>
       </div>
 
@@ -128,7 +153,7 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
               <tr>
                 <th>Mes / Año</th>
                 <th>Monto</th>
-                <th className="settings-td-center" style={{ width: '60px' }}></th>
+                <th className="settings-td-center" style={{ width: '80px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -146,8 +171,13 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
                       Q {parseFloat(g.amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="settings-td-center">
-                      <div className="settings-table-actions">
-                        <button type="button" className="danger" title="Eliminar meta" onClick={() => handleRemoveGoal(g.month)}>✕</button>
+                      <div className="settings-table-actions" style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'inline-flex', alignItems: 'center' }} title="Editar meta" onClick={() => handleEditGoal(g)}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0ea5e9' }}>edit</span>
+                        </button>
+                        <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'inline-flex', alignItems: 'center' }} title="Eliminar meta" onClick={() => handleRemoveGoal(g.month)}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#ef4444' }}>delete</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -162,14 +192,8 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
 
   if (inline) {
     return (
-      <div>
-        <button type="button" onClick={handleClose} className="btn-exit" style={{ marginBottom: '12px' }}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-          Volver a Configuración
-        </button>
-        <div className="settings-section-card" style={{ overflow: 'visible' }}>
-          {content}
-        </div>
+      <div className="settings-section-card" style={{ overflow: 'visible' }}>
+        {content}
       </div>
     );
   }
@@ -190,10 +214,7 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
         <div className="modalFooter">
           <div></div>
           <div className="rightActions">
-            <button className="btn-exit" type="button" onClick={handleClose}>Cancelar</button>
-            <button className="settings-primary-btn" type="button" disabled={saving} onClick={handleSaveAll}>
-              {saving ? 'Guardando...' : 'Guardar Metas'}
-            </button>
+            <button className="btn-exit" type="button" onClick={handleClose}>Cerrar</button>
           </div>
         </div>
       </div>

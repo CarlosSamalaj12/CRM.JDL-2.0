@@ -30,12 +30,18 @@ export default function UserModal({ onClose }) {
   const [role, setRole] = useState('vendedor');
   const [active, setActive] = useState(true);
   const [salesTargetEnabled, setSalesTargetEnabled] = useState(false);
-  const [monthlyGoals, setMonthlyGoals] = useState([]);
   const [goalTiers, setGoalTiers] = useState([]);
-  
-  // Goal inputs
-  const [goalMonth, setGoalMonth] = useState('');
-  const [goalAmount, setGoalAmount] = useState('');
+
+  const formatNumberWithCommas = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    const cleanVal = String(value).replace(/[^0-9.]/g, '');
+    const parts = cleanVal.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (parts[1]) {
+      parts[1] = parts[1].slice(0, 2);
+    }
+    return parts.join('.');
+  };
   
   // Tier inputs
   const [tierName, setTierName] = useState('');
@@ -68,12 +74,9 @@ export default function UserModal({ onClose }) {
     setRole('vendedor');
     setActive(true);
     setSalesTargetEnabled(false);
-    setMonthlyGoals([]);
     setGoalTiers([]);
     setAvatarDataUrl('');
     setSignatureDataUrl('');
-    setGoalMonth('');
-    setGoalAmount('');
     setTierName('');
     setTierAmount('');
     setTierPercentage('');
@@ -118,7 +121,6 @@ export default function UserModal({ onClose }) {
         setRole(user.role || 'vendedor');
         setActive(user.active !== false);
         setSalesTargetEnabled(user.salesTargetEnabled === true);
-        setMonthlyGoals(user.monthlyGoals || []);
         setGoalTiers(user.goalTiers || []);
         setAvatarDataUrl(user.avatarDataUrl || '');
         setSignatureDataUrl(user.signatureDataUrl || '');
@@ -217,43 +219,20 @@ export default function UserModal({ onClose }) {
     }
   };
 
-  // Add monthly goal to list
-  const handleAddGoal = () => {
-    if (!goalMonth || !goalAmount) {
-      toast('Selecciona un mes y escribe el monto de la meta.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
-      return;
-    }
 
-    if (monthlyGoals.some(g => g.month === goalMonth)) {
-      toast('Meta duplicada — Ya has registrado una meta para este mes.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
-      return;
-    }
-
-    setMonthlyGoals(prev => [
-      ...prev,
-      { month: goalMonth, amount: parseFloat(goalAmount) }
-    ].sort((a, b) => b.month.localeCompare(a.month)));
-
-    setGoalMonth('');
-    setGoalAmount('');
-  };
-
-  const handleRemoveGoal = (monthToRemove) => {
-    setMonthlyGoals(prev => prev.filter(g => g.month !== monthToRemove));
-  };
 
   const handleAddTier = () => {
     if (!tierName || !tierAmount || !tierPercentage) {
       toast('Completa el nombre, monto y porcentaje del nivel.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
-    const amt = parseFloat(tierAmount);
+    const amt = parseFloat(String(tierAmount).replace(/,/g, ''));
     const pct = parseFloat(tierPercentage);
-    if (amt <= 0) {
+    if (isNaN(amt) || amt <= 0) {
       toast('El monto debe ser mayor a 0.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
-    if (pct <= 0) {
+    if (isNaN(pct) || pct <= 0) {
       toast('El porcentaje debe ser mayor a 0.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
@@ -592,7 +571,16 @@ export default function UserModal({ onClose }) {
                     </div>
                     <div className="settings-modern-field" style={{ flex: '0 0 130px' }}>
                       <span>Monto mínimo Q</span>
-                      <input type="number" min="0" step="0.01" placeholder="Q 160,000" value={tierAmount} onChange={(e) => setTierAmount(e.target.value)} />
+                      <input
+                        type="text"
+                        placeholder="Q 160,000"
+                        value={tierAmount}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const clean = val.replace(/[^0-9.,]/g, '');
+                          setTierAmount(formatNumberWithCommas(clean));
+                        }}
+                      />
                     </div>
                     <div className="settings-modern-field" style={{ flex: '0 0 110px' }}>
                       <span>% Comisión</span>
@@ -624,71 +612,6 @@ export default function UserModal({ onClose }) {
                           )}
                         </tbody>
                       </table>
-                    </div>
-                  </div>
-
-                  {/* Monthly Goals (existing) */}
-                  <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '10px' }}>📅 Metas Mensuales</div>
-                    <div className="settings-goals-input-row">
-                      <div className="settings-modern-field">
-                        <span>Seleccionar Mes</span>
-                        <input
-                          id="userGoalMonth"
-                          type="month"
-                          value={goalMonth}
-                          onChange={(e) => setGoalMonth(e.target.value)}
-                        />
-                      </div>
-                      <div className="settings-modern-field">
-                        <span>Monto de la Meta</span>
-                        <input
-                          id="userGoalAmount"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Monto Q."
-                          value={goalAmount}
-                          onChange={(e) => setGoalAmount(e.target.value)}
-                        />
-                      </div>
-                      <button className="btn-cotizar" id="btnUserGoalAdd" type="button" onClick={handleAddGoal}>Agregar Meta</button>
-                    </div>
-
-                    <div className="settings-modern-field">
-                      <span>Historial de Metas Mensuales</span>
-                      <div className="settings-goals-table-wrap">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Mes / Año</th>
-                              <th>Monto asignado</th>
-                              <th style={{ width: '40px' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody id="userGoalsBody">
-                            {monthlyGoals.length === 0 ? (
-                              <tr>
-                                <td colSpan="3" style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
-                                  Sin metas mensuales registradas
-                                </td>
-                              </tr>
-                            ) : (
-                              monthlyGoals.map(g => (
-                                <tr key={g.month}>
-                                  <td style={{ fontWeight: '600' }}>{g.month}</td>
-                                  <td style={{ fontWeight: '700', color: '#059669' }}>
-                                    Q {parseFloat(g.amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                  <td style={{ textAlign: 'center' }}>
-                                    <button type="button" className="settings-goal-delete-btn" title="Eliminar meta" onClick={() => handleRemoveGoal(g.month)}>✕</button>
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
                     </div>
                   </div>
                 </div>

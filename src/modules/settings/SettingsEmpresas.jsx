@@ -203,13 +203,6 @@ export default function SettingsEmpresas({ inline, onBack }) {
 
   return (
     <>
-      {inline && (
-        <button type="button" onClick={onBack} className="btn-exit" style={{ marginBottom: '12px' }}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-          Volver a Configuración
-        </button>
-      )}
-
       <div className="settings-section-card" style={{ overflow: inline ? 'visible' : undefined }}>
         <form autoComplete="off" onSubmit={handleSubmit}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
