@@ -83,6 +83,68 @@ const MONTAJE_CAMPOS = [
   { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
 ];
 
+const compressImage = (file, maxW = 1000, maxH = 1000) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxW || height > maxH) {
+          const ratio = Math.min(maxW / width, maxH / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Canvas compression failed'));
+            }
+          },
+          'image/jpeg',
+          0.75
+        );
+      };
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
+};
+
+const dataURLtoFile = (dataurl, filename) => {
+  try {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  } catch (err) {
+    console.error('Error converting base64 to file:', err);
+    return null;
+  }
+};
+
 function crearDiaVacio(fecha) {
   return {
     id: null, fecha: fecha || new Date().toISOString().slice(0, 10),
@@ -190,7 +252,18 @@ export default function ConstructorInforme() {
   const [imagenDesc, setImagenDesc] = useState('');
   const [uploadingImg, setUploadingImg] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedFile]);
 
   // Búsqueda en elementos
   const [searchElemento, setSearchElemento] = useState('');
@@ -608,12 +681,31 @@ export default function ConstructorInforme() {
         setInformeId(targetId);
         setVersionActiva(res.version || 1);
       }
-      await createImagen(targetId, { url: urlInput, descripcion: imagenDesc || null });
+
+      // Si es un base64, convertir a archivo y subirlo
+      if (urlInput.trim().startsWith('data:image/')) {
+        setUploadingImg(true);
+        try {
+          const file = dataURLtoFile(urlInput.trim(), "imagen_pegada.jpg");
+          if (!file) throw new Error('No se pudo convertir base64 a archivo');
+          const compressed = await compressImage(file);
+          await uploadImagen(targetId, compressed, imagenDesc || null);
+          toast.success('Imagen base64 subida y optimizada');
+        } finally {
+          setUploadingImg(false);
+        }
+      } else {
+        await createImagen(targetId, { url: urlInput, descripcion: imagenDesc || null });
+        toast.success('Imagen agregada');
+      }
+
       setUrlInput('');
       setImagenDesc('');
-      toast.success('Imagen agregada');
       loadImagenes();
-    } catch { toast.error('Error al agregar imagen'); }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al agregar imagen');
+    }
   };
 
   const handleDeleteImagen = async (imgId) => {
@@ -635,12 +727,16 @@ export default function ConstructorInforme() {
     }
     setUploadingImg(true);
     try {
-      await uploadImagen(informeId, file, imagenDesc || null);
+      const compressed = await compressImage(file);
+      await uploadImagen(informeId, compressed, imagenDesc || null);
       setImagenDesc('');
       setSelectedFile(null);
-      toast.success('Imagen subida');
+      toast.success('Imagen subida y optimizada ✓');
       loadImagenes();
-    } catch { toast.error('Error al subir imagen'); }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al subir imagen');
+    }
     setUploadingImg(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -1252,6 +1348,15 @@ export default function ConstructorInforme() {
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:'0.4rem',marginTop:'0.5rem'}}>
                   <div style={{fontSize:'0.72rem',fontWeight:600,color:'var(--text-muted)',marginBottom:'0.15rem'}}>Subir archivo</div>
+                  {previewUrl && (
+                    <div style={{ position: 'relative', width: '120px', height: '90px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: '0.4rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Vista previa" />
+                      <button type="button" onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                        style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        ✕
+                      </button>
+                    </div>
+                  )}
                   <div style={{display:'flex',gap:'0.35rem',alignItems:'center',flexWrap:'wrap'}}>
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={e => setSelectedFile(e.target.files?.[0] || null)}
                       style={{display:'none'}} />
