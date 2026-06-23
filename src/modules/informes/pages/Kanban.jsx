@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 
 import { fetchEvents } from '../services/api.js';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
@@ -254,8 +255,7 @@ export default function Kanban() {
     }, 250);
   };
 
-  const exportToExcel = async () => {
-    const XLSX = await import('xlsx');
+  const exportToExcel = () => {
     const rows = events.map(e => ({
       'Fecha': e.displayDate || '',
       'Institución': e.Institucion || '',

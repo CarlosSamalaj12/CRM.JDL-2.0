@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { loadState } from '../../services/stateService';
 
 const STATUS = { CONFIRMADO: 'Confirmado', PRERESERVA: 'Pre reserva' };
 const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
@@ -61,7 +62,6 @@ export default function ReportsDashboard({ onClose }) {
   useEffect(() => {
     (async () => {
       try {
-        const { loadState } = await import('../../services/stateService');
         const state = await loadState({ cacheBust: true });
         setChecklists((state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {});
         setGlobalMonthlyGoals(Array.isArray(state.globalMonthlyGoals) ? state.globalMonthlyGoals : []);
