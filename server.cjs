@@ -3772,6 +3772,21 @@ async function start() {
     await ensureRequiredTables();
     await ensureDefaultUserCarlos();
 
+    // Migración: ampliar columna url de informe_imagenes para soportar Base64
+    try {
+      const [cols] = await pool.query(
+        `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'informe_imagenes' AND COLUMN_NAME = 'url'`
+      );
+      const colType = cols[0]?.COLUMN_TYPE?.toLowerCase() || '';
+      if (!colType.includes('text')) {
+        await pool.query(`ALTER TABLE informe_imagenes MODIFY COLUMN url MEDIUMTEXT NOT NULL`);
+        console.log('[MIGRACIÓN] informe_imagenes.url ampliada a MEDIUMTEXT para soportar Base64.');
+      }
+    } catch (migErr) {
+      console.log('[MIGRACIÓN] No se pudo ampliar columna url:', migErr.message);
+    }
+
     // Crear directorio de uploads para imágenes de informes si no existe
     const uploadsDir = path.join(__dirname, "uploads");
     if (!fs.existsSync(uploadsDir)) {
