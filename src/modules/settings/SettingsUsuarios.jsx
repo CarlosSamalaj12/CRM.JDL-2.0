@@ -123,15 +123,63 @@ export default function SettingsUsuarios({ inline, onBack }) {
     }
   };
 
-  const handleFileUpload = (e, type) => {
+  const handleFileUpload = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (type === 'avatar') setAvatarDataUrl(event.target.result);
-      else if (type === 'signature') setSignatureDataUrl(event.target.result);
-    };
-    reader.readAsDataURL(file);
+
+    try {
+      const compressedDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (type === 'avatar') {
+              const maxDim = 150;
+              if (width > height) {
+                if (width > maxDim) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                }
+              } else {
+                if (height > maxDim) {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+            } else {
+              const maxW = 400;
+              const maxH = 200;
+              if (width > maxW || height > maxH) {
+                const ratio = Math.min(maxW / width, maxH / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const mime = type === 'avatar' ? 'image/jpeg' : 'image/png';
+            const quality = type === 'avatar' ? 0.75 : undefined;
+            resolve(canvas.toDataURL(mime, quality));
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      if (type === 'avatar') setAvatarDataUrl(compressedDataUrl);
+      else if (type === 'signature') setSignatureDataUrl(compressedDataUrl);
+    } catch (err) {
+      console.error('Error al procesar la imagen:', err);
+      toast.error('No se pudo procesar la imagen seleccionada.');
+    }
   };
 
   const handleAddGoal = () => {
