@@ -1327,13 +1327,16 @@ export default function ConstructorInforme() {
                 <div style={{display:'flex',flexWrap:'wrap',gap:'0.5rem'}}>
                   {imagenes.map(img => (
                     <div key={img.id} style={{
-                      width:'180px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)',
+                      width:'250px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)',
                       overflow:'hidden', background:'var(--bg-card)', position:'relative'
                     }}>
-                      <img src={imagenUrl(img.url)} alt={img.descripcion || ''}
-                        style={{width:'100%',height:'120px',objectFit:'cover',display:'block'}}
-                        onError={e => { e.target.style.display='none'; }}
-                      />
+                      {/* Contenedor cuadrado fijo 250x250 — imagen completa sin recorte */}
+                      <div style={{width:'250px', height:'250px', background:'var(--bg-elevated)', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                        <img src={imagenUrl(img.url)} alt={img.descripcion || ''}
+                          style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block'}}
+                          onError={e => { e.target.style.display='none'; }}
+                        />
+                      </div>
                       {img.descripcion && (
                         <div style={{padding:'0.25rem 0.4rem',fontSize:'0.72rem',color:'var(--text-muted)',textAlign:'center'}}>
                           {img.descripcion}
