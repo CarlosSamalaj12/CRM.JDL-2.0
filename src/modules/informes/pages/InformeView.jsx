@@ -455,10 +455,8 @@ export default function InformeView() {
           {imagenes.length > 0 && (
             <section className="iv-imagenes" style={{marginTop:'1.5rem'}}>
               {imagenes.map(img => (
-              <div key={img.id} className="iv-imagen-item">
-                  <div className="iv-imagen-box">
-                    <img src={imagenUrl(img.url)} alt={img.descripcion || ''} />
-                  </div>
+                <div key={img.id} className="iv-imagen-item">
+                  <img src={imagenUrl(img.url)} alt={img.descripcion || ''} />
                   {img.descripcion && <div className="iv-imagen-desc">{img.descripcion}</div>}
                 </div>
               ))}

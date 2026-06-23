@@ -3621,21 +3621,13 @@ button[data-tooltip-bottom]::after {
   background: var(--bg-app);
 }
 
-/* Contenedor cuadrado 250x250 — imagen completa sin recorte */
-.iv-imagen-box {
+/* Cuadrado fijo — imagen completa sin recorte */
+.iv-imagen-item img {
   width: 250px;
   height: 250px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-elevated, #f5f5f5);
-}
-
-.iv-imagen-item img {
-  max-width: 100%;
-  max-height: 100%;
   object-fit: contain;
   display: block;
+  background: var(--bg-elevated, #f5f5f5);
 }
 
 .iv-imagen-desc {
@@ -3887,20 +3879,12 @@ button[data-tooltip-bottom]::after {
   }
 
   /* Cuadrado 200x200 al imprimir — imagen completa sin recorte */
-  .iv-imagen-box {
+  .iv-imagen-item img {
     width: 200px;
     height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f8f8f8;
-  }
-
-  .iv-imagen-item img {
-    max-width: 100%;
-    max-height: 100%;
     object-fit: contain;
     display: block;
+    background: #f8f8f8;
   }
 
   .iv-imagen-desc {
