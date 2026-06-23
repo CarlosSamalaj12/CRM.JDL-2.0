@@ -47,6 +47,7 @@ export default function UserModal({ onClose }) {
   const [tierName, setTierName] = useState('');
   const [tierAmount, setTierAmount] = useState('');
   const [tierPercentage, setTierPercentage] = useState('');
+  const [editingTierIndex, setEditingTierIndex] = useState(null);
 
   // Media files states
   const [avatarDataUrl, setAvatarDataUrl] = useState('');
@@ -80,6 +81,7 @@ export default function UserModal({ onClose }) {
     setTierName('');
     setTierAmount('');
     setTierPercentage('');
+    setEditingTierIndex(null);
   }
 
   useEffect(() => {
@@ -236,14 +238,37 @@ export default function UserModal({ onClose }) {
       toast('El porcentaje debe ser mayor a 0.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
       return;
     }
-    setGoalTiers(prev => [...prev, { name: tierName.trim(), amount: amt, percentage: pct }]);
+    if (editingTierIndex !== null) {
+      setGoalTiers(prev => prev.map((t, idx) => idx === editingTierIndex ? { name: tierName.trim(), amount: amt, percentage: pct } : t));
+      setEditingTierIndex(null);
+    } else {
+      setGoalTiers(prev => [...prev, { name: tierName.trim(), amount: amt, percentage: pct }]);
+    }
     setTierName('');
     setTierAmount('');
     setTierPercentage('');
   };
 
+  const handleEditTier = (index) => {
+    const tier = goalTiers[index];
+    if (tier) {
+      setTierName(tier.name);
+      setTierAmount(formatNumberWithCommas(tier.amount));
+      setTierPercentage(String(tier.percentage));
+      setEditingTierIndex(index);
+    }
+  };
+
   const handleRemoveTier = (index) => {
     setGoalTiers(prev => prev.filter((_, i) => i !== index));
+    if (editingTierIndex === index) {
+      setTierName('');
+      setTierAmount('');
+      setTierPercentage('');
+      setEditingTierIndex(null);
+    } else if (editingTierIndex > index) {
+      setEditingTierIndex(prev => prev - 1);
+    }
   };
 
   const handleSave = async (e) => {
@@ -584,7 +609,21 @@ export default function UserModal({ onClose }) {
                       <span>% Comisión</span>
                       <input type="number" min="0" step="0.1" placeholder="Ej: 2.5" value={tierPercentage} onChange={(e) => setTierPercentage(e.target.value)} />
                     </div>
-                    <button className="btn-cotizar" type="button" onClick={handleAddTier} style={{ marginBottom: '1px' }}>Agregar</button>
+                    <div style={{ display: 'flex', gap: '4px', marginBottom: '1px' }}>
+                      <button className="btn-cotizar" type="button" onClick={handleAddTier}>
+                        {editingTierIndex !== null ? 'Actualizar' : 'Agregar'}
+                      </button>
+                      {editingTierIndex !== null && (
+                        <button className="btn-cancel" type="button" onClick={() => {
+                          setTierName('');
+                          setTierAmount('');
+                          setTierPercentage('');
+                          setEditingTierIndex(null);
+                        }} style={{ padding: '6px 12px' }}>
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Tiers Table */}
@@ -592,20 +631,25 @@ export default function UserModal({ onClose }) {
                     <span>Niveles configurados</span>
                     <div className="settings-goals-table-wrap">
                       <table>
-                        <thead><tr><th>Nivel</th><th>Monto mínimo</th><th>% Comisión</th><th style={{ width: '40px' }}></th></tr></thead>
+                        <thead><tr><th>Nivel</th><th>Monto mínimo</th><th>% Comisión</th><th style={{ width: '80px', textAlign: 'center' }}>Acciones</th></tr></thead>
                         <tbody id="userTiersBody">
                           {goalTiers.length === 0 ? (
                             <tr><td colSpan="4" style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Sin niveles configurados. Agrega niveles como Meta Media, Meta Alta, etc.</td></tr>
                           ) : (
                             goalTiers.map((t, i) => (
-                              <tr key={i}>
+                              <tr key={i} style={editingTierIndex === i ? { background: '#f0fdf4' } : {}}>
                                 <td style={{ fontWeight: '600' }}>{t.name}</td>
                                 <td style={{ fontWeight: '700', color: '#059669' }}>Q {t.amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 <td style={{ fontWeight: '700', color: '#2563eb' }}>{t.percentage}%</td>
-                                <td style={{ textAlign: 'center' }}>
-                                  <button type="button" className="settings-goal-delete-btn" title="Eliminar nivel" onClick={() => handleRemoveTier(i)}>✕</button>
+                                <td style={{ textAlign: 'center', display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
+                                  <button type="button" className="settings-usr-icon-btn" title="Editar nivel" onClick={() => handleEditTier(i)} style={{ padding: '2px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg viewBox="0 0 24 24" style={{ width: '14px', height: '14px', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }}>
+                                      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                    </svg>
+                                  </button>
+                                  <button type="button" className="settings-goal-delete-btn" title="Eliminar nivel" onClick={() => handleRemoveTier(i)} style={{ margin: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                                 </td>
-                            </tr>
+                              </tr>
                             ))
                           )}
                         </tbody>
