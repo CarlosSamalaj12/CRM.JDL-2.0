@@ -1,22 +1,16 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
 import { authenticate } from '../middlewares/auth.js';
 import { getImagenes, createImagen, uploadImagenFile, deleteImagen } from '../controllers/imagenesController.js';
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(process.cwd(), 'uploads')),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-  },
-});
+// Usamos memoria en lugar de disco — los archivos no se guardan en el servidor
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máx antes de comprimir
   fileFilter: (req, file, cb) => {
     const allowed = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i;
-    if (allowed.test(path.extname(file.originalname))) return cb(null, true);
+    if (allowed.test(file.originalname)) return cb(null, true);
     cb(new Error('Solo se permiten imágenes (jpg, png, gif, webp, svg, bmp)'));
   },
 });

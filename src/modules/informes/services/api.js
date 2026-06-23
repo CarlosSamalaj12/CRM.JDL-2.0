@@ -1,4 +1,4 @@
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
 
 export async function fetchEvents(date) {
   const url = date ? `${apiUrl}/api/events?date=${date}` : `${apiUrl}/api/events`;

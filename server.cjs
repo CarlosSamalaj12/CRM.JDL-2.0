@@ -3772,16 +3772,6 @@ async function start() {
     await ensureRequiredTables();
     await ensureDefaultUserCarlos();
 
-    // Limpieza de imágenes base64 corruptas que puedan colgar la DB
-    try {
-      const deleteRes = await pool.query("DELETE FROM informe_imagenes WHERE url LIKE 'data:%'");
-      if (deleteRes.affectedRows > 0) {
-        console.log(`[LIMPIEZA] Se eliminaron ${deleteRes.affectedRows} registros de imágenes corruptas en Base64.`);
-      }
-    } catch (dbErr) {
-      console.log("[LIMPIEZA] La tabla de imágenes no requiere limpieza:", dbErr.message);
-    }
-
     // Crear directorio de uploads para imágenes de informes si no existe
     const uploadsDir = path.join(__dirname, "uploads");
     if (!fs.existsSync(uploadsDir)) {

@@ -292,7 +292,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     if (printOption === "completa" || printOption === "sin_precios") {
       let quoteWithMm = quote;
       if (!quote.menuMontajeEntries?.length) {
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
         const token = localStorage.getItem('token');
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
         let info = null;

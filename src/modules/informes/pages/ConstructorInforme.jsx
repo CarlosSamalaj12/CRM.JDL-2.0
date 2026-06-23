@@ -83,7 +83,7 @@ const MONTAJE_CAMPOS = [
   { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
 ];
 
-const compressImage = (file, maxW = 1000, maxH = 1000) => {
+const compressImage = (file, maxW = 600, maxH = 600) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -117,7 +117,7 @@ const compressImage = (file, maxW = 1000, maxH = 1000) => {
             }
           },
           'image/jpeg',
-          0.75
+          0.5
         );
       };
       img.onerror = () => reject(new Error('Image load failed'));

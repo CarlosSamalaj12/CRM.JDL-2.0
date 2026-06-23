@@ -1,6 +1,4 @@
 import pool from '../config/db.js';
-import path from 'path';
-import fs from 'fs';
 
 export async function getImagenes(req, res, next) {
   try {
@@ -38,13 +36,18 @@ export async function uploadImagenFile(req, res, next) {
     if (!req.file) {
       return res.status(400).json({ message: 'El archivo es obligatorio' });
     }
-    const url = `/uploads/${req.file.filename}`;
+
+    // Convertir el buffer en memoria a Base64 — sin guardar nada en disco
+    const base64 = req.file.buffer.toString('base64');
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
     const descripcion = req.body.descripcion || null;
     const dia_id = req.body.dia_id || null;
 
     const [result] = await pool.query(
       'INSERT INTO informe_imagenes (informe_id, dia_id, url, descripcion) VALUES (?, ?, ?, ?)',
-      [id, dia_id, url, descripcion]
+      [id, dia_id, dataUrl, descripcion]
     );
 
     const [newImg] = await pool.query('SELECT * FROM informe_imagenes WHERE id = ?', [result.insertId]);
@@ -55,11 +58,7 @@ export async function uploadImagenFile(req, res, next) {
 export async function deleteImagen(req, res, next) {
   try {
     const { imgId } = req.params;
-    const [img] = await pool.query('SELECT * FROM informe_imagenes WHERE id = ?', [imgId]);
-    if (img.length > 0 && img[0].url && img[0].url.startsWith('/uploads/')) {
-      const filePath = path.join(process.cwd(), img[0].url);
-      try { fs.unlinkSync(filePath); } catch { /* file may not exist */ }
-    }
+    // Las imágenes ya no son archivos físicos, solo se elimina el registro de BD
     await pool.query('DELETE FROM informe_imagenes WHERE id = ?', [imgId]);
     res.json({ message: 'Imagen eliminada' });
   } catch (error) { next(error); }
