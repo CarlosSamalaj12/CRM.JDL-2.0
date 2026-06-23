@@ -4042,6 +4042,24 @@ body.informes-theme {
         color: black !important;
         font-size: 10pt;
         height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+      }
+
+      /* Eliminar alturas fijas que causan páginas en blanco */
+      #root,
+      .reports-root,
+      .app-shell,
+      .informes-shell,
+      main,
+      .lum-main,
+      .lum-main > div,
+      .informe-view-layout,
+      .informe-print-container,
+      .app.lum-calendar {
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         overflow: visible !important;
       }
       
@@ -4097,6 +4115,8 @@ body.informes-theme {
       .app-shell {
         padding: 0 !important;
         max-width: none !important;
+        min-height: 0 !important;
+        height: auto !important;
       }
     
       .iv-title {
