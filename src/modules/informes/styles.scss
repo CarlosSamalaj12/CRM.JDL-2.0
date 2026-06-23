@@ -4035,19 +4035,33 @@ body.informes-theme {
      ═══════════════════════════════════════════════ */
   
   @media print {
-    body {
+    html, body {
         background: white !important;
         color: black !important;
         font-size: 10pt;
+        height: auto !important;
+        overflow: visible !important;
       }
-    
-      .no-print, .app-header, .app-nav, .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-ghost,
+      
+      /* Ocultar navegación y UI de la app */
+      .no-print, .lum-sidebar, .topbar, .legend, .sidebar, .sidebar-content,
+      .app-header, .app-nav, .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-ghost,
       .colab-sidebar, .colab-panel, .colab-tabs, .colab-content, .colab-actions,
       .pos-bottom-actions, .pos-modal-overlay, .toast-container,
       .notif-bell-wrapper, .notif-dropdown,
-      .notas-popover,
-      button, .actions-bar {
+      .notas-popover, .mobile-hamburger-btn, .mobile-drawer-backdrop,
+      button:not(.iv-print-safe), .actions-bar {
         display: none !important;
+      }
+      
+      .app.lum-calendar {
+        display: block !important;
+        min-height: auto !important;
+      }
+    
+      .lum-main {
+        display: block !important;
+        min-height: auto !important;
       }
     
       .informe-view-layout {
@@ -4092,6 +4106,10 @@ body.informes-theme {
         box-shadow: none !important;
       }
     
+      .iv-day-block {
+        page-break-inside: avoid;
+      }
+    
       .iv-day-header {
         border-bottom-color: #1e3a8a !important;
       }
@@ -4103,11 +4121,13 @@ body.informes-theme {
       .iv-platillo-block {
         background: #eef2ff !important;
         border-left-color: #4f46e5 !important;
+        page-break-inside: avoid;
       }
     
       .iv-montaje-grid {
         background: #f8fafc !important;
         border: 1px solid #e2e8f0 !important;
+        page-break-inside: avoid;
       }
     
       .iv-montaje-label {

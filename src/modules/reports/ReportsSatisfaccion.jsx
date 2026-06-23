@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { loadState } from '../../services/stateService';
 
 const RATING_LEVELS = [
   { value: 'malo', label: 'Malo', emoji: '🔴', score: 1, color: '#ef4444', bg: '#fef2f2' },
@@ -49,7 +50,6 @@ export default function ReportsSatisfaccion({ onClose }) {
   useEffect(() => {
     (async () => {
       try {
-        const { loadState } = await import('../../services/stateService');
         const state = await loadState({ cacheBust: true });
         setChecklists((state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {});
       } catch (err) { console.error(err); }

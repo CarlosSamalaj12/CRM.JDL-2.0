@@ -78,7 +78,17 @@ export default function InformeView() {
     return () => { cleanup(); leaveRoom(room); };
   }, [socketConnected, informe?.id_ocupacion, id, onEvent, joinRoom, leaveRoom]);
 
-  const handlePrint = () => window.print();
+  const handlePrint = async () => {
+    // Esperar a que todas las imágenes y fuentes carguen antes de imprimir
+    const imgs = Array.from(document.images).filter(img => !img.complete);
+    if (imgs.length > 0) {
+      await Promise.all(imgs.map(img => new Promise(r => { img.onload = r; img.onerror = r; })));
+    }
+    await document.fonts.ready;
+    // Pequeño delay extra para que el navegador termine de renderizar
+    await new Promise(r => setTimeout(r, 300));
+    window.print();
+  };
 
   const handleExportPDF = async () => {
     setPdfLoading(true);

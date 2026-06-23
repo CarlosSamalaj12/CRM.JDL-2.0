@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { loadState } from '../../services/stateService';
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -38,7 +39,6 @@ export default function ReportsOcupacionBarras({ onClose }) {
   useEffect(() => {
     (async () => {
       try {
-        const { loadState } = await import('../../services/stateService');
         const state = await loadState({ cacheBust: true });
         setSalonCapacities((state.salonCapacities && typeof state.salonCapacities === 'object') ? state.salonCapacities : {});
         setSalonOccupancyEnabled(Array.isArray(state.salonOccupancyEnabled) ? state.salonOccupancyEnabled : []);
