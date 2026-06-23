@@ -42,6 +42,16 @@ export default function SettingsServicios({ inline, onBack }) {
   const handleClose = () => { if (onBack) onBack(); };
 
   // ── Helpers ──
+  const formatNumberWithCommas = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    const cleanVal = String(value).replace(/[^0-9.]/g, '');
+    const parts = cleanVal.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (parts[1]) {
+      parts[1] = parts[1].slice(0, 2);
+    }
+    return parts.join('.');
+  };
   const computedCategories = useMemo(() => {
     const fromServices = [...new Set(services.map(s => String(s.category || 'General').trim()).filter(Boolean))];
     const fromManaged = categories.map(c => c.name);
@@ -84,7 +94,7 @@ export default function SettingsServicios({ inline, onBack }) {
     setServiceDraft({
       id: svc.id || '',
       name: svc.name || '',
-      price: svc.price ?? '',
+      price: svc.price !== undefined && svc.price !== null ? formatNumberWithCommas(svc.price) : '',
       category: svc.category || '',
       subcategory: svc.subcategory || '',
       quantityMode: svc.quantityMode || 'MANUAL',
@@ -104,7 +114,7 @@ export default function SettingsServicios({ inline, onBack }) {
     const saved = {
       id: serviceDraft.id || `svc_${Date.now()}`,
       name,
-      price: Number(serviceDraft.price) || 0,
+      price: Number(String(serviceDraft.price).replace(/,/g, '')) || 0,
       category: serviceDraft.category || 'General',
       subcategory: serviceDraft.subcategory || '',
       quantityMode: serviceDraft.quantityMode || 'MANUAL',
@@ -526,7 +536,17 @@ export default function SettingsServicios({ inline, onBack }) {
                 <input value={serviceDraft.name} onChange={e => setServiceDraft(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Salón principal" style={{ ...s('full'), marginTop: '3px' }} />
               </label>
               <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Precio base (Q)
-                <input type="number" step="0.01" min="0" value={serviceDraft.price} onChange={e => setServiceDraft(p => ({ ...p, price: e.target.value }))} placeholder="0.00" style={{ ...s('full'), marginTop: '3px' }} />
+                <input
+                  type="text"
+                  value={serviceDraft.price}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const clean = val.replace(/[^0-9.,]/g, '');
+                    setServiceDraft(p => ({ ...p, price: formatNumberWithCommas(clean) }));
+                  }}
+                  placeholder="0.00"
+                  style={{ ...s('full'), marginTop: '3px' }}
+                />
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Categoría

@@ -331,14 +331,8 @@ export default function SettingsSalones({ inline, onBack }) {
   /* ── INLINE MODE ── */
   if (inline) {
     return (
-      <div>
-        <button type="button" onClick={handleClose} className="btn-exit" style={{ marginBottom: '12px' }}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-          Volver a Configuración
-        </button>
-        <div className="settings-section-card" style={{ overflow: 'visible' }}>
-          {content}
-        </div>
+      <div className="settings-section-card" style={{ overflow: 'visible' }}>
+        {content}
       </div>
     );
   }
