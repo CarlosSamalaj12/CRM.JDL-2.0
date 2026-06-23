@@ -360,7 +360,11 @@ async function reserveNextDocCode(scope = "COT") {
     await conn.commit();
     return code;
   } catch (error) {
-    if (conn) await conn.rollback();
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (err) {}
+    }
     throw error;
   } finally {
     if (conn) conn.release();
@@ -2489,11 +2493,14 @@ async function writeStateToTables(state) {
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     await conn.commit();
   } catch (error) {
+    console.error("Error original en writeStateToTables:", error);
     if (conn) {
       try {
         await conn.query("SET FOREIGN_KEY_CHECKS = 1");
       } catch (err) {}
-      await conn.rollback();
+      try {
+        await conn.rollback();
+      } catch (err) {}
     }
     throw error;
   } finally {
@@ -2568,7 +2575,11 @@ app.post("/api/import/companies", async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] ✅ Importadas ${companies.length} empresas vía /api/import/companies`);
     return res.json({ ok: true, count: companies.length });
   } catch (error) {
-    if (conn) await conn.rollback();
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (err) {}
+    }
     console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en /api/import/companies:`, error);
     return res.status(500).json({ message: "Error al importar empresas.", detail: error.message });
   } finally {
@@ -2617,7 +2628,11 @@ app.post("/api/import/managers", async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] ✅ Importados ${managers.length} encargados vía /api/import/managers`);
     return res.json({ ok: true, count: managers.length });
   } catch (error) {
-    if (conn) await conn.rollback();
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (err) {}
+    }
     console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en /api/import/managers:`, error);
     return res.status(500).json({ message: "Error al importar encargados.", detail: error.message });
   } finally {
