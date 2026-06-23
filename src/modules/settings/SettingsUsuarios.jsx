@@ -234,7 +234,7 @@ export default function SettingsUsuarios({ inline, onBack }) {
       if (selectedUserId) {
         updatedUsers = updatedUsers.map(u => {
           if (u.id === selectedUserId) {
-            return { ...u, name: fullName, fullName, username: email.split('@')[0], email: email.toLowerCase(), phone, role, active, salesTargetEnabled, monthlyGoals, goalTiers, avatarDataUrl, signatureDataUrl };
+            return { ...u, name: fullName, fullName, username: email.split('@')[0], email: email.toLowerCase(), phone, role, active, salesTargetEnabled, goalTiers, avatarDataUrl, signatureDataUrl };
           }
           return u;
         });
@@ -256,7 +256,6 @@ export default function SettingsUsuarios({ inline, onBack }) {
           role,
           active,
           salesTargetEnabled,
-          monthlyGoals,
           goalTiers,
           avatarDataUrl,
           signatureDataUrl,
