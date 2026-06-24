@@ -43,7 +43,7 @@ const TIPO_MAP = {
   Otros: 'otros'
 };
 
-const TIPO_OPTS_ORDER = ['proteina', 'guarnicion', 'salsa', 'postre', 'tortilla_pan', 'bebida', 'otros'];
+const TIPO_OPTS_ORDER = ['proteina', 'guarnicion', 'salsa', 'postre', 'bebida', 'tortilla_pan', 'otros'];
 
 
 const ALERTAS_PREDEFINIDAS = [
@@ -158,31 +158,21 @@ export default function InformeView() {
     day: 'numeric', month: 'long', year: 'numeric'
   });
 
-  const fechasEventosText = (() => {
-    if (!informe || !informe.dias || informe.dias.length === 0) return 'Fecha no asignada';
+  const formatFechaDia = (fechaStr) => {
+    if (!fechaStr) return 'Fecha no asignada';
+    const date = fechaStr.length <= 10 ? new Date(fechaStr + 'T12:00:00') : new Date(fechaStr);
+    if (isNaN(date.getTime())) return 'Fecha no asignada';
     
-    // Extrae fechas únicas ordenadas cronológicamente
-    const uniqueDates = [...new Set(informe.dias.map(d => d.fecha_evento).filter(Boolean))].sort();
-    if (uniqueDates.length === 0) return 'Fecha no asignada';
+    const formatted = date.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
     
-    const formatDateStr = (str) => {
-      const date = str.length <= 10 ? new Date(str + 'T12:00:00') : new Date(str);
-      return isNaN(date.getTime())
-        ? ''
-        : date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-    };
-
-    if (uniqueDates.length === 1) {
-      return formatDateStr(uniqueDates[0]);
-    }
-    
-    const firstStr = formatDateStr(uniqueDates[0]);
-    const lastStr = formatDateStr(uniqueDates[uniqueDates.length - 1]);
-    if (firstStr && lastStr) {
-      return `${firstStr} - ${lastStr}`;
-    }
-    return firstStr || lastStr || 'Fecha no asignada';
-  })();
+    // Capitalizar la primera letra de cada palabra
+    return formatted.replace(/(^\w|\s\w)/g, m => m.toUpperCase());
+  };
 
   return (
     <div className={`informe-view-layout ${colabOpen ? 'colab-open' : ''}`}>
@@ -267,7 +257,7 @@ export default function InformeView() {
                     <div className="iv-header-right" style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'0.3rem'}}>
                       {informe.version && <div className="iv-badge" style={{background:'var(--success)'}}>v{informe.version}</div>}
                       <div className="iv-badge">#{id}</div>
-                      <p className="iv-date" style={{marginTop:'0.1rem'}}>{fechasEventosText}</p>
+                      <p className="iv-date" style={{marginTop:'0.1rem'}}>{formatFechaDia(dia.fecha_evento)}</p>
                     </div>
                   </div>
                   <div className="iv-divider" />
@@ -574,7 +564,8 @@ function agruparItems(items) {
   const grupos = {};
   for (const item of items) {
     const rawTipo = item.ingrediente_tipo || 'otros';
-    const tipo = TIPO_MAP[rawTipo] || 'otros';
+    const normalized = rawTipo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const tipo = TIPO_MAP[normalized] || 'otros';
     if (!grupos[tipo]) grupos[tipo] = [];
     grupos[tipo].push(item);
   }
