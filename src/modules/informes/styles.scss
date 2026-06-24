@@ -4062,6 +4062,18 @@ body.informes-theme {
       display: none !important;
     }
 
+    /* Ocultar elementos UI explícitamente en caso de specificity externa */
+    .mobile-hamburger-btn,
+    .mobile-drawer-backdrop,
+    .no-print,
+    .actions-bar,
+    .colab-sidebar,
+    .app-header,
+    .app-nav {
+      display: none !important;
+    }
+
+
     /* 3. Resetear contenedores en la ruta al documento */
     #root,
     .reports-root,
@@ -4119,6 +4131,9 @@ body.informes-theme {
       .iv-day-block {
         page-break-inside: auto;
         break-inside: auto;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
       }
     
       .iv-day-header {
@@ -4169,7 +4184,8 @@ body.informes-theme {
       /* ─── IMÁGENES EN PRINT: tamaño completo con descripción ─── */
       .iv-imagenes {
         display: block !important;
-        margin: 1rem 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
     
       .iv-imagen-item {
@@ -4178,11 +4194,12 @@ body.informes-theme {
         max-width: 200px !important;
         border: 1px solid #ccc;
         border-radius: 4px;
-        margin-bottom: 1rem;
+        margin-bottom: 0 !important;
         margin-right: 0.5rem;
         padding: 0;
         overflow: hidden;
       }
+
     
       /* Cuadrado 200x200 al imprimir — imagen completa sin recorte */
       .iv-imagen-item img {
