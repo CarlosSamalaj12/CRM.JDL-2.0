@@ -113,10 +113,12 @@ export default function SettingsUsers() {
         .usr-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.25s; }
         input:checked + .usr-slider { background: #10b981; }
         input:checked + .usr-slider:before { transform: translateX(16px); }
+        @media (max-width: 640px) { .usr-hide-phone { display: none; } }
+        .usr-table { min-width: 600px; }
       `}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
         <div>
           <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>👥 Gestión de Usuarios</div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Administra cuentas, roles y acceso al sistema</div>
@@ -135,7 +137,7 @@ export default function SettingsUsers() {
       </div>
 
       {/* Table */}
-      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', overflowX: 'auto' }}>
         {loading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>Cargando usuarios...</div>
         ) : users.length === 0 ? (
@@ -146,7 +148,7 @@ export default function SettingsUsers() {
               <tr>
                 <th>Usuario</th>
                 <th>Correo</th>
-                <th>Teléfono</th>
+                <th className="usr-hide-phone">Teléfono</th>
                 <th>Rol</th>
                 <th style={{ textAlign: 'center' }}>Activo</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
@@ -174,7 +176,7 @@ export default function SettingsUsers() {
                     </td>
 
                     {/* Phone */}
-                    <td>
+                    <td className="usr-hide-phone">
                       <span style={{ fontSize: '13px', color: '#334155' }}>{u.phone || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>—</span>}</span>
                     </td>
 

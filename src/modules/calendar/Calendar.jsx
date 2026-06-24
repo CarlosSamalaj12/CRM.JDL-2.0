@@ -917,6 +917,7 @@ export default function Calendar() {
                 }}>{item.date.getDate()}</div>
                 {dayEvents.slice(0, 2).map(ev => {
                   const color = STATUS_META[ev.status]?.color || '#64748b';
+                  const abbrev = getStatusAbbreviation(ev.status);
                   return (
                     <div
                       key={ev.id}
@@ -928,10 +929,22 @@ export default function Calendar() {
                         color: color,
                         fontWeight: '600',
                         whiteSpace: 'nowrap',
-                        maxWidth: '100%'
+                        maxWidth: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px'
                       }}
                     >
-                      {ev.name}
+                      <span style={{
+                        display: 'inline-block',
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: color,
+                        flexShrink: 0
+                      }} />
+                      {abbrev && <span style={{ fontWeight: 800, flexShrink: 0 }}>{abbrev}</span>}
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</span>
                     </div>
                   );
                 })}

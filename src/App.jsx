@@ -29,6 +29,13 @@ function CrmProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+function RoleRoute({ children, roles }) {
+  const user = authService.getCurrentUser();
+  if (!user) return <Navigate to="/login" replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to="/calendar" replace />;
+  return children;
+}
+
 function App() {
   return (
     <Router>
@@ -43,22 +50,22 @@ function App() {
                 <Route path="/informes" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/kanban" element={<ProtectedRoute><Kanban /></ProtectedRoute>} />
                 <Route path="/catalog" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Catalog /></ProtectedRoute>} />
-                <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute><ConstructorInforme /></ProtectedRoute>} />
-                <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute><InformeCreator /></ProtectedRoute>} />
-                <Route path="/informe/:id" element={<ProtectedRoute><InformeView /></ProtectedRoute>} />
+                <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><ConstructorInforme /></ProtectedRoute>} />
+                <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><InformeCreator /></ProtectedRoute>} />
+                <Route path="/informe/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><InformeView /></ProtectedRoute>} />
                 <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Configuracion /></ProtectedRoute>} />
               </Route>
 
               <Route path="/" element={<CrmProtectedRoute><MainLayout /></CrmProtectedRoute>}>
                 <Route index element={<Navigate to="/calendar" replace />} />
-                <Route path="calendar" element={<Calendar />} />
-                <Route path="nueva-reserva" element={<Calendar />} />
-                <Route path="reserva/:id" element={<Calendar />} />
-                <Route path="customers" element={<CustomersModule />} />
-                <Route path="reports" element={<ReportsModule />} />
-                <Route path="settings" element={<SettingsMain />} />
+                <Route path="calendar" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
+                <Route path="nueva-reserva" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
+                <Route path="reserva/:id" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
+                <Route path="customers" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><CustomersModule /></RoleRoute>} />
+                <Route path="reports" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><ReportsModule /></RoleRoute>} />
+                <Route path="settings" element={<RoleRoute roles={['admin']}><SettingsMain /></RoleRoute>} />
                 <Route path="support" element={<SupportModule />} />
-                <Route path="search" element={<SearchModule />} />
+                <Route path="search" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SearchModule /></RoleRoute>} />
               </Route>
 
               <Route path="*" element={<Navigate to="/login" replace />} />

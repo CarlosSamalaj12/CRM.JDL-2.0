@@ -17,6 +17,7 @@ export default function Sidebar() {
     name: 'Invitado',
     avatarDataUrl: 'https://ui-avatars.com/api/?name=Guest&background=cbd5e1&color=64748b'
   };
+  const isAdmin = user.role === 'admin';
 
   const handleLogout = () => {
     authService.clearSession();
@@ -876,41 +877,49 @@ export default function Sidebar() {
       </div>
 
       <nav className="lum-sideNav">
-        <button 
-          className={`lum-sideItem ${location.pathname === '/customers' ? 'isActive' : ''}`} 
-          type="button"
-          onClick={() => navigate('/customers')}
-        >
-          <span className="material-symbols-outlined">group</span>
-          <span>Clientes potenciales</span>
-        </button>
+        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/customers' ? 'isActive' : ''}`} 
+            type="button"
+            onClick={() => navigate('/customers')}
+          >
+            <span className="material-symbols-outlined">group</span>
+            <span>Clientes potenciales</span>
+          </button>
+        )}
         
-        <button 
-          className={`lum-sideItem ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
-          type="button" 
-          onClick={() => navigate('/calendar')}
-        >
-          <span className="material-symbols-outlined">calendar_month</span>
-          <span>Calendario</span>
-        </button>
+        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
+            type="button" 
+            onClick={() => navigate('/calendar')}
+          >
+            <span className="material-symbols-outlined">calendar_month</span>
+            <span>Calendario</span>
+          </button>
+        )}
         
-        <button 
-          className={`lum-sideItem ${location.pathname === '/search' ? 'isActive' : ''}`} 
-          type="button"
-          onClick={() => navigate('/search')}
-        >
-          <span className="material-symbols-outlined">search</span>
-          <span>Buscar evento</span>
-        </button>
+        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/search' ? 'isActive' : ''}`} 
+            type="button"
+            onClick={() => navigate('/search')}
+          >
+            <span className="material-symbols-outlined">search</span>
+            <span>Buscar evento</span>
+          </button>
+        )}
         
-        <button 
-          className={`lum-sideItem ${location.pathname === '/reports' ? 'isActive' : ''}`} 
-          type="button"
-          onClick={() => navigate('/reports')}
-        >
-          <span className="material-symbols-outlined">analytics</span>
-          <span>Reportes</span>
-        </button>
+        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/reports' ? 'isActive' : ''}`} 
+            type="button"
+            onClick={() => navigate('/reports')}
+          >
+            <span className="material-symbols-outlined">analytics</span>
+            <span>Reportes</span>
+          </button>
+        )}
 
         <button 
           className={`lum-sideItem ${location.pathname === '/kanban' ? 'isActive' : ''}`} 
@@ -921,16 +930,16 @@ export default function Sidebar() {
           <span>Tablero Ocupación</span>
         </button>
 
-
-        
-        <button 
-          className={`lum-sideItem ${location.pathname === '/settings' ? 'isActive' : ''}`} 
-          type="button"
-          onClick={() => navigate('/settings')}
-        >
-          <span className="material-symbols-outlined">settings</span>
-          <span>Configuraciones</span>
-        </button>
+        {isAdmin && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/settings' ? 'isActive' : ''}`} 
+            type="button"
+            onClick={() => navigate('/settings')}
+          >
+            <span className="material-symbols-outlined">settings</span>
+            <span>Configuraciones</span>
+          </button>
+        )}
       </nav>
 
       <div className="lum-sideCta">

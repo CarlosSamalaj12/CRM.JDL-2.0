@@ -21,7 +21,7 @@ export default function ReportsLayout() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
-  const canManageCatalog = user && ['Admin', 'FrontOffice', 'Vendedor', 'Eventos'].includes(user.rol);
+  const canManageCatalog = user && ['Admin', 'FrontOffice', 'Vendedor'].includes(user.rol);
   const isAdmin = user?.rol === 'Admin';
 
   useEffect(() => {

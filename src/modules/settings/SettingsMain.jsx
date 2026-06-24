@@ -23,6 +23,36 @@ export default function SettingsMain() {
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
 
+  if (!isAdmin) {
+    return (
+      <div className="settings-page">
+        <div className="reports-page-header" style={{ flexShrink: 0 }}>
+          <div className="reports-brand-header">
+            <div className="reports-brand-badge">
+              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+            </div>
+            <div>
+              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-title">Panel de Configuración</div>
+              <div className="reports-subtitle">Solo accessible por administradores</div>
+            </div>
+          </div>
+          <button className="btn-exit" type="button" onClick={() => navigate('/calendar')}>
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+            Volver
+          </button>
+        </div>
+        <div className="settings-page-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+          <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 12 }}>lock</span>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#64748b' }}>Acceso restringido</div>
+            <div style={{ fontSize: 13, marginTop: 4 }}>Solo los administradores pueden acceder a la configuración.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const navItems = [
     {
       id: 'general',
