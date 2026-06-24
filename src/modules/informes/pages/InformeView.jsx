@@ -134,6 +134,44 @@ export default function InformeView() {
 
   return (
     <div className={`informe-view-layout ${colabOpen ? 'colab-open' : ''}`}>
+      <style media="print">{`
+        html, body, body.informes-theme, #root, .reports-root, .app-shell, .informes-shell, main, .informe-view-layout, .informe-print-container {
+          background: #ffffff !important;
+          background-color: #ffffff !important;
+          background-image: none !important;
+          min-height: 0 !important;
+          height: auto !important;
+        }
+        body > :not(#root),
+        #root > :not(.reports-root),
+        .reports-root > :not(main),
+        main > :not(.informe-view-layout),
+        .informe-view-layout > :not(.informe-print-container),
+        .informe-print-container > :not(.iv-documento) {
+          display: none !important;
+        }
+        .mobile-hamburger-btn,
+        .mobile-drawer-backdrop,
+        .no-print,
+        .actions-bar,
+        .colab-sidebar,
+        .app-header,
+        .app-nav {
+          display: none !important;
+        }
+        .iv-documento {
+          box-shadow: none !important;
+          padding: 0 !important;
+          margin: 0 auto !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          height: auto !important;
+          min-height: 0 !important;
+          border: none !important;
+          background: #ffffff !important;
+          background-color: #ffffff !important;
+        }
+      `}</style>
       <div className="informe-print-container">
         {/* ─── BARRA DE ACCIONES (no se imprime) ─── */}
         <div className="no-print actions-bar">
