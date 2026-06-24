@@ -191,15 +191,16 @@ export default function ColaboracionPanel({ informeId, diaId }) {
     if (input) {
       const text = input.value;
       const atIdx = text.lastIndexOf('@');
+      let newText = text;
       if (atIdx >= 0) {
-        const newText = text.substring(0, atIdx) + `@${user.nombre} `;
+        newText = text.substring(0, atIdx);
         setNuevoComentario(newText);
       }
       // Mantener el focus en el input después de seleccionar
       setTimeout(() => {
         input.focus();
         // Mover el cursor al final
-        const len = input.value.length;
+        const len = newText.length;
         input.setSelectionRange(len, len);
       }, 0);
     }
