@@ -66,12 +66,11 @@ export default function ReportsLayout() {
           <div className="mobile-drawer-content" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-drawer-header">
               <div className="drawer-logo-wrap">
-                <img src="/logo.png" alt="Logo" className="drawer-logo-img" />
+                <div className="drawer-logo-badge">
+                  <img src="/Oficial_JDL_blanco.png" alt="Logo" className="drawer-logo-img" />
+                </div>
                 <span className="drawer-logo-text">Sistema Informes</span>
               </div>
-              <button className="close-drawer-btn" onClick={() => setIsMobileOpen(false)} aria-label="Cerrar menú">
-                <span className="material-symbols-outlined">close</span>
-              </button>
             </div>
 
             <nav className="mobile-drawer-nav">
@@ -350,20 +349,22 @@ export default function ReportsLayout() {
             position: fixed;
             inset: 0;
             background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             z-index: 20000;
             display: flex;
             justify-content: flex-start;
           }
 
           .mobile-drawer-content {
-            width: 290px;
+            width: 256px;
             height: 100%;
             background: #0b1c30;
             box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
             padding: 20px 16px;
-            gap: 16px;
+            gap: 10px;
             overflow-y: auto;
             animation: slideInLeft 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
           }
@@ -385,9 +386,21 @@ export default function ReportsLayout() {
             align-items: center;
             gap: 10px;
           }
+          .drawer-logo-badge {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+          }
           .drawer-logo-img {
-            width: 32px;
-            height: 32px;
+            width: 24px;
+            height: 24px;
             object-fit: contain;
           }
           .drawer-logo-text {
@@ -395,30 +408,11 @@ export default function ReportsLayout() {
             font-size: 16px;
             font-weight: 800;
           }
-          .close-drawer-btn {
-            background: transparent !important;
-            border: none !important;
-            color: #94a3b8 !important;
-            cursor: pointer;
-            padding: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: none !important;
-            outline: none !important;
-          }
-          .close-drawer-btn span {
-            font-size: 24px;
-            color: #94a3b8 !important;
-          }
-          .close-drawer-btn:hover, .close-drawer-btn:hover span {
-            color: #ffffff !important;
-          }
 
           .mobile-drawer-nav {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 3px;
           }
           .drawer-nav-item {
             display: flex !important;
@@ -426,11 +420,11 @@ export default function ReportsLayout() {
             justify-content: flex-start !important;
             gap: 12px !important;
             width: 100% !important;
-            padding: 12px !important;
+            padding: 8px 12px !important;
             background: transparent !important;
             border: none !important;
             color: #cbd5e1 !important;
-            font-size: 14.5px !important;
+            font-size: 14px !important;
             font-weight: 700 !important;
             border-radius: 8px !important;
             cursor: pointer !important;
@@ -644,15 +638,15 @@ export default function ReportsLayout() {
             background: transparent !important;
             border: none !important;
             color: #94a3b8 !important;
-            font-size: 12px;
-            font-weight: 700;
+            font-size: 10.5px;
+            font-weight: 600;
             cursor: pointer;
             padding: 6px;
             box-shadow: none !important;
             outline: none !important;
           }
           .drawer-footer-btn span {
-            font-size: 18px;
+            font-size: 15px;
             color: #94a3b8 !important;
           }
           .drawer-footer-btn:hover {
