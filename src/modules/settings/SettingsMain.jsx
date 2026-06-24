@@ -6,6 +6,7 @@ import SettingsSalones from './SettingsSalones';
 import SettingsGlobalGoals from './SettingsGlobalGoals';
 import UserModal from './UserModal';
 import SettingsServicios from './SettingsServicios';
+import SettingsPlantillas from './SettingsPlantillas';
 import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
@@ -49,6 +50,19 @@ export default function SettingsMain() {
       icon: (
         <svg viewBox="0 0 24 24">
           <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+        </svg>
+      ),
+    },
+    {
+      id: 'plantillas',
+      label: 'Plantillas',
+      icon: (
+        <svg viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
         </svg>
       ),
     },
@@ -169,6 +183,32 @@ export default function SettingsMain() {
         </div>
         <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <SettingsServicios inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'plantillas') {
+    return (
+      <div className="settings-page">
+        <div className="reports-page-header" style={{ flexShrink: 0 }}>
+          <div className="reports-brand-header">
+            <div className="reports-brand-badge">
+              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+            </div>
+            <div>
+              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-title">Panel de Configuración</div>
+              <div className="reports-subtitle">Plantillas rápidas de servicios para cotizaciones</div>
+            </div>
+          </div>
+          <button className="btn-exit" type="button" onClick={closeView}>
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+            Volver
+          </button>
+        </div>
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <SettingsPlantillas inline onBack={closeView} />
         </div>
       </div>
     );
@@ -411,6 +451,49 @@ export default function SettingsMain() {
                       <h3 className="settings-bento-title">Servicios, Categorías y Subcategorías</h3>
                       <p className="settings-bento-desc">
                         CRUD completo de servicios con importación/exportación CSV, más administración de categorías y subcategorías.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                </div>
+              </>
+            )}
+
+            {/* ── TAB: Plantillas de Cotización ── */}
+            {activeTab === 'plantillas' && (
+              <>
+                <div className="settings-hero-section">
+                  <div className="settings-category-header">
+                    <h2 className="settings-category-title">Plantillas de Cotización</h2>
+                    <p className="settings-category-subtitle">
+                      Crea y administra plantillas rápidas con servicios predefinidos para agilizar las cotizaciones
+                    </p>
+                  </div>
+                  <div className="settings-storytelling-card">
+                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Productividad comercial</span>
+                    <p className="settings-story-text">
+                      Las <strong className="highlight-blue">plantillas rápidas</strong> te permiten precargar conjuntos de servicios
+                      recurrentes (paquetes, banquetes, montajes) en una sola selección.
+                      Crea una plantilla, asígnale un nombre y estará disponible al hacer una cotización.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="settings-bento-card" onClick={() => openView('plantillas')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                      </svg>
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Plantillas de Cotización</h3>
+                      <p className="settings-bento-desc">
+                        Administra las plantillas de servicios rápidos que aparecen en la sección de cotizaciones.
                       </p>
                     </div>
                   </div>

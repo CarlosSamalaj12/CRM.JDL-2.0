@@ -21,6 +21,20 @@ export default function SettingsServicios({ inline, onBack }) {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState(emptyCategory);
 
+  // Search
+  const [serviceSearch, setServiceSearch] = useState('');
+
+  const filteredServices = useMemo(() => {
+    if (!serviceSearch.trim()) return services;
+    const q = serviceSearch.trim().toLowerCase();
+    return services.filter(s =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.category || '').toLowerCase().includes(q) ||
+      (s.subcategory || '').toLowerCase().includes(q) ||
+      String(s.price || '').includes(q)
+    );
+  }, [services, serviceSearch]);
+
   // Subcategory modal state
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [subcategoryDraft, setSubcategoryDraft] = useState(emptySubcategory);
@@ -371,10 +385,32 @@ export default function SettingsServicios({ inline, onBack }) {
             </button>
           </div>
 
+          <div style={{ marginBottom: '8px', position: 'relative', flexShrink: 0 }}>
+            <input
+              type="text"
+              value={serviceSearch}
+              onChange={e => setServiceSearch(e.target.value)}
+              placeholder="Buscar servicio por nombre, categoría, subcategoría..."
+              style={{ width: '100%', padding: '8px 12px 8px 34px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#0f172a', background: '#fff', outline: 'none', boxSizing: 'border-box' }}
+            />
+            <svg style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            {serviceSearch && (
+              <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: '#94a3b8' }}>
+                {filteredServices.length} de {services.length}
+              </span>
+            )}
+          </div>
+
           <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
             {services.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
                 No hay servicios registrados. Crea el primer servicio.
+              </div>
+            ) : filteredServices.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+                Ningún servicio coincide con "{serviceSearch}".
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
@@ -386,7 +422,7 @@ export default function SettingsServicios({ inline, onBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {services.map((svc, i) => (
+                  {filteredServices.map((svc, i) => (
                     <tr key={svc.id || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '7px 10px', fontWeight: 700, color: '#0f172a' }}>{svc.name}</td>
                       <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>Q {Number(svc.price || 0).toFixed(2)}</td>

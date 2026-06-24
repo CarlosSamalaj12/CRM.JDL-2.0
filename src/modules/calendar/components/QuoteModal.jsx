@@ -3363,9 +3363,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <option value="">— Sin plantilla —</option>
                 <option value="contrato_corp">Jardines (Corporativo)</option>
                 <option value="contrato_hosp">Servicios de Hospitalidad</option>
-                {quickTemplates.filter(t => t.id !== 'contrato_corp' && t.id !== 'tpl-contrato-corp').map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
               </select>
             </div>
             <div style={{ flex: '1 1 140px' }}>
@@ -3956,7 +3953,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                         </td>
                                         <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{moneyGT(lineTotal, quote.currency)}</td>
                                         <td style={{ textAlign: 'center' }}>
-                                          <button onClick={() => removeServiceItem(item.rowId)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '2px 4px', lineHeight: 1 }}>Eliminar</button>
+                                          <button onClick={() => removeServiceItem(item.rowId)} title="Eliminar servicio" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
+                                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#ef4444' }}>delete</span>
+                                          </button>
                                         </td>
                                       </tr>
                                     );
