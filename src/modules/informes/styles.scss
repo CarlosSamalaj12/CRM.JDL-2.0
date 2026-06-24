@@ -3155,22 +3155,24 @@ body.informes-theme {
   .colab-tabs {
     display: flex;
       border-bottom: 1px solid var(--border);
-      padding: 0.25rem 0.5rem;
-      gap: 0.25rem;
+      padding: 0.25rem 0.3rem;
+      gap: 0.15rem;
       background: var(--bg-elevated);
   }
   
   .colab-tab {
-    flex: 1;
-      padding: 0.4rem 0.5rem;
-      font-size: 0.72rem;
+    flex: auto;
+      padding: 0.4rem 0.3rem;
+      font-size: 0.68rem;
       background: transparent;
       color: var(--text-muted);
       border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.3rem;
+      gap: 0.15rem;
+      min-width: 0;
+      white-space: nowrap;
   }
   
   .colab-tab::after {
@@ -3186,9 +3188,9 @@ body.informes-theme {
   .colab-tab-count {
     background: var(--primary-bg);
       color: var(--primary);
-      padding: 0.05rem 0.4rem;
+      padding: 0.02rem 0.25rem;
       border-radius: var(--radius-full);
-      font-size: 0.65rem;
+      font-size: 0.62rem;
       font-weight: 700;
   }
   
