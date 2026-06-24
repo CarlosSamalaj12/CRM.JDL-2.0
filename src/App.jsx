@@ -24,6 +24,12 @@ import { AuthProvider } from './modules/informes/context/AuthContext';
 import { ToastProvider } from './modules/informes/context/ToastContext';
 import { SocketProvider } from './modules/informes/context/SocketContext';
 
+function getHomePath(user) {
+  if (!user) return '/login';
+  if (['admin', 'vendedor', 'recepcionista'].includes(user.role)) return '/calendar';
+  return '/kanban';
+}
+
 function CrmProtectedRoute({ children }) {
   const user = authService.getCurrentUser();
   return user ? children : <Navigate to="/login" replace />;
@@ -32,8 +38,13 @@ function CrmProtectedRoute({ children }) {
 function RoleRoute({ children, roles }) {
   const user = authService.getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/calendar" replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to={getHomePath(user)} replace />;
   return children;
+}
+
+function HomeRedirect() {
+  const user = authService.getCurrentUser();
+  return <Navigate to={getHomePath(user)} replace />;
 }
 
 function App() {
@@ -57,7 +68,7 @@ function App() {
               </Route>
 
               <Route path="/" element={<CrmProtectedRoute><MainLayout /></CrmProtectedRoute>}>
-                <Route index element={<Navigate to="/calendar" replace />} />
+                <Route index element={<HomeRedirect />} />
                 <Route path="calendar" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
                 <Route path="nueva-reserva" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
                 <Route path="reserva/:id" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
