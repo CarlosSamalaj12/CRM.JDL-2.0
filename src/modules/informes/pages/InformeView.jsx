@@ -256,8 +256,8 @@ export default function InformeView() {
                     </div>
                     <div className="iv-header-right" style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'0.3rem'}}>
                       {informe.version && <div className="iv-badge" style={{background:'var(--success)'}}>v{informe.version}</div>}
-                      <div className="iv-badge">#{id}</div>
-                      <p className="iv-date" style={{marginTop:'0.1rem'}}>{formatFechaDia(informe.FechaEvento)}</p>
+                      <div className="iv-badge">#{informe.id_ocupacion}</div>
+                      <p className="iv-date" style={{marginTop:'0.1rem'}}>DÍA {index + 1} {formatFechaDia(dia.fecha_evento)}</p>
                     </div>
                   </div>
                   <div className="iv-divider" />
