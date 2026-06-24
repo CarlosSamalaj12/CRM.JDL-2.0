@@ -2493,7 +2493,11 @@ async function writeStateToTables(state) {
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     await conn.commit();
   } catch (error) {
-    console.error("Error original en writeStateToTables:", error);
+    const cleanError = { ...error };
+    if (cleanError.sql && typeof cleanError.sql === "string" && cleanError.sql.length > 1000) {
+      cleanError.sql = cleanError.sql.slice(0, 1000) + "... [SQL Truncado por tamaño]";
+    }
+    console.error("Error original en writeStateToTables:", cleanError);
     if (conn) {
       try {
         await conn.query("SET FOREIGN_KEY_CHECKS = 1");
@@ -3326,7 +3330,11 @@ app.put("/api/state", async (req, res) => {
 
     return res.json({ ok: true });
   } catch (error) {
-    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error crítico al escribir en MariaDB:`, error);
+    const cleanError = { ...error };
+    if (cleanError.sql && typeof cleanError.sql === "string" && cleanError.sql.length > 1000) {
+      cleanError.sql = cleanError.sql.slice(0, 1000) + "... [SQL Truncado por tamaño]";
+    }
+    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error crítico al escribir en MariaDB:`, cleanError);
     return res.status(500).json({ message: "No se pudo guardar en tablas reales.", detail: error.message });
   }
 });

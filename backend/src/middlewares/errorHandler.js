@@ -26,7 +26,11 @@ export function errorHandler(err, req, res, _next) {
   const isDev = process.env.NODE_ENV !== 'production';
 
   if (!err.isOperational) {
-    console.error('[FATAL] Error no operacional:', err);
+    const cleanErr = { ...err };
+    if (cleanErr.sql && typeof cleanErr.sql === "string" && cleanErr.sql.length > 1000) {
+      cleanErr.sql = cleanErr.sql.slice(0, 1000) + "... [SQL Truncado por tamaño]";
+    }
+    console.error('[FATAL] Error no operacional:', cleanErr);
   } else if (isDev) {
     console.error(`[${code}] ${err.message}`);
   }
