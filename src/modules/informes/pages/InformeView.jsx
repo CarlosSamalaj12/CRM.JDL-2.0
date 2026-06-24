@@ -218,22 +218,22 @@ export default function InformeView() {
         {/* ─── BARRA DE ACCIONES (no se imprime) ─── */}
         <div className="no-print actions-bar">
           <button onClick={() => navigate(-1)} className="btn-secondary" data-tooltip="Volver">
-            <IconArrowLeft size={16} /> Volver
+            <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
           </button>
           <button onClick={handleExportPDF} className="btn-success" disabled={pdfLoading} data-tooltip="Descargar como PDF">
-            <IconDownload size={16} /> {pdfLoading ? 'Generando...' : 'Exportar PDF'}
+            <IconDownload size={16} /> <span className="btn-text">{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
           </button>
           <button onClick={handlePrint} className="btn-primary" data-tooltip="Imprimir informe">
-            <IconPrinter size={16} /> Imprimir
+            <IconPrinter size={16} /> <span className="btn-text">Imprimir</span>
           </button>
           <button onClick={() => setColabOpen(!colabOpen)}
             className={`btn-secondary ${colabOpen ? 'colab-toggle-active' : ''}`}
             data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}>
-            <IconMessageCircle size={16} /> Colaborar
+            <IconMessageCircle size={16} /> <span className="btn-text">Colaborar</span>
           </button>
           {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
             <button onClick={() => navigate(`/informe/pos/${informe.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
-              <IconFileText size={16} /> Editar
+              <IconFileText size={16} /> <span className="btn-text">Editar</span>
             </button>
           )}
         </div>
