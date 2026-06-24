@@ -4037,89 +4037,69 @@ body.informes-theme {
      ═══════════════════════════════════════════════ */
   
   @media print {
-    html, body {
-        background: white !important;
-        color: black !important;
-        font-size: 10pt;
-        height: auto !important;
-        min-height: 0 !important;
-        overflow: visible !important;
-      }
+    /* 1. Resetear el body y el html, incluyendo body.informes-theme que tiene specificity importante */
+    html, body, body.informes-theme {
+      background: white !important;
+      background-color: white !important;
+      background-image: none !important;
+      color: black !important;
+      font-size: 10pt;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
 
-      /* Eliminar alturas fijas y fondos de color que causan páginas en blanco */
-      #root,
-      .reports-root,
-      .app-shell,
-      .informes-shell,
-      main,
-      .lum-main,
-      .lum-main > div,
-      .informe-view-layout,
-      .informe-print-container,
-      .app.lum-calendar {
-        height: auto !important;
-        min-height: 0 !important;
-        max-height: none !important;
-        overflow: visible !important;
-        background: white !important;
-        background-image: none !important;
-      }
-      
-      /* Ocultar navegación y UI de la app */
-      .no-print, .lum-sidebar, .topbar, .legend, .sidebar, .sidebar-content,
-      .app-header, .app-nav, .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-ghost,
-      .colab-sidebar, .colab-panel, .colab-tabs, .colab-content, .colab-actions,
-      .pos-bottom-actions, .pos-modal-overlay, .toast-container,
-      .notif-bell-wrapper, .notif-dropdown,
-      .notas-popover, .mobile-hamburger-btn, .mobile-drawer-backdrop,
-      button:not(.iv-print-safe), .actions-bar {
-        display: none !important;
-      }
-      
-      .app.lum-calendar {
-        display: block !important;
-        min-height: auto !important;
-        overflow: visible !important;
-      }
-    
-      .lum-main {
-        display: block !important;
-        min-height: auto !important;
-        overflow: visible !important;
-      }
+    /* 2. Ocultar absolutamente todo excepto la ruta directa al documento formal */
+    body > :not(#root),
+    #root > :not(.reports-root),
+    .reports-root > :not(main),
+    main > :not(.informe-view-layout),
+    .informe-view-layout > :not(.informe-print-container),
+    .informe-print-container > :not(.iv-documento) {
+      display: none !important;
+    }
 
-      .lum-main > div {
-        overflow: visible !important;
-      }
-    
-      .informe-view-layout {
-        display: block !important;
-      }
-    
-      .informe-view-layout.colab-open .informe-print-container {
-        max-width: 100% !important;
-      }
-    
-      .informe-print-container {
-        padding: 0 !important;
-      }
-    
-      .iv-documento {
-        box-shadow: none !important;
-        padding: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        border: none !important;
-        background: white !important;
-        font-family: 'Georgia', 'Times New Roman', serif !important;
-      }
-    
-      .app-shell {
-        padding: 0 !important;
-        max-width: none !important;
-        min-height: 0 !important;
-        height: auto !important;
-      }
+    /* 3. Resetear contenedores en la ruta al documento */
+    #root,
+    .reports-root,
+    .app-shell,
+    .informes-shell,
+    main,
+    .informe-view-layout,
+    .informe-print-container {
+      display: block !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: white !important;
+      background-color: white !important;
+      background-image: none !important;
+      overflow: visible !important;
+    }
+
+    /* 4. Estilos específicos para el documento al imprimir */
+    .iv-documento {
+      box-shadow: none !important;
+      padding: 0 !important;
+      margin: 0 auto !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      min-height: 0 !important;
+      border: none !important;
+      background: white !important;
+      background-color: white !important;
+      font-family: 'Georgia', 'Times New Roman', serif !important;
+      overflow: visible !important;
+    }
+
     
       .iv-title {
         color: #1e3a8a !important;
