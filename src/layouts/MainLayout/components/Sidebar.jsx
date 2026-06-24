@@ -15,9 +15,12 @@ export default function Sidebar() {
 
   const user = authService.getCurrentUser() || {
     name: 'Invitado',
-    avatarDataUrl: 'https://ui-avatars.com/api/?name=Guest&background=cbd5e1&color=64748b'
+    avatarDataUrl: 'https://ui-avatars.com/api/?name=Guest&background=cbd5e1&color=64748b',
+    role: 'vendedor'
   };
-  const isAdmin = user.role === 'admin';
+  const userRole = String(user.role || '').trim().toLowerCase();
+  const isAdmin = userRole === 'admin';
+  const isCrmUser = userRole !== 'eventos' && userRole !== 'coordinador';
 
   const handleLogout = () => {
     authService.clearSession();
@@ -138,34 +141,38 @@ export default function Sidebar() {
             </div>
 
             <nav className="mobile-drawer-nav">
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/customers' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/customers'); }}
-              >
-                <span className="material-symbols-outlined">group</span>
-                <span>Clientes potenciales</span>
-              </button>
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/calendar'); }}
-              >
-                <span className="material-symbols-outlined">calendar_month</span>
-                <span>Calendario</span>
-              </button>
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/search' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/search'); }}
-              >
-                <span className="material-symbols-outlined">search</span>
-                <span>Buscar evento</span>
-              </button>
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/reports' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/reports'); }}
-              >
-                <span className="material-symbols-outlined">analytics</span>
-                <span>Reportes</span>
-              </button>
+              {isCrmUser && (
+                <>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/customers' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/customers'); }}
+                  >
+                    <span className="material-symbols-outlined">group</span>
+                    <span>Clientes potenciales</span>
+                  </button>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/calendar'); }}
+                  >
+                    <span className="material-symbols-outlined">calendar_month</span>
+                    <span>Calendario</span>
+                  </button>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/search' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/search'); }}
+                  >
+                    <span className="material-symbols-outlined">search</span>
+                    <span>Buscar evento</span>
+                  </button>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/reports' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/reports'); }}
+                  >
+                    <span className="material-symbols-outlined">analytics</span>
+                    <span>Reportes</span>
+                  </button>
+                </>
+              )}
               <button 
                 className={`drawer-nav-item ${location.pathname === '/kanban' ? 'isActive' : ''}`} 
                 onClick={() => { setIsMobileOpen(false); navigate('/kanban'); }}
@@ -174,13 +181,15 @@ export default function Sidebar() {
                 <span>Tablero Ocupación</span>
               </button>
 
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/settings'); }}
-              >
-                <span className="material-symbols-outlined">settings</span>
-                <span>Configuraciones</span>
-              </button>
+              {isAdmin && (
+                <button 
+                  className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
+                  onClick={() => { setIsMobileOpen(false); navigate('/settings'); }}
+                >
+                  <span className="material-symbols-outlined">settings</span>
+                  <span>Configuraciones</span>
+                </button>
+              )}
             </nav>
 
             <div className="mobile-drawer-profile">
@@ -189,7 +198,7 @@ export default function Sidebar() {
                 <div className="profile-text">
                   <span className="profile-name">{user.name}</span>
                   <span className="profile-role">
-                    {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : user.role === 'eventos' ? 'Eventos' : user.role === 'coordinador' ? 'Coordinador' : 'Vendedor'}
+                    {userRole === 'admin' ? 'Administrador' : ['recepcionista', 'frontoffice', 'front_office'].includes(userRole) ? 'Recepcionista' : userRole === 'eventos' ? 'Eventos' : userRole === 'coordinador' ? 'Coordinador' : 'Vendedor'}
                   </span>
                 </div>
               </div>
@@ -867,6 +876,13 @@ export default function Sidebar() {
           }
         `}</style>
 
+      {
+        (() => {
+          const userRole = (user.role || '').toLowerCase();
+          const isCrmUser = !['eventos', 'coordinador'].includes(userRole);
+          return null;
+        })()
+      }
       <div className="lum-sidebarBrand">
         <div className="logo">
           <img src="/Oficial_JDL_blanco.png" alt="Logo Jardines CRM" className="topbarLogoImg" />
@@ -877,7 +893,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="lum-sideNav">
-        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+        {isCrmUser && (
           <button 
             className={`lum-sideItem ${location.pathname === '/customers' ? 'isActive' : ''}`} 
             type="button"
@@ -888,7 +904,7 @@ export default function Sidebar() {
           </button>
         )}
         
-        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+        {isCrmUser && (
           <button 
             className={`lum-sideItem ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
             type="button" 
@@ -899,7 +915,7 @@ export default function Sidebar() {
           </button>
         )}
         
-        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+        {isCrmUser && (
           <button 
             className={`lum-sideItem ${location.pathname === '/search' ? 'isActive' : ''}`} 
             type="button"
@@ -910,7 +926,7 @@ export default function Sidebar() {
           </button>
         )}
         
-        {user.role !== 'eventos' && user.role !== 'coordinador' && (
+        {isCrmUser && (
           <button 
             className={`lum-sideItem ${location.pathname === '/reports' ? 'isActive' : ''}`} 
             type="button"
@@ -942,13 +958,15 @@ export default function Sidebar() {
         )}
       </nav>
 
-      <div className="lum-sideCta">
-        <button 
-          className="btnPrimary" 
-          type="button"
-          onClick={() => navigate('/nueva-reserva')}
-        >+ Nueva reserva</button>
-      </div>
+      {isCrmUser && (
+        <div className="lum-sideCta">
+          <button 
+            className="btnPrimary" 
+            type="button"
+            onClick={() => navigate('/nueva-reserva')}
+          >+ Nueva reserva</button>
+        </div>
+      )}
 
       {/* SECCION DE PERFIL */}
       <div className="sideUserProfile">
@@ -966,7 +984,7 @@ export default function Sidebar() {
           <div className="sideUserName">
             <span style={{ color: '#f8fafc', fontSize: '12px', fontWeight: '600' }}>{user.name}</span>
             <span style={{ color: '#94a3b8', fontSize: '10px' }}>
-              {user.role === 'admin' ? 'Administrador' : user.role === 'recepcionista' ? 'Recepcionista' : user.role === 'eventos' ? 'Eventos' : user.role === 'coordinador' ? 'Coordinador' : 'Vendedor'}
+              {userRole === 'admin' ? 'Administrador' : ['recepcionista', 'frontoffice', 'front_office'].includes(userRole) ? 'Recepcionista' : userRole === 'eventos' ? 'Eventos' : userRole === 'coordinador' ? 'Coordinador' : 'Vendedor'}
             </span>
           </div>
         </div>

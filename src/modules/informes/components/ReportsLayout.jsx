@@ -23,6 +23,7 @@ export default function ReportsLayout() {
 
   const canManageCatalog = user && ['Admin', 'FrontOffice', 'Vendedor'].includes(user.rol);
   const isAdmin = user?.rol === 'Admin';
+  const isCrmUser = user && ['Admin', 'FrontOffice', 'Vendedor'].includes(user.rol);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -74,36 +75,40 @@ export default function ReportsLayout() {
             </div>
 
             <nav className="mobile-drawer-nav">
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/customers' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/customers'); }}
-              >
-                <span className="material-symbols-outlined">group</span>
-                <span>Clientes potenciales</span>
-              </button>
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/calendar'); }}
-              >
-                <span className="material-symbols-outlined">calendar_month</span>
-                <span>Calendario</span>
-              </button>
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/search' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/search'); }}
-              >
-                <span className="material-symbols-outlined">search</span>
-                <span>Buscar evento</span>
-              </button>
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/reports' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/reports'); }}
-              >
-                <span className="material-symbols-outlined">analytics</span>
-                <span>Reportes</span>
-              </button>
-              
-              <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '8px 0' }} />
+              {isCrmUser && (
+                <>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/customers' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/customers'); }}
+                  >
+                    <span className="material-symbols-outlined">group</span>
+                    <span>Clientes potenciales</span>
+                  </button>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/calendar'); }}
+                  >
+                    <span className="material-symbols-outlined">calendar_month</span>
+                    <span>Calendario</span>
+                  </button>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/search' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/search'); }}
+                  >
+                    <span className="material-symbols-outlined">search</span>
+                    <span>Buscar evento</span>
+                  </button>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/reports' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/reports'); }}
+                  >
+                    <span className="material-symbols-outlined">analytics</span>
+                    <span>Reportes</span>
+                  </button>
+                  
+                  <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '8px 0' }} />
+                </>
+              )}
               
               <button 
                 className={`drawer-nav-item ${location.pathname === '/informes' ? 'isActive' : ''}`} 
@@ -139,15 +144,18 @@ export default function ReportsLayout() {
                 </>
               )}
               
-              <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '8px 0' }} />
-              
-              <button 
-                className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
-                onClick={() => { setIsMobileOpen(false); navigate('/settings'); }}
-              >
-                <span className="material-symbols-outlined">settings_applications</span>
-                <span>Configuraciones CRM</span>
-              </button>
+              {isCrmUser && (
+                <>
+                  <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '8px 0' }} />
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/settings'); }}
+                  >
+                    <span className="material-symbols-outlined">settings_applications</span>
+                    <span>Configuraciones CRM</span>
+                  </button>
+                </>
+              )}
             </nav>
 
             <div className="mobile-drawer-profile">
@@ -286,16 +294,18 @@ export default function ReportsLayout() {
           </button>
           <SearchBar />
           <NotificationBell />
-          <button
-            type="button"
-            onClick={handleExitReports}
-            className="btn-exit"
-            data-tooltip="Volver al CRM"
-          >
-            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
-              <path d="M4 4l10 10M14 4l-10 10" />
-            </svg>
-          </button>
+          {isCrmUser && (
+            <button
+              type="button"
+              onClick={handleExitReports}
+              className="btn-exit"
+              data-tooltip="Volver al CRM"
+            >
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
+                <path d="M4 4l10 10M14 4l-10 10" />
+              </svg>
+            </button>
+          )}
 
         </div>
       </header>
