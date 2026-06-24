@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import authService from '../../../services/authService';
 
 const AuthContext = createContext(null);
@@ -44,14 +44,14 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(initialSession.token);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const syncSession = () => {
-      const next = getSessionSnapshot();
-      setToken(next.token);
-      setUser(next.user);
-      setLoading(false);
-    };
+  const syncSession = useCallback(() => {
+    const next = getSessionSnapshot();
+    setToken(next.token);
+    setUser(next.user);
+    setLoading(false);
+  }, []);
 
+  useEffect(() => {
     syncSession();
     window.addEventListener('storage', syncSession);
     window.addEventListener('focus', syncSession);
@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
       window.removeEventListener('storage', syncSession);
       window.removeEventListener('focus', syncSession);
     };
-  }, []);
+  }, [syncSession]);
 
   const login = async () => {
     throw new Error('Use el login principal del CRM para acceder a Informes.');
@@ -92,7 +92,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, register, authFetch }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, register, authFetch, syncSession }}>
       {children}
     </AuthContext.Provider>
   );

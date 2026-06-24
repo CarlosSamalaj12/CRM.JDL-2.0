@@ -26,7 +26,13 @@ import { SocketProvider } from './modules/informes/context/SocketContext';
 
 function getHomePath(user) {
   if (!user) return '/login';
-  if (['admin', 'vendedor', 'recepcionista'].includes(user.role)) return '/calendar';
+  const role = String(user.role || '').trim().toLowerCase();
+  if (['admin', 'vendedor', 'recepcionista', 'frontoffice', 'front_office'].includes(role)) {
+    return '/calendar';
+  }
+  if (['eventos', 'coordinador'].includes(role)) {
+    return '/kanban';
+  }
   return '/kanban';
 }
 
@@ -38,7 +44,13 @@ function CrmProtectedRoute({ children }) {
 function RoleRoute({ children, roles }) {
   const user = authService.getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to={getHomePath(user)} replace />;
+  const userRole = String(user.role || '').trim().toLowerCase();
+  const normalizedRoles = (roles || []).map(r => String(r).trim().toLowerCase());
+  if (normalizedRoles.includes('recepcionista')) {
+    if (!normalizedRoles.includes('frontoffice')) normalizedRoles.push('frontoffice');
+    if (!normalizedRoles.includes('front_office')) normalizedRoles.push('front_office');
+  }
+  if (!normalizedRoles.includes(userRole)) return <Navigate to={getHomePath(user)} replace />;
   return children;
 }
 

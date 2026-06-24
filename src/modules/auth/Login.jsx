@@ -3,20 +3,35 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
 import firebaseService from '../../services/firebase';
+import { useAuth } from '../informes/context/AuthContext';
+
+function getHomePath(user) {
+  if (!user) return '/login';
+  const role = String(user.role || '').trim().toLowerCase();
+  if (['admin', 'vendedor', 'recepcionista', 'frontoffice', 'front_office'].includes(role)) {
+    return '/calendar';
+  }
+  if (['eventos', 'coordinador'].includes(role)) {
+    return '/kanban';
+  }
+  return '/kanban';
+}
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
+  const { syncSession } = useAuth();
 
   useEffect(() => {
     toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
   }, []);
 
-  // Redirect to calendar immediately if session is already active
+  // Redirect to correct home path immediately if session is already active
   useEffect(() => {
-    if (authService.getCurrentUser()) {
-      navigate('/calendar');
+    const user = authService.getCurrentUser();
+    if (user) {
+      navigate(getHomePath(user));
     }
   }, [navigate]);
 
@@ -35,7 +50,9 @@ export default function Login() {
 
         document.activeElement?.blur();
         toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
-        setTimeout(() => navigate('/calendar'), 500);
+        syncSession();
+        const homePath = getHomePath(localUser);
+        setTimeout(() => navigate(homePath), 500);
       } catch (err) {
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
@@ -52,7 +69,7 @@ export default function Login() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, syncSession]);
 
   // Handle Google Login via Firebase
   const handleGoogleLogin = async () => {
@@ -70,7 +87,9 @@ export default function Login() {
       document.activeElement?.blur();
       if (loadingToast) toast.dismiss(loadingToast);
       toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
-      setTimeout(() => navigate('/calendar'), 500);
+      syncSession();
+      const homePath = getHomePath(localUser);
+      setTimeout(() => navigate(homePath), 500);
     } catch (err) {
       console.error('Google login error detail:', err);
       if (loadingToast) toast.dismiss(loadingToast);
