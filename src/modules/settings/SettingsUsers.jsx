@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 
 const ROLE_LABELS = {
@@ -61,6 +62,34 @@ export default function SettingsUsers() {
       toast.success('Estado actualizado correctamente.', { duration: 1500 });
     } catch (e) {
       toast.error(e.message);
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Eliminar usuario",
+      text: `¿Estás seguro de eliminar permanentemente a "${userName}"?`,
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#94a3b8",
+      background: "#f8fbff",
+      color: "#10243b",
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const currentState = await loadCrmState();
+      const currentUsers = currentState.users || [];
+      const updatedUsers = currentUsers.filter(u => u.id !== userId);
+      await saveCrmState({ ...currentState, users: updatedUsers });
+      setUsers(updatedUsers);
+      window.dispatchEvent(new CustomEvent('usersUpdated'));
+      toast.success('Usuario eliminado permanentemente.', { duration: 2000 });
+    } catch (e) {
+      toast.error(e.message || 'Error al eliminar usuario');
     }
   };
 
@@ -175,6 +204,15 @@ export default function SettingsUsers() {
                         }}
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0ea5e9' }}>edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="usr-icon-btn"
+                        title="Eliminar usuario"
+                        style={{ marginLeft: '4px' }}
+                        onClick={() => handleDeleteUser(u.id, u.fullName || u.name)}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#ef4444' }}>delete</span>
                       </button>
                     </td>
                   </tr>

@@ -1,14 +1,12 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   createInforme, createInformeDia, saveDiaMenuDetalle,
   getPlatillos, getPlatilloDetalle, fetchEventById,
   getIngredientes, getMenus, getOpcionesIngrediente, getCategorias,
-  getComentarios, createComentario,
-  getHistorial, getUsuarios,
+  getHistorial,
   getInformesByOcupacion, getInformeById,
   getImagenes, createImagen, uploadImagen, deleteImagen, imagenUrl,
-  toggleReaccionComentario,
   getEquipos, getSillas, getMesas,
   saveMetadatosEvento
 } from '../services/api.js';
@@ -18,9 +16,8 @@ import { useSocket } from '../context/SocketContext.jsx';
 import {
   IconFileText, IconPlus, IconSearch, IconCheckCircle,
   IconArrowLeft, IconX,
-  IconMessageCircle, IconHistory
+  IconHistory
 } from '../components/Icons.jsx';
-import ReactionTooltip from '../components/ReactionTooltip.jsx';
 import SettingsChecklist from '../../settings/SettingsChecklist';
 import { emitOpenEventChecklist } from '../../../utils/appEvents';
 
@@ -38,7 +35,6 @@ const CATEGORIAS = [
   { id: 'bebidas',    label: 'Bebidas',     icon: '🥤', color: '#06b6d4' },
   { id: 'alertas',    label: 'Alertas',     icon: '⚠️', color: '#ef4444' },
   { id: 'montaje',    label: 'Montaje',     icon: '🔧', color: '#64748b' },
-  { id: 'comentarios', label: 'Comentarios', icon: '💬', color: '#8b5cf6' },
   { id: 'imagenes',    label: 'Imágenes',    icon: '🖼️', color: '#06b6d4' },
 ];
 
@@ -165,10 +161,9 @@ function sumarDias(fechaStr, dias) {
 export default function ConstructorInforme() {
   const { id_ocupacion } = useParams();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const { user } = useAuth();
-  const { connected: socketConnected, onEvent, joinRoom, leaveRoom } = useSocket();
+  const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();
 
   // State principal
   const [loading, setLoading] = useState(true);
@@ -178,7 +173,6 @@ export default function ConstructorInforme() {
   const [dias, setDias] = useState([crearDiaVacio()]);
   const [activeDay, setActiveDay] = useState(0);
   const [categoriaActiva, setCategoriaActiva] = useState('menus');
-  const [comentarioResaltado, setComentarioResaltado] = useState(null);
 
   // Catálogos
   const [platillos, setPlatillos] = useState([]);
@@ -195,9 +189,7 @@ export default function ConstructorInforme() {
   const [showVersionSelector, setShowVersionSelector] = useState(false);
 
   // Colaboración
-  const [comentarios, setComentarios] = useState([]);
   const [historial, setHistorial] = useState([]);
-  const [usuarios, setUsuarios] = useState([]);
 
   // Config (equipos, sillas, mesas, salones)
   const [configEquipos, setConfigEquipos] = useState([]);
@@ -207,40 +199,14 @@ export default function ConstructorInforme() {
 
   // Modales
   const [modalOpciones, setModalOpciones] = useState(null);
-  const [modalComentario, setModalComentario] = useState(false);
   const [modalMontaje, setModalMontaje] = useState(false);
   const [modalHistorial, setModalHistorial] = useState(false);
-  const [comentarioTexto, setComentarioTexto] = useState('');
   const [montajeData, setMontajeData] = useState({});
   const [montajeEditIdx, setMontajeEditIdx] = useState(null);
   const [modalPrep, setModalPrep] = useState('');
   const [modalOpc, setModalOpc] = useState('');
   const [modalQty, setModalQty] = useState(1);
   const [modalNotas, setModalNotas] = useState('');
-
-  // Reacciones
-  const userMap = useMemo(() => {
-    const map = {};
-    usuarios.forEach(u => { map[u.id] = u.nombre; });
-    return map;
-  }, [usuarios]);
-  const currentUserId = (() => {
-    try { const t = localStorage.getItem('token'); if (!t) return null; return JSON.parse(atob(t.split('.')[1])).id; } catch { return null; }
-  })();
-  const REACCIONES = [
-    { emoji: '❤️', label: 'Me encanta' },
-    { emoji: '😡', label: 'Enojado' },
-    { emoji: '😂', label: 'Me divierte' },
-    { emoji: '👍', label: 'Ok' },
-  ];
-
-  // Respuestas a comentarios
-  const [respondiendoA, setRespondiendoA] = useState(null);
-  const [textoRespuesta, setTextoRespuesta] = useState('');
-
-  // Reacción popover
-  const [reactingTo, setReactingTo] = useState(null);
-  const [hoveredTooltip, setHoveredTooltip] = useState(null);
 
   // Imágenes
   const [imagenes, setImagenes] = useState([]);
@@ -290,45 +256,6 @@ export default function ConstructorInforme() {
     joinRoom(room);
     return () => { leaveRoom(room); };
   }, [socketConnected, id_ocupacion, joinRoom, leaveRoom]);
-
-  // Listener para comentarios en tiempo real
-  useEffect(() => {
-    if (!socketConnected || !informeId) return;
-    
-    const handleComentarioCreated = () => {
-      getComentarios(informeId).then(setComentarios).catch(() => {});
-    };
-    
-    const cleanup = onEvent('comentario:created', handleComentarioCreated);
-    return cleanup;
-  }, [socketConnected, informeId, onEvent]);
-
-  // Efecto para resaltar comentario desde notificación
-  useEffect(() => {
-    const highlightComentarioId = searchParams.get('highlightComentario');
-    if (highlightComentarioId && comentarios.length > 0) {
-      const comentarioId = parseInt(highlightComentarioId);
-      setComentarioResaltado(comentarioId);
-      setCategoriaActiva('comentarios');
-      
-      // Hacer scroll al comentario después de un breve delay
-      setTimeout(() => {
-        const elemento = document.getElementById(`comentario-${comentarioId}`);
-        if (elemento) {
-          elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 300);
-      
-      // Quitar el resaltado después de 5 segundos
-      setTimeout(() => {
-        setComentarioResaltado(null);
-        // Limpiar el parámetro de la URL
-        const newParams = new URLSearchParams(searchParams);
-        newParams.delete('highlightComentario');
-        setSearchParams(newParams);
-      }, 5000);
-    }
-  }, [searchParams, comentarios]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -736,40 +663,13 @@ export default function ConstructorInforme() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // ─── Colaboración ───
-  const loadColaboracion = async () => {
+  // ─── Historial ───
+  const loadHistorial = async () => {
     if (!informeId) return;
     try {
-      const [c, h, u] = await Promise.all([
-        getComentarios(informeId), getHistorial(informeId), getUsuarios()
-      ]);
-      setComentarios(c); setHistorial(h); setUsuarios(u);
+      const h = await getHistorial(informeId);
+      setHistorial(h);
     } catch { /* */ }
-  };
-
-  const handleAddComentario = async () => {
-    if (!comentarioTexto.trim() || !informeId) return;
-    try {
-      await createComentario(informeId, { contenido: comentarioTexto, dia_id: dias[activeDay]?.id || null });
-      setComentarioTexto('');
-      toast.success('Comentario agregado');
-      loadColaboracion();
-    } catch { toast.error('Error al agregar comentario'); }
-  };
-
-  const handleResponder = async (parentId) => {
-    if (!textoRespuesta.trim() || !informeId) return;
-    try {
-      await createComentario(informeId, { 
-        contenido: textoRespuesta, 
-        dia_id: dias[activeDay]?.id || null,
-        parent_id: parentId 
-      });
-      setTextoRespuesta('');
-      setRespondiendoA(null);
-      toast.success('Respuesta agregada');
-      loadColaboracion();
-    } catch { toast.error('Error al agregar respuesta'); }
   };
 
   const handleGuardarMontaje = () => {
@@ -1406,288 +1306,7 @@ export default function ConstructorInforme() {
               </div>
             )}
 
-            {/* Categoría: Comentarios */}
-            {categoriaActiva === 'comentarios' && (
-              <div className="pos-comentarios-panel">
-                {comentarios.length === 0 && <p className="pos-empty-msg">Sin comentarios aún</p>}
-                {comentarios.map(c => (
-                  <div key={c.id} id={`comentario-${c.id}`}>
-                    <div 
-                      className="pos-comentario-item"
-                      style={{
-                        background: comentarioResaltado === c.id ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-                        border: comentarioResaltado === c.id ? '2px solid #8b5cf6' : 'none',
-                        borderRadius: 'var(--radius-md)',
-                        padding: comentarioResaltado === c.id ? '0.8rem' : '0',
-                        transition: 'all 0.3s ease',
-                        boxShadow: comentarioResaltado === c.id ? '0 0 20px rgba(139, 92, 246, 0.3)' : 'none',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
-                        <strong>{c.usuario_nombre || 'Usuario'}</strong>
-                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
-                          <small style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
-                            {new Date(c.created_at).toLocaleString()}
-                          </small>
-                          {/* Reaction chips inline with timestamp */}
-                          {REACCIONES.map(r => {
-                            const users = (c.reacciones || {})[r.emoji] || [];
-                            if (users.length === 0) return null;
-                            const isActive = users.includes(currentUserId);
-                            return (
-                              <button
-                                key={r.emoji}
-                                onClick={async () => {
-                                  try { await toggleReaccionComentario(informeId, c.id, r.emoji); loadColaboracion(); } catch {}
-                                }}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: '0.1rem',
-                                  fontSize: '0.6rem', padding: '0.03rem 0.22rem',
-                                  borderRadius: 'var(--radius-full)',
-                                  border: '1px solid',
-                                  borderColor: isActive ? 'var(--primary)' : 'var(--border)',
-                                  background: isActive ? 'var(--primary-bg)' : 'transparent',
-                                  cursor: 'pointer', lineHeight: 1.2,
-                                }}
-                                title={r.label}
-                                onMouseEnter={(e) => {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setHoveredTooltip({ x: rect.left + rect.width / 2, y: rect.top, emoji: r.emoji, label: r.label, userIds: users });
-                                }}
-                                onMouseLeave={() => setHoveredTooltip(null)}
-                              >
-                                <span style={{ fontSize: '0.68rem' }}>{r.emoji}</span>
-                                <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.55rem' }}>{users.length}</span>
-                              </button>
-                            );
-                          })}
-                          {/* Floating add reaction button */}
-                          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setReactingTo(reactingTo === c.id ? null : c.id); }}
-                              style={{
-                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: '0.58rem', width: '14px', height: '14px',
-                                borderRadius: '50%', border: 'none',
-                                background: reactingTo === c.id ? 'var(--primary-bg)' : 'transparent',
-                                cursor: 'pointer', lineHeight: 1, padding: 0,
-                                opacity: 0.5,
-                              }}
-                              title="Reaccionar"
-                            >
-                              +
-                            </button>
-                            {reactingTo === c.id && (
-                              <div
-                                style={{
-                                  position: 'absolute', top: '1.4rem', right: '-0.15rem',
-                                  display: 'flex', gap: '0.15rem',
-                                  background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                  borderRadius: 'var(--radius-full)',
-                                  padding: '0.15rem 0.3rem',
-                                  boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                                  zIndex: 100, whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {REACCIONES.map(r => (
-                                  <button
-                                    key={r.emoji}
-                                    onClick={async () => {
-                                      try { await toggleReaccionComentario(informeId, c.id, r.emoji); } catch {}
-                                      setReactingTo(null);
-                                      loadColaboracion();
-                                    }}
-                                    style={{
-                                      fontSize: '1.05rem', padding: '0.08rem 0.12rem',
-                                      border: 'none', background: 'transparent',
-                                      cursor: 'pointer', borderRadius: 'var(--radius-sm)',
-                                      transition: 'transform 0.12s', lineHeight: 1,
-                                    }}
-                                    title={r.label}
-                                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
-                                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                                  >
-                                    {r.emoji}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {/* Backdrop to close popover */}
-                            {reactingTo === c.id && (
-                              <div onClick={() => setReactingTo(null)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <p style={{ margin: 0, fontSize: '0.82rem' }}>{c.contenido}</p>
-                      {/* Botón Responder */}
-                      {informeId && (
-                        <button
-                          onClick={() => setRespondiendoA(respondiendoA === c.id ? null : c.id)}
-                          style={{
-                            marginTop: '0.3rem',
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--primary)',
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            padding: '0.2rem 0',
-                          }}
-                        >
-                          💬 Responder
-                        </button>
-                      )}
-                      {/* Input de respuesta */}
-                      {respondiendoA === c.id && (
-                        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.3rem' }}>
-                          <input
-                            type="text"
-                            value={textoRespuesta}
-                            onChange={e => setTextoRespuesta(e.target.value)}
-                            placeholder="Escribe tu respuesta..."
-                            style={{
-                              flex: 1,
-                              padding: '0.4rem 0.6rem',
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius-sm)',
-                              fontSize: '0.78rem',
-                            }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && textoRespuesta.trim()) {
-                                handleResponder(c.id);
-                              }
-                            }}
-                          />
-                          <button
-                            className="btn-primary btn-sm"
-                            onClick={() => handleResponder(c.id)}
-                            disabled={!textoRespuesta.trim()}
-                            style={{ fontSize: '0.72rem' }}
-                          >
-                            Enviar
-                          </button>
-                          <button
-                            className="btn-secondary btn-sm"
-                            onClick={() => {
-                              setRespondiendoA(null);
-                              setTextoRespuesta('');
-                            }}
-                            style={{ fontSize: '0.72rem' }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {/* Respuestas anidadas */}
-                    {c.respuestas && c.respuestas.length > 0 && (
-                      <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.5rem' }}>
-                        {c.respuestas.map(r => (
-                          <div key={r.id}>
-                            <div className="pos-comentario-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
-                                <strong style={{ fontSize: '0.78rem' }}>{r.usuario_nombre || 'Usuario'}</strong>
-                                <small style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>
-                                  {new Date(r.created_at).toLocaleString()}
-                                </small>
-                              </div>
-                              <p style={{ margin: 0, fontSize: '0.78rem' }}>{r.contenido}</p>
-                              {/* Botón Responder en respuestas anidadas */}
-                              {informeId && (
-                                <button
-                                  onClick={() => setRespondiendoA(respondiendoA === r.id ? null : r.id)}
-                                  style={{
-                                    marginTop: '0.3rem',
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--primary)',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    padding: '0.2rem 0',
-                                  }}
-                                >
-                                  💬 Responder
-                                </button>
-                              )}
-                              {/* Input de respuesta para respuesta anidada */}
-                              {respondiendoA === r.id && (
-                                <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.3rem' }}>
-                                  <input
-                                    type="text"
-                                    value={textoRespuesta}
-                                    onChange={e => setTextoRespuesta(e.target.value)}
-                                    placeholder="Escribe tu respuesta..."
-                                    autoFocus
-                                    style={{
-                                      flex: 1,
-                                      padding: '0.4rem 0.6rem',
-                                      border: '1px solid var(--border)',
-                                      borderRadius: 'var(--radius-sm)',
-                                      fontSize: '0.78rem',
-                                    }}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter' && textoRespuesta.trim()) {
-                                        handleResponder(r.id);
-                                      }
-                                    }}
-                                  />
-                                  <button
-                                    className="btn-primary btn-sm"
-                                    onClick={() => handleResponder(r.id)}
-                                    disabled={!textoRespuesta.trim()}
-                                    style={{ fontSize: '0.72rem' }}
-                                  >
-                                    Enviar
-                                  </button>
-                                  <button
-                                    className="btn-secondary btn-sm"
-                                    onClick={() => {
-                                      setRespondiendoA(null);
-                                      setTextoRespuesta('');
-                                    }}
-                                    style={{ fontSize: '0.72rem' }}
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                            {/* Sub-respuestas anidadas (nivel 2) */}
-                            {r.respuestas && r.respuestas.length > 0 && (
-                              <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.3rem' }}>
-                                {r.respuestas.map(r2 => (
-                                  <div key={r2.id} className="pos-comentario-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
-                                      <strong style={{ fontSize: '0.78rem' }}>{r2.usuario_nombre || 'Usuario'}</strong>
-                                      <small style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>
-                                        {new Date(r2.created_at).toLocaleString()}
-                                      </small>
-                                    </div>
-                                    <p style={{ margin: 0, fontSize: '0.78rem' }}>{r2.contenido}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {informeId ? (
-                  <div className="pos-comentario-input">
-                    <textarea value={comentarioTexto} onChange={e => setComentarioTexto(e.target.value)} placeholder="Escribe un comentario..." rows={2} />
-                    <button className="btn-primary btn-sm" onClick={handleAddComentario} disabled={!comentarioTexto.trim()}>
-                      <IconMessageCircle size={13} /> Comentar
-                    </button>
-                  </div>
-                ) : <p className="pos-empty-msg">Guarda el informe para comentar</p>}
-              </div>
-            )}
-
-            {elementosFiltrados.length === 0 && !['montaje', 'comentarios', 'imagenes'].includes(categoriaActiva) && (
+            {elementosFiltrados.length === 0 && !['montaje', 'imagenes'].includes(categoriaActiva) && (
               <div className="pos-empty-msg">Sin resultados</div>
             )}
           </div>
@@ -1708,12 +1327,9 @@ export default function ConstructorInforme() {
         <button className="pos-bottom-btn" onClick={() => setCategoriaActiva('montaje')}>
           🔧 Montaje
         </button>
-        <button className="pos-bottom-btn" onClick={() => setCategoriaActiva('comentarios')}>
-          <IconMessageCircle size={15} /> Comentar
-        </button>
         <button className="pos-bottom-btn" onClick={async () => {
           if (!informeId) { toast.info('Guarda primero el informe'); return; }
-          await loadColaboracion();
+          await loadHistorial();
           setModalHistorial(true);
         }}>
           <IconHistory size={15} /> Historial
@@ -1846,17 +1462,6 @@ export default function ConstructorInforme() {
         </div>
       )}
       <SettingsChecklist />
-      {hoveredTooltip && (
-        <ReactionTooltip
-          emoji={hoveredTooltip.emoji}
-          label={hoveredTooltip.label}
-          userIds={hoveredTooltip.userIds}
-          userMap={userMap}
-          x={hoveredTooltip.x}
-          y={hoveredTooltip.y}
-          onClose={() => setHoveredTooltip(null)}
-        />
-      )}
     </div>
   );
 }

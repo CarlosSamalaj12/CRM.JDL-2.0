@@ -105,3 +105,14 @@ export async function toggleUserActive(req, res, next) {
     res.json({ id, activo: newState });
   } catch (error) { next(error); }
 }
+
+export async function deleteUser(req, res, next) {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM usuarios WHERE id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+    res.json({ message: 'Usuario eliminado permanentemente' });
+  } catch (error) { next(error); }
+}
