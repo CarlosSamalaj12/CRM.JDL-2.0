@@ -4046,7 +4046,7 @@ body.informes-theme {
         overflow: visible !important;
       }
 
-      /* Eliminar alturas fijas que causan páginas en blanco */
+      /* Eliminar alturas fijas y fondos de color que causan páginas en blanco */
       #root,
       .reports-root,
       .app-shell,
@@ -4061,6 +4061,8 @@ body.informes-theme {
         min-height: 0 !important;
         max-height: none !important;
         overflow: visible !important;
+        background: white !important;
+        background-image: none !important;
       }
       
       /* Ocultar navegación y UI de la app */
