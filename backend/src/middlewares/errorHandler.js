@@ -19,6 +19,29 @@ export function notFound(req, res) {
   });
 }
 
+function sanitizeForLog(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') {
+    if (obj.length > 800) {
+      return obj.slice(0, 800) + "... [Truncado por tamaño]";
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForLog);
+  }
+  if (typeof obj === 'object') {
+    const res = {};
+    for (const key of Object.getOwnPropertyNames(obj)) {
+      try {
+        res[key] = sanitizeForLog(obj[key]);
+      } catch (err) {}
+    }
+    return res;
+  }
+  return obj;
+}
+
 export function errorHandler(err, req, res, _next) {
   const statusCode = err.statusCode || 500;
   const code = err.code || 'INTERNAL_ERROR';
@@ -26,11 +49,7 @@ export function errorHandler(err, req, res, _next) {
   const isDev = process.env.NODE_ENV !== 'production';
 
   if (!err.isOperational) {
-    const cleanErr = { ...err };
-    if (cleanErr.sql && typeof cleanErr.sql === "string" && cleanErr.sql.length > 1000) {
-      cleanErr.sql = cleanErr.sql.slice(0, 1000) + "... [SQL Truncado por tamaño]";
-    }
-    console.error('[FATAL] Error no operacional:', cleanErr);
+    console.error('[FATAL] Error no operacional:', sanitizeForLog(err));
   } else if (isDev) {
     console.error(`[${code}] ${err.message}`);
   }

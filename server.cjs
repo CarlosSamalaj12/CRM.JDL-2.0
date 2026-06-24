@@ -21,6 +21,29 @@ function normalizeRoleForJWT(role) {
   return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : 'Vendedor';
 }
 
+function sanitizeForLog(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') {
+    if (obj.length > 800) {
+      return obj.slice(0, 800) + "... [Truncado por tamaño]";
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForLog);
+  }
+  if (typeof obj === 'object') {
+    const res = {};
+    for (const key of Object.getOwnPropertyNames(obj)) {
+      try {
+        res[key] = sanitizeForLog(obj[key]);
+      } catch (err) {}
+    }
+    return res;
+  }
+  return obj;
+}
+
 const APP_PORT = Number(process.env.APP_PORT || 3000);
 const DB_HOST = process.env.DB_HOST || "127.0.0.1";
 const DB_PORT = Number(process.env.DB_PORT || 3306);
@@ -2493,11 +2516,7 @@ async function writeStateToTables(state) {
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     await conn.commit();
   } catch (error) {
-    const cleanError = { ...error };
-    if (cleanError.sql && typeof cleanError.sql === "string" && cleanError.sql.length > 1000) {
-      cleanError.sql = cleanError.sql.slice(0, 1000) + "... [SQL Truncado por tamaño]";
-    }
-    console.error("Error original en writeStateToTables:", cleanError);
+    console.error("Error original en writeStateToTables:", sanitizeForLog(error));
     if (conn) {
       try {
         await conn.query("SET FOREIGN_KEY_CHECKS = 1");
@@ -3330,11 +3349,7 @@ app.put("/api/state", async (req, res) => {
 
     return res.json({ ok: true });
   } catch (error) {
-    const cleanError = { ...error };
-    if (cleanError.sql && typeof cleanError.sql === "string" && cleanError.sql.length > 1000) {
-      cleanError.sql = cleanError.sql.slice(0, 1000) + "... [SQL Truncado por tamaño]";
-    }
-    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error crítico al escribir en MariaDB:`, cleanError);
+    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error crítico al escribir en MariaDB:`, sanitizeForLog(error));
     return res.status(500).json({ message: "No se pudo guardar en tablas reales.", detail: error.message });
   }
 });

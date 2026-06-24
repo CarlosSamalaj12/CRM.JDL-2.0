@@ -89,6 +89,18 @@ export default function Kanban() {
   const [mobileDayIndex, setMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
   const [isMobileView, setIsMobileView] = useState(false);
 
+  const handlePrevWeek = () => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() - 7);
+    setSelectedDate(d.toISOString().slice(0, 10));
+  };
+
+  const handleNextWeek = () => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() + 7);
+    setSelectedDate(d.toISOString().slice(0, 10));
+  };
+
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
     setIsMobileView(mq.matches);
@@ -320,10 +332,31 @@ export default function Kanban() {
               <IconPrinter size={14} /> Descargar
             </button>
           )}
-          <div style={{display:'flex',alignItems:'center',minWidth:0,overflow:'hidden',maxWidth:'150px'}}>
-            <input id="week-filter" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
-              style={{width:'100%',minWidth:0,border:'none',background:'transparent',padding:'4px 2px',fontSize:'0.82rem',cursor:'pointer',color:'inherit'}}
-            />
+          <div className="week-filter-container">
+            <button 
+              type="button" 
+              className="btn-ghost btn-sm" 
+              onClick={handlePrevWeek} 
+              data-tooltip="Semana anterior"
+            >
+              ‹
+            </button>
+            <div className="week-filter-input-wrap">
+              <input 
+                id="week-filter" 
+                type="date" 
+                value={selectedDate} 
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
+            </div>
+            <button 
+              type="button" 
+              className="btn-ghost btn-sm" 
+              onClick={handleNextWeek} 
+              data-tooltip="Semana siguiente"
+            >
+              ›
+            </button>
           </div>
         </div>
       </div>

@@ -245,13 +245,13 @@ export default function ReportsLayout() {
             end
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
-            <IconHome size={16} /> Dashboard
+            <IconHome size={16} /> <span className="nav-text">Dashboard</span>
           </NavLink>
           <NavLink
             to="/kanban"
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
-            <IconGrid size={16} /> Kanban
+            <IconGrid size={16} /> <span className="nav-text">Kanban</span>
           </NavLink>
           {canManageCatalog && (
             <>
@@ -259,14 +259,14 @@ export default function ReportsLayout() {
                 to="/catalog"
                 className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
               >
-                <IconPackage size={16} /> Catálogo
+                <IconPackage size={16} /> <span className="nav-text">Catálogo</span>
               </NavLink>
 
               <NavLink
                 to="/config"
                 className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
               >
-                <IconSettings size={16} /> Config
+                <IconSettings size={16} /> <span className="nav-text">Config</span>
               </NavLink>
             </>
           )}

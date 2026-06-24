@@ -906,11 +906,39 @@ button[data-tooltip-bottom]::after {
   font-weight: 500;
 }
 
-.kanban-filter input[type="date"] {
-  width: auto;
-  min-width: 155px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.82rem;
+.week-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.week-filter-container button {
+  padding: 0.25rem 0.4rem !important;
+  min-height: auto !important;
+  font-size: 1.1rem !important;
+}
+
+.week-filter-input-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  max-width: 120px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  background: var(--bg-card);
+}
+
+.week-filter-input-wrap input[type="date"] {
+  width: 100% !important;
+  min-width: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  padding: 4px 2px !important;
+  font-size: 0.82rem !important;
+  cursor: pointer;
+  color: inherit;
 }
 
 .kanban-board {
@@ -980,27 +1008,36 @@ button[data-tooltip-bottom]::after {
 @media (max-width: 767px) {
   .kanban-day-selector {
     display: flex !important;
-    justify-content: space-between !important;
-    gap: 2px !important;
-    width: 100% !important;
     overflow-x: hidden !important;
+    gap: 0 !important;
+    width: 100% !important;
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--border) !important;
+    background: var(--bg-card) !important;
+    padding: 0 !important;
   }
   .kanban-day-pill {
-    flex: 1 !important;
+    flex: 1 1 0% !important;
     min-width: 0 !important;
-    padding: 0.3rem 0.1rem !important;
-    gap: 0.1rem !important;
-    border-radius: var(--radius-sm) !important;
+    padding: 0.35rem 0.1rem !important;
+    border: none !important;
+    border-right: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  .kanban-day-pill:last-child {
+    border-right: none !important;
   }
   .kanban-day-pill .pill-day {
-    font-size: 0.65rem !important;
+    font-size: 0.62rem !important;
   }
   .kanban-day-pill .pill-date {
     font-size: 0.55rem !important;
   }
   .kanban-day-pill .pill-count {
-    font-size: 0.55rem !important;
-    padding: 0 0.15rem !important;
+    font-size: 0.58rem !important;
+    padding: 0.05rem 0.2rem !important;
     min-width: 14px !important;
   }
 }
@@ -3961,23 +3998,33 @@ button[data-tooltip-bottom]::after {
   }
   .header-left { width: 100%; }
   .app-nav {
-    width: 100%;
-    overflow-x: hidden;
-    flex-wrap: nowrap;
-    display: flex;
-    justify-content: space-between;
-    gap: 2px !important;
+    width: auto !important;
+    overflow-x: visible !important;
+    flex-wrap: nowrap !important;
+    gap: 0.5rem !important;
+    display: flex !important;
   }
   .nav-link {
-    flex: 1;
-    justify-content: center;
-    font-size: 0.72rem !important;
-    padding: 0.35rem 0.2rem !important;
-    flex-shrink: 1;
-    min-width: 0;
-    white-space: nowrap;
+    font-size: 0.8rem !important;
+    padding: 0.45rem 0.65rem !important;
+    flex-shrink: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--border) !important;
+    background: var(--bg-card) !important;
+  }
+  .nav-link.active {
+    border-color: var(--primary-light) !important;
+    background: var(--primary-bg) !important;
   }
   .nav-link svg {
+    display: inline-block !important;
+    width: 18px !important;
+    height: 18px !important;
+  }
+  .nav-link .nav-text {
     display: none !important;
   }
   .catalog-grid { grid-template-columns: 1fr; }
@@ -4052,7 +4099,7 @@ button[data-tooltip-bottom]::after {
   .kanban-filter {
     display: grid;
     grid-template-columns: 1fr auto auto;
-    gap: 0.4rem;
+    gap: 0.75rem;
     align-items: stretch;
   }
   .kanban-filter .view-toggle {
@@ -4065,10 +4112,35 @@ button[data-tooltip-bottom]::after {
     min-height: 40px; font-size: 0.72rem; padding: 0.3rem 0.5rem;
     justify-content: center;
     white-space: nowrap;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-sm) !important;
+    background: var(--bg-card) !important;
   }
-  .kanban-filter input[type="date"] {
+  .kanban-filter .week-filter-container {
     grid-column: 1 / -1;
-    width: 100%; min-height: 40px; font-size: 16px;
+    width: 100% !important;
+    max-width: none !important;
+    gap: 0.35rem !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+  }
+  .kanban-filter .week-filter-container button {
+    min-height: 40px !important;
+    padding: 0.3rem 0.8rem !important;
+  }
+  .kanban-filter .week-filter-input-wrap {
+    width: 145px !important;
+    max-width: 145px !important;
+    min-height: 40px !important;
+    padding: 0 8px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  .kanban-filter .week-filter-input-wrap input[type="date"] {
+    font-size: 16px !important;
+    padding: 8px 4px !important;
+    width: 100% !important;
+    min-height: auto !important;
   }
   .stats-grid { grid-template-columns: 1fr; }
   .kanban-column-body { gap: 0.4rem; }
