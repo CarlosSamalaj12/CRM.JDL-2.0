@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS informe_dias_detalle (
   fecha_evento DATE NOT NULL,
   menu_id BIGINT UNSIGNED NULL,
   descripcion_montaje TEXT NULL,
+  comentario_menu TEXT NULL,
   fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_informe_dias_informe (informe_id),

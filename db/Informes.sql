@@ -719,6 +719,7 @@ CREATE TABLE IF NOT EXISTS `informe_dias_detalle` (
   `fecha_evento` date NOT NULL,
   `menu_id` int(11) DEFAULT NULL,
   `descripcion_montaje` text DEFAULT NULL,
+  `comentario_menu` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `informe_id` (`informe_id`),
   KEY `menu_id` (`menu_id`),

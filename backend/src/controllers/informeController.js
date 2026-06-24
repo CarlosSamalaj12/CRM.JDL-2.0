@@ -10,10 +10,12 @@ async function fetchInformeWithDias(informeId) {
     SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion,
            e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento,
            COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
-           e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc
+           e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc,
+           e.Telefono, ce.folio
     FROM informes_eventos i
     LEFT JOIN tbl_seguimientocotizaciones e ON ${OCCUPACION_JOIN}
     LEFT JOIN eventos ev ON CONVERT(i.id_ocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ev.id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    LEFT JOIN cotizaciones_evento ce ON ev.id = ce.id_evento
     LEFT JOIN usuarios u ON ev.id_usuario = u.id
     WHERE i.id = ?
   `, [informeId]);
@@ -342,13 +344,13 @@ export async function deleteInforme(req, res, next) {
 // --- DETALLE DE DÍAS ---
 export async function createInformeDia(req, res, next) {
   try {
-    const { informe_id, fecha_evento, menu_id, descripcion_montaje } = req.body;
+    const { informe_id, fecha_evento, menu_id, descripcion_montaje, comentario_menu } = req.body;
     const [result] = await pool.query(
-      'INSERT INTO informe_dias_detalle (informe_id, fecha_evento, menu_id, descripcion_montaje) VALUES (?, ?, ?, ?)',
-      [informe_id, fecha_evento, menu_id || null, descripcion_montaje || null]
+      'INSERT INTO informe_dias_detalle (informe_id, fecha_evento, menu_id, descripcion_montaje, comentario_menu) VALUES (?, ?, ?, ?, ?)',
+      [informe_id, fecha_evento, menu_id || null, descripcion_montaje || null, comentario_menu || null]
     );
     const [inf2] = await pool.query('SELECT id_ocupacion FROM informes_eventos WHERE id = ?', [informe_id]);
-    const diaData = { id: result.insertId, informe_id, fecha_evento, menu_id, descripcion_montaje };
+    const diaData = { id: result.insertId, informe_id, fecha_evento, menu_id, descripcion_montaje, comentario_menu };
     if (inf2.length > 0) {
       req.io.to(`evento:${inf2[0].id_ocupacion}`).emit('informe:dia-created', diaData);
     }

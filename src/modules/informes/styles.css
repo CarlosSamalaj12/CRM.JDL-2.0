@@ -3265,9 +3265,13 @@ button[data-tooltip-bottom]::after {
   max-width: 850px;
   margin: 0 auto;
   color: var(--text-main);
-  font-family: 'Georgia', 'Times New Roman', serif;
-  line-height: 1.5;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
   font-size: 10.5pt;
+}
+
+.iv-documento * {
+  font-family: inherit;
 }
 
 /* ─── ENCABEZADO ─── */
@@ -3376,6 +3380,58 @@ button[data-tooltip-bottom]::after {
 .iv-info-value-lg {
   font-size: 1.1rem;
   color: var(--primary);
+}
+
+/* ═══ TABLA ENCABEZADO INFORME ═══ */
+.iv-header-table {
+  margin-bottom: 1rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.iv-header-table table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.iv-header-table td {
+  padding: 0.2rem 0.4rem;
+  vertical-align: middle;
+}
+
+.iv-ht-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 130px;
+  white-space: nowrap;
+}
+
+.iv-ht-value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: normal;
+  word-break: break-word;
+  padding-left: 28px !important;
+}
+
+.iv-ht-value:last-child {
+  padding-right: 0;
+}
+
+.iv-ht-sub {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+  line-height: 1.2;
 }
 
 /* ─── BLOQUES DE DÍAS ─── */
@@ -5182,30 +5238,6 @@ button[data-tooltip-bottom]::after {
 .pos-comentario-input textarea {
   font-size: 0.82rem; padding: 0.5rem; min-height: 50px;
 }
-
-/* ═══ DESTACADOS ═══ */
-.pos-destacados-panel {
-  grid-column: 1 / -1;
-  display: flex; flex-direction: column; gap: 0.5rem;
-}
-
-.pos-destacado-item {
-  display: flex; align-items: flex-start; gap: 0.5rem;
-  background: var(--warning-bg);
-  border: 1px solid rgba(245,158,11,0.2);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.65rem;
-}
-
-.pos-destacado-item strong { font-size: 0.78rem; }
-.pos-destacado-item p { font-size: 0.82rem; color: var(--text-secondary); margin: 0.1rem 0; }
-.pos-destacado-item small { font-size: 0.65rem; color: var(--text-muted); }
-
-.pos-destacado-input {
-  display: flex; gap: 0.4rem;
-}
-
-.pos-destacado-input input { flex: 1; font-size: 0.82rem; padding: 0.4rem 0.6rem; }
 
 .btn-warning {
   background: linear-gradient(135deg, var(--warning), #d97706);

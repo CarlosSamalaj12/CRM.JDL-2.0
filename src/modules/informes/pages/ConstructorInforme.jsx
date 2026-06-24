@@ -4,10 +4,9 @@ import {
   createInforme, createInformeDia, saveDiaMenuDetalle,
   getPlatillos, getPlatilloDetalle, fetchEventById,
   getIngredientes, getMenus, getOpcionesIngrediente, getCategorias,
-  getComentarios, createComentario, getDestacados, toggleDestacado,
-  getHistorial, getUsuarios, getTiposMontaje, saveMontaje, getMontaje,
+  getComentarios, createComentario,
+  getHistorial, getUsuarios,
   getInformesByOcupacion, getInformeById,
-  deleteInformeDias,
   getImagenes, createImagen, uploadImagen, deleteImagen, imagenUrl,
   toggleReaccionComentario,
   getEquipos, getSillas, getMesas,
@@ -19,7 +18,7 @@ import { useSocket } from '../context/SocketContext.jsx';
 import {
   IconFileText, IconPlus, IconSearch, IconCheckCircle,
   IconArrowLeft, IconX,
-  IconMessageCircle, IconStar, IconHistory
+  IconMessageCircle, IconHistory
 } from '../components/Icons.jsx';
 import ReactionTooltip from '../components/ReactionTooltip.jsx';
 import SettingsChecklist from '../../settings/SettingsChecklist';
@@ -40,7 +39,6 @@ const CATEGORIAS = [
   { id: 'alertas',    label: 'Alertas',     icon: '⚠️', color: '#ef4444' },
   { id: 'montaje',    label: 'Montaje',     icon: '🔧', color: '#64748b' },
   { id: 'comentarios', label: 'Comentarios', icon: '💬', color: '#8b5cf6' },
-  { id: 'destacados',  label: 'Destacados',  icon: '⭐', color: '#f59e0b' },
   { id: 'imagenes',    label: 'Imágenes',    icon: '🖼️', color: '#06b6d4' },
 ];
 
@@ -80,7 +78,7 @@ const MONTAJE_CAMPOS = [
   { key: 'cristaleria', label: 'Cristalería', type: 'text' },
   { key: 'mesas', label: 'Mesas', type: 'config-mesa' },
   { key: 'sillas', label: 'Sillas', type: 'config-silla' },
-  { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
+  { key: 'observaciones', label: 'Comentarios', type: 'textarea' },
 ];
 
 const compressImage = (file, maxW = 600, maxH = 600) => {
@@ -149,7 +147,7 @@ function crearDiaVacio(fecha) {
   return {
     id: null, fecha: fecha || new Date().toISOString().slice(0, 10),
     platillo: null, platilloDetalle: null,
-    selectedItems: [], menuAsignado: null, montaje: [], alertas: [], alertaCustom: '',
+    selectedItems: [], menuAsignado: null, montaje: [], alertas: [], alertaCustom: '', comentarioMenu: '',
   };
 }
 
@@ -198,23 +196,21 @@ export default function ConstructorInforme() {
 
   // Colaboración
   const [comentarios, setComentarios] = useState([]);
-  const [destacados, setDestacados] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
 
-  // Config (equipos, sillas, mesas)
+  // Config (equipos, sillas, mesas, salones)
   const [configEquipos, setConfigEquipos] = useState([]);
   const [configSillas, setConfigSillas] = useState([]);
   const [configMesas, setConfigMesas] = useState([]);
+  const [salonesList, setSalonesList] = useState([]);
 
   // Modales
   const [modalOpciones, setModalOpciones] = useState(null);
   const [modalComentario, setModalComentario] = useState(false);
-  const [modalDestacado, setModalDestacado] = useState(false);
   const [modalMontaje, setModalMontaje] = useState(false);
   const [modalHistorial, setModalHistorial] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState('');
-  const [destacadoRazon, setDestacadoRazon] = useState('');
   const [montajeData, setMontajeData] = useState({});
   const [montajeEditIdx, setMontajeEditIdx] = useState(null);
   const [modalPrep, setModalPrep] = useState('');
@@ -368,8 +364,9 @@ export default function ConstructorInforme() {
 
         // Configuraciones y versiones
         try {
-          const [eq, si, me, vers] = await Promise.all([
+          const [eq, si, me, sal, vers] = await Promise.all([
             getEquipos().catch(() => []), getSillas().catch(() => []), getMesas().catch(() => []),
+            fetch('/api/salones').then(r => r.json()).then(d => d.salones || []).catch(() => []),
             getInformesByOcupacion(id_ocupacion).catch(err => {
               if (err.status === 404 || err.message?.includes('no encontrado')) {
                 toast.info('No hay versiones previas, comenzando desde cero');
@@ -382,6 +379,7 @@ export default function ConstructorInforme() {
           setConfigEquipos(eq.filter(e => e.activo));
           setConfigSillas(si.filter(s => s.activo));
           setConfigMesas(me.filter(m => m.activo));
+          setSalonesList(sal);
 
           if (vers && vers.length > 0) {
             setVersiones(vers);
@@ -418,7 +416,7 @@ export default function ConstructorInforme() {
                       notas: item.notas || '',
                     })),
                     menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
-                    montaje: mont, alertas, alertaCustom,
+                    montaje: mont, alertas, alertaCustom, comentarioMenu: d.comentario_menu || '',
                   };
                 }));
               }
@@ -483,6 +481,7 @@ export default function ConstructorInforme() {
             montaje: mont,
             alertas: alertas,
             alertaCustom: alertaCustom,
+            comentarioMenu: d.comentario_menu || '',
           };
         });
         setDias(diasCargados.length > 0 ? diasCargados : [crearDiaVacio()]);
@@ -503,16 +502,11 @@ export default function ConstructorInforme() {
   const handleSaveFullInforme = async () => {
     setLoading(true);
     try {
-      let targetId = informeId;
-      if (!targetId) {
-        const res = await createInforme(id_ocupacion);
-        targetId = res.id;
-        setInformeId(targetId);
-        setVersionActiva(res.version || 1);
-      } else {
-        // Editar versión existente: limpiar días anteriores antes de recrearlos
-        await deleteInformeDias(targetId);
-      }
+      // Cada guardado crea una nueva versión (la anterior se conserva intacta)
+      const res = await createInforme(id_ocupacion);
+      const targetId = res.id;
+      setInformeId(targetId);
+      setVersionActiva(res.version || 1);
 
       let diasGuardados = 0;
       for (let i = 0; i < dias.length; i++) {
@@ -528,6 +522,7 @@ export default function ConstructorInforme() {
             alertas: dia.alertas || [],
             alertaCustom: dia.alertaCustom || '',
           }),
+          comentario_menu: dia.comentarioMenu || null,
         });
         diasGuardados++;
 
@@ -745,10 +740,10 @@ export default function ConstructorInforme() {
   const loadColaboracion = async () => {
     if (!informeId) return;
     try {
-      const [c, d, h, u] = await Promise.all([
-        getComentarios(informeId), getDestacados(informeId), getHistorial(informeId), getUsuarios()
+      const [c, h, u] = await Promise.all([
+        getComentarios(informeId), getHistorial(informeId), getUsuarios()
       ]);
-      setComentarios(c); setDestacados(d); setHistorial(h); setUsuarios(u);
+      setComentarios(c); setHistorial(h); setUsuarios(u);
     } catch { /* */ }
   };
 
@@ -775,16 +770,6 @@ export default function ConstructorInforme() {
       toast.success('Respuesta agregada');
       loadColaboracion();
     } catch { toast.error('Error al agregar respuesta'); }
-  };
-
-  const handleToggleDestacado = async () => {
-    if (!informeId) return;
-    try {
-      await toggleDestacado(informeId, { dia_id: dias[activeDay]?.id || null, razon: destacadoRazon || null });
-      setDestacadoRazon('');
-      toast.success('Destacado actualizado');
-      loadColaboracion();
-    } catch { toast.error('Error'); }
   };
 
   const handleGuardarMontaje = () => {
@@ -1045,6 +1030,31 @@ export default function ConstructorInforme() {
                 </div>
               </div>
             )}
+
+            {/* Comentarios del Menú */}
+            <div className="pos-ticket-comentario-menu">
+              <label style={{fontSize:'0.72rem',fontWeight:600,color:'var(--text-muted)',display:'block',marginBottom:'0.25rem'}}>
+                💬 Comentarios del Menú
+              </label>
+              <textarea
+                value={diaActivo.comentarioMenu || ''}
+                onChange={e => {
+                  const nd = [...dias];
+                  nd[activeDay] = {...nd[activeDay], comentarioMenu: e.target.value};
+                  setDias(nd);
+                }}
+                placeholder="Notas, observaciones o comentarios sobre el menú..."
+                rows={2}
+                style={{
+                  width:'100%', padding:'0.4rem 0.5rem',
+                  border:'1px solid var(--border)', borderRadius:'var(--radius-sm)',
+                  fontSize:'0.78rem', resize:'vertical',
+                  background:'var(--bg-elevated)',
+                  color:'var(--text-primary)',
+                  boxSizing:'border-box',
+                }}
+              />
+            </div>
           </div>
           <div className="pos-ticket-footer">
             {diaActivo.selectedItems.length} ítem(s) · Día {activeDay + 1}
@@ -1220,14 +1230,18 @@ export default function ConstructorInforme() {
                     {montajeEditIdx !== null ? `Editando: ${montajeData.salon || ''}` : 'Nuevo montaje'}
                   </div>
 
-                  {/* Campo Salón */}
+                  {/* Campo Salón con autocompletado */}
                   <div className="pos-montaje-campo">
                     <label>Salón *</label>
                     <input
                       type="text" value={montajeData.salon || ''}
                       onChange={e => setMontajeData({...montajeData, salon: e.target.value})}
-                      placeholder="Ej: Salón Principal, Terraza, Jardín..."
+                      placeholder="Escribe o selecciona un salón..."
+                      list="salones-list"
                     />
+                    <datalist id="salones-list">
+                      {salonesList.map(s => <option key={s} value={s} />)}
+                    </datalist>
                   </div>
 
                   {MONTAJE_CAMPOS.map(campo => {
@@ -1673,32 +1687,7 @@ export default function ConstructorInforme() {
               </div>
             )}
 
-            {/* Categoría: Destacados */}
-            {categoriaActiva === 'destacados' && (
-              <div className="pos-destacados-panel">
-                {destacados.length === 0 && <p className="pos-empty-msg">Sin destacados</p>}
-                {destacados.map(d => (
-                  <div key={d.id} className="pos-destacado-item">
-                    <IconStar size={14} style={{color:'var(--warning)'}} />
-                    <div>
-                      <strong>{d.usuario_nombre}</strong>
-                      {d.razon && <p>{d.razon}</p>}
-                      <small>{new Date(d.created_at).toLocaleString()}</small>
-                    </div>
-                  </div>
-                ))}
-                {informeId && (
-                  <div className="pos-destacado-input">
-                    <input value={destacadoRazon} onChange={e => setDestacadoRazon(e.target.value)} placeholder="Razón del destacado..." />
-                    <button className="btn-warning btn-sm" onClick={handleToggleDestacado} disabled={!destacadoRazon.trim()}>
-                      <IconStar size={13} /> Destacar
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {elementosFiltrados.length === 0 && !['montaje', 'comentarios', 'destacados', 'imagenes'].includes(categoriaActiva) && (
+            {elementosFiltrados.length === 0 && !['montaje', 'comentarios', 'imagenes'].includes(categoriaActiva) && (
               <div className="pos-empty-msg">Sin resultados</div>
             )}
           </div>
@@ -1721,9 +1710,6 @@ export default function ConstructorInforme() {
         </button>
         <button className="pos-bottom-btn" onClick={() => setCategoriaActiva('comentarios')}>
           <IconMessageCircle size={15} /> Comentar
-        </button>
-        <button className="pos-bottom-btn" onClick={() => setCategoriaActiva('destacados')}>
-          <IconStar size={15} /> Destacar
         </button>
         <button className="pos-bottom-btn" onClick={async () => {
           if (!informeId) { toast.info('Guarda primero el informe'); return; }

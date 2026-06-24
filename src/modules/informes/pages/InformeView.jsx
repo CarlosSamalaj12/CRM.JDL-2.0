@@ -164,14 +164,14 @@ export default function InformeView() {
     if (isNaN(date.getTime())) return 'Fecha no asignada';
     
     const formatted = date.toLocaleDateString('es-ES', {
-      weekday: 'long',
+      weekday: 'short',
       day: 'numeric',
-      month: 'long',
+      month: 'short',
       year: 'numeric'
     });
     
-    // Capitalizar la primera letra de cada palabra
-    return formatted.replace(/(^\w|\s\w)/g, m => m.toUpperCase());
+    // Capitalizar la primera letra
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   };
 
   return (
@@ -254,60 +254,50 @@ export default function InformeView() {
                         <p className="iv-subtitle">Sistema de Gestión de Informes</p>
                       </div>
                     </div>
-                    <div className="iv-header-right" style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'0.3rem'}}>
-                      {informe.version && <div className="iv-badge" style={{background:'var(--success)'}}>v{informe.version}</div>}
-                      <div className="iv-badge">#{informe.id_ocupacion}</div>
-                      <p className="iv-date" style={{marginTop:'0.1rem'}}>DÍA {index + 1} {formatFechaDia(dia.fecha_evento)}</p>
-                    </div>
+
                   </div>
                   <div className="iv-divider" />
-                  <div className="iv-event-name">{informe.Institucion}</div>
                 </header>
 
                 {/* ═══ DATOS DEL EVENTO ═══ */}
-                <section className="iv-info-grid">
-                  <div className="iv-info-item">
-                    <span className="iv-info-label">Institución</span>
-                    <span className="iv-info-value">{informe.Institucion}</span>
-                  </div>
-                  <div className="iv-info-item">
-                    <span className="iv-info-label">Pax</span>
-                    <span className="iv-info-value iv-info-value-lg">{informe.Pax}</span>
-                  </div>
-                  <div className="iv-info-item">
-                    <span className="iv-info-label">Salón</span>
-                    <span className="iv-info-value">{informe.Salon || 'No asignado'}</span>
-                  </div>
-                  <div className="iv-info-item">
-                    <span className="iv-info-label">Tipo de Evento</span>
-                    <span className="iv-info-value">{informe.TipoEvento || 'N/A'}</span>
-                  </div>
-                  {informe.Vendedor && (
-                    <div className="iv-info-item">
-                      <span className="iv-info-label">Vendedor</span>
-                      <span className="iv-info-value">{informe.Vendedor}</span>
-                    </div>
-                  )}
-                  {informe.EncargadoEvento && (
-                    <div className="iv-info-item">
-                      <span className="iv-info-label">Encargado</span>
-                      <span className="iv-info-value">{informe.EncargadoEvento}</span>
-                    </div>
-                  )}
-                  {informe.HoraI && (
-                    <div className="iv-info-item">
-                      <span className="iv-info-label">Horario</span>
-                      <span className="iv-info-value">
-                        {informe.HoraI}{informe.HoraF ? ` - ${informe.HoraF}` : ''}
-                      </span>
-                    </div>
-                  )}
-                  {informe.NoDoc && (
-                    <div className="iv-info-item">
-                      <span className="iv-info-label">No. Cotización</span>
-                      <span className="iv-info-value">{informe.NoDoc}</span>
-                    </div>
-                  )}
+                <section className="iv-header-table">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="iv-ht-label">Encargado Evento</td>
+                        <td className="iv-ht-value">{informe.EncargadoEvento || '-'}</td>
+                        <td className="iv-ht-label">No Cotización</td>
+                        <td className="iv-ht-value">
+                          {informe.NoDoc || '-'}
+                          {informe.fecha_creacion && <span className="iv-ht-sub">{fechaCreacion}</span>}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="iv-ht-label">Horario</td>
+                        <td className="iv-ht-value">{informe.HoraI || '-'}{informe.HoraF ? ` - ${informe.HoraF}` : ''}</td>
+                        <td className="iv-ht-label">Teléfono</td>
+                        <td className="iv-ht-value">{informe.Telefono || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="iv-ht-label">Institución</td>
+                        <td className="iv-ht-value">{informe.Institucion}</td>
+                        <td className="iv-ht-label">Fecha Evento</td>
+                        <td className="iv-ht-value">{dia.fecha_evento ? formatFechaDia(dia.fecha_evento) : '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="iv-ht-label">Salón / Área</td>
+                        <td className="iv-ht-value">{informe.Salon || '-'}</td>
+                        <td className="iv-ht-label">No Pax</td>
+                        <td className="iv-ht-value">{informe.Pax || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="iv-ht-label">Vendedor</td>
+                        <td className="iv-ht-value">{informe.Vendedor || '-'}</td>
+                        <td className="iv-ht-label">No Folio</td>
+                        <td className="iv-ht-value">{informe.folio || '-'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </section>
 
                 {/* ═══ ALERTAS / RESTRICCIONES ═══ */}
@@ -342,7 +332,6 @@ export default function InformeView() {
                 {/* ═══ TÍTULO DEL DÍA ═══ */}
                 <div className="iv-day-header">
                   <span className="iv-day-num">DÍA {index + 1}</span>
-                  <span className="iv-day-fecha">{formatFechaDia(dia.fecha_evento)}</span>
                 </div>
 
                 {/* ═══ SECCIÓN: MENÚ ═══ */}
@@ -377,8 +366,8 @@ export default function InformeView() {
                             {grupo.items.map((item, ii) => (
                               <div key={ii} className="iv-item-row">
                                 <span className="iv-item-nombre">{item.ingrediente_nombre}</span>
-                                {item.cantidad_total && (
-                                  <span className="iv-item-qty">×{item.cantidad_total}</span>
+                                {grupo.tipo === 'proteina' && item.cantidad_total && (
+                                  <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>
                                 )}
                                 {item.metodo_preparacion && (
                                   <span className="iv-item-prep">Preparación: {item.metodo_preparacion}</span>
@@ -393,6 +382,27 @@ export default function InformeView() {
                       ))}
                     </div>
                   </>
+                )}
+
+                {/* Comentarios del Menú */}
+                {dia.comentario_menu && (
+                  <div className="iv-menu-comentario" style={{
+                    marginTop:'0.75rem', padding:'0.6rem 0.8rem',
+                    background:'var(--bg-elevated, #f8f9fa)',
+                    borderLeft:'3px solid var(--primary, #6366f1)',
+                    borderRadius:'0 6px 6px 0',
+                    fontSize:'0.82rem', lineHeight:1.5,
+                    color:'var(--text-primary)',
+                  }}>
+                    <div style={{
+                      fontSize:'0.68rem', fontWeight:700, textTransform:'uppercase',
+                      letterSpacing:'0.04em', color:'var(--text-muted)',
+                      marginBottom:'0.25rem',
+                    }}>
+                      💬 Comentarios del Menú
+                    </div>
+                    <div style={{whiteSpace:'pre-wrap'}}>{dia.comentario_menu}</div>
+                  </div>
                 )}
 
                 {/* Sin items */}
@@ -485,14 +495,31 @@ export default function InformeView() {
                           </div>
                         </div>
                       )}
-                      {m.observaciones && (
-                        <div className="iv-montaje-item iv-montaje-item-full">
-                          <span className="iv-montaje-label">Observaciones</span>
-                          <span className="iv-montaje-obs">{m.observaciones}</span>
-                        </div>
-                      )}
                     </div>
                   );
+
+                  const renderMontajeComentarios = (m, idx) => {
+                    if (!m.observaciones) return null;
+                    return (
+                      <div key={`com-${idx}`} className="iv-montaje-comentario" style={{
+                        marginTop:'0.75rem', padding:'0.6rem 0.8rem',
+                        background:'var(--bg-elevated, #f8f9fa)',
+                        borderLeft:'3px solid var(--warning, #f59e0b)',
+                        borderRadius:'0 6px 6px 0',
+                        fontSize:'0.82rem', lineHeight:1.5,
+                        color:'var(--text-primary)',
+                      }}>
+                        <div style={{
+                          fontSize:'0.68rem', fontWeight:700, textTransform:'uppercase',
+                          letterSpacing:'0.04em', color:'var(--text-muted)',
+                          marginBottom:'0.25rem',
+                        }}>
+                          💬 Comentarios del Montaje
+                        </div>
+                        <div style={{whiteSpace:'pre-wrap'}}>{m.observaciones}</div>
+                      </div>
+                    );
+                  };
 
                   return (
                     <div className="iv-montaje-section">
@@ -500,13 +527,14 @@ export default function InformeView() {
                         <span className="iv-section-label">Montaje</span>
                       </div>
                       {montajes.length === 1
-                        ? renderMontajeGrid(montajes[0], 0)
+                        ? <>{renderMontajeGrid(montajes[0], 0)}{renderMontajeComentarios(montajes[0], 0)}</>
                         : montajes.map((m, mi) => (
                             <div key={mi} className="iv-montaje-multi">
                               <div className="iv-montaje-multi-header">
                                 <span className="iv-montaje-multi-salon">🏛️ {m.salon || `Salón ${mi + 1}`}</span>
                               </div>
                               {renderMontajeGrid(m, mi)}
+                              {renderMontajeComentarios(m, mi)}
                             </div>
                           ))
                       }

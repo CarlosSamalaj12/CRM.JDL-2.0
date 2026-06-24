@@ -120,11 +120,47 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             || document.body;
           Swal.fire({ ...opts, target }).then(resolve);
         } else {
-          toast(`${title}${description ? `: ${description}` : ''}`, { duration: 3500, icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> });
-          resolve({ isConfirmed: true });
+          const target = document.getElementById('companyCreateBackdrop')
+            || document.getElementById('serviceCreateBackdrop')
+            || document.getElementById('versionPanelBackdrop')
+            || document.getElementById('quoteAdvanceBackdrop')
+            || document.getElementById('menuMontajePosBackdrop')
+            || document.getElementById('menuMontajeSelectableBackdrop')
+            || document.getElementById('qp-root')
+            || document.body;
+          const shell = document.getElementById('appShell');
+          const prevAria = shell ? shell.getAttribute('aria-hidden') : null;
+          if (shell) shell.removeAttribute('aria-hidden');
+          Swal.fire({ ...opts, target }).then((result) => {
+            if (shell && prevAria !== null) shell.setAttribute('aria-hidden', prevAria);
+            resolve(result);
+          });
         }
       }, 0);
     });
+  };
+
+  const showOverlayAlert = (icon, title, html) => {
+    const iconColors = { warning: '#f59e0b', error: '#ef4444', success: '#22c55e', info: '#3b82f6' };
+    const svgPaths = {
+      warning: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+      error: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+      success: '<circle cx="12" cy="12" r="10"/><polyline points="9,12 11,14 15,10"/>',
+      info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+    };
+    const bgColors = { warning: '#fef3c7', error: '#fef2f2', success: '#f0fdf4', info: '#eff6ff' };
+    const el = document.createElement('div');
+    el.innerHTML = `<div data-overlay style="position:fixed;inset:0;z-index:10000000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);font-family:Inter,sans-serif;">
+      <div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;">
+        <div style="width:48px;height:48px;border-radius:50%;background:${bgColors[icon]};display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="${iconColors[icon]}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${svgPaths[icon]}</svg>
+        </div>
+        <h2 style="font-size:1.1rem;font-weight:700;color:#0f172a;margin:0 0 4px;">${title}</h2>
+        <div style="font-size:0.85rem;color:#475569;margin:0 0 16px;">${html}</div>
+        <button onclick="this.parentElement.parentElement.remove()" style="padding:10px 28px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:0.85rem;font-weight:600;cursor:pointer;">Entendido</button>
+      </div>
+    </div>`;
+    document.documentElement.appendChild(el);
   };
 
   const [companies, setCompanies] = useState([]);
@@ -673,13 +709,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const handleSaveQuote = async () => {
     if (!quote.companyId) {
-      localSwal({ 
-        icon: 'warning', 
-        title: 'Falta la empresa', 
-        html: 'Para guardar la cotización es necesario seleccionar una empresa.<br><br><strong>Por favor, busca y selecciona una institución del listado.</strong>',
-        confirmButtonText: 'Entendido',
-        confirmButtonColor: '#2563eb'
-      });
+      showOverlayAlert('warning', 'Falta la empresa', 'Para guardar la cotización es necesario seleccionar una empresa.<br><br><strong>Por favor, busca y selecciona una institución del listado.</strong>');
       setShowDocPanel(true);
       // Scroll automático al campo de Institución
       setTimeout(() => {
@@ -701,13 +731,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       }, 300);
       return;
     }
-    if (!quote.contact) {
-      localSwal({ icon: 'warning', title: 'Falta el contacto', text: 'El campo Contacto es obligatorio.' });
+    const missing = [];
+    if (!quote.contact) missing.push('Contacto');
+    if (!quote.managerId) missing.push('Encargado de la empresa');
+    if (!quote.email) missing.push('Email');
+    if (!quote.phone) missing.push('Teléfono');
+    if (!quote.nit) missing.push('NIT');
+    if (!quote.billTo) missing.push('Facturar a');
+    if (!quote.address) missing.push('Dirección');
+    if (!quote.venue) missing.push('Salón / Venue');
+    if (!quote.schedule) missing.push('Horario');
+    if (!quote.folio) missing.push('No. Folio');
+    if (!quote.people) missing.push('No. personas');
+    if (!quote.eventDate) missing.push('Fecha del evento');
+    if (!quote.paymentType && (!quote.paymentTypes || quote.paymentTypes.length === 0)) missing.push('Forma de pago');
+    if (missing.length > 0) {
       setShowDocPanel(true);
+      const list = missing.map(f => `• ${f}`).join('<br>');
+      showOverlayAlert('warning', 'Campos obligatorios', `Completa los siguientes campos de <strong>Datos de empresa</strong>:<br><br>${list}`);
       return;
     }
     if (!quote.items.length) {
-      localSwal({ icon: 'warning', title: 'Sin servicios', text: 'Agrega al menos un servicio al carrito antes de guardar.' });
+      showOverlayAlert('warning', 'Carrito vacío', 'Agrega al menos un servicio al carrito antes de guardar.');
       return;
     }
 
@@ -1368,7 +1413,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         
         /* Asegurar que las alertas (Swal) siempre salgan enfrente del modal */
         .swal2-container {
-          z-index: 9999999 !important;
+          z-index: 10000000 !important;
         }
 
         .qp-btn {
