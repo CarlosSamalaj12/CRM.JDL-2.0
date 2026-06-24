@@ -257,7 +257,7 @@ export default function InformeView() {
                     <div className="iv-header-right" style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'0.3rem'}}>
                       {informe.version && <div className="iv-badge" style={{background:'var(--success)'}}>v{informe.version}</div>}
                       <div className="iv-badge">#{id}</div>
-                      <p className="iv-date" style={{marginTop:'0.1rem'}}>{formatFechaDia(dia.fecha_evento)}</p>
+                      <p className="iv-date" style={{marginTop:'0.1rem'}}>{formatFechaDia(informe.FechaEvento)}</p>
                     </div>
                   </div>
                   <div className="iv-divider" />
@@ -342,19 +342,7 @@ export default function InformeView() {
                 {/* ═══ TÍTULO DEL DÍA ═══ */}
                 <div className="iv-day-header">
                   <span className="iv-day-num">DÍA {index + 1}</span>
-                  <span className="iv-day-fecha">
-                    {(() => {
-                      if (!dia.fecha_evento) return 'Fecha no asignada';
-                      const fechaStr = dia.fecha_evento;
-                      const fechaDate = fechaStr.length <= 10
-                        ? new Date(fechaStr + 'T12:00:00')
-                        : new Date(fechaStr);
-                      if (isNaN(fechaDate.getTime())) return 'Fecha no asignada';
-                      return fechaDate.toLocaleDateString('es-ES', {
-                        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-                      });
-                    })()}
-                  </span>
+                  <span className="iv-day-fecha">{formatFechaDia(dia.fecha_evento)}</span>
                 </div>
 
                 {/* ═══ SECCIÓN: MENÚ ═══ */}
