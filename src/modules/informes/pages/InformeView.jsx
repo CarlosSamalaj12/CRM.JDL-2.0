@@ -8,17 +8,43 @@ import ColaboracionPanel from '../components/ColaboracionPanel.jsx';
 import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle } from '../components/Icons.jsx';
 
 const TIPO_LABELS = {
-  proteina:     'PROTEÍNA',
-  guarnicion:   'GUARNICIÓN',
-  guarnición:   'GUARNICIÓN',
-  salsa:        'SALSA',
-  postre:       'POSTRE',
+  proteina:     'PROTEÍNAS',
+  guarnicion:   'GUARNICIONES',
+  salsa:        'SALSAS',
+  postre:       'POSTRES',
   tortilla_pan: 'TORTILLA / PAN',
-  bebida:       'BEBIDA',
+  bebida:       'BEBIDAS',
   otros:        'OTROS',
 };
 
-const TIPO_OPTS_ORDER = ['proteina', 'guarnicion', 'guarnición', 'salsa', 'postre', 'tortilla_pan', 'bebida', 'otros'];
+const TIPO_MAP = {
+  carne: 'proteina',
+  proteina: 'proteina',
+  proteína: 'proteina',
+  proteinas: 'proteina',
+  proteínas: 'proteina',
+  
+  guarnicion: 'guarnicion',
+  guarnición: 'guarnicion',
+  guarniciones: 'guarnicion',
+  
+  salsa: 'salsa',
+  salsas: 'salsa',
+  
+  postre: 'postre',
+  postres: 'postre',
+  
+  tortilla_pan: 'tortilla_pan',
+  
+  bebida: 'bebida',
+  bebidas: 'bebida',
+  
+  otros: 'otros',
+  Otros: 'otros'
+};
+
+const TIPO_OPTS_ORDER = ['proteina', 'guarnicion', 'salsa', 'postre', 'tortilla_pan', 'bebida', 'otros'];
+
 
 const ALERTAS_PREDEFINIDAS = [
   { label: 'Sin Gluten', emoji: '🌾' },
@@ -132,6 +158,32 @@ export default function InformeView() {
     day: 'numeric', month: 'long', year: 'numeric'
   });
 
+  const fechasEventosText = (() => {
+    if (!informe || !informe.dias || informe.dias.length === 0) return 'Fecha no asignada';
+    
+    // Extrae fechas únicas ordenadas cronológicamente
+    const uniqueDates = [...new Set(informe.dias.map(d => d.fecha_evento).filter(Boolean))].sort();
+    if (uniqueDates.length === 0) return 'Fecha no asignada';
+    
+    const formatDateStr = (str) => {
+      const date = str.length <= 10 ? new Date(str + 'T12:00:00') : new Date(str);
+      return isNaN(date.getTime())
+        ? ''
+        : date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+    if (uniqueDates.length === 1) {
+      return formatDateStr(uniqueDates[0]);
+    }
+    
+    const firstStr = formatDateStr(uniqueDates[0]);
+    const lastStr = formatDateStr(uniqueDates[uniqueDates.length - 1]);
+    if (firstStr && lastStr) {
+      return `${firstStr} - ${lastStr}`;
+    }
+    return firstStr || lastStr || 'Fecha no asignada';
+  })();
+
   return (
     <div className={`informe-view-layout ${colabOpen ? 'colab-open' : ''}`}>
       <style media="print">{`
@@ -215,7 +267,7 @@ export default function InformeView() {
                     <div className="iv-header-right" style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'0.3rem'}}>
                       {informe.version && <div className="iv-badge" style={{background:'var(--success)'}}>v{informe.version}</div>}
                       <div className="iv-badge">#{id}</div>
-                      <p className="iv-date" style={{marginTop:'0.1rem'}}>{fechaCreacion}</p>
+                      <p className="iv-date" style={{marginTop:'0.1rem'}}>{fechasEventosText}</p>
                     </div>
                   </div>
                   <div className="iv-divider" />
@@ -521,7 +573,8 @@ export default function InformeView() {
 function agruparItems(items) {
   const grupos = {};
   for (const item of items) {
-    const tipo = item.ingrediente_tipo || 'otros';
+    const rawTipo = item.ingrediente_tipo || 'otros';
+    const tipo = TIPO_MAP[rawTipo] || 'otros';
     if (!grupos[tipo]) grupos[tipo] = [];
     grupos[tipo].push(item);
   }
@@ -530,11 +583,6 @@ function agruparItems(items) {
     if (grupos[t] && grupos[t].length > 0) {
       resultado.push({ tipo: t, tipoLabel: TIPO_LABELS[t] || t.toUpperCase(), items: grupos[t] });
       delete grupos[t];
-    }
-  }
-  for (const t of Object.keys(grupos)) {
-    if (grupos[t].length > 0) {
-      resultado.push({ tipo: t, tipoLabel: t.toUpperCase(), items: grupos[t] });
     }
   }
   return resultado;
