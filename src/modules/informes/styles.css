@@ -1527,6 +1527,87 @@ button[data-tooltip-bottom]::after {
   font-size: 0.78rem;
 }
 
+.item-scroll-wrap {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.item-scroll-wrap .item-list {
+  margin-top: 0;
+}
+
+.item-scroll-wrap .item-list li:first-child {
+  border-top: none;
+  border-radius: 0;
+}
+
+.item-scroll-wrap .item-list li:last-child {
+  border-bottom: none;
+  border-radius: 0;
+}
+
+.item-scroll-wrap .item-list li {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  border-top: none;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.item-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.item-action-btn:hover {
+  background: var(--bg-elevated);
+}
+
+.item-action-btn.edit:hover { color: var(--primary); }
+.item-action-btn.delete:hover { color: var(--danger); }
+
+.item-edit-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.item-edit-inline input,
+.item-edit-inline select {
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  background: var(--bg-card);
+  color: var(--text-main);
+  outline: none;
+}
+
+.item-edit-inline input:focus,
+.item-edit-inline select:focus {
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
 .item-table {
   width: 100%;
   border-collapse: collapse;

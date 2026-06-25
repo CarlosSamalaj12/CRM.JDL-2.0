@@ -131,6 +131,28 @@ export async function getSugerenciasDisponibles(req, res, next) {
   } catch (error) { next(error); }
 }
 
+// Actualizar un platillo
+export async function updatePlatillo(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { nombre_platillo, descripcion, categoria_id, precio_base } = req.body;
+    const fields = [];
+    const params = [];
+    if (nombre_platillo !== undefined) { fields.push('nombre_platillo = ?'); params.push(nombre_platillo); }
+    if (descripcion !== undefined) { fields.push('descripcion = ?'); params.push(descripcion); }
+    if (categoria_id !== undefined) { fields.push('categoria_id = ?'); params.push(categoria_id || null); }
+    if (precio_base !== undefined) { fields.push('precio_base = ?'); params.push(precio_base); }
+    if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
+    params.push(id);
+    await pool.query(`UPDATE cat_platillos SET ${fields.join(', ')} WHERE id = ?`, params);
+    const [rows] = await pool.query(
+      'SELECT p.*, c.nombre AS categoria_nombre FROM cat_platillos p LEFT JOIN cat_categorias_alimento c ON p.categoria_id = c.id WHERE p.id = ?',
+      [id]
+    );
+    res.json(rows[0]);
+  } catch (error) { next(error); }
+}
+
 // Eliminar un platillo
 export async function deletePlatillo(req, res, next) {
   try {

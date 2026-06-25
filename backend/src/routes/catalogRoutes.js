@@ -6,10 +6,14 @@ const router = express.Router();
 // Ingredientes
 router.post('/ingredientes', catalogController.createIngrediente);
 router.get('/ingredientes', catalogController.getIngredientes);
+router.put('/ingredientes/:id', catalogController.updateIngrediente);
+router.delete('/ingredientes/:id', catalogController.deleteIngrediente);
 
 // Opciones
 router.post('/opciones', catalogController.createOpcionIngrediente);
 router.get('/opciones', catalogController.getOpcionesIngrediente);
+router.put('/opciones/:id', catalogController.updateOpcionIngrediente);
+router.delete('/opciones/:id', catalogController.deleteOpcionIngrediente);
 
 // Menús
 router.post('/menus', catalogController.createMenu);

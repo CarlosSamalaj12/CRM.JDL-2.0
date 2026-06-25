@@ -529,9 +529,17 @@ export default function SettingsChecklist() {
   const [isOpen, setIsOpen] = useState(false);
   const styleElRef = useRef(null);
 
+  // Guardar overflow original para restaurarlo correctamente
+  const prevOverflowRef = useRef('');
+
+  const restoreBodyScroll = () => {
+    document.body.style.overflow = prevOverflowRef.current;
+  };
+
   // Inyectar/remover estilos del modal directamente en <head>
   useEffect(() => {
     if (isOpen) {
+      prevOverflowRef.current = document.body.style.overflow;
       // Prevenir scroll del body
       document.body.style.overflow = 'hidden';
       // Crear el elemento <style> si no existe
@@ -638,14 +646,14 @@ export default function SettingsChecklist() {
         styleElRef.current = el;
       }
     } else {
-      document.body.style.overflow = '';
+      restoreBodyScroll();
       if (styleElRef.current) {
         document.head.removeChild(styleElRef.current);
         styleElRef.current = null;
       }
     }
     return () => {
-      document.body.style.overflow = '';
+      restoreBodyScroll();
     };
   }, [isOpen]);
 

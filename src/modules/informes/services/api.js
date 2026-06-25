@@ -40,6 +40,24 @@ export async function getIngredientes() {
   return response.json();
 }
 
+export async function updateIngrediente(id, data) {
+  const response = await fetch(`${apiUrl}/api/catalog/ingredientes/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al actualizar ingrediente');
+  return response.json();
+}
+
+export async function deleteIngrediente(id) {
+  const response = await fetch(`${apiUrl}/api/catalog/ingredientes/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('Error al eliminar ingrediente');
+  return response.json();
+}
+
 // Opciones
 export async function createOpcionIngrediente(data) {
   const response = await fetch(`${apiUrl}/api/catalog/opciones`, {
@@ -55,6 +73,24 @@ export async function getOpcionesIngrediente(ingrediente_id) {
   const url = ingrediente_id ? `${apiUrl}/api/catalog/opciones?ingrediente_id=${ingrediente_id}` : `${apiUrl}/api/catalog/opciones`;
   const response = await fetch(url);
   if (!response.ok) throw new Error('Error al cargar opciones');
+  return response.json();
+}
+
+export async function updateOpcionIngrediente(id, data) {
+  const response = await fetch(`${apiUrl}/api/catalog/opciones/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al actualizar opción');
+  return response.json();
+}
+
+export async function deleteOpcionIngrediente(id) {
+  const response = await fetch(`${apiUrl}/api/catalog/opciones/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('Error al eliminar opción');
   return response.json();
 }
 
@@ -172,6 +208,24 @@ export async function createPlatillo(data) {
 export async function getPlatillos() {
   const response = await fetch(`${apiUrl}/api/platillos`);
   if (!response.ok) throw new Error('Error al cargar platillos');
+  return response.json();
+}
+
+export async function updatePlatillo(id, data) {
+  const response = await fetch(`${apiUrl}/api/platillos/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al actualizar platillo');
+  return response.json();
+}
+
+export async function deletePlatillo(id) {
+  const response = await fetch(`${apiUrl}/api/platillos/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('Error al eliminar platillo');
   return response.json();
 }
 

@@ -66,15 +66,17 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
     
     const handleScroll = () => {
       if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(calculatePosition);
+      rafId = requestAnimationFrame(() => {
+        try { calculatePosition(); } catch {}
+      });
     };
     
     calculatePosition();
     window.addEventListener('resize', calculatePosition);
-    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('resize', calculatePosition);
-      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('scroll', handleScroll);
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, [anchorRef]);

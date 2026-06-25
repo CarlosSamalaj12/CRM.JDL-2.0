@@ -7,6 +7,7 @@ const router = express.Router();
 router.post('/', platilloController.createPlatillo);
 router.get('/', platilloController.getPlatillos);
 router.get('/:id', platilloController.getPlatilloDetalle);
+router.put('/:id', platilloController.updatePlatillo);
 router.delete('/:id', platilloController.deletePlatillo);
 
 // Sugerencias disponibles (ingredientes agrupados + opciones)

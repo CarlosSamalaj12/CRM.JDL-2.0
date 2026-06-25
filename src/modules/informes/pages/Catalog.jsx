@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react';
 import { useToast } from '../context/ToastContext.jsx';import {
   getIngredientes, 
   createIngrediente, 
+  updateIngrediente,
+  deleteIngrediente,
   getOpcionesIngrediente, 
   createOpcionIngrediente,
+  updateOpcionIngrediente,
+  deleteOpcionIngrediente,
   getPlatillos,
   createPlatillo,
+  updatePlatillo,
+  deletePlatillo,
   getPlatilloDetalle,
   addComponentePlatillo,
   removeComponentePlatillo,
@@ -37,7 +43,6 @@ const TIPO_LABELS = {
 
 const TIPO_OPTS = ['proteina','guarnicion','salsa','postre','tortilla_pan','bebida','otros'];
 
-// ─── Subcomponente: sección de ingredientes por tipo para agregar al platillo ────
 function SugerenciaTipoSection({ tipo, ingredientes, opcionesPorIng, seleccionados, onToggle, onOpcionChange }) {
   const cfg = TIPO_LABELS[tipo] || TIPO_LABELS.otros;
   const disponibles = ingredientes.filter(i => i.tipo === tipo || 
@@ -86,21 +91,23 @@ function SugerenciaTipoSection({ tipo, ingredientes, opcionesPorIng, seleccionad
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// COMPONENTE PRINCIPAL
-// ═══════════════════════════════════════════════════════════════
 export default function Catalog() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('ingredientes');
   const [loading, setLoading] = useState(false);
 
-  // ─── INGREDIENTES ───
   const [ingredientes, setIngredientes] = useState([]);
   const [searchIngredientes, setSearchIngredientes] = useState('');
   const [newIngrediente, setNewIngrediente] = useState({ nombre: '', tipo: 'proteina' });
   const [selectedIngrediente, setSelectedIngrediente] = useState(null);
   const [opciones, setOpciones] = useState([]);
   const [newOpcion, setNewOpcion] = useState({ nombre_opcion: '' });
+  const [editingIngId, setEditingIngId] = useState(null);
+  const [editIngNombre, setEditIngNombre] = useState('');
+  const [editIngTipo, setEditIngTipo] = useState('proteina');
+  const [editingOptId, setEditingOptId] = useState(null);
+  const [editOptNombre, setEditOptNombre] = useState('');
+
   const ingredientesFiltrados = searchIngredientes
     ? ingredientes.filter(i => {
         const q = searchIngredientes.toLowerCase();
@@ -109,24 +116,25 @@ export default function Catalog() {
       })
     : ingredientes;
 
-  // ─── PLATILLOS ───
   const [platillos, setPlatillos] = useState([]);
   const [searchPlatillos, setSearchPlatillos] = useState('');
   const [newPlatillo, setNewPlatillo] = useState({ nombre_platillo: '', descripcion: '' });
   const [selectedPlatillo, setSelectedPlatillo] = useState(null);
   const [platilloDetalle, setPlatilloDetalle] = useState(null);
-  const [sugerenciasData, setSugerenciasData] = useState(null); // ingredientes_agrupados + opciones_por_ingrediente
+  const [sugerenciasData, setSugerenciasData] = useState(null);
+  const [editingPlatId, setEditingPlatId] = useState(null);
+  const [editPlatNombre, setEditPlatNombre] = useState('');
+  const [editPlatDesc, setEditPlatDesc] = useState('');
+  const [editPlatCatId, setEditPlatCatId] = useState(null);
   const platillosFiltrados = searchPlatillos
     ? platillos.filter(p => p.nombre_platillo.toLowerCase().includes(searchPlatillos.toLowerCase()))
     : platillos;
 
-  // ─── CATEGORÍAS DE ALIMENTO ───
   const [categorias, setCategorias] = useState([]);
   const [newCategoria, setNewCategoria] = useState('');
   const [editingCategoriaId, setEditingCategoriaId] = useState(null);
   const [editCategoriaName, setEditCategoriaName] = useState('');
 
-  // ─── MENÚS ───
   const [menus, setMenus] = useState([]);
   const [searchMenus, setSearchMenus] = useState('');
   const [newMenu, setNewMenu] = useState({ nombre_menu: '', descripcion: '', categoria_id: '' });
@@ -209,7 +217,6 @@ export default function Catalog() {
     }
   };
 
-  // ─── Handlers Ingredientes ───
   const onAddIngrediente = async (e) => {
     e.preventDefault();
     try {
@@ -219,6 +226,39 @@ export default function Catalog() {
       loadIngredientes();
     } catch (err) {
       toast.error('Error al crear ingrediente: ' + err.message);
+    }
+  };
+
+  const startEditIngrediente = (ing, e) => {
+    e.stopPropagation();
+    setEditingIngId(ing.id);
+    setEditIngNombre(ing.nombre);
+    setEditIngTipo(ing.tipo);
+  };
+
+  const saveEditIngrediente = async () => {
+    if (!editIngNombre.trim()) return;
+    try {
+      await updateIngrediente(editingIngId, { nombre: editIngNombre.trim(), tipo: editIngTipo });
+      toast.success('Ingrediente actualizado');
+      setEditingIngId(null);
+      if (selectedIngrediente?.id === editingIngId) setSelectedIngrediente(prev => ({ ...prev, nombre: editIngNombre.trim(), tipo: editIngTipo }));
+      loadIngredientes();
+    } catch (err) {
+      toast.error('Error al actualizar: ' + err.message);
+    }
+  };
+
+  const handleDeleteIngrediente = async (ing, e) => {
+    e.stopPropagation();
+    if (!confirm(`¿Eliminar "${ing.nombre}"? También se quitará de menús y platillos.`)) return;
+    try {
+      await deleteIngrediente(ing.id);
+      toast.success(`"${ing.nombre}" eliminado`);
+      if (selectedIngrediente?.id === ing.id) { setSelectedIngrediente(null); setOpciones([]); }
+      loadIngredientes();
+    } catch (err) {
+      toast.error('Error al eliminar: ' + err.message);
     }
   };
 
@@ -234,7 +274,36 @@ export default function Catalog() {
     }
   };
 
-  // ─── Handlers Platillos ───
+  const startEditOpcion = (opt, e) => {
+    e.stopPropagation();
+    setEditingOptId(opt.id);
+    setEditOptNombre(opt.nombre_opcion);
+  };
+
+  const saveEditOpcion = async () => {
+    if (!editOptNombre.trim()) return;
+    try {
+      await updateOpcionIngrediente(editingOptId, { nombre_opcion: editOptNombre.trim() });
+      toast.success('Opción actualizada');
+      setEditingOptId(null);
+      handleIngredienteSelect(selectedIngrediente);
+    } catch (err) {
+      toast.error('Error al actualizar opción: ' + err.message);
+    }
+  };
+
+  const handleDeleteOpcion = async (optId, e) => {
+    e.stopPropagation();
+    if (!confirm('¿Eliminar esta opción?')) return;
+    try {
+      await deleteOpcionIngrediente(optId);
+      toast.success('Opción eliminada');
+      handleIngredienteSelect(selectedIngrediente);
+    } catch (err) {
+      toast.error('Error al eliminar opción: ' + err.message);
+    }
+  };
+
   const onAddPlatillo = async (e) => {
     e.preventDefault();
     try {
@@ -245,6 +314,46 @@ export default function Catalog() {
       handlePlatilloSelect(nuevo);
     } catch (err) {
       toast.error('Error al crear platillo: ' + err.message);
+    }
+  };
+
+  const startEditPlatillo = (plat, e) => {
+    e.stopPropagation();
+    setEditingPlatId(plat.id);
+    setEditPlatNombre(plat.nombre_platillo);
+    setEditPlatDesc(plat.descripcion || '');
+    setEditPlatCatId(plat.categoria_id || null);
+  };
+
+  const saveEditPlatillo = async () => {
+    if (!editPlatNombre.trim()) return;
+    try {
+      await updatePlatillo(editingPlatId, {
+        nombre_platillo: editPlatNombre.trim(),
+        descripcion: editPlatDesc.trim() || null,
+        categoria_id: editPlatCatId || null,
+      });
+      toast.success('Platillo actualizado');
+      setEditingPlatId(null);
+      if (selectedPlatillo?.id === editingPlatId) {
+        setSelectedPlatillo(prev => ({ ...prev, nombre_platillo: editPlatNombre.trim() }));
+      }
+      loadPlatillos();
+    } catch (err) {
+      toast.error('Error al actualizar platillo: ' + err.message);
+    }
+  };
+
+  const handleDeletePlatillo = async (plat, e) => {
+    e.stopPropagation();
+    if (!confirm(`¿Eliminar el platillo "${plat.nombre_platillo}"?`)) return;
+    try {
+      await deletePlatillo(plat.id);
+      toast.success(`"${plat.nombre_platillo}" eliminado`);
+      if (selectedPlatillo?.id === plat.id) { setSelectedPlatillo(null); setPlatilloDetalle(null); }
+      loadPlatillos();
+    } catch (err) {
+      toast.error('Error al eliminar: ' + err.message);
     }
   };
 
@@ -370,7 +479,6 @@ export default function Catalog() {
     }
   };
 
-  // ─── Handlers Menús ───
   const onToggleMenuItem = async (ingrediente, tipo) => {
     try {
       const existing = menuDetalle?.items?.find(
@@ -469,20 +577,49 @@ export default function Catalog() {
                 </button>
               )}
             </div>
-            <ul className="item-list">
-              {ingredientesFiltrados.length === 0 ? (
-                <li style={{color:'var(--text-muted)',fontStyle:'italic',textAlign:'center',padding:'0.5rem',fontSize:'0.85rem',listStyle:'none'}}>
-                  {searchIngredientes ? 'Sin resultados' : 'Sin ingredientes aún'}
-                </li>
-              ) : (
-                ingredientesFiltrados.map(ing => (
-                  <li key={ing.id} onClick={() => handleIngredienteSelect(ing)} className={selectedIngrediente?.id === ing.id ? 'selected' : ''}>
-                    <span style={{ marginRight: 6 }}>{TIPO_LABELS[ing.tipo]?.icon || '📦'}</span>
-                    {ing.nombre} <small>{TIPO_LABELS[ing.tipo]?.label || ing.tipo}</small>
+            <div className="item-scroll-wrap">
+              <ul className="item-list">
+                {ingredientesFiltrados.length === 0 ? (
+                  <li style={{color:'var(--text-muted)',fontStyle:'italic',textAlign:'center',padding:'0.5rem',fontSize:'0.85rem',listStyle:'none',cursor:'default'}}>
+                    {searchIngredientes ? 'Sin resultados' : 'Sin ingredientes aún'}
                   </li>
-                ))
-              )}
-            </ul>
+                ) : (
+                  ingredientesFiltrados.map(ing => (
+                    <li key={ing.id} onClick={() => handleIngredienteSelect(ing)} className={selectedIngrediente?.id === ing.id ? 'selected' : ''}>
+                      {editingIngId === ing.id ? (
+                        <div className="item-edit-inline">
+                          <input
+                            value={editIngNombre}
+                            onChange={e => setEditIngNombre(e.target.value)}
+                            autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') saveEditIngrediente(); if (e.key === 'Escape') setEditingIngId(null); }}
+                            onClick={e => e.stopPropagation()}
+                            style={{flex:1}}
+                          />
+                          <select value={editIngTipo} onChange={e => setEditIngTipo(e.target.value)} onClick={e => e.stopPropagation()} style={{width:'120px'}}>
+                            {TIPO_OPTS.map(t => <option key={t} value={t}>{TIPO_LABELS[t]?.label || t}</option>)}
+                          </select>
+                          <button className="item-action-btn edit" onClick={e => { e.stopPropagation(); saveEditIngrediente(); }} data-tooltip="Guardar">✓</button>
+                          <button className="item-action-btn" onClick={e => { e.stopPropagation(); setEditingIngId(null); }} data-tooltip="Cancelar">✕</button>
+                        </div>
+                      ) : (
+                        <>
+                          <span style={{ display:'flex', alignItems:'center', gap:'0.4rem', minWidth:0 }}>
+                            <span>{TIPO_LABELS[ing.tipo]?.icon || '📦'}</span>
+                            <span>{ing.nombre}</span>
+                            <small>{TIPO_LABELS[ing.tipo]?.label || ing.tipo}</small>
+                          </span>
+                          <div className="item-actions" onClick={e => e.stopPropagation()}>
+                            <button className="item-action-btn edit" onClick={(e) => startEditIngrediente(ing, e)} data-tooltip="Editar">✏️</button>
+                            <button className="item-action-btn delete" onClick={(e) => handleDeleteIngrediente(ing, e)} data-tooltip="Eliminar"><IconTrash size={12} /></button>
+                          </div>
+                        </>
+                      )}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
           </section>
 
           <section className="catalog-section">
@@ -498,9 +635,41 @@ export default function Catalog() {
                   />
                   <button type="submit" className="btn-primary"><IconPlus size={15} /> Añadir Opción</button>
                 </form>
-                <ul className="item-list">
-                  {opciones.map(opt => <li key={opt.id}>{opt.nombre_opcion}</li>)}
-                </ul>
+                <div className="item-scroll-wrap">
+                  <ul className="item-list">
+                    {opciones.length === 0 ? (
+                      <li style={{color:'var(--text-muted)',fontStyle:'italic',textAlign:'center',padding:'0.5rem',fontSize:'0.85rem',listStyle:'none',cursor:'default'}}>
+                        Sin opciones aún
+                      </li>
+                    ) : (
+                      opciones.map(opt => (
+                        <li key={opt.id} style={{cursor:'default'}}>
+                          {editingOptId === opt.id ? (
+                            <div className="item-edit-inline">
+                              <input
+                                value={editOptNombre}
+                                onChange={e => setEditOptNombre(e.target.value)}
+                                autoFocus
+                                onKeyDown={e => { if (e.key === 'Enter') saveEditOpcion(); if (e.key === 'Escape') setEditingOptId(null); }}
+                                style={{flex:1}}
+                              />
+                              <button className="item-action-btn edit" onClick={e => { e.stopPropagation(); saveEditOpcion(); }} data-tooltip="Guardar">✓</button>
+                              <button className="item-action-btn" onClick={e => { e.stopPropagation(); setEditingOptId(null); }} data-tooltip="Cancelar">✕</button>
+                            </div>
+                          ) : (
+                            <>
+                              <span>{opt.nombre_opcion}</span>
+                              <div className="item-actions">
+                                <button className="item-action-btn edit" onClick={(e) => startEditOpcion(opt, e)} data-tooltip="Editar">✏️</button>
+                                <button className="item-action-btn delete" onClick={(e) => handleDeleteOpcion(opt.id, e)} data-tooltip="Eliminar"><IconTrash size={12} /></button>
+                              </div>
+                            </>
+                          )}
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
               </>
             ) : (
               <p style={{color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic', padding: '1rem 0'}}>
@@ -514,7 +683,6 @@ export default function Catalog() {
       {/* ════════ TAB: PLATILLOS ════════ */}
       {activeTab === 'platillos' && (
         <div className="catalog-grid" style={{ gridTemplateColumns: selectedPlatillo ? '320px 1fr' : '1fr 1fr' }}>
-          {/* Lista de platillos */}
           <section className="catalog-section">
             <h3><IconChefHat size={16} /> Platillos</h3>
             <form onSubmit={onAddPlatillo}>
@@ -559,29 +727,51 @@ export default function Catalog() {
                 </button>
               )}
             </div>
-            <ul className="item-list" style={{ marginTop: '1rem' }}>
-              {platillosFiltrados.length === 0 ? (
-                <p style={{color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem', fontSize: '0.9rem', textAlign: 'center'}}>
-                  {searchPlatillos ? 'Sin resultados' : 'No hay platillos aún. ¡Crea el primero!'}
-                </p>
-              ) : (
-                platillosFiltrados.map(p => (
-                  <li key={p.id} onClick={() => handlePlatilloSelect(p)} className={selectedPlatillo?.id === p.id ? 'selected' : ''}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',gap:'0.5rem'}}>
-                      <span>{p.nombre_platillo}</span>
-                      {p.categoria_nombre && (
-                        <span style={{fontSize:'0.68rem',padding:'0.1rem 0.4rem',borderRadius:'var(--radius-full)',background:'var(--primary-bg)',color:'var(--primary)',fontWeight:600,whiteSpace:'nowrap'}}>
-                          {p.categoria_nombre}
-                        </span>
-                      )}
-                    </div>
+            <div className="item-scroll-wrap">
+              <ul className="item-list" style={{ marginTop: 0 }}>
+                {platillosFiltrados.length === 0 ? (
+                  <li style={{color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem', fontSize: '0.9rem', textAlign: 'center', cursor:'default'}}>
+                    {searchPlatillos ? 'Sin resultados' : 'No hay platillos aún. ¡Crea el primero!'}
                   </li>
-                ))
-              )}
-            </ul>
+                ) : (
+                  platillosFiltrados.map(p => (
+                    <li key={p.id} onClick={() => handlePlatilloSelect(p)} className={selectedPlatillo?.id === p.id ? 'selected' : ''}>
+                      {editingPlatId === p.id ? (
+                        <div className="item-edit-inline" style={{flexWrap:'wrap'}} onClick={e => e.stopPropagation()}>
+                          <input value={editPlatNombre} onChange={e => setEditPlatNombre(e.target.value)} autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') saveEditPlatillo(); if (e.key === 'Escape') setEditingPlatId(null); }}
+                            style={{flex:1,minWidth:'120px'}} />
+                          <select value={editPlatCatId || ''} onChange={e => setEditPlatCatId(e.target.value ? Number(e.target.value) : null)}
+                            style={{width:'130px'}}>
+                            <option value="">Sin categoría</option>
+                            {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          </select>
+                          <button className="item-action-btn edit" onClick={saveEditPlatillo} data-tooltip="Guardar">✓</button>
+                          <button className="item-action-btn" onClick={() => setEditingPlatId(null)} data-tooltip="Cancelar">✕</button>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{display:'flex',alignItems:'center',gap:'0.4rem',minWidth:0}}>
+                            <span>{p.nombre_platillo}</span>
+                            {p.categoria_nombre && (
+                              <span style={{fontSize:'0.68rem',padding:'0.1rem 0.4rem',borderRadius:'var(--radius-full)',background:'var(--primary-bg)',color:'var(--primary)',fontWeight:600,whiteSpace:'nowrap'}}>
+                                {p.categoria_nombre}
+                              </span>
+                            )}
+                          </div>
+                          <div className="item-actions" onClick={e => e.stopPropagation()}>
+                            <button className="item-action-btn edit" onClick={(e) => startEditPlatillo(p, e)} data-tooltip="Editar platillo">✏️</button>
+                            <button className="item-action-btn delete" onClick={(e) => handleDeletePlatillo(p, e)} data-tooltip="Eliminar platillo"><IconTrash size={12} /></button>
+                          </div>
+                        </>
+                      )}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
           </section>
 
-          {/* Sugerencias del platillo seleccionado */}
           {selectedPlatillo && (
             <section className="catalog-section">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -705,7 +895,6 @@ export default function Catalog() {
       {/* ════════ TAB: MENÚS ════════ */}
       {activeTab === 'menus' && (
         <div className="catalog-grid" style={{ gridTemplateColumns: selectedMenu ? '320px 1fr' : '1fr 1fr' }}>
-          {/* Lista de menús */}
           <section className="catalog-section">
             <h3><IconMenu size={16} /> Menús</h3>
             <form onSubmit={onAddMenu}>
@@ -819,7 +1008,6 @@ export default function Catalog() {
             </ul>
           </section>
 
-          {/* Composición del menú seleccionado */}
           {selectedMenu && (
             <section className="catalog-section">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

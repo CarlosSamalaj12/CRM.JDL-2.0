@@ -21,7 +21,19 @@ export async function getEvents(req, res, next) {
         e.TipoEvento,
         e.Telefono,
         e.Salon,
-        COALESCE(m.tiene_alertas, 0) AS tiene_alertas,
+        CASE
+          WHEN COALESCE(m.tiene_alertas, 0) = 1 THEN 1
+          WHEN EXISTS (
+            SELECT 1 FROM informe_dias_detalle dd
+            JOIN informes_eventos ie ON dd.informe_id = ie.id
+            WHERE ie.id_ocupacion = e.Idocupacion
+            AND dd.descripcion_montaje IS NOT NULL
+            AND dd.descripcion_montaje LIKE '%"alertas":%'
+            AND dd.descripcion_montaje NOT LIKE '%"alertas":[]%'
+            LIMIT 1
+          ) THEN 1
+          ELSE 0
+        END AS tiene_alertas,
         m.alertas_text
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion

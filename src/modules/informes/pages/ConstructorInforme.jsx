@@ -533,7 +533,10 @@ export default function ConstructorInforme() {
         }
         const alertas_text = allAlertas.size > 0 ? [...allAlertas].join(', ') : null;
         await saveMetadatosEvento(id_ocupacion, { tiene_alertas, alertas_text });
-      } catch { /* no crítico */ }
+      } catch (err) {
+        console.error('Error al guardar metadatos de alertas:', err);
+        toast.warning('Las alertas se guardaron en el informe pero no se marcaron en la vista general');
+      }
 
       const versionStr = versionActiva ? ` v${versionActiva}` : '';
       toast.success(`¡Informe${versionStr} guardado! (${diasGuardados} día(s))`, {

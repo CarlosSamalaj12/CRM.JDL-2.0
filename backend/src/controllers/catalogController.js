@@ -27,6 +27,33 @@ export async function getIngredientes(req, res, next) {
   } catch (error) { next(error); }
 }
 
+export async function updateIngrediente(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { nombre, tipo } = req.body;
+    const fields = [];
+    const params = [];
+    if (nombre !== undefined) { fields.push('nombre = ?'); params.push(nombre); }
+    if (tipo !== undefined) { fields.push('tipo = ?'); params.push(tipo); }
+    if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
+    params.push(id);
+    await pool.query(`UPDATE cat_ingredientes SET ${fields.join(', ')} WHERE id = ?`, params);
+    const [rows] = await pool.query('SELECT * FROM cat_ingredientes WHERE id = ?', [id]);
+    res.json(rows[0]);
+  } catch (error) { next(error); }
+}
+
+export async function deleteIngrediente(req, res, next) {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM cat_opciones_ingrediente WHERE ingrediente_id = ?', [id]);
+    await pool.query('DELETE FROM menu_items WHERE ingrediente_id = ?', [id]);
+    await pool.query('DELETE FROM platillo_componentes WHERE ingrediente_id = ?', [id]);
+    await pool.query('DELETE FROM cat_ingredientes WHERE id = ?', [id]);
+    res.status(204).send();
+  } catch (error) { next(error); }
+}
+
 // --- OPCIONES DE INGREDIENTES ---
 export async function createOpcionIngrediente(req, res, next) {
   try {
@@ -47,6 +74,25 @@ export async function getOpcionesIngrediente(req, res, next) {
     }
     const [rows] = await pool.query(query, params);
     res.json(rows);
+  } catch (error) { next(error); }
+}
+
+export async function updateOpcionIngrediente(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { nombre_opcion } = req.body;
+    if (!nombre_opcion) return res.status(400).json({ message: 'nombre_opcion requerido' });
+    await pool.query('UPDATE cat_opciones_ingrediente SET nombre_opcion = ? WHERE id = ?', [nombre_opcion, id]);
+    const [rows] = await pool.query('SELECT * FROM cat_opciones_ingrediente WHERE id = ?', [id]);
+    res.json(rows[0]);
+  } catch (error) { next(error); }
+}
+
+export async function deleteOpcionIngrediente(req, res, next) {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM cat_opciones_ingrediente WHERE id = ?', [id]);
+    res.status(204).send();
   } catch (error) { next(error); }
 }
 
