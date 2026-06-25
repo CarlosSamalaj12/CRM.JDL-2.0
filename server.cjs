@@ -813,7 +813,7 @@ async function readStateFromTables() {
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador FROM recordatorios_evento ORDER BY id"),
       conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
-      conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
+      conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
     let dbServicesList = [];
@@ -1115,7 +1115,7 @@ async function readStateFromTables() {
             date: toIsoDate(a.fecha_anticipo),
             voucherNumber: str(a.numero_boleta || ""),
             description: str(a.descripcion || ""),
-            evidenceDataUrl: str(a.datos_evidencia || ""),
+            evidenceDataUrl: Number(a.tiene_evidencia) !== 0 ? `/api/anticipos/${a.id}/evidencia` : "",
             evidenceName: str(a.nombre_evidencia || ""),
             evidenceType: str(a.tipo_evidencia || ""),
             createdAt: str(a.creado_en_iso || ""),
@@ -1926,9 +1926,14 @@ async function writeStateToTables(state) {
       // === UPSERT: anticipos_evento (normalizar pagos en tabla propia) ===
       const existingAdvancesById = new Map();
       try {
-        const dbExisting = await conn.query("SELECT id, creado_en_iso, id_usuario_creador, nombre_usuario_creador FROM anticipos_evento WHERE id_evento = ?", [id]);
+        const dbExisting = await conn.query("SELECT id, creado_en_iso, id_usuario_creador, nombre_usuario_creador, datos_evidencia FROM anticipos_evento WHERE id_evento = ?", [id]);
         for (const ea of dbExisting) {
-          existingAdvancesById.set(str(ea.id), { createdAt: str(ea.creado_en_iso || ""), createdByUserId: str(ea.id_usuario_creador || ""), createdByName: str(ea.nombre_usuario_creador || "") });
+          existingAdvancesById.set(str(ea.id), {
+            createdAt: str(ea.creado_en_iso || ""),
+            createdByUserId: str(ea.id_usuario_creador || ""),
+            createdByName: str(ea.nombre_usuario_creador || ""),
+            datos_evidencia: str(ea.datos_evidencia || "")
+          });
         }
       } catch (_) {}
 
@@ -1973,6 +1978,15 @@ async function writeStateToTables(state) {
             editadoPorNombre = str(editedLog?.actorName || "").trim() || null;
             editadoEnIso = str(editedLog?.at || "").trim() || null;
           }
+
+          let datosEvidencia = null;
+          const incomingUrl = str(adv.evidenceDataUrl || "").trim();
+          if (incomingUrl.startsWith("data:")) {
+            datosEvidencia = incomingUrl; // Nuevo archivo cargado
+          } else if (incomingUrl.startsWith("/api/anticipos/") && existingMeta?.datos_evidencia) {
+            datosEvidencia = existingMeta.datos_evidencia; // Conservar el archivo existente
+          }
+
           await conn.query(
             `INSERT INTO anticipos_evento
                (id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso, editado_por_id, editado_por_nombre, editado_en_iso)
@@ -2001,7 +2015,7 @@ async function writeStateToTables(state) {
               existingMeta?.createdByName || str(adv.createdByName || "").trim() || null,
               str(adv.evidenceName || "").trim() || null,
               str(adv.evidenceType || "").trim() || null,
-              str(adv.evidenceDataUrl || "").trim() || null,
+              datosEvidencia,
               existingMeta?.createdAt || str(adv.createdAt || "").trim() || null,
               editadoPorId,
               editadoPorNombre,
@@ -2693,6 +2707,33 @@ app.get("/api/state", async (_req, res) => {
   } catch (error) {
     console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en GET /api/state:`, error);
     return res.status(500).json({ message: "No se pudo leer el estado desde tablas.", detail: error.message });
+  }
+});
+
+app.get("/api/anticipos/:id/evidencia", async (req, res) => {
+  const id = req.params.id;
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query("SELECT datos_evidencia, tipo_evidencia, nombre_evidencia FROM anticipos_evento WHERE id = ?", [id]);
+    if (!rows.length || !rows[0].datos_evidencia) {
+      return res.status(404).send("Evidencia no encontrada.");
+    }
+    const base64Data = rows[0].datos_evidencia;
+    const match = base64Data.match(/^data:([^;]+);base64,(.*)$/);
+    if (match) {
+      const contentType = match[1];
+      const data = Buffer.from(match[2], 'base64');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${rows[0].nombre_evidencia || 'evidencia.bin'}"`);
+      return res.send(data);
+    } else {
+      return res.send(base64Data);
+    }
+  } catch (error) {
+    return res.status(500).send("Error al obtener la evidencia: " + error.message);
+  } finally {
+    if (conn) conn.release();
   }
 });
 
