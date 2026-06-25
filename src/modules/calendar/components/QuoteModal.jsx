@@ -26,10 +26,12 @@ const calculateDueDate = (eventDateStr) => {
 const normalizeAdvancePaymentType = (rawType) => {
   const value = String(rawType || '').trim().toLowerCase();
   if (value === 'credito') return 'Credito';
-  if (value === 'deposito') return 'Deposito';
+  if (value === 'deposito' || value === 'depósito') return 'Deposito';
   if (value === 'efectivo') return 'Efectivo';
   if (value === 'tarjeta') return 'Tarjeta';
-  return 'Efectivo';
+  if (value === 'transferencia') return 'Transferencia';
+  if (value === 'cheque') return 'Cheque';
+  return rawType || 'Efectivo';
 };
 const normalizeAdvance = (rawAdvance, index = 0) => {
   const amount = Number(rawAdvance?.amount || 0);
@@ -190,6 +192,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [advanceEditingId, setAdvanceEditingId] = useState('');
   const [advanceEvidenceFile, setAdvanceEvidenceFile] = useState(null);
   const [advanceEvidenceInputKey, setAdvanceEvidenceInputKey] = useState(0);
+  const [formasPago, setFormasPago] = useState([]);
   const [newAdvance, setNewAdvance] = useState({
     amount: '',
     date: todayISO(),
@@ -272,6 +275,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   useEffect(() => {
     loadState();
     document.body.classList.add('quoteModeOpen');
+    const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const token = localStorage.getItem('token');
+    fetch(`${apiUrl}/api/config/formas-pago`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+      .then(r => r.json())
+      .then(data => setFormasPago(Array.isArray(data) ? data.filter(fp => fp.activo !== 0) : []))
+      .catch(() => {});
     return () => document.body.classList.remove('quoteModeOpen');
   }, [loadState]);
 
@@ -1273,10 +1284,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         <label className="field quoteAdvanceField--type" style={{ gridColumn: 'span 2' }}>
           <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Forma de pago</span>
           <select value={newAdvance.paymentType} onChange={e => setNewAdvance(p => ({ ...p, paymentType: e.target.value }))} style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}>
-            <option value="Credito">Credito</option>
-            <option value="Deposito">Deposito</option>
-            <option value="Efectivo">Efectivo</option>
-            <option value="Tarjeta">Tarjeta</option>
+            {formasPago.map(fp => (
+              <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
+            ))}
           </select>
         </label>
         <label className="field quoteAdvanceField--date" style={{ gridColumn: 'span 2' }}>
@@ -3665,12 +3675,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       }}
                     >
                       <option value="">Seleccionar forma de pago...</option>
-                      <option value="Efectivo">Efectivo</option>
-                      <option value="Crédito">Crédito</option>
-                      <option value="Transferencia">Transferencia</option>
-                      <option value="Tarjeta">Tarjeta</option>
-                      <option value="Cheque">Cheque</option>
-                      <option value="Depósito">Depósito</option>
+                      {formasPago.map(fp => (
+                        <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -4275,10 +4282,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <label className="field quoteAdvanceField--type">
                   <span>Forma de pago</span>
                   <select value={newAdvance.paymentType} onChange={e => setNewAdvance(p => ({ ...p, paymentType: e.target.value }))}>
-                    <option value="Credito">Credito</option>
-                    <option value="Deposito">Deposito</option>
-                    <option value="Efectivo">Efectivo</option>
-                    <option value="Tarjeta">Tarjeta</option>
+                    {formasPago.map(fp => (
+                      <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
+                    ))}
                   </select>
                 </label>
                 <label className="field quoteAdvanceField--date">

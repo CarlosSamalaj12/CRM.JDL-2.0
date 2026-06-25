@@ -647,6 +647,39 @@ export async function deleteMesa(id) {
   return response.json();
 }
 
+// Formas de Pago
+export async function getFormasPago() {
+  const response = await fetch(`${apiUrl}/api/config/formas-pago`, { headers: authHeaders() });
+  if (!response.ok) throw new Error('Error al cargar formas de pago');
+  return response.json();
+}
+
+export async function createFormaPago(nombre) {
+  const response = await fetch(`${apiUrl}/api/config/formas-pago`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ nombre }),
+  });
+  if (!response.ok) throw new Error('Error al crear forma de pago');
+  return response.json();
+}
+
+export async function updateFormaPago(id, data) {
+  const response = await fetch(`${apiUrl}/api/config/formas-pago/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al actualizar forma de pago');
+  return response.json();
+}
+
+export async function deleteFormaPago(id) {
+  const response = await fetch(`${apiUrl}/api/config/formas-pago/${id}`, {
+    method: 'DELETE', headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error('Error al eliminar forma de pago');
+  return response.json();
+}
+
 // --- USUARIOS API (gestión) ---
 
 export async function getUsers() {

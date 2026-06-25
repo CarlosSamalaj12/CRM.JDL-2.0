@@ -37,6 +37,14 @@ export default function ReportsContabilidad({ onClose }) {
       }
     };
     loadCompanies();
+    const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const token = localStorage.getItem('token');
+    fetch(`${apiUrl}/api/config/formas-pago`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+      .then(r => r.json())
+      .then(data => { if (active) setFormasPago(Array.isArray(data) ? data.filter(fp => fp.activo !== 0) : []); })
+      .catch(() => {});
     return () => { active = false; };
   }, []);
 
@@ -328,10 +336,12 @@ export default function ReportsContabilidad({ onClose }) {
   const normalizeAdvancePaymentType = (rawType) => {
     const value = String(rawType || '').trim().toLowerCase();
     if (value === 'credito') return 'Credito';
-    if (value === 'deposito') return 'Deposito';
+    if (value === 'deposito' || value === 'depósito') return 'Deposito';
     if (value === 'efectivo') return 'Efectivo';
     if (value === 'tarjeta') return 'Tarjeta';
-    return 'Efectivo';
+    if (value === 'transferencia') return 'Transferencia';
+    if (value === 'cheque') return 'Cheque';
+    return rawType || 'Efectivo';
   };
   const readFileAsDataUrl = (file) => new Promise((resolve) => {
     if (!file) return resolve('');
@@ -349,6 +359,7 @@ export default function ReportsContabilidad({ onClose }) {
   };
   const todayISO = () => new Date().toISOString().split('T')[0];
 
+  const [formasPago, setFormasPago] = useState([]);
   const [advanceForm, setAdvanceForm] = useState({ amount: '', date: todayISO(), paymentType: 'Efectivo', voucherNumber: '', description: '', evidenceName: '' });
   const [advanceEvidenceFile, setAdvanceEvidenceFile] = useState(null);
   const [advanceEditingId, setAdvanceEditingId] = useState('');
@@ -1460,10 +1471,9 @@ export default function ReportsContabilidad({ onClose }) {
                             <div>
                               <label style={{ display: 'block', fontSize: '9px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Forma de pago</label>
                               <select value={advanceForm.paymentType} onChange={e => setAdvanceForm(p => ({ ...p, paymentType: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff', fontWeight: 600, color: '#0f172a' }}>
-                                <option value="Credito">Credito</option>
-                                <option value="Deposito">Deposito</option>
-                                <option value="Efectivo">Efectivo</option>
-                                <option value="Tarjeta">Tarjeta</option>
+                                {formasPago.map(fp => (
+                                  <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
+                                ))}
                               </select>
                             </div>
                             <div>

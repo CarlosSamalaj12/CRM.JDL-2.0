@@ -7,6 +7,7 @@ import SettingsGlobalGoals from './SettingsGlobalGoals';
 import UserModal from './UserModal';
 import SettingsServicios from './SettingsServicios';
 import SettingsPlantillas from './SettingsPlantillas';
+import SettingsFormasPago from './SettingsFormasPago';
 import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
@@ -239,6 +240,42 @@ export default function SettingsMain() {
         </div>
         <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
           <SettingsPlantillas inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'formas-pago') {
+    return (
+      <div className="settings-page">
+        <div className="reports-page-header" style={{ flexShrink: 0 }}>
+          <div className="reports-brand-header">
+            <div className="reports-brand-badge">
+              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+            </div>
+            <div>
+              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-title">Panel de Configuración</div>
+              <div className="reports-subtitle">Formas de pago disponibles en cotizaciones y anticipos</div>
+            </div>
+          </div>
+          <button className="btn-exit" type="button" onClick={closeView}>
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+            Volver
+          </button>
+        </div>
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <div className="settings-section-card" style={{ overflow: 'visible' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>💳 Formas de Pago</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                  Crea, edita y deshabilita las formas de pago que aparecen en los combos de cotización y anticipos.
+                </div>
+              </div>
+            </div>
+            <SettingsFormasPago />
+          </div>
         </div>
       </div>
     );
@@ -481,6 +518,24 @@ export default function SettingsMain() {
                       <h3 className="settings-bento-title">Servicios, Categorías y Subcategorías</h3>
                       <p className="settings-bento-desc">
                         CRUD completo de servicios con importación/exportación CSV, más administración de categorías y subcategorías.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                </div>
+
+                <div className="settings-bento-card" onClick={() => openView('formas-pago')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <svg viewBox="0 0 24 24">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                        <line x1="1" y1="10" x2="23" y2="10"></line>
+                      </svg>
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Formas de Pago</h3>
+                      <p className="settings-bento-desc">
+                        Administra las formas de pago disponibles en cotizaciones y anticipos (Efectivo, Tarjeta, Transferencia, etc.).
                       </p>
                     </div>
                   </div>

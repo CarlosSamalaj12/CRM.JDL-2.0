@@ -40,3 +40,4 @@ function makeCrud(table) {
 export const equipoCtrl = makeCrud('config_equipo');
 export const sillaCtrl = makeCrud('config_tipo_silla');
 export const mesaCtrl = makeCrud('config_tipo_mesa');
+export const formaPagoCtrl = makeCrud('config_forma_pago');

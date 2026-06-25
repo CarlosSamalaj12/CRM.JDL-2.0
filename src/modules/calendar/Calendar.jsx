@@ -202,6 +202,7 @@ export default function Calendar() {
   const [selectionActive, setSelectionActive] = useState(false);
   const [selectionStart, setSelectionStart] = useState(null);
   const [selectionCurrent, setSelectionCurrent] = useState(null);
+  const [statusTooltip, setStatusTooltip] = useState(null);
 
   useEffect(() => {
     if (!selectionActive) return;
@@ -726,9 +727,9 @@ export default function Calendar() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', height: '100%' }}>
                             {/* Header row: Status and Badge */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
-                                <span style={{ fontSize: '10px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{ev.status}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
+                                <span onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setStatusTooltip({ text: ev.status, x: r.left + r.width / 2, y: r.top }); }} onMouseLeave={() => setStatusTooltip(null)} style={{ fontSize: '10px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.status}</span>
                               </div>
                               <span style={{
                                 width: '28px',
@@ -798,9 +799,9 @@ export default function Calendar() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: isCompactHeight ? '2px' : '2px', height: '100%' }}>
                             {isCompactHeight && (
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
                                   <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
-                                  <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  <span onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setStatusTooltip({ text: ev.status, x: r.left + r.width / 2, y: r.top }); }} onMouseLeave={() => setStatusTooltip(null)} style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {ev.status}
                                   </span>
                                 </div>
@@ -1152,11 +1153,11 @@ export default function Calendar() {
                     e.currentTarget.style.background = normalBg;
                   }}
                 >
-                  {isCompactHeight && (
+                    {isCompactHeight && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
                         <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
-                        <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setStatusTooltip({ text: ev.status, x: r.left + r.width / 2, y: r.top }); }} onMouseLeave={() => setStatusTooltip(null)} style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {ev.status}
                         </span>
                       </div>
@@ -1831,6 +1832,27 @@ export default function Calendar() {
         </div>
       )}
 
+
+      {statusTooltip && (
+        <div style={{
+          position: 'fixed',
+          top: statusTooltip.y - 8,
+          left: statusTooltip.x,
+          transform: 'translate(-50%, -100%)',
+          background: '#1e293b',
+          color: '#fff',
+          padding: '4px 10px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          zIndex: 99999,
+          pointerEvents: 'none',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+        }}>
+          {statusTooltip.text}
+        </div>
+      )}
 
     </div>
   );

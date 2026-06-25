@@ -75,7 +75,7 @@ function App() {
                 <Route path="/catalog" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Catalog /></ProtectedRoute>} />
                 <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><ConstructorInforme /></ProtectedRoute>} />
                 <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><InformeCreator /></ProtectedRoute>} />
-                <Route path="/informe/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><InformeView /></ProtectedRoute>} />
+                <Route path="/informe/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos', 'Coordinador']}><InformeView /></ProtectedRoute>} />
                 <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Configuracion /></ProtectedRoute>} />
               </Route>
 

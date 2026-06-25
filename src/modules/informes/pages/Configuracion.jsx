@@ -270,7 +270,6 @@ export default function Configuracion() {
         />
       )}
 
-
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.js';
-import { equipoCtrl, sillaCtrl, mesaCtrl } from '../controllers/configController.js';
+import { equipoCtrl, sillaCtrl, mesaCtrl, formaPagoCtrl } from '../controllers/configController.js';
 
 const router = Router();
 
@@ -21,5 +21,11 @@ router.get('/mesas', authenticate, mesaCtrl.getAll);
 router.post('/mesas', authenticate, mesaCtrl.create);
 router.put('/mesas/:id', authenticate, mesaCtrl.update);
 router.delete('/mesas/:id', authenticate, mesaCtrl.remove);
+
+// ─── FORMAS DE PAGO ───
+router.get('/formas-pago', authenticate, formaPagoCtrl.getAll);
+router.post('/formas-pago', authenticate, formaPagoCtrl.create);
+router.put('/formas-pago/:id', authenticate, formaPagoCtrl.update);
+router.delete('/formas-pago/:id', authenticate, formaPagoCtrl.remove);
 
 export default router;

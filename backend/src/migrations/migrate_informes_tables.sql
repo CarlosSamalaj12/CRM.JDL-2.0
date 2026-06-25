@@ -360,7 +360,19 @@ CREATE TABLE IF NOT EXISTS config_tipo_mesa (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
--- 22. VISTA: tbl_seguimientocotizaciones
+-- 22. CONFIG: FORMAS DE PAGO
+-- ============================================================
+CREATE TABLE IF NOT EXISTS config_forma_pago (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  nombre VARCHAR(200) NOT NULL,
+  activo TINYINT(1) NOT NULL DEFAULT 1,
+  fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_config_forma_pago_nombre (nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 23. VISTA: tbl_seguimientocotizaciones
 -- Mapea la tabla eventos del CRM al formato legacy que esperan
 -- los controllers de Informes Eventos
 -- ============================================================

@@ -1,11 +1,13 @@
 import express from 'express';
 import * as informeController from '../controllers/informeController.js';
-import { authenticate } from '../middlewares/auth.js';
+import { authenticate, authorizeRoles } from '../middlewares/auth.js';
+
+const EDIT_ROLES = ['Admin', 'Vendedor', 'FrontOffice'];
 
 const router = express.Router();
 
 // Informes
-router.post('/', authenticate, informeController.createInforme);
+router.post('/', authenticate, authorizeRoles(...EDIT_ROLES), informeController.createInforme);
 router.get('/', authenticate, informeController.getInformes);
 
 // Importante: /ocupacion/:id_ocupacion debe ir ANTES de /:id para evitar conflicto
@@ -14,16 +16,16 @@ router.get('/ocupacion/:id_ocupacion', authenticate, informeController.getInform
 router.get('/por-evento', informeController.getInformeByEventFields);
 
 router.get('/:id', informeController.getInformeById);
-router.put('/:id', authenticate, informeController.updateInforme);
-router.delete('/:id', authenticate, informeController.deleteInforme);
+router.put('/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeController.updateInforme);
+router.delete('/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeController.deleteInforme);
 
 // Detalle de días
-router.post('/dias', authenticate, informeController.createInformeDia);
-router.delete('/:id/dias', authenticate, informeController.deleteInformeDias);
-router.delete('/dias/:id', authenticate, informeController.deleteInformeDia);
+router.post('/dias', authenticate, authorizeRoles(...EDIT_ROLES), informeController.createInformeDia);
+router.delete('/:id/dias', authenticate, authorizeRoles(...EDIT_ROLES), informeController.deleteInformeDias);
+router.delete('/dias/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeController.deleteInformeDia);
 
 // Detalle personalizado del menú por día
 router.get('/dias/:dia_id/detalle', informeController.getDiaMenuDetalle);
-router.post('/dias/:dia_id/detalle', authenticate, informeController.saveDiaMenuDetalle);
+router.post('/dias/:dia_id/detalle', authenticate, authorizeRoles(...EDIT_ROLES), informeController.saveDiaMenuDetalle);
 
 export default router;

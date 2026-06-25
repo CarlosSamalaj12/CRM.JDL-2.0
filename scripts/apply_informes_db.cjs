@@ -61,6 +61,7 @@ const DERIVED_CONFIG_TABLES = [
   "config_equipo",
   "config_tipo_silla",
   "config_tipo_mesa",
+  "config_forma_pago",
 ];
 
 function log(message = "") {
@@ -370,6 +371,13 @@ async function ensureTargetSchema(conn) {
       nombre VARCHAR(150) NOT NULL,
       activo TINYINT(1) NOT NULL DEFAULT 1,
       fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS config_forma_pago (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nombre VARCHAR(200) NOT NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_config_forma_pago_nombre (nombre)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   ];
 
