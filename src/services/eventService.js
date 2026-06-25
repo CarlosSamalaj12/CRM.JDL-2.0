@@ -25,8 +25,8 @@ function normalizeDateRange(start, end) {
   if (!a && !b) return [];
   const min = a && b && a > b ? b : (a || b);
   const max = a && b && a > b ? a : (b || a);
-  const startDate = new Date(`${min}T00:00:00`);
-  const endDate = new Date(`${max}T00:00:00`);
+  const startDate = new Date(`${min}T12:00:00`);
+  const endDate = new Date(`${max}T12:00:00`);
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [min].filter(Boolean);
   const out = [];
   for (const d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {

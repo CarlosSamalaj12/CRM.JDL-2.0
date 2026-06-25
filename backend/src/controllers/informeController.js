@@ -42,7 +42,7 @@ async function fetchInformeWithDias(informeId) {
       JOIN cat_ingredientes i ON d.ingrediente_id = i.id
       LEFT JOIN cat_opciones_ingrediente o ON d.opcion_id = o.id
       WHERE d.dia_id IN (${placeholders})
-      ORDER BY i.tipo, i.nombre
+      ORDER BY d.id ASC
     `, diaIds);
 
     for (const item of items) {
@@ -377,7 +377,7 @@ export async function getDiaMenuDetalle(req, res, next) {
       JOIN cat_ingredientes i ON d.ingrediente_id = i.id
       LEFT JOIN cat_opciones_ingrediente o ON d.opcion_id = o.id
       WHERE d.dia_id = ?
-      ORDER BY i.tipo, i.nombre
+      ORDER BY d.id ASC
     `, [dia_id]);
     res.json(rows);
   } catch (error) { next(error); }

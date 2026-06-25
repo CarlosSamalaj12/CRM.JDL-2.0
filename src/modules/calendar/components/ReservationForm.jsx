@@ -13,6 +13,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
+import LoadingSpinner from '../../../components/LoadingSpinner';
 
 const pastEventEditAuthorizedKeys = new Set();
 
@@ -446,6 +447,7 @@ export default function ReservationForm() {
   ]);
 
   const [saving, setSaving] = useState(false);
+  const [savingMsg, setSavingMsg] = useState('');
 
   const [salonCapacities, setSalonCapacities] = useState({});
 
@@ -834,6 +836,7 @@ export default function ReservationForm() {
       return;
     }
 
+    setSavingMsg('Guardando mantenimiento...');
     setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
@@ -873,6 +876,7 @@ export default function ReservationForm() {
 
   const handleReleaseMaintenance = async () => {
     if (saving) return;
+    setSavingMsg('Liberando mantenimiento...');
     setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
@@ -931,6 +935,8 @@ export default function ReservationForm() {
 
   const executeCancelEvent = async () => {
     setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+    setSavingMsg('Cancelando evento...');
+    setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
       await handleAddEvent({
@@ -944,6 +950,7 @@ export default function ReservationForm() {
       setTimeout(() => navigate('/calendar'), 1000);
     } catch {
       showNotification('Error al cancelar', 'error');
+      setSaving(false);
     }
   };
 
@@ -978,6 +985,8 @@ export default function ReservationForm() {
   };
 
   const handleQuoteSave = async (quoteData, options = {}) => {
+    setSavingMsg('Guardando cotización...');
+    setSaving(true);
     try {
       const currentEvent = events.find(ev => String(ev.id) === String(id));
       const previousQuote = currentEvent?.quote || null;
@@ -1008,6 +1017,8 @@ export default function ReservationForm() {
       if (!options?.keepOpen) setShowQuoteModal(false);
     } catch {
       showNotification('Error al guardar cotizacion', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1046,6 +1057,7 @@ export default function ReservationForm() {
       return;
     }
 
+    setSavingMsg('Guardando reserva...');
     setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
@@ -1770,6 +1782,11 @@ export default function ReservationForm() {
         onConfirm={onConfirmAction}
         onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {saving && createPortal(
+        <LoadingSpinner mensaje={savingMsg} />,
+        document.body
+      )}
     </div>
   );
 }

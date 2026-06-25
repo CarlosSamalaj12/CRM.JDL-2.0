@@ -85,6 +85,7 @@ const emptyServiceDraft = {
 };
 
 export default function QuoteModal({ event: eventProp, eventData, slots = [], onClose, onSave, openAdvancesOnMount, inlineMode }) {
+  const [saving, setSaving] = useState(false);
   const event = useMemo(() => ({
     ...(eventData || {}),
     ...(eventProp || {}),

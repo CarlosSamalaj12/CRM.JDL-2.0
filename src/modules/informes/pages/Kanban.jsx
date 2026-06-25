@@ -232,7 +232,8 @@ export default function Kanban() {
     const mm = String(currentDay.getMonth() + 1).padStart(2, '0');
     const dd = String(currentDay.getDate()).padStart(2, '0');
     const isoDate = `${yyyy}-${mm}-${dd}`;
-    return { dayIndex: index, name: formattedHeader, isoDate, items: events.filter((e) => e.dayIndex === index) };
+    const realDayIndex = currentDay.getDay();
+    return { dayIndex: realDayIndex, name: formattedHeader, isoDate, items: events.filter((e) => e.dayIndex === realDayIndex) };
   });
 
   const filteredColumns = columns.map((col) => ({
@@ -255,7 +256,8 @@ export default function Kanban() {
     const label = currentDay.toLocaleDateString('es-ES', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
-    const dayEvents = events.filter((e) => e.dayIndex === index);
+    const realDayIndex = currentDay.getDay();
+    const dayEvents = events.filter((e) => e.dayIndex === realDayIndex);
     return { isoDate, label, events: dayEvents, shortDate: formatDateShort(isoDate) };
   }).filter((d) => d.events.length > 0);
   const clearFilters = () => {

@@ -46,6 +46,17 @@ const TIPO_MAP = {
 const TIPO_OPTS_ORDER = ['proteina', 'guarnicion', 'salsa', 'postre', 'bebida', 'tortilla_pan', 'otros'];
 
 
+const TIEMPOS_COMIDA = [
+  { id: 'desayuno',     label: 'Desayuno',     icon: '🌅' },
+  { id: 'refaccion_am', label: 'Refacción AM', icon: '🥐' },
+  { id: 'almuerzo',     label: 'Almuerzo',     icon: '🍽️' },
+  { id: 'refaccion_pm', label: 'Refacción PM', icon: '🧁' },
+  { id: 'cena',         label: 'Cena',         icon: '🌙' },
+  { id: 'box_lunch',    label: 'Box Lunch',    icon: '📦' },
+  { id: 'buffet',       label: 'Buffet',       icon: '🍱' },
+  { id: 'otro',         label: 'Otro',         icon: '📌' },
+];
+
 const ALERTAS_PREDEFINIDAS = [
   { label: 'Sin Gluten', emoji: '🌾' },
   { label: 'Sin Lactosa', emoji: '🥛' },
@@ -332,6 +343,16 @@ export default function InformeView() {
                 {/* ═══ TÍTULO DEL DÍA ═══ */}
                 <div className="iv-day-header">
                   <span className="iv-day-num">DÍA {index + 1}</span>
+                  {(() => {
+                    try {
+                      const p = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : (dia.descripcion_montaje || {});
+                      if (p && p._v === 2 && p.tiempo_comida) {
+                        const tc = TIEMPOS_COMIDA.find(t => t.id === p.tiempo_comida);
+                        return tc ? <span className="iv-day-tc-badge">{tc.icon} {tc.label}</span> : null;
+                      }
+                    } catch {}
+                    return null;
+                  })()}
                 </div>
 
                 {/* ═══ SECCIÓN: MENÚ ═══ */}
@@ -359,27 +380,40 @@ export default function InformeView() {
                       )}
                     </div>
                     <div className="iv-items-section">
-                      {agruparItems(dia.items).map((grupo, gi) => (
-                        <div key={gi} className="iv-grupo">
-                          <div className="iv-grupo-label">{grupo.tipoLabel}</div>
-                          <div className="iv-grupo-items">
-                            {grupo.items.map((item, ii) => (
-                              <div key={ii} className="iv-item-row">
-                                <span className="iv-item-nombre">{item.ingrediente_nombre}</span>
-                                {grupo.tipo === 'proteina' && item.cantidad_total && (
-                                  <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>
-                                )}
-                                {item.metodo_preparacion && (
-                                  <span className="iv-item-prep">Preparación: {item.metodo_preparacion}</span>
-                                )}
-                                {item.opcion_nombre && (
-                                  <span className="iv-item-opc">{item.opcion_nombre}</span>
-                                )}
-                              </div>
-                            ))}
+                      {(() => {
+                        let itemsTc = [];
+                        try {
+                          const p = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : (dia.descripcion_montaje || {});
+                          if (p && p._v === 2) itemsTc = p.items_tiempo_comida || [];
+                        } catch {}
+                        let flatIdx = 0;
+                        return agruparItems(dia.items).map((grupo, gi) => (
+                          <div key={gi} className="iv-grupo">
+                            <div className="iv-grupo-label">{grupo.tipoLabel}</div>
+                            <div className="iv-grupo-items">
+                              {grupo.items.map((item, ii) => {
+                                const tc = itemsTc[flatIdx] ? TIEMPOS_COMIDA.find(t => t.id === itemsTc[flatIdx]) : null;
+                                flatIdx++;
+                                return (
+                                  <div key={ii} className="iv-item-row">
+                                    <span className="iv-item-nombre">{item.ingrediente_nombre}</span>
+                                    {tc && <span className="iv-item-tc-badge">{tc.icon} {tc.label}</span>}
+                                    {grupo.tipo === 'proteina' && item.cantidad_total && (
+                                      <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>
+                                    )}
+                                    {item.metodo_preparacion && (
+                                      <span className="iv-item-prep">Preparación: {item.metodo_preparacion}</span>
+                                    )}
+                                    {item.opcion_nombre && (
+                                      <span className="iv-item-opc">{item.opcion_nombre}</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ));
+                      })()}
                     </div>
                   </>
                 )}

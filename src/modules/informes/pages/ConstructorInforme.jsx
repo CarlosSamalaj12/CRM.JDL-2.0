@@ -15,11 +15,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import {
   IconFileText, IconPlus, IconSearch, IconCheckCircle,
-  IconArrowLeft, IconX,
+  IconArrowLeft, IconX, IconGripVertical,
   IconHistory
 } from '../components/Icons.jsx';
 import SettingsChecklist from '../../settings/SettingsChecklist';
 import { emitOpenEventChecklist } from '../../../utils/appEvents';
+import '../styles.css';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTES
@@ -64,6 +65,28 @@ const TIPOS_MONTAJE = [
   'Escuela', 'Imperial', 'Banquete', 'Cóctel', 'Auditorio',
   'Mesa redonda', 'Buffet', 'U', 'Presidencial', 'Personalizado'
 ];
+
+const TIEMPOS_COMIDA = [
+  { id: 'desayuno', label: 'Desayuno', icon: '🌅' },
+  { id: 'refaccion_am', label: 'Refacción AM', icon: '🥐' },
+  { id: 'almuerzo', label: 'Almuerzo', icon: '🍽️' },
+  { id: 'refaccion_pm', label: 'Refacción PM', icon: '🧁' },
+  { id: 'cena', label: 'Cena', icon: '🌙' },
+  { id: 'box_lunch', label: 'Box Lunch', icon: '📦' },
+  { id: 'buffet', label: 'Buffet', icon: '🍱' },
+  { id: 'otro', label: 'Otro', icon: '📌' },
+];
+
+const TC_ITEM = TIEMPOS_COMIDA; // alias for per-item use
+const DEFAULT_ORDEN_TIPO = {
+  proteina: 1, carne: 1, 'proteína': 1, 'proteínas': 1, proteinas: 1,
+  salsa: 2, salsas: 2,
+  guarnicion: 3, 'guarnición': 3, guarniciones: 3,
+  postre: 4, postres: 4,
+  tortilla_pan: 5,
+  bebida: 6, bebidas: 6,
+  otros: 7,
+};
 
 const MONTAJE_CAMPOS = [
   { key: 'tipo_montaje', label: 'Tipo de montaje', type: 'select', options: TIPOS_MONTAJE },
@@ -144,7 +167,19 @@ function crearDiaVacio(fecha) {
     id: null, fecha: fecha || new Date().toISOString().slice(0, 10),
     platillo: null, platilloDetalle: null,
     selectedItems: [], menuAsignado: null, montaje: [], alertas: [], alertaCustom: '', comentarioMenu: '',
+    tiempoComida: null,
   };
+}
+
+function mapCategoriaToTiempoComida(categoriaNombre) {
+  if (!categoriaNombre) return null;
+  const n = categoriaNombre.toLowerCase().trim();
+  if (n.includes('desayuno')) return 'desayuno';
+  if (n.includes('refacción') || n.includes('refaccion')) return 'refaccion_am';
+  if (n.includes('almuerzo')) return 'almuerzo';
+  if (n.includes('cena')) return 'cena';
+  if (n.includes('buffet')) return 'buffet';
+  return null;
 }
 
 function sumarDias(fechaStr, dias) {
@@ -207,6 +242,8 @@ export default function ConstructorInforme() {
   const [modalOpc, setModalOpc] = useState('');
   const [modalQty, setModalQty] = useState(1);
   const [modalNotas, setModalNotas] = useState('');
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
 
   // Imágenes
   const [imagenes, setImagenes] = useState([]);
@@ -317,33 +354,43 @@ export default function ConstructorInforme() {
               setVersionActiva(data.version || 1);
               if (data.dias && data.dias.length > 0) {
                 setDias(data.dias.map(d => {
-                  let mont = [], alertas = [], alertaCustom = '';
+                  let mont = [], alertas = [], alertaCustom = '', tiempoComida = null;
+                  let parsed = null;
                   try {
-                    const parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || []);
+                    parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || []);
                     if (parsed && parsed._v === 2) {
                       mont = parsed.montajes || [];
                       alertas = parsed.alertas || [];
                       alertaCustom = parsed.alertaCustom || '';
+                      tiempoComida = parsed.tiempo_comida || null;
                     } else {
                       mont = Array.isArray(parsed) ? parsed : (parsed && Object.keys(parsed).length > 0 ? [parsed] : []);
                     }
                   } catch { mont = []; }
+                  const loadedItems = (d.items || []).map(item => ({
+                    comp_id: Date.now() + Math.random(),
+                    dbId: item.id || null,
+                    ingrediente_id: item.ingrediente_id,
+                    ingrediente_nombre: item.ingrediente_nombre,
+                    opcion_id: item.opcion_id, opcion_nombre: item.opcion_nombre,
+                    tipo: item.ingrediente_tipo,
+                    metodo_preparacion: item.metodo_preparacion || '',
+                    cantidad: item.cantidad_total || 1,
+                    notas: item.notas || '',
+                    tiempoComida: null,
+                  }));
+                  const itemsTc = parsed?.items_tiempo_comida;
+                  if (itemsTc && loadedItems.length > 0) {
+                    loadedItems.forEach((it, idx) => { if (idx < itemsTc.length) it.tiempoComida = itemsTc[idx]; });
+                  }
                   return {
                     id: d.id,
                     fecha: d.fecha_evento ? d.fecha_evento.slice(0, 10) : new Date().toISOString().slice(0, 10),
                     platillo: null, platilloDetalle: null,
-                    selectedItems: (d.items || []).map(item => ({
-                      comp_id: Date.now() + Math.random(),
-                      ingrediente_id: item.ingrediente_id,
-                      ingrediente_nombre: item.ingrediente_nombre,
-                      opcion_id: item.opcion_id, opcion_nombre: item.opcion_nombre,
-                      tipo: item.ingrediente_tipo,
-                      metodo_preparacion: item.metodo_preparacion || '',
-                      cantidad: item.cantidad_total || 1,
-                      notas: item.notas || '',
-                    })),
+                    selectedItems: loadedItems,
                     menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
                     montaje: mont, alertas, alertaCustom, comentarioMenu: d.comentario_menu || '',
+                    tiempoComida,
                   };
                 }));
               }
@@ -378,37 +425,48 @@ export default function ConstructorInforme() {
           let mont = [];
           let alertas = [];
           let alertaCustom = '';
+          let tiempoComida = null;
+          let itemsTc = null;
           try {
             const parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || []);
             if (parsed && parsed._v === 2) {
               mont = parsed.montajes || [];
               alertas = parsed.alertas || [];
               alertaCustom = parsed.alertaCustom || '';
+              tiempoComida = parsed.tiempo_comida || null;
+              itemsTc = parsed.items_tiempo_comida || null;
             } else {
               mont = Array.isArray(parsed) ? parsed : (parsed && Object.keys(parsed).length > 0 ? [parsed] : []);
             }
           } catch { mont = []; }
+          const loadedItems = (d.items || []).map(item => ({
+            comp_id: Date.now() + Math.random(),
+            dbId: item.id || null,
+            ingrediente_id: item.ingrediente_id,
+            ingrediente_nombre: item.ingrediente_nombre,
+            opcion_id: item.opcion_id,
+            opcion_nombre: item.opcion_nombre,
+            tipo: item.ingrediente_tipo,
+            metodo_preparacion: item.metodo_preparacion || '',
+            cantidad: item.cantidad_total || 1,
+            notas: item.notas || '',
+            tiempoComida: null,
+          }));
+          if (itemsTc && loadedItems.length > 0) {
+            loadedItems.forEach((it, idx) => { if (idx < itemsTc.length) it.tiempoComida = itemsTc[idx]; });
+          }
           return {
             id: d.id,
             fecha: d.fecha_evento ? d.fecha_evento.slice(0, 10) : new Date().toISOString().slice(0, 10),
             platillo: null,
             platilloDetalle: null,
-            selectedItems: (d.items || []).map(item => ({
-              comp_id: Date.now() + Math.random(),
-              ingrediente_id: item.ingrediente_id,
-              ingrediente_nombre: item.ingrediente_nombre,
-              opcion_id: item.opcion_id,
-              opcion_nombre: item.opcion_nombre,
-              tipo: item.ingrediente_tipo,
-              metodo_preparacion: item.metodo_preparacion || '',
-              cantidad: item.cantidad_total || 1,
-              notas: item.notas || '',
-            })),
+            selectedItems: loadedItems,
             menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
             montaje: mont,
             alertas: alertas,
             alertaCustom: alertaCustom,
             comentarioMenu: d.comentario_menu || '',
+            tiempoComida,
           };
         });
         setDias(diasCargados.length > 0 ? diasCargados : [crearDiaVacio()]);
@@ -448,6 +506,8 @@ export default function ConstructorInforme() {
             montajes: dia.montaje || [],
             alertas: dia.alertas || [],
             alertaCustom: dia.alertaCustom || '',
+            tiempo_comida: dia.tiempoComida || null,
+            items_tiempo_comida: (dia.selectedItems || []).map(it => it.tiempoComida || null),
           }),
           comentario_menu: dia.comentarioMenu || null,
         });
@@ -508,8 +568,11 @@ export default function ConstructorInforme() {
         metodo_preparacion: metodo || '',
         cantidad,
         notas,
+        tiempoComida: null,
+        dbId: null,
       });
     }
+    items.sort((a, b) => (DEFAULT_ORDEN_TIPO[(a.tipo || '').toLowerCase()] || 99) - (DEFAULT_ORDEN_TIPO[(b.tipo || '').toLowerCase()] || 99));
     newDias[activeDay].selectedItems = items;
     setDias(newDias);
   };
@@ -526,11 +589,56 @@ export default function ConstructorInforme() {
     if (item) { item[field] = value; setDias(newDias); }
   };
 
+  const handleDragStart = (idx) => {
+    setDragIdx(idx);
+  };
+
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (dragIdx === null || dragOverIdx === null || dragIdx === dragOverIdx) {
+      setDragIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    const nd = [...dias];
+    const items = [...nd[activeDay].selectedItems];
+    const [moved] = items.splice(dragIdx, 1);
+    items.splice(dragOverIdx, 0, moved);
+    nd[activeDay].selectedItems = items;
+    setDias(nd);
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleItemTiempoComida = (compId) => {
+    const nd = [...dias];
+    const item = nd[activeDay].selectedItems.find(i => i.comp_id === compId);
+    if (!item) return;
+    const current = item.tiempoComida;
+    const idx = current ? TC_ITEM.findIndex(tc => tc.id === current) : -1;
+    const nextIdx = idx + 1;
+    item.tiempoComida = nextIdx >= TC_ITEM.length ? null : TC_ITEM[nextIdx].id;
+    setDias(nd);
+  };
+
   // ─── Seleccionar platillo │ menú │ ingrediente ───
   const seleccionarPlatillo = async (platillo) => {
     const newDias = [...dias];
     newDias[activeDay].platillo = { id: platillo.id, nombre_platillo: platillo.nombre_platillo, categoria_nombre: platillo.categoria_nombre };
     newDias[activeDay].selectedItems = [];
+    if (!newDias[activeDay].tiempoComida && platillo.categoria_nombre) {
+      newDias[activeDay].tiempoComida = mapCategoriaToTiempoComida(platillo.categoria_nombre);
+    }
     setDias(newDias);
     try {
       const det = await getPlatilloDetalle(platillo.id);
@@ -541,7 +649,8 @@ export default function ConstructorInforme() {
         ingrediente_nombre: c.ingrediente_nombre, opcion_id: c.opcion_id,
         opcion_nombre: c.opcion_nombre, tipo: c.tipo_componente,
         metodo_preparacion: '', cantidad: 1, notas: '',
-      }));
+        tiempoComida: null, dbId: null,
+      })).sort((a, b) => (DEFAULT_ORDEN_TIPO[(a.tipo || '').toLowerCase()] || 99) - (DEFAULT_ORDEN_TIPO[(b.tipo || '').toLowerCase()] || 99));
       setDias(upd);
     } catch { /* */ }
   };
@@ -549,6 +658,9 @@ export default function ConstructorInforme() {
   const seleccionarMenu = (menu) => {
     const newDias = [...dias];
     newDias[activeDay].menuAsignado = menu;
+    if (!newDias[activeDay].tiempoComida && menu.categoria_nombre) {
+      newDias[activeDay].tiempoComida = mapCategoriaToTiempoComida(menu.categoria_nombre);
+    }
     setDias(newDias);
   };
 
@@ -798,17 +910,18 @@ export default function ConstructorInforme() {
                 e.stopPropagation();
                 const source = dias[i];
                 const idx = dias.length;
-                const dup = {
-                  ...crearDiaVacio(),
-                  fecha: source.fecha || new Date().toISOString().slice(0, 10),
-                  platillo: source.platillo ? { ...source.platillo } : null,
-                  platilloDetalle: source.platilloDetalle ? JSON.parse(JSON.stringify(source.platilloDetalle)) : null,
-                  selectedItems: source.selectedItems.map(it => ({ ...it, comp_id: Date.now() + Math.random() })),
-                  menuAsignado: source.menuAsignado ? { ...source.menuAsignado } : null,
-                  montaje: JSON.parse(JSON.stringify(source.montaje || [])),
-                  alertas: [...(source.alertas || [])],
-                  alertaCustom: source.alertaCustom || '',
-                };
+                  const dup = {
+                    ...crearDiaVacio(),
+                    fecha: source.fecha || new Date().toISOString().slice(0, 10),
+                    platillo: source.platillo ? { ...source.platillo } : null,
+                    platilloDetalle: source.platilloDetalle ? JSON.parse(JSON.stringify(source.platilloDetalle)) : null,
+                    selectedItems: source.selectedItems.map(it => ({ ...it, comp_id: Date.now() + Math.random() })),
+                    menuAsignado: source.menuAsignado ? { ...source.menuAsignado } : null,
+                    montaje: JSON.parse(JSON.stringify(source.montaje || [])),
+                    alertas: [...(source.alertas || [])],
+                    alertaCustom: source.alertaCustom || '',
+                    tiempoComida: source.tiempoComida || null,
+                  };
                 const nd = [...dias, dup];
                 setDias(nd);
                 setActiveDay(idx);
@@ -841,7 +954,7 @@ export default function ConstructorInforme() {
           <div className="pos-ticket-body">
             <div className="pos-ticket-dia-tag">DÍA {activeDay + 1}</div>
 
-{/* Menú asignado */}
+            {/* Menú asignado */}
             {diaActivo.menuAsignado && (
               <div className="pos-ticket-menu">
                 <span>
@@ -888,32 +1001,46 @@ export default function ConstructorInforme() {
             {/* Items seleccionados */}
             {diaActivo.selectedItems.length > 0 ? (
               <div className="pos-ticket-items">
-                {Object.entries(agruparItems(diaActivo.selectedItems)).map(([tipo, items]) => (
-                  <div key={tipo} className="pos-ticket-grupo">
-                    <span className="pos-ticket-tipo">{TIPO_LABELS[tipo] || tipo.toUpperCase()}</span>
-                    {items.map(item => {
-                      const tipoItem = (item.tipo || '').toLowerCase();
-                      const esSimple = tipoItem !== 'carne' && tipoItem !== 'proteina' && tipoItem !== 'proteína' && tipoItem !== 'proteinas' && tipoItem !== 'proteínas';
-                      return (
-                        <div key={item.comp_id} className="pos-ticket-item">
-                          <div className="pos-ticket-item-top">
-                            <span className="pos-ticket-item-nombre">{item.ingrediente_nombre}</span>
-                            {!esSimple && <span className="pos-ticket-item-qty">×{item.cantidad}</span>}
-                            <button className="pos-ticket-item-del" onClick={() => eliminarItem(item.comp_id)}>
-                              <IconX size={11} />
-                            </button>
-                          </div>
-                          {(item.metodo_preparacion || item.opcion_nombre) && (
-                            <div className="pos-ticket-item-opts">
-                              {item.metodo_preparacion && <span className="pos-ticket-item-prep">Prep: {item.metodo_preparacion}</span>}
-                              {item.opcion_nombre && <span className="pos-ticket-item-opc">{item.opcion_nombre}</span>}
-                            </div>
-                          )}
+                {diaActivo.selectedItems.map((item, idx) => {
+                  const tipoItem = (item.tipo || '').toLowerCase();
+                  const esSimple = tipoItem !== 'carne' && tipoItem !== 'proteina' && tipoItem !== 'proteína' && tipoItem !== 'proteinas' && tipoItem !== 'proteínas';
+                  const tcItem = TC_ITEM.find(tc => tc.id === item.tiempoComida);
+                  return (
+                    <div
+                      key={item.comp_id}
+                      className={`pos-ticket-item ${dragIdx === idx ? 'pos-ticket-item-dragging' : ''} ${dragOverIdx === idx ? 'pos-ticket-item-drag-over' : ''}`}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <div className="pos-ticket-item-top">
+                        <span className="pos-ticket-item-drag" data-tooltip="Arrastrar para reordenar">
+                          <IconGripVertical size={14} />
+                        </span>
+                        <span className="pos-ticket-item-nombre">{item.ingrediente_nombre}</span>
+                        {!esSimple && <span className="pos-ticket-item-qty">×{item.cantidad}</span>}
+                        <button
+                          className={`pos-ticket-item-tc-badge ${tcItem ? '' : 'pos-ticket-item-tc-badge--none'}`}
+                          onClick={() => handleItemTiempoComida(item.comp_id)}
+                          title={tcItem ? tcItem.label : 'Sin tiempo de comida'}
+                        >
+                          {tcItem ? `${tcItem.icon} ${tcItem.label}` : '⏱️'}
+                        </button>
+                        <button className="pos-ticket-item-del" onClick={() => eliminarItem(item.comp_id)}>
+                          <IconX size={11} />
+                        </button>
+                      </div>
+                      {(item.metodo_preparacion || item.opcion_nombre) && (
+                        <div className="pos-ticket-item-opts">
+                          {item.metodo_preparacion && <span className="pos-ticket-item-prep">Prep: {item.metodo_preparacion}</span>}
+                          {item.opcion_nombre && <span className="pos-ticket-item-opc">{item.opcion_nombre}</span>}
                         </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="pos-ticket-empty">Selecciona un platillo o ingrediente</div>
@@ -1466,13 +1593,3 @@ export default function ConstructorInforme() {
   );
 }
 
-// ─── Helper: agrupar items por tipo ───
-function agruparItems(items) {
-  const grupos = {};
-  for (const item of items) {
-    const tipo = item.tipo || 'otros';
-    if (!grupos[tipo]) grupos[tipo] = [];
-    grupos[tipo].push(item);
-  }
-  return grupos;
-}
