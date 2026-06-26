@@ -13,6 +13,7 @@ import eventoMetadatosRouter from './routes/eventoMetadatosRoutes.js';
 import configRouter from './routes/configRoutes.js';
 import userRouter from './routes/userRoutes.js';
 import tareasRouter from './routes/tareasRoutes.js';
+import tareasSemanalesRouter from './routes/tareasSemanalesRoutes.js';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/montaje', montajeRouter);
 router.use('/config', configRouter);
 router.use('/users', userRouter);
 router.use('/tareas', tareasRouter);
+router.use('/tareas-semanales', tareasSemanalesRouter);
 
 export default router;

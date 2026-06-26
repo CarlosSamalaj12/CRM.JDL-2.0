@@ -42,6 +42,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false 
   const [tareasCount, setTareasCount] = useState(0);
   const notaInputRef = useRef(null);
   const tareasButtonRef = useRef(null);
+
   const cardRef = useRef(null);
   const userMap = useMemo(() => {
     const map = {};

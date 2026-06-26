@@ -6,8 +6,9 @@ import { fetchEvents } from '../services/api.js';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import EventCard from '../components/EventCard.jsx';
 
-import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload } from '../components/Icons.jsx';
+import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload, IconClipboardList } from '../components/Icons.jsx';
 import SettingsChecklist from '../../settings/SettingsChecklist';
+import WeeklyTasks from '../components/WeeklyTasks.jsx';
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -270,17 +271,23 @@ export default function Kanban() {
   };
 
   const exportToExcel = () => {
-    const rows = events.map(e => ({
-      'Fecha': e.displayDate || '',
-      'Institución': e.Institucion || '',
-      'Salón': e.Salon || '',
-      'Horario': `${e.HoraI || ''} - ${e.HoraF || ''}`,
-      'Pax': e.Pax || 0,
-      'Tipo': e.TipoEvento || '',
-      'Estado': statusMap[e.Estatuscotizacion]?.label || '',
-      'Vendedor': e.Vendedor || '',
-      'Alertas': (e.tiene_alertas == 1 || e.tiene_alertas === true) ? 'Sí' : 'No',
-    }));
+    const rows = events.map(e => {
+      const dateStr = e.displayDate || '';
+      const dayOps = dateStr ? (occupancyOps[getWeekMonday(dateStr)]?.[dateStr]) || { breakfasts: 0, rooms: 0 } : { breakfasts: 0, rooms: 0 };
+      return {
+        'Fecha': dateStr,
+        'Institución': e.Institucion || '',
+        'Salón': e.Salon || '',
+        'Horario': `${e.HoraI || ''} - ${e.HoraF || ''}`,
+        'Pax': e.Pax || 0,
+        'Des': dayOps.breakfasts,
+        'Hab': dayOps.rooms,
+        'Tipo': e.TipoEvento || '',
+        'Estado': statusMap[e.Estatuscotizacion]?.label || '',
+        'Vendedor': e.Vendedor || '',
+        'Alertas': (e.tiene_alertas == 1 || e.tiene_alertas === true) ? 'Sí' : 'No',
+      };
+    });
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, 'Eventos');
@@ -298,7 +305,7 @@ export default function Kanban() {
     <section className="kanban-shell">
       <div className="kanban-header">
         <div className="kanban-title">
-          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Kanban</> : <><IconFileText size={20} /> Tabla Semanal</>}</h2>
+          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Kanban</> : viewMode === 'tabla' ? <><IconFileText size={20} /> Tabla Semanal</> : <><IconClipboardList size={20} /> Tareas Semanales</>}</h2>
           <p>{totalEvents} eventos en la semana{hasFilter ? ' (filtrados)' : ''}</p>
         </div>
         <div className="kanban-filter" style={{display:'flex',alignItems:'center',gap:'0.35rem',flexWrap:'wrap',minWidth:0,overflow:'hidden'}}>
@@ -308,6 +315,9 @@ export default function Kanban() {
             </button>
             <button className={`view-toggle-btn${viewMode === 'tabla' ? ' active' : ''}`} onClick={() => setViewMode('tabla')}>
               <IconFileText size={13} /> Tabla
+            </button>
+            <button className={`view-toggle-btn${viewMode === 'tareas' ? ' active' : ''}`} onClick={() => setViewMode('tareas')}>
+              <IconClipboardList size={13} /> Tareas
             </button>
           </div>
           <button
@@ -464,24 +474,27 @@ export default function Kanban() {
         </div>
       )}
 
+      {!loading && !error && viewMode === 'tareas' && (
+        <WeeklyTasks selectedDate={selectedDate} events={events} />
+      )}
+
       {!loading && !error && viewMode === 'tabla' && (
         <div style={{overflowX:'auto'}}>
-          <table className="tabla-eventos">              <thead>
-              <tr>
+          <table className="tabla-eventos"><thead><tr>
                 <th>Día</th>
                 <th>Estado</th>
                 <th>Institución</th>
                 <th>Salón</th>
                 <th>Horario</th>
                 <th>Pax</th>
+                <th>Des</th>
+                <th>Hab</th>
                 <th>Alertas</th>
                 <th>Vendedor</th>
-              </tr>
-            </thead>
-            <tbody>
+              </tr></thead><tbody>
               {days.length === 0 ? (
                 <tr>
-                <td colSpan={8} style={{textAlign:'center',padding:'2rem',color:'var(--text-muted)'}}>
+                <td colSpan={10} style={{textAlign:'center',padding:'2rem',color:'var(--text-muted)'}}>
                   No hay eventos esta semana
                 </td>
                 </tr>
@@ -489,7 +502,7 @@ export default function Kanban() {
                 const rows = [];
                 rows.push(
                   <tr key={day.isoDate} className="tabla-dia-header">
-                    <td colSpan={8}><div className="tabla-dia-inner">
+                    <td colSpan={10}><div className="tabla-dia-inner">
                       <span className="tabla-dia-label">{day.label}</span>
                     </div></td>
                   </tr>
@@ -498,12 +511,13 @@ export default function Kanban() {
                   rows.push(
                     <tr key={`${day.isoDate}-empty`}>
                       <td style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{day.shortDate}</td>
-                      <td colSpan={6} style={{color:'var(--text-muted)',fontSize:'0.82rem',textAlign:'center'}}>
+                      <td colSpan={8} style={{color:'var(--text-muted)',fontSize:'0.82rem',textAlign:'center'}}>
                         Sin eventos este día
                       </td>
                     </tr>
                   );
                 } else {
+                  const dayOps = (occupancyOps[getWeekMonday(day.isoDate)]?.[day.isoDate]) || { breakfasts: 0, rooms: 0 };
                   day.events.forEach((ev, ei) => {
                     const st = statusMap[ev.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
                     rows.push(
@@ -514,6 +528,8 @@ export default function Kanban() {
                         <td><IconMapPin size={13} /> {ev.Salon || '—'}</td>
                         <td><IconClock size={13} /> {ev.HoraI || '??:??'} - {ev.HoraF || '??:??'}</td>
                         <td>{ev.Pax || 0}</td>
+                        <td style={{fontSize:'0.75rem',fontWeight:600,color:'#16a34a',textAlign:'center'}}>{dayOps.breakfasts}</td>
+                        <td style={{fontSize:'0.75rem',fontWeight:600,color:'#2563eb',textAlign:'center'}}>{dayOps.rooms}</td>
                         <td>{(ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? <span className="event-tag event-tag-warning" style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>⚠️ Alertas</span> : '—'}</td>
                         <td><IconUser size={13} /> {ev.Vendedor || '—'}</td>
                       </tr>
@@ -521,9 +537,7 @@ export default function Kanban() {
                   });
                 }
                 return rows;
-              })}
-            </tbody>
-          </table>
+              })}</tbody></table>
         </div>
       )}
       <SettingsChecklist />

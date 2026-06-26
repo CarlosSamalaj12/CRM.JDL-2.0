@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getTareasUsuario, createTarea, updateTarea, deleteTarea } from '../services/api.js';
+import { getTareasUsuario, createTarea, updateTarea, deleteTarea, getTareasSemanaByOcupacion, updateTareaSemanal } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { IconX, IconCheck, IconTrash, IconEdit } from './Icons.jsx';
@@ -9,6 +9,7 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const { user } = useAuth();
   const toast = useToast();
   const [tareas, setTareas] = useState([]);
+  const [weeklyTareas, setWeeklyTareas] = useState([]);
   const [nuevaTarea, setNuevaTarea] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,13 +85,31 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const loadTareas = async () => {
     setLoading(true);
     try {
-      const data = await getTareasUsuario(idOcupacion, currentUserId);
+      const [data, weekly] = await Promise.all([
+        getTareasUsuario(idOcupacion, currentUserId),
+        getTareasSemanaByOcupacion(idOcupacion),
+      ]);
       setTareas(data);
+      setWeeklyTareas(weekly);
     } catch {
       toast.error('Error al cargar tareas');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleToggleWeeklyTarea = async (tarea) => {
+    const u = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
+    if (!u) return;
+    try {
+      await updateTareaSemanal(tarea.id, {
+        completada: !tarea.completada,
+        usuario_id: u.id || '',
+        usuario_nombre: u.name || '',
+      });
+      const updated = await getTareasSemanaByOcupacion(idOcupacion);
+      setWeeklyTareas(updated);
+    } catch {}
   };
 
   const handleAddTarea = async () => {
@@ -218,15 +237,29 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
             {tareasPendientes.length > 0 && (
               <div className="task-section">
                 <span className="task-section-title">Pendientes</span>
-                {tareasPendientes.map(tarea => (
-                  <div key={tarea.id} className={`task-item ${tarea.completada ? 'completed' : ''}`}>
-                    <button
-                      className="task-checkbox"
-                      onClick={() => handleToggleCompletada(tarea)}
-                      title="Marcar como completada"
-                    >
-                      {tarea.completada && <IconCheck size={10} />}
-                    </button>
+                  {tareasPendientes.map(tarea => (
+                    <div key={tarea.id} className={`task-item ${tarea.completada ? 'completed' : ''}`}>
+                      <button
+                        onClick={() => handleToggleCompletada(tarea)}
+                        style={{
+                          padding: tarea.completada ? '2px 10px' : '2px 8px', borderRadius: '20px', border: '2px solid',
+                          borderColor: tarea.completada ? '#10b981' : '#d1d5db',
+                          background: tarea.completada ? '#10b981' : '#ffffff',
+                          cursor: 'pointer', flexShrink: 0,
+                          fontSize: '10px', fontWeight: 700, lineHeight: '18px',
+                          color: tarea.completada ? '#ffffff' : '#6b7280',
+                          transition: 'all 0.15s', whiteSpace: 'nowrap',
+                        }}
+                        data-tooltip={tarea.completada ? 'Desmarcar' : 'Completar'}
+                        onMouseEnter={e => {
+                          if (!tarea.completada) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = '#eef2ff'; }
+                        }}
+                        onMouseLeave={e => {
+                          if (!tarea.completada) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = '#ffffff'; }
+                        }}
+                      >
+                        {tarea.completada ? 'Hecho' : 'Pendiente'}
+                      </button>
                     {editingId === tarea.id ? (
                       <input
                         ref={editInputRef}
@@ -259,17 +292,61 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
               </div>
             )}
 
+            {weeklyTareas.length > 0 && (
+              <div className="task-section">
+                <span className="task-section-title">Tareas semanales del evento</span>
+                {weeklyTareas.map(t => (
+                  <div key={t.id} className="task-item">
+                    <button
+                      onClick={() => handleToggleWeeklyTarea(t)}
+                      style={{
+                        padding: t.completada ? '2px 10px' : '2px 8px', borderRadius: '20px', border: '2px solid',
+                        borderColor: t.completada ? '#10b981' : '#d1d5db',
+                        background: t.completada ? '#10b981' : '#ffffff',
+                        cursor: 'pointer', flexShrink: 0,
+                        fontSize: '10px', fontWeight: 700, lineHeight: '18px',
+                        color: t.completada ? '#ffffff' : '#6b7280',
+                        transition: 'all 0.15s', whiteSpace: 'nowrap',
+                      }}
+                      data-tooltip={t.completada ? 'Desmarcar' : 'Completar'}
+                      onMouseEnter={e => {
+                        if (!t.completada) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = '#eef2ff'; }
+                      }}
+                      onMouseLeave={e => {
+                        if (!t.completada) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = '#ffffff'; }
+                      }}
+                    >
+                      {t.completada ? 'Hecho' : 'Pendiente'}
+                    </button>
+                    <span className={`task-text ${t.completada ? 'completed' : ''}`}>
+                      {t.contenido}
+                    </span>
+                    {t.fecha_tarea && (
+                      <span style={{fontSize:'0.65rem', color:'#94a3b8', whiteSpace:'nowrap', flexShrink:0}}>
+                        {String(t.fecha_tarea).slice(0,10)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {tareasCompletadas.length > 0 && (
               <div className="task-section completed-section">
                 <span className="task-section-title">Completadas</span>
                 {tareasCompletadas.map(tarea => (
                   <div key={tarea.id} className="task-item completed">
                     <button
-                      className="task-checkbox checked"
                       onClick={() => handleToggleCompletada(tarea)}
-                      title="Marcar como pendiente"
+                      style={{
+                        padding: '2px 10px', borderRadius: '20px', border: '2px solid #10b981',
+                        background: '#10b981', cursor: 'pointer', flexShrink: 0,
+                        fontSize: '10px', fontWeight: 700, lineHeight: '18px',
+                        color: '#ffffff', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                      }}
+                      data-tooltip="Desmarcar"
                     >
-                      <IconCheck size={10} />
+                      Hecho
                     </button>
                     {editingId === tarea.id ? (
                       <input

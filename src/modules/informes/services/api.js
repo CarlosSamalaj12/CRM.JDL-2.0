@@ -871,6 +871,80 @@ export async function deleteTarea(tareaId) {
   return response.json();
 }
 
+// --- TAREAS SEMANALES ---
+
+export async function getTareasSemanaMerged(semanaLunes) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/${semanaLunes}/merged`);
+  if (!response.ok) throw new Error('Error al cargar tareas de la semana');
+  return response.json();
+}
+
+export async function getTareasSemana(semanaLunes) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/${semanaLunes}`);
+  if (!response.ok) throw new Error('Error al cargar tareas semanales');
+  return response.json();
+}
+
+export async function createTareaSemanal(data) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al crear tarea');
+  return response.json();
+}
+
+export async function updateTareaSemanal(id, data) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al actualizar tarea');
+  return response.json();
+}
+
+export async function deleteTareaSemanal(id, data) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al eliminar tarea');
+  return response.json();
+}
+
+export async function getHistorialTareasSemana(semanaLunes) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/${semanaLunes}/historial`);
+  if (!response.ok) throw new Error('Error al cargar historial');
+  return response.json();
+}
+
+export async function logHistorialEntry(data) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/log`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al registrar historial');
+  return response.json();
+}
+
+export async function autoMarcarNoRealizado() {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/auto/no-realizado`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Error al marcar no realizado');
+  return response.json();
+}
+
+export async function getTareasSemanaByOcupacion(idOcupacion) {
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/evento/${idOcupacion}`);
+  if (!response.ok) throw new Error('Error al cargar tareas semanales del evento');
+  return response.json();
+}
+
 export async function getTareasEvento(idOcupacion) {
   const token = localStorage.getItem('token');
   const response = await fetch(`${apiUrl}/api/tareas/evento/${idOcupacion}`, {
