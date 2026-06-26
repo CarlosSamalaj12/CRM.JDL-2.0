@@ -36,6 +36,13 @@ function isEventSeriesInPast(events = [], eventId = '') {
   return lastDate < todayIso;
 }
 
+function getAdminCode() {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  return `${dd}${mm}`;
+}
+
 async function requestPastEventEditAuthorization(ev) {
   const key = reservationKeyFromEvent(ev);
   if (!key) return false;
@@ -62,12 +69,16 @@ async function requestPastEventEditAuthorization(ev) {
       if (!String(value || "").trim()) return "Ingresa el codigo.";
       return null;
     },
+    didOpen: () => {
+      const c = Swal.getContainer();
+      if (c) c.style.setProperty('z-index', '10000001', 'important');
+    },
   });
 
   if (!result.isConfirmed) return false;
   const code = String(result.value || "").trim();
 
-  if (code !== "JDL-ADMIN-2026") {
+  if (code !== getAdminCode()) {
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
       document.activeElement.blur();
     }
@@ -79,6 +90,10 @@ async function requestPastEventEditAuthorization(ev) {
       background: "#f8fbff",
       color: "#10243b",
       confirmButtonColor: "#2563eb",
+      didOpen: () => {
+        const c = Swal.getContainer();
+        if (c) c.style.setProperty('z-index', '10000001', 'important');
+      },
     });
     return false;
   }
