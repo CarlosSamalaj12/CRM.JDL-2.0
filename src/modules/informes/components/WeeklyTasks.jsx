@@ -120,12 +120,30 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
 
   const diasEvento = useMemo(() => {
     if (!newIdOcupacion) return [];
+    // El evento seleccionado tiene un Idocupacion que corresponde a un día específico.
+    // Buscamos todos los días del mismo evento agrupando por Institucion + Salon.
+    const sel = events.find(e => String(e.Idocupacion) === String(newIdOcupacion));
+    if (!sel) return [];
     return events
-      .filter(e => String(e.Idocupacion) === String(newIdOcupacion))
+      .filter(e => e.Institucion === sel.Institucion && e.Salon === sel.Salon)
       .map(e => e.displayDate)
       .filter((d, i, arr) => arr.indexOf(d) === i)
       .sort();
   }, [newIdOcupacion, events]);
+
+  const uniqueEvents = useMemo(() => {
+    // Cada evento en la BD ya representa un día (Idocupacion único por día).
+    // Filtramos por la fecha seleccionada y agrupamos por Institucion+Salon
+    // para mostrar cada evento una sola vez en el dropdown.
+    const seen = new Set();
+    return events.filter(e => {
+      if (e.displayDate !== newFecha) return false;
+      const key = `${e.Institucion || ''}|${e.Salon || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [events, newFecha]);
 
   const lastEventRef = useRef(null);
 
@@ -563,14 +581,11 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
           }}
         >
           <option value="">Sin evento</option>
-          {events
-            .filter(e => e.displayDate === newFecha)
-            .filter((e, i, arr) => arr.findIndex(x => x.Idocupacion === e.Idocupacion) === i)
-            .map(ev => (
-              <option key={ev.Idocupacion} value={ev.Idocupacion}>
-                {ev.Institucion || '—'} · {ev.Salon || '—'}
-              </option>
-            ))}
+          {uniqueEvents.map(ev => (
+            <option key={ev.Idocupacion ?? `${ev.Institucion}-${ev.Salon}`} value={ev.Idocupacion}>
+              {ev.Institucion || '—'} · {ev.Salon || '—'}
+            </option>
+          ))}
         </select>
         {diasEvento.length > 1 && (
           <div style={{ width: '100%', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', padding: '4px 0' }}>
@@ -766,14 +781,21 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                               }}
                             >
                               <option value="">Sin evento</option>
-                              {events
-                                .filter(e => e.displayDate === String(t.fecha_tarea || '').slice(0, 10))
-                                .filter((e, i, arr) => arr.findIndex(x => x.Idocupacion === e.Idocupacion) === i)
-                                .map(ev => (
-                                  <option key={ev.Idocupacion} value={ev.Idocupacion}>
+                              {(() => {
+                                const taskDate = String(t.fecha_tarea || '').slice(0, 10);
+                                const seen = new Set();
+                                return events.filter(e => {
+                                  if (e.displayDate !== taskDate) return false;
+                                  const key = `${e.Institucion || ''}|${e.Salon || ''}`;
+                                  if (seen.has(key)) return false;
+                                  seen.add(key);
+                                  return true;
+                                }).map(ev => (
+                                  <option key={ev.Idocupacion ?? `${ev.Institucion}-${ev.Salon}`} value={ev.Idocupacion}>
                                     {ev.Institucion || '—'} · {ev.Salon || '—'}
                                   </option>
-                                ))}
+                                ));
+                              })()}
                             </select>
                             <button onClick={() => handleSaveEdit(t)}
                               style={{ padding: '2px 8px', borderRadius: '4px', border: 'none', background: '#6366f1', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>

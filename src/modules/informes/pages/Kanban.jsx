@@ -2,11 +2,15 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+
 import { fetchEvents } from '../services/api.js';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import EventCard from '../components/EventCard.jsx';
 
 import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload, IconClipboardList } from '../components/Icons.jsx';
+import LoadingSpinner from '../../../components/LoadingSpinner';
 import SettingsChecklist from '../../settings/SettingsChecklist';
 import WeeklyTasks from '../components/WeeklyTasks.jsx';
 
@@ -16,44 +20,6 @@ const statusMap = {
   4: { label: 'Confirmado', color: 'green' },
   7: { label: 'Pre-reserva', color: 'fucsia' },
 };
-
-function formatIsoDate(value) {
-  if (!value) return '';
-  const date = typeof value === 'string' && value.length <= 10 
-    ? new Date(value + 'T12:00:00') 
-    : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function expandEventByDay(event) {
-  const startStr = String(event.FechaEvento || '').slice(0, 10);
-  const endStr = String(event.FechaSalida || event.FechaEvento || '').slice(0, 10);
-  if (!startStr) return [];
-
-  const start = new Date(startStr + 'T12:00:00');
-  const end = new Date(endStr + 'T12:00:00');
-  const result = [];
-  const current = new Date(start);
-
-  while (current <= end) {
-    const formatted = formatIsoDate(current);
-    result.push({
-      ...event,
-      displayDate: formatted,
-      dayIndex: current.getDay(),
-      dayLabel: `${dayNames[current.getDay()]} ${formatted}`,
-    });
-    current.setDate(current.getDate() + 1);
-  }
-
-  return result;
-}
 
 function formatDateShort(iso) {
   const d = new Date(iso + 'T12:00:00');
@@ -92,6 +58,7 @@ export default function Kanban() {
   const [eventoResaltado, setEventoResaltado] = useState(null);
   const [mobileDayIndex, setMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
   const [isMobileView, setIsMobileView] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const handlePrevWeek = () => {
     const d = new Date(selectedDate + 'T12:00:00');
@@ -216,9 +183,20 @@ export default function Kanban() {
     setLoading(true);
     fetchEvents(selectedDate)
       .then((eventsData) => {
-        const expanded = eventsData.flatMap(expandEventByDay);
-        setEvents(expanded);
-        setEventsTotal(expanded.length);
+        // La BD ya entrega una fila por día (cada día con su propio Idocupacion).
+        // NO expandir por día — solo asignar displayDate y dayIndex desde FechaEvento.
+        const mapped = eventsData.map(e => {
+          const fecha = String(e.FechaEvento || '').slice(0, 10);
+          const d = new Date(fecha + 'T12:00:00');
+          return {
+            ...e,
+            displayDate: fecha,
+            dayIndex: d.getDay(),
+            dayLabel: `${dayNames[d.getDay()]} ${fecha}`,
+          };
+        });
+        setEvents(mapped);
+        setEventsTotal(mapped.length);
       })
       .catch((err) => setError(err.message || 'Error desconocido'))
       .finally(() => setLoading(false));
@@ -301,6 +279,186 @@ export default function Kanban() {
     XLSX.writeFile(wb, `eventos-semana-${selectedDate}.xlsx`);
   };
 
+  const buildPrintHtml = () => {
+    const user = currentUser;
+    const userName = user?.name || user?.nombre || user?.username || '—';
+
+    const d = new Date(selectedDate + 'T12:00:00');
+    const dayOfWeek = d.getDay();
+    const diffToMon = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const monday = new Date(d);
+    monday.setDate(diffToMon);
+
+    const fmtShort = (date) => date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    const now = new Date();
+    const printTimestamp = now.toLocaleDateString('es-ES', {
+      day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+
+    let tableRows = '';
+    const weekDays = dayNames.map((_, i) => {
+      const currentDay = new Date(monday);
+      currentDay.setDate(monday.getDate() + i);
+      const isoDate = currentDay.toISOString().slice(0, 10);
+      const label = currentDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+      const realDayIndex = currentDay.getDay();
+      const dayEvents = events.filter((e) => e.dayIndex === realDayIndex);
+      return { isoDate, label, events: dayEvents };
+    });
+
+    for (const day of weekDays) {
+      const hasEvents = day.events.length > 0;
+      tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="10" style="background:#f0f4ff;font-weight:700;padding:8px 12px;font-size:13px;border-bottom:1px solid #d1d9e6;">${day.label}</td></tr>`;
+      if (!hasEvents) {
+        tableRows += `<tr><td colspan="10" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
+      } else {
+        for (const ev of day.events) {
+          const st = statusMap[ev.Estatuscotizacion] || { label: '—', color: 'gray' };
+          const dateStr = ev.displayDate || '';
+          const dayOps = dateStr ? (occupancyOps[getWeekMonday(dateStr)]?.[dateStr]) || { breakfasts: 0, rooms: 0 } : { breakfasts: 0, rooms: 0 };
+          const alerta = (ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? '⚠' : '';
+          tableRows += `<tr>
+            <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtShort(new Date(ev.displayDate + 'T12:00:00'))}</td>
+            <td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;"><span class="tag tag-${st.color}">${st.label}</span></td>
+            <td style="padding:6px 10px;font-size:12px;font-weight:600;border-bottom:1px solid #e2e8f0;">${ev.Institucion || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;">${ev.Salon || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${ev.HoraI || '??:??'} - ${ev.HoraF || '??:??'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${ev.Pax || 0}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;color:#16a34a;">${dayOps.breakfasts}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;color:#2563eb;">${dayOps.rooms}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${alerta}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${ev.Vendedor || '—'}</td>
+          </tr>`;
+        }
+      }
+    }
+
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Ocupación Semanal</title>
+<style>
+  @page { margin: 15mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; }
+  .print-header { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1e40af; }
+  .print-header img { height: 60px; width: auto; }
+  .print-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #475569; }
+  .print-meta strong { color: #0f172a; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: #1e40af; color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  th:first-child { border-radius: 6px 0 0 0; }
+  th:last-child { border-radius: 0 6px 0 0; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .tag-green { background: #dcfce7; color: #16a34a; }
+  .tag-fucsia { background: #fdf2f8; color: #d946ef; }
+  .tag-gray { background: #f1f5f9; color: #64748b; }
+  tr.sin-eventos td { background: #fafafa; }
+  .print-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
+</style></head>
+<body>
+  <div class="print-header">
+    <img src="/Encabezadojdl.png" alt="Logo" onerror="this.style.display='none'" />
+  </div>
+  <div class="print-meta">
+    <span>Impreso por: <strong>${userName}</strong></span>
+    <span>Fecha y hora: <strong>${printTimestamp}</strong></span>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Día</th><th>Estado</th><th>Institución</th><th>Salón</th><th>Horario</th><th>Pax</th><th>Des</th><th>Hab</th><th>Alertas</th><th>Vendedor</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div class="print-footer">Documento generado por Jardines CRM — ${printTimestamp}</div>
+</body></html>`;
+  };
+
+  const exportToPdf = async () => {
+    setPdfLoading(true);
+    const html = buildPrintHtml();
+
+    // Crear un contenedor oculto para renderizar el HTML
+    const container = document.createElement('div');
+    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:1200px;background:#fff;z-index:-1;';
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    try {
+      // Esperar a que se carguen las imágenes
+      const imgs = container.querySelectorAll('img');
+      await Promise.all(Array.from(imgs).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+      }));
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        width: 1200,
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      let heightLeft = pdfHeight;
+      let position = 0;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Primera página
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      // Páginas adicionales si el contenido es más largo que una hoja
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const filename = `ocupacion-semana-${selectedDate}.pdf`;
+      pdf.save(filename);
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+    } finally {
+      document.body.removeChild(container);
+      setPdfLoading(false);
+    }
+  };
+
+  const handlePrint = () => {
+    const html = buildPrintHtml();
+
+    // Agregar estilos @media print y controles de impresión
+    const printHtml = html
+      .replace('</style>', `
+  @media print {
+    body { padding: 0; }
+    .no-print { display: none; }
+  }
+</style>`)
+      .replace('</body>', `
+  <div class="no-print" style="text-align:center;margin-top:20px;">
+    <button onclick="window.print()" style="padding:10px 28px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Imprimir / PDF</button>
+    <button onclick="window.close()" style="padding:10px 28px;background:#e2e8f0;color:#475569;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-left:8px;">Cerrar</button>
+  </div>
+  <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
+</body>`);
+
+    const printWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (printWindow) {
+      printWindow.document.write(printHtml);
+      printWindow.document.close();
+    }
+  };
+
   let filterLabel = '';
   if (filterStatus === '4') filterLabel = 'Confirmados';
   else if (filterStatus === '7') filterLabel = 'Pre-reservas';
@@ -347,8 +505,13 @@ export default function Kanban() {
             <IconDownload size={14} /> Excel
           </button>
           {viewMode === 'tabla' && (
-            <button className="btn-ghost btn-sm" onClick={() => window.print()} data-tooltip="Imprimir / PDF">
-              <IconPrinter size={14} /> Descargar
+            <button className="btn-ghost btn-sm" onClick={exportToPdf} data-tooltip="Exportar PDF sin abrir ventana">
+              <IconFileText size={14} /> PDF
+            </button>
+          )}
+          {viewMode === 'tabla' && (
+            <button className="btn-ghost btn-sm" onClick={handlePrint} data-tooltip="Imprimir / PDF">
+              <IconPrinter size={14} /> Imprimir
             </button>
           )}
           <div className="week-filter-container">
@@ -548,6 +711,7 @@ export default function Kanban() {
               })}</tbody></table>
         </div>
       )}
+      {pdfLoading && <LoadingSpinner mensaje="Generando PDF..." />}
       <SettingsChecklist />
     </section>
   );
