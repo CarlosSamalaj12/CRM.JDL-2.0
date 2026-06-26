@@ -116,20 +116,41 @@ body:not(.informes-theme) #appShell.lum-calendar {
     width: 100% !important;
   }
 
-  body:not(.informes-theme) #appShell.lum-calendar .topbar-view-select select,
+  /* View selector (segmented buttons) */
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-view-select {
+    overflow: hidden !important;
+    min-width: 0 !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-view-select button {
+    height: 36px !important;
+    min-height: 36px !important;
+    font-size: 10px !important;
+    padding: 0 8px !important;
+    flex: 1 !important;
+  }
+
+  /* Status & Room selects */
   body:not(.informes-theme) #appShell.lum-calendar .topbar-status-select select,
   body:not(.informes-theme) #appShell.lum-calendar .topbar-room-select select {
     width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
-    font-size: 10px !important;
-    height: 36px !important;
+    font-size: 13px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 0 8px !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    appearance: auto !important;
   }
 
   body:not(.informes-theme) #appShell.lum-calendar .topbar-search {
     grid-column: span 3 !important;
     width: 100% !important;
-    max-width: 240px !important;
+    max-width: 100% !important;
     margin: 0 !important;
   }
 
@@ -148,6 +169,62 @@ body:not(.informes-theme) #appShell.lum-calendar {
 
   body:not(.informes-theme) #appShell.lum-calendar .topbar .lum-search input {
     font-size: 11px !important;
+  }
+}
+
+/* ─── Topbar compacta para móviles pequeños (≤600px) ─── */
+@media (max-width: 600px) {
+  body:not(.informes-theme) #appShell.lum-calendar .topbar {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    padding: 6px !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-date-nav {
+    grid-column: span 2 !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-date-nav button {
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-date-nav .nav {
+    height: 40px !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-view-select {
+    grid-column: span 2 !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-status-select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-room-select {
+    grid-column: span 1 !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-status-select select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-room-select select {
+    height: 44px !important;
+    min-height: 44px !important;
+    font-size: 12px !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-search {
+    grid-column: span 2 !important;
+  }
+}
+
+/* ─── Topbar apilada para móviles muy pequeños (≤400px) ─── */
+@media (max-width: 400px) {
+  body:not(.informes-theme) #appShell.lum-calendar .topbar {
+    grid-template-columns: 1fr !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-date-nav,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-view-select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-status-select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-room-select {
+    grid-column: 1 !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-status-select select,
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-room-select select {
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+  body:not(.informes-theme) #appShell.lum-calendar .topbar-search {
+    grid-column: 1 !important;
   }
 }
 

@@ -258,6 +258,26 @@ async function ensureUsersExtendedStructure() {
     if (!colSet.has("rol")) {
       await conn.query("ALTER TABLE usuarios ADD COLUMN rol VARCHAR(50) NOT NULL DEFAULT 'vendedor'");
     }
+    if (!colSet.has("equipo_id")) {
+      await conn.query("ALTER TABLE usuarios ADD COLUMN equipo_id INT NULL");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function ensureEquiposTrabajoStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS equipos_trabajo (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(100) NOT NULL,
+        descripcion TEXT,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } finally {
     if (conn) conn.release();
   }
@@ -806,7 +826,7 @@ async function readStateFromTables() {
       dbAnticipos,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
-      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol FROM usuarios ORDER BY creado_en, id"),
+      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
@@ -1063,6 +1083,7 @@ async function readStateFromTables() {
           monthlyGoals,
           goalTiers,
           role: str(u.rol || 'vendedor'),
+          teamId: u.equipo_id ? Number(u.equipo_id) : null,
         };
       }).filter((u) => u.id && u.name),
       companies: empresas.map((c) => ({
@@ -1622,7 +1643,7 @@ async function authenticateUser(userId, password) {
     conn = await pool.getConnection();
     const rows = await conn.query(
       `
-        SELECT id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, firma_data_url, rol
+        SELECT id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, firma_data_url, rol, equipo_id
         FROM usuarios
         WHERE id = ? AND activo = 1
         LIMIT 1
@@ -1642,6 +1663,7 @@ async function authenticateUser(userId, password) {
       avatarDataUrl: str(row.avatar_data_url),
       signatureDataUrl: str(row.firma_data_url),
       role: str(row.rol || 'vendedor'),
+      equipo_id: row.equipo_id ? Number(row.equipo_id) : null,
     };
   } finally {
     if (conn) conn.release();
@@ -1778,12 +1800,13 @@ async function writeStateToTables(state) {
           .filter((t) => t.amount > 0)
         : [];
       const rol = str(u?.role || u?.rol || 'vendedor').trim();
+      const equipoId = u?.teamId ? Number(u.teamId) : null;
       if (!id || !nombre) continue;
       await conn.query(
         `
           INSERT INTO usuarios
-            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             nombre = VALUES(nombre),
             nombre_usuario = VALUES(nombre_usuario),
@@ -1797,7 +1820,8 @@ async function writeStateToTables(state) {
             influye_meta_ventas = VALUES(influye_meta_ventas),
             metas_mensuales_json = VALUES(metas_mensuales_json),
             tiers_comision_json = VALUES(tiers_comision_json),
-            rol = VALUES(rol)
+            rol = VALUES(rol),
+            equipo_id = VALUES(equipo_id)
         `,
         [
           id,
@@ -1814,6 +1838,7 @@ async function writeStateToTables(state) {
           JSON.stringify(monthlyGoals),
           JSON.stringify(goalTiers),
           rol,
+          equipoId,
         ]
       );
     }
@@ -2801,7 +2826,7 @@ app.post("/api/auth/firebase", async (req, res) => {
     
     // 1. Buscar si el ID de Firebase ya existe
     const existingById = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo, rol FROM usuarios WHERE id = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo, rol, equipo_id FROM usuarios WHERE id = ? LIMIT 1",
       [uid]
     );
 
@@ -2838,6 +2863,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           avatarDataUrl: str(u.avatar_data_url),
           signatureDataUrl: str(u.firma_data_url),
           role: str(u.rol || 'vendedor'),
+          equipo_id: u.equipo_id ? Number(u.equipo_id) : null,
         },
         token
       });
@@ -2845,7 +2871,7 @@ app.post("/api/auth/firebase", async (req, res) => {
 
     // 2. Buscar si ya existe un usuario local con el mismo correo para vincularlo
     const existingByEmail = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo, rol FROM usuarios WHERE correo = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo, rol, equipo_id FROM usuarios WHERE correo = ? LIMIT 1",
       [email]
     );
 
@@ -2912,6 +2938,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           avatarDataUrl: str(u.avatar_data_url) || photoURL,
           signatureDataUrl: str(u.firma_data_url),
           role: targetRole,
+          equipo_id: u.equipo_id ? Number(u.equipo_id) : null,
         },
         token
       });
@@ -2951,6 +2978,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           avatarDataUrl: photoURL,
           signatureDataUrl: null,
           role: 'admin',
+          equipo_id: null,
         },
         token
       });
@@ -3832,6 +3860,7 @@ async function start() {
     await ensureMenuMontajeCatalogStructure();
     await ensureDocumentSequenceStructure();
     await ensureUsersExtendedStructure();
+    await ensureEquiposTrabajoStructure();
     await ensureQuoteItemPrimaryKeyColumnSize();
     await ensureRequiredTables();
     await ensureDefaultUserCarlos();

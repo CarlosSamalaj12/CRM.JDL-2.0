@@ -336,7 +336,7 @@ export default function SettingsUsuarios({ inline, onBack }) {
       <div className="settings-section-card" style={{ overflow: inline ? 'visible' : undefined }}>
         <form autoComplete="off" onSubmit={handleSave}>
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+          <div className="settings-usr-form-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>👥 {selectedUserId ? 'Editar Usuario' : 'Pre-registro de Usuario'}</div>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Autorización de Google Login y asignación de roles operacionales</div>
@@ -541,7 +541,7 @@ export default function SettingsUsuarios({ inline, onBack }) {
           </div>
 
           {/* Users list */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', marginTop: '20px' }}>
+          <div className="settings-usr-list-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', marginTop: '20px' }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>Usuarios Registrados ({users.length})</div>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Lista de cuentas autorizadas. Haz clic en "Editar" para modificar sus datos.</div>
@@ -594,12 +594,12 @@ export default function SettingsUsuarios({ inline, onBack }) {
                         </td>
                          <td style={{ textAlign: 'center' }}>
                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                             <button type="button" className="settings-usr-icon-btn" title="Editar usuario" onClick={() => setSelectedUserId(u.id)}>
+                             <button type="button" className="settings-usr-icon-btn btn-edit-usuario" title="Editar usuario" onClick={() => setSelectedUserId(u.id)}>
                                <svg viewBox="0 0 24 24" style={{ width: '16px', height: '16px', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }}>
                                  <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                                </svg>
                              </button>
-                             <button type="button" className="settings-usr-icon-btn" title="Eliminar usuario" onClick={() => handleDeleteUser(u.id, u.fullName || u.name)} style={{ color: '#dc2626', borderColor: '#fca5a5' }}>
+                             <button type="button" className="settings-usr-icon-btn btn-delete-usuario" title="Eliminar usuario" onClick={() => handleDeleteUser(u.id, u.fullName || u.name)}>
                                <svg viewBox="0 0 24 24" style={{ width: '16px', height: '16px', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }}>
                                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
                                </svg>

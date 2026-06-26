@@ -11,6 +11,7 @@ import SettingsFormasPago from './SettingsFormasPago';
 import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
+import SettingsEquipos from './SettingsEquipos';
 import authService from '../../services/authService';
 import '../reports/reports.css';
 import './settings.css';
@@ -609,6 +610,10 @@ export default function SettingsMain() {
                 </div>
 
                 <div className="settings-section-card">
+                  <SettingsEquipos />
+                </div>
+
+                <div className="settings-section-card" style={{ marginTop: '16px' }}>
                   <SettingsUsers />
                 </div>
               </>

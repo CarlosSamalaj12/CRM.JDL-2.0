@@ -861,22 +861,36 @@ input:checked + .settings-usr-slider:before {
   transform: translateX(16px);
 }
 
-/* Icon Button (users table) */
+/* Icon Button (users table) — matching equipos style */
 .settings-usr-icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 6px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.12s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease;
-  color: #0ea5e9;
+  color: #94a3b8;
 }
 
 .settings-usr-icon-btn:hover {
   background: #f1f5f9;
+}
+
+.settings-usr-icon-btn.btn-edit-usuario:hover {
+  color: #6366f1;
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.settings-usr-icon-btn.btn-delete-usuario:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: #fef2f2;
 }
 
 /* ---------- 12. Status Switch (inline checkbox label) ---------- */
@@ -1180,14 +1194,26 @@ input:checked + .settings-usr-slider:before {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
-    gap: 4px;
-    padding-bottom: 8px;
+    gap: 6px;
+    padding: 4px 0 10px;
     border-bottom: 1px solid #f1f5f9;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .settings-nav::-webkit-scrollbar { display: none; }
   .settings-nav-item {
     white-space: nowrap;
     width: auto;
     flex-shrink: 0;
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 12px;
+    gap: 8px;
+    border-radius: 10px;
+  }
+  .settings-nav-item svg {
+    width: 16px;
+    height: 16px;
   }
   .settings-content {
     padding: 8px 0 0 0;
@@ -1214,19 +1240,292 @@ input:checked + .settings-usr-slider:before {
   }
 }
 
+@media (max-width: 640px) {
+  .settings-table,
+  .settings-usr-table {
+    min-width: 480px;
+  }
+  .settings-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px;
+    border-radius: 10px;
+  }
+  .settings-bento-card-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .settings-bento-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .settings-bento-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+  .settings-section-card {
+    padding: 14px;
+  }
+  .settings-hero-section {
+    gap: 12px;
+  }
+  .settings-category-header {
+    margin-bottom: 0;
+  }
+  .settings-google-banner {
+    flex-direction: column;
+    text-align: center;
+    padding: 12px 14px;
+  }
+  .settings-goals-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  /* --- Settings Usuarios mobile improvements --- */
+  .settings-usr-form-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .settings-usr-form-header button {
+    width: 100%;
+  }
+  .settings-usr-list-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .settings-usr-list-header button {
+    width: 100%;
+  }
+}
+
 @media (max-width: 480px) {
   .settings-page-body {
-    padding: 8px 12px 16px;
+    padding: 8px 10px 16px;
+  }
+  .settings-layout-row {
+    padding: 12px;
+  }
+  .settings-nav {
+    gap: 4px;
+    padding: 2px 0 8px;
+  }
+  .settings-nav-item {
+    padding: 8px 12px;
+    font-size: 11px;
+    min-height: 40px;
+  }
+  .settings-nav-item svg {
+    width: 14px;
+    height: 14px;
   }
   .settings-bento-card {
-    padding: 14px;
+    padding: 12px;
   }
   .settings-category-title {
     font-size: 16px;
   }
+  .settings-category-subtitle {
+    font-size: 11px;
+  }
+  .settings-table,
+  .settings-usr-table {
+    min-width: 400px;
+  }
+  .settings-usr-table th,
+  .settings-usr-table td {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  /* --- Users table as compact cards on very small screens --- */
+  .settings-usr-table,
+  .settings-usr-table thead,
+  .settings-usr-table tbody,
+  .settings-usr-table tr,
+  .settings-usr-table th,
+  .settings-usr-table td {
+    display: block;
+    min-width: 0;
+  }
+  .settings-usr-table thead {
+    display: none;
+  }
+  .settings-usr-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 10px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .settings-usr-table tbody tr:last-child {
+    border-bottom: none;
+  }
+  .settings-usr-table tbody td {
+    padding: 0;
+    border: none;
+    font-size: 11px;
+  }
+  /* Each cell gets a role based on order */
+  .settings-usr-table tbody tr td:nth-child(1) {
+    flex: 1 1 100%;
+  }
+  .settings-usr-table tbody tr td:nth-child(2),
+  .settings-usr-table tbody tr td:nth-child(3) {
+    display: none;
+  }
+  .settings-usr-table tbody tr td:nth-child(4) {
+    flex: 0 0 auto;
+  }
+  .settings-usr-table tbody tr td:nth-child(5) {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+  .settings-usr-table tbody tr td:nth-child(6) {
+    flex: 0 0 auto;
+    padding-left: 4px;
+  }
 }
 
-/* Custom circular close button override for all modal headers in settings */
+/* ============================================================
+   SETTINGS — Mobile improvements for all settings panels
+   Targeted selectors for common inline-style patterns
+   ============================================================ */
+
+/* --- SettingsServicios: responsive tabs & tables --- */
+@media (max-width: 640px) {
+  .svc-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    padding-bottom: 6px !important;
+  }
+  .svc-tabs button {
+    flex-shrink: 0;
+    font-size: 10px !important;
+    padding: 6px 10px !important;
+  }
+  /* Service table horizontal scroll */
+  .svc-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .svc-table-wrap table {
+    min-width: 500px;
+  }
+}
+
+/* --- SettingsFormasPago: responsive --- */
+@media (max-width: 640px) {
+  .fp-create-form {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .fp-create-form input {
+    width: 100% !important;
+  }
+  .fp-create-form button {
+    width: 100%;
+  }
+  .fp-list > div[style*="border: 1px solid #e2e8f0"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .fp-list > div[style*="border: 1px solid #e2e8f0"] > div:last-child {
+    justify-content: flex-end !important;
+  }
+  .fp-list > div[style*="border: 1px solid #e2e8f0"] button {
+    min-height: 36px;
+    font-size: 0.75rem !important;
+  }
+}
+
+/* --- SettingsServicios Modals responsive --- */
+@media (max-width: 640px) {
+  div[style*="position: fixed"][style*="z-index: 9999"] > div[style*="border-radius: 14px"] {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    padding: 16px !important;
+  }
+  div[style*="position: fixed"][style*="z-index: 9999"] div[style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* --- SettingsEquipos: card action buttons mobile --- */
+@media (max-width: 480px) {
+  .equipo-card .equipo-nombre {
+    font-size: 12px !important;
+  }
+  .equipo-card .equipo-desc {
+    font-size: 10px !important;
+  }
+  .equipo-card .equipo-miembros {
+    font-size: 10px !important;
+  }
+}
+
+/* --- SettingsGlobalGoals: compact mobile --- */
+@media (max-width: 640px) {
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"] + * button.settings-accent-btn,
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"] + * button.settings-cancel-btn {
+    width: 100%;
+  }
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"] + * {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"] + * > button {
+    width: 100%;
+  }
+}
+
+/* --- SettingsExport: action buttons mobile --- */
+@media (max-width: 640px) {
+  .settings-data-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .settings-data-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* --- SettingsChecklist: compact template editor mobile --- */
+@media (max-width: 640px) {
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"] input[placeholder*="Salón"] {
+    font-size: 0.75rem !important;
+  }
+  /* Checklist template section header */
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"][style*="align-items: center"] {
+    flex-wrap: wrap !important;
+  }
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"][style*="align-items: center"] > div[style*="background: #e2e8f0"] {
+    width: 100%;
+    justify-content: center;
+  }
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"][style*="align-items: center"] button {
+    font-size: 0.7rem !important;
+    padding: 5px 8px !important;
+  }
+  .settings-section-card div[style*="display: flex"][style*="gap: 8px"] input[type="text"] {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* ============================================================
+   Custom circular close button override for all modal headers in settings
+   ============================================================ */
 .modalHeader .btn-exit {
   width: 36px !important;
   height: 36px !important;

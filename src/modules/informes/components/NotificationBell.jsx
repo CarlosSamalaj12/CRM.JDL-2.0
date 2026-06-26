@@ -14,6 +14,7 @@ const TYPE_CONFIG = {
   respuesta: { icon: IconMessageCircle, label: 'Respuesta', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
   alerta:   { icon: IconAlertCircle, label: 'Alerta',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   recordatorio: { icon: IconClock,  label: 'Recordatorio', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
+  tarea_completada: { icon: IconCheckCircle, label: 'Tarea completada', color: '#16a34a', bg: 'rgba(22,163,74,0.1)' },
 };
 
 const DEFAULT_TYPE = { icon: IconFileText, label: 'Notificación', color: '#64748b', bg: 'rgba(100,116,139,0.1)' };
@@ -151,6 +152,9 @@ export default function NotificationBell() {
       } catch {
         navigate(`/kanban?highlightEvento=${n.idocupacion}`);
       }
+    } else if (n.tipo === 'tarea_completada') {
+      const dateParam = n.idocupacion ? `&date=${n.idocupacion}` : '';
+      navigate(`/kanban?viewMode=tareas${dateParam}`);
     } else if (n.informe_id) {
       navigate(`/informe/${n.informe_id}`);
     }

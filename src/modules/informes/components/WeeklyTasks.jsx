@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   getTareasSemana,
@@ -9,8 +9,8 @@ import {
   deleteTareaSemanal,
   getHistorialTareasSemana,
   autoMarcarNoRealizado,
-  getTareasEvento,
   logHistorialEntry,
+  getEquiposTrabajo,
 } from '../services/api.js';
 
 
@@ -37,7 +37,7 @@ function getMonday(isoDate) {
 function formatHora(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function formatFechaCorta(iso) {
@@ -62,7 +62,7 @@ function getCurrentUser() {
   } catch { return null; }
 }
 
-export default function WeeklyTasks({ selectedDate, events = [] }) {
+export default function WeeklyTasks({ selectedDate, events = [], onDateChange }) {
   const user = getCurrentUser();
   const semana_lunes = getMonday(selectedDate);
 
@@ -77,60 +77,91 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
   const [newContenido, setNewContenido] = useState('');
   const [newFecha, setNewFecha] = useState(selectedDate);
   const [newIdOcupacion, setNewIdOcupacion] = useState('');
+  const [newSelectedDays, setNewSelectedDays] = useState([]);
   const [adding, setAdding] = useState(false);
+  const [equipos, setEquipos] = useState([]);
+  const [newEquipoId, setNewEquipoId] = useState('');
 
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [editIdOcupacion, setEditIdOcupacion] = useState('');
 
+  const [filterStatus, setFilterStatus] = useState('todas');
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileDayIndex, setMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsMobile(mq.matches);
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) {
+      const idx = ((new Date().getDay() + 6) % 7);
+      setMobileDayIndex(idx);
+    }
+  }, [semana_lunes, isMobile]);
+
+  const handlePrevWeek = () => {
+    if (!onDateChange) return;
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() - 7);
+    onDateChange(d.toISOString().slice(0, 10));
+  };
+  const handleNextWeek = () => {
+    if (!onDateChange) return;
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() + 7);
+    onDateChange(d.toISOString().slice(0, 10));
+  };
+
+  const diasEvento = useMemo(() => {
+    if (!newIdOcupacion) return [];
+    return events
+      .filter(e => String(e.Idocupacion) === String(newIdOcupacion))
+      .map(e => e.displayDate)
+      .filter((d, i, arr) => arr.indexOf(d) === i)
+      .sort();
+  }, [newIdOcupacion, events]);
+
+  const lastEventRef = useRef(null);
+
+  useEffect(() => {
+    if (lastEventRef.current === newIdOcupacion) return;
+    lastEventRef.current = newIdOcupacion;
+    if (!newIdOcupacion) { setNewSelectedDays([]); return; }
+    setNewSelectedDays(diasEvento.length > 1 ? [newFecha] : diasEvento);
+  }, [newIdOcupacion, newFecha, diasEvento]);
+
+  useEffect(() => {
+    getEquiposTrabajo().then(data => setEquipos(data)).catch(() => {});
+  }, []);
+
   const loadTareas = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
       await autoMarcarNoRealizado();
-      const [semanales, tareasEventoPromises] = await Promise.all([
-        getTareasSemana(semana_lunes),
-        ...events
-          .filter((e, i, arr) => arr.findIndex(x => x.Idocupacion === e.Idocupacion) === i)
-          .map(ev => getTareasEvento(ev.Idocupacion).then(tareas =>
-            tareas.map(t => ({
-              ...t,
-              _source: 'evento',
-              fecha_tarea: ev.displayDate,
-              evento_institucion: ev.Institucion,
-              evento_salon: ev.Salon,
-              no_realizado: 0,
-              completada_en: null,
-              semana_lunes: null,
-              creado_en: t.fecha_creacion || t.creado_en,
-              actualizado_en: t.fecha_creacion || t.creado_en,
-            }))
-          ).catch(() => []))
-      ]);
-      const evento = tareasEventoPromises.flat();
-      const marked = new Set();
-      const merged = [];
-      for (const t of semanales) {
-        const key = `${t.fecha_tarea}-${t.contenido}-${t.id_ocupacion || ''}`;
-        marked.add(key);
-        merged.push({ ...t, _source: 'semanal' });
-      }
-      for (const t of evento) {
-        const key = `${String(t.fecha_tarea || '').slice(0, 10)}-${t.contenido}-${t.id_ocupacion || ''}`;
-        if (!marked.has(key)) merged.push(t);
-      }
-      merged.sort((a, b) => {
+      const params = {};
+      const uid = String(user?.id || user?._id || '');
+      if (uid) params.usuario_id = uid;
+      if (user?.teamId) params.equipo_id = user.teamId;
+      const semanales = await getTareasSemana(semana_lunes, params);
+      semanales.sort((a, b) => {
         const da = String(a.fecha_tarea || '').slice(0, 10);
         const db = String(b.fecha_tarea || '').slice(0, 10);
         if (da !== db) return da < db ? -1 : 1;
         return (a.id || 0) - (b.id || 0);
       });
-      setTareas(merged);
+      setTareas(semanales);
     } catch (err) {
       console.error('Error loading weekly tasks:', err);
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [semana_lunes, events]);
+  }, [semana_lunes, user?.teamId, user?.id, user?._id]);
 
   useEffect(() => {
     loadTareas(true);
@@ -166,18 +197,23 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
     e.preventDefault();
     if (!newContenido.trim() || !user) return;
     setAdding(true);
+    const daysToCreate = newSelectedDays.length > 0 ? newSelectedDays : [newFecha];
     try {
-      await createTareaSemanal({
-        semana_lunes,
-        fecha_tarea: newFecha,
-        contenido: newContenido.trim(),
-        id_ocupacion: newIdOcupacion || null,
-        usuario_id: user.id || user._id || '',
-        usuario_nombre: user.name || user.nombre || user.username || '',
-      });
+      for (const day of daysToCreate) {
+        await createTareaSemanal({
+          semana_lunes: getMonday(day),
+          fecha_tarea: day,
+          contenido: newContenido.trim(),
+          id_ocupacion: newIdOcupacion || null,
+          equipo_id: Number(newEquipoId) || null,
+          usuario_id: user.id || user._id || '',
+          usuario_nombre: user.name || user.nombre || user.username || '',
+        });
+      }
       setNewContenido('');
       setNewIdOcupacion('');
-      toast('Tarea agregada ✓');
+      setNewSelectedDays([]);
+      toast(`Tarea${daysToCreate.length > 1 ? 's' : ''} agregada${daysToCreate.length > 1 ? 's' : ''} ✓`);
       addLocalHistory({
         accion: 'created', contenido_previo: null, contenido_nuevo: newContenido.trim(),
         usuario_nombre: user.name || user.nombre || user.username || '',
@@ -289,32 +325,107 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
     }
   };
 
+  const canCompleteTask = (tarea) => {
+    if (!user) return false;
+    const uid = String(user.id || user._id || '');
+    const isCreator = uid && String(tarea.usuario_id) === uid;
+
+    if (tarea.equipo_id) {
+      if (user?.teamId) {
+        return Number(user.teamId) === Number(tarea.equipo_id);
+      }
+      return isCreator;
+    }
+
+    return isCreator;
+  };
+
+  const filteredTareas = tareas.filter(t => {
+    if (filterStatus === 'todas') return true;
+    if (filterStatus === 'pendientes') return !t.completada && !t.no_realizado;
+    if (filterStatus === 'completadas') return t.completada;
+    if (filterStatus === 'no_realizado') return t.no_realizado;
+    return true;
+  });
+
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(semana_lunes + 'T12:00:00');
     d.setDate(d.getDate() + i);
     const iso = d.toISOString().slice(0, 10);
-    const tareasDia = tareas.filter(t => String(t.fecha_tarea || '').slice(0, 10) === iso);
+    const tareasDia = filteredTareas.filter(t => String(t.fecha_tarea || '').slice(0, 10) === iso);
     return { iso, label: `${DAY_LABELS[d.getDay()]} ${d.getDate()}`, tareas: tareasDia };
   });
 
-  const totalCount = tareas.length;
-  const completedCount = tareas.filter(t => t.completada).length;
-  const noRealizadoCount = tareas.filter(t => t.no_realizado).length;
-  const pendingCount = tareas.filter(t => !t.completada && !t.no_realizado).length;
+  const totalCount = filteredTareas.length;
+  const completedCount = filteredTareas.filter(t => t.completada).length;
+  const noRealizadoCount = filteredTareas.filter(t => t.no_realizado).length;
+  const pendingCount = filteredTareas.filter(t => !t.completada && !t.no_realizado).length;
 
   return (
-    <div style={{ padding: '16px 20px' }}>
+    <div style={{ padding: isMobile ? '12px 12px' : '16px 20px' }}>
+      {/* Mobile week date selector — mismo diseño que el kanban header */}
+      {isMobile && onDateChange && (
+        <div className="week-filter-container" style={{ width: '100%', justifyContent: 'center', marginBottom: '12px' }}>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            onClick={handlePrevWeek}
+            data-tooltip="Semana anterior"
+          >
+            ‹
+          </button>
+          <div className="week-filter-input-wrap" style={{ flex: 1, maxWidth: 'none' }}>
+            <input
+              id="week-filter-tareas"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => onDateChange(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            onClick={handleNextWeek}
+            data-tooltip="Semana siguiente"
+          >
+            ›
+          </button>
+        </div>
+      )}
+
+      {/* Day selector pills — visible en mobile (igual que el kanban) */}
+      {isMobile && (
+        <div className="kanban-day-selector" style={{ marginBottom: '12px' }}>
+          {weekDays.map((day, i) => {
+            const d = new Date(day.iso + 'T12:00:00');
+            const name = d.toLocaleDateString('es-ES', { weekday: 'short' });
+            return (
+              <button
+                key={day.iso}
+                type="button"
+                className={`kanban-day-pill ${mobileDayIndex === i ? 'active' : ''}`}
+                onClick={() => setMobileDayIndex(i)}
+              >
+                <span className="pill-day">{name.slice(0, 3).replace('.', '')}</span>
+                <span className="pill-date">{day.iso.slice(5)}</span>
+                <span className="pill-count">{day.tareas.length}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Stats bar */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap',
-        marginBottom: '16px', padding: '12px 16px', background: '#ffffff',
+        display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '16px', flexWrap: 'wrap',
+        marginBottom: '16px', padding: isMobile ? '10px 12px' : '12px 16px', background: '#ffffff',
         border: '1px solid #e2e8f0', borderRadius: '12px',
       }}>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', width: isMobile ? '100%' : 'auto' }}>
           <span style={{color:'#10b981', marginRight:4}}>✓</span>
           Tareas de la semana
         </span>
-        <div style={{ display: 'flex', gap: '12px', fontSize: '12px', fontWeight: 600 }}>
+        <div style={{ display: 'flex', gap: isMobile ? '10px' : '12px', fontSize: '12px', fontWeight: 600, flexWrap: 'wrap', flex: 1 }}>
           <span style={{ color: '#64748b' }}>Total <strong style={{ color: '#0f172a' }}>{totalCount}</strong></span>
           <span style={{ color: '#16a34a' }}>Completadas <strong>{completedCount}</strong></span>
           <span style={{ color: '#f59e0b' }}>Pendientes <strong>{pendingCount}</strong></span>
@@ -325,16 +436,44 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
         <button
           onClick={handleToggleHistorial}
           style={{
-            marginLeft: 'auto', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+            marginLeft: isMobile ? '0' : 'auto', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
             background: showHistorial ? '#f1f5f9' : '#ffffff', cursor: 'pointer', fontSize: '11px',
             fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px',
-            transition: 'all 0.15s',
+            transition: 'all 0.15s', width: isMobile ? '100%' : 'auto', justifyContent: 'center',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
           onMouseLeave={e => { e.currentTarget.style.background = showHistorial ? '#f1f5f9' : '#ffffff'; }}
         >
           Historial
         </button>
+      </div>
+
+      {/* Filter chips */}
+      <div style={{
+        display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap',
+      }}>
+        {[
+          { key: 'todas', label: 'Todas', color: '#6366f1' },
+          { key: 'pendientes', label: 'Pendientes', color: '#f59e0b' },
+          { key: 'completadas', label: 'Completadas', color: '#16a34a' },
+          { key: 'no_realizado', label: 'No realizadas', color: '#ef4444' },
+        ].map(({ key, label, color }) => {
+          const active = filterStatus === key;
+          return (
+            <button key={key} onClick={() => setFilterStatus(key)}
+              style={{
+                padding: '4px 12px', borderRadius: '999px', border: '1px solid',
+                borderColor: active ? color : '#e2e8f0',
+                background: active ? `${color}15` : '#ffffff',
+                color: active ? color : '#64748b',
+                cursor: 'pointer', fontSize: '11px', fontWeight: active ? 700 : 600,
+                transition: 'all 0.12s',
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* History panel */}
@@ -385,32 +524,41 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
 
       {/* Add task form */}
       <form onSubmit={handleAdd} style={{
-        display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap',
+        display: 'flex', gap: '8px', marginBottom: '16px',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
+        flexWrap: isMobile ? 'nowrap' : 'wrap',
       }}>
         <input
           type="text" value={newContenido} onChange={e => setNewContenido(e.target.value)}
           placeholder="Nueva tarea..." required
           style={{
-            flex: '1 1 200px', height: '36px', padding: '0 12px', borderRadius: '8px',
-            border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none',
-            background: '#ffffff', color: '#0f172a', minWidth: '150px',
+            flex: isMobile ? '1 1 auto' : '1 1 200px',
+            width: isMobile ? '100%' : 'auto',
+            height: isMobile ? '44px' : '36px', padding: '0 12px', borderRadius: '8px',
+            border: '1px solid #e2e8f0',
+            fontSize: isMobile ? '16px' : '13px', outline: 'none',
+            background: '#ffffff', color: '#0f172a', minWidth: isMobile ? '0' : '150px',
           }}
           onFocus={e => e.target.style.borderColor = '#6366f1'}
           onBlur={e => e.target.style.borderColor = '#e2e8f0'}
         />
         <input
-          type="date" value={newFecha} onChange={e => { setNewFecha(e.target.value); setNewIdOcupacion(''); }}
+          type="date" value={newFecha} onChange={e => { setNewFecha(e.target.value); setNewIdOcupacion(''); setNewSelectedDays([]); }}
           style={{
-            height: '36px', padding: '0 10px', borderRadius: '8px',
-            border: '1px solid #e2e8f0', fontSize: '12px', outline: 'none',
+            width: isMobile ? '100%' : 'auto',
+            height: isMobile ? '44px' : '36px', padding: '0 10px', borderRadius: '8px',
+            border: '1px solid #e2e8f0',
+            fontSize: isMobile ? '16px' : '12px', outline: 'none',
             background: '#ffffff', color: '#0f172a',
           }}
         />
-        <select value={newIdOcupacion} onChange={e => setNewIdOcupacion(e.target.value)}
+        <select value={newIdOcupacion} onChange={e => { setNewIdOcupacion(e.target.value); setNewSelectedDays([]); }}
           style={{
-            height: '36px', padding: '0 10px', borderRadius: '8px',
-            border: '1px solid #e2e8f0', fontSize: '12px', outline: 'none',
-            background: '#ffffff', color: '#0f172a', maxWidth: '220px',
+            width: isMobile ? '100%' : 'auto',
+            height: isMobile ? '44px' : '36px', padding: '0 10px', borderRadius: '8px',
+            border: '1px solid #e2e8f0', fontSize: isMobile ? '14px' : '12px', outline: 'none',
+            background: '#ffffff', color: '#0f172a', maxWidth: isMobile ? 'none' : '220px',
             cursor: 'pointer',
           }}
         >
@@ -424,11 +572,75 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
               </option>
             ))}
         </select>
+        {diasEvento.length > 1 && (
+          <div style={{ width: '100%', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', padding: '4px 0' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Asignar a:</span>
+            {diasEvento.map(day => {
+              const checked = newSelectedDays.includes(day);
+              return (
+                <button
+                  key={day} type="button"
+                  onClick={() => {
+                    setNewSelectedDays(prev =>
+                      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                    );
+                  }}
+                  style={{
+                    fontSize: '11px', fontWeight: checked ? 700 : 500, cursor: 'pointer',
+                    padding: '6px 12px', borderRadius: '6px', border: '1px solid',
+                    borderColor: checked ? '#6366f1' : '#e2e8f0',
+                    background: checked ? '#eef2ff' : '#ffffff',
+                    color: checked ? '#6366f1' : '#475569',
+                    transition: 'all 0.12s', minHeight: '36px',
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation',
+                  }}
+                  onTouchStart={e => e.currentTarget.style.transform = 'scale(0.96)'}
+                  onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  {checked ? '✓ ' : ''}{new Date(day + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: isMobile ? '100%' : 'auto', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          <select value={newEquipoId} onChange={e => setNewEquipoId(e.target.value)}
+            style={{
+              flex: isMobile ? '1 1 auto' : '0 0 auto',
+              width: isMobile ? '100%' : 'auto',
+              height: isMobile ? '44px' : '36px', padding: '0 10px', borderRadius: '8px',
+              border: '1px solid #e2e8f0', fontSize: isMobile ? '14px' : '12px', outline: 'none',
+              background: '#ffffff', color: '#0f172a', cursor: 'pointer', maxWidth: isMobile ? 'none' : '180px',
+            }}
+          >
+            <option value="">Asignar a...</option>
+            {equipos
+              .filter(eq => !user?.teamId || eq.id !== Number(user?.teamId))
+              .map(eq => (
+                <option key={eq.id} value={eq.id}>{eq.nombre}</option>
+              ))}
+          </select>
+          {(() => {
+            const selectedEq = newEquipoId ? equipos.find(eq => eq.id === Number(newEquipoId)) : null;
+            if (!selectedEq) return null;
+            return (
+              <span style={{
+                fontSize: '11px', fontWeight: 700, color: '#d97706', flexShrink: 0,
+                padding: '2px 8px', borderRadius: '4px', background: '#fef3c7',
+                border: '1px solid #fcd34d', whiteSpace: 'nowrap',
+              }}>
+                → {selectedEq.nombre}
+              </span>
+            );
+          })()}
+        </div>
         <button type="submit" disabled={adding || !user}
           style={{
-            height: '36px', padding: '0 16px', borderRadius: '8px', border: 'none',
+            width: isMobile ? '100%' : 'auto',
+            height: isMobile ? '44px' : '36px', padding: isMobile ? '0 12px' : '0 16px', borderRadius: '8px', border: 'none',
             background: !user ? '#cbd5e1' : '#6366f1', color: '#ffffff', cursor: !user ? 'not-allowed' : 'pointer',
-            fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px',
+            fontSize: isMobile ? '14px' : '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
             transition: 'background 0.15s',
           }}
           onMouseEnter={e => { if (user) e.currentTarget.style.background = '#4f46e5'; }}
@@ -446,7 +658,9 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
       ) : (
         /* Tasks table grouped by day */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {weekDays.map(day => {
+          {weekDays
+            .filter((_, i) => !isMobile || i === mobileDayIndex)
+            .map(day => {
             const isFuture = day.iso > new Date().toISOString().slice(0, 10);
             const isToday = day.iso === new Date().toISOString().slice(0, 10);
             return (
@@ -482,33 +696,52 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
                     const isPast = String(t.fecha_tarea || '').slice(0, 10) < new Date().toISOString().slice(0, 10) && !t.completada;
                     return (
                       <div key={t.id} style={{
-                        display: 'flex', alignItems: 'center', gap: '10px',
-                        padding: '8px 14px', borderBottom: '1px solid #f1f5f9',
+                        display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '10px',
+                        flexWrap: isMobile ? 'wrap' : 'nowrap',
+                        padding: isMobile ? '10px 12px' : '8px 14px', borderBottom: '1px solid #f1f5f9',
                         background: t.completada ? '#fafdfa' : t.no_realizado ? '#fef2f2' : '#ffffff',
                         opacity: t.completada ? 0.7 : 1,
                       }}>
-                        <button onClick={() => handleToggleComplete(t)}
-                          style={{
-                            padding: t.completada ? '3px 12px' : '3px 10px', borderRadius: '20px', border: '2px solid',
-                            borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : '#d1d5db',
-                            background: t.completada ? '#10b981' : t.no_realizado ? '#fef2f2' : '#ffffff',
-                            cursor: 'pointer', flexShrink: 0,
-                            fontSize: '11px', fontWeight: 700, lineHeight: '20px',
-                            color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : '#6b7280',
-                            transition: 'all 0.15s', whiteSpace: 'nowrap',
-                          }}
-                          data-tooltip={t.completada ? 'Desmarcar' : 'Completar'}
-                          onMouseEnter={e => {
-                            if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = '#eef2ff'; }
-                          }}
-                          onMouseLeave={e => {
-                            if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = '#ffffff'; }
-                          }}
-                        >
-                          {Boolean(t.completada) && 'Hecho'}
-                          {Boolean(t.no_realizado) && !t.completada && 'No realizado'}
-                          {!t.completada && !t.no_realizado && 'Pendiente'}
-                        </button>
+                        {canCompleteTask(t) ? (
+                          <button onClick={() => handleToggleComplete(t)}
+                            style={{
+                              padding: isMobile ? '5px 12px' : (t.completada ? '3px 12px' : '3px 10px'), borderRadius: '20px', border: '2px solid',
+                              borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : '#d1d5db',
+                              background: t.completada ? '#10b981' : t.no_realizado ? '#fef2f2' : '#ffffff',
+                              cursor: 'pointer', flexShrink: 0,
+                              fontSize: isMobile ? '12px' : '11px', fontWeight: 700, lineHeight: isMobile ? '24px' : '20px',
+                              minHeight: isMobile ? '36px' : 'auto',
+                              color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : '#6b7280',
+                              transition: 'all 0.15s', whiteSpace: 'nowrap',
+                            }}
+                            data-tooltip={t.completada ? 'Desmarcar' : 'Completar'}
+                            onMouseEnter={e => {
+                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = '#eef2ff'; }
+                            }}
+                            onMouseLeave={e => {
+                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = '#ffffff'; }
+                            }}
+                          >
+                            {Boolean(t.completada) && 'Hecho'}
+                            {Boolean(t.no_realizado) && !t.completada && 'No realizado'}
+                            {!t.completada && !t.no_realizado && 'Pendiente'}
+                          </button>
+                        ) : (
+                          <span style={{
+                            padding: isMobile ? '5px 12px' : (t.completada ? '3px 12px' : '3px 10px'), borderRadius: '20px', border: '2px solid',
+                            borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : '#e2e8f0',
+                            background: t.completada ? '#10b981' : t.no_realizado ? '#fef2f2' : '#f8fafc',
+                            flexShrink: 0,
+                            fontSize: isMobile ? '12px' : '11px', fontWeight: 700, lineHeight: isMobile ? '24px' : '20px',
+                            minHeight: isMobile ? '36px' : 'auto',
+                            color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : '#94a3b8',
+                            whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center',
+                          }}>
+                            {Boolean(t.completada) && 'Hecho'}
+                            {Boolean(t.no_realizado) && !t.completada && 'No realizado'}
+                            {!t.completada && !t.no_realizado && 'Pendiente'}
+                          </span>
+                        )}
 
                         {isEditing ? (
                           <div style={{ display: 'flex', flex: 1, gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -555,7 +788,7 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
                           <span
                             onClick={() => { setEditingId(t.id); setEditText(t.contenido); setEditIdOcupacion(t.id_ocupacion || ''); }}
                             style={{
-                              flex: 1, fontSize: '12.5px', cursor: 'text', minWidth: 0,
+                              flex: 1, fontSize: isMobile ? '13px' : '12.5px', cursor: 'text', minWidth: 0,
                               color: t.completada ? '#94a3b8' : t.no_realizado ? '#ef4444' : '#0f172a',
                               textDecoration: t.completada ? 'line-through' : 'none',
                             }}
@@ -564,48 +797,69 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
                           </span>
                         )}
 
-                        {(t.evento_institucion || t.id_ocupacion) && !isEditing && (
-                          <span style={{
-                            fontSize: '10px', fontWeight: 600, color: '#6366f1', flexShrink: 0,
-                            padding: '1px 7px', borderRadius: '4px', background: '#eef2ff',
-                            maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '3px',
-                          }}>
-                            {t.evento_institucion || 'Evento'} {t.evento_salon ? `· ${t.evento_salon}` : ''}
-                          </span>
-                        )}
-
-                        <span style={{
-                          fontSize: '10px', fontWeight: 600, color: '#94a3b8', flexShrink: 0,
-                          padding: '1px 6px', borderRadius: '4px', background: '#f1f5f9',
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: isMobile ? '5px' : '6px',
+                          flexWrap: 'wrap',
+                          flex: isMobile ? '1 1 100%' : '0 0 auto',
+                          justifyContent: isMobile ? 'flex-start' : 'flex-end',
                         }}>
-                          {t.usuario_nombre || '—'}
-                        </span>
+                          {(t.evento_institucion || t.id_ocupacion) && !isEditing && (
+                            <span style={{
+                              fontSize: '10px', fontWeight: 600, color: '#6366f1', flexShrink: 0,
+                              padding: '1px 7px', borderRadius: '4px', background: '#eef2ff',
+                              maxWidth: isMobile ? '100%' : '180px', overflow: 'hidden', textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '3px',
+                            }}>
+                              {t.evento_institucion || 'Evento'} {t.evento_salon ? `· ${t.evento_salon}` : ''}
+                            </span>
+                          )}
 
-                        <button onClick={() => { if (!isEditing) { setEditingId(t.id); setEditText(t.contenido); setEditIdOcupacion(t.id_ocupacion || ''); } }}
-                          style={{
-                            padding: '2px 7px', borderRadius: '4px', border: '1px solid transparent',
-                            cursor: 'pointer', color: '#94a3b8', flexShrink: 0,
-                            fontSize: '11px', fontWeight: 600, lineHeight: '20px',
-                            opacity: 0, transition: 'all 0.15s', background: 'transparent',
-                          }}
-                          className="weekly-task-action-btn"
-                          data-tooltip="Editar"
-                        >
-                          Editar
-                        </button>
-                        <button onClick={() => handleDelete(t)}
-                          style={{
-                            padding: '2px 7px', borderRadius: '4px', border: '1px solid transparent',
-                            cursor: 'pointer', color: '#94a3b8', flexShrink: 0,
-                            fontSize: '11px', fontWeight: 600, lineHeight: '20px',
-                            opacity: 0, transition: 'all 0.15s', background: 'transparent',
-                          }}
-                          className="weekly-task-action-btn"
-                          data-tooltip="Eliminar"
-                        >
-                          Eliminar
-                        </button>
+                          <span style={{
+                            fontSize: '10px', fontWeight: 600, color: '#94a3b8', flexShrink: 0,
+                            padding: '1px 6px', borderRadius: '4px', background: '#f1f5f9',
+                          }}>
+                            {t.usuario_nombre || '—'}
+                          </span>
+                          {(() => {
+                            const eq = equipos.find(e => e.id === t.equipo_id);
+                            if (!eq) return null;
+                            const isMyTeam = Number(user?.teamId) === Number(t.equipo_id);
+                            return (
+                              <span style={{
+                                fontSize: '11px', fontWeight: 700, color: isMyTeam ? '#0ea5e9' : '#d97706', flexShrink: 0,
+                                padding: '2px 8px', borderRadius: '4px', background: isMyTeam ? '#e0f2fe' : '#fef3c7',
+                                border: `1px solid ${isMyTeam ? '#7dd3fc' : '#fcd34d'}`,
+                              }}>
+                                {eq.nombre}
+                              </span>
+                            );
+                          })()}
+
+                          <button onClick={() => { if (!isEditing) { setEditingId(t.id); setEditText(t.contenido); setEditIdOcupacion(t.id_ocupacion || ''); } }}
+                            style={{
+                              padding: isMobile ? '5px 9px' : '2px 7px', borderRadius: '4px', border: '1px solid transparent',
+                              cursor: 'pointer', color: '#94a3b8', flexShrink: 0,
+                              fontSize: isMobile ? '12px' : '11px', fontWeight: 600, lineHeight: isMobile ? '24px' : '20px',
+                              transition: 'all 0.15s', background: 'transparent',
+                              minHeight: isMobile ? '36px' : '30px',
+                            }}
+                            data-tooltip="Editar"
+                          >
+                            Editar
+                          </button>
+                          <button onClick={() => handleDelete(t)}
+                            style={{
+                              padding: isMobile ? '5px 9px' : '2px 7px', borderRadius: '4px', border: '1px solid transparent',
+                              cursor: 'pointer', color: '#94a3b8', flexShrink: 0,
+                              fontSize: isMobile ? '12px' : '11px', fontWeight: 600, lineHeight: isMobile ? '24px' : '20px',
+                              transition: 'all 0.15s', background: 'transparent',
+                              minHeight: isMobile ? '36px' : '30px',
+                            }}
+                            data-tooltip="Eliminar"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </div>
                     );
                   })
@@ -617,12 +871,10 @@ export default function WeeklyTasks({ selectedDate, events = [] }) {
       )}
 
       <style>{`
-        .weekly-task-action-btn { opacity: 0; }
-        .weekly-task-action-btn:hover { color: #6366f1 !important; }
-        div[class*=""]:hover > .weekly-task-action-btn { opacity: 1; }
-        div[style*="display: flex"]:hover > button.weekly-task-action-btn { opacity: 0.5; }
-        div[style*="display: flex"]:hover > button.weekly-task-action-btn:hover { opacity: 1; color: #6366f1; }
-        div[style*="display: flex"]:hover > button.weekly-task-action-btn:last-child:hover { color: #ef4444 !important; }
+        button[data-tooltip="Editar"]:hover,
+        button[data-tooltip="Eliminar"]:hover { background: #f1f5f9 !important; }
+        button[data-tooltip="Eliminar"]:hover { color: #ef4444 !important; }
+        button[data-tooltip="Editar"]:hover { color: #6366f1 !important; }
       `}</style>
     </div>
   );

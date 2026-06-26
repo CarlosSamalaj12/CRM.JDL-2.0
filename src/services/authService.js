@@ -72,7 +72,8 @@ export const authService = {
       email: user.email || user.correo,
       avatarDataUrl: user.avatarDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || user.name)}&background=0ea5e9&color=fff`,
       signatureDataUrl: user.signatureDataUrl,
-      role: user.role || 'vendedor'
+      role: user.role || 'vendedor',
+      teamId: user.teamId || user.equipo_id || null,
     }));
     if (token) {
       localStorage.setItem('token', token);

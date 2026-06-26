@@ -43,7 +43,7 @@ export default function Topbar({
     }}>
       
       {/* 1. DATE NAVIGATION */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+      <div className="topbar-date-nav" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         <button
           onClick={onToday}
           style={{
@@ -74,7 +74,7 @@ export default function Topbar({
           Hoy
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', height: '34px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+        <div className="nav" style={{ display: 'flex', alignItems: 'center', height: '34px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
           <button
             onClick={onPrev}
             style={{
@@ -97,7 +97,7 @@ export default function Topbar({
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <div style={{
+          <div className="weekLabel" style={{
             minWidth: '160px',
             padding: '0 12px',
             fontSize: '12.5px',
@@ -141,7 +141,7 @@ export default function Topbar({
       </div>
 
       {/* 2. VIEW SELECTOR — SEGMENTED PILLS */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#f1f5f9', borderRadius: '8px', padding: '2px', flexShrink: 0 }}>
+      <div className="topbar-view-select" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#f1f5f9', borderRadius: '8px', padding: '2px', flexShrink: 0 }}>
         {views.map(v => {
           const active = viewMode === v.key;
           return (
@@ -173,7 +173,7 @@ export default function Topbar({
       </div>
 
       {/* 3. STATUS FILTER */}
-      <div style={{ flexShrink: 0 }}>
+      <div className="topbar-status-select" style={{ flexShrink: 0 }}>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -202,7 +202,7 @@ export default function Topbar({
       </div>
 
       {/* 4. ROOM FILTER */}
-      <div style={{ flexShrink: 0 }}>
+      <div className="topbar-room-select" style={{ flexShrink: 0 }}>
         <select
           value={roomFilter}
           onChange={(e) => setRoomFilter(e.target.value)}
@@ -229,7 +229,7 @@ export default function Topbar({
       </div>
 
       {/* 5. SEARCH */}
-      <div style={{ flex: '1 1 180px', minWidth: '120px' }}>
+      <div className="topbar-search" style={{ flex: '1 1 180px', minWidth: '120px' }}>
         <label style={{
           display: 'flex',
           alignItems: 'center',

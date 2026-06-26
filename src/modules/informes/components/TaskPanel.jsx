@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getTareasUsuario, createTarea, updateTarea, deleteTarea, getTareasSemanaByOcupacion, updateTareaSemanal } from '../services/api.js';
+import { getTareasUsuario, createTarea, updateTarea, deleteTarea, getTareasSemanaByOcupacion, updateTareaSemanal, getEquiposTrabajo } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { IconX, IconCheck, IconTrash, IconEdit } from './Icons.jsx';
@@ -10,6 +10,7 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const toast = useToast();
   const [tareas, setTareas] = useState([]);
   const [weeklyTareas, setWeeklyTareas] = useState([]);
+  const [equipos, setEquipos] = useState([]);
   const [nuevaTarea, setNuevaTarea] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -23,6 +24,10 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const currentUserId = user?.id || (() => {
     try { const t = localStorage.getItem('token'); if (!t) return null; return JSON.parse(atob(t.split('.')[1])).id; } catch { return null; }
   })();
+
+  useEffect(() => {
+    getEquiposTrabajo().then(data => setEquipos(data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!currentUserId || !idOcupacion) return;
@@ -85,9 +90,12 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const loadTareas = async () => {
     setLoading(true);
     try {
+      const params = {};
+      if (currentUserId) params.usuario_id = currentUserId;
+      if (user?.teamId) params.equipo_id = user.teamId;
       const [data, weekly] = await Promise.all([
         getTareasUsuario(idOcupacion, currentUserId),
-        getTareasSemanaByOcupacion(idOcupacion),
+        getTareasSemanaByOcupacion(idOcupacion, params),
       ]);
       setTareas(data);
       setWeeklyTareas(weekly);
@@ -107,7 +115,10 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
         usuario_id: u.id || '',
         usuario_nombre: u.name || '',
       });
-      const updated = await getTareasSemanaByOcupacion(idOcupacion);
+      const params = {};
+      if (currentUserId) params.usuario_id = currentUserId;
+      if (user?.teamId) params.equipo_id = user.teamId;
+      const updated = await getTareasSemanaByOcupacion(idOcupacion, params);
       setWeeklyTareas(updated);
     } catch {}
   };
@@ -326,6 +337,20 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
                         {String(t.fecha_tarea).slice(0,10)}
                       </span>
                     )}
+                    {(() => {
+                      const eq = equipos.find(e => e.id === t.equipo_id);
+                      if (!eq) return null;
+                      const isMyTeam = Number(user?.teamId) === Number(t.equipo_id);
+                      return (
+                        <span style={{
+                          fontSize: '10px', fontWeight: 700, color: isMyTeam ? '#0ea5e9' : '#d97706', flexShrink: 0,
+                          padding: '1px 6px', borderRadius: '4px', background: isMyTeam ? '#e0f2fe' : '#fef3c7',
+                          border: `1px solid ${isMyTeam ? '#7dd3fc' : '#fcd34d'}`,
+                        }}>
+                          {eq.nombre}
+                        </span>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

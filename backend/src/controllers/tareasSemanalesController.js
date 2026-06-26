@@ -39,6 +39,10 @@ async function ensureTables() {
     if (colResult.length === 0) {
       await pool.query('ALTER TABLE tareas_semanales ADD COLUMN id_ocupacion VARCHAR(30) NULL AFTER no_realizado, ADD KEY idx_tareas_semanales_ocupacion (id_ocupacion)');
     }
+    const [colEquipo] = await pool.query("SHOW COLUMNS FROM tareas_semanales WHERE Field = 'equipo_id'");
+    if (colEquipo.length === 0) {
+      await pool.query('ALTER TABLE tareas_semanales ADD COLUMN equipo_id INT NULL AFTER id_ocupacion, ADD KEY idx_tareas_semanales_equipo (equipo_id)');
+    }
   } catch (e) {
     // Column may already exist or table just created
   }
@@ -55,14 +59,20 @@ export async function getTareasSemana(req, res, next) {
   try {
     await ensureTables();
     const { semana_lunes } = req.params;
-    const [rows] = await pool.query(
-      `SELECT t.*, e.nombre AS evento_institucion, e.nombre_salon AS evento_salon
+    const { usuario_id, equipo_id } = req.query;
+    let sql = `SELECT t.*, e.nombre AS evento_institucion, e.nombre_salon AS evento_salon
        FROM tareas_semanales t
        LEFT JOIN eventos e ON t.id_ocupacion = e.id
-       WHERE t.semana_lunes = ?
-       ORDER BY t.fecha_tarea ASC, t.id ASC`,
-      [semana_lunes]
-    );
+       WHERE t.semana_lunes = ?`;
+    const params = [semana_lunes];
+    if (usuario_id || equipo_id) {
+      const filters = [];
+      if (usuario_id) { filters.push('t.usuario_id = ?'); params.push(usuario_id); }
+      if (equipo_id) { filters.push('t.equipo_id = ?'); params.push(Number(equipo_id)); }
+      if (filters.length > 0) sql += ` AND (${filters.join(' OR ')})`;
+    }
+    sql += ` ORDER BY t.fecha_tarea ASC, t.id ASC`;
+    const [rows] = await pool.query(sql, params);
     res.json(rows);
   } catch (error) { next(error); }
 }
@@ -71,14 +81,20 @@ export async function getTareasByOcupacion(req, res, next) {
   try {
     await ensureTables();
     const { id_ocupacion } = req.params;
-    const [rows] = await pool.query(
-      `SELECT t.*, e.nombre AS evento_institucion, e.nombre_salon AS evento_salon
+    const { usuario_id, equipo_id } = req.query;
+    let sql = `SELECT t.*, e.nombre AS evento_institucion, e.nombre_salon AS evento_salon
        FROM tareas_semanales t
        LEFT JOIN eventos e ON t.id_ocupacion = e.id
-       WHERE t.id_ocupacion = ?
-       ORDER BY t.fecha_tarea ASC, t.id ASC`,
-      [id_ocupacion]
-    );
+       WHERE t.id_ocupacion = ?`;
+    const params = [id_ocupacion];
+    if (usuario_id || equipo_id) {
+      const filters = [];
+      if (usuario_id) { filters.push('t.usuario_id = ?'); params.push(usuario_id); }
+      if (equipo_id) { filters.push('t.equipo_id = ?'); params.push(Number(equipo_id)); }
+      if (filters.length > 0) sql += ` AND (${filters.join(' OR ')})`;
+    }
+    sql += ` ORDER BY t.fecha_tarea ASC, t.id ASC`;
+    const [rows] = await pool.query(sql, params);
     res.json(rows);
   } catch (error) { next(error); }
 }
@@ -86,13 +102,19 @@ export async function getTareasByOcupacion(req, res, next) {
 export async function createTarea(req, res, next) {
   try {
     await ensureTables();
-    const { semana_lunes, fecha_tarea, contenido, id_ocupacion, usuario_id, usuario_nombre } = req.body;
+    let { semana_lunes, fecha_tarea, contenido, id_ocupacion, usuario_id, usuario_nombre, equipo_id } = req.body;
     if (!usuario_id || !contenido?.trim()) {
       return res.status(400).json({ message: 'usuario_id y contenido son requeridos' });
     }
+    if (!equipo_id) {
+      const [userRows] = await pool.query('SELECT equipo_id FROM usuarios WHERE id = ?', [usuario_id]);
+      if (userRows.length > 0 && userRows[0].equipo_id) {
+        equipo_id = userRows[0].equipo_id;
+      }
+    }
     const [result] = await pool.query(
-      'INSERT INTO tareas_semanales (semana_lunes, fecha_tarea, contenido, id_ocupacion, usuario_id, usuario_nombre) VALUES (?, ?, ?, ?, ?, ?)',
-      [semana_lunes, fecha_tarea, contenido.trim(), id_ocupacion || null, usuario_id, usuario_nombre || null]
+      'INSERT INTO tareas_semanales (semana_lunes, fecha_tarea, contenido, id_ocupacion, equipo_id, usuario_id, usuario_nombre) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [semana_lunes, fecha_tarea, contenido.trim(), id_ocupacion || null, equipo_id || null, usuario_id, usuario_nombre || null]
     );
     const [newTarea] = await pool.query('SELECT * FROM tareas_semanales WHERE id = ?', [result.insertId]);
     await logHistory(result.insertId, 'created', null, contenido.trim(), usuario_id, usuario_nombre);
@@ -141,6 +163,35 @@ export async function updateTarea(req, res, next) {
     if (contenido !== undefined && contenido.trim() !== prev.contenido) accion = 'edited';
     if (id_ocupacion !== undefined && String(id_ocupacion || '') !== String(prev.id_ocupacion || '')) accion = 'edited';
     await logHistory(id, accion, prev.contenido, updated[0].contenido, usuario_id, usuario_nombre);
+
+    // Notify task creator when someone from another team completes it
+    if (completada && prev.equipo_id && String(prev.usuario_id) !== String(usuario_id)) {
+      try {
+        const [teamRows] = await pool.query('SELECT nombre FROM equipos_trabajo WHERE id = ?', [prev.equipo_id]);
+        const teamName = teamRows.length > 0 ? teamRows[0].nombre : 'Otro equipo';
+        const titulo = 'Tarea completada';
+        const mensaje = `El equipo "${teamName}" completó: ${prev.contenido}`;
+        const [notifResult] = await pool.query(
+          'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [prev.usuario_id, 'tarea_completada', titulo, mensaje, String(prev.fecha_tarea || '').slice(0, 10), Number(id)]
+        );
+        if (req.io) {
+          req.io.to(`usuario:${prev.usuario_id}`).emit('notificacion:created', {
+            id: notifResult.insertId,
+            usuario_id: prev.usuario_id,
+            tipo: 'tarea_completada',
+            titulo,
+            mensaje,
+            informe_id: null,
+            idocupacion: String(prev.fecha_tarea || '').slice(0, 10),
+            comentario_id: Number(id),
+            leido: 0,
+            fecha_creacion: new Date(),
+          });
+        }
+      } catch { /* notification is non-critical */ }
+    }
+
     res.json(updated[0]);
   } catch (error) { next(error); }
 }
@@ -179,15 +230,21 @@ export async function getTareasMerged(req, res, next) {
   try {
     await ensureTables();
     const { semana_lunes } = req.params;
+    const { usuario_id, equipo_id } = req.query;
 
-    const [tareasSemanales] = await pool.query(
-      `SELECT t.*, e.nombre AS evento_institucion, e.nombre_salon AS evento_salon
+    let sql = `SELECT t.*, e.nombre AS evento_institucion, e.nombre_salon AS evento_salon
        FROM tareas_semanales t
        LEFT JOIN eventos e ON t.id_ocupacion = e.id
-       WHERE t.semana_lunes = ?
-       ORDER BY t.fecha_tarea ASC, t.id ASC`,
-      [semana_lunes]
-    );
+       WHERE t.semana_lunes = ?`;
+    const params = [semana_lunes];
+    if (usuario_id || equipo_id) {
+      const filters = [];
+      if (usuario_id) { filters.push('t.usuario_id = ?'); params.push(usuario_id); }
+      if (equipo_id) { filters.push('t.equipo_id = ?'); params.push(Number(equipo_id)); }
+      if (filters.length > 0) sql += ` AND (${filters.join(' OR ')})`;
+    }
+    sql += ` ORDER BY t.fecha_tarea ASC, t.id ASC`;
+    const [tareasSemanales] = await pool.query(sql, params);
 
     const [tareasEvento] = await pool.query(
       `SELECT te.id, te.id_ocupacion, te.contenido, te.completada,

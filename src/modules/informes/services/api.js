@@ -602,10 +602,17 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Equipos
+// Equipos (físico - mobiliario)
 export async function getEquipos() {
   const response = await fetch(`${apiUrl}/api/config/equipos`, { headers: authHeaders() });
   if (!response.ok) throw new Error('Error al cargar equipos');
+  return response.json();
+}
+
+// Equipos de Trabajo (equipos_trabajo)
+export async function getEquiposTrabajo() {
+  const response = await fetch(`${apiUrl}/api/equipos`, { headers: authHeaders() });
+  if (!response.ok) throw new Error('Error al cargar equipos de trabajo');
   return response.json();
 }
 
@@ -879,8 +886,10 @@ export async function getTareasSemanaMerged(semanaLunes) {
   return response.json();
 }
 
-export async function getTareasSemana(semanaLunes) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/${semanaLunes}`);
+export async function getTareasSemana(semanaLunes, params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  const url = qs ? `${apiUrl}/api/tareas-semanales/${semanaLunes}?${qs}` : `${apiUrl}/api/tareas-semanales/${semanaLunes}`;
+  const response = await fetch(url);
   if (!response.ok) throw new Error('Error al cargar tareas semanales');
   return response.json();
 }
@@ -939,8 +948,9 @@ export async function autoMarcarNoRealizado() {
   return response.json();
 }
 
-export async function getTareasSemanaByOcupacion(idOcupacion) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/evento/${idOcupacion}`);
+export async function getTareasSemanaByOcupacion(idOcupacion, params = {}) {
+  const qs = Object.keys(params).length > 0 ? `?${new URLSearchParams(params)}` : '';
+  const response = await fetch(`${apiUrl}/api/tareas-semanales/evento/${idOcupacion}${qs}`);
   if (!response.ok) throw new Error('Error al cargar tareas semanales del evento');
   return response.json();
 }

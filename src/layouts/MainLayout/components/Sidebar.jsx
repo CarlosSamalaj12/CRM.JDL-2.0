@@ -13,6 +13,30 @@ export default function Sidebar() {
   const [isMobileReminderOpen, setIsMobileReminderOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
+  // Auto-ocultar el botón flotante de menú al scrollear
+  const [fabVisible, setFabVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const hideTimerRef = useRef(null);
+
+  useEffect(() => {
+    const target = document.scrollingElement || document.documentElement;
+    const handler = () => {
+      const y = window.scrollY || target.scrollTop || 0;
+      const delta = y - lastScrollY.current;
+      lastScrollY.current = y;
+      if (y < 8) { setFabVisible(true); return; }
+      if (delta > 8) setFabVisible(false);
+      else if (delta < -8) setFabVisible(true);
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => setFabVisible(true), 2200);
+    };
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handler);
+      clearTimeout(hideTimerRef.current);
+    };
+  }, []);
+
   const user = authService.getCurrentUser() || {
     name: 'Invitado',
     avatarDataUrl: 'https://ui-avatars.com/api/?name=Guest&background=cbd5e1&color=64748b',
@@ -119,9 +143,9 @@ export default function Sidebar() {
     <>
       {/* Botón de Hamburguesa Flotante en Móvil */}
       <button 
-        className="mobile-hamburger-btn" 
+className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
         onClick={() => setIsMobileOpen(true)}
-        aria-label="Abrir menú"
+        aria-label="Abrir men"
       >
         <span className="material-symbols-outlined">menu</span>
       </button>
@@ -394,27 +418,43 @@ export default function Sidebar() {
           .mobile-hamburger-btn {
             display: none;
             position: fixed;
-            bottom: 20px;
-            left: 20px;
-            width: 54px;
-            height: 54px;
+            bottom: 16px;
+            left: 16px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
-            background: #14b8a6 !important;
+            background: rgba(20, 184, 166, 0.86) !important;
             color: #ffffff !important;
             border: none !important;
-            box-shadow: 0 4px 14px rgba(20, 184, 166, 0.4) !important;
+            box-shadow: 0 3px 10px rgba(20, 184, 166, 0.28) !important;
             z-index: 10001;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.2s ease-in-out;
             padding: 0 !important;
+            transition: transform 0.25s ease, opacity 0.25s ease, background 0.2s ease, box-shadow 0.2s ease;
+          }
+          /* Estado discreto: semi-transparente en reposo */
+          .mobile-hamburger-btn.fab-visible {
+            opacity: 0.62;
+          }
+          .mobile-hamburger-btn.fab-visible:hover,
+          .mobile-hamburger-btn.fab-visible:active {
+            opacity: 1;
+            background: rgba(20, 184, 166, 1) !important;
+            box-shadow: 0 4px 14px rgba(20, 184, 166, 0.42) !important;
+          }
+          /* Auto-ocultar: se desliza y atenúa al scrollear */
+          .mobile-hamburger-btn.fab-hidden {
+            opacity: 0 !important;
+            transform: translateY(16px) scale(0.85) !important;
+            pointer-events: none !important;
           }
           .mobile-hamburger-btn:active {
-            transform: scale(0.9);
+            transform: scale(0.92);
           }
           .mobile-hamburger-btn span {
-            font-size: 26px;
+            font-size: 22px;
             color: #ffffff !important;
           }
 

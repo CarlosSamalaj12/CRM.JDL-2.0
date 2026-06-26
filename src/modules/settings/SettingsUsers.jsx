@@ -115,6 +115,7 @@ export default function SettingsUsers() {
         input:checked + .usr-slider:before { transform: translateX(16px); }
         @media (max-width: 640px) { .usr-hide-phone { display: none; } }
         .usr-table { min-width: 600px; }
+        .usr-table-wrapper { max-height: 400px; overflow-y: auto; }
       `}</style>
 
       {/* Header */}
@@ -137,7 +138,7 @@ export default function SettingsUsers() {
       </div>
 
       {/* Table */}
-      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', overflowX: 'auto' }}>
+      <div className="usr-table-wrapper" style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
         {loading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>Cargando usuarios...</div>
         ) : users.length === 0 ? (

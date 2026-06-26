@@ -73,17 +73,20 @@ function getWeekMonday(dateStr) {
 
 export default function Kanban() {
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Función para obtener la fecha inicial (URL param > localStorage > hoy)
+  const getInitialDate = () => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) return dateParam;
+    const saved = localStorage.getItem('kanban_selectedDate');
+    return saved || new Date().toLocaleDateString('en-CA');
+  };
+
   const [events, setEvents] = useState([]);
   const [eventsTotal, setEventsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Función para obtener la fecha inicial (guardada o actual)
-  const getInitialDate = () => {
-    const saved = localStorage.getItem('kanban_selectedDate');
-    return saved || new Date().toLocaleDateString('en-CA');
-  };
-  
+
   const [selectedDate, setSelectedDate] = useState(getInitialDate());
   const [filterExiting, setFilterExiting] = useState(false);
   const [eventoResaltado, setEventoResaltado] = useState(null);
@@ -147,7 +150,11 @@ export default function Kanban() {
     }
   }, [searchParams, events]);
 
-  const [viewMode, setViewMode] = useState('kanban');
+  const [viewMode, setViewMode] = useState(() => {
+    const vm = searchParams.get('viewMode');
+    if (vm && ['kanban', 'tabla', 'tareas'].includes(vm)) return vm;
+    return 'kanban';
+  });
   const [occupancyOps, setOccupancyOps] = useState({});
   const [editingDay, setEditingDay] = useState(null);
   const [editDes, setEditDes] = useState(0);
@@ -464,6 +471,7 @@ export default function Kanban() {
                         key={`${event.Idocupacion}-${event.displayDate}`} 
                         event={event} 
                         highlighted={eventoResaltado === String(event.Idocupacion)}
+                        onNavigateToTareas={() => setViewMode('tareas')}
                       />
                   ))
                 )}
@@ -475,7 +483,7 @@ export default function Kanban() {
       )}
 
       {!loading && !error && viewMode === 'tareas' && (
-        <WeeklyTasks selectedDate={selectedDate} events={events} />
+        <WeeklyTasks selectedDate={selectedDate} events={events} onDateChange={setSelectedDate} />
       )}
 
       {!loading && !error && viewMode === 'tabla' && (

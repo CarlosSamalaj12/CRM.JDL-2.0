@@ -347,7 +347,7 @@ export default function SettingsServicios({ inline, onBack }) {
         </div>
       )}
 
-      <div style={{ marginBottom: '16px', display: 'flex', gap: '6px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', flexShrink: 0 }}>
+      <div className="svc-tabs" style={{ marginBottom: '16px', display: 'flex', gap: '6px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', flexShrink: 0 }}>
         {[
           { id: 'servicios', label: 'Servicios', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' },
           { id: 'categorias', label: 'Categorías', icon: 'M4 6h16M4 12h16M4 18h16' },
@@ -403,7 +403,7 @@ export default function SettingsServicios({ inline, onBack }) {
             )}
           </div>
 
-          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
+          <div className="svc-table-wrap" style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
             {services.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
                 No hay servicios registrados. Crea el primer servicio.
@@ -464,7 +464,7 @@ export default function SettingsServicios({ inline, onBack }) {
               Nueva categoría
             </button>
           </div>
-          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
+          <div className="svc-table-wrap" style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
             {categories.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>No hay categorías registradas.</div>
             ) : (
@@ -518,7 +518,7 @@ export default function SettingsServicios({ inline, onBack }) {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
+          <div className="svc-table-wrap" style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
             {(() => {
               const catFilter = subcategoryFilterCategory;
               const catList = catFilter ? categories.filter(c => String(c.id) === String(catFilter)) : categories;

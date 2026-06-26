@@ -107,3 +107,30 @@ export class ApiError extends Error {
 
 export const api = new ApiClient();
 export default api;
+
+function ensureApiToken() {
+  if (!api.token) {
+    const t = localStorage.getItem('token');
+    if (t) api.setToken(t);
+  }
+}
+
+export async function getEquipos() {
+  ensureApiToken();
+  return api.get('/api/equipos');
+}
+
+export async function createEquipo(data) {
+  ensureApiToken();
+  return api.post('/api/equipos', data);
+}
+
+export async function updateEquipo(id, data) {
+  ensureApiToken();
+  return api.put(`/api/equipos/${id}`, data);
+}
+
+export async function deleteEquipo(id) {
+  ensureApiToken();
+  return api.delete(`/api/equipos/${id}`);
+}

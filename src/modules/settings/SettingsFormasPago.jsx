@@ -63,7 +63,7 @@ export default function SettingsFormasPago() {
         Administra las formas de pago disponibles en el sistema. Estas aparecerán en los combos de cotización y anticipos.
       </div>
 
-      <form onSubmit={handleCreate} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+      <form className="fp-create-form" onSubmit={handleCreate} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <input
           type="text" placeholder="Nueva forma de pago..." value={newName}
           onChange={e => setNewName(e.target.value)}
@@ -80,7 +80,7 @@ export default function SettingsFormasPago() {
         </button>
       </form>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div className="fp-list" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {items.length === 0 && (
           <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px', fontSize: '0.85rem' }}>
             Sin formas de pago aún — agrega una arriba

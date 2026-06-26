@@ -4507,12 +4507,12 @@ body.informes-theme {
       .event-details { font-size: 0.75rem; }
       .event-actions { gap: 0.3rem; }
       .event-actions button {
-        flex: 1 !important;
-        min-height: 40px;
-        font-size: 0.65rem;
-        padding: 0.3rem 0.25rem;
-        justify-content: center;
-        gap: 0.15rem;
+        flex: 1 1 calc(33.333% - 0.2rem) !important;
+        min-height: 38px !important;
+        font-size: 0.62rem !important;
+        padding: 0.3rem 0.2rem !important;
+        justify-content: center !important;
+        gap: 0.1rem !important;
         min-width: 0 !important;
         width: auto !important;
       }
@@ -4520,6 +4520,11 @@ body.informes-theme {
       .event-actions .tareas-btn {
         min-width: 0 !important;
       }
+      /* Ocultar el texto "+ Informe" en móvil pequeño, dejar solo el icono */
+      .event-actions button:first-child { font-size: 0 !important; padding: 0.3rem 0 !important; }
+      .event-actions button:first-child svg { font-size: 0.85rem !important; }
+      .notas-list { max-height: 140px; }
+      .notas-input-row button { font-size: 0.72rem !important; padding: 0.4rem 0.5rem !important; }
       .kanban-filter label { display: none; }
   }
   
@@ -4580,8 +4585,25 @@ body.informes-theme {
   /* Mobile responsive: General */
   @media (max-width: 768px) {
     .login-card { padding: 1.5rem; }
-      .event-actions { flex-wrap: wrap; }
-      .event-actions button { min-width: 80px; flex: none; min-height: 44px; font-size: 0.78rem; }
+      .event-actions {
+        flex-wrap: wrap !important;
+        gap: 0.3rem !important;
+      }
+      .event-actions button {
+        flex: 1 1 calc(50% - 0.15rem) !important;
+        min-width: 0 !important;
+        width: auto !important;
+        min-height: 40px !important;
+        font-size: 0.72rem !important;
+        padding: 0.35rem 0.3rem !important;
+        justify-content: center !important;
+        gap: 0.15rem !important;
+      }
+      .event-actions .notas-btn,
+      .event-actions .tareas-btn { min-width: 0 !important; }
+      .notas-popover { padding: 0.6rem; }
+      .notas-list { max-height: 180px; }
+      .notas-input-row input { font-size: 16px !important; }
       .kanban-column { padding: 0.5rem; }
       .catalog-section { padding: 1rem; }
       .form-row { grid-template-columns: 1fr; }

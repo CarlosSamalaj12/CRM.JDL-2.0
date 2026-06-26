@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
@@ -20,6 +20,36 @@ export default function ReportsLayout() {
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+
+  // Auto-ocultar el botón flotante de menú al scrollear hacia abajo
+  const [fabVisible, setFabVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const hideTimerRef = useRef(null);
+
+  useEffect(() => {
+    const target = document.scrollingElement || document.documentElement;
+    const handler = () => {
+      const y = window.scrollY || target.scrollTop || 0;
+      const delta = y - lastScrollY.current;
+      lastScrollY.current = y;
+      if (y < 8) {
+        setFabVisible(true);
+        return;
+      }
+      if (delta > 8) {
+        setFabVisible(false);
+      } else if (delta < -8) {
+        setFabVisible(true);
+      }
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => setFabVisible(true), 2200);
+    };
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handler);
+      clearTimeout(hideTimerRef.current);
+    };
+  }, []);
 
   const canManageCatalog = user && ['Admin', 'FrontOffice', 'Vendedor'].includes(user.rol);
   const isAdmin = user?.rol === 'Admin';
@@ -52,8 +82,8 @@ export default function ReportsLayout() {
   return (
     <div className="reports-root app-shell informes-shell">
       {/* Botón de Hamburguesa Flotante en Móvil */}
-      <button 
-        className="mobile-hamburger-btn" 
+      <button
+        className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
         onClick={() => setIsMobileOpen(true)}
         aria-label="Abrir menú"
       >
@@ -319,29 +349,116 @@ export default function ReportsLayout() {
           .informes-shell .mobile-hamburger-btn {
             display: flex !important;
             position: fixed !important;
-            bottom: 20px !important;
-            left: 20px !important;
-            width: 54px !important;
-            height: 54px !important;
+            bottom: 16px !important;
+            left: 16px !important;
+            width: 44px !important;
+            height: 44px !important;
             border-radius: 50% !important;
-            background: #14b8a6 !important;
+            background: rgba(20, 184, 166, 0.86) !important;
             color: #ffffff !important;
             border: none !important;
-            box-shadow: 0 4px 14px rgba(20, 184, 166, 0.4) !important;
+            box-shadow: 0 3px 10px rgba(20, 184, 166, 0.28) !important;
             z-index: 10001 !important;
             align-items: center !important;
             justify-content: center !important;
             cursor: pointer !important;
-            transition: all 0.2s ease-in-out !important;
             padding: 0 !important;
+            transition: transform 0.25s ease, opacity 0.25s ease, background 0.2s ease, box-shadow 0.2s ease !important;
+          }
+          @media (max-width: 767px) {
+            .informes-shell .app-header {
+              padding: 0.5rem 0.75rem !important;
+              gap: 0.4rem !important;
+              flex-wrap: wrap !important;
+              border-radius: var(--radius-lg) !important;
+              margin-bottom: 0.75rem !important;
+              top: 0.5rem !important;
+            }
+            /* Ocultar navegación en móvil — está en el drawer */
+            .informes-shell .app-nav {
+              display: none !important;
+            }
+            /* Header-left más compacto */
+            .informes-shell .header-left {
+              gap: 0.5rem !important;
+            }
+            .informes-shell .header-left .brand-icon {
+              width: 30px !important;
+              height: 30px !important;
+            }
+            .informes-shell .header-left .brand-icon img {
+              padding: 3px !important;
+            }
+            .informes-shell .brand {
+              font-size: 0.82rem !important;
+            }
+            .informes-shell .brand-sub {
+              font-size: 0.65rem !important;
+            }
+            /* Sección derecha: wrap, compacta */
+            .informes-shell .app-header > div:last-child {
+              gap: 0.35rem !important;
+              flex-wrap: wrap !important;
+              justify-content: flex-end !important;
+              margin-left: auto !important;
+            }
+            /* Nombre de usuario: tamaño reducido, sin romper línea */
+            .informes-shell .app-header > div:last-child > span:first-child {
+              font-size: 0.72rem !important;
+              white-space: nowrap !important;
+            }
+            /* Botón X (btn-exit): tamaño táctil adecuado */
+            .informes-shell .btn-exit {
+              padding: 0.35rem 0.4rem !important;
+              min-width: 36px !important;
+              min-height: 36px !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+            }
+          }
+
+          /* ─── Perfil de usuario centrado en el drawer móvil ─── */
+          .mobile-drawer-profile .profile-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 6px;
+          }
+          .mobile-drawer-profile .profile-text {
+            align-items: center;
+            text-align: center;
+          }
+
+          /* Estado discreto: semi-transparente en reposo */
+          .reports-root .mobile-hamburger-btn.fab-visible,
+          .informes-shell .mobile-hamburger-btn.fab-visible {
+            opacity: 0.62 !important;
+          }
+          /* Al tocar o posar el cursor vuelve a opacidad completa */
+          .reports-root .mobile-hamburger-btn.fab-visible:hover,
+          .informes-shell .mobile-hamburger-btn.fab-visible:hover,
+          .reports-root .mobile-hamburger-btn.fab-visible:active,
+          .informes-shell .mobile-hamburger-btn.fab-visible:active {
+            opacity: 1 !important;
+            background: rgba(20, 184, 166, 1) !important;
+            box-shadow: 0 4px 14px rgba(20, 184, 166, 0.42) !important;
+          }
+          /* Auto-ocultar: se desliza y atenúa al scrollear */
+          .reports-root .mobile-hamburger-btn.fab-hidden,
+          .informes-shell .mobile-hamburger-btn.fab-hidden {
+            opacity: 0 !important;
+            transform: translateY(16px) scale(0.85) !important;
+            pointer-events: none !important;
           }
           .reports-root .mobile-hamburger-btn:active,
           .informes-shell .mobile-hamburger-btn:active {
-            transform: scale(0.9) !important;
+            transform: scale(0.92) !important;
           }
           .reports-root .mobile-hamburger-btn span,
           .informes-shell .mobile-hamburger-btn span {
-            font-size: 26px !important;
+            font-size: 22px !important;
             color: #ffffff !important;
           }
 

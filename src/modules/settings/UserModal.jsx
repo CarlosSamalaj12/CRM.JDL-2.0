@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import { getEquipos } from '../../services/api.js';
 import toast from 'react-hot-toast';
 
 const ROLE_LABELS = {
@@ -22,12 +23,14 @@ export default function UserModal({ onClose }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [equipos, setEquipos] = useState([]);
   
   // Form states
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState('vendedor');
+  const [teamId, setTeamId] = useState('');
   const [active, setActive] = useState(true);
   const [salesTargetEnabled, setSalesTargetEnabled] = useState(false);
   const [goalTiers, setGoalTiers] = useState([]);
@@ -67,12 +70,23 @@ export default function UserModal({ onClose }) {
     }
   };
 
+  const loadEquipos = async () => {
+    try {
+      const data = await getEquipos();
+      setEquipos(data);
+    } catch (err) {
+      console.error('Error cargando equipos:', err);
+      toast.error('No se pudieron cargar los equipos de trabajo.');
+    }
+  };
+
   function resetForm() {
     setSelectedUserId('');
     setFullName('');
     setEmail('');
     setPhone('');
     setRole('vendedor');
+    setTeamId('');
     setActive(true);
     setSalesTargetEnabled(false);
     setGoalTiers([]);
@@ -90,6 +104,7 @@ export default function UserModal({ onClose }) {
       if (backdrop) backdrop.hidden = false;
       resetForm();
       fetchUsers();
+      loadEquipos();
     };
 
     const handleEditUser = (e) => {
@@ -99,12 +114,14 @@ export default function UserModal({ onClose }) {
         setSelectedUserId(e.detail.userId);
       }
       fetchUsers();
+      loadEquipos();
     };
 
     window.addEventListener('openAddUser', handleOpenAddUser);
     window.addEventListener('editUser', handleEditUser);
 
     fetchUsers();
+    loadEquipos();
 
     return () => {
       window.removeEventListener('openAddUser', handleOpenAddUser);
@@ -126,6 +143,7 @@ export default function UserModal({ onClose }) {
         setGoalTiers(user.goalTiers || []);
         setAvatarDataUrl(user.avatarDataUrl || '');
         setSignatureDataUrl(user.signatureDataUrl || '');
+        setTeamId(user.teamId ? String(user.teamId) : '');
       }
     } else {
       resetForm();
@@ -331,6 +349,7 @@ export default function UserModal({ onClose }) {
               email: email.toLowerCase(),
               phone: phone,
               role: role,
+              teamId: teamId ? Number(teamId) : null,
               active: active,
               salesTargetEnabled: salesTargetEnabled,
               goalTiers: goalTiers,
@@ -358,6 +377,7 @@ export default function UserModal({ onClose }) {
           phone: phone,
           password: '',
           role: role,
+          teamId: teamId ? Number(teamId) : null,
           active: active,
           salesTargetEnabled: salesTargetEnabled,
           goalTiers: goalTiers,
@@ -525,6 +545,18 @@ export default function UserModal({ onClose }) {
                   <option value="admin">Administrador (Acceso Total + Metas de Ventas)</option>
                   <option value="eventos">Eventos (Gestión de checklists y reportes)</option>
                   <option value="coordinador">Coordinador (Solo lectura: informes, checklists, ocupación)</option>
+                </select>
+              </label>
+              <label className="settings-modern-field">
+                <span>Equipo de Trabajo</span>
+                <select
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                >
+                  <option value="">Sin equipo</option>
+                  {equipos.map(eq => (
+                    <option key={eq.id} value={eq.id}>{eq.nombre}</option>
+                  ))}
                 </select>
               </label>
             </div>
