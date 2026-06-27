@@ -7,10 +7,10 @@ const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
 const isGoalStatus = (s) => s === STATUS.CONFIRMADO || s === STATUS.PRERESERVA;
 
 const SAT_RATING_LEVELS = [
-  { value: 'malo', label: 'Malo', score: 1, color: '#ef4444', bg: '#fef2f2' },
-  { value: 'regular', label: 'Regular', score: 2, color: '#eab308', bg: '#fffbeb' },
-  { value: 'bueno', label: 'Bueno', score: 3, color: '#22c55e', bg: '#f0fdf4' },
-  { value: 'excelente', label: 'Excelente', score: 4, color: '#a855f7', bg: '#faf5ff' },
+  { value: 'malo', label: 'Malo', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
+  { value: 'regular', label: 'Regular', score: 5, color: '#eab308', bg: '#fffbeb' },
+  { value: 'bueno', label: 'Bueno', score: 7.5, color: '#22c55e', bg: '#f0fdf4' },
+  { value: 'excelente', label: 'Excelente', score: 10, color: '#a855f7', bg: '#faf5ff' },
 ];
 
 const STATUS_META = [

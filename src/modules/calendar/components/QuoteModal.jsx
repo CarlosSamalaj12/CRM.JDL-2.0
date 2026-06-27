@@ -810,7 +810,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div style="display:flex;align-items:center;gap:12px;">
                   <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#118895,#0d6b76);display:flex;align-items:center;justify-content:center;font-size:24px;">📄</div>
                   <div style="flex:1;">
-                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Estándar</div>
+                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Cotización</div>
                     <div style="font-size:12px;color:#64748b;">Cotización + Contrato</div>
                   </div>
                   <div style="color:#94a3b8;font-size:20px;">→</div>
@@ -821,7 +821,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div style="display:flex;align-items:center;gap:12px;">
                   <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:24px;">📋</div>
                   <div style="flex:1;">
-                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Completa</div>
+                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Contrato</div>
                     <div style="font-size:12px;color:#64748b;">Cotización + Menú Montaje + Contrato</div>
                   </div>
                   <div style="color:#94a3b8;font-size:20px;">→</div>
@@ -832,7 +832,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div style="display:flex;align-items:center;gap:12px;">
                   <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:24px;">🔒</div>
                   <div style="flex:1;">
-                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Sin precios</div>
+                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Sin Precio/Informe</div>
                     <div style="font-size:12px;color:#64748b;">Cotización (Q0) + Menú Montaje</div>
                   </div>
                   <div style="color:#94a3b8;font-size:20px;">→</div>
@@ -1240,9 +1240,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       title: 'Formato de impresión',
       input: 'select',
       inputOptions: {
-        standard: '📄 Estándar — Cotización + Contrato',
-        completa: '📋 Completa — Cotización + Menú Montaje + Contrato',
-        sin_precios: '🔒 Sin precios — Cotización (Q0) + Menú Montaje'
+        standard: '📄 Cotización — Cotización + Contrato',
+        completa: '📋 Contrato — Cotización + Menú Montaje + Contrato',
+        sin_precios: '🔒 Sin Precio/Informe — Cotización (Q0) + Menú Montaje'
       },
       inputPlaceholder: 'Selecciona un formato',
       showCancelButton: true,

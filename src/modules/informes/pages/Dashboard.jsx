@@ -9,11 +9,13 @@ import {
 const statusColors = {
   4: 'confirmed',
   7: 'prereserva',
+  8: 'mantenimiento',
 };
 
 const statusLabels = {
   4: 'Confirmado',
   7: 'Pre-reserva',
+  8: 'Mantenimiento',
 };
 
 const barColors = ['purple', 'green', 'amber', 'blue', 'pink', 'gray'];

@@ -167,6 +167,7 @@ async function ensureTargetSchema(conn) {
       CASE
         WHEN e.estado = 'Confirmado' THEN 4
         WHEN e.estado = 'Pre reserva' OR e.estado = 'Pre-reserva' THEN 7
+        WHEN e.estado = 'Mantenimiento' OR e.estado = 'Mantenimiento Realizado' THEN 8
         ELSE 1
       END AS Estatuscotizacion,
       COALESCE(u.nombre, e.id_usuario) AS Vendedor,

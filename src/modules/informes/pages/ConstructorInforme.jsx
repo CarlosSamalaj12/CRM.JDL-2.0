@@ -490,6 +490,7 @@ export default function ConstructorInforme() {
       // Cada guardado crea una nueva versión (la anterior se conserva intacta)
       const res = await createInforme(id_ocupacion);
       const targetId = res.id;
+      const oldInformeId = informeId;
       setInformeId(targetId);
       setVersionActiva(res.version || 1);
 
@@ -525,7 +526,7 @@ export default function ConstructorInforme() {
 
       // Actualizar metadata del evento si hay alertas
       try {
-        const tieneAlertas = dias.some(d => (d.alertas || []).length > 0 || d.alertaCustom?.trim());
+        const tiene_alertas = dias.some(d => (d.alertas || []).length > 0 || d.alertaCustom?.trim());
         const allAlertas = new Set();
         for (const d of dias) {
           (d.alertas || []).forEach(a => allAlertas.add(a));
@@ -536,6 +537,20 @@ export default function ConstructorInforme() {
       } catch (err) {
         console.error('Error al guardar metadatos de alertas:', err);
         toast.warning('Las alertas se guardaron en el informe pero no se marcaron en la vista general');
+      }
+
+      // Re-asignar imágenes del informe anterior al nuevo
+      if (oldInformeId && Number(oldInformeId) !== Number(targetId)) {
+        try {
+          const oldImgs = await getImagenes(oldInformeId);
+          if (oldImgs.length > 0) {
+            for (const img of oldImgs) {
+              await createImagen(targetId, { url: img.url, descripcion: img.descripcion || '' });
+            }
+          }
+        } catch (imgErr) {
+          console.error('Error al copiar imágenes al nuevo informe:', imgErr);
+        }
       }
 
       const versionStr = versionActiva ? ` v${versionActiva}` : '';
@@ -906,8 +921,8 @@ export default function ConstructorInforme() {
       <div className="pos-tabs">
         {dias.map((d, i) => (
           <button key={i} className={`pos-tab ${activeDay === i ? 'pos-tab-active' : ''}`} onClick={() => setActiveDay(i)}>
-            Día {i + 1}
-            {d.fecha && <span className="pos-tab-sub">{(() => { const dt = d.fecha.length <= 10 ? new Date(d.fecha + 'T12:00:00') : new Date(d.fecha); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }); })()}</span>}
+            {d.fecha && <span style={{ color: '#a855f7', fontWeight: 800, fontSize: '0.85rem' }}>{(() => { const dt = d.fecha.length <= 10 ? new Date(d.fecha + 'T12:00:00') : new Date(d.fecha); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }); })()}</span>}
+            <span style={{ fontSize: '0.65rem', opacity: 0.6, display: 'block' }}>Día {i + 1}</span>
             {dias.length > 0 && (
               <span onClick={(e) => {
                 e.stopPropagation();

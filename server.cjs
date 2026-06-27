@@ -838,6 +838,33 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
+    // ── Auto-transition expired events to "Perdido" ──
+    const PERDIDO_AUTO_STATUSES = new Set([
+      'Reserva sin Cotizacion',
+      '1er Cotizacion',
+      'Seguimiento',
+      'Lista de Espera',
+      'Pre reserva'
+    ]);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const expiredEvents = eventos.filter(e => {
+      const eventDate = toIsoDate(e.fecha_evento);
+      return eventDate && eventDate < todayStr && e.estado && PERDIDO_AUTO_STATUSES.has(String(e.estado).trim());
+    });
+    if (expiredEvents.length > 0) {
+      const expiredIds = expiredEvents.map(e => e.id);
+      await conn.query(
+        "UPDATE eventos SET estado = 'Perdido' WHERE id IN (" + expiredIds.map(() => '?').join(',') + ")",
+        expiredIds
+      );
+      for (const e of eventos) {
+        if (expiredIds.includes(e.id)) {
+          e.estado = 'Perdido';
+        }
+      }
+      console.log(`[${new Date().toLocaleTimeString()}] \u{1F3F3}\uFE0F ${expiredEvents.length} evento(s) expirado(s) marcado(s) como Perdido autom\u00E1ticamente.`);
+    }
+
     let dbServicesList = [];
     let dbServiceCategories = null;
     try {
@@ -3903,6 +3930,39 @@ async function start() {
       }
     } catch (migErr) {
       console.log('[MIGRACIÓN] No se pudo ampliar columna url:', migErr.message);
+    }
+
+    // Recrear vista tbl_seguimientocotizaciones para incluir Mantenimiento
+    try {
+      await pool.query(`
+        CREATE OR REPLACE VIEW tbl_seguimientocotizaciones AS
+        SELECT
+          e.id AS Idocupacion,
+          e.nombre AS Institucion,
+          e.pax AS Pax,
+          CASE
+            WHEN e.estado = 'Confirmado' THEN 4
+            WHEN e.estado = 'Pre reserva' OR e.estado = 'Pre-reserva' THEN 7
+            WHEN e.estado = 'Mantenimiento' OR e.estado = 'Mantenimiento Realizado' THEN 8
+            ELSE 1
+          END AS Estatuscotizacion,
+          COALESCE(u.nombre, e.id_usuario) AS Vendedor,
+          e.fecha_evento AS FechaEvento,
+          e.fecha_fin_reserva AS FechaSalida,
+          e.hora_inicio AS HoraI,
+          e.hora_fin AS HoraF,
+          COALESCE(c.tipo_evento, 'Evento') AS TipoEvento,
+          c.telefono AS Telefono,
+          e.nombre_salon AS Salon,
+          c.nombre_encargado AS EncargadoEvento,
+          c.codigo AS NoDoc
+        FROM eventos e
+        LEFT JOIN cotizaciones_evento c ON e.id = c.id_evento
+        LEFT JOIN usuarios u ON e.id_usuario = u.id
+      `);
+      console.log('[MIGRACIÓN] Vista tbl_seguimientocotizaciones actualizada (incluye Mantenimiento como 8).');
+    } catch (viewErr) {
+      console.log('[MIGRACIÓN] No se pudo recrear vista tbl_seguimientocotizaciones:', viewErr.message);
     }
 
     // Crear directorio de uploads para imágenes de informes si no existe

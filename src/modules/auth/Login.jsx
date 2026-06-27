@@ -74,20 +74,16 @@ export default function Login() {
 
   // Handle Google Login via Firebase
   const handleGoogleLogin = async () => {
-    // Prevenir múltiples clics mientras se procesa
     if (googleLoginRef.current) return;
     googleLoginRef.current = true;
     setLoading(true);
 
     let loadingToast = null;
     try {
-      // Invocar la ventana emergente de Google INMEDIATAMENTE como respuesta al gesto del usuario.
-      // Esto evita que los navegadores modernos la bloqueen por considerarla una acción asíncrona diferida.
       const firebaseUser = await firebaseService.loginWithGoogle();
       if (!firebaseUser) {
-        googleLoginRef.current = false;
-        setLoading(false);
-        return; // Si es null (porque entró por redirección en el fallback)
+        // Redireccionando a Google — no reseteamos loading, la página se recargará
+        return;
       }
 
       loadingToast = toast.loading('Sincronizando con el servidor...');
@@ -117,9 +113,12 @@ export default function Login() {
         document.activeElement?.blur();
         toast.error(err.message || 'No se pudo iniciar sesión con tu cuenta de Google.', { duration: 4000 });
       }
-      setLoading(false);
     } finally {
-      googleLoginRef.current = false;
+      // Pequeño cooldown para evitar re-clics inmediatos
+      setTimeout(() => {
+        googleLoginRef.current = false;
+        setLoading(false);
+      }, 1500);
     }
   };
 

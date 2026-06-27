@@ -11,6 +11,7 @@ import { emitOpenEventChecklist } from '../../../utils/appEvents';
 const statusMap = {
   4: { label: 'Confirmado', color: 'green' },
   7: { label: 'Pre-reserva', color: 'fucsia' },
+  8: { label: 'Mantenimiento', color: 'purple' },
 };
 
 function getMencionFilter(text) {
@@ -59,7 +60,8 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   ];
   const esAlerta = event.tiene_alertas == 1 || event.tiene_alertas === true;
   const status = statusMap[event.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
-  const cardClass = `event-card ${status.color === 'green' ? 'confirmed' : status.color === 'fucsia' ? 'prereserva' : ''}`;
+  const colorClass = status.color === 'green' ? 'confirmed' : status.color === 'fucsia' ? 'prereserva' : status.color === 'purple' ? 'mantenimiento' : '';
+  const cardClass = `event-card ${colorClass}`;
 
   useEffect(() => {
     getUsuariosCached().then(setUsuarios).catch(() => {});

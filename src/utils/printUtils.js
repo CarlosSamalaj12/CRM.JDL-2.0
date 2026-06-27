@@ -1107,11 +1107,12 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   <td class="sumLabel">SUBTOTAL EVENTO</td>
                   <td class="sumValue">${quoteMoney(subtotalDoc, docCurrency)}</td>
                 </tr>
+                ${discountDoc > 0 ? `
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">${escapeHtml(discountLabel)}</td>
                   <td class="sumValue">${quoteMoney(discountDoc, docCurrency)}</td>
-                </tr>
+                </tr>` : ''}
                 <tr class="sumTotal">
                   <td colspan="2"></td>
                   <td class="sumLabel">TOTAL EVENTO</td>

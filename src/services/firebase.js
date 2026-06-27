@@ -48,7 +48,15 @@ export const firebaseService = {
       const result = await signInWithPopup(auth, googleProvider);
       return result.user;
     } catch (error) {
-      if (error?.code === 'auth/popup-blocked') {
+      const shouldRedirect =
+        error?.code === 'auth/popup-blocked' ||
+        error?.code === 'auth/popup-closed-by-user' ||
+        error?.code === 'auth/cancelled-popup-request' ||
+        error?.code === 'auth/operation-not-supported' ||
+        error?.message?.includes('Cross-Origin-Opener-Policy') ||
+        error?.message?.includes('window.closed');
+
+      if (shouldRedirect) {
         await signInWithRedirect(auth, googleProvider);
         return null;
       }

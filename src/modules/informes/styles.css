@@ -750,6 +750,11 @@ button:disabled {
   color: #d946ef;
 }
 
+.event-item-status.mantenimiento {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+}
+
 .dashboard-empty {
   color: var(--text-muted);
   font-style: italic;
@@ -1136,10 +1141,16 @@ button[data-tooltip-bottom]::after {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.85rem;
+  table-layout: fixed;
   background: var(--bg-card);
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
+}
+.tabla-eventos th,
+.tabla-eventos td {
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .tabla-eventos th {
@@ -1238,6 +1249,7 @@ button[data-tooltip-bottom]::after {
 
 .event-card.confirmed::before { background: var(--success); }
 .event-card.prereserva::before { background: #d946ef; }
+.event-card.mantenimiento::before { background: #a855f7; }
 
 .event-tag {
   display: inline-flex;
@@ -1276,6 +1288,12 @@ button[data-tooltip-bottom]::after {
   color: var(--text-muted);
 }
 .event-tag-gray::before { background: var(--text-muted); }
+
+.event-tag-purple {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+}
+.event-tag-purple::before { background: #a855f7; }
 
 .event-card h3 {
   margin: 0;
