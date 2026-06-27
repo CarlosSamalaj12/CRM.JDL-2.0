@@ -3281,6 +3281,12 @@ button[data-tooltip-bottom]::after {
   border: 1px solid var(--border);
 }
 
+.nota-item.nota-highlighted {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
 .nota-item strong {
   font-size: 0.75rem;
   color: var(--primary);

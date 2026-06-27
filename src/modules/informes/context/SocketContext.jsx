@@ -74,10 +74,6 @@ export function SocketProvider({ children }) {
       showBrowserNotif('Des/Hab actualizados', `Des: ${data.desayunos} · Hab: ${data.habitaciones}`);
     });
 
-    socket.on('informe:created', (data) => {
-      showBrowserNotif('Nuevo informe', `Versión ${data.version} creada`);
-    });
-
     socket.on('notificacion:created', (data) => {
       showBrowserNotif(data.titulo || 'Nueva notificación', data.mensaje || 'Tienes una nueva notificación');
     });

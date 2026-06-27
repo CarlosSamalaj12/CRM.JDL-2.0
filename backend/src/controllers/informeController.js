@@ -88,7 +88,6 @@ export async function createInforme(req, res, next) {
     } catch { /* no crítico */ }
 
     const informeData = { id: result.insertId, id_ocupacion, version: nextVersion };
-    req.io.to(`evento:${id_ocupacion}`).emit('informe:created', informeData);
     res.status(201).json(informeData);
   } catch (error) { next(error); }
 }
@@ -275,10 +274,6 @@ export async function updateInforme(req, res, next) {
       );
     } catch { /* no crítico */ }
 
-    const [inf] = await pool.query('SELECT id_ocupacion FROM informes_eventos WHERE id = ?', [id]);
-    if (inf.length > 0) {
-      req.io.to(`evento:${inf[0].id_ocupacion}`).emit('informe:updated', { id, id_ocupacion: inf[0].id_ocupacion });
-    }
     res.json({ message: 'ok' });
   } catch (error) { next(error); }
 }

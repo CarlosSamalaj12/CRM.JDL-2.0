@@ -171,13 +171,13 @@ export default function SettingsEquipos() {
               <span className="equipo-miembros">{eq.miembros || 0} miembro{(eq.miembros || 0) !== 1 ? 's' : ''}</span>
               <div className="equipo-actions">
                 <button className="settings-usr-icon-btn btn-edit-usuario" onClick={() => openEdit(eq)} title="Editar equipo">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
                     <path d="m15 5 4 4"/>
                   </svg>
                 </button>
                 <button className="settings-usr-icon-btn btn-delete-usuario" onClick={() => handleDelete(eq)} title="Eliminar equipo">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 6h18"/>
                     <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
                     <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>

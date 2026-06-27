@@ -103,8 +103,12 @@ export default function NotificationBell() {
       } catch { /* ignore */ }
     }
     
-    // Si es una mención o respuesta, verificar si existe informe
-    if ((n.tipo === 'mencion' || n.tipo === 'respuesta') && n.idocupacion) {
+    // Si es una mención sin informe_id, viene de una nota de kanban → ir a kanban con la nota
+    if (n.tipo === 'mencion' && !n.informe_id && n.idocupacion) {
+      const params = new URLSearchParams({ highlightEvento: n.idocupacion });
+      if (n.comentario_id) params.set('notaId', n.comentario_id);
+      navigate(`/kanban?${params.toString()}`);
+    } else if ((n.tipo === 'mencion' || n.tipo === 'respuesta') && n.idocupacion) {
       try {
         // Intentar obtener el informe por id_ocupacion
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/informes/ocupacion/${n.idocupacion}`, {

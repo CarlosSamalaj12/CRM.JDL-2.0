@@ -72,7 +72,7 @@ export default function InformeView() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
-  const { connected: socketConnected, onEvent, joinRoom, leaveRoom } = useSocket();
+  const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();
   const [informe, setInforme] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -109,11 +109,8 @@ export default function InformeView() {
     if (!socketConnected || !informe?.id_ocupacion) return;
     const room = `evento:${informe.id_ocupacion}`;
     joinRoom(room);
-    const cleanup = onEvent('informe:created', () => {
-      if (informe?.id) getInformeById(id).then(setInforme).catch(() => {});
-    });
-    return () => { cleanup(); leaveRoom(room); };
-  }, [socketConnected, informe?.id_ocupacion, id, onEvent, joinRoom, leaveRoom]);
+    return () => { leaveRoom(room); };
+  }, [socketConnected, informe?.id_ocupacion, id, joinRoom, leaveRoom]);
 
   const handlePrint = async () => {
     // Esperar a que todas las imágenes carguen antes de imprimir

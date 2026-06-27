@@ -82,7 +82,7 @@ export default function Kanban() {
 
   // Guardar fecha seleccionada en localStorage
   useEffect(() => {
-    localStorage.setItem('kanban_selectedDate', selectedDate);
+    localStorage.setItem('kanban_selectedDate', selectedDate.slice(0, 10));
   }, [selectedDate]);
 
   // Efecto para resaltar evento desde notificación
@@ -94,7 +94,7 @@ export default function Kanban() {
       if (evento) {
         setEventoResaltado(highlightEventoId);
         // Navegar a la semana del evento
-        setSelectedDate(evento.FechaEvento || evento.displayDate);
+        setSelectedDate((evento.FechaEvento || evento.displayDate || '').slice(0, 10));
         
         // Hacer scroll al evento después de un breve delay
         setTimeout(() => {
@@ -107,10 +107,11 @@ export default function Kanban() {
         // Quitar el resaltado después de 5 segundos
         setTimeout(() => {
           setEventoResaltado(null);
-          // Limpiar el parámetro de la URL
+          // Limpiar los parámetros de la URL
           const newParams = new URLSearchParams(searchParams);
           newParams.delete('highlightEvento');
           newParams.delete('comentarioId');
+          newParams.delete('notaId');
           setSearchParams(newParams);
         }, 5000);
       }
@@ -204,9 +205,11 @@ export default function Kanban() {
   }, [selectedDate]);
 
   const selectedDateObj = new Date(selectedDate + 'T12:00:00');
-  const day = selectedDateObj.getDay();
-  const diff = selectedDateObj.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(selectedDateObj.setDate(diff));
+  const fallbackDate = isNaN(selectedDateObj.getTime()) ? new Date() : selectedDateObj;
+  const day = fallbackDate.getDay();
+  const diff = fallbackDate.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(fallbackDate);
+  monday.setDate(diff);
 
   const columns = dayNames.map((name, index) => {
     const currentDay = new Date(monday);
@@ -238,7 +241,7 @@ export default function Kanban() {
   const days = dayNames.map((_, index) => {
     const currentDay = new Date(monday);
     currentDay.setDate(monday.getDate() + index);
-    const isoDate = currentDay.toISOString().slice(0, 10);
+    const isoDate = `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, '0')}-${String(currentDay.getDate()).padStart(2, '0')}`;
     const label = currentDay.toLocaleDateString('es-ES', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
@@ -527,7 +530,7 @@ export default function Kanban() {
               <input 
                 id="week-filter" 
                 type="date" 
-                value={selectedDate} 
+                value={selectedDate ? selectedDate.slice(0, 10) : ''} 
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
             </div>
@@ -635,6 +638,7 @@ export default function Kanban() {
                         event={event} 
                         highlighted={eventoResaltado === String(event.Idocupacion)}
                         onNavigateToTareas={() => setViewMode('tareas')}
+                        highlightNotaId={searchParams.get('notaId')}
                       />
                   ))
                 )}

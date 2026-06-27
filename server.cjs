@@ -1761,6 +1761,13 @@ async function writeStateToTables(state) {
       await conn.query("INSERT INTO salones (nombre) VALUES (?)", [nombre]);
     }
 
+    // Delete usuarios que ya no están en el state entrante
+    const incomingUserIds = users.map(u => str(u?.id).trim()).filter(Boolean);
+    if (incomingUserIds.length > 0) {
+      const placeholders = incomingUserIds.map(() => '?').join(',');
+      await conn.query(`DELETE FROM usuarios WHERE id NOT IN (${placeholders})`, incomingUserIds);
+    }
+
     // Validate no duplicate emails before inserting
     const seenEmails = new Set();
     const seenIds = new Set();
@@ -3926,6 +3933,17 @@ async function start() {
     // Cargar dinámicamente rutas ESM del módulo de informes
     const reportsRouter = await import("./backend/src/app_routes.js");
     app.use("/api", reportsRouter.default);
+
+    // Limpiar notificaciones antiguas de tipo informe (ya no se emiten)
+    try {
+      const conn = await pool.getConnection();
+      await conn.query("DELETE FROM notificaciones WHERE tipo = 'informe'");
+      // Asegurar columna comentario_id para almacenar nota_id en menciones
+      try {
+        await conn.query("ALTER TABLE notificaciones ADD COLUMN comentario_id VARCHAR(80) NULL AFTER idocupacion");
+      } catch { /* ya existe */ }
+      conn.release();
+    } catch { /* no crítico */ }
 
     // Error middleware global (después de todas las rutas)
     const { notFound, errorHandler } = await import("./backend/src/middlewares/errorHandler.js");

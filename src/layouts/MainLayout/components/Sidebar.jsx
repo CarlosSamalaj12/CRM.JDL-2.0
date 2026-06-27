@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import authService from '../../../services/authService';
 import reminderService from '../../../services/reminderService';
 import { STATUS_META } from '../../../modules/calendar/constants';
+
+const NOTIF_API = import.meta.env.VITE_API_URL || '';
 
 export default function Sidebar({ events: propsEvents, reminders: propsRemindersProp }) {
   const navigate = useNavigate();
@@ -10,6 +12,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isMobileReminderOpen, setIsMobileReminderOpen] = useState(false);
+  const [isMobileMencionOpen, setIsMobileMencionOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
   // Auto-ocultar el botón flotante de menú al scrollear
@@ -52,6 +55,68 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
 
   const [reminders, setReminders] = useState([]);
   const [isReminderOpen, setIsReminderOpen] = useState(false);
+  const [notifs, setNotifs] = useState([]);
+  const [notifCount, setNotifCount] = useState(0);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef(null);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const fetchNotifCount = useCallback(async () => {
+    try {
+      const res = await fetch(`${NOTIF_API}/api/notificaciones/no-leidas`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifCount(data.count || 0);
+      }
+    } catch {}
+  }, []);
+
+  const fetchNotifs = useCallback(async () => {
+    try {
+      const res = await fetch(`${NOTIF_API}/api/notificaciones?solo_no_leidas=true`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifs(data);
+        setNotifCount(data.length);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchNotifCount();
+    const interval = setInterval(fetchNotifCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchNotifCount]);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setIsNotifOpen(false);
+      }
+    }
+    if (isNotifOpen) {
+      document.addEventListener('mousedown', handleClick);
+    }
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isNotifOpen]);
+
+  const handleNotifClick = async (n) => {
+    setIsNotifOpen(false);
+    try {
+      await fetch(`${NOTIF_API}/api/notificaciones/${n.id}/leer`, { method: 'PATCH', headers: getAuthHeaders() });
+      setNotifCount(prev => Math.max(0, prev - 1));
+      setNotifs(prev => prev.filter(x => x.id !== n.id));
+    } catch {}
+    if (n.idocupacion) {
+      const params = new URLSearchParams({ highlightEvento: n.idocupacion });
+      if (n.comentario_id) params.set('notaId', n.comentario_id);
+      navigate(`/kanban?${params.toString()}`);
+    }
+  };
 
   useEffect(() => {
     const allRems = propsRemindersProp || {};
@@ -213,6 +278,48 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
               </div>
 
               <div className="mobile-drawer-reminders">
+                <button 
+                  className="reminders-toggle-btn"
+                  onClick={async () => {
+                    if (!isMobileMencionOpen) await fetchNotifs();
+                    setIsMobileMencionOpen(!isMobileMencionOpen);
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className={`material-symbols-outlined ${notifCount > 0 ? 'bell-animated' : ''}`} style={{ color: notifCount > 0 ? '#a78bfa' : '#cbd5e1' }}>alternate_email</span>
+                    <span style={{ color: '#cbd5e1' }}>Menciones</span>
+                    {notifCount > 0 && <span className="drawer-notification-count" style={{ background: '#8b5cf6' }}>{notifCount}</span>}
+                  </div>
+                  <span className="material-symbols-outlined">
+                    {isMobileMencionOpen ? 'expand_less' : 'expand_more'}
+                  </span>
+                </button>
+                
+                {isMobileMencionOpen && (
+                  <div className="drawer-reminders-list">
+                    {notifs.length === 0 ? (
+                      <div className="drawer-no-reminders">Sin menciones nuevas</div>
+                    ) : (
+                      notifs.map((n, i) => (
+                        <div key={n.id || i} className="drawer-reminder-card" onClick={() => { setIsMobileOpen(false); handleNotifClick(n); }}>
+                          <div className="reminder-card-main">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '16px' }}>{n.tipo === 'mencion' ? '@' : n.tipo === 'respuesta' ? '💬' : n.tipo === 'tarea_completada' ? '✅' : '📌'}</span>
+                              <strong className="reminder-card-title">{n.titulo || 'Notificación'}</strong>
+                            </div>
+                          </div>
+                          {n.mensaje && <div className="reminder-card-sub" style={{ marginLeft: '28px' }}>{n.mensaje}</div>}
+                          <div className="reminder-card-sub" style={{ marginLeft: '28px', fontSize: '9px', color: '#64748b' }}>
+                            {new Date(n.fecha_creacion).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                <div style={{ height: '8px' }} />
+
                 <button 
                   className="reminders-toggle-btn"
                   onClick={() => setIsMobileReminderOpen(!isMobileReminderOpen)}
@@ -1007,152 +1114,260 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
           </div>
         </div>
 
-        {/* Wrapper for button & reminder bubble */}
-        <div ref={wrapperRef} className="sideUserBellWrapper" style={{ position: 'relative', display: 'inline-block' }}>
-          <button
-            className="sideUserBell"
-            onClick={toggleReminderPanel}
-            style={{
-              cursor: 'pointer',
-              background: 'transparent',
-              border: 'none',
-              color: '#94a3b8',
-              padding: '4px'
-            }}
-            aria-label="Recordatorios"
-          >
-            <span className={`material-symbols-outlined ${reminders.length > 0 ? 'bell-animated' : ''}`} style={{ fontSize: '22px' }}>
-              notifications
-            </span>
-            {reminders.length > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '0',
-                  right: '0',
-                  background: '#ef4444',
-                  color: '#fff',
-                  fontSize: '9px',
-                  minWidth: '14px',
-                  height: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '50%',
-                  fontWeight: '900',
-                  border: '1px solid #1e293b'
-                }}
-              >
-                {reminders.length}
+        {/* Desktop notification & reminder bells */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          {/* Mentions bell */}
+          <div ref={notifRef} className="sideUserBellWrapper" style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              className="sideUserBell"
+              onClick={() => { setIsNotifOpen(v => !v); if (!isNotifOpen) fetchNotifs(); }}
+              style={{
+                cursor: 'pointer',
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                padding: '4px',
+                position: 'relative',
+              }}
+              aria-label="Menciones"
+            >
+              <span className={`material-symbols-outlined ${notifCount > 0 ? 'bell-animated' : ''}`} style={{ fontSize: '22px' }}>
+                alternate_email
               </span>
-            )}
-          </button>
-          {/* Reminder bubble (panel) */}
-          {isReminderOpen && (
-            <div className="sideUserReminderPanel"
-                 style={{
-                   position: 'absolute',
-                   left: 'calc(100% + 15px)',
-                   bottom: '-5px',
-                   background: '#ffffff',
-                   color: '#0f172a',
-                   width: '340px',
-                   borderRadius: '12px',
-                   padding: '16px',
-                   border: '2px solid #cbd5e1', /* Added clearer border */
-                   boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-                   zIndex: 9999,
-                   opacity: isReminderOpen ? 1 : 0,
-                   transform: isReminderOpen ? 'translateX(0)' : 'translateX(-15px)',
-                   transition: 'opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
-                 }}>
-              
-              {/* Tooltip triangle pointing left */}
-              <div style={{
-                position: 'absolute',
-                left: '-7px',
-                bottom: '16px',
-                width: '10px',
-                height: '10px',
-                background: '#ffffff',
-                transform: 'rotate(45deg)',
-                borderLeft: '2px solid #cbd5e1',
-                borderBottom: '2px solid #cbd5e1',
-                zIndex: 10
-              }} />
-
-              <div className="sideUserReminderHeader" style={{ marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: '14px', fontWeight: '700' }}>Citas pendientes</strong>
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
-                  {reminders.length === 0 ? '0 pendientes' : `${reminders.length} próximas`}
+              {notifCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '0',
+                    right: '0',
+                    background: '#8b5cf6',
+                    color: '#fff',
+                    fontSize: '9px',
+                    minWidth: '14px',
+                    height: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    fontWeight: '900',
+                    border: '1px solid #1e293b'
+                  }}
+                >
+                  {notifCount}
                 </span>
+              )}
+            </button>
+            {isNotifOpen && (
+              <div className="sideUserReminderPanel"
+                   style={{
+                     position: 'absolute',
+                     left: 'calc(100% + 15px)',
+                     bottom: '-5px',
+                     background: '#ffffff',
+                     color: '#0f172a',
+                     width: '340px',
+                     borderRadius: '12px',
+                     padding: '16px',
+                     border: '2px solid #cbd5e1',
+                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                     zIndex: 9999,
+                     opacity: isNotifOpen ? 1 : 0,
+                     transform: isNotifOpen ? 'translateX(0)' : 'translateX(-15px)',
+                     transition: 'opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                   }}>
+                <div style={{
+                  position: 'absolute',
+                  left: '-7px',
+                  bottom: '16px',
+                  width: '10px',
+                  height: '10px',
+                  background: '#ffffff',
+                  transform: 'rotate(45deg)',
+                  borderLeft: '2px solid #cbd5e1',
+                  borderBottom: '2px solid #cbd5e1',
+                  zIndex: 10
+                }} />
+                <div style={{ marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ fontSize: '14px', fontWeight: '700' }}>Menciones</strong>
+                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
+                    {notifCount === 0 ? '0 nuevas' : `${notifCount} sin leer`}
+                  </span>
+                </div>
+                <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {notifs.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: '13px' }}>
+                      Sin menciones nuevas
+                    </div>
+                  ) : (
+                    notifs.map((n, i) => (
+                      <div key={n.id || i} className="reminder-item" onClick={() => handleNotifClick(n)}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <span style={{ fontSize: '16px', flexShrink: 0 }}>
+                            {n.tipo === 'mencion' ? '@' : n.tipo === 'respuesta' ? '💬' : n.tipo === 'tarea_completada' ? '✅' : '📌'}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>{n.titulo || 'Notificación'}</strong>
+                            {n.mensaje && <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.mensaje}</span>}
+                            <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                              {new Date(n.fecha_creacion).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-              
-              <div className="sideUserReminderList" style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
-                {reminders.map((r, idx) => (
-                  <div 
-                    key={idx} 
-                    className="reminder-item"
-                    onClick={() => {
-                      setIsReminderOpen(false);
-                      navigate(`/reserva/${r.eventId}`);
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '12px' }}>
-                      <strong style={{ fontSize: '14px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                        <span style={{ wordBreak: 'break-word' }}>{r.eventName}</span>
-                        {r.eventStatus !== 'Desconocido' && (
-                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(r.eventStatus), display: 'inline-block', flexShrink: 0 }} title={r.eventStatus} />
+            )}
+          </div>
+
+          {/* Reminders bell */}
+          <div ref={wrapperRef} className="sideUserBellWrapper" style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              className="sideUserBell"
+              onClick={toggleReminderPanel}
+              style={{
+                cursor: 'pointer',
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                padding: '4px'
+              }}
+              aria-label="Recordatorios"
+            >
+              <span className={`material-symbols-outlined ${reminders.length > 0 ? 'bell-animated' : ''}`} style={{ fontSize: '22px' }}>
+                notifications
+              </span>
+              {reminders.length > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '0',
+                    right: '0',
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: '9px',
+                    minWidth: '14px',
+                    height: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    fontWeight: '900',
+                    border: '1px solid #1e293b'
+                  }}
+                >
+                  {reminders.length}
+                </span>
+              )}
+            </button>
+            {/* Reminder bubble (panel) */}
+            {isReminderOpen && (
+              <div className="sideUserReminderPanel"
+                   style={{
+                     position: 'absolute',
+                     left: 'calc(100% + 15px)',
+                     bottom: '-5px',
+                     background: '#ffffff',
+                     color: '#0f172a',
+                     width: '340px',
+                     borderRadius: '12px',
+                     padding: '16px',
+                     border: '2px solid #cbd5e1', /* Added clearer border */
+                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                     zIndex: 9999,
+                     opacity: isReminderOpen ? 1 : 0,
+                     transform: isReminderOpen ? 'translateX(0)' : 'translateX(-15px)',
+                     transition: 'opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                   }}>
+                
+                {/* Tooltip triangle pointing left */}
+                <div style={{
+                  position: 'absolute',
+                  left: '-7px',
+                  bottom: '16px',
+                  width: '10px',
+                  height: '10px',
+                  background: '#ffffff',
+                  transform: 'rotate(45deg)',
+                  borderLeft: '2px solid #cbd5e1',
+                  borderBottom: '2px solid #cbd5e1',
+                  zIndex: 10
+                }} />
+
+                <div className="sideUserReminderHeader" style={{ marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ fontSize: '14px', fontWeight: '700' }}>Citas pendientes</strong>
+                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
+                    {reminders.length === 0 ? '0 pendientes' : `${reminders.length} próximas`}
+                  </span>
+                </div>
+                
+                <div className="sideUserReminderList" style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {reminders.map((r, idx) => (
+                    <div 
+                      key={idx} 
+                      className="reminder-item"
+                      onClick={() => {
+                        setIsReminderOpen(false);
+                        navigate(`/reserva/${r.eventId}`);
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '12px' }}>
+                        <strong style={{ fontSize: '14px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                          <span style={{ wordBreak: 'break-word' }}>{r.eventName}</span>
+                          {r.eventStatus !== 'Desconocido' && (
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(r.eventStatus), display: 'inline-block', flexShrink: 0 }} title={r.eventStatus} />
+                          )}
+                        </strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '600', whiteSpace: 'nowrap' }}>{r.date}</span>
+                          <button 
+                            onClick={(e) => handleDismissReminder(e, r.eventId, r.id)}
+                            title="Marcar como revisado"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#10b981',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: '4px'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#d1fae5'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>{r.date} {r.time}</span>
+                        {r.eventSalon && r.eventSalon !== 'Sin asignar' && (
+                          <>
+                            <span style={{ color: '#cbd5e1' }}>•</span>
+                            <span>{r.eventSalon}</span>
+                          </>
                         )}
-                      </strong>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                        <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '600', whiteSpace: 'nowrap' }}>{r.date}</span>
-                        <button 
-                          onClick={(e) => handleDismissReminder(e, r.eventId, r.id)}
-                          title="Marcar como revisado"
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#10b981',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderRadius: '4px'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#d1fae5'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
-                        </button>
+                        {r.channel && (
+                          <>
+                            <span style={{ color: '#cbd5e1' }}>•</span>
+                            <span style={{ textTransform: 'capitalize' }}>{r.channel}</span>
+                          </>
+                        )}
                       </div>
                     </div>
-                    <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span>{r.date} {r.time}</span>
-                      {r.eventSalon && r.eventSalon !== 'Sin asignar' && (
-                        <>
-                          <span style={{ color: '#cbd5e1' }}>•</span>
-                          <span>{r.eventSalon}</span>
-                        </>
-                      )}
-                      {r.channel && (
-                        <>
-                          <span style={{ color: '#cbd5e1' }}>•</span>
-                          <span style={{ textTransform: 'capitalize' }}>{r.channel}</span>
-                        </>
-                      )}
+                  ))}
+                  {reminders.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: '13px' }}>
+                      No tienes citas pendientes
                     </div>
-                  </div>
-                ))}
-                {reminders.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: '13px' }}>
-                    No tienes citas pendientes
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

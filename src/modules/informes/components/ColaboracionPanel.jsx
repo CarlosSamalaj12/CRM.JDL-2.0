@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   getComentarios, createComentario,
   marcarInformeLeido, getLecturas,
-  toggleDestacado, getDestacados,
   getHistorial, getUsuarios,
   toggleReaccionComentario
 } from '../services/api.js';
@@ -10,7 +9,7 @@ import { useSocket } from '../context/SocketContext.jsx';
 import ReactionTooltip from './ReactionTooltip.jsx';
 import {
   IconMessageCircle, IconSend, IconAtSign,
-  IconCheckCircle, IconStar, IconHistory,
+  IconCheckCircle, IconHistory,
   IconEye, IconUsers, IconAlertCircle
 } from './Icons.jsx';
 
@@ -18,7 +17,6 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   const [activeTab, setActiveTab] = useState('comentarios');
   const [comentarios, setComentarios] = useState([]);
   const [lecturas, setLecturas] = useState([]);
-  const [destacados, setDestacados] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [nuevoComentario, setNuevoComentario] = useState('');
@@ -26,7 +24,7 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   const [showMenciones, setShowMenciones] = useState(false);
   const [mencionFilter, setMencionFilter] = useState('');
   const [loading, setLoading] = useState(false);
-  const [miDestacado, setMiDestacado] = useState(false);
+
   const [userLeido, setUserLeido] = useState(false);
   const [reactingTo, setReactingTo] = useState(null);
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
@@ -42,8 +40,11 @@ export default function ColaboracionPanel({ informeId, diaId }) {
     return map;
   }, [usuarios]);
   const currentUserId = (() => {
-    try { const t = localStorage.getItem('token'); if (!t) return null; return JSON.parse(atob(t.split('.')[1])).id; } catch { return null; }
+    try { const t = localStorage.getItem('token'); if (!t) { const u = localStorage.getItem('user'); return u ? JSON.parse(u).id : null; } return JSON.parse(atob(t.split('.')[1])).id; } catch { try { const u = localStorage.getItem('user'); return u ? JSON.parse(u).id : null; } catch { return null; } }
   })();
+  const currentUser = (() => { try { const u = localStorage.getItem('user'); return u ? JSON.parse(u) : null; } catch { return null; } })();
+  const currentUserEmail = currentUser?.email || currentUser?.correo || '';
+  const currentUserName = currentUser?.nombre || currentUser?.name || '';
   const REACCIONES = [
     { emoji: '❤️', label: 'Me encanta' },
     { emoji: '😡', label: 'Enojado' },
@@ -53,16 +54,14 @@ export default function ColaboracionPanel({ informeId, diaId }) {
 
   const loadAll = useCallback(async () => {
     try {
-      const [cmts, lect, dest, hist, users] = await Promise.all([
+      const [cmts, lect, hist, users] = await Promise.all([
         getComentarios(informeId),
         getLecturas(informeId),
-        getDestacados(informeId),
         getHistorial(informeId),
         getUsuarios(),
       ]);
       setComentarios(cmts);
       setLecturas(lect);
-      setDestacados(dest);
       setHistorial(hist);
       setUsuarios(users);
 
@@ -80,7 +79,6 @@ export default function ColaboracionPanel({ informeId, diaId }) {
           const payload = JSON.parse(atob(token.split('.')[1]));
           if (payload?.id) {
             setUserLeido(lect.some((l) => l.usuario_id === payload.id));
-            setMiDestacado(dest.some((d) => d.usuario_id === payload.id));
           }
         } catch { /* ignore */ }
       }
@@ -148,12 +146,6 @@ export default function ColaboracionPanel({ informeId, diaId }) {
     loadAll();
   };
 
-  const handleDestacar = async () => {
-    await toggleDestacado(informeId, { dia_id: diaId || null });
-    setMiDestacado(!miDestacado);
-    loadAll();
-  };
-
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -173,7 +165,9 @@ export default function ColaboracionPanel({ informeId, diaId }) {
 
   const usuariosFiltrados = showMenciones && mencionFilter !== null
     ? usuarios.filter(u =>
-        u.id !== currentUserId && (
+        String(u.id) !== String(currentUserId) &&
+        u.email !== currentUserEmail &&
+        u.nombre !== currentUserName && (
           !mencionFilter ||
           u.nombre.toLowerCase().includes(mencionFilter.toLowerCase()) ||
           (u.email && u.email.toLowerCase().includes(mencionFilter.toLowerCase()))
@@ -636,14 +630,6 @@ export default function ColaboracionPanel({ informeId, diaId }) {
         >
           <IconCheckCircle size={14} />
           {userLeido ? 'Leído' : 'Enterado'}
-        </button>
-        <button
-          className={`btn-ghost btn-sm ${miDestacado ? 'colab-action-active' : ''}`}
-          onClick={handleDestacar}
-          data-tooltip={miDestacado ? 'Quitar énfasis' : 'Destacar esta sección'}
-        >
-          <IconStar size={14} />
-          {miDestacado ? 'Destacado' : 'Destacar'}
         </button>
       </div>
       {hoveredTooltip && (
