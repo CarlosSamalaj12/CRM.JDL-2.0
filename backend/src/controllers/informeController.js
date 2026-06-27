@@ -1,8 +1,7 @@
 import pool from '../config/db.js';
 
 const OCCUPACION_JOIN = `
-  CONVERT(i.id_ocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci =
-  CONVERT(e.Idocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci
+  i.id_ocupacion = e.Idocupacion
 `;
 
 async function fetchInformeWithDias(informeId) {
@@ -14,7 +13,7 @@ async function fetchInformeWithDias(informeId) {
            e.Telefono, ce.folio
     FROM informes_eventos i
     LEFT JOIN tbl_seguimientocotizaciones e ON ${OCCUPACION_JOIN}
-    LEFT JOIN eventos ev ON CONVERT(i.id_ocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ev.id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    LEFT JOIN eventos ev ON i.id_ocupacion = ev.id
     LEFT JOIN cotizaciones_evento ce ON ev.id = ce.id_evento
     LEFT JOIN usuarios u ON ev.id_usuario = u.id
     WHERE i.id = ?
@@ -79,30 +78,6 @@ export async function createInforme(req, res, next) {
       'INSERT INTO informes_eventos (id_ocupacion, version) VALUES (?, ?)',
       [id_ocupacion, nextVersion]
     );
-
-    // Notificación — no crítica, si falla no debe impedir crear el informe
-    try {
-      const [evento] = await pool.query(
-        'SELECT Institucion, FechaEvento FROM tbl_seguimientocotizaciones WHERE Idocupacion = ?',
-        [id_ocupacion]
-      );
-      const nombre = evento[0]?.Institucion || `Ocupación #${id_ocupacion}`;
-      await pool.query(
-        'INSERT INTO notificaciones (tipo, titulo, mensaje, informe_id, idocupacion) VALUES (?, ?, ?, ?, ?)',
-        ['informe', `Informe v${nextVersion} creado`, `Se creó la versión ${nextVersion} del informe para ${nombre}`, result.insertId, id_ocupacion]
-      );
-      
-      // Emitir la notificación en tiempo real a todos los usuarios
-      req.io.emit('notificacion:created', {
-        tipo: 'informe',
-        titulo: `Informe v${nextVersion} creado`,
-        mensaje: `Se creó la versión ${nextVersion} del informe para ${nombre}`,
-        informe_id: result.insertId,
-        idocupacion: id_ocupacion
-      });
-    } catch (notifErr) {
-      console.error('Error al crear notificación (no crítico):', notifErr.message);
-    }
 
     // Registrar en historial
     try {

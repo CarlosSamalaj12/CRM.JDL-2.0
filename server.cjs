@@ -6,6 +6,7 @@ const fs = require("fs");
 const http = require("http");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
+const compression = require("compression");
 require("dotenv").config();
 const { createGoogleEvent, createUserReminder, deleteUserReminder } = require("./googleCalendar.cjs");
 
@@ -95,6 +96,7 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use(compression({ threshold: 512 }));
 app.use(express.json({ limit: "25mb" }));
 
 function hashPasswordScrypt(password, saltHex) {
@@ -826,7 +828,7 @@ async function readStateFromTables() {
       dbAnticipos,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
-      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id FROM usuarios ORDER BY creado_en, id"),
+      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
@@ -1749,10 +1751,8 @@ async function writeStateToTables(state) {
       await ensureDocSequenceAtLeast(conn, "COT", maxDesiredQuoteCodeNum);
     }
 
-    // === UPSERT: salones, usuarios, empresas (delete+rewrite for config tables) ===
+    // === UPSERT: salones, usuarios, empresas ===
     await conn.query("DELETE FROM encargados_empresa");
-    await conn.query("DELETE FROM empresas");
-    await conn.query("DELETE FROM usuarios");
     await conn.query("DELETE FROM salones");
 
     for (const roomName of salones) {
@@ -2702,15 +2702,13 @@ app.post("/api/import/managers", async (req, res) => {
   }
 });
 
-app.get("/api/state", async (_req, res) => {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+app.get("/api/state", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
   console.log(`[${new Date().toLocaleTimeString()}] 🔍 GET /api/state - Consultando base de datos MariaDB...`);
   try {
     const result = await readStateFromTables();
     if (!result) {
       console.log(`[${new Date().toLocaleTimeString()}] ℹ️ Base de datos vacía, sirviendo estado predeterminado para sincronización.`);
-      // Si la base de datos relacional está vacía, devolvemos un estado base inicial
-      // para evitar errores 404 y permitir la inicialización/sincronización fluida desde el cliente.
       const defaultState = {
         salones: ["Arenal", "Santa Isabel", "Rancho Grande", "Jardincito", "Casa Flores", "Hotel Principal"],
         users: [
@@ -2727,6 +2725,13 @@ app.get("/api/state", async (_req, res) => {
       };
       return res.json(defaultState);
     }
+    const stateJson = JSON.stringify(result);
+    const etag = crypto.createHash("md5").update(stateJson).digest("hex");
+    if (req.headers["if-none-match"] === etag) {
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ 304 Not Modified (ETag match).`);
+      return res.status(304).end();
+    }
+    res.setHeader("ETag", etag);
     console.log(`[${new Date().toLocaleTimeString()}] ✅ Consulta exitosa. Retornando ${result?.state?.events?.length || 0} eventos desde MariaDB.`);
     return res.json(result);
   } catch (error) {
@@ -2777,6 +2782,26 @@ app.get("/api/login-users", async (_req, res) => {
     return res.json({ users });
   } catch (error) {
     return res.status(500).json({ message: "No se pudo cargar usuarios para login.", detail: error.message });
+  }
+});
+
+app.get("/api/usuarios/:id/media", async (req, res) => {
+  try {
+    const id = req.params.id;
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query("SELECT firma_data_url, avatar_data_url FROM usuarios WHERE id = ?", [id]);
+      if (!rows.length) return res.status(404).json({ message: "Usuario no encontrado." });
+      return res.json({
+        firma_data_url: rows[0].firma_data_url || null,
+        avatar_data_url: rows[0].avatar_data_url || null
+      });
+    } finally {
+      if (conn) conn.release();
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "Error al obtener media del usuario.", detail: error.message });
   }
 });
 
@@ -3378,22 +3403,15 @@ app.put("/api/state", async (req, res) => {
   }
 
   try {
-    // Obtener eventos actuales de MariaDB antes del guardado para comparar
-    let oldEvents = [];
-    try {
-      const currentState = await readStateFromTables();
-      oldEvents = currentState?.events || [];
-    } catch (err) {
-      console.warn("⚠️ No se pudieron precargar los eventos anteriores para la comparación de Google Calendar:", err.message);
-    }
-
     // 🛡️ SEGURIDAD: Fusionar state entrante con estado actual de BD
-    // writeStateToTables hace DELETE+INSERT destructivo. Si falta una clave, se pierde.
+    // Una sola lectura del estado actual para merge + oldEvents
     let mergedState = { ...nextState };
+    let oldEvents = [];
     try {
       const currentResult = await readStateFromTables();
       if (currentResult && currentResult.state) {
         const current = currentResult.state;
+        oldEvents = current.events || [];
         for (const [key, value] of Object.entries(current)) {
           if (!(key in nextState)) {
             mergedState[key] = value;
@@ -3645,7 +3663,7 @@ app.get("/auth/google/callback", async (req, res) => {
             <p>Para solucionar esto y obtener el token de conexión persistente:</p>
             <ol>
               <li>Ve a <a href="https://myaccount.google.com/connections" target="_blank" style="color: #18c5bc; font-weight: 700;">Conexiones de tu cuenta de Google</a>.</li>
-              <li>Busca la aplicación de tu CRM y haz clic en <b>"Eliminar todo el acceso"</b>.</li>
+              <li>Busca la aplicación de EMS y haz clic en <b>"Eliminar todo el acceso"</b>.</li>
               <li>Regresa aquí y haz clic en el siguiente botón para volver a autorizar de forma limpia.</li>
             </ol>
             <a href="/auth/google" class="btn">Volver a Intentar</a>
@@ -3920,14 +3938,14 @@ async function start() {
         return res.status(404).json({ message: "Ruta API no encontrada." });
       }
       return res.status(200).json({ 
-        service: "CRM API Backend (server.cjs)",
+        service: "EMS API Backend (server.cjs)",
         status: "online",
         message: "El servidor Node está funcionando únicamente como API. Para ver la interfaz, entra al puerto 5173 (Vite)."
       });
     });
 
     server.listen(APP_PORT, () => {
-      console.log(`CRM y Socket.io listo en http://localhost:${APP_PORT}`);
+      console.log(`EMS y Socket.io listo en http://localhost:${APP_PORT}`);
       console.log(`MariaDB -> ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}`);
       console.log("Persistencia activa en tablas relacionales.");
     });

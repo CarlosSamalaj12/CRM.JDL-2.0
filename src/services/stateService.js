@@ -1,9 +1,32 @@
 import api from './api';
 
-export async function loadState({ cacheBust = true } = {}) {
-  const params = cacheBust ? { t: Date.now() } : {};
-  const response = await api.get('/api/state', params);
-  return response?.state || response || {};
+let stateEtag = null;
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
+
+export async function loadState({ cacheBust = false } = {}) {
+  const url = `${API_BASE_URL}/api/state${cacheBust ? `?t=${Date.now()}` : ''}`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (stateEtag) headers['If-None-Match'] = stateEtag;
+
+  const token = localStorage.getItem('token');
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const response = await fetch(url, { method: 'GET', headers });
+
+    if (response.status === 304) {
+      return null;
+    }
+
+    const newEtag = response.headers.get('ETag');
+    if (newEtag) stateEtag = newEtag;
+
+    const data = await response.json();
+    return data?.state || data || {};
+  } catch (error) {
+    console.error('loadState error:', error);
+    return {};
+  }
 }
 
 function compressBase64Image(dataUrl, type) {

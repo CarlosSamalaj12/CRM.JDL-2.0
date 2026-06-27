@@ -230,7 +230,7 @@ export default function ReportsIngresosCategorias({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">📊 Ingresos por Categoría de Servicio</div>
             <div className="reports-subtitle">Montos en Quetzales generados por categoría de servicio · Alimentos & Bebidas · Hospedajes · Misceláneos</div>
           </div>

@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 
 const EVENTO_USER_JOIN = `
-  LEFT JOIN eventos ev ON CONVERT(e.Idocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ev.id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+  LEFT JOIN eventos ev ON e.Idocupacion = ev.id
   LEFT JOIN usuarios u ON ev.id_usuario = u.id
 `;
 

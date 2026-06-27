@@ -1448,7 +1448,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         .qp-tbl th { padding: 9px 10px; text-align: left; font-size: 10px; font-weight: 800; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-transform: uppercase; letter-spacing: .3px; }
         .qp-tbl td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; background: #ffffff; }
         .qp-tbl tbody tr:last-child td { border-bottom: none; }
+        .qp-tbl tbody tr { cursor: pointer; transition: background 0.15s ease; }
+        .qp-tbl tbody tr:hover td { background: #f8fafc; }
         .qp-tbl tbody tr.sel td { background: #f0fdf4; }
+        .qp-tbl tbody tr.sel:hover td { background: #e6f7ea; }
+        .qp-tbl .qp-checkbox { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; min-width: 18px; border: 2px solid #cbd5e1; border-radius: 5px; cursor: pointer; position: relative; transition: all 0.2s ease; margin: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: #ffffff; vertical-align: middle; }
+        .qp-tbl .qp-checkbox:hover { border-color: #94a3b8; box-shadow: 0 0 0 3px rgba(148,163,184,0.15); }
+        .qp-tbl .qp-checkbox:checked { background: #10b981; border-color: #059669; }
+        .qp-tbl .qp-checkbox:checked:hover { box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+        .qp-tbl .qp-checkbox::after { content: ''; position: absolute; width: 5px; height: 9px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg) scale(0); opacity: 0; transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); top: 50%; left: 50%; margin: -5px 0 0 -2.5px; }
+        .qp-tbl .qp-checkbox:checked::after { transform: rotate(45deg) scale(1); opacity: 1; }
         .qp-tbl input[type="number"] { width: 72px; font-size: 12px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 5px; background: #f8fafc; color: #0f172a; }
         .qp-tbl input[type="text"]  { width: 100%; font-size: 12px; padding: 4px 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #0f172a; }
         .qp-tbl input[type="text"]:hover  { border-color: #e2e8f0; background: #f8fafc; }
@@ -3340,7 +3349,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         <div className="qp-header" style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>
-              CRM / Reservas / Cotización
+              EMS / Reservas / Cotización
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <img src="/Oficial_JDL_acua.png" alt="Logo" style={{ height: 28, width: 'auto' }} />
@@ -3924,7 +3933,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                 <thead>
                                   <tr>
                                     <th style={{ width: 36 }}>
-                                      <input type="checkbox"
+                                      <input type="checkbox" className="qp-checkbox"
                                         checked={isAllDaySelected}
                                         onChange={() => handleSelectAllDayToggle(date)}
                                       />
@@ -3943,7 +3952,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                     return (
                                       <tr key={item.rowId} className={selectedItemIds.has(item.rowId) ? 'sel' : ''}>
                                         <td style={{ textAlign: 'center' }}>
-                                          <input type="checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
+                                          <input type="checkbox" className="qp-checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
                                         </td>
                                         <td>
                                           <select value={item.serviceDate} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, serviceDate: e.target.value } : i) }))}>

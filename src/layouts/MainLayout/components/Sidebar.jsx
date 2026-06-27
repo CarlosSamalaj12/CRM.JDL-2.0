@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import authService from '../../../services/authService';
 import reminderService from '../../../services/reminderService';
-import eventService from '../../../services/eventService';
 import { STATUS_META } from '../../../modules/calendar/constants';
 
-export default function Sidebar() {
+export default function Sidebar({ events: propsEvents, reminders: propsRemindersProp }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -51,57 +50,44 @@ export default function Sidebar() {
     navigate('/login');
   };
 
-  // Reminder state
   const [reminders, setReminders] = useState([]);
   const [isReminderOpen, setIsReminderOpen] = useState(false);
 
-  // Load reminders on mount
   useEffect(() => {
-    async function fetchReminders() {
-      try {
-        const allRems = await reminderService.getAll();
-        const allEvents = await eventService.getAll();
-        const currentUser = authService.getCurrentUser();
-        const isAdmin = currentUser?.role === 'admin';
-        const now = new Date();
+    const allRems = propsRemindersProp || {};
+    const allEvents = propsEvents || [];
+    const currentUser = authService.getCurrentUser();
+    const isAdmin = currentUser?.role === 'admin';
+    const now = new Date();
 
-        // Flatten reminders into an array with eventId
-        const flat = [];
-        Object.entries(allRems).forEach(([eventId, evRems]) => {
-          const event = allEvents.find(e => e.id === eventId) || {};
-          evRems.forEach(r => {
-            // Filtrar por usuario
-            const isMine = !r.createdBy || r.createdBy === currentUser?.id;
-            if (!isAdmin && !isMine) return;
+    const flat = [];
+    Object.entries(allRems).forEach(([eventId, evRems]) => {
+      const event = allEvents.find(e => e.id === eventId) || {};
+      evRems.forEach(r => {
+        const isMine = !r.createdBy || r.createdBy === currentUser?.id;
+        if (!isAdmin && !isMine) return;
 
-            // Filtrar por fecha futura (solo recordatorios que no han pasado)
-            const reminderDateTime = new Date(`${r.date}T${r.time}:00`);
-            if (reminderDateTime < now) return;
+        const reminderDateTime = new Date(`${r.date}T${r.time}:00`);
+        if (reminderDateTime < now) return;
 
-            flat.push({ 
-              ...r, 
-              eventId,
-              eventName: event.name || event.title || eventId,
-              eventStatus: event.status || 'Desconocido',
-              eventSalon: event.salon || 'Sin asignar'
-            });
-          });
+        flat.push({ 
+          ...r, 
+          eventId,
+          eventName: event.name || event.title || eventId,
+          eventStatus: event.status || 'Desconocido',
+          eventSalon: event.salon || 'Sin asignar'
         });
-        
-        // Ordenar por fecha y hora más próxima
-        flat.sort((a, b) => {
-          const dateA = new Date(`${a.date}T${a.time}:00`);
-          const dateB = new Date(`${b.date}T${b.time}:00`);
-          return dateA - dateB;
-        });
+      });
+    });
+    
+    flat.sort((a, b) => {
+      const dateA = new Date(`${a.date}T${a.time}:00`);
+      const dateB = new Date(`${b.date}T${b.time}:00`);
+      return dateA - dateB;
+    });
 
-        setReminders(flat);
-      } catch (e) {
-        console.error('Failed to load reminders', e);
-      }
-    }
-    fetchReminders();
-  }, []);
+    setReminders(flat);
+  }, [propsRemindersProp, propsEvents]);
 
   const getStatusColor = (status) => {
     return STATUS_META[status]?.color || '#cbd5e1';
@@ -159,7 +145,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                 <div className="drawer-logo-badge">
                   <img src="/Oficial_JDL_blanco.png" alt="Logo" className="drawer-logo-img" />
                 </div>
-                <span className="drawer-logo-text">Jardines CRM</span>
+                <span className="drawer-logo-text">Jardines EMS</span>
               </div>
             </div>
 
@@ -917,10 +903,10 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
       }
       <div className="lum-sidebarBrand">
         <div className="logo">
-          <img src="/Oficial_JDL_blanco.png" alt="Logo Jardines CRM" className="topbarLogoImg" />
+          <img src="/Oficial_JDL_blanco.png" alt="Logo Jardines EMS" className="topbarLogoImg" />
         </div>
         <div className="brandText">
-          <div className="title">Jardines CRM</div>
+          <div className="title">Jardines EMS</div>
         </div>
       </div>
 

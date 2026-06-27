@@ -82,7 +82,7 @@ export default function SettingsExport() {
           return;
         }
         exportRowsToExcel({
-          title: 'CRM Jardines - Exportacion de empresas',
+          title: 'EMS Jardines - Exportacion de empresas',
           subtitle: 'Catalogo de empresas. Importa primero las empresas, luego los encargados.',
           columns: companyColumns,
           example: {
@@ -121,7 +121,7 @@ export default function SettingsExport() {
           return;
         }
         exportRowsToExcel({
-          title: 'CRM Jardines - Exportacion de encargados',
+          title: 'EMS Jardines - Exportacion de encargados',
           subtitle: 'Contactos responsables vinculados a empresas. El empresa_id debe coincidir con empresas ya importadas.',
           columns: managerColumns,
           example: {
@@ -181,7 +181,7 @@ export default function SettingsExport() {
           return;
         }
         exportRowsToExcel({
-          title: 'CRM Jardines - Exportacion de eventos',
+          title: 'EMS Jardines - Exportacion de eventos',
           subtitle: 'Eventos y reservas preparados para importarse al nuevo sistema. Cada fila representa un bloque de fecha, salon y horario.',
           columns: eventColumns,
           example: {

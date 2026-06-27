@@ -80,7 +80,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card" onClick={() => navigate('/kanban')} data-tooltip="Ir a Kanban">
+        <div className="stat-card" onClick={() => navigate('/kanban')} data-tooltip="Ir a Ocupación">
           <div className="stat-icon blue"><IconUsers size={22} /></div>
           <div className="stat-info">
             <div className="stat-value">{resumen.total_pax}</div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getNotas, createNota, getUsuarios, toggleReaccionNota, getTareasUsuario, getTareasSemanaByOcupacion } from '../services/api.js';
+import { getNotas, createNota, getUsuariosCached, toggleReaccionNota, getTareasUsuario, getTareasSemanaByOcupacion } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -60,7 +60,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   const cardClass = `event-card ${status.color === 'green' ? 'confirmed' : status.color === 'fucsia' ? 'prereserva' : ''}`;
 
   useEffect(() => {
-    getUsuarios().then(setUsuarios).catch(() => {});
+    getUsuariosCached().then(setUsuarios).catch(() => {});
   }, []);
 
   useEffect(() => {

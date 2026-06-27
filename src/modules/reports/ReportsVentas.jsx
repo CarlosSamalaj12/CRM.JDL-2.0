@@ -192,7 +192,7 @@ export default function ReportsVentas({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Reporte de Ventas</div>
             <div className="reports-subtitle">Pipeline comercial, cotizaciones y facturación</div>
           </div>

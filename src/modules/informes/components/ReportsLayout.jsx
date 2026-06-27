@@ -151,7 +151,7 @@ export default function ReportsLayout() {
                 onClick={() => { setIsMobileOpen(false); navigate('/kanban'); }}
               >
                 <span className="material-symbols-outlined">grid_view</span>
-                <span>Kanban</span>
+                <span>Ocupación</span>
               </button>
               
               {canManageCatalog && (
@@ -288,7 +288,7 @@ export default function ReportsLayout() {
             to="/kanban"
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
-            <IconGrid size={16} /> <span className="nav-text">Kanban</span>
+            <IconGrid size={16} /> <span className="nav-text">Ocupación</span>
           </NavLink>
           {canManageCatalog && (
             <>

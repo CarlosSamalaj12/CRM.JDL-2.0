@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
@@ -22,6 +22,7 @@ export default function Login() {
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
   const { syncSession } = useAuth();
+  const googleLoginRef = useRef(false);
 
   useEffect(() => {
     toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
@@ -73,14 +74,22 @@ export default function Login() {
 
   // Handle Google Login via Firebase
   const handleGoogleLogin = async () => {
+    // Prevenir múltiples clics mientras se procesa
+    if (googleLoginRef.current) return;
+    googleLoginRef.current = true;
+    setLoading(true);
+
     let loadingToast = null;
     try {
-      // 1. Invocar la ventana emergente de Google INMEDIATAMENTE como respuesta al gesto del usuario.
+      // Invocar la ventana emergente de Google INMEDIATAMENTE como respuesta al gesto del usuario.
       // Esto evita que los navegadores modernos la bloqueen por considerarla una acción asíncrona diferida.
       const firebaseUser = await firebaseService.loginWithGoogle();
-      if (!firebaseUser) return; // Si es null (porque entró por redirección en el fallback)
+      if (!firebaseUser) {
+        googleLoginRef.current = false;
+        setLoading(false);
+        return; // Si es null (porque entró por redirección en el fallback)
+      }
 
-      setLoading(true);
       loadingToast = toast.loading('Sincronizando con el servidor...');
 
       const localUser = await authService.loginFirebase(firebaseUser);
@@ -109,6 +118,8 @@ export default function Login() {
         toast.error(err.message || 'No se pudo iniciar sesión con tu cuenta de Google.', { duration: 4000 });
       }
       setLoading(false);
+    } finally {
+      googleLoginRef.current = false;
     }
   };
 
@@ -142,7 +153,7 @@ export default function Login() {
               <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="loginLogoImg" />
             </div>
             <div>
-              <div className="loginBrandEyebrow">Bienvenidos al CRM de</div>
+              <div className="loginBrandEyebrow">Bienvenidos al EMS de</div>
               <h1 className="loginBrandTitle" id="loginTitle">HOTEL JARDINES DEL LAGO</h1>
               <div className="loginBrandSub">Inicia sesión para continuar</div>
             </div>

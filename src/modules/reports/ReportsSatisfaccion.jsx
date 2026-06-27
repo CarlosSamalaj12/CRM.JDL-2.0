@@ -172,7 +172,7 @@ export default function ReportsSatisfaccion({ onClose }) {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Satisfacción del Cliente</div>
               <div className="reports-subtitle">Cargando datos de evaluación...</div>
             </div>
@@ -198,7 +198,7 @@ export default function ReportsSatisfaccion({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">⭐ Satisfacción del Cliente</div>
             <div className="reports-subtitle">Evaluación de servicio por evento con ratings Malo / Regular / Bueno / Excelente</div>
           </div>

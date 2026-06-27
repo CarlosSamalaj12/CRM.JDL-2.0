@@ -52,6 +52,7 @@ export default function MainLayout() {
   const [salones, setSalones] = useState([]);
   const [users, setUsers] = useState([]);
   const [occupancyWeeklyOps, setOccupancyWeeklyOps] = useState({});
+  const [reminders, setReminders] = useState({});
 
   async function loadInitialData(useCache = true) {
     if (useCache && memoryCache) {
@@ -86,19 +87,21 @@ export default function MainLayout() {
       const loadedOps = (stateRes?.occupancyWeeklyOps && typeof stateRes.occupancyWeeklyOps === 'object') 
         ? stateRes.occupancyWeeklyOps 
         : {};
+      const loadedReminders = stateRes?.reminders || {};
 
-      // Actualizar la caché en memoria para accesos instantáneos futuros
       memoryCache = {
         events: eventsData,
         salones: salonesData,
         users: loadedUsers,
-        occupancyWeeklyOps: loadedOps
+        occupancyWeeklyOps: loadedOps,
+        reminders: loadedReminders
       };
 
       setEvents(eventsData);
       setSalones(salonesData);
       setUsers(loadedUsers);
       setOccupancyWeeklyOps(loadedOps);
+      setReminders(loadedReminders);
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
@@ -244,7 +247,7 @@ export default function MainLayout() {
 
   return (
     <div className="app lum-calendar" id="appShell" style={{ position: 'relative', minHeight: '100vh' }}>
-      <Sidebar />
+      <Sidebar events={events} users={users} reminders={reminders} />
       
       <div className="lum-main" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {isCalendarView && (

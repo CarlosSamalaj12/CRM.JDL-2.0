@@ -312,7 +312,7 @@ export default function ReportsInstitucion({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Reporte por Institución</div>
             <div className="reports-subtitle">Dashboard de clientes, consumo y comportamiento histórico</div>
           </div>
@@ -330,7 +330,7 @@ export default function ReportsInstitucion({ onClose }) {
             <div>
               <span className="reports-eyebrow">Relación comercial</span>
               <h3 className="reports-section-title">Cliente, consumo e historial en una vista premium</h3>
-              <p className="reports-section-text">Encuentra instituciones clave, revisa comportamiento y baja al detalle con datos reales del CRM.</p>
+              <p className="reports-section-text">Encuentra instituciones clave, revisa comportamiento y baja al detalle con datos reales del EMS.</p>
             </div>
           </div>
 

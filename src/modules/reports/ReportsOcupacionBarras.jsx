@@ -235,7 +235,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">📊 Porcentaje Ocupación de Eventos</div>
             <div className="reports-subtitle">% de ocupación mensual PAX vs capacidad de salones · Selecciona qué salones influyen en Configuración</div>
           </div>

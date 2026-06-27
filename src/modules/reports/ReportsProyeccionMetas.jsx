@@ -320,7 +320,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">🎯 Proyección de Metas</div>
             <div className="reports-subtitle">¿Cuánto necesita vender cada vendedor para alcanzar el siguiente nivel?</div>
           </div>

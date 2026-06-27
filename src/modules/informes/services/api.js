@@ -1,5 +1,22 @@
 const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
 
+let usuariosCache = null;
+let usuariosCachePromise = null;
+
+export async function getUsuariosCached() {
+  if (usuariosCache) return usuariosCache;
+  if (usuariosCachePromise) return usuariosCachePromise;
+  usuariosCachePromise = getUsuarios().then(data => {
+    usuariosCache = data;
+    usuariosCachePromise = null;
+    return data;
+  }).catch(err => {
+    usuariosCachePromise = null;
+    throw err;
+  });
+  return usuariosCachePromise;
+}
+
 export async function fetchEvents(date) {
   const url = date ? `${apiUrl}/api/events?date=${date}` : `${apiUrl}/api/events`;
   const response = await fetch(url);

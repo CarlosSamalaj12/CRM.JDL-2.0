@@ -371,7 +371,7 @@ export default function Kanban() {
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>
-  <div class="print-footer">Documento generado por Jardines CRM — ${printTimestamp}</div>
+  <div class="print-footer">Documento generado por Jardines EMS — ${printTimestamp}</div>
 </body></html>`;
   };
 
@@ -470,13 +470,13 @@ export default function Kanban() {
     <section className="kanban-shell">
       <div className="kanban-header">
         <div className="kanban-title">
-          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Kanban</> : viewMode === 'tabla' ? <><IconFileText size={20} /> Tabla Semanal</> : <><IconClipboardList size={20} /> Tareas Semanales</>}</h2>
+          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Ocupación</> : viewMode === 'tabla' ? <><IconFileText size={20} /> Tabla Semanal</> : <><IconClipboardList size={20} /> Tareas Semanales</>}</h2>
           <p>{totalEvents} eventos en la semana{hasFilter ? ' (filtrados)' : ''}</p>
         </div>
         <div className="kanban-filter" style={{display:'flex',alignItems:'center',gap:'0.35rem',flexWrap:'wrap',minWidth:0,overflow:'hidden'}}>
           <div className="view-toggle">
             <button className={`view-toggle-btn${viewMode === 'kanban' ? ' active' : ''}`} onClick={() => setViewMode('kanban')}>
-              <IconGrid size={13} /> Kanban
+              <IconGrid size={13} /> Ocupación
             </button>
             <button className={`view-toggle-btn${viewMode === 'tabla' ? ' active' : ''}`} onClick={() => setViewMode('tabla')}>
               <IconFileText size={13} /> Tabla

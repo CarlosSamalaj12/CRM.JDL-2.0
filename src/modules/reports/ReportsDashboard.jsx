@@ -362,7 +362,7 @@ export default function ReportsDashboard({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Dashboard Ejecutivo</div>
             <div className="reports-subtitle">Metas comerciales, rendimiento y analítica del periodo</div>
           </div>
