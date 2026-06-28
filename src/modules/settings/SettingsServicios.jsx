@@ -25,14 +25,17 @@ export default function SettingsServicios({ inline, onBack }) {
   const [serviceSearch, setServiceSearch] = useState('');
 
   const filteredServices = useMemo(() => {
-    if (!serviceSearch.trim()) return services;
-    const q = serviceSearch.trim().toLowerCase();
-    return services.filter(s =>
-      (s.name || '').toLowerCase().includes(q) ||
-      (s.category || '').toLowerCase().includes(q) ||
-      (s.subcategory || '').toLowerCase().includes(q) ||
-      String(s.price || '').includes(q)
-    );
+    let list = services;
+    if (serviceSearch.trim()) {
+      const q = serviceSearch.trim().toLowerCase();
+      list = services.filter(s =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.category || '').toLowerCase().includes(q) ||
+        (s.subcategory || '').toLowerCase().includes(q) ||
+        String(s.price || '').includes(q)
+      );
+    }
+    return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [services, serviceSearch]);
 
   // Subcategory modal state
@@ -478,7 +481,7 @@ export default function SettingsServicios({ inline, onBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {categories.map((cat, i) => {
+                  {[...categories].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((cat, i) => {
                     const subs = cat.subcategories || [];
                     const svcCount = services.filter(s => String(s.category || 'General') === cat.name).length;
                     return (
@@ -515,7 +518,7 @@ export default function SettingsServicios({ inline, onBack }) {
             </button>
             <select value={subcategoryFilterCategory} onChange={e => setSubcategoryFilterCategory(e.target.value)} style={{ ...s(''), minWidth: '180px' }}>
               <option value="">Todas las categorías</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {[...categories].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="svc-table-wrap" style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflowY: 'auto', background: '#fff', flex: 1 }}>
@@ -524,7 +527,7 @@ export default function SettingsServicios({ inline, onBack }) {
               const catList = catFilter ? categories.filter(c => String(c.id) === String(catFilter)) : categories;
               const rows = catList.flatMap(cat =>
                 (cat.subcategories || []).map(sub => ({ cat, sub }))
-              );
+              ).sort((a, b) => (a.sub.name || '').localeCompare(b.sub.name || ''));
               if (rows.length === 0) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>No hay subcategorías registradas.</div>;
               return (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
@@ -596,7 +599,7 @@ export default function SettingsServicios({ inline, onBack }) {
                       const cat = categories.find(c => c.name === serviceDraft.category);
                       const subs = cat ? (cat.subcategories || []).map(s => s.name) : [];
                       const fromSvcs = [...new Set(services.filter(s => s.category === serviceDraft.category).map(s => s.subcategory).filter(Boolean))];
-                      return [...new Set([...subs, ...fromSvcs])].map(c => <option key={c} value={c} />);
+                      return [...new Set([...subs, ...fromSvcs])].sort((a, b) => a.localeCompare(b)).map(c => <option key={c} value={c} />);
                     })()}
                   </datalist>
                 </label>
@@ -687,7 +690,7 @@ export default function SettingsServicios({ inline, onBack }) {
               <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569', display: 'block' }}>Categoría
                 <select value={subcategoryDraft.categoryId} onChange={e => setSubcategoryDraft(p => ({ ...p, categoryId: e.target.value }))} style={{ ...s('full'), marginTop: '3px' }}>
                   <option value="">Seleccione...</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {[...categories].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </label>
               <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569', display: 'block' }}>Nombre <span style={{ color: '#dc2626' }}>*</span>
