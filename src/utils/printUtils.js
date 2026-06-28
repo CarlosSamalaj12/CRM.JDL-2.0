@@ -200,7 +200,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     }
 
     let htmlContent = "";
-      let isServiHospTemplate = false;
+    let quoteHeaderImage = '';
 
     // Collect selected template IDs (support both legacy single and new multi)
     const selectedIds = [];
@@ -217,21 +217,23 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       for (const tplId of selectedIds) {
         // Resolve template filename
         let fileName = "";
-        let tplIsServiHosp = false;
+        let tplHeaderImage = '';
+        let tplFooterImage = '';
         const matched = ctpls.find(t => String(t.id) === String(tplId));
         if (matched) {
           fileName = matched.filename;
-          if (matched.filename && /serv/i.test(matched.filename)) {
-            tplIsServiHosp = true;
-          }
+          tplHeaderImage = matched.headerImage;
+          tplFooterImage = matched.footerImage;
         }
         // Legacy fallback for quotes saved before contractTemplates config
         if (!fileName) {
           if (tplId === "contrato_corp" || tplId === "contrato_social") {
             fileName = "Jardines.html";
+            tplHeaderImage = 'Encabezadojdl.png';
           } else if (tplId === "contrato_hosp") {
             fileName = "ServiHosp.html";
-            tplIsServiHosp = true;
+            tplHeaderImage = 'EncabezadoServ.jpg';
+            tplFooterImage = 'piedepaginajdl.png';
           }
         }
 
@@ -259,8 +261,21 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           let tplBody = tplDoc.body ? tplDoc.body.innerHTML : tplHtml;
 
           if (tplDoc.body) {
-            const headerImg = tplDoc.body.querySelector(".contract-header img, .contract-header-print img");
-            const footerImg = tplIsServiHosp ? null : tplDoc.body.querySelector(".contract-footer img, .contract-footer-print img");
+            // Use configured header/footer images, or fall back to extracting from DOM
+            let headerHtml = '';
+            let footerHtml = '';
+            if (tplHeaderImage) {
+              headerHtml = `<img src="/templates/${tplHeaderImage}" alt="" style="display:block;width:100%;" />`;
+            } else if (tplHeaderImage === undefined) {
+              const headerImg = tplDoc.body.querySelector(".contract-header img, .contract-header-print img");
+              if (headerImg) headerHtml = headerImg.outerHTML;
+            }
+            if (tplFooterImage) {
+              footerHtml = `<img src="/templates/${tplFooterImage}" alt="" style="display:block;width:100%;" />`;
+            } else if (tplFooterImage === undefined) {
+              const footerImg = tplDoc.body.querySelector(".contract-footer img, .contract-footer-print img");
+              if (footerImg) footerHtml = footerImg.outerHTML;
+            }
 
             tplDoc.body
               .querySelectorAll(".contract-header, .contract-header-print, .contract-footer, .contract-footer-print, script")
@@ -278,9 +293,20 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               lastChild = prev;
             }
 
-            if (headerImg || footerImg) {
-              const repeatHead = headerImg ? `<tr class="contractPrintHead"><td class="contractPrintCell">${headerImg.outerHTML}</td></tr>` : "";
-              const repeatFoot = footerImg ? `<tr class="contractPrintFoot"><td class="contractPrintCell">${footerImg.outerHTML}</td></tr>` : "";
+            // Determine main document header from first template
+            if (!quoteHeaderImage) {
+              if (tplHeaderImage) {
+                quoteHeaderImage = tplHeaderImage;
+              } else if (tplHeaderImage === undefined && headerHtml) {
+                const srcMatch = headerHtml.match(/src="([^"]+)"/);
+                if (srcMatch) quoteHeaderImage = srcMatch[1].replace('/templates/', '');
+              }
+              if (!quoteHeaderImage) quoteHeaderImage = 'Encabezadojdl.png';
+            }
+
+            if (headerHtml || footerHtml) {
+              const repeatHead = headerHtml ? `<tr class="contractPrintHead"><td class="contractPrintCell">${headerHtml}</td></tr>` : "";
+              const repeatFoot = footerHtml ? `<tr class="contractPrintFoot"><td class="contractPrintCell">${footerHtml}</td></tr>` : "";
               const bodyRows = Array.from(tplDoc.body.children)
                 .map((node) => `<tr class="contractPrintRow"><td class="contractPrintContent">${node.outerHTML}</td></tr>`)
                 .join("");
@@ -318,17 +344,6 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           `);
         } catch (e) {
           console.warn("Error loading contract template:", fileName, e);
-        }
-      }
-
-      // Determine header image based on first selected template
-      if (allHtmlParts.length > 0) {
-        const firstTplId = selectedIds[0];
-        const firstMatched = ctpls.find(t => String(t.id) === String(firstTplId));
-        if (firstMatched && firstMatched.filename && /serv/i.test(firstMatched.filename)) {
-          isServiHospTemplate = true;
-        } else if (firstTplId === "contrato_hosp") {
-          isServiHospTemplate = true;
         }
       }
 
@@ -453,7 +468,8 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     const totalAnticiposDoc = advances.reduce((sum, advance) => sum + Number(advance?.amount || 0), 0);
     const saldoDoc = Math.max(0, totalDoc - totalAnticiposDoc);
     const docDate = normalizeDocDate(quote.docDate || quote.quotedAt?.split("T")[0] || new Date().toISOString().slice(0, 10));
-    const quoteHeaderSrc = isServiHospTemplate ? "/templates/EncabezadoServ.jpg" : "/templates/Encabezadojdl.png";
+    const docHeaderImage = quoteHeaderImage || 'Encabezadojdl.png';
+    const quoteHeaderSrc = `/templates/${docHeaderImage}`;
     
     // Determinar el prefijo según el formato de impresión
     let docPrefix = "COTIZACIÓN";

@@ -1240,6 +1240,20 @@ async function readStateFromTables() {
         state.quoteServiceTemplates = [];
       }
     }
+    if (contractTemplatesRow?.valor_json) {
+      try {
+        const parsed = JSON.parse(contractTemplatesRow.valor_json);
+        state.contractTemplates = Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        state.contractTemplates = [];
+      }
+    }
+    if (!state.contractTemplates.length) {
+      state.contractTemplates = [
+        { id: 'ctpl_jardines', name: 'Jardines', filename: 'Jardines.html', headerImage: 'Encabezadojdl.png', footerImage: '' },
+        { id: 'ctpl_servihosp', name: 'ServiHosp', filename: 'ServiHosp.html', headerImage: 'EncabezadoServ.jpg', footerImage: 'piedepaginajdl.png' },
+      ];
+    }
     const disabledCompaniesRow = appStateRows.find((r) => str(r.clave) === "disabledCompanies");
     const disabledServicesRow = appStateRows.find((r) => str(r.clave) === "disabledServices");
     const disabledManagersRow = appStateRows.find((r) => str(r.clave) === "disabledManagers");
@@ -1384,14 +1398,6 @@ async function readStateFromTables() {
     return { state, updatedAt: new Date().toISOString() };
   } finally {
     if (conn) conn.release();
-  }
-  if (contractTemplatesRow?.valor_json) {
-    try {
-      const parsed = JSON.parse(contractTemplatesRow.valor_json);
-      state.contractTemplates = Array.isArray(parsed) ? parsed : [];
-    } catch (_) {
-      state.contractTemplates = [];
-    }
   }
 }
 

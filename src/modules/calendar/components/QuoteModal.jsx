@@ -3383,51 +3383,58 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <option value={1}>V1 (actual) — sin fecha — Q 0.00</option>
               </select>
             </div>
-            <div style={{ flex: '1 1 180px' }}>
+            <div style={{ flex: '1 1 260px' }}>
               <label style={fieldLabel}>Plantillas contrato</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 8px', background: '#fff' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {contractTemplates.length === 0 ? (
-                  <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>
+                  <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', padding: '4px 0' }}>
                     Sin plantillas configuradas
                   </span>
                 ) : (
-                  <>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b', cursor: 'pointer', padding: '3px 4px', borderRadius: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={quote.templateIds.length === 0}
-                        onChange={() => setQuote(p => ({ ...p, templateIds: [] }))}
-                        style={{ accentColor: '#64748b' }}
-                      />
-                      <span>— Ninguna —</span>
-                    </label>
-                    <div style={{ borderTop: '1px solid #f1f5f9', margin: '2px 0' }} />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    <div
+                      onClick={() => setQuote(p => ({ ...p, templateIds: [] }))}
+                      title="Ninguna plantilla de contrato"
+                      style={{
+                        padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                        border: `1.5px solid ${quote.templateIds.length === 0 ? '#64748b' : '#e2e8f0'}`,
+                        background: quote.templateIds.length === 0 ? '#f1f5f9' : '#fff',
+                        color: quote.templateIds.length === 0 ? '#475569' : '#cbd5e1',
+                        transition: 'all 0.12s', userSelect: 'none',
+                      }}
+                    >
+                      {quote.templateIds.length === 0 ? '— Ninguna —' : 'Ninguna'}
+                    </div>
                     {contractTemplates.map(tpl => {
                       const checked = quote.templateIds.includes(tpl.id);
                       return (
-                        <label key={tpl.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          fontSize: 11, color: '#334155', cursor: 'pointer',
-                          padding: '4px 4px', borderRadius: 4,
-                          background: checked ? '#f0fdf4' : 'transparent',
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => setQuote(p => ({
-                              ...p,
-                              templateIds: checked
-                                ? p.templateIds.filter(id => id !== tpl.id)
-                                : [...p.templateIds, tpl.id]
-                            }))}
-                            style={{ accentColor: '#16a34a' }}
-                          />
-                          <span style={{ fontWeight: checked ? 700 : 400 }}>{tpl.name}</span>
-                          <span style={{ fontSize: 9, color: '#94a3b8' }}>({tpl.filename})</span>
-                        </label>
+                        <div
+                          key={tpl.id}
+                          onClick={() => setQuote(p => ({
+                            ...p,
+                            templateIds: checked
+                              ? p.templateIds.filter(id => id !== tpl.id)
+                              : [...p.templateIds, tpl.id]
+                          }))}
+                          style={{
+                            padding: '7px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
+                            border: `1.5px solid ${checked ? '#16a34a' : '#e2e8f0'}`,
+                            background: checked ? '#f0fdf4' : '#fff',
+                            transition: 'all 0.12s', minWidth: 0,
+                            boxShadow: checked ? '0 0 0 1px #16a34a' : 'none',
+                          }}
+                        >
+                          <div style={{ fontSize: 12, fontWeight: 700, color: checked ? '#166534' : '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            {checked && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="#16a34a"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            )}
+                            {tpl.name}
+                          </div>
+                          <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>{tpl.filename}</div>
+                        </div>
                       );
                     })}
-                  </>
+                  </div>
                 )}
               </div>
             </div>
