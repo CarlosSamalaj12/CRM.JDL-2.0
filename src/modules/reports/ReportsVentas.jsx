@@ -99,7 +99,7 @@ export default function ReportsVentas({ onClose }) {
         clientName: ev.clientName || quote?.companyName || quote?.contact || '',
         pax: Number(primaryEvent?.pax || ev?.pax || quote?.people || 0),
         quote: quote,
-        total: quote?.total || 0,
+        total: quote?.totalGtq || quote?.total || 0,
         subtotal: quote?.subtotal || 0,
         discount: quote?.discountValue || 0,
         salones: financialMeta.salones,

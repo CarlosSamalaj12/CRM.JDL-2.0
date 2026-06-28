@@ -834,7 +834,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
@@ -1131,6 +1131,7 @@ async function readStateFromTables() {
       services: dbServicesList,
       quickTemplates: [],
       quoteServiceTemplates: [],
+      contractTemplates: [],
       disabledCompanies: [],
       disabledServices: [],
       disabledManagers: [],
@@ -1220,6 +1221,7 @@ async function readStateFromTables() {
       });
     }
 
+    const contractTemplatesRow = appStateRows.find((r) => str(r.clave) === "contractTemplates");
     const quickTemplatesRow = appStateRows.find((r) => str(r.clave) === "quickTemplates");
     const quoteServiceTemplatesRow = appStateRows.find((r) => str(r.clave) === "quoteServiceTemplates");
     if (quickTemplatesRow?.valor_json) {
@@ -1382,6 +1384,14 @@ async function readStateFromTables() {
     return { state, updatedAt: new Date().toISOString() };
   } finally {
     if (conn) conn.release();
+  }
+  if (contractTemplatesRow?.valor_json) {
+    try {
+      const parsed = JSON.parse(contractTemplatesRow.valor_json);
+      state.contractTemplates = Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      state.contractTemplates = [];
+    }
   }
 }
 
@@ -1746,6 +1756,7 @@ async function writeStateToTables(state) {
     const serviceCategories = Array.isArray(state.serviceCategories) ? state.serviceCategories : [];
     const quickTemplates = Array.isArray(state.quickTemplates) ? state.quickTemplates : [];
     const quoteServiceTemplates = Array.isArray(state.quoteServiceTemplates) ? state.quoteServiceTemplates : [];
+    const contractTemplates = Array.isArray(state.contractTemplates) ? state.contractTemplates : [];
     const disabledCompanies = Array.isArray(state.disabledCompanies) ? state.disabledCompanies : [];
     const disabledServices = Array.isArray(state.disabledServices) ? state.disabledServices : [];
     const disabledManagers = Array.isArray(state.disabledManagers) ? state.disabledManagers : [];
@@ -2398,6 +2409,14 @@ async function writeStateToTables(state) {
       `,
       [JSON.stringify(quoteServiceTemplates)]
     );
+      await conn.query(
+        `
+          INSERT INTO app_state_kv (clave, valor_json)
+          VALUES ('contractTemplates', ?)
+          ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+        `,
+        [JSON.stringify(contractTemplates)]
+      );
     await conn.query(
       `
         INSERT INTO app_state_kv (clave, valor_json)
@@ -4034,3 +4053,4 @@ async function start() {
 }
 
 start();
+

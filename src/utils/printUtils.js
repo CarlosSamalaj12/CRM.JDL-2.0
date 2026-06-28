@@ -182,21 +182,64 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
   printWin.document.close();
 
   try {
+    // Load CRM state first so contractTemplates are available for template resolution
+    let companies = [];
+    let users = [];
+    let ctplsFromState = [];
+    try {
+      const crmState = await loadState();
+      companies = Array.isArray(crmState?.companies) ? crmState.companies : [];
+      users = Array.isArray(crmState?.users) ? crmState.users : [];
+      ctplsFromState = Array.isArray(crmState?.contractTemplates) ? crmState.contractTemplates : [];
+    } catch (err) {
+      console.error("Error loading CRM state for print:", err);
+    }
+    // Use contractTemplates from state if not already on quote
+    if (!Array.isArray(quote.contractTemplates) || !quote.contractTemplates.length) {
+      quote.contractTemplates = ctplsFromState;
+    }
+
     let htmlContent = "";
       let isServiHospTemplate = false;
 
-    if (quote.templateId && printOption !== "sin_precios") {
-      let fileName = "";
-      if (quote.templateId === "contrato_corp" || quote.templateId === "contrato_social") {
-        fileName = "Jardines.html";
-      } else if (quote.templateId === "contrato_hosp") {
-        fileName = "ServiHosp.html";
-        isServiHospTemplate = true;
-      }
+    // Collect selected template IDs (support both legacy single and new multi)
+    const selectedIds = [];
+    if (Array.isArray(quote.templateIds) && quote.templateIds.length > 0) {
+      selectedIds.push(...quote.templateIds);
+    } else if (quote.templateId) {
+      selectedIds.push(quote.templateId);
+    }
 
-      if (fileName) {
-        const res = await fetch(`/templates/${fileName}`);
-        if (res.ok) {
+    if (selectedIds.length > 0 && printOption !== "sin_precios") {
+      const ctpls = Array.isArray(quote.contractTemplates) ? quote.contractTemplates : [];
+      const allHtmlParts = [];
+
+      for (const tplId of selectedIds) {
+        // Resolve template filename
+        let fileName = "";
+        let tplIsServiHosp = false;
+        const matched = ctpls.find(t => String(t.id) === String(tplId));
+        if (matched) {
+          fileName = matched.filename;
+          if (matched.filename && /serv/i.test(matched.filename)) {
+            tplIsServiHosp = true;
+          }
+        }
+        // Legacy fallback for quotes saved before contractTemplates config
+        if (!fileName) {
+          if (tplId === "contrato_corp" || tplId === "contrato_social") {
+            fileName = "Jardines.html";
+          } else if (tplId === "contrato_hosp") {
+            fileName = "ServiHosp.html";
+            tplIsServiHosp = true;
+          }
+        }
+
+        if (!fileName) continue;
+
+        try {
+          const res = await fetch(`/templates/${fileName}`);
+          if (!res.ok) continue;
           let tplHtml = await res.text();
           tplHtml = tplHtml.replace(/src="([a-zA-Z0-9_.-]+)"/g, 'src="/templates/$1"');
 
@@ -209,21 +252,20 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             ? Array.from(tplDoc.head.querySelectorAll("style")).map((node) => node.textContent || "").join("\n")
             : "";
           const tplStyleText = rawTplStyleText
-            .replace(/@media print\s*\{[\s\S]*?\}(?=\.[a-zA-Z0-9_-]+\{|[a-z]+\{|$)/g, "")
-            .replace(/@page\s*\{[\s\S]*?\}/g, "")
-            .replace(/html,body\{[\s\S]*?\}/g, "");
+            .replace(/@media prints*{[sS]*?}(?=.[a-zA-Z0-9_-]+{|[a-z]+{|$)/g, "")
+            .replace(/@pages*{[sS]*?}/g, "")
+            .replace(/html,body{[sS]*?}/g, "");
 
           let tplBody = tplDoc.body ? tplDoc.body.innerHTML : tplHtml;
 
           if (tplDoc.body) {
             const headerImg = tplDoc.body.querySelector(".contract-header img, .contract-header-print img");
-            const footerImg = isServiHospTemplate ? null : tplDoc.body.querySelector(".contract-footer img, .contract-footer-print img");
+            const footerImg = tplIsServiHosp ? null : tplDoc.body.querySelector(".contract-footer img, .contract-footer-print img");
 
             tplDoc.body
               .querySelectorAll(".contract-header, .contract-header-print, .contract-footer, .contract-footer-print, script")
               .forEach((node) => node.remove());
 
-            // Remove ANY trailing empty element (handles Google Docs extra tables, paragraphs, etc.)
             function _isTplElEmpty(el) {
               if (el.textContent.trim()) return false;
               if (el.querySelector('img, svg, canvas, video, iframe')) return false;
@@ -266,28 +308,32 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             }
           }
 
-          htmlContent = `
+          allHtmlParts.push(`
             <style>${tplStyleText}</style>
             <div class="templateAttachBody">
               <div class="templateAttach" style="margin-top:20px; font-family:Arial,sans-serif;">
                 ${tplBody}
               </div>
             </div>
-          `;
+          `);
+        } catch (e) {
+          console.warn("Error loading contract template:", fileName, e);
         }
       }
-    }
 
-    let companies = [];
-    let users = [];
-    try {
-      const crmState = await loadState();
-      companies = Array.isArray(crmState?.companies) ? crmState.companies : [];
-      users = Array.isArray(crmState?.users) ? crmState.users : [];
-    } catch (err) {
-      console.error("Error loading CRM state for print:", err);
-    }
+      // Determine header image based on first selected template
+      if (allHtmlParts.length > 0) {
+        const firstTplId = selectedIds[0];
+        const firstMatched = ctpls.find(t => String(t.id) === String(firstTplId));
+        if (firstMatched && firstMatched.filename && /serv/i.test(firstMatched.filename)) {
+          isServiHospTemplate = true;
+        } else if (firstTplId === "contrato_hosp") {
+          isServiHospTemplate = true;
+        }
+      }
 
+      htmlContent = allHtmlParts.join('<div class="page-break"></div>');
+    }
     let mmContentHtml = "";
     if (printOption === "completa" || printOption === "sin_precios") {
       let quoteWithMm = quote;

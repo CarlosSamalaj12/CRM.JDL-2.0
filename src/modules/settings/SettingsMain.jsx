@@ -8,6 +8,8 @@ import UserModal from './UserModal';
 import SettingsServicios from './SettingsServicios';
 import SettingsPlantillas from './SettingsPlantillas';
 import SettingsFormasPago from './SettingsFormasPago';
+import SettingsPlantillasContrato from './SettingsPlantillasContrato';
+import SettingsTipoCambio from './SettingsTipoCambio';
 import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
@@ -246,6 +248,32 @@ export default function SettingsMain() {
     );
   }
 
+  if (activeInlineView === 'plantillas-contrato') {
+    return (
+      <div className="settings-page">
+        <div className="reports-page-header" style={{ flexShrink: 0 }}>
+          <div className="reports-brand-header">
+            <div className="reports-brand-badge">
+              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+            </div>
+            <div>
+              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-title">Panel de Configuración</div>
+              <div className="reports-subtitle">Configura qué plantilla HTML va con cada tipo de contrato</div>
+            </div>
+          </div>
+          <button className="btn-exit" type="button" onClick={closeView}>
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+            Volver
+          </button>
+        </div>
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <SettingsPlantillasContrato inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
   if (activeInlineView === 'formas-pago') {
     return (
       <div className="settings-page">
@@ -277,6 +305,32 @@ export default function SettingsMain() {
             </div>
             <SettingsFormasPago />
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'tipo-cambio') {
+    return (
+      <div className="settings-page">
+        <div className="reports-page-header" style={{ flexShrink: 0 }}>
+          <div className="reports-brand-header">
+            <div className="reports-brand-badge">
+              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+            </div>
+            <div>
+              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-title">Panel de Configuración</div>
+              <div className="reports-subtitle">Define el tipo de cambio USD a GTQ para conversión de cotizaciones</div>
+            </div>
+          </div>
+          <button className="btn-exit" type="button" onClick={closeView}>
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+            Volver
+          </button>
+        </div>
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <SettingsTipoCambio inline onBack={closeView} />
         </div>
       </div>
     );
@@ -448,6 +502,23 @@ export default function SettingsMain() {
                   <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
                 </div>
 
+                <div className="settings-bento-card" onClick={() => openView('tipo-cambio')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                      </svg>
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Tipo de Cambio USD → GTQ</h3>
+                      <p className="settings-bento-desc">
+                        Define el tipo de cambio para convertir cotizaciones en Dólares a Quetzales en reportes y métricas.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                </div>
+
                 <div className="settings-bento-card" onClick={() => openView('metas')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
@@ -580,6 +651,27 @@ export default function SettingsMain() {
                       <h3 className="settings-bento-title">Plantillas de Cotización</h3>
                       <p className="settings-bento-desc">
                         Administra las plantillas de servicios rápidos que aparecen en la sección de cotizaciones.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                </div>
+
+                <div className="settings-bento-card" onClick={() => openView('plantillas-contrato')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                      </svg>
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Plantillas de Contrato</h3>
+                      <p className="settings-bento-desc">
+                        Configura qué archivo HTML (Jardines.html, ServiHosp.html) se usa para cada tipo de contrato.
                       </p>
                     </div>
                   </div>

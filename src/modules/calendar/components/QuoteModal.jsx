@@ -169,6 +169,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [companies, setCompanies] = useState([]);
   const [catalogServices, setCatalogServices] = useState([]);
   const [quickTemplates, setQuickTemplates] = useState([]);
+  const [contractTemplates, setContractTemplates] = useState([]);
   const [serviceSearch, setServiceSearch] = useState('');
   const [selectedCatalogService, setSelectedCatalogService] = useState(null);
   const [selectedServiceDate, setSelectedServiceDate] = useState('');
@@ -226,7 +227,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     discountValue: event?.quote?.discountValue || 0,
     items: event?.quote?.items || [],
     advances: event?.quote?.advances || [],
-    templateId: event?.quote?.templateId || 'contrato_corp',
+    templateId: event?.quote?.templateId || '',
+    templateIds: Array.isArray(event?.quote?.templateIds)
+      ? event?.quote?.templateIds
+      : (event?.quote?.templateId ? [event?.quote?.templateId] : []),
     currency: event?.quote?.currency || 'GTQ',
     internalNotes: event?.quote?.internalNotes || '',
     version: event?.quote?.version || 1,
@@ -250,6 +254,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       setCompanies(data?.companies || []);
       setCatalogServices(data?.services || []);
       setQuickTemplates(data?.quoteServiceTemplates || data?.quickTemplates || []);
+      setContractTemplates(Array.isArray(data?.contractTemplates) ? data.contractTemplates : []);
       if (!quote.code) {
         const evs = data?.events || [];
         let maxCOT = 0;
@@ -775,6 +780,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         discountAmount: totals.discountAmount,
         total: totals.total,
         quotedAt: new Date().toISOString(),
+        templateIds: Array.isArray(quote.templateIds) ? quote.templateIds : (quote.templateId ? [quote.templateId] : []),
       };
 
       if (typeof onSave === 'function') {
@@ -3378,12 +3384,52 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               </select>
             </div>
             <div style={{ flex: '1 1 180px' }}>
-              <label style={fieldLabel}>Plantilla contrato</label>
-              <select style={fieldSelect} value={quote.templateId} onChange={e => setQuote(p => ({ ...p, templateId: e.target.value }))}>
-                <option value="">— Sin plantilla —</option>
-                <option value="contrato_corp">Jardines (Corporativo)</option>
-                <option value="contrato_hosp">Servicios de Hospitalidad</option>
-              </select>
+              <label style={fieldLabel}>Plantillas contrato</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 8px', background: '#fff' }}>
+                {contractTemplates.length === 0 ? (
+                  <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>
+                    Sin plantillas configuradas
+                  </span>
+                ) : (
+                  <>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b', cursor: 'pointer', padding: '3px 4px', borderRadius: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={quote.templateIds.length === 0}
+                        onChange={() => setQuote(p => ({ ...p, templateIds: [] }))}
+                        style={{ accentColor: '#64748b' }}
+                      />
+                      <span>— Ninguna —</span>
+                    </label>
+                    <div style={{ borderTop: '1px solid #f1f5f9', margin: '2px 0' }} />
+                    {contractTemplates.map(tpl => {
+                      const checked = quote.templateIds.includes(tpl.id);
+                      return (
+                        <label key={tpl.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          fontSize: 11, color: '#334155', cursor: 'pointer',
+                          padding: '4px 4px', borderRadius: 4,
+                          background: checked ? '#f0fdf4' : 'transparent',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setQuote(p => ({
+                              ...p,
+                              templateIds: checked
+                                ? p.templateIds.filter(id => id !== tpl.id)
+                                : [...p.templateIds, tpl.id]
+                            }))}
+                            style={{ accentColor: '#16a34a' }}
+                          />
+                          <span style={{ fontWeight: checked ? 700 : 400 }}>{tpl.name}</span>
+                          <span style={{ fontSize: 9, color: '#94a3b8' }}>({tpl.filename})</span>
+                        </label>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
             </div>
             <div style={{ flex: '1 1 140px' }}>
               <label style={fieldLabel}>Moneda</label>
