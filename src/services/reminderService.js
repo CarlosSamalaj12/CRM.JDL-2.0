@@ -113,14 +113,13 @@ export const reminderService = {
     const allReminders = [];
     const now = new Date();
     const currentUser = authService.getCurrentUser();
-    const isAdmin = currentUser?.role === 'admin';
 
     Object.entries(reminders).forEach(([eventId, eventReminders]) => {
       eventReminders.forEach(rem => {
-        // Filtrar por usuario: admin ve todo, los demás solo sus propias citas.
+        // Filtrar por usuario: solo ver sus propias citas.
         const creatorId = rem.createdBy || rem.createdByUserId;
         const isMine = !creatorId || creatorId === currentUser?.id;
-        if (!isAdmin && !isMine) return;
+        if (!isMine) return;
 
         const reminderDateTime = new Date(`${rem.date}T${rem.time}:00`);
         if (reminderDateTime >= now) {

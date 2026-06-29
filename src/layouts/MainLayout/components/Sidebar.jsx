@@ -155,7 +155,6 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     const allRems = propsRemindersProp || {};
     const allEvents = propsEvents || [];
     const currentUser = authService.getCurrentUser();
-    const isAdmin = currentUser?.role === 'admin';
     const now = new Date();
 
     const flat = [];
@@ -163,7 +162,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
       const event = allEvents.find(e => e.id === eventId) || {};
       evRems.forEach(r => {
         const isMine = !r.createdBy || r.createdBy === currentUser?.id;
-        if (!isAdmin && !isMine) return;
+        if (!isMine) return;
 
         const reminderDateTime = new Date(`${r.date}T${r.time}:00`);
         if (reminderDateTime < now) return;

@@ -4,15 +4,11 @@ import { STATUS_META } from '../calendar/constants';
 import '../../styles/tooltips.css';
 
 const LEADS_PIPELINE_STATUSES = [
-  'Reserva sin Cotizacion',
-  '1er Cotizacion',
-  'Seguimiento',
-  'Lista de Espera',
-  'Pre reserva',
-  'Perdido'
+  'Confirmado'
 ];
 
 const STATUS_DESCRIPTIONS = {
+  'Confirmado': 'Reserva confirmada con anticipo/pago',
   'Reserva sin Cotizacion': 'Cliente potencial recién agregado, sin cotización creada',
   '1er Cotizacion': 'Se generó la primera cotización, pendiente de revisión',
   'Seguimiento': 'Cotización enviada, en proceso de seguimiento con el cliente',
