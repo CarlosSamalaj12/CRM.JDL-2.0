@@ -241,7 +241,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       const { default: jsPDF } = await import('jspdf');
       const el = reportRef.current;
       if (!el) { setPdfLoading(false); return; }
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfW = pdf.internal.pageSize.getWidth();

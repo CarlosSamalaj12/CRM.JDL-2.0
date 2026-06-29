@@ -133,7 +133,22 @@ export default function InformeView() {
       const { default: jsPDF } = await import('jspdf');
       const el = docRef.current;
       if (!el) return;
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
+
+      // Esperar a que se carguen todas las imágenes dentro del documento para evitar ancho/alto de 0 en el canvas
+      const imgs = Array.from(el.querySelectorAll('img')).filter(img => !img.complete);
+      if (imgs.length > 0) {
+        await Promise.race([
+          Promise.all(imgs.map(img => new Promise(r => { img.onload = r; img.onerror = r; }))),
+          new Promise(r => setTimeout(r, 5000)) // timeout de 5 segundos máximo
+        ]);
+      }
+
+      const canvas = await html2canvas(el, { 
+        scale: 2, 
+        backgroundColor: '#ffffff', 
+        logging: false,
+        useCORS: true 
+      });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfW = pdf.internal.pageSize.getWidth();
