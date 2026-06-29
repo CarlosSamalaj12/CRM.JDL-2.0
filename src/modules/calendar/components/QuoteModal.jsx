@@ -3403,8 +3403,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         {/* ── BODY SCROLLABLE ── */}
         <div id="qp-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 32px' }}>
 
-          {/* ── Barra versión + plantilla ── */}
-          <div style={{ ...card, marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+          {/* ── CONTENEDOR SUPERIOR FIJO/STICKY ── */}
+          <div
+            className="qp-sticky-top-bar"
+            style={{
+              position: 'sticky',
+              top: '-14px',
+              zIndex: 900,
+              background: '#f1f5f9',
+              paddingTop: '14px',
+              paddingBottom: '12px',
+              marginTop: '-14px',
+              marginLeft: '-18px',
+              marginRight: '-18px',
+              paddingLeft: '18px',
+              paddingRight: '18px',
+              borderBottom: '1px solid #cbd5e1',
+              marginBottom: '14px',
+              flexShrink: 0
+            }}
+          >
+            {/* ── Barra versión + plantilla ── */}
+            <div style={{ ...card, marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
             <div style={{ flex: '1 1 180px' }}>
               <label style={fieldLabel}>Versión de cotización</label>
               <select style={fieldSelect} value={quote.version} onChange={e => setQuote(p => ({ ...p, version: parseInt(e.target.value) || 1 }))}>
@@ -3775,12 +3795,25 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               </div>
             </div>
           )}
+          </div>
 
           {/* ── Grid principal: izquierda (agregar servicios) + derecha (tabla) ── */}
           <div className="qp-main-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 12, alignItems: 'start' }}>
 
             {/* ════ PANEL IZQUIERDO ════ */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div
+              className="qp-sticky-left-panel"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                position: 'sticky',
+                top: '90px',
+                maxHeight: 'calc(100vh - 180px)',
+                overflowY: 'auto',
+                scrollbarWidth: 'thin'
+              }}
+            >
 
               {/* Buscar servicio */}
               <div style={card}>
