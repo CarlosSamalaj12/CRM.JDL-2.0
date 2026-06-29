@@ -325,21 +325,18 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
           }
         }
       `}</style>
-    <div className="app-modal-container" style={{
+    <div className="modal mini" style={{
       width: '480px',
       maxWidth: 'calc(100vw - 40px)',
-      background: 'white',
-      borderRadius: '20px',
-      boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.25)',
       overflow: 'hidden'
     }}>
       {/* Header */}
-      <div className="app-modal-header" style={headerStyle}>
+      <div className="modalHeader" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>📅 Citas y Recordatorios</h2>
-          <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>{eventName}</p>
+          <h2 id="appointmentTitle" className="modalTitle" style={{ margin: 0, fontWeight: '800' }}>📅 Citas y Recordatorios</h2>
+          <p className="modalSubtitle" style={{ margin: '4px 0 0' }}>{eventName}</p>
         </div>
-        <button onClick={onClose} className="btn-exit" style={{
+        <button onClick={onClose} id="btnAppointmentClose" className="btn-exit" style={{
           width: '36px', height: '36px', borderRadius: '50%', padding: '0',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         }}>
@@ -350,7 +347,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
       </div>
 
       {/* Body */}
-      <div className="app-modal-body" style={bodyStyle}>
+      <div className="modalBody" style={{ padding: '24px', maxHeight: '550px', overflowY: 'auto' }}>
         {!showForm ? (
           <>
             {loading ? (
@@ -460,8 +457,8 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
               <textarea value={newReminder.notes} onChange={e => setNewReminder(prev => ({ ...prev, notes: e.target.value }))} placeholder="Detalles de la cita..." style={{ ...inputStyle, minHeight: '80px', resize: 'none' }} />
             </div>
             <div className="app-modal-btn-row" style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-              <button onClick={() => { setShowForm(false); setEditingReminderId(null); }} className="btn-cancel" style={{ width: '50%', padding: '12px' }}>Cancelar</button>
-              <button onClick={handleAddOrUpdate} disabled={saving} className="btn-teal" style={{ width: '50%', padding: '12px', opacity: saving ? 0.7 : 1 }}>
+              <button onClick={() => { setShowForm(false); setEditingReminderId(null); }} className="btnSecondary" style={{ width: '50%', padding: '12px' }}>Cancelar</button>
+              <button onClick={handleAddOrUpdate} disabled={saving} className="btnPrimary" style={{ width: '50%', padding: '12px', opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Guardando...' : editingReminderId ? 'Actualizar Cita' : 'Guardar Cita'}
               </button>
             </div>
@@ -472,7 +469,7 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
       {/* Footer */}
       {!showForm && (
         <div className="app-modal-footer" style={footerStyle}>
-          <button onClick={() => setShowForm(true)} className="btn-cotizar" style={{
+          <button onClick={() => setShowForm(true)} className="btnPrimary" style={{
             width: '100%',
             padding: '14px',
             borderRadius: '12px',

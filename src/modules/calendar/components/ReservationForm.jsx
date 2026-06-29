@@ -1718,7 +1718,7 @@ export default function ReservationForm() {
       `}</style>
 
       {showAppointmentModal && id && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div id="appointmentBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()}>
             <AppointmentModal eventId={id} eventName={formData.name} onClose={() => setShowAppointmentModal(false)} onSaved={refreshData} />
           </div>
