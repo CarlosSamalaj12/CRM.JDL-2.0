@@ -3562,8 +3562,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           }} onClick={() => setShowDocPanel(false)}>
             <div 
               style={{
-                width: '640px',
-                maxWidth: '100%',
+                width: '1050px',
+                maxWidth: '95vw',
                 maxHeight: '90vh',
                 background: '#ffffff',
                 borderRadius: '16px',

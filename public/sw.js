@@ -38,7 +38,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   // 1. Skip API and Socket.io requests entirely (do not cache)
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io')) {
+  if (
+    url.pathname.includes('api') || 
+    url.pathname.includes('socket.io') ||
+    request.url.includes('api') ||
+    request.url.includes('socket.io')
+  ) {
     return;
   }
 
