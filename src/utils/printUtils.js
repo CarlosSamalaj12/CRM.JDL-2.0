@@ -201,6 +201,11 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     }
 
     if (selectedIds.length > 0 && printOption !== "sin_precios") {
+      console.log("=== generateQuotePrintDocument Debug ===");
+      console.log("selectedIds:", selectedIds);
+      console.log("eventType:", quote.eventType);
+      console.log("quote.templateIds:", quote.templateIds);
+      console.log("quote.templateId:", quote.templateId);
       const ctpls = Array.isArray(quote.contractTemplates) ? quote.contractTemplates : [];
       const allHtmlParts = [];
 
@@ -252,6 +257,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           }
         }
 
+        console.log(`Processing tplId: "${tplId}" -> fileName: "${fileName}" -> resolvedFileName: "${resolvedFileName}"`);
         try {
           const res = await fetch(`/templates/${resolvedFileName}`);
           if (!res.ok) continue;
