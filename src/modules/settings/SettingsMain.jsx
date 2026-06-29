@@ -671,7 +671,7 @@ export default function SettingsMain() {
                     <div className="settings-bento-info">
                       <h3 className="settings-bento-title">Plantillas de Contrato</h3>
                       <p className="settings-bento-desc">
-                        Configura las plantillas de contrato HTML base usadas para cada tipo de impresión.
+                        Configura qué archivo HTML (Jardines.html, ServiHosp.html) se usa para cada tipo de contrato.
                       </p>
                     </div>
                   </div>

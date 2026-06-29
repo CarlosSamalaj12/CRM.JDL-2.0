@@ -1250,12 +1250,8 @@ async function readStateFromTables() {
     }
     if (!state.contractTemplates.length) {
       state.contractTemplates = [
-        { id: 'ctpl_jardines_corp', name: 'Jardines (Corporativo)', filename: 'Jardines_Corp.html', headerImage: 'Encabezadojdl.png', footerImage: '' },
-        { id: 'ctpl_jardines_soci', name: 'Jardines (Social)', filename: 'Jardines_Soci.html', headerImage: 'Encabezadojdl.png', footerImage: '' },
-        { id: 'ctpl_jardines_hab', name: 'Jardines (Habitaciones)', filename: 'Jardines_Hab.html', headerImage: 'Encabezadojdl.png', footerImage: '' },
-        { id: 'ctpl_servihosp_corp', name: 'ServiHosp (Corporativo)', filename: 'ServiHosp_Corp.html', headerImage: 'EncabezadoServ.jpg', footerImage: 'piedepaginajdl.png' },
-        { id: 'ctpl_servihosp_soci', name: 'ServiHosp (Social)', filename: 'ServiHosp_Soci.html', headerImage: 'EncabezadoServ.jpg', footerImage: 'piedepaginajdl.png' },
-        { id: 'ctpl_servihosp_hab', name: 'ServiHosp (Habitaciones)', filename: 'ServiHosp_Hab.html', headerImage: 'EncabezadoServ.jpg', footerImage: 'piedepaginajdl.png' },
+        { id: 'ctpl_jardines', name: 'Jardines', filename: 'Jardines.html', headerImage: 'Encabezadojdl.png', footerImage: '' },
+        { id: 'ctpl_servihosp', name: 'ServiHosp', filename: 'ServiHosp.html', headerImage: 'EncabezadoServ.jpg', footerImage: 'piedepaginajdl.png' },
       ];
     }
     const disabledCompaniesRow = appStateRows.find((r) => str(r.clave) === "disabledCompanies");

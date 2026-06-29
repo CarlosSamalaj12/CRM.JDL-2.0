@@ -90,9 +90,9 @@ export default function SettingsPlantillasContrato({ inline }) {
     }
   };
 
-  const availableHtmlFiles = ['Jardines_Corp.html', 'Jardines_Soci.html', 'Jardines_Hab.html', 'ServiHosp_Corp.html', 'ServiHosp_Soci.html', 'ServiHosp_Hab.html', 'Jardines.html', 'ServiHosp.html'];
+  const availableHtmlFiles = ['Jardines.html', 'ServiHosp.html'];
   const availableHeaders = ['Encabezadojdl.png', 'EncabezadoServ.jpg'];
-  const availableFooters = ['piedepaginajdl.png', ''];
+  const availableFooters = ['piedepaginajdl.png'];
 
   if (loading) {
     return <div style={{ padding: 20, color: '#64748b' }}>Cargando...</div>;

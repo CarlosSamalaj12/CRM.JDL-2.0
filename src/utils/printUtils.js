@@ -232,8 +232,28 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
 
         if (!fileName) continue;
 
+        let resolvedFileName = fileName;
+        const eventType = String(quote.eventType || '').toUpperCase().trim();
+        if (fileName === "Jardines.html") {
+          if (eventType === "CORPORATIVO") {
+            resolvedFileName = "Jardines_Corp.html";
+          } else if (eventType === "HABITACIONES" || eventType.includes("HABITACION") || eventType.includes("HOSPED")) {
+            resolvedFileName = "Jardines_Hab.html";
+          } else {
+            resolvedFileName = "Jardines_Soci.html";
+          }
+        } else if (fileName === "ServiHosp.html") {
+          if (eventType === "CORPORATIVO") {
+            resolvedFileName = "ServiHosp_Corp.html";
+          } else if (eventType === "HABITACIONES" || eventType.includes("HABITACION") || eventType.includes("HOSPED")) {
+            resolvedFileName = "ServiHosp_Hab.html";
+          } else {
+            resolvedFileName = "ServiHosp_Soci.html";
+          }
+        }
+
         try {
-          const res = await fetch(`/templates/${fileName}`);
+          const res = await fetch(`/templates/${resolvedFileName}`);
           if (!res.ok) continue;
           let tplHtml = await res.text();
           tplHtml = tplHtml.replace(/src="([a-zA-Z0-9_.-]+)"/g, 'src="/templates/$1"');
