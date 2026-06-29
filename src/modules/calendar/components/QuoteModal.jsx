@@ -3450,21 +3450,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap' }}>Contrato</div>
               <div style={{ display: 'flex', gap: 4 }}>
-                <button
-                  type="button"
-                  onClick={() => setQuote(p => ({ ...p, templateIds: [] }))}
-                  title="Ninguna plantilla de contrato"
-                  style={{
-                    padding: '0 12px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-                    border: `1.5px solid ${quote.templateIds.length === 0 ? '#64748b' : '#cbd5e1'}`,
-                    background: quote.templateIds.length === 0 ? '#f1f5f9' : '#ffffff',
-                    color: quote.templateIds.length === 0 ? '#475569' : '#64748b',
-                    transition: 'all 0.12s', userSelect: 'none', height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  Ninguna
-                </button>
                 {contractTemplates.map(tpl => {
                   const checked = quote.templateIds.includes(tpl.id);
                   return (
@@ -3562,300 +3547,378 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           </div>
         </div>
 
-        {/* ── Panel datos empresa (colapsable) ── */}
+        {/* ── Panel datos empresa (modal) ── */}
         {showDocPanel && (
-          <div style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #cbd5e1', padding: '16px 20px', zIndex: 999 }}>
-              <div className="eyebrow">Datos de la cotización</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px 24px', marginTop: 10 }}>
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 1000000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }} onClick={() => setShowDocPanel(false)}>
+            <div 
+              style={{
+                width: '640px',
+                maxWidth: '100%',
+                maxHeight: '90vh',
+                background: '#ffffff',
+                borderRadius: '16px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '16px 24px',
+                borderBottom: '1px solid #e2e8f0',
+                background: '#f8fafc'
+              }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>📄 Datos de la Cotización / Empresa</div>
+                <button 
+                  type="button" 
+                  className="qp-close-btn" 
+                  onClick={() => setShowDocPanel(false)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    padding: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="16" height="16">
+                    <path d="M4 4l10 10M14 4l-10 10" />
+                  </svg>
+                </button>
+              </div>
 
-                {/* col 1 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* ── Campo Institución con dropdown ── */}
-                  <div ref={institutionFieldRef}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <label style={{ ...fieldLabel, marginBottom: 0 }}>Institución</label>
-                      <button
-                        type="button"
-                        onClick={openCreateCompanyModal}
-                        style={{ 
-                          minHeight: 28, 
-                          padding: '0 12px', 
-                          fontSize: 11, 
-                          fontWeight: 900, 
-                          background: '#2563eb', 
-                          color: '#ffffff', 
-                          borderRadius: '6px', 
-                          border: 'none', 
-                          boxShadow: '0 2px 4px rgba(37,99,235,0.2)', 
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          transition: 'background .12s'
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
-                      >
-                        + Agregar empresa
-                      </button>
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        style={fieldInput}
-                        value={companySearchQuery}
-                        onChange={e => { setCompanySearchQuery(e.target.value); setShowCompanyResults(true); }}
-                        onFocus={() => setShowCompanyResults(true)}
-                        onBlur={() => setTimeout(() => setShowCompanyResults(false), 200)}
-                        placeholder="Buscar institución..."
-                      />
-                      {showCompanyResults && filteredCompanies.length > 0 && (
-                        <div className="qp-company-drop">
-                          {filteredCompanies.map(c => (
-                            <div key={c.id} onMouseDown={e => { e.preventDefault(); handleCompanySelect(c); }}>
-                              {c.name}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {selectedQuoteCompany && Array.isArray(selectedQuoteCompany.managers) && selectedQuoteCompany.managers.length > 0 && (
-                    <div>
-                      <label style={fieldLabel}>Encargado de la empresa</label>
-                      <select
-                        style={fieldSelect}
-                        value={quote.managerId || selectedQuoteCompany.managers[0]?.id || ''}
-                        onChange={e => applyCompanyManager(selectedQuoteCompany, e.target.value)}
-                      >
-                        {selectedQuoteCompany.managers.map(manager => (
-                          <option key={manager.id || manager.name} value={manager.id || manager.name}>
-                            {manager.name || 'Encargado'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {[
-                    { label: 'Contacto (Encargado de la empresa)', key: 'contact', type: 'text' },
-                    { label: 'Email', key: 'email', type: 'email' },
-                    { label: 'Teléfono', key: 'phone', type: 'text' },
-                    { label: 'NIT', key: 'nit', type: 'text' },
-                    { label: 'Facturar a', key: 'billTo', type: 'text' },
-                    { label: 'Dirección', key: 'address', type: 'text' },
-                  ].map(f => (
-                    <div key={f.key}>
-                      <label style={fieldLabel}>{f.label}</label>
-                      <input 
-                        style={fieldInput} 
-                        type={f.type} 
-                        value={quote[f.key] || ''} 
-                        onChange={e => {
-                          let val = e.target.value;
-                          if (f.key === 'phone') {
-                            val = val.replace(/\D/g, '');
-                          }
-                          setQuote(p => ({ ...p, [f.key]: val }));
-                        }} 
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* col 2 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Tipo de evento - Solo lectura */}
-                  <div>
-                    <label style={fieldLabel}>Tipo de evento</label>
-                    <input 
-                      style={{ ...fieldInput, background: '#f1f5f9', cursor: 'not-allowed' }} 
-                      type="text" 
-                      value={quote.eventType || ''} 
-                      readOnly
-                    />
-                  </div>
-                  
-                  {/* Salón / Venue */}
-                  <div>
-                    <label style={fieldLabel}>Salón / Venue</label>
-                    <input 
-                      style={fieldInput} 
-                      type="text" 
-                      value={quote.venue || ''} 
-                      onChange={e => setQuote(p => ({ ...p, venue: e.target.value }))}
-                    />
-                  </div>
-                  
-                  {/* Horario */}
-                  <div>
-                    <label style={fieldLabel}>Horario</label>
-                    <input 
-                      style={fieldInput} 
-                      type="text" 
-                      value={quote.schedule || ''} 
-                      onChange={e => setQuote(p => ({ ...p, schedule: e.target.value }))}
-                    />
-                  </div>
-                  
-                  {/* Código - Solo lectura */}
-                  <div>
-                    <label style={fieldLabel}>Código</label>
-                    <input 
-                      style={{ ...fieldInput, background: '#f1f5f9', cursor: 'not-allowed' }} 
-                      type="text" 
-                      value={quote.code || ''} 
-                      readOnly
-                    />
-                  </div>
-                  
-                  {/* Número de Folio */}
-                  <div>
-                    <label style={fieldLabel}>No. Folio</label>
-                    <input 
-                      style={fieldInput} 
-                      type="text" 
-                      value={quote.folio || ''} 
-                      onChange={e => setQuote(p => ({ ...p, folio: e.target.value }))}
-                      placeholder="Ej: FOL-001"
-                    />
-                  </div>
-                  
-                  {/* Fecha documento */}
-                  <div>
-                    <label style={fieldLabel}>Fecha documento</label>
-                    <input 
-                      style={fieldInput} 
-                      type="date" 
-                      value={quote.docDate || ''} 
-                      onChange={e => setQuote(p => ({ ...p, docDate: e.target.value }))}
-                    />
-                  </div>
-                  
-                  {/* No. personas */}
-                  <div>
-                    <label style={fieldLabel}>No. personas</label>
-                    <input 
-                      style={fieldInput} 
-                      type="number" 
-                      value={quote.people || ''} 
-                      onChange={e => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        setQuote(p => ({ ...p, people: val }));
-                      }}
-                    />
-                  </div>
-                  
-                  {/* Fecha evento */}
-                  <div>
-                    <label style={fieldLabel}>Fecha evento</label>
-                    <input 
-                      style={fieldInput} 
-                      type="date" 
-                      value={quote.eventDate || ''} 
-                      onChange={e => {
-                        const val = e.target.value;
-                        setQuote(p => {
-                          const next = { ...p, eventDate: val };
-                          if (val && (p.companyId || p.companyName)) {
-                            next.dueDate = calculateDueDate(val);
-                          }
-                          return next;
-                        });
-                      }}
-                    />
-                  </div>
-                  
-                  {/* Fecha fin */}
-                  <div>
-                    <label style={fieldLabel}>Fecha fin</label>
-                    <input 
-                      style={fieldInput} 
-                      type="date" 
-                      value={quote.endDate || ''} 
-                      onChange={e => setQuote(p => ({ ...p, endDate: e.target.value }))}
-                    />
-                  </div>
-                  
-                  {/* Fecha límite pago */}
-                  <div>
-                    <label style={fieldLabel}>Fecha límite pago</label>
-                    <input 
-                      style={fieldInput} 
-                      type="date" 
-                      value={quote.dueDate || ''} 
-                      onChange={e => setQuote(p => ({ ...p, dueDate: e.target.value }))}
-                    />
-                  </div>
-                  
-                  {/* Forma de pago - Selección múltiple */}
-                  <div>
-                    <label style={fieldLabel}>Forma de pago</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-                      {(quote.paymentTypes || []).map((type, idx) => (
-                        <span 
-                          key={idx}
-                          style={{
+              {/* Modal Body (Scrollable) */}
+              <div style={{
+                padding: '24px',
+                overflowY: 'auto',
+                flex: 1
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px 24px' }}>
+                  {/* col 1 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* ── Campo Institución con dropdown ── */}
+                    <div ref={institutionFieldRef}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <label style={{ ...fieldLabel, marginBottom: 0 }}>Institución</label>
+                        <button
+                          type="button"
+                          onClick={openCreateCompanyModal}
+                          style={{ 
+                            minHeight: 28, 
+                            padding: '0 12px', 
+                            fontSize: 11, 
+                            fontWeight: 900, 
+                            background: '#2563eb', 
+                            color: '#ffffff', 
+                            borderRadius: '6px', 
+                            border: 'none', 
+                            boxShadow: '0 2px 4px rgba(37,99,235,0.2)', 
+                            cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
-                            padding: '4px 10px',
-                            background: '#e0f2fe',
-                            color: '#0369a1',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: 600,
+                            transition: 'background .12s'
                           }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
                         >
-                          {type}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newTypes = (quote.paymentTypes || []).filter((_, i) => i !== idx);
-                              setQuote(p => ({ ...p, paymentTypes: newTypes, paymentType: newTypes.join(', ') }));
-                            }}
+                          + Agregar empresa
+                        </button>
+                      </div>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          style={fieldInput}
+                          value={companySearchQuery}
+                          onChange={e => { setCompanySearchQuery(e.target.value); setShowCompanyResults(true); }}
+                          onFocus={() => setShowCompanyResults(true)}
+                          onBlur={() => setTimeout(() => setShowCompanyResults(false), 200)}
+                          placeholder="Buscar institución..."
+                        />
+                        {showCompanyResults && filteredCompanies.length > 0 && (
+                          <div className="qp-company-drop">
+                            {filteredCompanies.map(c => (
+                              <div key={c.id} onMouseDown={e => { e.preventDefault(); handleCompanySelect(c); }}>
+                                {c.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedQuoteCompany && Array.isArray(selectedQuoteCompany.managers) && selectedQuoteCompany.managers.length > 0 && (
+                      <div>
+                        <label style={fieldLabel}>Encargado de la empresa</label>
+                        <select
+                          style={fieldSelect}
+                          value={quote.managerId || selectedQuoteCompany.managers[0]?.id || ''}
+                          onChange={e => applyCompanyManager(selectedQuoteCompany, e.target.value)}
+                        >
+                          {selectedQuoteCompany.managers.map(manager => (
+                            <option key={manager.id || manager.name} value={manager.id || manager.name}>
+                              {manager.name || 'Encargado'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {[
+                      { label: 'Contacto (Encargado de la empresa)', key: 'contact', type: 'text' },
+                      { label: 'Email', key: 'email', type: 'email' },
+                      { label: 'Teléfono', key: 'phone', type: 'text' },
+                      { label: 'NIT', key: 'nit', type: 'text' },
+                      { label: 'Facturar a', key: 'billTo', type: 'text' },
+                      { label: 'Dirección', key: 'address', type: 'text' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label style={fieldLabel}>{f.label}</label>
+                        <input 
+                          style={fieldInput} 
+                          type={f.type} 
+                          value={quote[f.key] || ''} 
+                          onChange={e => {
+                            let val = e.target.value;
+                            if (f.key === 'phone') {
+                              val = val.replace(/\D/g, '');
+                            }
+                            setQuote(p => ({ ...p, [f.key]: val }));
+                          }} 
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* col 2 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Tipo de evento - Solo lectura */}
+                    <div>
+                      <label style={fieldLabel}>Tipo de evento</label>
+                      <input 
+                        style={{ ...fieldInput, background: '#f1f5f9', cursor: 'not-allowed' }} 
+                        type="text" 
+                        value={quote.eventType || ''} 
+                        readOnly
+                      />
+                    </div>
+                    
+                    {/* Salón / Venue */}
+                    <div>
+                      <label style={fieldLabel}>Salón / Venue</label>
+                      <input 
+                        style={fieldInput} 
+                        type="text" 
+                        value={quote.venue || ''} 
+                        onChange={e => setQuote(p => ({ ...p, venue: e.target.value }))}
+                      />
+                    </div>
+                    
+                    {/* Horario */}
+                    <div>
+                      <label style={fieldLabel}>Horario</label>
+                      <input 
+                        style={fieldInput} 
+                        type="text" 
+                        value={quote.schedule || ''} 
+                        onChange={e => setQuote(p => ({ ...p, schedule: e.target.value }))}
+                      />
+                    </div>
+                    
+                    {/* Código - Solo lectura */}
+                    <div>
+                      <label style={fieldLabel}>Código</label>
+                      <input 
+                        style={{ ...fieldInput, background: '#f1f5f9', cursor: 'not-allowed' }} 
+                        type="text" 
+                        value={quote.code || ''} 
+                        readOnly
+                      />
+                    </div>
+                    
+                    {/* Número de Folio */}
+                    <div>
+                      <label style={fieldLabel}>No. Folio</label>
+                      <input 
+                        style={fieldInput} 
+                        type="text" 
+                        value={quote.folio || ''} 
+                        onChange={e => setQuote(p => ({ ...p, folio: e.target.value }))}
+                        placeholder="Ej: FOL-001"
+                      />
+                    </div>
+                    
+                    {/* Fecha documento */}
+                    <div>
+                      <label style={fieldLabel}>Fecha documento</label>
+                      <input 
+                        style={fieldInput} 
+                        type="date" 
+                        value={quote.docDate || ''} 
+                        onChange={e => setQuote(p => ({ ...p, docDate: e.target.value }))}
+                      />
+                    </div>
+                    
+                    {/* No. personas */}
+                    <div>
+                      <label style={fieldLabel}>No. personas</label>
+                      <input 
+                        style={fieldInput} 
+                        type="number" 
+                        value={quote.people || ''} 
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          setQuote(p => ({ ...p, people: val }));
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Fecha evento */}
+                    <div>
+                      <label style={fieldLabel}>Fecha evento</label>
+                      <input 
+                        style={fieldInput} 
+                        type="date" 
+                        value={quote.eventDate || ''} 
+                        onChange={e => {
+                          const val = e.target.value;
+                          setQuote(p => {
+                            const next = { ...p, eventDate: val };
+                            if (val && (p.companyId || p.companyName)) {
+                              next.dueDate = calculateDueDate(val);
+                            }
+                            return next;
+                          });
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Fecha fin */}
+                    <div>
+                      <label style={fieldLabel}>Fecha fin</label>
+                      <input 
+                        style={fieldInput} 
+                        type="date" 
+                        value={quote.endDate || ''} 
+                        onChange={e => setQuote(p => ({ ...p, endDate: e.target.value }))}
+                      />
+                    </div>
+                    
+                    {/* Fecha límite pago */}
+                    <div>
+                      <label style={fieldLabel}>Fecha límite pago</label>
+                      <input 
+                        style={fieldInput} 
+                        type="date" 
+                        value={quote.dueDate || ''} 
+                        onChange={e => setQuote(p => ({ ...p, dueDate: e.target.value }))}
+                      />
+                    </div>
+                    
+                    {/* Forma de pago - Selección múltiple */}
+                    <div>
+                      <label style={fieldLabel}>Forma de pago</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                        {(quote.paymentTypes || []).map((type, idx) => (
+                          <span 
+                            key={idx}
                             style={{
-                              background: 'none',
-                              border: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '4px 10px',
+                              background: '#e0f2fe',
                               color: '#0369a1',
-                              cursor: 'pointer',
-                              padding: '0',
-                              fontSize: '14px',
-                              lineHeight: 1,
-                              fontWeight: 700,
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: 600,
                             }}
                           >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    <select 
-                      style={fieldInput}
-                      value=""
-                      onChange={e => {
-                        if (e.target.value) {
-                          const newType = e.target.value;
-                          const currentTypes = quote.paymentTypes || [];
-                          if (!currentTypes.includes(newType)) {
-                            const newTypes = [...currentTypes, newType];
-                            setQuote(p => ({ ...p, paymentTypes: newTypes, paymentType: newTypes.join(', ') }));
+                            {type}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newTypes = (quote.paymentTypes || []).filter((_, i) => i !== idx);
+                                setQuote(p => ({ ...p, paymentTypes: newTypes, paymentType: newTypes.join(', ') }));
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#0369a1',
+                                cursor: 'pointer',
+                                padding: '0',
+                                fontSize: '14px',
+                                lineHeight: 1,
+                                fontWeight: 700,
+                              }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <select 
+                        style={fieldInput}
+                        value=""
+                        onChange={e => {
+                          if (e.target.value) {
+                            const newType = e.target.value;
+                            const currentTypes = quote.paymentTypes || [];
+                            if (!currentTypes.includes(newType)) {
+                              const newTypes = [...currentTypes, newType];
+                              setQuote(p => ({ ...p, paymentTypes: newTypes, paymentType: newTypes.join(', ') }));
+                            }
+                            e.target.value = '';
                           }
-                          e.target.value = '';
-                        }
-                      }}
-                    >
-                      <option value="">Seleccionar forma de pago...</option>
-                      {formasPago.map(fp => (
-                        <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
-                      ))}
-                    </select>
+                        }}
+                      >
+                        <option value="">Seleccionar forma de pago...</option>
+                        {formasPago.map(fp => (
+                          <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
+              </div>
 
+              {/* Modal Footer */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                padding: '16px 24px',
+                borderTop: '1px solid #e2e8f0',
+                background: '#f8fafc'
+              }}>
+                <button 
+                  type="button" 
+                  className="qp-btn-primary" 
+                  onClick={() => setShowDocPanel(false)}
+                  style={{ minHeight: 38, padding: '0 20px', borderRadius: 8, fontWeight: 700 }}
+                >
+                  Aceptar
+                </button>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
         {/* ── BODY SCROLLABLE ── */}
         <div id="qp-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 32px' }}>
