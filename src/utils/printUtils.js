@@ -171,32 +171,106 @@ function buildQuoteRowsHtml(items, docCurrency = 'GTQ') {
 }
 
 export const generateQuotePrintDocument = async (quote, user, printOption = "standard", event = null) => {
-  const printWin = window.open("", "_blank");
-  if (!printWin) {
-    modernAlert({ icon: "warning", title: "Bloqueador activo", text: "Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización." });
-    return false;
-  }
-
-  printWin.document.open();
-  printWin.document.write(`<!doctype html><html><head><title>Preparando cotizacion</title></head><body style="font-family:Arial,sans-serif;padding:24px;">Preparando vista previa de cotizacion...</body></html>`);
-  printWin.document.close();
-
   try {
+    // Load CRM state first so contractTemplates are available for template resolution
+    let companies = [];
+    let users = [];
+    let ctplsFromState = [];
+    try {
+      const crmState = await loadState();
+      companies = Array.isArray(crmState?.companies) ? crmState.companies : [];
+      users = Array.isArray(crmState?.users) ? crmState.users : [];
+      ctplsFromState = Array.isArray(crmState?.contractTemplates) ? crmState.contractTemplates : [];
+    } catch (err) {
+      console.error("Error loading CRM state for print:", err);
+    }
+    // Use contractTemplates from state if not already on quote
+    if (!Array.isArray(quote.contractTemplates) || !quote.contractTemplates.length) {
+      quote.contractTemplates = ctplsFromState;
+    }
+
     let htmlContent = "";
-      let isServiHospTemplate = false;
+    let quoteHeaderImage = '';
 
-    if (quote.templateId && printOption !== "sin_precios") {
-      let fileName = "";
-      if (quote.templateId === "contrato_corp" || quote.templateId === "contrato_social") {
-        fileName = "Jardines.html";
-      } else if (quote.templateId === "contrato_hosp") {
-        fileName = "ServiHosp.html";
-        isServiHospTemplate = true;
-      }
+    // Collect selected template IDs (support both legacy single and new multi)
+    const rawSelectedIds = [];
+    if (Array.isArray(quote.templateIds) && quote.templateIds.length > 0) {
+      rawSelectedIds.push(...quote.templateIds);
+    } else if (quote.templateId) {
+      rawSelectedIds.push(quote.templateId);
+    }
 
-      if (fileName) {
-        const res = await fetch(`/templates/${fileName}`);
-        if (res.ok) {
+    // Map legacy IDs to new ones
+    const mappedIds = rawSelectedIds.map(id => {
+      if (id === "contrato_corp" || id === "contrato_social") return "ctpl_jardines";
+      if (id === "contrato_hosp") return "ctpl_servihosp";
+      return id;
+    });
+
+    // Deduplicate
+    const selectedIds = Array.from(new Set(mappedIds));
+
+    if (selectedIds.length > 0 && printOption !== "sin_precios") {
+      console.log("=== generateQuotePrintDocument Debug ===");
+      console.log("selectedIds:", selectedIds);
+      console.log("eventType:", quote.eventType);
+      console.log("quote.templateIds:", quote.templateIds);
+      console.log("quote.templateId:", quote.templateId);
+      const ctpls = Array.isArray(quote.contractTemplates) ? quote.contractTemplates : [];
+      const allHtmlParts = [];
+
+      for (const tplId of selectedIds) {
+        // Resolve template filename
+        let fileName = "";
+        let tplHeaderImage = '';
+        let tplFooterImage = '';
+        const matched = ctpls.find(t => String(t.id) === String(tplId));
+        if (matched) {
+          fileName = matched.filename;
+          tplHeaderImage = matched.headerImage;
+          tplFooterImage = matched.footerImage;
+        }
+        // Legacy fallback for quotes saved before contractTemplates config
+        if (!fileName) {
+          if (tplId === "contrato_corp") {
+            fileName = "Jardines_Corp.html";
+            tplHeaderImage = 'Encabezadojdl.png';
+          } else if (tplId === "contrato_social") {
+            fileName = "Jardines_Soci.html";
+            tplHeaderImage = 'Encabezadojdl.png';
+          } else if (tplId === "contrato_hosp") {
+            fileName = "ServiHosp_Soci.html";
+            tplHeaderImage = 'EncabezadoServ.jpg';
+            tplFooterImage = 'piedepaginajdl.png';
+          }
+        }
+
+        if (!fileName) continue;
+
+        let resolvedFileName = fileName;
+        const eventType = String(quote.eventType || '').toUpperCase().trim();
+        if (fileName === "Jardines.html") {
+          if (eventType === "CORPORATIVO") {
+            resolvedFileName = "Jardines_Corp.html";
+          } else if (eventType === "HABITACIONES" || eventType.includes("HABITACION") || eventType.includes("HOSPED")) {
+            resolvedFileName = "Jardines_Hab.html";
+          } else {
+            resolvedFileName = "Jardines_Soci.html";
+          }
+        } else if (fileName === "ServiHosp.html") {
+          if (eventType === "CORPORATIVO") {
+            resolvedFileName = "ServiHosp_Corp.html";
+          } else if (eventType === "HABITACIONES" || eventType.includes("HABITACION") || eventType.includes("HOSPED")) {
+            resolvedFileName = "ServiHosp_Hab.html";
+          } else {
+            resolvedFileName = "ServiHosp_Soci.html";
+          }
+        }
+
+        console.log(`Processing tplId: "${tplId}" -> fileName: "${fileName}" -> resolvedFileName: "${resolvedFileName}"`);
+        try {
+          const res = await fetch(`/templates/${resolvedFileName}`);
+          if (!res.ok) continue;
           let tplHtml = await res.text();
           tplHtml = tplHtml.replace(/src="([a-zA-Z0-9_.-]+)"/g, 'src="/templates/$1"');
 
@@ -209,21 +283,33 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             ? Array.from(tplDoc.head.querySelectorAll("style")).map((node) => node.textContent || "").join("\n")
             : "";
           const tplStyleText = rawTplStyleText
-            .replace(/@media print\s*\{[\s\S]*?\}(?=\.[a-zA-Z0-9_-]+\{|[a-z]+\{|$)/g, "")
-            .replace(/@page\s*\{[\s\S]*?\}/g, "")
-            .replace(/html,body\{[\s\S]*?\}/g, "");
+            .replace(/@media prints*{[sS]*?}(?=.[a-zA-Z0-9_-]+{|[a-z]+{|$)/g, "")
+            .replace(/@pages*{[sS]*?}/g, "")
+            .replace(/html,body{[sS]*?}/g, "");
 
           let tplBody = tplDoc.body ? tplDoc.body.innerHTML : tplHtml;
 
           if (tplDoc.body) {
-            const headerImg = tplDoc.body.querySelector(".contract-header img, .contract-header-print img");
-            const footerImg = isServiHospTemplate ? null : tplDoc.body.querySelector(".contract-footer img, .contract-footer-print img");
+            // Use configured header/footer images, or fall back to extracting from DOM
+            let headerHtml = '';
+            let footerHtml = '';
+            if (tplHeaderImage) {
+              headerHtml = `<img src="/templates/${tplHeaderImage}" alt="" style="display:block;width:100%;" />`;
+            } else if (tplHeaderImage === undefined) {
+              const headerImg = tplDoc.body.querySelector(".contract-header img, .contract-header-print img");
+              if (headerImg) headerHtml = headerImg.outerHTML;
+            }
+            if (tplFooterImage) {
+              footerHtml = `<img src="/templates/${tplFooterImage}" alt="" style="display:block;width:100%;" />`;
+            } else if (tplFooterImage === undefined) {
+              const footerImg = tplDoc.body.querySelector(".contract-footer img, .contract-footer-print img");
+              if (footerImg) footerHtml = footerImg.outerHTML;
+            }
 
             tplDoc.body
               .querySelectorAll(".contract-header, .contract-header-print, .contract-footer, .contract-footer-print, script")
               .forEach((node) => node.remove());
 
-            // Remove ANY trailing empty element (handles Google Docs extra tables, paragraphs, etc.)
             function _isTplElEmpty(el) {
               if (el.textContent.trim()) return false;
               if (el.querySelector('img, svg, canvas, video, iframe')) return false;
@@ -236,9 +322,20 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               lastChild = prev;
             }
 
-            if (headerImg || footerImg) {
-              const repeatHead = headerImg ? `<tr class="contractPrintHead"><td class="contractPrintCell">${headerImg.outerHTML}</td></tr>` : "";
-              const repeatFoot = footerImg ? `<tr class="contractPrintFoot"><td class="contractPrintCell">${footerImg.outerHTML}</td></tr>` : "";
+            // Determine main document header from first template
+            if (!quoteHeaderImage) {
+              if (tplHeaderImage) {
+                quoteHeaderImage = tplHeaderImage;
+              } else if (tplHeaderImage === undefined && headerHtml) {
+                const srcMatch = headerHtml.match(/src="([^"]+)"/);
+                if (srcMatch) quoteHeaderImage = srcMatch[1].replace('/templates/', '');
+              }
+              if (!quoteHeaderImage) quoteHeaderImage = 'Encabezadojdl.png';
+            }
+
+            if (headerHtml || footerHtml) {
+              const repeatHead = headerHtml ? `<tr class="contractPrintHead"><td class="contractPrintCell">${headerHtml}</td></tr>` : "";
+              const repeatFoot = footerHtml ? `<tr class="contractPrintFoot"><td class="contractPrintCell">${footerHtml}</td></tr>` : "";
               const bodyRows = Array.from(tplDoc.body.children)
                 .map((node) => `<tr class="contractPrintRow"><td class="contractPrintContent">${node.outerHTML}</td></tr>`)
                 .join("");
@@ -266,28 +363,21 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             }
           }
 
-          htmlContent = `
+          allHtmlParts.push(`
             <style>${tplStyleText}</style>
             <div class="templateAttachBody">
               <div class="templateAttach" style="margin-top:20px; font-family:Arial,sans-serif;">
                 ${tplBody}
               </div>
             </div>
-          `;
+          `);
+        } catch (e) {
+          console.warn("Error loading contract template:", fileName, e);
         }
       }
-    }
 
-    let companies = [];
-    let users = [];
-    try {
-      const crmState = await loadState();
-      companies = Array.isArray(crmState?.companies) ? crmState.companies : [];
-      users = Array.isArray(crmState?.users) ? crmState.users : [];
-    } catch (err) {
-      console.error("Error loading CRM state for print:", err);
+      htmlContent = allHtmlParts.join('<div class="page-break"></div>');
     }
-
     let mmContentHtml = "";
     if (printOption === "completa" || printOption === "sin_precios") {
       let quoteWithMm = quote;
@@ -407,7 +497,8 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     const totalAnticiposDoc = advances.reduce((sum, advance) => sum + Number(advance?.amount || 0), 0);
     const saldoDoc = Math.max(0, totalDoc - totalAnticiposDoc);
     const docDate = normalizeDocDate(quote.docDate || quote.quotedAt?.split("T")[0] || new Date().toISOString().slice(0, 10));
-    const quoteHeaderSrc = isServiHospTemplate ? "/templates/EncabezadoServ.jpg" : "/templates/Encabezadojdl.png";
+    const docHeaderImage = quoteHeaderImage || 'Encabezadojdl.png';
+    const quoteHeaderSrc = `/templates/${docHeaderImage}`;
     
     // Determinar el prefijo según el formato de impresión
     let docPrefix = "COTIZACIÓN";
@@ -1107,11 +1198,12 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   <td class="sumLabel">SUBTOTAL EVENTO</td>
                   <td class="sumValue">${quoteMoney(subtotalDoc, docCurrency)}</td>
                 </tr>
+                ${discountDoc > 0 ? `
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">${escapeHtml(discountLabel)}</td>
                   <td class="sumValue">${quoteMoney(discountDoc, docCurrency)}</td>
-                </tr>
+                </tr>` : ''}
                 <tr class="sumTotal">
                   <td colspan="2"></td>
                   <td class="sumLabel">TOTAL EVENTO</td>
@@ -1205,6 +1297,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
 
             ${htmlContent ? `<div class="page-break templateAttachWrap">${htmlContent}</div>` : ""}
 
+            ${(mmContentHtml || htmlContent) ? `
             <section class="signatureSection">
               <div class="signatureGrid">
                 <div class="signatureCard">
@@ -1225,6 +1318,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                 </div>
               </div>
             </section>
+            ` : ""}
 
             <div class="actions">
               <button onclick="window.print()">Imprimir</button>
@@ -1234,19 +1328,22 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       </html>
     `;
 
-    printWin.document.open();
-    printWin.document.write(finalHtml);
-    printWin.document.close();
-    return true;
+    const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+    const res = await fetch(`${apiBase}/api/print/prepare`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ html: finalHtml })
+    });
+    if (!res.ok) throw new Error("Error al preparar la impresión en el servidor");
+    const data = await res.json();
+    return `${apiBase}/api/print/render/${data.id}`;
   } catch (err) {
     console.error("Error generating print document:", err);
-    try {
-      printWin.document.open();
-      printWin.document.write(`<!doctype html><html><body style="font-family:Arial,sans-serif;padding:24px;"><h2>No se pudo generar la cotizacion</h2><p>Revise los datos de la cotizacion e intente nuevamente.</p></body></html>`);
-      printWin.document.close();
-    } catch {
-      // ignore
-    }
     return false;
   }
 };

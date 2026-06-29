@@ -72,7 +72,7 @@ export default function InformeView() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
-  const { connected: socketConnected, onEvent, joinRoom, leaveRoom } = useSocket();
+  const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();
   const [informe, setInforme] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -109,11 +109,8 @@ export default function InformeView() {
     if (!socketConnected || !informe?.id_ocupacion) return;
     const room = `evento:${informe.id_ocupacion}`;
     joinRoom(room);
-    const cleanup = onEvent('informe:created', () => {
-      if (informe?.id) getInformeById(id).then(setInforme).catch(() => {});
-    });
-    return () => { cleanup(); leaveRoom(room); };
-  }, [socketConnected, informe?.id_ocupacion, id, onEvent, joinRoom, leaveRoom]);
+    return () => { leaveRoom(room); };
+  }, [socketConnected, informe?.id_ocupacion, id, joinRoom, leaveRoom]);
 
   const handlePrint = async () => {
     // Esperar a que todas las imágenes carguen antes de imprimir
@@ -136,7 +133,22 @@ export default function InformeView() {
       const { default: jsPDF } = await import('jspdf');
       const el = docRef.current;
       if (!el) return;
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
+
+      // Esperar a que se carguen todas las imágenes dentro del documento para evitar ancho/alto de 0 en el canvas
+      const imgs = Array.from(el.querySelectorAll('img')).filter(img => !img.complete);
+      if (imgs.length > 0) {
+        await Promise.race([
+          Promise.all(imgs.map(img => new Promise(r => { img.onload = r; img.onerror = r; }))),
+          new Promise(r => setTimeout(r, 5000)) // timeout de 5 segundos máximo
+        ]);
+      }
+
+      const canvas = await html2canvas(el, { 
+        scale: 2, 
+        backgroundColor: '#ffffff', 
+        logging: false,
+        useCORS: true 
+      });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfW = pdf.internal.pageSize.getWidth();
@@ -152,7 +164,17 @@ export default function InformeView() {
         pdf.addImage(imgData, 'PNG', 0, position, pdfW, pdfH);
         heightLeft -= pageH;
       }
-      pdf.save(`informe-${id}.pdf`);
+      // Generar nombre de archivo descriptivo (institución o encargado + no. cotización)
+      const cleanString = (str) => {
+        return str
+          ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9-_]/g, "_")
+          : "";
+      };
+      const namePart = cleanString(informe.Institucion || informe.EncargadoEvento || "");
+      const docPart = cleanString(informe.NoDoc || id);
+      const filename = `informe_${namePart}_${docPart}.pdf`.replace(/_+/g, "_").replace(/_$/, "").toLowerCase();
+
+      pdf.save(filename);
     } catch (err) {
       console.error('Error al exportar PDF:', err);
       toast.error('Error al generar el PDF. Intenta usar la opción Imprimir.');

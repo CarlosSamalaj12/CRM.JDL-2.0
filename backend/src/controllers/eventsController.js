@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 
 const EVENTO_USER_JOIN = `
-  LEFT JOIN eventos ev ON CONVERT(e.Idocupacion USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ev.id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+  LEFT JOIN eventos ev ON e.Idocupacion = ev.id
   LEFT JOIN usuarios u ON ev.id_usuario = u.id
 `;
 
@@ -34,11 +34,46 @@ export async function getEvents(req, res, next) {
           ) THEN 1
           ELSE 0
         END AS tiene_alertas,
-        m.alertas_text
+        m.alertas_text,
+        (SELECT COALESCE(SUM(ice.cantidad), 0)
+         FROM items_cotizacion_evento ice
+         LEFT JOIN servicios s ON ice.id_servicio = s.id
+         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+         WHERE ice.id_evento = e.Idocupacion
+           AND LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%desayuno%'
+        ) AS cant_desayunos,
+        (SELECT COALESCE(SUM(ice.cantidad), 0)
+         FROM items_cotizacion_evento ice
+         LEFT JOIN servicios s ON ice.id_servicio = s.id
+         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+         WHERE ice.id_evento = e.Idocupacion
+           AND LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%refacciones%am%'
+        ) AS cant_refacciones_am,
+        (SELECT COALESCE(SUM(ice.cantidad), 0)
+         FROM items_cotizacion_evento ice
+         LEFT JOIN servicios s ON ice.id_servicio = s.id
+         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+         WHERE ice.id_evento = e.Idocupacion
+           AND LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%almuerzo%'
+        ) AS cant_almuerzos,
+        (SELECT COALESCE(SUM(ice.cantidad), 0)
+         FROM items_cotizacion_evento ice
+         LEFT JOIN servicios s ON ice.id_servicio = s.id
+         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+         WHERE ice.id_evento = e.Idocupacion
+           AND LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%refacciones%pm%'
+        ) AS cant_refacciones_pm,
+        (SELECT COALESCE(SUM(ice.cantidad), 0)
+         FROM items_cotizacion_evento ice
+         LEFT JOIN servicios s ON ice.id_servicio = s.id
+         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+         WHERE ice.id_evento = e.Idocupacion
+           AND LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%cenas%'
+        ) AS cant_cenas
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion
       ${EVENTO_USER_JOIN}
-      WHERE e.Estatuscotizacion IN (4, 7)`;
+      WHERE e.Estatuscotizacion IN (4, 7, 8)`;
 
     let params = [];
 
@@ -100,11 +135,12 @@ export async function updateEventStatus(req, res, next) {
     const { id } = req.params;
     const { estatus } = req.body;
 
-    if (![4, 7].includes(Number(estatus))) {
-      return res.status(400).json({ message: 'Estatus inválido. Debe ser 4 (Confirmado) o 7 (Pre-reserva)' });
+    if (![4, 7, 8].includes(Number(estatus))) {
+      return res.status(400).json({ message: 'Estatus inválido. Debe ser 4 (Confirmado), 7 (Pre-reserva) u 8 (Mantenimiento)' });
     }
 
-    const mappedStatus = Number(estatus) === 4 ? 'Confirmado' : 'Pre reserva';
+    const statusMap = { 4: 'Confirmado', 7: 'Pre reserva', 8: 'Mantenimiento' };
+    const mappedStatus = statusMap[Number(estatus)];
     await pool.query(
       'UPDATE eventos SET estado = ? WHERE id = ?',
       [mappedStatus, id]
@@ -123,16 +159,17 @@ export async function getEventStats(req, res, next) {
         COUNT(*) AS total_eventos,
         SUM(CASE WHEN Estatuscotizacion = 4 THEN 1 ELSE 0 END) AS confirmados,
         SUM(CASE WHEN Estatuscotizacion = 7 THEN 1 ELSE 0 END) AS pre_reservas,
+        SUM(CASE WHEN Estatuscotizacion = 8 THEN 1 ELSE 0 END) AS mantenimientos,
         SUM(Pax) AS total_pax,
         ROUND(AVG(Pax)) AS pax_promedio
       FROM tbl_seguimientocotizaciones
-      WHERE Estatuscotizacion IN (4, 7)
+      WHERE Estatuscotizacion IN (4, 7, 8)
     `);
 
     const [tipoRows] = await pool.query(`
       SELECT TipoEvento, COUNT(*) AS cantidad
       FROM tbl_seguimientocotizaciones
-      WHERE Estatuscotizacion IN (4, 7) AND TipoEvento IS NOT NULL AND TipoEvento != ''
+      WHERE Estatuscotizacion IN (4, 7, 8) AND TipoEvento IS NOT NULL AND TipoEvento != ''
       GROUP BY TipoEvento
       ORDER BY cantidad DESC
       LIMIT 6
@@ -141,7 +178,7 @@ export async function getEventStats(req, res, next) {
     const [salonRows] = await pool.query(`
       SELECT Salon, COUNT(*) AS cantidad
       FROM tbl_seguimientocotizaciones
-      WHERE Estatuscotizacion IN (4, 7) AND Salon IS NOT NULL AND Salon != ''
+      WHERE Estatuscotizacion IN (4, 7, 8) AND Salon IS NOT NULL AND Salon != ''
       GROUP BY Salon
       ORDER BY cantidad DESC
       LIMIT 5
@@ -150,7 +187,7 @@ export async function getEventStats(req, res, next) {
     const [proximos] = await pool.query(`
       SELECT Idocupacion, Institucion, FechaEvento, HoraI, Pax, Estatuscotizacion, Salon
       FROM tbl_seguimientocotizaciones
-      WHERE Estatuscotizacion IN (4, 7) AND FechaEvento >= CURDATE()
+      WHERE Estatuscotizacion IN (4, 7, 8) AND FechaEvento >= CURDATE()
       ORDER BY FechaEvento ASC, HoraI ASC
       LIMIT 5
     `);

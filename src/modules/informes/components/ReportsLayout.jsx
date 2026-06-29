@@ -12,6 +12,7 @@ import {
   IconSun,
 } from './Icons.jsx';
 import '../styles.scss';
+import '../styles.css';
 
 export default function ReportsLayout() {
   const { user, logout } = useAuth();
@@ -25,6 +26,12 @@ export default function ReportsLayout() {
   const [fabVisible, setFabVisible] = useState(true);
   const lastScrollY = useRef(0);
   const hideTimerRef = useRef(null);
+
+  // Safety net: restaurar scroll del body al montar/desmontar
+  useEffect(() => {
+    document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
 
   useEffect(() => {
     const target = document.scrollingElement || document.documentElement;
@@ -151,7 +158,7 @@ export default function ReportsLayout() {
                 onClick={() => { setIsMobileOpen(false); navigate('/kanban'); }}
               >
                 <span className="material-symbols-outlined">grid_view</span>
-                <span>Kanban</span>
+                <span>Ocupación</span>
               </button>
               
               {canManageCatalog && (
@@ -288,7 +295,7 @@ export default function ReportsLayout() {
             to="/kanban"
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
-            <IconGrid size={16} /> <span className="nav-text">Kanban</span>
+            <IconGrid size={16} /> <span className="nav-text">Ocupación</span>
           </NavLink>
           {canManageCatalog && (
             <>

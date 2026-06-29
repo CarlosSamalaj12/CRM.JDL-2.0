@@ -63,7 +63,7 @@ export function AuthProvider({ children }) {
   }, [syncSession]);
 
   const login = async () => {
-    throw new Error('Use el login principal del CRM para acceder a Informes.');
+    throw new Error('Use el login principal del EMS para acceder a Informes.');
   };
 
   const register = async () => {

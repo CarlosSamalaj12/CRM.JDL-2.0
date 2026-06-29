@@ -17,10 +17,10 @@ const SECTION_TYPE_OPTIONS = [
 ];
 
 const RATING_LEVELS = [
-  { value: 'malo', label: 'Malo', emoji: '🔴', score: 1 },
-  { value: 'regular', label: 'Regular', emoji: '🟡', score: 2 },
-  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 3 },
-  { value: 'excelente', label: 'Excelente', emoji: '💎', score: 4 },
+  { value: 'malo', label: 'Malo', emoji: '🔴', score: 2.5 },
+  { value: 'regular', label: 'Regular', emoji: '🟡', score: 5 },
+  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 7.5 },
+  { value: 'excelente', label: 'Excelente', emoji: '💎', score: 10 },
 ];
 
 /* ══════════════════════════════════════════════
@@ -529,19 +529,23 @@ export default function SettingsChecklist() {
   const [isOpen, setIsOpen] = useState(false);
   const styleElRef = useRef(null);
 
-  // Guardar overflow original para restaurarlo correctamente
-  const prevOverflowRef = useRef('');
+  // Contador de locks para evitar corrupción del overflow en ciclos rápidos
+  const scrollLockCount = useRef(0);
 
   const restoreBodyScroll = () => {
-    document.body.style.overflow = prevOverflowRef.current;
+    scrollLockCount.current = Math.max(0, scrollLockCount.current - 1);
+    if (scrollLockCount.current === 0) {
+      document.body.style.overflow = '';
+    }
   };
 
   // Inyectar/remover estilos del modal directamente en <head>
   useEffect(() => {
     if (isOpen) {
-      prevOverflowRef.current = document.body.style.overflow;
-      // Prevenir scroll del body
-      document.body.style.overflow = 'hidden';
+      if (scrollLockCount.current === 0) {
+        document.body.style.overflow = 'hidden';
+      }
+      scrollLockCount.current += 1;
       // Crear el elemento <style> si no existe
       if (!styleElRef.current) {
         const el = document.createElement('style');
@@ -654,6 +658,8 @@ export default function SettingsChecklist() {
     }
     return () => {
       restoreBodyScroll();
+      // Safety net: asegurar scroll tras 2s por si el cleanup falla
+      setTimeout(() => { document.body.style.overflow = ''; }, 2000);
     };
   }, [isOpen]);
 
@@ -854,7 +860,7 @@ export default function SettingsChecklist() {
   const satisfactionAvg = ratedItems.length > 0
     ? (ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0) / ratedItems.length)
     : 0;
-  const satisfactionPct = Math.round((satisfactionAvg / 4) * 100);
+  const satisfactionPct = Math.round((satisfactionAvg / 10) * 100);
 
   const modalContent = (
     <>
@@ -970,15 +976,15 @@ export default function SettingsChecklist() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
                   <span>⭐ Satisfacción del Cliente</span>
                   <span style={{
-                    color: satisfactionAvg >= 3.5 ? '#16a34a' : satisfactionAvg >= 2.5 ? '#d97706' : '#dc2626',
+                    color: satisfactionAvg >= 7.5 ? '#16a34a' : satisfactionAvg >= 5 ? '#d97706' : '#dc2626',
                     fontSize: '0.9rem',
                   }}>
-                    {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 4.0 (${satisfactionPct}%)` : '—'}
+                    {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 10.0 (${satisfactionPct}%)` : '—'}
                   </span>
                 </div>
                 <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
                   <div style={{ height: '100%', borderRadius: '999px',
-                    background: satisfactionAvg >= 3.5 ? '#22c55e' : satisfactionAvg >= 2.5 ? '#eab308' : '#ef4444',
+                    background: satisfactionAvg >= 7.5 ? '#22c55e' : satisfactionAvg >= 5 ? '#eab308' : '#ef4444',
                     width: ratedItems.length > 0 ? `${satisfactionPct}%` : '0%',
                     transition: 'width 0.4s ease'
                   }} />

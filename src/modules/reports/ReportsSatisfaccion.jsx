@@ -3,10 +3,10 @@ import { useOutletContext } from 'react-router-dom';
 import { loadState } from '../../services/stateService';
 
 const RATING_LEVELS = [
-  { value: 'malo', label: 'Malo', emoji: '🔴', score: 1, color: '#ef4444', bg: '#fef2f2' },
-  { value: 'regular', label: 'Regular', emoji: '🟡', score: 2, color: '#eab308', bg: '#fffbeb' },
-  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 3, color: '#22c55e', bg: '#f0fdf4' },
-  { value: 'excelente', label: 'Excelente', emoji: '💎', score: 4, color: '#a855f7', bg: '#faf5ff' },
+  { value: 'malo', label: 'Malo', emoji: '🔴', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
+  { value: 'regular', label: 'Regular', emoji: '🟡', score: 5, color: '#eab308', bg: '#fffbeb' },
+  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 7.5, color: '#22c55e', bg: '#f0fdf4' },
+  { value: 'excelente', label: 'Excelente', emoji: '💎', score: 10, color: '#a855f7', bg: '#faf5ff' },
 ];
 
 const RATING_COLORS = {
@@ -14,23 +14,23 @@ const RATING_COLORS = {
 };
 
 function getRatingColor(avg) {
-  if (avg >= 3.5) return '#22c55e';
-  if (avg >= 2.5) return '#eab308';
-  if (avg >= 1.5) return '#f97316';
+  if (avg >= 8.75) return '#22c55e';
+  if (avg >= 6.25) return '#eab308';
+  if (avg >= 3.75) return '#f97316';
   return '#ef4444';
 }
 
 function getRatingEmoji(avg) {
-  if (avg >= 3.5) return '😍';
-  if (avg >= 2.5) return '😊';
-  if (avg >= 1.5) return '😐';
+  if (avg >= 8.75) return '😍';
+  if (avg >= 6.25) return '😊';
+  if (avg >= 3.75) return '😐';
   return '😟';
 }
 
 function getRatingLabel(avg) {
-  if (avg >= 3.5) return 'Excelente';
-  if (avg >= 2.5) return 'Bueno';
-  if (avg >= 1.5) return 'Regular';
+  if (avg >= 8.75) return 'Excelente';
+  if (avg >= 6.25) return 'Bueno';
+  if (avg >= 3.75) return 'Regular';
   return 'Malo';
 }
 
@@ -172,7 +172,7 @@ export default function ReportsSatisfaccion({ onClose }) {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Satisfacción del Cliente</div>
               <div className="reports-subtitle">Cargando datos de evaluación...</div>
             </div>
@@ -198,7 +198,7 @@ export default function ReportsSatisfaccion({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">⭐ Satisfacción del Cliente</div>
             <div className="reports-subtitle">Evaluación de servicio por evento con ratings Malo / Regular / Bueno / Excelente</div>
           </div>
@@ -263,11 +263,11 @@ export default function ReportsSatisfaccion({ onClose }) {
                       {metrics.globalAvg.toFixed(1)}
                     </strong>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: getRatingColor(metrics.globalAvg) }}>
-                      / 4.0 — {getRatingLabel(metrics.globalAvg)}
+                      / 10.0 — {getRatingLabel(metrics.globalAvg)}
                     </span>
                   </div>
                   <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', marginTop: '4px' }}>
-                    <div style={{ height: '100%', borderRadius: '999px', background: getRatingColor(metrics.globalAvg), width: `${(metrics.globalAvg / 4) * 100}%`, transition: 'width 0.5s ease' }} />
+                    <div style={{ height: '100%', borderRadius: '999px', background: getRatingColor(metrics.globalAvg), width: `${(metrics.globalAvg / 10) * 100}%`, transition: 'width 0.5s ease' }} />
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                     Basado en {metrics.totalRatings} calificaciones de {metrics.totalEvents} eventos
@@ -342,7 +342,7 @@ export default function ReportsSatisfaccion({ onClose }) {
                   <div className="reports-chart-subtitle">Evolución del promedio por mes</div>
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px', margin: '16px 0', padding: '0 8px' }}>
                     {monthlyTrend.map(m => {
-                      const pct = (m.avg / 4) * 100;
+                      const pct = (m.avg / 10) * 100;
                       return (
                         <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }}>
                           <div style={{
@@ -404,7 +404,7 @@ export default function ReportsSatisfaccion({ onClose }) {
                           <span style={{ fontSize: '16px', fontWeight: 800, color: getRatingColor(ev.avg) }}>
                             {ev.avg.toFixed(1)}
                           </span>
-                          <span style={{ fontSize: '10px', color: '#94a3b8' }}> / 4.0</span>
+                          <span style={{ fontSize: '10px', color: '#94a3b8' }}> / 10.0</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <span style={{ fontSize: '20px' }}>{getRatingEmoji(ev.avg)}</span>
@@ -438,7 +438,7 @@ export default function ReportsSatisfaccion({ onClose }) {
               <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Narración de satisfacción</span>
               <p className="reports-story-text">
                 En el periodo analizado, se evaluaron <strong className="highlight-blue">{metrics.totalEvents} eventos</strong> con un total de <strong className="highlight-blue">{metrics.totalRatings} puntos</strong> calificados.
-                La satisfacción global promedio es de <strong className="highlight-green">{metrics.globalAvg.toFixed(1)} / 4.0</strong>, lo que corresponde a un nivel <strong className={metrics.globalAvg >= 3.5 ? 'highlight-green' : metrics.globalAvg >= 2.5 ? 'highlight-orange' : 'highlight-slate'}>{getRatingLabel(metrics.globalAvg)}</strong>.
+                La satisfacción global promedio es de <strong className="highlight-green">{metrics.globalAvg.toFixed(1)} / 10.0</strong>, lo que corresponde a un nivel <strong className={metrics.globalAvg >= 8.75 ? 'highlight-green' : metrics.globalAvg >= 6.25 ? 'highlight-orange' : 'highlight-slate'}>{getRatingLabel(metrics.globalAvg)}</strong>.
                 El <strong className="highlight-green">{metrics.excellentPct.toFixed(0)}%</strong> de las calificaciones fueron <strong className="highlight-green">Excelente 💎</strong>, mientras que el <strong className={metrics.badPct > 0 ? 'highlight-orange' : 'highlight-slate'}>{metrics.badPct.toFixed(0)}%</strong> fueron <strong className={metrics.badPct > 0 ? 'highlight-orange' : 'highlight-slate'}>Malo 🔴</strong>.
                 {monthlyTrend.length >= 2 && (
                   <> La tendencia mensual muestra {monthlyTrend[monthlyTrend.length - 1].avg >= monthlyTrend[0].avg ? 'una mejora' : 'una disminución'} en el último periodo evaluado.</>

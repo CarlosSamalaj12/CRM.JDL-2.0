@@ -7,10 +7,10 @@ const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
 const isGoalStatus = (s) => s === STATUS.CONFIRMADO || s === STATUS.PRERESERVA;
 
 const SAT_RATING_LEVELS = [
-  { value: 'malo', label: 'Malo', score: 1, color: '#ef4444', bg: '#fef2f2' },
-  { value: 'regular', label: 'Regular', score: 2, color: '#eab308', bg: '#fffbeb' },
-  { value: 'bueno', label: 'Bueno', score: 3, color: '#22c55e', bg: '#f0fdf4' },
-  { value: 'excelente', label: 'Excelente', score: 4, color: '#a855f7', bg: '#faf5ff' },
+  { value: 'malo', label: 'Malo', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
+  { value: 'regular', label: 'Regular', score: 5, color: '#eab308', bg: '#fffbeb' },
+  { value: 'bueno', label: 'Bueno', score: 7.5, color: '#22c55e', bg: '#f0fdf4' },
+  { value: 'excelente', label: 'Excelente', score: 10, color: '#a855f7', bg: '#faf5ff' },
 ];
 
 const STATUS_META = [
@@ -91,7 +91,7 @@ export default function ReportsDashboard({ onClose }) {
     for (const [, series] of groups.entries()) {
       if (!series.some(ev => { const d = ev.date; return d >= from && d <= to; })) continue;
       const head = series[0];
-      rows.push({ userId: String(head.userId||''), status: head.status, eventDate: head.date, salon: head.salon||'', total: Math.max(0, head.quote?.total||0), type: (head.quote?.eventType||head.name||'').toLowerCase().includes('corporativo') ? 'corp' : (head.quote?.eventType||head.name||'').toLowerCase().includes('social') ? 'social' : 'otro', monthKey: head.date?.substring(0,7) });
+      rows.push({ userId: String(head.userId||''), status: head.status, eventDate: head.date, salon: head.salon||'', total: Math.max(0, head.quote?.totalGtq || head.quote?.total||0), type: (head.quote?.eventType||head.name||'').toLowerCase().includes('corporativo') ? 'corp' : (head.quote?.eventType||head.name||'').toLowerCase().includes('social') ? 'social' : 'otro', monthKey: head.date?.substring(0,7) });
     }
     return rows;
   }, [events, getDateRange]);
@@ -362,7 +362,7 @@ export default function ReportsDashboard({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Dashboard Ejecutivo</div>
             <div className="reports-subtitle">Metas comerciales, rendimiento y analítica del periodo</div>
           </div>

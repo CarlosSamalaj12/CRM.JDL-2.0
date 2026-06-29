@@ -41,8 +41,9 @@ export default function SettingsPlantillas({ inline, onBack }) {
   const saveTemplates = async (nextTemplates) => {
     try {
       const currentState = await stateService.loadState();
+      const baseState = (currentState && typeof currentState === 'object') ? currentState : {};
       await stateService.saveState({
-        ...currentState,
+        ...baseState,
         quickTemplates: nextTemplates,
         quoteServiceTemplates: nextTemplates,
       });

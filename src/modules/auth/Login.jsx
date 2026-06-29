@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
@@ -22,6 +22,7 @@ export default function Login() {
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
   const { syncSession } = useAuth();
+  const googleLoginRef = useRef(false);
 
   useEffect(() => {
     toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
@@ -73,14 +74,18 @@ export default function Login() {
 
   // Handle Google Login via Firebase
   const handleGoogleLogin = async () => {
+    if (googleLoginRef.current) return;
+    googleLoginRef.current = true;
+    setLoading(true);
+
     let loadingToast = null;
     try {
-      // 1. Invocar la ventana emergente de Google INMEDIATAMENTE como respuesta al gesto del usuario.
-      // Esto evita que los navegadores modernos la bloqueen por considerarla una acción asíncrona diferida.
       const firebaseUser = await firebaseService.loginWithGoogle();
-      if (!firebaseUser) return; // Si es null (porque entró por redirección en el fallback)
+      if (!firebaseUser) {
+        // Redireccionando a Google — no reseteamos loading, la página se recargará
+        return;
+      }
 
-      setLoading(true);
       loadingToast = toast.loading('Sincronizando con el servidor...');
 
       const localUser = await authService.loginFirebase(firebaseUser);
@@ -104,11 +109,19 @@ export default function Login() {
       ) {
         document.activeElement?.blur();
         toast('Configuración de Firebase Requerida — Para que el inicio de sesión con Google funcione, configura tus variables de Firebase en el archivo .env', { duration: Infinity, icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
+      } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        document.activeElement?.blur();
+        toast.error('Inicio de sesión cancelado o ventana cerrada.');
       } else {
         document.activeElement?.blur();
         toast.error(err.message || 'No se pudo iniciar sesión con tu cuenta de Google.', { duration: 4000 });
       }
-      setLoading(false);
+    } finally {
+      // Pequeño cooldown para evitar re-clics inmediatos
+      setTimeout(() => {
+        googleLoginRef.current = false;
+        setLoading(false);
+      }, 1000);
     }
   };
 
@@ -142,7 +155,7 @@ export default function Login() {
               <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="loginLogoImg" />
             </div>
             <div>
-              <div className="loginBrandEyebrow">Bienvenidos al CRM de</div>
+              <div className="loginBrandEyebrow">Bienvenidos al EMS de</div>
               <h1 className="loginBrandTitle" id="loginTitle">HOTEL JARDINES DEL LAGO</h1>
               <div className="loginBrandSub">Inicia sesión para continuar</div>
             </div>

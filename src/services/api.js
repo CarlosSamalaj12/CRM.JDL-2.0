@@ -34,6 +34,10 @@ class ApiClient {
     try {
       const response = await fetch(url, { ...options, headers });
 
+      if (response.status === 304) {
+        return null;
+      }
+
       if (response.status === 401) {
         if (this.onUnauthorized) this.onUnauthorized();
         const error = await response.json().catch(() => ({ message: 'Sesión expirada' }));
@@ -73,10 +77,10 @@ class ApiClient {
     }
   }
 
-  get(endpoint, params = {}) {
+  get(endpoint, params = {}, extraHeaders = {}) {
     const query = new URLSearchParams(params).toString();
     const url = query ? `${endpoint}?${query}` : endpoint;
-    return this.request(url, { method: 'GET' });
+    return this.request(url, { method: 'GET', headers: { ...extraHeaders } });
   }
 
   post(endpoint, data) {

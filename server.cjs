@@ -6,6 +6,7 @@ const fs = require("fs");
 const http = require("http");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
+const compression = require("compression");
 require("dotenv").config();
 const { createGoogleEvent, createUserReminder, deleteUserReminder } = require("./googleCalendar.cjs");
 
@@ -95,6 +96,7 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use(compression({ threshold: 512 }));
 app.use(express.json({ limit: "25mb" }));
 
 function hashPasswordScrypt(password, saltHex) {
@@ -826,15 +828,42 @@ async function readStateFromTables() {
       dbAnticipos,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
-      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id FROM usuarios ORDER BY creado_en, id"),
+      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
+
+    // ── Auto-transition expired events to "Perdido" ──
+    const PERDIDO_AUTO_STATUSES = new Set([
+      'Reserva sin Cotizacion',
+      '1er Cotizacion',
+      'Seguimiento',
+      'Lista de Espera',
+      'Pre reserva'
+    ]);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const expiredEvents = eventos.filter(e => {
+      const eventDate = toIsoDate(e.fecha_evento);
+      return eventDate && eventDate < todayStr && e.estado && PERDIDO_AUTO_STATUSES.has(String(e.estado).trim());
+    });
+    if (expiredEvents.length > 0) {
+      const expiredIds = expiredEvents.map(e => e.id);
+      await conn.query(
+        "UPDATE eventos SET estado = 'Perdido' WHERE id IN (" + expiredIds.map(() => '?').join(',') + ")",
+        expiredIds
+      );
+      for (const e of eventos) {
+        if (expiredIds.includes(e.id)) {
+          e.estado = 'Perdido';
+        }
+      }
+      console.log(`[${new Date().toLocaleTimeString()}] \u{1F3F3}\uFE0F ${expiredEvents.length} evento(s) expirado(s) marcado(s) como Perdido autom\u00E1ticamente.`);
+    }
 
     let dbServicesList = [];
     let dbServiceCategories = null;
@@ -1102,6 +1131,7 @@ async function readStateFromTables() {
       services: dbServicesList,
       quickTemplates: [],
       quoteServiceTemplates: [],
+      contractTemplates: [],
       disabledCompanies: [],
       disabledServices: [],
       disabledManagers: [],
@@ -1191,6 +1221,7 @@ async function readStateFromTables() {
       });
     }
 
+    const contractTemplatesRow = appStateRows.find((r) => str(r.clave) === "contractTemplates");
     const quickTemplatesRow = appStateRows.find((r) => str(r.clave) === "quickTemplates");
     const quoteServiceTemplatesRow = appStateRows.find((r) => str(r.clave) === "quoteServiceTemplates");
     if (quickTemplatesRow?.valor_json) {
@@ -1208,6 +1239,20 @@ async function readStateFromTables() {
       } catch (_) {
         state.quoteServiceTemplates = [];
       }
+    }
+    if (contractTemplatesRow?.valor_json) {
+      try {
+        const parsed = JSON.parse(contractTemplatesRow.valor_json);
+        state.contractTemplates = Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        state.contractTemplates = [];
+      }
+    }
+    if (!state.contractTemplates.length) {
+      state.contractTemplates = [
+        { id: 'ctpl_jardines', name: 'Jardines', filename: 'Jardines.html', headerImage: 'Encabezadojdl.png', footerImage: '' },
+        { id: 'ctpl_servihosp', name: 'ServiHosp', filename: 'ServiHosp.html', headerImage: 'EncabezadoServ.jpg', footerImage: 'piedepaginajdl.png' },
+      ];
     }
     const disabledCompaniesRow = appStateRows.find((r) => str(r.clave) === "disabledCompanies");
     const disabledServicesRow = appStateRows.find((r) => str(r.clave) === "disabledServices");
@@ -1717,6 +1762,7 @@ async function writeStateToTables(state) {
     const serviceCategories = Array.isArray(state.serviceCategories) ? state.serviceCategories : [];
     const quickTemplates = Array.isArray(state.quickTemplates) ? state.quickTemplates : [];
     const quoteServiceTemplates = Array.isArray(state.quoteServiceTemplates) ? state.quoteServiceTemplates : [];
+    const contractTemplates = Array.isArray(state.contractTemplates) ? state.contractTemplates : [];
     const disabledCompanies = Array.isArray(state.disabledCompanies) ? state.disabledCompanies : [];
     const disabledServices = Array.isArray(state.disabledServices) ? state.disabledServices : [];
     const disabledManagers = Array.isArray(state.disabledManagers) ? state.disabledManagers : [];
@@ -1749,16 +1795,21 @@ async function writeStateToTables(state) {
       await ensureDocSequenceAtLeast(conn, "COT", maxDesiredQuoteCodeNum);
     }
 
-    // === UPSERT: salones, usuarios, empresas (delete+rewrite for config tables) ===
+    // === UPSERT: salones, usuarios, empresas ===
     await conn.query("DELETE FROM encargados_empresa");
-    await conn.query("DELETE FROM empresas");
-    await conn.query("DELETE FROM usuarios");
     await conn.query("DELETE FROM salones");
 
     for (const roomName of salones) {
       const nombre = str(roomName).trim();
       if (!nombre) continue;
       await conn.query("INSERT INTO salones (nombre) VALUES (?)", [nombre]);
+    }
+
+    // Delete usuarios que ya no están en el state entrante
+    const incomingUserIds = users.map(u => str(u?.id).trim()).filter(Boolean);
+    if (incomingUserIds.length > 0) {
+      const placeholders = incomingUserIds.map(() => '?').join(',');
+      await conn.query(`DELETE FROM usuarios WHERE id NOT IN (${placeholders})`, incomingUserIds);
     }
 
     // Validate no duplicate emails before inserting
@@ -2364,6 +2415,14 @@ async function writeStateToTables(state) {
       `,
       [JSON.stringify(quoteServiceTemplates)]
     );
+      await conn.query(
+        `
+          INSERT INTO app_state_kv (clave, valor_json)
+          VALUES ('contractTemplates', ?)
+          ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+        `,
+        [JSON.stringify(contractTemplates)]
+      );
     await conn.query(
       `
         INSERT INTO app_state_kv (clave, valor_json)
@@ -2702,15 +2761,13 @@ app.post("/api/import/managers", async (req, res) => {
   }
 });
 
-app.get("/api/state", async (_req, res) => {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+app.get("/api/state", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
   console.log(`[${new Date().toLocaleTimeString()}] 🔍 GET /api/state - Consultando base de datos MariaDB...`);
   try {
     const result = await readStateFromTables();
     if (!result) {
       console.log(`[${new Date().toLocaleTimeString()}] ℹ️ Base de datos vacía, sirviendo estado predeterminado para sincronización.`);
-      // Si la base de datos relacional está vacía, devolvemos un estado base inicial
-      // para evitar errores 404 y permitir la inicialización/sincronización fluida desde el cliente.
       const defaultState = {
         salones: ["Arenal", "Santa Isabel", "Rancho Grande", "Jardincito", "Casa Flores", "Hotel Principal"],
         users: [
@@ -2727,6 +2784,13 @@ app.get("/api/state", async (_req, res) => {
       };
       return res.json(defaultState);
     }
+    const stateJson = JSON.stringify(result);
+    const etag = crypto.createHash("md5").update(stateJson).digest("hex");
+    if (req.headers["if-none-match"] === etag) {
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ 304 Not Modified (ETag match).`);
+      return res.status(304).end();
+    }
+    res.setHeader("ETag", etag);
     console.log(`[${new Date().toLocaleTimeString()}] ✅ Consulta exitosa. Retornando ${result?.state?.events?.length || 0} eventos desde MariaDB.`);
     return res.json(result);
   } catch (error) {
@@ -2762,6 +2826,42 @@ app.get("/api/anticipos/:id/evidencia", async (req, res) => {
   }
 });
 
+const printCache = new Map();
+// Limpieza automática cada 5 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, item] of printCache.entries()) {
+    if (now - item.timestamp > 5 * 60 * 1000) {
+      printCache.delete(id);
+    }
+  }
+}, 60 * 1000);
+
+app.post("/api/print/prepare", (req, res) => {
+  const html = req.body?.html;
+  if (!html) {
+    return res.status(400).json({ error: "Falta contenido HTML" });
+  }
+  const id = "print_" + Math.random().toString(36).slice(2, 12);
+  printCache.set(id, { html, timestamp: Date.now() });
+  return res.json({ id });
+});
+
+app.get("/api/print/render/:id", (req, res) => {
+  const id = req.params.id;
+  const item = printCache.get(id);
+  if (!item) {
+    return res.status(404).send(`
+      <div style="font-family: Arial, sans-serif; text-align: center; padding: 40px; color: #334155; background: #f8fafc; height: 100vh; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <h2>Enlace de impresión expirado</h2>
+        <p>Por favor, genera la cotización nuevamente desde el CRM.</p>
+      </div>
+    `);
+  }
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(item.html);
+});
+
 app.get("/api/salones", async (_req, res) => {
   try {
     const salones = await readSalonesFromTables();
@@ -2777,6 +2877,26 @@ app.get("/api/login-users", async (_req, res) => {
     return res.json({ users });
   } catch (error) {
     return res.status(500).json({ message: "No se pudo cargar usuarios para login.", detail: error.message });
+  }
+});
+
+app.get("/api/usuarios/:id/media", async (req, res) => {
+  try {
+    const id = req.params.id;
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query("SELECT firma_data_url, avatar_data_url FROM usuarios WHERE id = ?", [id]);
+      if (!rows.length) return res.status(404).json({ message: "Usuario no encontrado." });
+      return res.json({
+        firma_data_url: rows[0].firma_data_url || null,
+        avatar_data_url: rows[0].avatar_data_url || null
+      });
+    } finally {
+      if (conn) conn.release();
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "Error al obtener media del usuario.", detail: error.message });
   }
 });
 
@@ -3378,22 +3498,15 @@ app.put("/api/state", async (req, res) => {
   }
 
   try {
-    // Obtener eventos actuales de MariaDB antes del guardado para comparar
-    let oldEvents = [];
-    try {
-      const currentState = await readStateFromTables();
-      oldEvents = currentState?.events || [];
-    } catch (err) {
-      console.warn("⚠️ No se pudieron precargar los eventos anteriores para la comparación de Google Calendar:", err.message);
-    }
-
     // 🛡️ SEGURIDAD: Fusionar state entrante con estado actual de BD
-    // writeStateToTables hace DELETE+INSERT destructivo. Si falta una clave, se pierde.
+    // Una sola lectura del estado actual para merge + oldEvents
     let mergedState = { ...nextState };
+    let oldEvents = [];
     try {
       const currentResult = await readStateFromTables();
       if (currentResult && currentResult.state) {
         const current = currentResult.state;
+        oldEvents = current.events || [];
         for (const [key, value] of Object.entries(current)) {
           if (!(key in nextState)) {
             mergedState[key] = value;
@@ -3645,7 +3758,7 @@ app.get("/auth/google/callback", async (req, res) => {
             <p>Para solucionar esto y obtener el token de conexión persistente:</p>
             <ol>
               <li>Ve a <a href="https://myaccount.google.com/connections" target="_blank" style="color: #18c5bc; font-weight: 700;">Conexiones de tu cuenta de Google</a>.</li>
-              <li>Busca la aplicación de tu CRM y haz clic en <b>"Eliminar todo el acceso"</b>.</li>
+              <li>Busca la aplicación de EMS y haz clic en <b>"Eliminar todo el acceso"</b>.</li>
               <li>Regresa aquí y haz clic en el siguiente botón para volver a autorizar de forma limpia.</li>
             </ol>
             <a href="/auth/google" class="btn">Volver a Intentar</a>
@@ -3880,6 +3993,39 @@ async function start() {
       console.log('[MIGRACIÓN] No se pudo ampliar columna url:', migErr.message);
     }
 
+    // Recrear vista tbl_seguimientocotizaciones para incluir Mantenimiento
+    try {
+      await pool.query(`
+        CREATE OR REPLACE VIEW tbl_seguimientocotizaciones AS
+        SELECT
+          e.id AS Idocupacion,
+          e.nombre AS Institucion,
+          e.pax AS Pax,
+          CASE
+            WHEN e.estado = 'Confirmado' THEN 4
+            WHEN e.estado = 'Pre reserva' OR e.estado = 'Pre-reserva' THEN 7
+            WHEN e.estado = 'Mantenimiento' OR e.estado = 'Mantenimiento Realizado' THEN 8
+            ELSE 1
+          END AS Estatuscotizacion,
+          COALESCE(u.nombre, e.id_usuario) AS Vendedor,
+          e.fecha_evento AS FechaEvento,
+          e.fecha_fin_reserva AS FechaSalida,
+          e.hora_inicio AS HoraI,
+          e.hora_fin AS HoraF,
+          COALESCE(c.tipo_evento, 'Evento') AS TipoEvento,
+          c.telefono AS Telefono,
+          e.nombre_salon AS Salon,
+          c.nombre_encargado AS EncargadoEvento,
+          c.codigo AS NoDoc
+        FROM eventos e
+        LEFT JOIN cotizaciones_evento c ON e.id = c.id_evento
+        LEFT JOIN usuarios u ON e.id_usuario = u.id
+      `);
+      console.log('[MIGRACIÓN] Vista tbl_seguimientocotizaciones actualizada (incluye Mantenimiento como 8).');
+    } catch (viewErr) {
+      console.log('[MIGRACIÓN] No se pudo recrear vista tbl_seguimientocotizaciones:', viewErr.message);
+    }
+
     // Crear directorio de uploads para imágenes de informes si no existe
     const uploadsDir = path.join(__dirname, "uploads");
     if (!fs.existsSync(uploadsDir)) {
@@ -3909,6 +4055,17 @@ async function start() {
     const reportsRouter = await import("./backend/src/app_routes.js");
     app.use("/api", reportsRouter.default);
 
+    // Limpiar notificaciones antiguas de tipo informe (ya no se emiten)
+    try {
+      const conn = await pool.getConnection();
+      await conn.query("DELETE FROM notificaciones WHERE tipo = 'informe'");
+      // Asegurar columna comentario_id para almacenar nota_id en menciones
+      try {
+        await conn.query("ALTER TABLE notificaciones ADD COLUMN comentario_id VARCHAR(80) NULL AFTER idocupacion");
+      } catch { /* ya existe */ }
+      conn.release();
+    } catch { /* no crítico */ }
+
     // Error middleware global (después de todas las rutas)
     const { notFound, errorHandler } = await import("./backend/src/middlewares/errorHandler.js");
     app.use("/api", notFound);
@@ -3920,14 +4077,14 @@ async function start() {
         return res.status(404).json({ message: "Ruta API no encontrada." });
       }
       return res.status(200).json({ 
-        service: "CRM API Backend (server.cjs)",
+        service: "EMS API Backend (server.cjs)",
         status: "online",
         message: "El servidor Node está funcionando únicamente como API. Para ver la interfaz, entra al puerto 5173 (Vite)."
       });
     });
 
     server.listen(APP_PORT, () => {
-      console.log(`CRM y Socket.io listo en http://localhost:${APP_PORT}`);
+      console.log(`EMS y Socket.io listo en http://localhost:${APP_PORT}`);
       console.log(`MariaDB -> ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}`);
       console.log("Persistencia activa en tablas relacionales.");
     });
@@ -3938,3 +4095,4 @@ async function start() {
 }
 
 start();
+

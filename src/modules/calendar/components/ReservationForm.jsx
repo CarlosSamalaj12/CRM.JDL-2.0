@@ -5,7 +5,6 @@ import { STATUS_META_LIST, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
 import conflictService from '../../../services/conflictService';
-import { loadState as loadCrmState } from '../../../services/stateService';
 import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
@@ -464,8 +463,6 @@ export default function ReservationForm() {
   const [saving, setSaving] = useState(false);
   const [savingMsg, setSavingMsg] = useState('');
 
-  const [salonCapacities, setSalonCapacities] = useState({});
-
   const labelStyle = {
     display: 'block',
     marginBottom: '6px',
@@ -481,20 +478,6 @@ export default function ReservationForm() {
     color: '#0f172a',
     boxSizing: 'border-box',
   };
-
-  useEffect(() => {
-    const fetchState = async () => {
-      try {
-        const data = await loadCrmState();
-        if (data?.salonCapacities) {
-          setSalonCapacities(data.salonCapacities);
-        }
-      } catch (err) {
-        console.error("Error loading capacities:", err);
-      }
-    };
-    fetchState();
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -774,16 +757,6 @@ export default function ReservationForm() {
       if (!slotMaintenanceMode) {
         if (!s.pax || Number(s.pax) <= 0) {
           issues.push(`El salón ${salonLabel} debe tener un PAX mayor a 0`);
-        } else {
-          const slotPax = Number(s.pax || 0);
-          const salonNameClean = String(s.salon || "").trim();
-          const configuredMax = salonCapacities && typeof salonCapacities === "object"
-            ? Number(salonCapacities[salonNameClean] || 0)
-            : 0;
-          const maxAllowedPax = configuredMax > 0 ? configuredMax : 2000;
-          if (slotPax > maxAllowedPax) {
-            issues.push(`El PAX del salón ${salonLabel} supera el máximo permitido (${maxAllowedPax})`);
-          }
         }
       }
       
@@ -817,7 +790,7 @@ export default function ReservationForm() {
 
     setValidationErrors(issues);
     return { ok: issues.length === 0, issues };
-  }, [formData, slots, syncEventPaxFromSlots, id, salonCapacities]);
+  }, [formData, slots, syncEventPaxFromSlots, id]);
 
   const handleMaintenance = async () => {
     if (saving) return;
@@ -1745,7 +1718,7 @@ export default function ReservationForm() {
       `}</style>
 
       {showAppointmentModal && id && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div id="appointmentBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()}>
             <AppointmentModal eventId={id} eventName={formData.name} onClose={() => setShowAppointmentModal(false)} onSaved={refreshData} />
           </div>

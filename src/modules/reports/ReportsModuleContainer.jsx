@@ -27,7 +27,7 @@ export default function ReportsModuleContainer() {
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '28px 32px', gap: '28px', overflow: 'auto' }}>
         <div>
           <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', marginBottom: '4px' }}>
-            CRM Reservas | Jardines del Lago
+            EMS Reservas | Jardines del Lago
           </div>
           <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#0f172a', margin: 0, letterSpacing: '-0.03em', lineHeight: '1.1' }}>
             Reportes

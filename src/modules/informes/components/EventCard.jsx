@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getNotas, createNota, getUsuarios, toggleReaccionNota, getTareasUsuario, getTareasSemanaByOcupacion } from '../services/api.js';
+import { getNotas, createNota, getUsuariosCached, toggleReaccionNota, getTareasUsuario, getTareasSemanaByOcupacion } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -11,6 +11,7 @@ import { emitOpenEventChecklist } from '../../../utils/appEvents';
 const statusMap = {
   4: { label: 'Confirmado', color: 'green' },
   7: { label: 'Pre-reserva', color: 'fucsia' },
+  8: { label: 'Mantenimiento', color: 'purple' },
 };
 
 function getMencionFilter(text) {
@@ -21,7 +22,7 @@ function getMencionFilter(text) {
   return after;
 }
 
-export default function EventCard({ event, dragHandleProps, highlighted = false, onNavigateToTareas }) {
+export default function EventCard({ event, dragHandleProps, highlighted = false, onNavigateToTareas, highlightNotaId }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -47,8 +48,10 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     return map;
   }, [usuarios]);
   const currentUserId = (() => {
-    try { const t = localStorage.getItem('token'); if (!t) return null; return JSON.parse(atob(t.split('.')[1])).id; } catch { return null; }
+    try { const t = localStorage.getItem('token'); if (!t) return user?.id || null; return JSON.parse(atob(t.split('.')[1])).id || user?.id || null; } catch { return user?.id || null; }
   })();
+  const currentUserEmail = user?.email || '';
+  const currentUserName = user?.nombre || user?.name || '';
   const REACCIONES = [
     { emoji: '❤️', label: 'Me encanta' },
     { emoji: '😡', label: 'Enojado' },
@@ -57,10 +60,11 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   ];
   const esAlerta = event.tiene_alertas == 1 || event.tiene_alertas === true;
   const status = statusMap[event.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
-  const cardClass = `event-card ${status.color === 'green' ? 'confirmed' : status.color === 'fucsia' ? 'prereserva' : ''}`;
+  const colorClass = status.color === 'green' ? 'confirmed' : status.color === 'fucsia' ? 'prereserva' : status.color === 'purple' ? 'mantenimiento' : '';
+  const cardClass = `event-card ${colorClass}`;
 
   useEffect(() => {
-    getUsuarios().then(setUsuarios).catch(() => {});
+    getUsuariosCached().then(setUsuarios).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -80,6 +84,23 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
       setTareasCount(pendingPersonales + pendingSemanales);
     });
   }, [currentUserId, event.Idocupacion, event.displayDate, notasOpen, user?.teamId]);
+
+  useEffect(() => {
+    getNotas(event.Idocupacion).then(setNotas).catch(() => {});
+  }, [event.Idocupacion]);
+
+  useEffect(() => {
+    if (highlightNotaId && notas.length > 0) {
+      const hasMatch = notas.some(n => String(n.id) === String(highlightNotaId));
+      if (hasMatch) {
+        setNotasOpen(true);
+        setTimeout(() => {
+          const el = document.getElementById(`nota-${highlightNotaId}`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
+      }
+    }
+  }, [highlightNotaId, notas]);
 
   useEffect(() => {
     if (!notasOpen) return;
@@ -131,9 +152,10 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
       const text = input.value;
       const atIdx = text.lastIndexOf('@');
       if (atIdx >= 0) {
-        const newText = text.substring(0, atIdx) + `@${user.nombre} `;
+        const newText = text.substring(0, atIdx);
         setNotaText(newText);
       }
+      setTimeout(() => input.focus(), 0);
     }
   };
 
@@ -158,7 +180,9 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
       e.preventDefault();
       if (showMenciones && mencionFilter) {
         const match = usuarios.find(u =>
-          u.id !== currentUserId &&
+          String(u.id) !== String(currentUserId) &&
+          u.email !== currentUserEmail &&
+          u.nombre !== currentUserName &&
           u.nombre.toLowerCase().startsWith(mencionFilter.toLowerCase())
         );
         if (match) { selectMencion(match); return; }
@@ -167,15 +191,21 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     }
   };
 
-  const usuariosFiltrados = showMenciones
+      const usuariosFiltrados = showMenciones
     ? usuarios.filter(u =>
-        u.id !== currentUserId && (
+        String(u.id) !== String(currentUserId) && u.email !== currentUserEmail && u.nombre !== currentUserName && (
           !mencionFilter ||
           u.nombre.toLowerCase().includes(mencionFilter.toLowerCase()) ||
           (u.email && u.email.toLowerCase().includes(mencionFilter.toLowerCase()))
         )
       )
     : [];
+
+  const notasFiltradas = notas.filter(n => {
+    if (!n.menciones || n.menciones.length === 0) return true;
+    if (String(n.usuario_id) === String(currentUserId)) return true;
+    return n.menciones.some(m => String(m.id) === String(currentUserId));
+  });
 
   return (
     <article 
@@ -281,20 +311,20 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
           <IconCheckSquare size={13} />
           {tareasCount > 0 && <span className="tareas-badge">{tareasCount}</span>}
         </button>
-        <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${notas.length > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={notas.length > 0 ? `${notas.length} nota(s)` : 'Agregar nota'} style={{background:'var(--primary-bg)',color:'var(--primary)',borderColor:notasOpen ? 'var(--primary)' : 'transparent'}}>
+        <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${notasFiltradas.length > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={notasFiltradas.length > 0 ? `${notasFiltradas.length} nota(s)` : 'Agregar nota'} style={{background:'var(--primary-bg)',color:'var(--primary)',borderColor:notasOpen ? 'var(--primary)' : 'transparent'}}>
           <IconMessageCircle size={13} />
-          {notas.length > 0 && <span className="notas-badge">{notas.length}</span>}
+          {notasFiltradas.length > 0 && <span className="notas-badge">{notasFiltradas.length}</span>}
         </button>
       </div>
 
       {notasOpen && (
         <div className="notas-popover" onClick={(e) => e.stopPropagation()}>
           <div className="notas-list">
-            {notas.length === 0 ? (
+            {notasFiltradas.length === 0 ? (
               <p className="notas-empty">Sin notas aún. Usa @ para mencionar.</p>
             ) : (
-              notas.map((n, i) => (
-                <div key={n.id || i} className="nota-item">
+              notasFiltradas.map((n, i) => (
+                <div key={n.id || i} className={`nota-item ${String(n.id) === String(highlightNotaId) ? 'nota-highlighted' : ''}`} id={`nota-${n.id}`}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.3rem' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <strong>{n.usuario_nombre || 'Usuario'}</strong>

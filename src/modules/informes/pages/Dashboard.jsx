@@ -9,11 +9,13 @@ import {
 const statusColors = {
   4: 'confirmed',
   7: 'prereserva',
+  8: 'mantenimiento',
 };
 
 const statusLabels = {
   4: 'Confirmado',
   7: 'Pre-reserva',
+  8: 'Mantenimiento',
 };
 
 const barColors = ['purple', 'green', 'amber', 'blue', 'pink', 'gray'];
@@ -80,7 +82,15 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card" onClick={() => navigate('/kanban')} data-tooltip="Ir a Kanban">
+        <div className="stat-card" onClick={() => navigate('/kanban?status=8')} data-tooltip="Filtrar: solo mantenimientos">
+          <div className="stat-icon" style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6' }}><IconClock size={22} /></div>
+          <div className="stat-info">
+            <div className="stat-value" style={{ color: '#8b5cf6' }}>{resumen.mantenimientos || 0}</div>
+            <div className="stat-label">Mantenimientos</div>
+          </div>
+        </div>
+
+        <div className="stat-card" onClick={() => navigate('/kanban')} data-tooltip="Ir a Ocupación">
           <div className="stat-icon blue"><IconUsers size={22} /></div>
           <div className="stat-info">
             <div className="stat-value">{resumen.total_pax}</div>

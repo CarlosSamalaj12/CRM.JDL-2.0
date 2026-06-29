@@ -257,7 +257,7 @@ export default function ReportsOcupacion({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Reporte de Ocupación</div>
             <div className="reports-subtitle">Semana {weekDays[0]} a {weekDays[6]} (Lunes a Domingo)</div>
           </div>

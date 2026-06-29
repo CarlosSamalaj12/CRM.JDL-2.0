@@ -9,7 +9,7 @@ import { fetchEvents } from '../services/api.js';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import EventCard from '../components/EventCard.jsx';
 
-import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload, IconClipboardList } from '../components/Icons.jsx';
+import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconAlertCircle, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload, IconClipboardList } from '../components/Icons.jsx';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import SettingsChecklist from '../../settings/SettingsChecklist';
 import WeeklyTasks from '../components/WeeklyTasks.jsx';
@@ -19,12 +19,14 @@ const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes
 const statusMap = {
   4: { label: 'Confirmado', color: 'green' },
   7: { label: 'Pre-reserva', color: 'fucsia' },
+  8: { label: 'Mantenimiento', color: 'purple' },
 };
 
 function formatDateShort(iso) {
   const d = new Date(iso + 'T12:00:00');
   return d.toLocaleDateString('es-ES', { weekday:'short', day:'numeric', month:'short' });
 }
+const fmtTime = (t) => (t || '').slice(0, 5) || '??:??';
 
 function getWeekMonday(dateStr) {
   if (!dateStr) return null;
@@ -82,7 +84,7 @@ export default function Kanban() {
 
   // Guardar fecha seleccionada en localStorage
   useEffect(() => {
-    localStorage.setItem('kanban_selectedDate', selectedDate);
+    localStorage.setItem('kanban_selectedDate', selectedDate.slice(0, 10));
   }, [selectedDate]);
 
   // Efecto para resaltar evento desde notificación
@@ -94,7 +96,7 @@ export default function Kanban() {
       if (evento) {
         setEventoResaltado(highlightEventoId);
         // Navegar a la semana del evento
-        setSelectedDate(evento.FechaEvento || evento.displayDate);
+        setSelectedDate((evento.FechaEvento || evento.displayDate || '').slice(0, 10));
         
         // Hacer scroll al evento después de un breve delay
         setTimeout(() => {
@@ -107,10 +109,11 @@ export default function Kanban() {
         // Quitar el resaltado después de 5 segundos
         setTimeout(() => {
           setEventoResaltado(null);
-          // Limpiar el parámetro de la URL
+          // Limpiar los parámetros de la URL
           const newParams = new URLSearchParams(searchParams);
           newParams.delete('highlightEvento');
           newParams.delete('comentarioId');
+          newParams.delete('notaId');
           setSearchParams(newParams);
         }, 5000);
       }
@@ -204,9 +207,11 @@ export default function Kanban() {
   }, [selectedDate]);
 
   const selectedDateObj = new Date(selectedDate + 'T12:00:00');
-  const day = selectedDateObj.getDay();
-  const diff = selectedDateObj.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(selectedDateObj.setDate(diff));
+  const fallbackDate = isNaN(selectedDateObj.getTime()) ? new Date() : selectedDateObj;
+  const day = fallbackDate.getDay();
+  const diff = fallbackDate.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(fallbackDate);
+  monday.setDate(diff);
 
   const columns = dayNames.map((name, index) => {
     const currentDay = new Date(monday);
@@ -238,7 +243,7 @@ export default function Kanban() {
   const days = dayNames.map((_, index) => {
     const currentDay = new Date(monday);
     currentDay.setDate(monday.getDate() + index);
-    const isoDate = currentDay.toISOString().slice(0, 10);
+    const isoDate = `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, '0')}-${String(currentDay.getDate()).padStart(2, '0')}`;
     const label = currentDay.toLocaleDateString('es-ES', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
@@ -263,7 +268,7 @@ export default function Kanban() {
         'Fecha': dateStr,
         'Institución': e.Institucion || '',
         'Salón': e.Salon || '',
-        'Horario': `${e.HoraI || ''} - ${e.HoraF || ''}`,
+        'Horario': `${fmtTime(e.HoraI)} - ${fmtTime(e.HoraF)}`,
         'Pax': e.Pax || 0,
         'Des': dayOps.breakfasts,
         'Hab': dayOps.rooms,
@@ -298,6 +303,7 @@ export default function Kanban() {
     });
 
     let tableRows = '';
+    let weeklyTotalsPrint = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
     const weekDays = dayNames.map((_, i) => {
       const currentDay = new Date(monday);
       currentDay.setDate(monday.getDate() + i);
@@ -310,11 +316,24 @@ export default function Kanban() {
 
     for (const day of weekDays) {
       const hasEvents = day.events.length > 0;
-      tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="10" style="background:#f0f4ff;font-weight:700;padding:8px 12px;font-size:13px;border-bottom:1px solid #d1d9e6;">${day.label}</td></tr>`;
+      tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="15" style="background:#f0f4ff;font-weight:700;padding:8px 12px;font-size:13px;border-bottom:1px solid #d1d9e6;">${day.label}</td></tr>`;
       if (!hasEvents) {
-        tableRows += `<tr><td colspan="10" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
+        tableRows += `<tr><td colspan="15" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
       } else {
+        const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
         for (const ev of day.events) {
+          const paxVal = Number(ev.Pax) || 0;
+          const dVal = Number(ev.cant_desayunos) || 0;
+          const raVal = Number(ev.cant_refacciones_am) || 0;
+          const aVal = Number(ev.cant_almuerzos) || 0;
+          const rpVal = Number(ev.cant_refacciones_pm) || 0;
+          const cVal = Number(ev.cant_cenas) || 0;
+          dayTotals.pax += paxVal;
+          dayTotals.desayunos += dVal;
+          dayTotals.ref_am += raVal;
+          dayTotals.almuerzos += aVal;
+          dayTotals.ref_pm += rpVal;
+          dayTotals.cenas += cVal;
           const st = statusMap[ev.Estatuscotizacion] || { label: '—', color: 'gray' };
           const dateStr = ev.displayDate || '';
           const dayOps = dateStr ? (occupancyOps[getWeekMonday(dateStr)]?.[dateStr]) || { breakfasts: 0, rooms: 0 } : { breakfasts: 0, rooms: 0 };
@@ -324,15 +343,49 @@ export default function Kanban() {
             <td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;"><span class="tag tag-${st.color}">${st.label}</span></td>
             <td style="padding:6px 10px;font-size:12px;font-weight:600;border-bottom:1px solid #e2e8f0;">${ev.Institucion || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;">${ev.Salon || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${ev.HoraI || '??:??'} - ${ev.HoraF || '??:??'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${ev.Pax || 0}</td>
+            <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtTime(ev.HoraI)} - ${fmtTime(ev.HoraF)}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${paxVal || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${dVal || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${raVal || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${aVal || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${rpVal || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${cVal || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;color:#16a34a;">${dayOps.breakfasts}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;color:#2563eb;">${dayOps.rooms}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${alerta}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${ev.Vendedor || '—'}</td>
           </tr>`;
         }
+        weeklyTotalsPrint.pax += dayTotals.pax;
+        weeklyTotalsPrint.desayunos += dayTotals.desayunos;
+        weeklyTotalsPrint.ref_am += dayTotals.ref_am;
+        weeklyTotalsPrint.almuerzos += dayTotals.almuerzos;
+        weeklyTotalsPrint.ref_pm += dayTotals.ref_pm;
+        weeklyTotalsPrint.cenas += dayTotals.cenas;
+        const shortDate = day.events[0]?.displayDate ? new Date(day.events[0].displayDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
+        tableRows += `<tr style="background:#f1f5f9;">
+          <td colspan="5" style="font-size:11px;font-weight:700;text-align:right;padding:4px 12px;border-bottom:1px solid #e2e8f0;color:#475569;">Total ${shortDate}</td>
+          <td style="font-size:12px;font-weight:800;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#1e40af;">${dayTotals.pax}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.desayunos}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.ref_am}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.almuerzos}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.ref_pm}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.cenas}</td>
+          <td colspan="4" style="border-bottom:1px solid #e2e8f0;"></td>
+        </tr>`;
       }
+    }
+    if (weekDays.length > 0) {
+      tableRows += `<tr style="background:#e0e7ff;">
+        <td colspan="5" style="font-size:12px;font-weight:800;text-align:right;padding:6px 12px;border-top:2px solid #6366f1;color:#3730a3;">TOTAL SEMANA</td>
+        <td style="font-size:13px;font-weight:900;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#1e40af;">${weeklyTotalsPrint.pax}</td>
+        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.desayunos}</td>
+        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.ref_am}</td>
+        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.almuerzos}</td>
+        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.ref_pm}</td>
+        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.cenas}</td>
+        <td colspan="4" style="border-top:2px solid #6366f1;"></td>
+      </tr>`;
     }
 
     return `<!DOCTYPE html>
@@ -342,11 +395,12 @@ export default function Kanban() {
   @page { margin: 15mm 12mm; }
   * { box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; }
-  .print-header { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1e40af; }
-  .print-header img { height: 60px; width: auto; }
+  .print-header { display: flex; align-items: center; justify-content: center; margin-bottom: 4px; padding: 0; border: none; }
+  .print-header img { height: 30px; width: auto; opacity: 0.6; }
   .print-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #475569; }
   .print-meta strong { color: #0f172a; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+  th, td { word-break: break-word; overflow-wrap: break-word; }
   th { background: #1e40af; color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
   th:first-child { border-radius: 6px 0 0 0; }
   th:last-child { border-radius: 0 6px 0 0; }
@@ -354,12 +408,13 @@ export default function Kanban() {
   .tag-green { background: #dcfce7; color: #16a34a; }
   .tag-fucsia { background: #fdf2f8; color: #d946ef; }
   .tag-gray { background: #f1f5f9; color: #64748b; }
+  .tag-purple { background: #f3e8ff; color: #a855f7; }
   tr.sin-eventos td { background: #fafafa; }
   .print-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
 </style></head>
 <body>
   <div class="print-header">
-    <img src="/Encabezadojdl.png" alt="Logo" onerror="this.style.display='none'" />
+    <img src="/Oficial_JDL_acua.png" alt="Logo" onerror="this.style.display='none'" />
   </div>
   <div class="print-meta">
     <span>Impreso por: <strong>${userName}</strong></span>
@@ -367,11 +422,11 @@ export default function Kanban() {
   </div>
   <table>
     <thead><tr>
-      <th>Día</th><th>Estado</th><th>Institución</th><th>Salón</th><th>Horario</th><th>Pax</th><th>Des</th><th>Hab</th><th>Alertas</th><th>Vendedor</th>
+      <th>Día</th><th>Estado</th><th>Institución</th><th>Salón</th><th>Horario</th><th>Pax</th><th title="Cantidad Desayunos">Des.</th><th title="Cantidad Refacciones AM">Ref.AM</th><th title="Cantidad Almuerzos">Alm.</th><th title="Cantidad Refacciones PM">Ref.PM</th><th title="Cantidad Cenas">Cenas</th><th>Des</th><th>Hab</th><th>Alertas</th><th>Vendedor</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>
-  <div class="print-footer">Documento generado por Jardines CRM — ${printTimestamp}</div>
+  <div class="print-footer">Documento generado por Jardines EMS — ${printTimestamp}</div>
 </body></html>`;
   };
 
@@ -462,6 +517,7 @@ export default function Kanban() {
   let filterLabel = '';
   if (filterStatus === '4') filterLabel = 'Confirmados';
   else if (filterStatus === '7') filterLabel = 'Pre-reservas';
+  else if (filterStatus === '8') filterLabel = 'Mantenimiento';
   else if (filterTipo) filterLabel = `Tipo: ${filterTipo}`;
   else if (filterSalon) filterLabel = `Salón: ${filterSalon}`;
   else if (filterAlertas) filterLabel = '⚠️ Alertas';
@@ -470,13 +526,13 @@ export default function Kanban() {
     <section className="kanban-shell">
       <div className="kanban-header">
         <div className="kanban-title">
-          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Kanban</> : viewMode === 'tabla' ? <><IconFileText size={20} /> Tabla Semanal</> : <><IconClipboardList size={20} /> Tareas Semanales</>}</h2>
+          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Ocupación</> : viewMode === 'tabla' ? <><IconFileText size={20} /> Tabla Semanal</> : <><IconClipboardList size={20} /> Tareas Semanales</>}</h2>
           <p>{totalEvents} eventos en la semana{hasFilter ? ' (filtrados)' : ''}</p>
         </div>
         <div className="kanban-filter" style={{display:'flex',alignItems:'center',gap:'0.35rem',flexWrap:'wrap',minWidth:0,overflow:'hidden'}}>
           <div className="view-toggle">
             <button className={`view-toggle-btn${viewMode === 'kanban' ? ' active' : ''}`} onClick={() => setViewMode('kanban')}>
-              <IconGrid size={13} /> Kanban
+              <IconGrid size={13} /> Ocupación
             </button>
             <button className={`view-toggle-btn${viewMode === 'tabla' ? ' active' : ''}`} onClick={() => setViewMode('tabla')}>
               <IconFileText size={13} /> Tabla
@@ -527,7 +583,7 @@ export default function Kanban() {
               <input 
                 id="week-filter" 
                 type="date" 
-                value={selectedDate} 
+                value={selectedDate ? selectedDate.slice(0, 10) : ''} 
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
             </div>
@@ -549,6 +605,7 @@ export default function Kanban() {
             <span className="kanban-filter-badge">
               {filterStatus === '4' && <><IconCheckCircle size={14} /> {filterLabel}</>}
               {filterStatus === '7' && <><IconClock size={14} /> {filterLabel}</>}
+              {filterStatus === '8' && <><IconAlertCircle size={14} /> {filterLabel}</>}
               {filterTipo && <><IconTag size={14} /> {filterLabel}</>}
               {filterSalon && <><IconBuilding size={14} /> {filterLabel}</>}
               {filterAlertas && <><span style={{fontSize:'1rem'}}>⚠️</span> Alertas</>}
@@ -635,6 +692,7 @@ export default function Kanban() {
                         event={event} 
                         highlighted={eventoResaltado === String(event.Idocupacion)}
                         onNavigateToTareas={() => setViewMode('tareas')}
+                        highlightNotaId={searchParams.get('notaId')}
                       />
                   ))
                 )}
@@ -658,6 +716,11 @@ export default function Kanban() {
                 <th>Salón</th>
                 <th>Horario</th>
                 <th>Pax</th>
+                <th title="Cantidad Desayunos">Des.</th>
+                <th title="Cantidad Refacciones AM">Ref. AM</th>
+                <th title="Cantidad Almuerzos">Alm.</th>
+                <th title="Cantidad Refacciones PM">Ref. PM</th>
+                <th title="Cantidad Cenas">Cenas</th>
                 <th>Des</th>
                 <th>Hab</th>
                 <th>Alertas</th>
@@ -665,50 +728,110 @@ export default function Kanban() {
               </tr></thead><tbody>
               {days.length === 0 ? (
                 <tr>
-                <td colSpan={10} style={{textAlign:'center',padding:'2rem',color:'var(--text-muted)'}}>
+                <td colSpan={15} style={{textAlign:'center',padding:'2rem',color:'var(--text-muted)'}}>
                   No hay eventos esta semana
                 </td>
                 </tr>
-              ) : days.flatMap((day) => {
-                const rows = [];
-                rows.push(
-                  <tr key={day.isoDate} className="tabla-dia-header">
-                    <td colSpan={10}><div className="tabla-dia-inner">
-                      <span className="tabla-dia-label">{day.label}</span>
-                    </div></td>
-                  </tr>
-                );
-                if (day.events.length === 0) {
+              ) : (() => {
+                let weeklyTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
+                return days.flatMap((day) => {
+                  const rows = [];
                   rows.push(
-                    <tr key={`${day.isoDate}-empty`}>
-                      <td style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{day.shortDate}</td>
-                      <td colSpan={8} style={{color:'var(--text-muted)',fontSize:'0.82rem',textAlign:'center'}}>
-                        Sin eventos este día
-                      </td>
+                    <tr key={day.isoDate} className="tabla-dia-header">
+                      <td colSpan={15}><div className="tabla-dia-inner">
+                        <span className="tabla-dia-label">{day.label}</span>
+                      </div></td>
                     </tr>
                   );
-                } else {
-                  const dayOps = (occupancyOps[getWeekMonday(day.isoDate)]?.[day.isoDate]) || { breakfasts: 0, rooms: 0 };
-                  day.events.forEach((ev, ei) => {
-                    const st = statusMap[ev.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
+                  if (day.events.length === 0) {
                     rows.push(
-                      <tr key={`${day.isoDate}-${ev.Idocupacion}-${ei}`}>
-                        <td style={{fontSize:'0.75rem',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{day.shortDate}</td>
-                        <td><span className={`event-tag event-tag-${st.color}`} style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>{st.label}</span></td>
-                        <td style={{fontWeight:500}}>{ev.Institucion || '—'}</td>
-                        <td><IconMapPin size={13} /> {ev.Salon || '—'}</td>
-                        <td><IconClock size={13} /> {ev.HoraI || '??:??'} - {ev.HoraF || '??:??'}</td>
-                        <td>{ev.Pax || 0}</td>
-                        <td style={{fontSize:'0.75rem',fontWeight:600,color:'#16a34a',textAlign:'center'}}>{dayOps.breakfasts}</td>
-                        <td style={{fontSize:'0.75rem',fontWeight:600,color:'#2563eb',textAlign:'center'}}>{dayOps.rooms}</td>
-                        <td>{(ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? <span className="event-tag event-tag-warning" style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>⚠️ Alertas</span> : '—'}</td>
-                        <td><IconUser size={13} /> {ev.Vendedor || '—'}</td>
+                      <tr key={`${day.isoDate}-empty`}>
+                        <td style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{day.shortDate}</td>
+                        <td colSpan={14} style={{color:'var(--text-muted)',fontSize:'0.82rem',textAlign:'center'}}>
+                          Sin eventos este día
+                        </td>
                       </tr>
                     );
-                  });
-                }
-                return rows;
-              })}</tbody></table>
+                  } else {
+                    const dayOps = (occupancyOps[getWeekMonday(day.isoDate)]?.[day.isoDate]) || { breakfasts: 0, rooms: 0 };
+                    const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
+                    day.events.forEach((ev, ei) => {
+                      const paxVal = Number(ev.Pax) || 0;
+                      const dVal = Number(ev.cant_desayunos) || 0;
+                      const raVal = Number(ev.cant_refacciones_am) || 0;
+                      const aVal = Number(ev.cant_almuerzos) || 0;
+                      const rpVal = Number(ev.cant_refacciones_pm) || 0;
+                      const cVal = Number(ev.cant_cenas) || 0;
+                      dayTotals.pax += paxVal;
+                      dayTotals.desayunos += dVal;
+                      dayTotals.ref_am += raVal;
+                      dayTotals.almuerzos += aVal;
+                      dayTotals.ref_pm += rpVal;
+                      dayTotals.cenas += cVal;
+                      const st = statusMap[ev.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
+                      rows.push(
+                        <tr key={`${day.isoDate}-${ev.Idocupacion}-${ei}`}>
+                          <td style={{fontSize:'0.75rem',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{day.shortDate}</td>
+                          <td><span className={`event-tag event-tag-${st.color}`} style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>{st.label}</span></td>
+                          <td style={{fontWeight:500}}>{ev.Institucion || '—'}</td>
+                          <td><IconMapPin size={13} /> {ev.Salon || '—'}</td>
+                          <td><IconClock size={13} /> {fmtTime(ev.HoraI)} - {fmtTime(ev.HoraF)}</td>
+                          <td>{paxVal || '—'}</td>
+                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dVal || '—'}</td>
+                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{raVal || '—'}</td>
+                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{aVal || '—'}</td>
+                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{rpVal || '—'}</td>
+                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{cVal || '—'}</td>
+                          <td style={{fontSize:'0.75rem',fontWeight:600,color:'#16a34a',textAlign:'center'}}>{dayOps.breakfasts}</td>
+                          <td style={{fontSize:'0.75rem',fontWeight:600,color:'#2563eb',textAlign:'center'}}>{dayOps.rooms}</td>
+                          <td>{(ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? <span className="event-tag event-tag-warning" style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>⚠️ Alertas</span> : '—'}</td>
+                          <td><IconUser size={13} /> {ev.Vendedor || '—'}</td>
+                        </tr>
+                      );
+                    });
+                    weeklyTotals.pax += dayTotals.pax;
+                    weeklyTotals.desayunos += dayTotals.desayunos;
+                    weeklyTotals.ref_am += dayTotals.ref_am;
+                    weeklyTotals.almuerzos += dayTotals.almuerzos;
+                    weeklyTotals.ref_pm += dayTotals.ref_pm;
+                    weeklyTotals.cenas += dayTotals.cenas;
+                    rows.push(
+                      <tr key={`${day.isoDate}-total`} style={{background:'#f1f5f9'}}>
+                        <td colSpan={5} style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>
+                          Total {day.shortDate}
+                        </td>
+                        <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#1e40af'}}>
+                          {dayTotals.pax}
+                        </td>
+                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.desayunos}</td>
+                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_am}</td>
+                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.almuerzos}</td>
+                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_pm}</td>
+                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.cenas}</td>
+                        <td colSpan={4} style={{borderBottom:'1px solid #e2e8f0'}}></td>
+                      </tr>
+                    );
+                  }
+                  return rows;
+                }).concat(
+                  days.length > 0 ? (
+                    <tr key="semana-total" style={{background:'#e0e7ff'}}>
+                      <td colSpan={5} style={{fontSize:'0.75rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>
+                        TOTAL SEMANA
+                      </td>
+                      <td style={{fontSize:'0.82rem',fontWeight:900,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#1e40af'}}>
+                        {weeklyTotals.pax}
+                      </td>
+                      <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.desayunos}</td>
+                      <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.ref_am}</td>
+                      <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.almuerzos}</td>
+                      <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.ref_pm}</td>
+                      <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.cenas}</td>
+                      <td colSpan={4} style={{borderTop:'2px solid #6366f1'}}></td>
+                    </tr>
+                  ) : []
+                );
+              })()}</tbody></table>
         </div>
       )}
       {pdfLoading && <LoadingSpinner mensaje="Generando PDF..." />}

@@ -241,7 +241,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       const { default: jsPDF } = await import('jspdf');
       const el = reportRef.current;
       if (!el) { setPdfLoading(false); return; }
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfW = pdf.internal.pageSize.getWidth();
@@ -320,7 +320,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">🎯 Proyección de Metas</div>
             <div className="reports-subtitle">¿Cuánto necesita vender cada vendedor para alcanzar el siguiente nivel?</div>
           </div>
