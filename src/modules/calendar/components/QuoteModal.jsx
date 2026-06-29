@@ -1242,6 +1242,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
     const user = authService.getCurrentUser();
 
+    // Abrir ventana vacía síncronamente antes del await para evitar bloqueador de popups en móvil
+    const printWin = window.open("", "_blank");
+    if (printWin) {
+      printWin.document.open();
+      printWin.document.write(`<!doctype html><html><head><title>Preparando cotizacion</title></head><body style="font-family:Arial,sans-serif;padding:24px;">Preparando vista previa de cotizacion...</body></html>`);
+      printWin.document.close();
+    }
+
     const { value: printOption } = await localSwal({
       title: 'Formato de impresión',
       input: 'select',
@@ -1258,12 +1266,22 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       cancelButtonColor: '#6e7881'
     });
 
-    if (!printOption) return;
+    if (!printOption) {
+      if (printWin) printWin.close();
+      return;
+    }
 
-    const success = await generateQuotePrintDocument({ ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total }, user, printOption, event);
+    const success = await generateQuotePrintDocument(
+      { ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total },
+      user,
+      printOption,
+      event,
+      printWin
+    );
     
     if (!success) {
       localSwal({ icon: 'error', title: 'Error', text: 'No se pudo generar el documento.' });
+      if (printWin) printWin.close();
     }
   };
 

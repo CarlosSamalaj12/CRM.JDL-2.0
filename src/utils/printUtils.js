@@ -170,16 +170,18 @@ function buildQuoteRowsHtml(items, docCurrency = 'GTQ') {
     .join("");
 }
 
-export const generateQuotePrintDocument = async (quote, user, printOption = "standard", event = null) => {
-  const printWin = window.open("", "_blank");
+export const generateQuotePrintDocument = async (quote, user, printOption = "standard", event = null, externalPrintWin = null) => {
+  const printWin = externalPrintWin || window.open("", "_blank");
   if (!printWin) {
     modernAlert({ icon: "warning", title: "Bloqueador activo", text: "Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización." });
     return false;
   }
 
-  printWin.document.open();
-  printWin.document.write(`<!doctype html><html><head><title>Preparando cotizacion</title></head><body style="font-family:Arial,sans-serif;padding:24px;">Preparando vista previa de cotizacion...</body></html>`);
-  printWin.document.close();
+  if (!externalPrintWin) {
+    printWin.document.open();
+    printWin.document.write(`<!doctype html><html><head><title>Preparando cotizacion</title></head><body style="font-family:Arial,sans-serif;padding:24px;">Preparando vista previa de cotizacion...</body></html>`);
+    printWin.document.close();
+  }
 
   try {
     // Load CRM state first so contractTemplates are available for template resolution
