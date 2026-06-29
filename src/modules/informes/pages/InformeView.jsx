@@ -164,7 +164,17 @@ export default function InformeView() {
         pdf.addImage(imgData, 'PNG', 0, position, pdfW, pdfH);
         heightLeft -= pageH;
       }
-      pdf.save(`informe-${id}.pdf`);
+      // Generar nombre de archivo descriptivo (institución o encargado + no. cotización)
+      const cleanString = (str) => {
+        return str
+          ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9-_]/g, "_")
+          : "";
+      };
+      const namePart = cleanString(informe.Institucion || informe.EncargadoEvento || "");
+      const docPart = cleanString(informe.NoDoc || id);
+      const filename = `informe_${namePart}_${docPart}.pdf`.replace(/_+/g, "_").replace(/_$/, "").toLowerCase();
+
+      pdf.save(filename);
     } catch (err) {
       console.error('Error al exportar PDF:', err);
       toast.error('Error al generar el PDF. Intenta usar la opción Imprimir.');
