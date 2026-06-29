@@ -1260,15 +1260,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
     if (!printOption) return;
 
-    // Mostrar modal de carga
-    localSwal({
-      title: 'Generando documento...',
-      text: 'Por favor espera un momento.',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
+    // Abrir la ventana síncronamente antes de la generación asíncrona para que iOS lo acepte
+    const printWin = window.open("/loading.html", "_blank");
 
     const printUrl = await generateQuotePrintDocument(
       { ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total },
@@ -1277,26 +1270,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       event
     );
 
-    if (printUrl) {
-      const formatLabel = printOption === 'standard' ? 'Cotización' : printOption === 'completa' ? 'Contrato' : 'Sin Precios';
-      localSwal({
-        title: 'Documento Listo',
-        html: `
-          <p style="margin-bottom: 20px; font-size: 14px; color: #334155;">
-            La cotización en formato <b>${formatLabel}</b> se ha generado correctamente.
-          </p>
-          <div style="display: flex; justify-content: center; gap: 10px;">
-            <a href="${printUrl}" target="_blank" class="swal2-confirm swal2-styled" onclick="Swal.close()" style="display: inline-flex; align-items: center; text-decoration: none; background-color: #10b981; color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 13.5px; border: none; box-shadow: 0 4px 6px rgba(16,185,129,0.2);">
-              Abrir documento
-            </a>
-          </div>
-        `,
-        showConfirmButton: false,
-        showCancelButton: true,
-        cancelButtonText: 'Cerrar',
-        cancelButtonColor: '#6e7881'
-      });
+    if (printUrl && printWin) {
+      printWin.location.href = printUrl;
     } else {
+      if (printWin) printWin.close();
       localSwal({ icon: 'error', title: 'Error', text: 'No se pudo generar el documento.' });
     }
   };
