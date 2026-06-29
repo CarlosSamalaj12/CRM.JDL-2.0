@@ -46,8 +46,9 @@ class ApiClient {
           body?.error?.message || body?.message || `Error del servidor`,
           response.status,
           body?.error?.code || 'API_ERROR',
-          body?.error?.details || body?.errors
+          body?.error?.details || body?.errors || body?.detail
         );
+        err.responseBody = body;
         if (this.onError) this.onError(err);
         throw err;
       }
@@ -102,6 +103,7 @@ export class ApiError extends Error {
     this.status = status;
     this.code = code;
     this.details = details;
+    this.responseBody = null;
   }
 }
 

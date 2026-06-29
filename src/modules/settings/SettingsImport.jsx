@@ -313,7 +313,25 @@ export default function SettingsImport() {
         toast('Importación cancelada.');
       } else {
         console.error('Error importando:', err);
-        toast(`${err.message || 'Error al importar'}. Verifica el archivo.`);
+        // Build detailed error message from available info
+        let detail = err.message || 'Error al importar';
+        if (err.details) {
+          const detailStr = typeof err.details === 'string' ? err.details : JSON.stringify(err.details);
+          detail += ` — ${detailStr}`;
+        }
+        if (err.status) {
+          detail += ` (código ${err.status})`;
+        }
+        // Show the full server response body for maximum clarity
+        if (err.responseBody) {
+          const { message, detail: serverDetail, ...rest } = err.responseBody;
+          const parts = [];
+          if (serverDetail && serverDetail !== err.message) parts.push(serverDetail);
+          const restStr = Object.keys(rest).length ? JSON.stringify(rest).slice(0, 200) : '';
+          if (restStr) parts.push(restStr);
+          if (parts.length) detail += ` — ${parts.join(' — ')}`;
+        }
+        toast(`${detail}. Revisa la consola del navegador (F12) para más detalles.`);
       }
     } finally {
       setWorking('');
