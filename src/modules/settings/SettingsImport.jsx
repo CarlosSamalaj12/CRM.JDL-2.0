@@ -34,6 +34,12 @@ export default function SettingsImport() {
   const [dragOver, setDragOver] = useState('');
   const dragCounter = useRef({ empresas: 0, encargados: 0, eventos: 0 });
 
+  const clearFileInput = (t) => {
+    if (t === 'eventos' && eventsInputRef.current) eventsInputRef.current.value = '';
+    if (t === 'empresas' && companiesInputRef.current) companiesInputRef.current.value = '';
+    if (t === 'encargados' && managersInputRef.current) managersInputRef.current.value = '';
+  };
+
   const showOverlay = (mode, errors) => {
     if (!overlayRef.current || !overlayBodyRef.current) return;
     overlayRef.current.style.display = 'flex';
@@ -190,11 +196,6 @@ export default function SettingsImport() {
       toast('Solo se aceptan archivos CSV (.csv) o Excel (.xlsx / .xls).');
       return;    }
       setWorking(type);
-    const clearFileInput = (t) => {
-      if (t === 'eventos' && eventsInputRef.current) eventsInputRef.current.value = '';
-      if (t === 'empresas' && companiesInputRef.current) companiesInputRef.current.value = '';
-      if (t === 'encargados' && managersInputRef.current) managersInputRef.current.value = '';
-    };
     try {
       let rows;
       if (ext === 'csv') {
