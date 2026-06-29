@@ -2826,6 +2826,42 @@ app.get("/api/anticipos/:id/evidencia", async (req, res) => {
   }
 });
 
+const printCache = new Map();
+// Limpieza automática cada 5 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, item] of printCache.entries()) {
+    if (now - item.timestamp > 5 * 60 * 1000) {
+      printCache.delete(id);
+    }
+  }
+}, 60 * 1000);
+
+app.post("/api/print/prepare", (req, res) => {
+  const html = req.body?.html;
+  if (!html) {
+    return res.status(400).json({ error: "Falta contenido HTML" });
+  }
+  const id = "print_" + Math.random().toString(36).slice(2, 12);
+  printCache.set(id, { html, timestamp: Date.now() });
+  return res.json({ id });
+});
+
+app.get("/api/print/render/:id", (req, res) => {
+  const id = req.params.id;
+  const item = printCache.get(id);
+  if (!item) {
+    return res.status(404).send(`
+      <div style="font-family: Arial, sans-serif; text-align: center; padding: 40px; color: #334155; background: #f8fafc; height: 100vh; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <h2>Enlace de impresión expirado</h2>
+        <p>Por favor, genera la cotización nuevamente desde el CRM.</p>
+      </div>
+    `);
+  }
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(item.html);
+});
+
 app.get("/api/salones", async (_req, res) => {
   try {
     const salones = await readSalonesFromTables();

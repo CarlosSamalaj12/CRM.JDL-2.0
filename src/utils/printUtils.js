@@ -170,19 +170,7 @@ function buildQuoteRowsHtml(items, docCurrency = 'GTQ') {
     .join("");
 }
 
-export const generateQuotePrintDocument = async (quote, user, printOption = "standard", event = null, externalPrintWin = null) => {
-  const printWin = externalPrintWin || window.open("", "_blank");
-  if (!printWin) {
-    modernAlert({ icon: "warning", title: "Bloqueador activo", text: "Bloqueador de ventanas emergentes activado. Habilítalo para ver la cotización." });
-    return false;
-  }
-
-  if (!externalPrintWin) {
-    printWin.document.open();
-    printWin.document.write(`<!doctype html><html><head><title>Preparando cotizacion</title></head><body style="font-family:Arial,sans-serif;padding:24px;">Preparando vista previa de cotizacion...</body></html>`);
-    printWin.document.close();
-  }
-
+export const generateQuotePrintDocument = async (quote, user, printOption = "standard", event = null) => {
   try {
     // Load CRM state first so contractTemplates are available for template resolution
     let companies = [];
@@ -1299,19 +1287,22 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       </html>
     `;
 
-    printWin.document.open();
-    printWin.document.write(finalHtml);
-    printWin.document.close();
-    return true;
+    const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+    const res = await fetch(`${apiBase}/api/print/prepare`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ html: finalHtml })
+    });
+    if (!res.ok) throw new Error("Error al preparar la impresión en el servidor");
+    const data = await res.json();
+    return `/api/print/render/${data.id}`;
   } catch (err) {
     console.error("Error generating print document:", err);
-    try {
-      printWin.document.open();
-      printWin.document.write(`<!doctype html><html><body style="font-family:Arial,sans-serif;padding:24px;"><h2>No se pudo generar la cotizacion</h2><p>Revise los datos de la cotizacion e intente nuevamente.</p></body></html>`);
-      printWin.document.close();
-    } catch {
-      // ignore
-    }
     return false;
   }
 };

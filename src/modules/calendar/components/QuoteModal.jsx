@@ -1242,14 +1242,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
     const user = authService.getCurrentUser();
 
-    // Abrir ventana vacía síncronamente antes del await para evitar bloqueador de popups en móvil
-    const printWin = window.open("", "_blank");
-    if (printWin) {
-      printWin.document.open();
-      printWin.document.write(`<!doctype html><html><head><title>Preparando cotizacion</title></head><body style="font-family:Arial,sans-serif;padding:24px;">Preparando vista previa de cotizacion...</body></html>`);
-      printWin.document.close();
-    }
-
     const { value: printOption } = await localSwal({
       title: 'Formato de impresión',
       input: 'select',
@@ -1266,22 +1258,46 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       cancelButtonColor: '#6e7881'
     });
 
-    if (!printOption) {
-      if (printWin) printWin.close();
-      return;
-    }
+    if (!printOption) return;
 
-    const success = await generateQuotePrintDocument(
+    // Mostrar modal de carga
+    localSwal({
+      title: 'Generando documento...',
+      text: 'Por favor espera un momento.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    const printUrl = await generateQuotePrintDocument(
       { ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total },
       user,
       printOption,
-      event,
-      printWin
+      event
     );
-    
-    if (!success) {
+
+    if (printUrl) {
+      const formatLabel = printOption === 'standard' ? 'Cotización' : printOption === 'completa' ? 'Contrato' : 'Sin Precios';
+      localSwal({
+        title: 'Documento Listo',
+        html: `
+          <p style="margin-bottom: 20px; font-size: 14px; color: #334155;">
+            La cotización en formato <b>${formatLabel}</b> se ha generado correctamente.
+          </p>
+          <div style="display: flex; justify-content: center; gap: 10px;">
+            <a href="${printUrl}" target="_blank" class="swal2-confirm swal2-styled" onclick="Swal.close()" style="display: inline-flex; align-items: center; text-decoration: none; background-color: #10b981; color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 13.5px; border: none; box-shadow: 0 4px 6px rgba(16,185,129,0.2);">
+              Abrir documento
+            </a>
+          </div>
+        `,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: 'Cerrar',
+        cancelButtonColor: '#6e7881'
+      });
+    } else {
       localSwal({ icon: 'error', title: 'Error', text: 'No se pudo generar el documento.' });
-      if (printWin) printWin.close();
     }
   };
 
