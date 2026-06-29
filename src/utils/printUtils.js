@@ -217,11 +217,14 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
         }
         // Legacy fallback for quotes saved before contractTemplates config
         if (!fileName) {
-          if (tplId === "contrato_corp" || tplId === "contrato_social") {
-            fileName = "Jardines.html";
+          if (tplId === "contrato_corp") {
+            fileName = "Jardines_Corp.html";
+            tplHeaderImage = 'Encabezadojdl.png';
+          } else if (tplId === "contrato_social") {
+            fileName = "Jardines_Soci.html";
             tplHeaderImage = 'Encabezadojdl.png';
           } else if (tplId === "contrato_hosp") {
-            fileName = "ServiHosp.html";
+            fileName = "ServiHosp_Soci.html";
             tplHeaderImage = 'EncabezadoServ.jpg';
             tplFooterImage = 'piedepaginajdl.png';
           }
