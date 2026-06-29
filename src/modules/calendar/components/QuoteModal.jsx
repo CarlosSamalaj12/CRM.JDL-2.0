@@ -894,7 +894,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         window.__selectedPrintFormat = null;
         
         if (pf) {
-          await generateQuotePrintDocument(finalQuote, user, pf, event);
+          const printWin = window.open("/loading.html", "_blank");
+          const printUrl = await generateQuotePrintDocument(finalQuote, user, pf, event);
+          if (printUrl && printWin) {
+            printWin.location.href = printUrl;
+          } else {
+            if (printWin) printWin.close();
+            localSwal({ icon: 'error', title: 'Error', text: 'No se pudo generar el documento.' });
+          }
         }
       } else if (result.isDenied) {
         const showGuidedAlert = async () => {
@@ -924,8 +931,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           });
 
           if (waResult.isConfirmed) {
-            const user = authService.getCurrentUser();
-            await generateQuotePrintDocument(finalQuote, user, "standard", event);
+            const printWin = window.open("/loading.html", "_blank");
+            const printUrl = await generateQuotePrintDocument(finalQuote, user, "standard", event);
+            if (printUrl && printWin) {
+              printWin.location.href = printUrl;
+            } else {
+              if (printWin) printWin.close();
+              localSwal({ icon: 'error', title: 'Error', text: 'No se pudo generar el documento.' });
+            }
             // Mostrar la guía nuevamente para continuar con el paso 2
             await showGuidedAlert();
           } else if (waResult.isDenied) {
