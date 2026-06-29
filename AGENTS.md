@@ -14,7 +14,7 @@ Event management CRM for Jardines del Lago. React 19 + Vite 8 frontend, Express 
 | `npm run import-menus` | Run `scripts/import_menus.cjs` |
 
 No test runner, no typecheck.
-
+sss
 ## Architecture
 
 **Two subsystems sharing the same auth/state/DB:**
