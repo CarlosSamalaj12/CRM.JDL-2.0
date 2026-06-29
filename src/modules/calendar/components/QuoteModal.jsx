@@ -3380,130 +3380,178 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       >
 
         {/* ── HEADER ── */}
-        <div className="qp-header" style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>
-              EMS / Reservas / Cotización
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src="/Oficial_JDL_acua.png" alt="Logo" style={{ height: 28, width: 'auto' }} />
-              <span style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Cotizar evento</span>
-            </div>
-            <div style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 2 }}>
-              {event?.name || 'Nuevo Evento'} — {quote.venue || '(sin salón)'} — {quote.eventDate || '---'}{quote.schedule ? ` — ${quote.schedule}` : ''}
-            </div>
-          </div>
-          <button className="qp-close-btn" onClick={handleRequestClose} aria-label="Cerrar">
-            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-              <path d="M4 4l10 10M14 4l-10 10" />
-            </svg>
-          </button>
-        </div>
-
-        {/* ── BODY SCROLLABLE ── */}
-        <div id="qp-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 32px' }}>
-
-          {/* ── CONTENEDOR SUPERIOR FIJO/STICKY ── */}
-          <div
-            className="qp-sticky-top-bar"
-            style={{
-              position: 'sticky',
-              top: '-14px',
-              zIndex: 900,
-              background: '#f1f5f9',
-              paddingTop: '14px',
-              paddingBottom: '12px',
-              marginTop: '-14px',
-              marginLeft: '-18px',
-              marginRight: '-18px',
-              paddingLeft: '18px',
-              paddingRight: '18px',
-              borderBottom: '1px solid #cbd5e1',
-              marginBottom: '14px',
-              flexShrink: 0
-            }}
-          >
-            {/* ── Barra versión + plantilla ── */}
-            <div style={{ ...card, marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
-            <div style={{ flex: '1 1 180px' }}>
-              <label style={fieldLabel}>Versión de cotización</label>
-              <select style={fieldSelect} value={quote.version} onChange={e => setQuote(p => ({ ...p, version: parseInt(e.target.value) || 1 }))}>
-                <option value={1}>V1 (actual) — sin fecha — Q 0.00</option>
-              </select>
-            </div>
-            <div style={{ flex: '1 1 260px' }}>
-              <label style={fieldLabel}>Plantillas contrato</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {contractTemplates.length === 0 ? (
-                  <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', padding: '4px 0' }}>
-                    Sin plantillas configuradas
-                  </span>
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    <div
-                      onClick={() => setQuote(p => ({ ...p, templateIds: [] }))}
-                      title="Ninguna plantilla de contrato"
-                      style={{
-                        padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                        border: `1.5px solid ${quote.templateIds.length === 0 ? '#64748b' : '#e2e8f0'}`,
-                        background: quote.templateIds.length === 0 ? '#f1f5f9' : '#fff',
-                        color: quote.templateIds.length === 0 ? '#475569' : '#cbd5e1',
-                        transition: 'all 0.12s', userSelect: 'none',
-                      }}
-                    >
-                      {quote.templateIds.length === 0 ? '— Ninguna —' : 'Ninguna'}
-                    </div>
-                    {contractTemplates.map(tpl => {
-                      const checked = quote.templateIds.includes(tpl.id);
-                      return (
-                        <div
-                          key={tpl.id}
-                          onClick={() => setQuote(p => ({
-                            ...p,
-                            templateIds: checked
-                              ? p.templateIds.filter(id => id !== tpl.id)
-                              : [...p.templateIds, tpl.id]
-                          }))}
-                          style={{
-                            padding: '7px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
-                            border: `1.5px solid ${checked ? '#16a34a' : '#e2e8f0'}`,
-                            background: checked ? '#f0fdf4' : '#fff',
-                            transition: 'all 0.12s', minWidth: 0,
-                            boxShadow: checked ? '0 0 0 1px #16a34a' : 'none',
-                          }}
-                        >
-                          <div style={{ fontSize: 12, fontWeight: 700, color: checked ? '#166534' : '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            {checked && (
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="#16a34a"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                            )}
-                            {tpl.name}
-                          </div>
-                          <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>{tpl.filename}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+        <div className="qp-header" style={{
+          flexShrink: 0,
+          background: '#ffffff',
+          borderBottom: '1px solid #cbd5e1',
+          padding: '12px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 20,
+          zIndex: 1000
+        }}>
+          {/* Info Evento (Izquierda) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexShrink: 1 }}>
+            <img src="/Oficial_JDL_acua.png" alt="Logo" style={{ height: 28, width: 'auto' }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>
+                EMS / Reservas / Cotización
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', lineHeight: 1.2 }}>
+                Cotizar evento
+              </div>
+              <div style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${event?.name || 'Nuevo Evento'} — ${quote.venue || '(sin salón)'} — ${quote.eventDate || '---'}`}>
+                {event?.name || 'Nuevo Evento'} — {quote.venue || '(sin salón)'} — {quote.eventDate || '---'}{quote.schedule ? ` — ${quote.schedule}` : ''}
               </div>
             </div>
-            <div style={{ flex: '1 1 140px' }}>
-              <label style={fieldLabel}>Moneda</label>
-              <select style={fieldSelect} value={quote.currency || 'GTQ'} onChange={e => setQuote(p => ({ ...p, currency: e.target.value }))}>
+          </div>
+
+          {/* Controles y Botón de Cerrar (Derecha) */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexShrink: 0 }}>
+            {/* Versión */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap' }}>Versión</div>
+              <select 
+                style={{ 
+                  padding: '6px 10px', 
+                  borderRadius: '6px', 
+                  border: '1px solid #cbd5e1', 
+                  fontSize: '12px', 
+                  fontWeight: 600,
+                  color: '#0f172a',
+                  background: '#ffffff',
+                  width: 130, 
+                  height: 32,
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }} 
+                value={quote.version} 
+                onChange={e => setQuote(p => ({ ...p, version: parseInt(e.target.value) || 1 }))}
+              >
+                <option value={1}>V1 (actual)</option>
+              </select>
+            </div>
+
+            {/* Plantillas */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap' }}>Contrato</div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setQuote(p => ({ ...p, templateIds: [] }))}
+                  title="Ninguna plantilla de contrato"
+                  style={{
+                    padding: '0 12px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                    border: `1.5px solid ${quote.templateIds.length === 0 ? '#64748b' : '#cbd5e1'}`,
+                    background: quote.templateIds.length === 0 ? '#f1f5f9' : '#ffffff',
+                    color: quote.templateIds.length === 0 ? '#475569' : '#64748b',
+                    transition: 'all 0.12s', userSelect: 'none', height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  Ninguna
+                </button>
+                {contractTemplates.map(tpl => {
+                  const checked = quote.templateIds.includes(tpl.id);
+                  return (
+                    <button
+                      type="button"
+                      key={tpl.id}
+                      onClick={() => setQuote(p => ({
+                        ...p,
+                        templateIds: checked
+                          ? p.templateIds.filter(id => id !== tpl.id)
+                          : [...p.templateIds, tpl.id]
+                      }))}
+                      style={{
+                        padding: '0 12px', borderRadius: 6, cursor: 'pointer', userSelect: 'none', height: 32,
+                        border: `1.5px solid ${checked ? '#16a34a' : '#cbd5e1'}`,
+                        background: checked ? '#f0fdf4' : '#ffffff',
+                        color: checked ? '#166534' : '#334155',
+                        transition: 'all 0.12s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                        boxShadow: checked ? '0 0 0 1px #16a34a' : 'none',
+                        boxSizing: 'border-box',
+                        fontWeight: 700, fontSize: 11
+                      }}
+                    >
+                      {checked && '✓ '}
+                      {tpl.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Moneda */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap' }}>Moneda</div>
+              <select 
+                style={{ 
+                  padding: '6px 10px', 
+                  borderRadius: '6px', 
+                  border: '1px solid #cbd5e1', 
+                  fontSize: '12px', 
+                  fontWeight: 600,
+                  color: '#0f172a',
+                  background: '#ffffff',
+                  width: 140, 
+                  height: 32,
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }} 
+                value={quote.currency || 'GTQ'} 
+                onChange={e => setQuote(p => ({ ...p, currency: e.target.value }))}
+              >
                 <option value="GTQ">Quetzales (Q)</option>
                 <option value="USD">Dólares ($)</option>
               </select>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button className="qp-btn" type="button" onClick={() => setShowVersionPanel(true)}>Cargar versión</button>
-              <button className="qp-btn" type="button" onClick={() => setShowDocPanel(p => !p)}>
-                {showDocPanel ? 'Ocultar datos' : 'Datos empresa'}
-              </button>
-            </div>
-          </div>
 
-          {/* ── Panel datos empresa (colapsable) ── */}
-          {showDocPanel && (
-            <div style={{ ...card, marginBottom: 12 }}>
+            {/* Acciones */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: 'transparent', userSelect: 'none' }}>&nbsp;</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button 
+                  className="qp-btn" 
+                  type="button" 
+                  style={{ height: 32, padding: '0 12px', fontSize: 12, fontWeight: 700, boxSizing: 'border-box' }} 
+                  onClick={() => setShowVersionPanel(true)}
+                >
+                  Historial
+                </button>
+                <button 
+                  className="qp-btn" 
+                  type="button" 
+                  style={{ 
+                    height: 32, 
+                    padding: '0 12px', 
+                    fontSize: 12, 
+                    fontWeight: 700,
+                    background: showDocPanel ? '#3b82f6' : undefined,
+                    color: showDocPanel ? '#ffffff' : undefined,
+                    borderColor: showDocPanel ? '#2563eb' : undefined,
+                    boxSizing: 'border-box'
+                  }} 
+                  onClick={() => setShowDocPanel(p => !p)}
+                >
+                  Datos empresa
+                </button>
+              </div>
+            </div>
+
+            {/* Botón cerrar */}
+            <button className="qp-close-btn" style={{ marginLeft: 12, padding: 6, alignSelf: 'center' }} onClick={handleRequestClose} aria-label="Cerrar">
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="18" height="18">
+                <path d="M4 4l10 10M14 4l-10 10" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* ── Panel datos empresa (colapsable) ── */}
+        {showDocPanel && (
+          <div style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #cbd5e1', padding: '16px 20px', zIndex: 999 }}>
               <div className="eyebrow">Datos de la cotización</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px 24px', marginTop: 10 }}>
 
@@ -3795,7 +3843,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               </div>
             </div>
           )}
-          </div>
+
+        {/* ── BODY SCROLLABLE ── */}
+        <div id="qp-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 32px' }}>
 
           {/* ── Grid principal: izquierda (agregar servicios) + derecha (tabla) ── */}
           <div className="qp-main-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 12, alignItems: 'start' }}>
@@ -3808,8 +3858,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 flexDirection: 'column',
                 gap: 10,
                 position: 'sticky',
-                top: '90px',
-                maxHeight: 'calc(100vh - 180px)',
+                top: '10px',
+                maxHeight: 'calc(100vh - 120px)',
                 overflowY: 'auto',
                 scrollbarWidth: 'thin'
               }}
