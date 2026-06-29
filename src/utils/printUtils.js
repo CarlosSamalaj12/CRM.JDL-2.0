@@ -1341,7 +1341,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     });
     if (!res.ok) throw new Error("Error al preparar la impresión en el servidor");
     const data = await res.json();
-    return `/api/print/render/${data.id}`;
+    return `${apiBase}/api/print/render/${data.id}`;
   } catch (err) {
     console.error("Error generating print document:", err);
     return false;
