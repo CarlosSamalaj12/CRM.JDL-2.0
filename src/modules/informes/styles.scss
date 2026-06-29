@@ -3991,19 +3991,23 @@ body.informes-theme {
   
   .iv-imagen-item {
     width: 250px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      overflow: hidden;
-      background: var(--bg-app);
+    height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--bg-elevated, #f5f5f5);
   }
   
   /* Cuadrado fijo 250x250 — imagen completa sin recorte */
   .iv-imagen-item img {
-    width: 250px;
-      height: 250px;
-      object-fit: contain;
-      display: block;
-      background: var(--bg-elevated, #f5f5f5);
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    display: block;
   }
   
   .iv-imagen-desc {
@@ -4276,25 +4280,27 @@ body.informes-theme {
       }
     
       .iv-imagen-item {
-        display: inline-block;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         width: 200px !important;
-        max-width: 200px !important;
+        height: 200px !important;
         border: 1px solid #ccc;
         border-radius: 4px;
         margin-bottom: 0 !important;
         margin-right: 0.5rem;
         padding: 0;
         overflow: hidden;
+        background: #f8f8f8 !important;
       }
 
-    
       /* Cuadrado 200x200 al imprimir — imagen completa sin recorte */
       .iv-imagen-item img {
-        width: 200px !important;
-        height: 200px !important;
-        object-fit: contain !important;
-        display: block;
-        background: #f8f8f8;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        width: auto !important;
+        height: auto !important;
+        display: block !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
