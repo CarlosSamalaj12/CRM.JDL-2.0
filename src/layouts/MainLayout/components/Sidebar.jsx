@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useSocket } from '../../../modules/informes/context/SocketContext';
 import authService from '../../../services/authService';
 import reminderService from '../../../services/reminderService';
 import { STATUS_META } from '../../../modules/calendar/constants';
@@ -59,10 +60,29 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
   const [notifCount, setNotifCount] = useState(0);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifRef = useRef(null);
+  const { connected: socketConnected, onEvent } = useSocket();
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const formatNotificationDate = (dateVal) => {
+    if (!dateVal) return '';
+    let d = dateVal;
+    if (typeof d === 'string') {
+      d = d.replace(' ', 'T');
+      if (!d.endsWith('Z') && !d.includes('+') && !d.includes('-')) {
+        d = d + 'Z';
+      }
+    }
+    try {
+      const dateObj = new Date(d);
+      if (isNaN(dateObj.getTime())) return '';
+      return dateObj.toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
   };
 
   const fetchNotifCount = useCallback(async () => {
@@ -91,6 +111,19 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     const interval = setInterval(fetchNotifCount, 30000);
     return () => clearInterval(interval);
   }, [fetchNotifCount]);
+
+  useEffect(() => {
+    if (!socketConnected) return;
+    const unsubscribeNotif = onEvent('notificacion:created', () => {
+      fetchNotifCount();
+      if (isNotifOpen) {
+        fetchNotifs();
+      }
+    });
+    return () => {
+      if (unsubscribeNotif) unsubscribeNotif();
+    };
+  }, [socketConnected, onEvent, isNotifOpen, fetchNotifCount, fetchNotifs]);
 
   useEffect(() => {
     function handleClick(e) {
@@ -310,7 +343,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                           </div>
                           {n.mensaje && <div className="reminder-card-sub" style={{ marginLeft: '28px' }}>{n.mensaje}</div>}
                           <div className="reminder-card-sub" style={{ marginLeft: '28px', fontSize: '9px', color: '#64748b' }}>
-                            {new Date(n.fecha_creacion).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {formatNotificationDate(n.fecha_creacion)}
                           </div>
                         </div>
                       ))
@@ -441,39 +474,56 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
 
           .sideUserProfile {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 14px;
-            background: rgba(0,0,0,0.1);
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 14px 14px 12px 14px;
+            background: rgba(0,0,0,0.15);
             border-top: 1px solid rgba(255,255,255,0.05);
             margin-top: auto;
           }
 
-          .sideUserLabel {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+          .sideUserName {
+            color: #f8fafc;
+            font-size: 13px;
+            font-weight: 700;
+            word-break: break-word;
+            line-height: 1.4;
+            width: 100%;
+            margin-bottom: 8px;
           }
 
-          .sideUserName {
+          .sideUserBottomRow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            gap: 12px;
+          }
+
+          .sideUserLabel {
             display: flex;
             flex-direction: column;
+            align-items: center;
+            gap: 3px;
           }
 
           /* LOGICA: Solo cuando el NAVBAR mismo se haga delgado (< 180px por ejemplo) */
           @container sidebar (max-width: 180px) {
             .sideUserProfile {
-              flex-direction: column;
-              gap: 15px;
-              justify-content: center;
-              width: 100%;
               padding: 16px 0;
+              align-items: center;
+              gap: 12px;
             }
-            .sideUserBellWrapper {
-              order: 2;
+            .sideUserName {
+              display: none !important;
             }
-            .sideUserLabel {
-              order: 1;
+            .sideUserLabel span {
+              display: none !important;
+            }
+            .sideUserBottomRow {
+              flex-direction: column;
+              gap: 12px;
+              justify-content: center;
             }
           }
 
@@ -1095,27 +1145,28 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
 
       {/* SECCION DE PERFIL */}
       <div className="sideUserProfile">
-        <div className="sideUserLabel">
-          <div className="sideUserAvatarWrap" style={{ 
-            width: '34px', 
-            height: '34px', 
-            borderRadius: '50%', 
-            overflow: 'hidden',
-            border: '1px solid #14b8a6',
-            flexShrink: 0
-          }}>
-            <img src={user.avatarDataUrl || user.avatar} alt="User" style={{ width: '100%', height: '100%' }} />
-          </div>
-          <div className="sideUserName">
-            <span style={{ color: '#f8fafc', fontSize: '12px', fontWeight: '600' }}>{user.name}</span>
-            <span style={{ color: '#94a3b8', fontSize: '10px' }}>
+        <div className="sideUserName">
+          {user.name}
+        </div>
+        <div className="sideUserBottomRow">
+          <div className="sideUserLabel">
+            <div className="sideUserAvatarWrap" style={{ 
+              width: '38px', 
+              height: '38px', 
+              borderRadius: '50%', 
+              overflow: 'hidden',
+              border: '1px solid #14b8a6',
+              flexShrink: 0
+            }}>
+              <img src={user.avatarDataUrl || user.avatar} alt="User" style={{ width: '100%', height: '100%' }} />
+            </div>
+            <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: '600', whiteSpace: 'nowrap' }}>
               {userRole === 'admin' ? 'Administrador' : ['recepcionista', 'frontoffice', 'front_office'].includes(userRole) ? 'Recepcionista' : userRole === 'eventos' ? 'Eventos' : userRole === 'coordinador' ? 'Coordinador' : 'Vendedor'}
             </span>
           </div>
-        </div>
 
-        {/* Desktop notification & reminder bells */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          {/* Desktop notification & reminder bells */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
           {/* Mentions bell */}
           <div ref={notifRef} className="sideUserBellWrapper" style={{ position: 'relative', display: 'inline-block' }}>
             <button
@@ -1209,7 +1260,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                             <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>{n.titulo || 'Notificación'}</strong>
                             {n.mensaje && <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.mensaje}</span>}
                             <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                              {new Date(n.fecha_creacion).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              {formatNotificationDate(n.fecha_creacion)}
                             </span>
                           </div>
                         </div>
@@ -1369,6 +1420,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
             )}
           </div>
         </div>
+      </div>
       </div>
 
       {isSupportOpen && (
