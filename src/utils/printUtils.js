@@ -193,12 +193,22 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     let quoteHeaderImage = '';
 
     // Collect selected template IDs (support both legacy single and new multi)
-    const selectedIds = [];
+    const rawSelectedIds = [];
     if (Array.isArray(quote.templateIds) && quote.templateIds.length > 0) {
-      selectedIds.push(...quote.templateIds);
+      rawSelectedIds.push(...quote.templateIds);
     } else if (quote.templateId) {
-      selectedIds.push(quote.templateId);
+      rawSelectedIds.push(quote.templateId);
     }
+
+    // Map legacy IDs to new ones
+    const mappedIds = rawSelectedIds.map(id => {
+      if (id === "contrato_corp" || id === "contrato_social") return "ctpl_jardines";
+      if (id === "contrato_hosp") return "ctpl_servihosp";
+      return id;
+    });
+
+    // Deduplicate
+    const selectedIds = Array.from(new Set(mappedIds));
 
     if (selectedIds.length > 0 && printOption !== "sin_precios") {
       console.log("=== generateQuotePrintDocument Debug ===");

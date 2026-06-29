@@ -228,9 +228,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     items: event?.quote?.items || [],
     advances: event?.quote?.advances || [],
     templateId: event?.quote?.templateId || '',
-    templateIds: Array.isArray(event?.quote?.templateIds)
-      ? event?.quote?.templateIds
-      : (event?.quote?.templateId ? [event?.quote?.templateId] : []),
+    templateIds: (() => {
+      const ids = Array.isArray(event?.quote?.templateIds) && event?.quote?.templateIds.length > 0
+        ? event.quote.templateIds
+        : (event?.quote?.templateId ? [event.quote.templateId] : []);
+      return ids.map(id => {
+        if (id === "contrato_corp" || id === "contrato_social") return "ctpl_jardines";
+        if (id === "contrato_hosp") return "ctpl_servihosp";
+        return id;
+      });
+    })(),
     currency: event?.quote?.currency || 'GTQ',
     internalNotes: event?.quote?.internalNotes || '',
     version: event?.quote?.version || 1,
@@ -780,7 +787,17 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         discountAmount: totals.discountAmount,
         total: totals.total,
         quotedAt: new Date().toISOString(),
-        templateIds: Array.isArray(quote.templateIds) ? quote.templateIds : (quote.templateId ? [quote.templateId] : []),
+        templateIds: (() => {
+          const ids = Array.isArray(quote.templateIds) && quote.templateIds.length > 0
+            ? quote.templateIds
+            : (quote.templateId ? [quote.templateId] : []);
+          const mapped = ids.map(id => {
+            if (id === "contrato_corp" || id === "contrato_social") return "ctpl_jardines";
+            if (id === "contrato_hosp") return "ctpl_servihosp";
+            return id;
+          });
+          return Array.from(new Set(mapped));
+        })(),
       };
 
       if (typeof onSave === 'function') {
