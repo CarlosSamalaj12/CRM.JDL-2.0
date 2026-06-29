@@ -1297,7 +1297,28 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
 
             ${htmlContent ? `<div class="page-break templateAttachWrap">${htmlContent}</div>` : ""}
 
-
+            ${(mmContentHtml || htmlContent) ? `
+            <section class="signatureSection">
+              <div class="signatureGrid">
+                <div class="signatureCard">
+                  <div class="signatureSignArea">${sellerSignatureHtml}</div>
+                  <div class="signatureLine"></div>
+                  <div class="signatureRole">Firma Vendedor</div>
+                  <div class="signatureData">${escapeHtml(user?.name || "Vendedor")}</div>
+                  <div class="signatureData">${escapeHtml(user?.email || "")}</div>
+                  <div class="signatureData">${escapeHtml(user?.phone || "")}</div>
+                </div>
+                <div class="signatureCard">
+                  <div class="signatureSignArea"></div>
+                  <div class="signatureLine"></div>
+                  <div class="signatureRole">Firma Encargado Evento</div>
+                  <div class="signatureData">${escapeHtml(quote.contact || "")}</div>
+                  <div class="signatureData">${escapeHtml(quote.email || "")}</div>
+                  <div class="signatureData">${escapeHtml(quote.phone || "")}</div>
+                </div>
+              </div>
+            </section>
+            ` : ""}
 
             <div class="actions">
               <button onclick="window.print()">Imprimir</button>
