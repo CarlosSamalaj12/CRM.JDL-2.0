@@ -109,6 +109,9 @@ export default function Login() {
       ) {
         document.activeElement?.blur();
         toast('Configuración de Firebase Requerida — Para que el inicio de sesión con Google funcione, configura tus variables de Firebase en el archivo .env', { duration: Infinity, icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
+      } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        document.activeElement?.blur();
+        toast.error('Inicio de sesión cancelado o ventana cerrada.');
       } else {
         document.activeElement?.blur();
         toast.error(err.message || 'No se pudo iniciar sesión con tu cuenta de Google.', { duration: 4000 });
@@ -118,7 +121,7 @@ export default function Login() {
       setTimeout(() => {
         googleLoginRef.current = false;
         setLoading(false);
-      }, 1500);
+      }, 1000);
     }
   };
 

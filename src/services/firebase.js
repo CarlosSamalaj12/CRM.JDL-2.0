@@ -50,11 +50,8 @@ export const firebaseService = {
     } catch (error) {
       const shouldRedirect =
         error?.code === 'auth/popup-blocked' ||
-        error?.code === 'auth/popup-closed-by-user' ||
-        error?.code === 'auth/cancelled-popup-request' ||
         error?.code === 'auth/operation-not-supported' ||
-        error?.message?.includes('Cross-Origin-Opener-Policy') ||
-        error?.message?.includes('window.closed');
+        error?.message?.includes('Cross-Origin-Opener-Policy');
 
       if (shouldRedirect) {
         await signInWithRedirect(auth, googleProvider);
