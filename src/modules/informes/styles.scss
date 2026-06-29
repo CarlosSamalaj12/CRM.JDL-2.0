@@ -3647,9 +3647,9 @@ body.informes-theme {
   }
   
   .iv-divider {
-    height: 2px;
-      background: linear-gradient(90deg, var(--primary), var(--primary-light), transparent);
-      margin: 0.5rem 0;
+    height: 0;
+    border-bottom: 2px solid var(--primary);
+    margin: 0.5rem 0;
   }
   
   .iv-event-name {
@@ -3815,9 +3815,9 @@ body.informes-theme {
   .iv-section-divider::before,
   .iv-section-divider::after {
     content: '';
-      flex: 1;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--primary-dark), transparent);
+    flex: 1;
+    height: 0;
+    border-bottom: 1px solid var(--border);
   }
   
   .iv-section-label {
@@ -4252,7 +4252,8 @@ body.informes-theme {
     
       .iv-section-divider::before,
       .iv-section-divider::after {
-        background: linear-gradient(90deg, transparent, #1e3a8a, transparent) !important;
+        border-bottom: 1px solid #1e3a8a !important;
+        background: none !important;
       }
     
       .iv-section-label {
