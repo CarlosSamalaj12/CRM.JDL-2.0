@@ -793,6 +793,25 @@ async function ensureQuoteItemPrimaryKeyColumnSize() {
   }
 }
 
+async function ensureEncargadosEmpresaColumnSize() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name, character_maximum_length FROM information_schema.columns WHERE table_schema = ? AND table_name = 'encargados_empresa' AND column_name IN ('id','id_empresa')`,
+      [DB_NAME]
+    );
+    for (const col of cols) {
+      const currentLen = Number(col.character_maximum_length);
+      if (currentLen < 100) {
+        await conn.query(`ALTER TABLE encargados_empresa MODIFY COLUMN ${col.column_name} VARCHAR(200) NOT NULL`);
+      }
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureRequiredTables() {
   let conn;
   try {
@@ -3975,6 +3994,7 @@ async function start() {
     await ensureUsersExtendedStructure();
     await ensureEquiposTrabajoStructure();
     await ensureQuoteItemPrimaryKeyColumnSize();
+    await ensureEncargadosEmpresaColumnSize();
     await ensureRequiredTables();
     await ensureDefaultUserCarlos();
 
