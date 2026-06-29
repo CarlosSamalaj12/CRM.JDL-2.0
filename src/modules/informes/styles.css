@@ -5644,8 +5644,17 @@ button[data-tooltip-bottom]::after {
   display: flex;
   gap: 0.35rem;
   flex-shrink: 0;
-  padding: 0.35rem 0;
+  padding: 0.5rem 1rem;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+  z-index: 1000;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+  margin-top: auto;
+  box-sizing: border-box;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .pos-bottom-btn {
@@ -6464,5 +6473,36 @@ button[data-tooltip-bottom]::after {
     background: #fffbeb !important;
     color: #d97706 !important;
     border-color: #fde68a !important;
+  }
+}
+
+/* Glue main header and topbar together in POS/Constructor views and make topbar sticky */
+.informes-shell:has(.pos-page, .informe-creator-pos) {
+  padding-top: 0.5rem !important;
+}
+
+.informes-shell:has(.pos-page, .informe-creator-pos) .app-header {
+  margin-bottom: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+
+.informes-shell:has(.pos-page, .informe-creator-pos) .pos-topbar {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  border-top: none !important;
+  box-shadow: var(--shadow-sm);
+  margin-top: 0 !important;
+  position: sticky;
+  top: 4.8rem;
+  z-index: 99;
+  background: var(--bg-card);
+}
+
+@media (max-width: 767px) {
+  .informes-shell:has(.pos-page, .informe-creator-pos) .pos-topbar {
+    top: 3.8rem;
   }
 }

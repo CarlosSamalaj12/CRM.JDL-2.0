@@ -1513,7 +1513,7 @@ export default function ConstructorInforme() {
               )}
 
               <label>Cantidad</label>
-              <input type="number" min="0.5" step="0.5" value={modalQty} onChange={e => setModalQty(parseFloat(e.target.value) || 1)} />
+              <input type="number" min="0.5" step="0.5" value={modalQty} onChange={e => setModalQty(e.target.value)} />
 
               <label>Notas</label>
               <input type="text" value={modalNotas} onChange={e => setModalNotas(e.target.value)} placeholder="Ej: Sin cebolla, bien cocido..." />
@@ -1521,7 +1521,7 @@ export default function ConstructorInforme() {
             <div className="pos-modal-footer">
               <button className="btn-secondary" onClick={() => setModalOpciones(null)}>Cancelar</button>
               <button className="btn-primary" onClick={() => {
-                agregarItem(modalOpciones, modalOpc || null, modalPrep, modalQty, modalNotas);
+                agregarItem(modalOpciones, modalOpc || null, modalPrep, parseFloat(modalQty) || 1, modalNotas);
                 setModalOpciones(null);
               }}><IconCheckCircle size={14} /> Agregar</button>
             </div>
