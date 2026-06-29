@@ -4176,6 +4176,7 @@ button[data-tooltip-bottom]::after {
   .kanban-board {
     grid-template-columns: repeat(7, 1fr);
     overflow-x: auto;
+    overflow-y: hidden;
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
     gap: 0.75rem;
