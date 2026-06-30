@@ -316,34 +316,37 @@ export default function ReportsLayout() {
             </>
           )}
         </nav>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-            {user?.nombre || user?.email}
-          </span>
-          <button
-            type="button"
-            onClick={() => setDarkMode(!darkMode)}
-            className="btn-ghost btn-sm"
-            data-tooltip={darkMode ? 'Modo claro' : 'Modo oscuro'}
-            style={{ fontSize: '0.85rem' }}
-          >
-            {darkMode ? <IconSun size={16} /> : <IconMoon size={16} />}
-          </button>
-          <SearchBar />
-          <NotificationBell />
-          {isCrmUser && (
+        <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="header-search-container">
+            <SearchBar />
+          </div>
+          <div className="header-actions-container" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span className="header-username" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+              {user?.nombre || user?.email}
+            </span>
             <button
               type="button"
-              onClick={handleExitReports}
-              className="btn-exit"
-              data-tooltip="Volver al CRM"
+              onClick={() => setDarkMode(!darkMode)}
+              className="btn-ghost btn-sm"
+              data-tooltip={darkMode ? 'Modo claro' : 'Modo oscuro'}
+              style={{ fontSize: '0.85rem' }}
             >
-              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
-                <path d="M4 4l10 10M14 4l-10 10" />
-              </svg>
+              {darkMode ? <IconSun size={16} /> : <IconMoon size={16} />}
             </button>
-          )}
-
+            <NotificationBell />
+            {isCrmUser && (
+              <button
+                type="button"
+                onClick={handleExitReports}
+                className="btn-exit"
+                data-tooltip="Volver al CRM"
+              >
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
+                  <path d="M4 4l10 10M14 4l-10 10" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -375,21 +378,57 @@ export default function ReportsLayout() {
           }
           @media (max-width: 767px) {
             .informes-shell .app-header {
-              padding: 0.5rem 0.75rem !important;
-              gap: 0.4rem !important;
-              flex-wrap: wrap !important;
+              position: relative !important;
+              padding: 0.6rem 0.75rem !important;
+              display: grid !important;
+              grid-template-columns: 1fr auto !important;
+              grid-template-rows: auto auto !important;
+              gap: 0.5rem !important;
               border-radius: var(--radius-lg) !important;
               margin-bottom: 0.25rem !important;
-              top: 0.5rem !important;
+              top: 0 !important;
+            }
+            .informes-shell .header-left {
+              grid-column: 1 !important;
+              grid-row: 1 !important;
+              width: auto !important;
+            }
+            .informes-shell .header-controls {
+              display: contents !important;
+            }
+            .informes-shell .header-actions-container {
+              grid-column: 2 !important;
+              grid-row: 1 !important;
+              display: flex !important;
+              align-items: center !important;
+              gap: 0.4rem !important;
+            }
+            .informes-shell .header-search-container {
+              grid-column: 1 / -1 !important;
+              grid-row: 2 !important;
+              width: 100% !important;
+            }
+            .informes-shell .header-search-container > div {
+              min-width: 0 !important;
+              width: 100% !important;
+            }
+            .informes-shell .header-username {
+              display: none !important;
+            }
+            .informes-shell .kanban-shell {
+              margin-top: 0 !important;
+            }
+            .informes-shell .kanban-header {
+              top: 0 !important;
+              z-index: 1000 !important;
+              background: var(--bg-app) !important;
+              margin-top: 0 !important;
             }
             /* Ocultar navegación en móvil — está en el drawer */
             .informes-shell .app-nav {
               display: none !important;
             }
             /* Header-left más compacto */
-            .informes-shell .header-left {
-              gap: 0.5rem !important;
-            }
             .informes-shell .header-left .brand-icon {
               width: 30px !important;
               height: 30px !important;
@@ -402,18 +441,6 @@ export default function ReportsLayout() {
             }
             .informes-shell .brand-sub {
               font-size: 0.65rem !important;
-            }
-            /* Sección derecha: wrap, compacta */
-            .informes-shell .app-header > div:last-child {
-              gap: 0.35rem !important;
-              flex-wrap: wrap !important;
-              justify-content: flex-end !important;
-              margin-left: auto !important;
-            }
-            /* Nombre de usuario: tamaño reducido, sin romper línea */
-            .informes-shell .app-header > div:last-child > span:first-child {
-              font-size: 0.72rem !important;
-              white-space: nowrap !important;
             }
             /* Botón X (btn-exit): tamaño táctil adecuado */
             .informes-shell .btn-exit {

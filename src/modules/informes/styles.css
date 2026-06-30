@@ -4450,6 +4450,9 @@ button[data-tooltip-bottom]::after {
   .kanban-board {
     margin-top: 0.75rem !important;
   }
+  .kanban-shell {
+    margin-top: 0 !important;
+  }
   .kanban-column { padding: 0.5rem; }
   .catalog-section { padding: 1rem; }
   .form-row { grid-template-columns: 1fr; }
