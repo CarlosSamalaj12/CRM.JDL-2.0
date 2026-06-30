@@ -4591,18 +4591,38 @@ body.informes-theme {
   @media (max-width: 768px) {
     .login-card { padding: 1.5rem; }
       .event-actions {
-        flex-wrap: wrap !important;
-        gap: 0.3rem !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        gap: 0.4rem !important;
+        width: 100% !important;
+        margin-top: 0.5rem !important;
       }
       .event-actions button {
-        flex: 1 1 calc(50% - 0.15rem) !important;
+        flex: 1 !important;
         min-width: 0 !important;
-        width: auto !important;
-        min-height: 40px !important;
-        font-size: 0.72rem !important;
-        padding: 0.35rem 0.3rem !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
         justify-content: center !important;
-        gap: 0.15rem !important;
+        align-items: center !important;
+        font-size: 0 !important;
+        border-radius: var(--radius-md) !important;
+      }
+      .event-actions button svg {
+        font-size: 0.9rem !important;
+        margin: 0 !important;
+      }
+      .event-actions .notas-badge,
+      .event-actions .tareas-badge {
+        top: -3px !important;
+        right: -3px !important;
+        min-width: 14px !important;
+        height: 14px !important;
+        font-size: 0.55rem !important;
+        line-height: 14px !important;
+      }
+      .kanban-board {
+        margin-top: 0.75rem !important;
       }
       .event-actions .notas-btn,
       .event-actions .tareas-btn { min-width: 0 !important; }

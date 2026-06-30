@@ -404,7 +404,7 @@ export default function WeeklyTasks({
   const pendingCount = filteredTareas.filter(t => !t.completada && !t.no_realizado).length;
 
   return (
-    <div style={{ padding: isMobile ? '12px 12px' : '16px 20px' }}>
+    <div style={{ padding: isMobile ? '24px 12px 12px 12px' : '16px 20px' }}>
       {/* Mobile week date selector — mismo diseño que el kanban header */}
       {isMobile && onDateChange && (
         <div className="week-filter-container" style={{ width: '100%', justifyContent: 'center', marginBottom: '12px' }}>
