@@ -36,6 +36,7 @@ export function ChecklistTemplateEditor() {
   const [secType, setSecType] = useState('operativa');
   const [editSecId, setEditSecId] = useState('');
   const [pointTextBySec, setPointTextBySec] = useState({});
+  const [pointTypeBySec, setPointTypeBySec] = useState({});
   const [dragOverSecId, setDragOverSecId] = useState(null);
   const [dragOverItemKey, setDragOverItemKey] = useState(null);
   const dragSecIdx = useRef(null);
@@ -154,15 +155,18 @@ export function ChecklistTemplateEditor() {
   };
 
   /* ─── PUNTO CRUD ─── */
-  const handleAddPoint = (secId) => {
+  const handleAddPoint = (secId, secType) => {
     const text = getPointText(secId).trim();
     if (!text) { toast('Escribe el texto del punto'); return; }
     if (!selTpl) { toast('Selecciona una plantilla'); return; }
+    const type = secType === 'evaluacion' ? (pointTypeBySec[secId] || 'calificable') : undefined;
     const updated = templates.map(t => {
       if (t.id !== selTpl.id) return t;
       return { ...t, sections: t.sections.map(s => {
         if (s.id !== secId) return s;
-        return { ...s, items: [...s.items, { id: Date.now(), text, order: s.items.length + 1 }] };
+        const newItem = { id: Date.now(), text, order: s.items.length + 1 };
+        if (type) newItem.type = type;
+        return { ...s, items: [...s.items, newItem] };
       }) };
     });
     setTemplates(updated);
@@ -446,7 +450,20 @@ export function ChecklistTemplateEditor() {
                             >
                               <span style={{ color: '#94a3b8', fontSize: '0.7rem', cursor: 'grab', lineHeight: 1, flexShrink: 0 }}>⠿</span>
                               <span style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid #d1d9e6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', flexShrink: 0 }}>{idx + 1}</span>
-                              <span style={{ flex: 1, fontSize: '0.82rem', color: '#0f172a' }}>{item.text}</span>
+                              <span style={{ flex: 1, fontSize: '0.82rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {item.text}
+                                {sec.type === 'evaluacion' && (
+                                  <span style={{
+                                    fontSize: '0.65rem', fontWeight: 700, padding: '1px 6px', borderRadius: '999px',
+                                    background: item.type === 'libre' ? '#ede9fe' : '#f0fdf4',
+                                    color: item.type === 'libre' ? '#7c3aed' : '#16a34a',
+                                    border: item.type === 'libre' ? '1px solid #c4b5fd' : '1px solid #86efac',
+                                    flexShrink: 0
+                                  }}>
+                                    {item.type === 'libre' ? '📝 Libre' : '⭐ Calificable'}
+                                  </span>
+                                )}
+                              </span>
                               <button type="button" onClick={() => handleDeletePoint(sec.id, item.id)}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '0.75rem', padding: '2px 4px', borderRadius: '4px' }}
                                 onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
@@ -456,15 +473,35 @@ export function ChecklistTemplateEditor() {
                         })}
                       </div>
                     )}
-                    {/* Agregar punto */}
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    {/* Agregar punto — toggle inline + input + button en una sola fila */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {sec.type === 'evaluacion' && (
+                        <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+                          {[{ v: 'calificable', label: '⭐ Cal.', color: '#16a34a', bg: '#f0fdf4', border: '#86efac' }, { v: 'libre', label: '📝 Libre', color: '#7c3aed', bg: '#ede9fe', border: '#c4b5fd' }].map(opt => {
+                            const selected = (pointTypeBySec[sec.id] || 'calificable') === opt.v;
+                            return (
+                              <button key={opt.v} type="button"
+                                onClick={() => setPointTypeBySec(prev => ({ ...prev, [sec.id]: opt.v }))}
+                                style={{
+                                  padding: '4px 9px', borderRadius: '999px', fontSize: '0.67rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                                  border: `1.5px solid ${selected ? opt.border : '#d1d9e6'}`,
+                                  background: selected ? opt.bg : '#fff',
+                                  color: selected ? opt.color : '#94a3b8',
+                                  transition: 'all 0.12s'
+                                }}>
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                       <input type="text"
                         value={getPointText(sec.id)}
                         onChange={e => setPointTextBySec(prev => ({ ...prev, [sec.id]: e.target.value }))}
                         placeholder="Escribe el punto a evaluar..."
                         style={{ flex: 1, padding: '6px 10px', borderRadius: '7px', border: '1.5px solid #d1d9e6', fontSize: '0.78rem', color: '#0f172a', outline: 'none', background: '#fff', fontFamily: 'inherit' }}
-                        onKeyDown={e => { if (e.key === 'Enter') handleAddPoint(sec.id); }} />
-                      <button type="button" onClick={() => handleAddPoint(sec.id)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleAddPoint(sec.id, sec.type); }} />
+                      <button type="button" onClick={() => handleAddPoint(sec.id, sec.type)}
                         disabled={!getPointText(sec.id).trim()}
                         style={{
                           padding: '6px 12px', borderRadius: '7px', border: 'none',
@@ -729,31 +766,66 @@ export default function SettingsChecklist() {
         const evTpl = String(evTabData.templateId || '');
         setOpTplId(opTpl);
         setOpNotes(op.notes || '');
-        setOpItems(op.items || []);
+
+        // Merge saved items with current template:
+        // 1) patch types on existing items from template data
+        // 2) append any NEW template items not yet saved in the event checklist
+        const mergeWithTemplate = (savedItems, templateId, sectionTypeFilter) => {
+          const tpl = tpls.find(t => String(t.id) === String(templateId));
+          if (!tpl) return savedItems;
+          const allTplItems = tpl.sections.flatMap(s =>
+            (s.items || []).map(item => ({
+              id: item.id, text: item.text,
+              sectionName: s.name, sectionType: s.type || TAB_OPERATIVA,
+              type: item.type || undefined,
+              status: 'pendiente', rating: null, comment: ''
+            }))
+          );
+          const savedIds = new Set(savedItems.map(i => i.id));
+          // patch types on already-saved items
+          const patched = savedItems.map(item => {
+            const match = allTplItems.find(x => x.id === item.id);
+            return match && match.type ? { ...item, type: match.type } : item;
+          });
+          // append items that are in the template but not yet in saved data
+          const newItems = allTplItems.filter(i => !savedIds.has(i.id));
+          return [...patched, ...newItems];
+        };
+
+        const resolvedOpItems = opTpl && (op.items || []).length
+          ? mergeWithTemplate(op.items || [], opTpl)
+          : (op.items || []);
+        const resolvedEvItems = evTpl && (evTabData.items || []).length
+          ? mergeWithTemplate(evTabData.items || [], evTpl)
+          : (evTabData.items || []);
+
+        setOpItems(resolvedOpItems);
         setOpHistory(op.history || []);
         setEvTplId(evTpl);
         setEvNotes(evTabData.notes || '');
-        setEvItems(evTabData.items || []);
+        setEvItems(resolvedEvItems);
         setEvHistory(evTabData.history || []);
-        if (!opTpl && !op.items?.length && tpls.length > 0) {
+        if (!opTpl && !resolvedOpItems.length && tpls.length > 0) {
           const first = tpls[0];
           setOpTplId(String(first.id));
           const items = first.sections.flatMap(s =>
             (s.items || []).map(item => ({
               id: item.id, text: item.text, sectionName: s.name,
               sectionType: s.type || TAB_OPERATIVA,
+              type: item.type || undefined,
               status: 'pendiente', rating: null, comment: ''
             }))
           );
           setOpItems(items);
         }
-        if (!evTpl && !evTabData.items?.length && tpls.length > 0) {
+        if (!evTpl && !resolvedEvItems.length && tpls.length > 0) {
           const first = tpls[0];
           setEvTplId(String(first.id));
           const items = first.sections.flatMap(s =>
             (s.items || []).map(item => ({
               id: item.id, text: item.text, sectionName: s.name,
               sectionType: s.type || TAB_OPERATIVA,
+              type: item.type || undefined,
               status: 'pendiente', rating: null, comment: ''
             }))
           );
@@ -792,6 +864,7 @@ export default function SettingsChecklist() {
       (s.items || []).map(item => ({
         id: item.id, text: item.text, sectionName: s.name,
         sectionType: s.type || TAB_OPERATIVA,
+        type: item.type || undefined,
         status: 'pendiente',
         rating: null,
         comment: ''
@@ -849,13 +922,18 @@ export default function SettingsChecklist() {
   const activeHistory = activeTab === TAB_OPERATIVA ? opHistory : evHistory;
   const activeSaving = activeTab === TAB_OPERATIVA ? savingOp : savingEv;
 
+  // Open questions = evaluacion items with type 'libre'
+  const isOpenQuestion = (item) => item.type === 'libre';
+  const tableItems = activeTab === TAB_EVALUACION ? activeItems.filter(i => !isOpenQuestion(i)) : activeItems;
+  const openQuestions = activeTab === TAB_EVALUACION ? activeItems.filter(i => isOpenQuestion(i)) : [];
+
   const total = activeItems.length;
   const done = activeItems.filter(i => i.status === 'cumplido').length;
   const progress = total > 0 ? Math.round(((done + activeItems.filter(i => i.status === 'en_proceso' || i.status === 'no_aplica').length) / total) * 100) : 0;
   const sat = (total - activeItems.filter(i => i.status === 'no_aplica').length) > 0
     ? Math.round((done / (total - activeItems.filter(i => i.status === 'no_aplica').length)) * 100) : 0;
 
-  const evalItems = activeItems;
+  const evalItems = tableItems;
   const ratedItems = evalItems.filter(i => i.rating !== null);
   const satisfactionAvg = ratedItems.length > 0
     ? (ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0) / ratedItems.length)
@@ -1055,7 +1133,7 @@ export default function SettingsChecklist() {
                     </tr>
                   </thead>
                   <tbody>
-                    {activeItems.map((item, idx) => (
+                    {tableItems.map((item, idx) => (
                       <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: activeTab === TAB_EVALUACION ? '#faf5ff' : 'transparent' }}>
                         <td style={{ padding: '6px 10px', color: '#94a3b8', fontWeight: 600, fontSize: '0.72rem' }}>{idx + 1}</td>
                         <td style={{ padding: '6px 10px' }}>
@@ -1142,7 +1220,7 @@ export default function SettingsChecklist() {
                           )}
                         </td>
                         <td style={{ padding: '6px 10px' }}>
-                          <input type="text" value={item.comment} onChange={e => !isReadOnly && setCm(activeTab)(item.id, e.target.value)}
+                          <input type="text" value={item.comment || ''} onChange={e => !isReadOnly && setCm(activeTab)(item.id, e.target.value)}
                             placeholder="..." readOnly={isReadOnly}
                             style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1.5px solid #e2e8f0', fontSize: '0.75rem', outline: 'none', background: isReadOnly ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
                         </td>
@@ -1152,6 +1230,49 @@ export default function SettingsChecklist() {
                 </table>
               )}
             </div>
+
+            {/* Open questions — compact single-row per question, below a dashed divider */}
+            {activeTab === TAB_EVALUACION && openQuestions.length > 0 && (
+              <>
+                <div style={{ borderTop: '1.5px dashed #cbd5e1', margin: '6px 0 4px 0' }} />
+                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
+                  Preguntas abiertas
+                </span>
+                {openQuestions.map((item, idx) => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ flex: 1, fontSize: '0.77rem', color: '#334155', fontWeight: 500, lineHeight: 1.3 }}>
+                      {idx + 1}. {item.text}
+                    </span>
+                    <textarea
+                      value={item.comment || ''}
+                      onChange={e => !isReadOnly && setCm(activeTab)(item.id, e.target.value)}
+                      onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                      maxLength={2000}
+                      placeholder="Respuesta..."
+                      readOnly={isReadOnly}
+                      rows={1}
+                      style={{
+                        flex: 1,
+                        padding: '5px 9px',
+                        borderRadius: '6px',
+                        border: '1.5px solid #d1d9e6',
+                        fontSize: '0.75rem',
+                        outline: 'none',
+                        background: isReadOnly ? '#f8fafc' : '#fff',
+                        color: '#0f172a',
+                        fontFamily: 'inherit',
+                        boxSizing: 'border-box',
+                        resize: 'none',
+                        overflow: 'hidden',
+                        lineHeight: '1.5',
+                        minHeight: '30px',
+                        display: 'block',
+                      }}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
           </div>
 
           {/* Footer */}

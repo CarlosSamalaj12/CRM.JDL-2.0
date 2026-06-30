@@ -14,6 +14,7 @@ import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
 import SettingsEquipos from './SettingsEquipos';
+import SettingsCitas from './SettingsCitas';
 import authService from '../../services/authService';
 import '../reports/reports.css';
 import './settings.css';
@@ -109,6 +110,18 @@ export default function SettingsMain() {
           <circle cx="9" cy="7" r="4"></circle>
           <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
           <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+      ),
+    },
+    {
+      id: 'citas',
+      label: 'Citas y Alertas',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
         </svg>
       ),
     },
@@ -707,6 +720,31 @@ export default function SettingsMain() {
 
                 <div className="settings-section-card" style={{ marginTop: '16px' }}>
                   <SettingsUsers />
+                </div>
+              </>
+            )}
+            {/* ── TAB: Citas y Alertas ── */}
+            {activeTab === 'citas' && (
+              <>
+                <div className="settings-hero-section">
+                  <div className="settings-category-header">
+                    <h2 className="settings-category-title">Citas y Alertas</h2>
+                    <p className="settings-category-subtitle">
+                      Configuración de notificaciones y tiempos de recordatorio para citas de seguimiento
+                    </p>
+                  </div>
+                  <div className="settings-storytelling-card">
+                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Gestión de alertas</span>
+                    <p className="settings-story-text">
+                      Configura el <strong className="highlight-blue">tiempo de anticipación</strong> con el que los
+                      vendedores recibirán recordatorios visuales de sus citas.
+                      Esto ayuda a optimizar las llamadas de seguimiento sin saturar de notificaciones el panel lateral.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="settings-section-card" style={{ overflow: 'visible' }}>
+                  <SettingsCitas inline />
                 </div>
               </>
             )}

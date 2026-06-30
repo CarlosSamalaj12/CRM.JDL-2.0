@@ -35,6 +35,14 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
 
   useEffect(() => {
     loadReminders();
+    
+    const handleStateUpdated = () => {
+      loadReminders();
+    };
+    window.addEventListener('state-updated', handleStateUpdated);
+    return () => {
+      window.removeEventListener('state-updated', handleStateUpdated);
+    };
   }, [loadReminders]);
 
   const handleAddOrUpdate = async () => {

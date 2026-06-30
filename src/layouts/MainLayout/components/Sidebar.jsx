@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useSocket } from '../../../modules/informes/context/SocketContext';
 import authService from '../../../services/authService';
 import reminderService from '../../../services/reminderService';
+import { loadState } from '../../../services/stateService';
 import { STATUS_META } from '../../../modules/calendar/constants';
 
 const NOTIF_API = import.meta.env.VITE_API_URL || '';
@@ -55,6 +56,28 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
   };
 
   const [reminders, setReminders] = useState([]);
+  const [reminderOffset, setReminderOffset] = useState(0);
+
+  useEffect(() => {
+    const fetchOffset = async () => {
+      try {
+        const state = await loadState();
+        setReminderOffset(Number(state.appointmentReminderOffset || 0));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchOffset();
+
+    const handleStateUpdated = () => {
+      fetchOffset();
+    };
+    window.addEventListener('state-updated', handleStateUpdated);
+    return () => {
+      window.removeEventListener('state-updated', handleStateUpdated);
+    };
+  }, []);
+
   const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [notifCount, setNotifCount] = useState(0);
@@ -167,7 +190,13 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
         if (r.finalizado) return;
 
         const reminderDateTime = new Date(`${r.date}T${r.time}:00`);
-        if (reminderDateTime < now) return;
+        
+        if (reminderOffset > 0) {
+          const diffMinutes = (reminderDateTime.getTime() - now.getTime()) / (1000 * 60);
+          if (diffMinutes < 0 || diffMinutes > reminderOffset) return;
+        } else {
+          if (reminderDateTime < now) return;
+        }
 
         flat.push({ 
           ...r, 
@@ -186,7 +215,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     });
 
     setReminders(flat);
-  }, [propsRemindersProp, propsEvents]);
+  }, [propsRemindersProp, propsEvents, reminderOffset]);
 
   const getStatusColor = (status) => {
     return STATUS_META[status]?.color || '#cbd5e1';

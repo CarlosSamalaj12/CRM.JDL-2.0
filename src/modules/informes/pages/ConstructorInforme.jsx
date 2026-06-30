@@ -1471,7 +1471,7 @@ export default function ConstructorInforme() {
 
       {/* ─── MODAL OPCIONES ─── */}
       {modalOpciones && (
-        <div className="pos-modal-overlay" onClick={() => setModalOpciones(null)}>
+        <div className="pos-modal-overlay">
           <div className="pos-modal" onClick={e => e.stopPropagation()}>
             <div className="pos-modal-header">
               <h3>🍽️ {modalOpciones.nombre}</h3>
@@ -1516,7 +1516,7 @@ export default function ConstructorInforme() {
 
       {/* ─── MODAL SELECCIÓN DE VERSIÓN ─── */}
       {showVersionSelector && (
-        <div className="pos-modal-overlay" onClick={() => setShowVersionSelector(false)} style={{padding:'1rem', overflowY:'auto'}}>
+        <div className="pos-modal-overlay" style={{padding:'1rem', overflowY:'auto'}}>
           <div className="pos-modal" onClick={e => e.stopPropagation()} style={{maxWidth:'480px', maxHeight:'85vh', display:'flex', flexDirection:'column'}}>
             <div className="pos-modal-header">
               <h3><IconFileText size={16} /> Versiones del Informe</h3>
@@ -1572,7 +1572,7 @@ export default function ConstructorInforme() {
 
       {/* ─── MODAL HISTORIAL ─── */}
       {modalHistorial && (
-        <div className="pos-modal-overlay" onClick={() => setModalHistorial(false)}>
+        <div className="pos-modal-overlay">
           <div className="pos-modal" onClick={e => e.stopPropagation()}>
             <div className="pos-modal-header">
               <h3><IconHistory size={16} /> Historial</h3>

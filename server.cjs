@@ -797,6 +797,7 @@ async function ensureEncargadosEmpresaColumnSize() {
   let conn;
   try {
     conn = await pool.getConnection();
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
     const cols = await conn.query(
       `SELECT column_name, character_maximum_length FROM information_schema.columns WHERE table_schema = ? AND table_name = 'encargados_empresa' AND column_name IN ('id','id_empresa')`,
       [DB_NAME]
@@ -804,11 +805,20 @@ async function ensureEncargadosEmpresaColumnSize() {
     for (const col of cols) {
       const currentLen = Number(col.character_maximum_length);
       if (currentLen < 100) {
-        await conn.query(`ALTER TABLE encargados_empresa MODIFY COLUMN ${col.column_name} VARCHAR(200) NOT NULL`);
+        try {
+          await conn.query(`ALTER TABLE encargados_empresa MODIFY COLUMN ${col.column_name} VARCHAR(200) NOT NULL`);
+        } catch (alterErr) {
+          console.warn(`[MIGRACIÓN] No se pudo alterar encargados_empresa.${col.column_name}:`, alterErr.message);
+        }
       }
     }
   } finally {
-    if (conn) conn.release();
+    if (conn) {
+      try {
+        await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+      } catch (_) {}
+      conn.release();
+    }
   }
 }
 
@@ -816,6 +826,7 @@ async function ensureCotizacionesEventoColumnSize() {
   let conn;
   try {
     conn = await pool.getConnection();
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
     const cols = await conn.query(
       `SELECT column_name, character_maximum_length FROM information_schema.columns WHERE table_schema = ? AND table_name = 'cotizaciones_evento' AND column_name IN ('id_empresa','id_encargado')`,
       [DB_NAME]
@@ -823,11 +834,20 @@ async function ensureCotizacionesEventoColumnSize() {
     for (const col of cols) {
       const currentLen = Number(col.character_maximum_length);
       if (currentLen < 100) {
-        await conn.query(`ALTER TABLE cotizaciones_evento MODIFY COLUMN ${col.column_name} VARCHAR(200) NOT NULL`);
+        try {
+          await conn.query(`ALTER TABLE cotizaciones_evento MODIFY COLUMN ${col.column_name} VARCHAR(200) NOT NULL`);
+        } catch (alterErr) {
+          console.warn(`[MIGRACIÓN] No se pudo alterar cotizaciones_evento.${col.column_name}:`, alterErr.message);
+        }
       }
     }
   } finally {
-    if (conn) conn.release();
+    if (conn) {
+      try {
+        await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+      } catch (_) {}
+      conn.release();
+    }
   }
 }
 
@@ -872,7 +892,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','exchangeRate','appointmentReminderOffset')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
@@ -1416,6 +1436,20 @@ async function readStateFromTables() {
       } catch (_) {
         state.serviceCategories = [];
       }
+    }
+
+    const exchangeRateRow = appStateRows.find((r) => str(r.clave) === "exchangeRate");
+    try {
+      state.exchangeRate = exchangeRateRow?.valor_json ? Number(JSON.parse(exchangeRateRow.valor_json)) : 7.75;
+    } catch (_) {
+      state.exchangeRate = 7.75;
+    }
+
+    const appointmentReminderOffsetRow = appStateRows.find((r) => str(r.clave) === "appointmentReminderOffset");
+    try {
+      state.appointmentReminderOffset = appointmentReminderOffsetRow?.valor_json ? Number(JSON.parse(appointmentReminderOffsetRow.valor_json)) : 0;
+    } catch (_) {
+      state.appointmentReminderOffset = 0;
     }
 
     for (const row of recordatorios) {
@@ -2629,6 +2663,27 @@ async function writeStateToTables(state) {
       `,
       [JSON.stringify(salonOccupancyEnabled)]
     );
+    const exchangeRate = Number(state.exchangeRate || 7.75);
+    const appointmentReminderOffset = Number(state.appointmentReminderOffset || 0);
+
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('exchangeRate', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(exchangeRate)]
+    );
+
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('appointmentReminderOffset', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(appointmentReminderOffset)]
+    );
+
     // Write to app_state_kv (backward compat)
     // Write to app_state_kv (backward compat)
     await conn.query(
