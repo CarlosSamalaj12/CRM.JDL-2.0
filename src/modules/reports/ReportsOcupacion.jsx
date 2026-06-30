@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { STATUS_META } from '../calendar/constants';
@@ -85,6 +85,8 @@ export default function ReportsOcupacion({ onClose }) {
   }, [weekDays, todayISOStr]);
 
   const [selectedDay, setSelectedDay] = useState(initialSelectedDay);
+  const stripRef = useRef(null);
+  const stripScrollPosRef = useRef(0);
 
   useEffect(() => {
     if (!weekDays.includes(selectedDay)) setSelectedDay(weekDays[0]);
@@ -248,6 +250,13 @@ export default function ReportsOcupacion({ onClose }) {
     { label: 'Facturación', value: formatMoneyGT(summary.totalRevenue), accent: '#0d9488', meta: 'valor cotizado' },
   ];
 
+  // Restore occupancyDaysStrip scroll position after re-renders (useLayoutEffect for no visual flash)
+  useLayoutEffect(() => {
+    if (stripRef.current && stripScrollPosRef.current > 0) {
+      stripRef.current.scrollLeft = stripScrollPosRef.current;
+    }
+  });
+
   return (
     <div className="reports-page-container">
       {/* Header */}
@@ -322,7 +331,10 @@ export default function ReportsOcupacion({ onClose }) {
             </div>
           </div>
 
-          <div className="occupancyDaysStrip">
+          <div className="occupancyDaysStrip" ref={stripRef}
+            onScroll={() => {
+              if (stripRef.current) stripScrollPosRef.current = stripRef.current.scrollLeft;
+            }}>
             {dayCards.map((d, i) => (
               <div key={d.date} className="occupancyWeekColumn" style={{
                 flex: '1 0 150px', minWidth: '150px', display: 'flex', flexDirection: 'column', padding: '0 10px 12px',

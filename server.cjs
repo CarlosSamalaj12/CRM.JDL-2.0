@@ -812,6 +812,25 @@ async function ensureEncargadosEmpresaColumnSize() {
   }
 }
 
+async function ensureCotizacionesEventoColumnSize() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name, character_maximum_length FROM information_schema.columns WHERE table_schema = ? AND table_name = 'cotizaciones_evento' AND column_name IN ('id_empresa','id_encargado')`,
+      [DB_NAME]
+    );
+    for (const col of cols) {
+      const currentLen = Number(col.character_maximum_length);
+      if (currentLen < 100) {
+        await conn.query(`ALTER TABLE cotizaciones_evento MODIFY COLUMN ${col.column_name} VARCHAR(200) NOT NULL`);
+      }
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureRequiredTables() {
   let conn;
   try {
@@ -1976,7 +1995,27 @@ async function writeStateToTables(state) {
 
     // Las tablas de servicios y categorias fueron eliminadas y se manejan en el modulo de informes.
 
-    // === UPSERT: eventos (preservar existentes, no borrar) ===
+    // === DELETE: eventos huérfanos de grupos no presentes en el estado entrante ===
+    const incomingEventIds = new Set();
+    const incomingGroupIds = new Set();
+    for (const e of events) {
+      const eid = str(e?.id).trim();
+      const gid = str(e?.groupId).trim();
+      if (eid) incomingEventIds.add(eid);
+      if (gid) incomingGroupIds.add(gid);
+    }
+    if (incomingEventIds.size > 0 && incomingGroupIds.size > 0) {
+      const idList = [...incomingEventIds];
+      const placeholders = idList.map(() => '?').join(',');
+      for (const groupId of incomingGroupIds) {
+        await conn.query(
+          `DELETE FROM eventos WHERE id_grupo = ? AND id NOT IN (${placeholders})`,
+          [groupId, ...idList]
+        );
+      }
+    }
+
+    // === UPSERT: eventos ===
     for (const e of events) {
       const id = str(e?.id).trim();
       if (!id) continue;
@@ -3995,6 +4034,7 @@ async function start() {
     await ensureEquiposTrabajoStructure();
     await ensureQuoteItemPrimaryKeyColumnSize();
     await ensureEncargadosEmpresaColumnSize();
+    await ensureCotizacionesEventoColumnSize();
     await ensureRequiredTables();
     await ensureDefaultUserCarlos();
 

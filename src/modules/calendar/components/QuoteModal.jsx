@@ -3458,9 +3458,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       key={tpl.id}
                       onClick={() => setQuote(p => ({
                         ...p,
-                        templateIds: checked
-                          ? p.templateIds.filter(id => id !== tpl.id)
-                          : [...p.templateIds, tpl.id]
+                        templateIds: checked ? [] : [tpl.id]
                       }))}
                       style={{
                         padding: '0 12px', borderRadius: 6, cursor: 'pointer', userSelect: 'none', height: 32,
