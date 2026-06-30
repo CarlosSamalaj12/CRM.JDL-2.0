@@ -105,6 +105,14 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
     }
   }, [semana_lunes, isMobile]);
 
+  const handlePrevDay = () => {
+    setMobileDayIndex(prev => (prev > 0 ? prev - 1 : 6));
+  };
+
+  const handleNextDay = () => {
+    setMobileDayIndex(prev => (prev < 6 ? prev + 1 : 0));
+  };
+
   const handlePrevWeek = () => {
     if (!onDateChange) return;
     const d = new Date(selectedDate + 'T12:00:00');
@@ -414,22 +422,26 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
       {/* Day selector pills — visible en mobile (igual que el kanban) */}
       {isMobile && (
         <div className="kanban-day-selector" style={{ marginBottom: '12px' }}>
-          {weekDays.map((day, i) => {
-            const d = new Date(day.iso + 'T12:00:00');
-            const name = d.toLocaleDateString('es-ES', { weekday: 'short' });
-            return (
-              <button
-                key={day.iso}
-                type="button"
-                className={`kanban-day-pill ${mobileDayIndex === i ? 'active' : ''}`}
-                onClick={() => setMobileDayIndex(i)}
-              >
-                <span className="pill-day">{name.slice(0, 3).replace('.', '')}</span>
-                <span className="pill-date">{day.iso.slice(5)}</span>
-                <span className="pill-count">{day.tareas.length}</span>
-              </button>
-            );
-          })}
+          <button type="button" onClick={handlePrevDay} className="kanban-day-arrow">‹</button>
+          <div className="kanban-day-pills-wrap">
+            {weekDays.map((day, i) => {
+              const d = new Date(day.iso + 'T12:00:00');
+              const name = d.toLocaleDateString('es-ES', { weekday: 'short' });
+              return (
+                <button
+                  key={day.iso}
+                  type="button"
+                  className={`kanban-day-pill ${mobileDayIndex === i ? 'active' : ''}`}
+                  onClick={() => setMobileDayIndex(i)}
+                >
+                  <span className="pill-day">{name.slice(0, 3).replace('.', '')}</span>
+                  <span className="pill-date">{day.iso.slice(5)}</span>
+                  <span className="pill-count">{day.tareas.length}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" onClick={handleNextDay} className="kanban-day-arrow">›</button>
         </div>
       )}
 
