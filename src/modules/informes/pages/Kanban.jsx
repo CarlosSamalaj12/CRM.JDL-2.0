@@ -56,6 +56,7 @@ export default function Kanban() {
   const [isMobileView, setIsMobileView] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [taskCounts, setTaskCounts] = useState({});
 
   const toggleRow = (id) => {
     setExpandedRows(prev => {
@@ -572,7 +573,7 @@ export default function Kanban() {
         </div>
         
         {/* Day selector — visible en mobile (colocado dentro de kanban-header para que sea sticky junto con él) */}
-        {!loading && !error && isMobileView && (viewMode === 'kanban' || viewMode === 'tabla') && (
+        {!loading && !error && isMobileView && (viewMode === 'kanban' || viewMode === 'tareas') && (
           <div className="kanban-day-selector" style={{ marginTop: '0.5rem', marginBottom: '0.25rem' }}>
             <button onClick={handlePrevDay} className="kanban-day-arrow">‹</button>
             <div className="kanban-day-pills-wrap">
@@ -584,7 +585,9 @@ export default function Kanban() {
                 >
                   <span className="pill-day">{col.name.slice(0, 3).replace('.','')}</span>
                   <span className="pill-date">{col.isoDate.slice(5)}</span>
-                  <span className="pill-count">{col.items.length}</span>
+                  <span className="pill-count">
+                    {viewMode === 'tareas' ? (taskCounts[col.isoDate] || 0) : col.items.length}
+                  </span>
                 </button>
               ))}
             </div>
@@ -654,7 +657,14 @@ export default function Kanban() {
       )}
 
       {!loading && !error && viewMode === 'tareas' && (
-        <WeeklyTasks selectedDate={selectedDate} events={events} onDateChange={setSelectedDate} />
+        <WeeklyTasks
+          selectedDate={selectedDate}
+          events={events}
+          onDateChange={setSelectedDate}
+          mobileDayIndex={mobileDayIndex}
+          setMobileDayIndex={setMobileDayIndex}
+          setTaskCounts={setTaskCounts}
+        />
       )}
 
       {!loading && !error && viewMode === 'tabla' && (

@@ -62,7 +62,14 @@ function getCurrentUser() {
   } catch { return null; }
 }
 
-export default function WeeklyTasks({ selectedDate, events = [], onDateChange }) {
+export default function WeeklyTasks({
+  selectedDate,
+  events = [],
+  onDateChange,
+  mobileDayIndex: parentMobileDayIndex,
+  setMobileDayIndex: parentSetMobileDayIndex,
+  setTaskCounts
+}) {
   const user = getCurrentUser();
   const semana_lunes = getMonday(selectedDate);
 
@@ -88,7 +95,9 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
 
   const [filterStatus, setFilterStatus] = useState('todas');
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileDayIndex, setMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
+  const [localMobileDayIndex, setLocalMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
+  const mobileDayIndex = parentMobileDayIndex !== undefined ? parentMobileDayIndex : localMobileDayIndex;
+  const setMobileDayIndex = parentSetMobileDayIndex !== undefined ? parentSetMobileDayIndex : setLocalMobileDayIndex;
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -104,14 +113,6 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
       setMobileDayIndex(idx);
     }
   }, [semana_lunes, isMobile]);
-
-  const handlePrevDay = () => {
-    setMobileDayIndex(prev => (prev > 0 ? prev - 1 : 6));
-  };
-
-  const handleNextDay = () => {
-    setMobileDayIndex(prev => (prev < 6 ? prev + 1 : 0));
-  };
 
   const handlePrevWeek = () => {
     if (!onDateChange) return;
@@ -374,13 +375,28 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
     return true;
   });
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(semana_lunes + 'T12:00:00');
-    d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    const tareasDia = filteredTareas.filter(t => String(t.fecha_tarea || '').slice(0, 10) === iso);
-    return { iso, label: `${DAY_LABELS[d.getDay()]} ${d.getDate()}`, tareas: tareasDia };
-  });
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(semana_lunes + 'T12:00:00');
+      d.setDate(d.getDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      const tareasDia = filteredTareas.filter(t => String(t.fecha_tarea || '').slice(0, 10) === iso);
+      return { iso, label: `${DAY_LABELS[d.getDay()]} ${d.getDate()}`, tareas: tareasDia };
+    });
+  }, [semana_lunes, filteredTareas]);
+
+  useEffect(() => {
+    if (setTaskCounts) {
+      const counts = {};
+      weekDays.forEach(day => {
+        counts[day.iso] = day.tareas.length;
+      });
+      setTaskCounts(prev => {
+        const hasChanged = Object.keys(counts).some(k => prev[k] !== counts[k]);
+        return hasChanged ? counts : prev;
+      });
+    }
+  }, [weekDays, setTaskCounts]);
 
   const totalCount = filteredTareas.length;
   const completedCount = filteredTareas.filter(t => t.completada).length;
@@ -419,31 +435,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
         </div>
       )}
 
-      {/* Day selector pills — visible en mobile (igual que el kanban) */}
-      {isMobile && (
-        <div className="kanban-day-selector" style={{ marginBottom: '12px' }}>
-          <button type="button" onClick={handlePrevDay} className="kanban-day-arrow">‹</button>
-          <div className="kanban-day-pills-wrap">
-            {weekDays.map((day, i) => {
-              const d = new Date(day.iso + 'T12:00:00');
-              const name = d.toLocaleDateString('es-ES', { weekday: 'short' });
-              return (
-                <button
-                  key={day.iso}
-                  type="button"
-                  className={`kanban-day-pill ${mobileDayIndex === i ? 'active' : ''}`}
-                  onClick={() => setMobileDayIndex(i)}
-                >
-                  <span className="pill-day">{name.slice(0, 3).replace('.', '')}</span>
-                  <span className="pill-date">{day.iso.slice(5)}</span>
-                  <span className="pill-count">{day.tareas.length}</span>
-                </button>
-              );
-            })}
-          </div>
-          <button type="button" onClick={handleNextDay} className="kanban-day-arrow">›</button>
-        </div>
-      )}
+
 
       {/* Stats bar */}
       <div style={{
