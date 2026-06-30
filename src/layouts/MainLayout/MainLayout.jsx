@@ -124,8 +124,13 @@ export default function MainLayout() {
       loadInitialData(true);
     });
 
+    const unsubscribeEntity = socketService.on('entity:changed', () => {
+      loadInitialData(true);
+    });
+
     return () => {
       unsubscribeState();
+      unsubscribeEntity();
     };
   }, [navigate]);
 

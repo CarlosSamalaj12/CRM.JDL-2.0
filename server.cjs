@@ -3332,6 +3332,7 @@ app.delete("/api/categorias-servicio/:catId/subcategorias/:subId", async (req, r
        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
       [JSON.stringify(updated)]
     );
+    emitServerChange('subcategoria_servicio', 'deleted', { id: Number(subId) });
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ message: "Error al eliminar subcategoria.", detail: error.message });
@@ -3440,6 +3441,7 @@ app.post("/api/menu-catalog/:kind", async (req, res) => {
     if (kind === "preparacion") {
       const idPlatoFuerte = Number(req.body?.id_plato_fuerte);
       await createPreparacionForPlato(idPlatoFuerte, nombre);
+      emitServerChange('menu_catalog', 'created', { kind });
       return res.json({ ok: true });
     }
     await createSimpleMenuCatalog(kind, nombre, {
@@ -3447,6 +3449,7 @@ app.post("/api/menu-catalog/:kind", async (req, res) => {
       tipo_plato: req.body?.tipo_plato,
       es_sin_proteina: req.body?.es_sin_proteina,
     });
+    emitServerChange('menu_catalog', 'created', { kind });
     return res.json({ ok: true });
   } catch (error) {
     return res.status(400).json({ message: "No se pudo guardar el catalogo de Menu & Montaje.", detail: error.message });
@@ -3463,6 +3466,7 @@ app.put("/api/menu-catalog/:kind/:id", async (req, res) => {
         activo: req.body?.activo,
         id_plato_fuerte: req.body?.id_plato_fuerte,
       });
+      emitServerChange('menu_catalog', 'updated', { id, kind });
       return res.json({ ok: true });
     }
     await updateSimpleMenuCatalog(kind, id, {
@@ -3472,6 +3476,7 @@ app.put("/api/menu-catalog/:kind/:id", async (req, res) => {
       tipo_plato: req.body?.tipo_plato,
       es_sin_proteina: req.body?.es_sin_proteina,
     });
+    emitServerChange('menu_catalog', 'updated', { id, kind });
     return res.json({ ok: true });
   } catch (error) {
     return res.status(400).json({ message: "No se pudo actualizar el catalogo de Menu & Montaje.", detail: error.message });
@@ -3501,6 +3506,7 @@ app.put("/api/menu-suggestions", async (req, res) => {
       montajeTipoIds: req.body?.montajeTipoIds,
       montajeAdicionalIds: req.body?.montajeAdicionalIds,
     });
+    emitServerChange('menu_suggestions', 'updated', {});
     return res.json({ ok: true });
   } catch (error) {
     return res.status(400).json({ message: "No se pudieron guardar las sugerencias de Menu.", detail: error.message });

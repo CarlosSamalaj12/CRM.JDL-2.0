@@ -932,7 +932,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         window.__selectedPrintFormat = null;
         
         if (pf) {
-          const printWin = window.open("/loading.html", "_blank");
+          const printWin = window.open("/loading.html", "_blank", "width=1000,height=800,scrollbars=yes");
           const printUrl = await generateQuotePrintDocument(finalQuote, user, pf, event);
           if (printUrl && printWin) {
             printWin.location.href = printUrl;
@@ -969,7 +969,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           });
 
           if (waResult.isConfirmed) {
-            const printWin = window.open("/loading.html", "_blank");
+            const printWin = window.open("/loading.html", "_blank", "width=1000,height=800,scrollbars=yes");
             const printUrl = await generateQuotePrintDocument(finalQuote, user, "standard", event);
             if (printUrl && printWin) {
               printWin.location.href = printUrl;
@@ -1412,7 +1412,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     if (!printOption) return;
 
     // Abrir la ventana síncronamente antes de la generación asíncrona para que iOS lo acepte
-    const printWin = window.open("/loading.html", "_blank");
+    const printWin = window.open("/loading.html", "_blank", "width=1000,height=800,scrollbars=yes");
 
     const printUrl = await generateQuotePrintDocument(
       { ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total },
