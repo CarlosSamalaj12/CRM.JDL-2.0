@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { getEquipos, createEquipo, updateEquipo, deleteEquipo } from '../../services/api.js';
+import { useDataSync } from '../../hooks/useDataSync.js';
 
 export default function SettingsEquipos() {
   const [equipos, setEquipos] = useState([]);
@@ -23,6 +24,8 @@ export default function SettingsEquipos() {
   }, []);
 
   useEffect(() => { loadEquipos(); }, [loadEquipos]);
+
+  useDataSync('equipo_trabajo', () => loadEquipos());
 
   useEffect(() => {
     const handler = () => loadEquipos();

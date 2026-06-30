@@ -161,8 +161,10 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     Object.entries(allRems).forEach(([eventId, evRems]) => {
       const event = allEvents.find(e => e.id === eventId) || {};
       evRems.forEach(r => {
-        const isMine = !r.createdBy || r.createdBy === currentUser?.id;
+        const creatorId = r.createdBy || r.createdByUserId;
+        const isMine = !creatorId || creatorId === currentUser?.id;
         if (!isMine) return;
+        if (r.finalizado) return;
 
         const reminderDateTime = new Date(`${r.date}T${r.time}:00`);
         if (reminderDateTime < now) return;
@@ -191,13 +193,12 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
   };
 
   const handleDismissReminder = async (e, eventId, reminderId) => {
-    e.stopPropagation(); // Evita que abra la reserva
+    e.stopPropagation();
     try {
-      await reminderService.delete(eventId, reminderId);
-      // Eliminar de la vista inmediatamente
+      await reminderService.markAsFinalizado(eventId, reminderId);
       setReminders(prev => prev.filter(r => r.id !== reminderId));
     } catch (err) {
-      console.error('Error al descartar recordatorio', err);
+      console.error('Error al marcar recordatorio como finalizado', err);
     }
   };
 
@@ -382,7 +383,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                           <button 
                             className="reminder-card-check"
                             onClick={(e) => handleDismissReminder(e, r.eventId, r.id)}
-                            title="Marcar como revisado"
+                            title="Marcar como finalizado"
                           >
                             <span className="material-symbols-outlined">check_circle</span>
                           </button>
@@ -1373,7 +1374,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                           <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '600', whiteSpace: 'nowrap' }}>{r.date}</span>
                           <button 
                             onClick={(e) => handleDismissReminder(e, r.eventId, r.id)}
-                            title="Marcar como revisado"
+                            title="Marcar como finalizado"
                             style={{
                               background: 'transparent',
                               border: 'none',

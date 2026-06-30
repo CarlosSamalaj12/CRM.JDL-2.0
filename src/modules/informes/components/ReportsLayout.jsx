@@ -13,6 +13,7 @@ import {
 } from './Icons.jsx';
 import '../styles.scss';
 import '../styles.css';
+import '../mobile-table.css';
 
 export default function ReportsLayout() {
   const { user, logout } = useAuth();

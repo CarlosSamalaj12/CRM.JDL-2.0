@@ -28,4 +28,7 @@ router.delete('/dias/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeC
 router.get('/dias/:dia_id/detalle', informeController.getDiaMenuDetalle);
 router.post('/dias/:dia_id/detalle', authenticate, authorizeRoles(...EDIT_ROLES), informeController.saveDiaMenuDetalle);
 
+// Actualizar notas de un ítem individual
+router.patch('/detalle/:itemId', authenticate, authorizeRoles(...EDIT_ROLES), informeController.updateDiaMenuItemNotas);
+
 export default router;

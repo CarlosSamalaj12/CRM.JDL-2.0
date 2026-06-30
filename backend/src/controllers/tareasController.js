@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 export async function getTareasUsuario(req, res, next) {
   try {
@@ -32,6 +33,7 @@ export async function createTarea(req, res, next) {
       'INSERT INTO tareas_evento (id_ocupacion, usuario_id, usuario_nombre, contenido) VALUES (?, ?, ?, ?)',
       [id_ocupacion, usuario_id, usuario_nombre || null, contenido.trim()]
     );
+    emitChange(req, 'tarea_evento', 'created', { id: result.insertId, id_ocupacion });
     
     const [newTarea] = await pool.query('SELECT * FROM tareas_evento WHERE id = ?', [result.insertId]);
     res.status(201).json(newTarea[0]);
@@ -63,6 +65,7 @@ export async function updateTarea(req, res, next) {
     
     params.push(id);
     await pool.query(`UPDATE tareas_evento SET ${fields.join(', ')} WHERE id = ?`, params);
+    emitChange(req, 'tarea_evento', 'updated', { id });
     
     const [updated] = await pool.query('SELECT * FROM tareas_evento WHERE id = ?', [id]);
     res.json(updated[0]);
@@ -75,6 +78,7 @@ export async function deleteTarea(req, res, next) {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM tareas_evento WHERE id = ?', [id]);
+    emitChange(req, 'tarea_evento', 'deleted', { id });
     res.json({ message: 'Tarea eliminada' });
   } catch (error) {
     next(error);

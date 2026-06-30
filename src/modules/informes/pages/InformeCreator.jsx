@@ -24,7 +24,7 @@ const TIPO_LABELS = {
   otros:        { label: 'Otros',         icon: '📦', color: '#64748b' },
 };
 
-const TIPO_OPTS = ['proteina','guarnicion','salsa','postre','tortilla_pan','bebida','otros'];
+const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','tortilla_pan','bebida','otros'];
 const METODOS_PREPARACION = [
   'A la plancha', 'Al vapor', 'Frito', 'Parrilla', 'Horneado',
   'Salteado', 'Guisado', 'Crudo / Fresco', 'Otro'

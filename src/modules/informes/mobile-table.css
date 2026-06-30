@@ -1,0 +1,357 @@
+/* ==========================================================================
+   MOBILE-RESPONSIVE: TABLE VIEW (Tabla Semanal)
+   ==========================================================================
+   Uses table-layout:fixed + explicit column widths so columns never reflow
+   and text never overlaps when the detail row expands.
+   Scoped within .reports-root to apply only to the informes module.
+   ========================================================================== */
+
+/* ─── Desktop table (default) ─── */
+.reports-root .tabla-eventos {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  background: var(--bg-card);
+  border-radius: var(--radius, 12px);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.reports-root .tabla-eventos th {
+  background: var(--surface-2, #f1f5f9);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.reports-root .tabla-eventos td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.reports-root .tabla-eventos tbody tr:hover td {
+  background: var(--surface-hover, #f8fafc);
+}
+.reports-root .tabla-dia-header td {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--border);
+}
+.reports-root .tabla-dia-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--surface-2, #f1f5f9);
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.5rem 0.75rem;
+}
+.reports-root .tabla-dia-label {
+  color: var(--text-main);
+}
+.reports-root .tabla-eventos tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Mobile detail row (expandable) ─── */
+.reports-root .tabla-detail-row td {
+  padding: 0 !important;
+  background: var(--bg-elevated);
+}
+.reports-root .tabla-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  animation: fadeSlideIn 0.15s ease;
+}
+.reports-root .detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.reports-root .detail-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.reports-root .detail-food-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.reports-root .detail-food-item {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.reports-root .food-title {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  margin-right: 0.2rem;
+}
+.reports-root .detail-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* ─── Mobile: table-layout fixed + explicit widths ─── */
+@media (max-width: 767px) {
+  .reports-root .tabla-eventos {
+    font-size: 0.65rem;
+    border-radius: 8px;
+    table-layout: fixed;
+  }
+
+  /* ── Hide food/alertas/vendedor columns AND day header row ── */
+  .reports-root .tabla-eventos th.col-food,
+  .reports-root .tabla-eventos th.col-alertas,
+  .reports-root .tabla-eventos th.col-vendedor,
+  .reports-root .tabla-eventos td.col-food,
+  .reports-root .tabla-eventos td.col-alertas,
+  .reports-root .tabla-eventos td.col-vendedor {
+    display: none;
+  }
+  .reports-root .tabla-dia-header {
+    display: none;
+  }
+
+  /* ── Show only: Día, Estado, Institución, Salón, Horario, Pax ── */
+  .reports-root .tabla-eventos th.col-dia,
+  .reports-root .tabla-eventos th.col-estado,
+  .reports-root .tabla-eventos th.col-inst,
+  .reports-root .tabla-eventos th.col-salon,
+  .reports-root .tabla-eventos th.col-horario,
+  .reports-root .tabla-eventos th.col-pax {
+    display: table-cell;
+    font-size: 0.5rem;
+    padding: 0.3rem 0.2rem;
+  }
+
+  .reports-root .tabla-eventos td.col-dia,
+  .reports-root .tabla-eventos td.col-estado,
+  .reports-root .tabla-eventos td.col-inst,
+  .reports-root .tabla-eventos td.col-salon,
+  .reports-root .tabla-eventos td.col-horario,
+  .reports-root .tabla-eventos td.col-pax {
+    display: table-cell;
+    padding: 0.45rem 0.2rem;
+    font-size: 0.6rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+
+  /* ── Explicit column widths (fit 375px iPhone) ── */
+  .reports-root .tabla-eventos th.col-dia,
+  .reports-root .tabla-eventos td.col-dia {
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    font-size: 0.5rem;
+    text-align: center;
+  }
+
+  .reports-root .tabla-eventos th.col-estado,
+  .reports-root .tabla-eventos td.col-estado {
+    width: 48px;
+    min-width: 48px;
+    max-width: 48px;
+    text-align: center;
+  }
+
+  .reports-root .tabla-eventos th.col-inst,
+  .reports-root .tabla-eventos td.col-inst {
+    width: auto;
+    font-weight: 600;
+    min-width: 55px;
+  }
+
+  .reports-root .tabla-eventos th.col-salon,
+  .reports-root .tabla-eventos td.col-salon {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+  }
+
+  .reports-root .tabla-eventos th.col-horario,
+  .reports-root .tabla-eventos td.col-horario {
+    width: 70px;
+    min-width: 70px;
+    max-width: 70px;
+    font-size: 0.55rem;
+  }
+
+  .reports-root .tabla-eventos th.col-pax,
+  .reports-root .tabla-eventos td.col-pax {
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  /* ── Status tag compact ── */
+  .reports-root .tabla-eventos td .event-tag {
+    font-size: 0.55rem !important;
+    padding: 0.08rem 0.15rem !important;
+    display: inline-block;
+    border-radius: 3px;
+    text-transform: none;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  /* ── Rows are clickable with visible touch feedback ── */
+  .reports-root .tabla-eventos-row {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .reports-root .tabla-eventos-row:active,
+  .reports-root .tabla-eventos-row.row-expanded {
+    background: var(--primary-bg);
+  }
+  .reports-root .tabla-eventos tbody tr:not(.tabla-dia-header) td {
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Totals row matches data row padding on mobile ── */
+  .reports-root .tabla-total-row td {
+    padding: 0.45rem 0.2rem !important;
+    font-size: 0.6rem !important;
+    border-bottom: 1px solid var(--border);
+  }
+  .reports-root .tabla-total-row td.col-pax {
+    font-size: 0.65rem !important;
+    font-weight: 800 !important;
+  }
+
+  /* ── No-alerts placeholder hidden ── */
+  .reports-root .mobile-only.mob-no-alertas {
+    display: none;
+  }
+}
+
+/* ─── ≤480px: Móvil pequeño ─── */
+@media (max-width: 480px) {
+  .reports-root .tabla-eventos {
+    font-size: 0.55rem;
+  }
+
+  .reports-root .tabla-eventos th.col-dia,
+  .reports-root .tabla-eventos th.col-estado,
+  .reports-root .tabla-eventos th.col-inst,
+  .reports-root .tabla-eventos th.col-salon,
+  .reports-root .tabla-eventos th.col-horario,
+  .reports-root .tabla-eventos th.col-pax {
+    font-size: 0.45rem;
+    padding: 0.2rem 0.12rem;
+  }
+
+  .reports-root .tabla-eventos td.col-dia,
+  .reports-root .tabla-eventos td.col-estado,
+  .reports-root .tabla-eventos td.col-inst,
+  .reports-root .tabla-eventos td.col-salon,
+  .reports-root .tabla-eventos td.col-horario,
+  .reports-root .tabla-eventos td.col-pax {
+    padding: 0.38rem 0.12rem;
+    font-size: 0.55rem;
+  }
+
+  /* Even narrower widths for tiny screens */
+  .reports-root .tabla-eventos th.col-dia,
+  .reports-root .tabla-eventos td.col-dia {
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+    font-size: 0.42rem;
+  }
+
+  .reports-root .tabla-eventos th.col-estado,
+  .reports-root .tabla-eventos td.col-estado {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+  }
+
+  .reports-root .tabla-eventos th.col-inst,
+  .reports-root .tabla-eventos td.col-inst {
+    min-width: 45px;
+  }
+
+  .reports-root .tabla-eventos th.col-salon,
+  .reports-root .tabla-eventos td.col-salon {
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+  }
+
+  .reports-root .tabla-eventos th.col-horario,
+  .reports-root .tabla-eventos td.col-horario {
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
+    font-size: 0.5rem;
+  }
+
+  .reports-root .tabla-eventos th.col-pax,
+  .reports-root .tabla-eventos td.col-pax {
+    width: 24px;
+    min-width: 24px;
+    max-width: 24px;
+  }
+
+  .reports-root .tabla-eventos td .event-tag {
+    font-size: 0.5rem !important;
+    padding: 0.04rem 0.12rem !important;
+    font-weight: 700;
+  }
+
+  /* Detail content más compacto */
+  .reports-root .tabla-detail-content {
+    padding: 0.35rem 0.4rem;
+    gap: 0.3rem;
+  }
+  .reports-root .detail-food-item {
+    font-size: 0.6rem;
+    padding: 0.08rem 0.3rem;
+  }
+  .reports-root .detail-label {
+    font-size: 0.55rem;
+  }
+  .reports-root .detail-info-row {
+    font-size: 0.65rem;
+  }
+
+  .reports-root .tabla-total-row td {
+    padding: 0.38rem 0.12rem !important;
+    font-size: 0.55rem !important;
+  }
+  .reports-root .tabla-total-row td.col-pax {
+    font-size: 0.6rem !important;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

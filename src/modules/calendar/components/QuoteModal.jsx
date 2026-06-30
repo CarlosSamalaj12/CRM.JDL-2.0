@@ -251,6 +251,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     advanceLogs: event?.quote?.advanceLogs || []
   });
   const savedQuoteSnapshotRef = useRef(quoteSnapshot(quote));
+  const lastSavedQuoteRef = useRef(event?.quote && typeof event.quote === 'object' ? { ...event.quote } : null);
   const institutionFieldRef = useRef(null);
 
   const [serviceQty, setServiceQty] = useState(1);
@@ -781,8 +782,43 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
 
     try {
+      const existingVersions = Array.isArray(quote.versions) ? quote.versions : [];
+      const newVersions = existingVersions.map(v => ({ ...v, versions: undefined }));
+      let newVersionNum = Number(quote.version || 1);
+
+      const currentQuoteSnapshot = quoteSnapshot(quote);
+      const hasChanges = currentQuoteSnapshot !== savedQuoteSnapshotRef.current;
+
+      if (lastSavedQuoteRef.current && hasChanges) {
+        const prevSnapshot = {
+          ...lastSavedQuoteRef.current,
+          versions: undefined,
+          savedAt: lastSavedQuoteRef.current.quotedAt || new Date().toISOString(),
+        };
+        if (!newVersions.some(v => Number(v.version) === Number(prevSnapshot.version))) {
+          newVersions.push(prevSnapshot);
+        }
+        newVersionNum = Math.max(0, ...newVersions.map(v => Number(v.version || 0)), newVersionNum) + 1;
+      }
+
+      const currentSnapshot = {
+        ...quote,
+        versions: undefined,
+        version: newVersionNum,
+        subtotal: totals.subtotal,
+        discountAmount: totals.discountAmount,
+        total: totals.total,
+        savedAt: new Date().toISOString(),
+      };
+      if (!newVersions.some(v => Number(v.version) === newVersionNum)) {
+        newVersions.push(currentSnapshot);
+      }
+      newVersions.sort((a, b) => Number(a.version || 0) - Number(b.version || 0));
+
       const finalQuote = {
         ...quote,
+        versions: newVersions,
+        version: newVersionNum,
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
         total: totals.total,
@@ -800,11 +836,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         })(),
       };
 
+      setQuote(finalQuote);
+      savedQuoteSnapshotRef.current = quoteSnapshot(finalQuote);
+      lastSavedQuoteRef.current = { ...finalQuote, versions: undefined };
+
       if (typeof onSave === 'function') {
         await onSave(finalQuote, { keepOpen: true });
       }
-      
-      savedQuoteSnapshotRef.current = quoteSnapshot(finalQuote);
 
       const result = await localSwal({
         icon: 'success',
@@ -977,14 +1015,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       rowId: uid(),
       serviceDate: item.serviceDate || quote.eventDate || availableServiceDates[0]
     }));
-    setQuote(prev => ({
-      ...prev,
+    const loadedVersionNum = Number(versionData.version || 1);
+    const restoredQuote = {
+      ...quote,
+      ...versionData,
       items: restoredItems,
-      version: versionData.version || prev.version,
-      internalNotes: versionData.internalNotes || prev.internalNotes
-    }));
+      versions: quote.versions,
+      version: loadedVersionNum,
+    };
+    setQuote(restoredQuote);
+    savedQuoteSnapshotRef.current = quoteSnapshot(restoredQuote);
+    lastSavedQuoteRef.current = { ...versionData, versions: [] };
     setShowVersionPanel(false);
-    localSwal('Éxito', `Versión ${versionData.version} cargada`, 'success');
+    localSwal('Éxito', `Versión ${loadedVersionNum} cargada`, 'success');
   };
 
   const resetServiceDraft = () => setServiceDraft(emptyServiceDraft);
@@ -1270,23 +1313,101 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       localSwal({ icon: 'warning', title: 'Cotización vacía', text: 'Agrega servicios antes de imprimir.' });
       return;
     }
+
+    if (hasUnsavedQuoteChanges) {
+      const { isConfirmed, isDenied } = await localSwal({
+        icon: 'warning',
+        title: 'Cambios sin guardar',
+        text: 'Tu cotización tiene cambios que no han sido guardados. Si imprimes y cierras, perderás esta información.\n\n¿Qué deseas hacer?',
+        showConfirmButton: true,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: '💾 Guardar e imprimir',
+        denyButtonText: '🖨️ Imprimir sin guardar',
+        cancelButtonText: '❌ Cancelar',
+        confirmButtonColor: '#3085d6',
+        denyButtonColor: '#f59e0b',
+        cancelButtonColor: '#6e7881'
+      });
+
+      if (isConfirmed) {
+        const snapshotBefore = savedQuoteSnapshotRef.current;
+        await handleSaveQuote();
+        if (savedQuoteSnapshotRef.current === snapshotBefore) return;
+        return;
+      }
+      if (!isDenied) return;
+    }
+
     const user = authService.getCurrentUser();
 
-    const { value: printOption } = await localSwal({
-      title: 'Formato de impresión',
-      input: 'select',
-      inputOptions: {
-        standard: '📄 Cotización — Cotización + Contrato',
-        completa: '📋 Contrato — Cotización + Menú Montaje + Contrato',
-        sin_precios: '🔒 Sin Precio/Informe — Cotización (Q0) + Menú Montaje'
-      },
-      inputPlaceholder: 'Selecciona un formato',
+    const formatModal = await localSwal({
+      title: '<strong style="color:#118895">Selecciona el formato</strong>',
+      html: `
+        <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px;padding:0 10px;">
+          <div class="format-card" data-format="standard" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#118895,#0d6b76);display:flex;align-items:center;justify-content:center;font-size:24px;">📄</div>
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Cotización</div>
+                <div style="font-size:12px;color:#64748b;">Cotización + Contrato</div>
+              </div>
+              <div style="color:#94a3b8;font-size:20px;">→</div>
+            </div>
+          </div>
+          
+          <div class="format-card" data-format="completa" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:24px;">📋</div>
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Contrato</div>
+                <div style="font-size:12px;color:#64748b;">Cotización + Menú Montaje + Contrato</div>
+              </div>
+              <div style="color:#94a3b8;font-size:20px;">→</div>
+            </div>
+          </div>
+          
+          <div class="format-card" data-format="sin_precios" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:24px;">🔒</div>
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Sin Precio/Informe</div>
+                <div style="font-size:12px;color:#64748b;">Cotización (Q0) + Menú Montaje</div>
+              </div>
+              <div style="color:#94a3b8;font-size:20px;">→</div>
+            </div>
+          </div>
+        </div>
+      `,
       showCancelButton: true,
-      confirmButtonText: 'Imprimir',
+      showConfirmButton: false,
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#1e3a5f',
-      cancelButtonColor: '#6e7881'
+      cancelButtonColor: '#6e7881',
+      width: '480px',
+      didOpen: () => {
+        const cards = document.querySelectorAll('.format-card');
+        cards.forEach(card => {
+          card.addEventListener('mouseenter', function() {
+            this.style.borderColor = '#118895';
+            this.style.boxShadow = '0 4px 12px rgba(17,136,149,0.15)';
+            this.style.transform = 'translateY(-2px)';
+          });
+          card.addEventListener('mouseleave', function() {
+            this.style.borderColor = '#e5e7eb';
+            this.style.boxShadow = 'none';
+            this.style.transform = 'translateY(0)';
+          });
+          card.addEventListener('click', function() {
+            const format = this.getAttribute('data-format');
+            window.__selectedPrintFormat = format;
+            Swal.clickConfirm();
+          });
+        });
+      }
     });
+
+    const printOption = window.__selectedPrintFormat;
+    window.__selectedPrintFormat = null;
 
     if (!printOption) return;
 
@@ -3440,9 +3561,22 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   boxSizing: 'border-box'
                 }} 
                 value={quote.version} 
-                onChange={e => setQuote(p => ({ ...p, version: parseInt(e.target.value) || 1 }))}
+                onChange={e => {
+                  const selected = Number(e.target.value);
+                  const vData = quote.versions?.find(v => Number(v.version) === selected);
+                  if (vData) handleLoadVersion(vData);
+                }}
               >
-                <option value={1}>V1 (actual)</option>
+                {quote.versions?.length > 0 ? (
+                  [...quote.versions]
+                    .sort((a, b) => Number(b.version || 0) - Number(a.version || 0))
+                    .map((v) => {
+                      const vNum = Number(v.version || 1);
+                      return <option key={vNum} value={vNum}>V{vNum}{vNum === Number(quote.version) ? ' (actual)' : ''}</option>;
+                    })
+                ) : (
+                  <option value={quote.version || 1}>V{quote.version || 1} (actual)</option>
+                )}
               </select>
             </div>
 
@@ -3508,14 +3642,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: 'transparent', userSelect: 'none' }}>&nbsp;</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button 
-                  className="qp-btn" 
-                  type="button" 
-                  style={{ height: 32, padding: '0 12px', fontSize: 12, fontWeight: 700, boxSizing: 'border-box' }} 
-                  onClick={() => setShowVersionPanel(true)}
-                >
-                  Historial
-                </button>
                 <button 
                   className="qp-btn" 
                   type="button" 
@@ -4433,29 +4559,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               <button className="qp-btn" type="button" disabled={!companyDraftId} onClick={() => setCompanyDraftActive(prev => !prev)}>{companyDraftActive ? 'Inhabilitar' : 'Reactivar'}</button>
               <button className="qp-btn-primary" type="button" disabled={creatingCompany} onClick={handleCreateCompany}>{creatingCompany ? 'Guardando...' : 'Guardar empresa'}</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showVersionPanel && (
-        <div id="versionPanelBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 20, width: '90%', maxWidth: 400, maxHeight: '80vh', overflow: 'auto' }}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12, color: '#0f172a' }}>Cargar versión de cotización</div>
-            {quote.versions?.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {quote.versions.map((v, idx) => (
-                  <div key={idx} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, cursor: 'pointer' }}
-                    onClick={() => handleLoadVersion(v)}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Versión {v.version || idx + 1}</div>
-                    <div style={{ fontSize: 10, color: '#64748b' }}>{v.savedAt || 'Sin fecha'} — {v.items?.length || 0} items</div>
-                    <div style={{ fontSize: 10, color: '#94a3b8' }}>Total: {moneyGT(v.total || 0, v.currency || quote.currency)}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', padding: 20 }}>No hay versiones guardadas</div>
-            )}
-            <button className="qp-btn" style={{ marginTop: 12, width: '100%' }} onClick={() => setShowVersionPanel(false)}>Cerrar</button>
           </div>
         </div>
       )}

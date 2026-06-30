@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getInformeById, getImagenes, imagenUrl, marcarInformeLeido } from '../services/api.js';
+import { getInformeById, getImagenes, imagenUrl, marcarInformeLeido, updateDiaMenuItemNotas } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import ColaboracionPanel from '../components/ColaboracionPanel.jsx';
-import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle } from '../components/Icons.jsx';
+import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle, IconCheckCircle, IconX } from '../components/Icons.jsx';
 
 const TIPO_LABELS = {
   proteina:     'PROTEÍNAS',
@@ -43,7 +43,7 @@ const TIPO_MAP = {
   Otros: 'otros'
 };
 
-const TIPO_OPTS_ORDER = ['proteina', 'guarnicion', 'salsa', 'postre', 'bebida', 'tortilla_pan', 'otros'];
+const TIPO_OPTS_ORDER = ['entradas', 'proteina', 'guarnicion', 'salsa', 'postre', 'bebida', 'tortilla_pan', 'otros'];
 
 
 const TIEMPOS_COMIDA = [
@@ -79,6 +79,11 @@ export default function InformeView() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [colabOpen, setColabOpen] = useState(true);
   const [imagenes, setImagenes] = useState([]);
+  const [editingNotaId, setEditingNotaId] = useState(null);
+  const [editingNotaValue, setEditingNotaValue] = useState('');
+  const [savingNotaId, setSavingNotaId] = useState(null);
+  const savingNotaRef = useRef(false);
+  const notaInputRef = useRef(null);
   const docRef = useRef(null);
 
   useEffect(() => {
@@ -111,6 +116,50 @@ export default function InformeView() {
     joinRoom(room);
     return () => { leaveRoom(room); };
   }, [socketConnected, informe?.id_ocupacion, id, joinRoom, leaveRoom]);
+
+  // ─── Inline edit de notas ───
+  const startEditNota = (itemId, currentNotas) => {
+    setEditingNotaId(itemId);
+    setEditingNotaValue(currentNotas || '');
+    setTimeout(() => {
+      if (notaInputRef.current) notaInputRef.current.focus();
+    }, 50);
+  };
+
+  const saveNotaEdit = async (itemId) => {
+    // Evitar guardar si ya se canceló o ya hay un guardado en curso
+    if (editingNotaId !== itemId || savingNotaRef.current) return;
+    savingNotaRef.current = true;
+    const value = editingNotaValue.trim();
+    setSavingNotaId(itemId);
+    try {
+      await updateDiaMenuItemNotas(itemId, value);
+      // Actualizar localmente las notas en el estado
+      setInforme(prev => {
+        if (!prev) return prev;
+        const newDias = prev.dias.map(dia => ({
+          ...dia,
+          items: (dia.items || []).map(item =>
+            item.id === itemId ? { ...item, notas: value || null } : item
+          ),
+        }));
+        return { ...prev, dias: newDias };
+      });
+      toast.success('Nota actualizada');
+    } catch (err) {
+      toast.error('Error al guardar nota: ' + (err.message || ''));
+    } finally {
+      savingNotaRef.current = false;
+      setEditingNotaId(null);
+      setEditingNotaValue('');
+      setSavingNotaId(null);
+    }
+  };
+
+  const cancelEditNota = () => {
+    setEditingNotaId(null);
+    setEditingNotaValue('');
+  };
 
   const handlePrint = async () => {
     // Esperar a que todas las imágenes carguen antes de imprimir
@@ -428,6 +477,48 @@ export default function InformeView() {
                                     )}
                                     {item.opcion_nombre && (
                                       <span className="iv-item-opc">{item.opcion_nombre}</span>
+                                    )}
+                                    {editingNotaId === item.id ? (
+                                      <span className="iv-item-notes iv-item-notes-editing">
+                                        <input
+                                          ref={notaInputRef}
+                                          type="text"
+                                          className="iv-nota-input"
+                                          value={editingNotaValue}
+                                          onChange={e => setEditingNotaValue(e.target.value)}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') { e.preventDefault(); saveNotaEdit(item.id); }
+                                            if (e.key === 'Escape') cancelEditNota();
+                                          }}
+                                          onBlur={() => saveNotaEdit(item.id)}
+                                          placeholder="Escribe una nota..."
+                                          disabled={savingNotaId === item.id}
+                                        />
+                                        {savingNotaId === item.id ? (
+                                          <span className="iv-nota-saving">…</span>
+                                        ) : (
+                                          <>
+                                            <button className="iv-nota-btn" onMouseDown={e => { e.preventDefault(); saveNotaEdit(item.id); }} data-tooltip="Guardar">
+                                              <IconCheckCircle size={12} />
+                                            </button>
+                                            <button className="iv-nota-btn iv-nota-btn-cancel" onMouseDown={e => { e.preventDefault(); cancelEditNota(); }} data-tooltip="Cancelar">
+                                              <IconX size={12} />
+                                            </button>
+                                          </>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`iv-item-notes ${user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) ? 'iv-item-notes-editable' : ''}`}
+                                        onClick={() => {
+                                          if (user && ['Admin','Vendedor','FrontOffice'].includes(user.rol)) {
+                                            startEditNota(item.id, item.notas || '');
+                                          }
+                                        }}
+                                        title={user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) ? 'Click para editar' : ''}
+                                      >
+                                        📝 {item.notas}
+                                      </span>
                                     )}
                                   </div>
                                 );

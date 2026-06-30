@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 export async function getImagenes(req, res, next) {
   try {
@@ -25,6 +26,7 @@ export async function createImagen(req, res, next) {
       [id, dia_id || null, url, descripcion || null]
     );
 
+    emitChange(req, 'informe_imagen', 'created', { id: result.insertId, informe_id: id });
     const [newImg] = await pool.query('SELECT * FROM informe_imagenes WHERE id = ?', [result.insertId]);
     res.status(201).json(newImg[0]);
   } catch (error) { next(error); }
@@ -50,6 +52,7 @@ export async function uploadImagenFile(req, res, next) {
       [id, dia_id, dataUrl, descripcion]
     );
 
+    emitChange(req, 'informe_imagen', 'created', { id: result.insertId, informe_id: id });
     const [newImg] = await pool.query('SELECT * FROM informe_imagenes WHERE id = ?', [result.insertId]);
     res.status(201).json(newImg[0]);
   } catch (error) { next(error); }
@@ -60,6 +63,7 @@ export async function deleteImagen(req, res, next) {
     const { imgId } = req.params;
     // Las imágenes ya no son archivos físicos, solo se elimina el registro de BD
     await pool.query('DELETE FROM informe_imagenes WHERE id = ?', [imgId]);
+    emitChange(req, 'informe_imagen', 'deleted', { id: imgId });
     res.json({ message: 'Imagen eliminada' });
   } catch (error) { next(error); }
 }

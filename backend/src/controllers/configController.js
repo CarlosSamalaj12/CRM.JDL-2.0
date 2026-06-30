@@ -1,7 +1,8 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 // ─── GENERIC CRUD HELPER ───
-function makeCrud(table) {
+function makeCrud(table, entity) {
   return {
     async getAll(req, res, next) {
       try {
@@ -14,6 +15,7 @@ function makeCrud(table) {
         const { nombre } = req.body;
         if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
         const [result] = await pool.query(`INSERT INTO ${table} (nombre) VALUES (?)`, [nombre]);
+        emitChange(req, entity, 'created', { id: result.insertId });
         res.status(201).json({ id: result.insertId, nombre, activo: 1 });
       } catch (error) { next(error); }
     },
@@ -23,6 +25,7 @@ function makeCrud(table) {
         const { nombre, activo } = req.body;
         if (nombre !== undefined) await pool.query(`UPDATE ${table} SET nombre = ? WHERE id = ?`, [nombre, id]);
         if (activo !== undefined) await pool.query(`UPDATE ${table} SET activo = ? WHERE id = ?`, [activo, id]);
+        emitChange(req, entity, 'updated', { id });
         res.json({ message: 'Actualizado' });
       } catch (error) { next(error); }
     },
@@ -30,6 +33,7 @@ function makeCrud(table) {
       try {
         const { id } = req.params;
         await pool.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
+        emitChange(req, entity, 'deleted', { id });
         res.json({ message: 'Eliminado' });
       } catch (error) { next(error); }
     },
@@ -37,7 +41,7 @@ function makeCrud(table) {
 }
 
 // ─── EXPORT CRUD FOR EACH TABLE ───
-export const equipoCtrl = makeCrud('config_equipo');
-export const sillaCtrl = makeCrud('config_tipo_silla');
-export const mesaCtrl = makeCrud('config_tipo_mesa');
-export const formaPagoCtrl = makeCrud('config_forma_pago');
+export const equipoCtrl = makeCrud('config_equipo', 'equipo');
+export const sillaCtrl = makeCrud('config_tipo_silla', 'tipo_silla');
+export const mesaCtrl = makeCrud('config_tipo_mesa', 'tipo_mesa');
+export const formaPagoCtrl = makeCrud('config_forma_pago', 'forma_pago');

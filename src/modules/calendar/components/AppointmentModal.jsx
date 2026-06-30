@@ -363,22 +363,38 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {reminders.map(rem => (
-                  <div key={rem.id} className="app-modal-card" style={cardStyle}>
+                  <div key={rem.id} className="app-modal-card" style={{
+                    ...cardStyle,
+                    opacity: rem.finalizado ? 0.55 : 1,
+                    textDecoration: rem.finalizado ? 'line-through' : 'none'
+                  }}>
                     <div className="app-modal-card-icon" style={{
                       width: '48px',
                       height: '48px',
                       borderRadius: '12px',
-                      background: '#18c5bc',
+                      background: rem.finalizado ? '#d1d5db' : '#18c5bc',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: 'white',
                       fontSize: '22px',
                       flexShrink: 0
-                    }}>📅</div>
+                    }}>{rem.finalizado ? '✅' : '📅'}</div>
                     <div style={{ flex: 1 }}>
-                      <div className="app-modal-card-title" style={{ fontWeight: '800', color: '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="app-modal-card-title" style={{ fontWeight: '800', color: rem.finalizado ? '#94a3b8' : '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {formatDateTime(rem)}
+                        {rem.finalizado && (
+                          <span style={{ 
+                            fontSize: '9px', 
+                            background: '#d1fae5', 
+                            color: '#059669', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px',
+                            fontWeight: '700'
+                          }}>
+                            Finalizado
+                          </span>
+                        )}
                         {rem.creatorName && (
                           <span style={{ 
                             fontSize: '10px', 
@@ -392,27 +408,42 @@ export default function AppointmentModal({ eventId, eventName, onClose, onSaved 
                           </span>
                         )}
                       </div>
-                      <div className="app-modal-card-desc" style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>
+                      <div className="app-modal-card-desc" style={{ fontSize: '12px', color: rem.finalizado ? '#cbd5e1' : '#64748b', marginTop: '4px', fontWeight: '600' }}>
                         {channelLabels[rem.channel] || rem.channel}
                         {rem.notes && ` • ${rem.notes}`}
                       </div>
                     </div>
                     
-                    {/* Botones de acción: Solo visibles si el creador es el usuario actual */}
                     {(!(rem.createdBy || rem.createdByUserId) || (rem.createdBy || rem.createdByUserId) === currentUser?.id) && (
                       <div className="app-modal-actions" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <button onClick={() => handleEditClick(rem)} className="app-modal-action-btn" style={{
-                          padding: '6px 12px',
-                          fontSize: '11px',
-                          background: '#f1f5f9',
-                          color: '#475569',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontWeight: '700'
-                        }}>
-                          Editar
-                        </button>
+                        {!rem.finalizado && (
+                          <>
+                            <button onClick={() => handleEditClick(rem)} className="app-modal-action-btn" style={{
+                              padding: '6px 12px',
+                              fontSize: '11px',
+                              background: '#f1f5f9',
+                              color: '#475569',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: '700'
+                            }}>
+                              Editar
+                            </button>
+                            <button onClick={async () => { await reminderService.markAsFinalizado(eventId, rem.id); loadReminders(); }} className="app-modal-action-btn" style={{
+                              padding: '6px 12px',
+                              fontSize: '11px',
+                              background: '#d1fae5',
+                              color: '#059669',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: '700'
+                            }}>
+                              Finalizar
+                            </button>
+                          </>
+                        )}
                         <button onClick={() => handleDeleteClick(rem.id)} className="app-modal-action-btn" style={{
                           padding: '6px 12px',
                           fontSize: '11px',

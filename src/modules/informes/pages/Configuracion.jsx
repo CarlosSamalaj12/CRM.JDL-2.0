@@ -6,6 +6,7 @@ import {
 } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { IconPlus, IconTrash, IconSettings, IconSearch, IconX } from '../components/Icons.jsx';
+import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 
 // ─── Componente reutilizable para CRUD con toggle activo/inactivo ───
 function CrudTab({ title, items, onCreate, onDelete, onEdit, onToggleActive, icon }) {
@@ -186,6 +187,8 @@ export default function Configuracion() {
   };
 
   useEffect(() => { loadAll(); }, []);
+
+  useDataSyncMulti(['equipo', 'tipo_silla', 'tipo_mesa', 'forma_pago'], () => loadAll());
 
   // ─── Toggle activo para equipos/sillas/mesas ───
   const toggleItemActive = async (id, activo, apiUpdate) => {

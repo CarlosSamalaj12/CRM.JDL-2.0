@@ -871,7 +871,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
-      conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador FROM recordatorios_evento ORDER BY id"),
+      conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
       conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
@@ -1430,6 +1430,7 @@ async function readStateFromTables() {
         notes: str(row.notas),
         createdAt: str(row.creado_en_iso) || new Date().toISOString(),
         createdByUserId: str(row.id_usuario_creador),
+        finalizado: !!row.finalizado,
       });
     }
 
@@ -1477,11 +1478,18 @@ async function readSubcategoriasServicioFromTables(categoriaId = null) {
   }
 }
 
+async function emitServerChange(entity, action, data) {
+  if (io) {
+    io.emit('entity:changed', { entity, action, data, timestamp: new Date().toISOString() });
+  }
+}
+
 async function createCategoriaServicioInTable(nombre) {
   let conn;
   try {
     conn = await pool.getConnection();
     const result = await conn.query("INSERT INTO categorias_servicio (nombre) VALUES (?)", [str(nombre).trim() || "Sin nombre"]);
+    emitServerChange('categoria_servicio', 'created', { id: Number(result.insertId) });
     return { id: Number(result.insertId), nombre: str(nombre).trim(), activo: true };
   } finally {
     if (conn) conn.release();
@@ -1493,6 +1501,7 @@ async function updateCategoriaServicioInTable(id, nombre) {
   try {
     conn = await pool.getConnection();
     await conn.query("UPDATE categorias_servicio SET nombre = ? WHERE id = ?", [str(nombre).trim() || "Sin nombre", Number(id)]);
+    emitServerChange('categoria_servicio', 'updated', { id: Number(id) });
     return { id: Number(id), nombre: str(nombre).trim() };
   } finally {
     if (conn) conn.release();
@@ -1504,6 +1513,7 @@ async function createSubcategoriaServicioInTable(idCategoria, nombre) {
   try {
     conn = await pool.getConnection();
     const result = await conn.query("INSERT INTO subcategorias_servicio (id_categoria, nombre) VALUES (?, ?)", [Number(idCategoria), str(nombre).trim() || "Sin nombre"]);
+    emitServerChange('subcategoria_servicio', 'created', { id: Number(result.insertId), id_categoria: Number(idCategoria) });
     return { id: Number(result.insertId), id_categoria: Number(idCategoria), nombre: str(nombre).trim(), activo: true };
   } finally {
     if (conn) conn.release();
@@ -1515,6 +1525,7 @@ async function updateSubcategoriaServicioInTable(id, idCategoria, nombre) {
   try {
     conn = await pool.getConnection();
     await conn.query("UPDATE subcategorias_servicio SET id_categoria = ?, nombre = ? WHERE id = ?", [Number(idCategoria), str(nombre).trim() || "Sin nombre", Number(id)]);
+    emitServerChange('subcategoria_servicio', 'updated', { id: Number(id) });
     return { id: Number(id), id_categoria: Number(idCategoria), nombre: str(nombre).trim() };
   } finally {
     if (conn) conn.release();
@@ -1526,6 +1537,7 @@ async function setCategoriaServicioActivoInTable(id, activo) {
   try {
     conn = await pool.getConnection();
     await conn.query("UPDATE categorias_servicio SET activo = ? WHERE id = ?", [activo ? 1 : 0, Number(id)]);
+    emitServerChange('categoria_servicio', 'updated', { id: Number(id) });
     return { id: Number(id), activo: !!activo };
   } finally {
     if (conn) conn.release();
@@ -1537,6 +1549,7 @@ async function setSubcategoriaServicioActivoInTable(id, activo) {
   try {
     conn = await pool.getConnection();
     await conn.query("UPDATE subcategorias_servicio SET activo = ? WHERE id = ?", [activo ? 1 : 0, Number(id)]);
+    emitServerChange('subcategoria_servicio', 'updated', { id: Number(id) });
     return { id: Number(id), activo: !!activo };
   } finally {
     if (conn) conn.release();
@@ -1548,6 +1561,7 @@ async function deleteCategoriaServicioFromTable(id) {
   try {
     conn = await pool.getConnection();
     await conn.query("DELETE FROM categorias_servicio WHERE id = ?", [Number(id)]);
+    emitServerChange('categoria_servicio', 'deleted', { id: Number(id) });
     return { deleted: true };
   } finally {
     if (conn) conn.release();
@@ -1559,6 +1573,7 @@ async function deleteSubcategoriaServicioFromTable(id) {
   try {
     conn = await pool.getConnection();
     await conn.query("DELETE FROM subcategorias_servicio WHERE id = ?", [Number(id)]);
+    emitServerChange('subcategoria_servicio', 'deleted', { id: Number(id) });
     return { deleted: true };
   } finally {
     if (conn) conn.release();
@@ -1609,6 +1624,7 @@ async function createServicioInTable(svc) {
         svc.active !== false ? 1 : 0,
       ]
     );
+    emitServerChange('servicio', 'created', { id: svcId });
     return { id: svcId, ...svc };
   } finally {
     if (conn) conn.release();
@@ -1632,6 +1648,7 @@ async function updateServicioInTable(svc) {
         str(svc.id).trim(),
       ]
     );
+    emitServerChange('servicio', 'updated', { id: str(svc.id).trim() });
     return { ...svc };
   } finally {
     if (conn) conn.release();
@@ -1643,6 +1660,7 @@ async function deleteServicioFromTable(id) {
   try {
     conn = await pool.getConnection();
     await conn.query("DELETE FROM servicios WHERE id = ?", [str(id).trim()]);
+    emitServerChange('servicio', 'deleted', { id: str(id).trim() });
     return { deleted: true };
   } finally {
     if (conn) conn.release();
@@ -2430,8 +2448,8 @@ async function writeStateToTables(state) {
         await conn.query(
           `
             INSERT INTO recordatorios_evento
-              (id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, creado_en, id_usuario_creador)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              (id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, creado_en, id_usuario_creador, finalizado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
               clave_evento = VALUES(clave_evento),
               fecha_recordatorio = VALUES(fecha_recordatorio),
@@ -2440,7 +2458,8 @@ async function writeStateToTables(state) {
               notas = VALUES(notas),
               creado_en_iso = VALUES(creado_en_iso),
               creado_en = VALUES(creado_en),
-              id_usuario_creador = VALUES(id_usuario_creador)
+              id_usuario_creador = VALUES(id_usuario_creador),
+              finalizado = VALUES(finalizado)
           `,
           [
             reminderId,
@@ -2452,6 +2471,7 @@ async function writeStateToTables(state) {
             str(row?.createdAt).trim() || null,
             asDateTime(row?.createdAt),
             str(row?.createdByUserId).trim() || null,
+            row?.finalizado ? 1 : 0,
           ]
         );
       }
@@ -2751,6 +2771,7 @@ app.post("/api/import/companies", async (req, res) => {
       );
     }
     await conn.commit();
+    emitServerChange('empresa', 'bulk_import', { count: companies.length });
     console.log(`[${new Date().toLocaleTimeString()}] ✅ Importadas ${companies.length} empresas vía /api/import/companies`);
     return res.json({ ok: true, count: companies.length });
   } catch (error) {
@@ -2804,6 +2825,7 @@ app.post("/api/import/managers", async (req, res) => {
       );
     }
     await conn.commit();
+    emitServerChange('encargado_empresa', 'bulk_import', { count: managers.length });
     console.log(`[${new Date().toLocaleTimeString()}] ✅ Importados ${managers.length} encargados vía /api/import/managers`);
     return res.json({ ok: true, count: managers.length });
   } catch (error) {
@@ -3106,6 +3128,7 @@ app.post("/api/auth/firebase", async (req, res) => {
         { expiresIn: '7d' }
       );
 
+      emitServerChange('usuario', 'updated', { id: uid });
       return res.json({
         ok: true,
         user: {
@@ -3134,6 +3157,7 @@ app.post("/api/auth/firebase", async (req, res) => {
         `,
         [uid, displayName, username, displayName, email, photoURL]
       );
+      emitServerChange('usuario', 'created', { id: uid });
 
       const token = jwt.sign(
         {
@@ -4051,6 +4075,20 @@ async function start() {
       }
     } catch (migErr) {
       console.log('[MIGRACIÓN] No se pudo ampliar columna url:', migErr.message);
+    }
+
+    // Migración: agregar columna finalizado a recordatorios_evento
+    try {
+      const finRows = await pool.query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'recordatorios_evento' AND COLUMN_NAME = 'finalizado'`
+      );
+      if (!finRows || finRows.length === 0) {
+        await pool.query(`ALTER TABLE recordatorios_evento ADD COLUMN finalizado TINYINT(1) DEFAULT 0`);
+        console.log('[MIGRACIÓN] Columna finalizado agregada a recordatorios_evento.');
+      }
+    } catch (migErr) {
+      console.log('[MIGRACIÓN] No se pudo agregar columna finalizado:', migErr.message);
     }
 
     // Recrear vista tbl_seguimientocotizaciones para incluir Mantenimiento

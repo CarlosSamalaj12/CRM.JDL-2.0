@@ -78,6 +78,10 @@ export function SocketProvider({ children }) {
       showBrowserNotif(data.titulo || 'Nueva notificación', data.mensaje || 'Tienes una nueva notificación');
     });
 
+    socket.on('entity:changed', (data) => {
+      window.dispatchEvent(new CustomEvent('entity:changed', { detail: data }));
+    });
+
     socketRef.current = socket;
     globalSocket = socket;
 

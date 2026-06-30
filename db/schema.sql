@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS recordatorios_evento (
   creado_en_iso VARCHAR(50) NULL,
   creado_en DATETIME NULL,
   id_usuario_creador VARCHAR(30) NULL,
+  finalizado TINYINT(1) DEFAULT 0,
   creado_en_fila TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_recordatorios_clave_evento (clave_evento),

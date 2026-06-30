@@ -46,17 +46,17 @@ function formatTime(hour) {
   return `${String(Math.min(hour, 24)).padStart(2, '0')}:00`;
 }
 
+const MAX_VISIBLE_LANES = 4;
+
 function computeEventLayouts(dayEvents) {
   if (!dayEvents || dayEvents.length === 0) return {};
   
-  // 1. Ordenar por hora de inicio, luego hora de fin
   const sorted = [...dayEvents].sort((a, b) => {
     const startDiff = (a.startTime || '').localeCompare(b.startTime || '');
     if (startDiff !== 0) return startDiff;
     return (a.endTime || '').localeCompare(b.endTime || '');
   });
 
-  // 2. Agrupar en clusters de eventos que se traslapan en cualquier punto
   const clusters = [];
   for (const event of sorted) {
     let placed = false;
@@ -79,10 +79,10 @@ function computeEventLayouts(dayEvents) {
     }
   }
 
-  // 3. Asignar carriles (lanes) dentro de cada cluster
   const layouts = {};
   for (const cluster of clusters) {
-    const lanes = []; // Almacena el endTime del último evento de cada carril
+    const lanes = [];
+    const overflowEvents = [];
     for (const event of cluster) {
       let laneIndex = 0;
       let foundLane = false;
@@ -98,12 +98,34 @@ function computeEventLayouts(dayEvents) {
         laneIndex = lanes.length;
         lanes.push(event.endTime || '23:59');
       }
+      if (laneIndex >= MAX_VISIBLE_LANES) {
+        overflowEvents.push(event);
+        continue;
+      }
       layouts[event.id] = { lane: laneIndex, totalLanes: 0 };
     }
     
-    // Asignar el total de carriles del cluster a cada evento del cluster
+    const visibleLanes = Math.min(lanes.length, MAX_VISIBLE_LANES);
     for (const event of cluster) {
-      layouts[event.id].totalLanes = lanes.length;
+      if (layouts[event.id]) {
+        layouts[event.id].totalLanes = visibleLanes;
+      }
+    }
+    
+    if (overflowEvents.length > 0) {
+      const firstOv = overflowEvents[0];
+      const lastOv = overflowEvents[overflowEvents.length - 1];
+      const ovStart = firstOv.startTime || '00:00';
+      const ovEnd = lastOv.endTime || '23:59';
+      const ovTop = timeToY(ovStart);
+      const ovHeight = Math.max(42, timeToY(ovEnd) - ovTop);
+      layouts['__overflow__'] = {
+        count: overflowEvents.length,
+        top: ovTop,
+        height: ovHeight,
+        lane: 0,
+        totalLanes: 1,
+      };
     }
   }
 
@@ -202,7 +224,7 @@ export default function Calendar() {
   const [selectionActive, setSelectionActive] = useState(false);
   const [selectionStart, setSelectionStart] = useState(null);
   const [selectionCurrent, setSelectionCurrent] = useState(null);
-  const [statusTooltip, setStatusTooltip] = useState(null);
+  const [eventTooltip, setEventTooltip] = useState(null);
 
   useEffect(() => {
     if (!selectionActive) return;
@@ -588,7 +610,8 @@ export default function Calendar() {
                   borderLeft: idx > 0 ? '1px solid #e2e8f0' : 'none', 
                   position: 'relative',
                   zIndex: 1,
-                  background: 'white'
+                  background: 'white',
+                  overflow: 'hidden'
                 }}>
                   {/* Líneas horizontales de horas */}
                   {hourSlots.map(hour => {
@@ -664,37 +687,39 @@ export default function Calendar() {
                   }} />
                   
                   {/* Eventos */}
-                  {dayEvents.map((ev) => {
-                    const top = timeToY(ev.startTime);
-                    const height = Math.max(42, timeToY(ev.endTime) - top);
-                    const color = STATUS_META[ev.status]?.color || '#64748b';
-                    const seriesBadge = getEventSeriesBadge(ev, events);
-                    
-                    const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
-                    const normalBg = isMaint
-                      ? `repeating-linear-gradient(45deg, ${color}12, ${color}12 8px, ${color}20 8px, ${color}20 16px) #ffffff`
-                      : `linear-gradient(0deg, ${color}12, ${color}12) #ffffff`;
-                    const hoverBg = isMaint
-                      ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px) #ffffff`
-                      : `linear-gradient(0deg, ${color}25, ${color}25) #ffffff`;
+                  {(() => {
+                    return dayEvents.map((ev) => {
+                      const layout = layouts[ev.id];
+                      if (!layout) return null;
+                      const top = timeToY(ev.startTime);
+                      const height = Math.max(42, timeToY(ev.endTime) - top);
+                      const color = STATUS_META[ev.status]?.color || '#64748b';
+                      const seriesBadge = getEventSeriesBadge(ev, events);
+                      
+                      const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
+                      const normalBg = isMaint
+                        ? `repeating-linear-gradient(45deg, ${color}12, ${color}12 8px, ${color}20 8px, ${color}20 16px) #ffffff`
+                        : `linear-gradient(0deg, ${color}12, ${color}12) #ffffff`;
+                      const hoverBg = isMaint
+                        ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px) #ffffff`
+                        : `linear-gradient(0deg, ${color}25, ${color}25) #ffffff`;
 
-                    const layout = layouts[ev.id] || { lane: 0, totalLanes: 1 };
-                    const lane = layout.lane;
-                    const totalLanes = layout.totalLanes;
-                    
-                    const leftPct = (lane * 100) / totalLanes;
-                    const widthPct = 100 / totalLanes;
-                    
-                    const seller = users?.find(u => String(u.id) === String(ev.userId));
-                    const sellerName = seller?.fullName || seller?.name || 'Sistemas Admin';
-                    const showFullDetails = height >= 140;
-                    const isCompactHeight = height <= 72;
+                      const lane = layout.lane;
+                      const totalLanes = layout.totalLanes;
+                      
+                      const leftPct = (lane * 100) / totalLanes;
+                      const widthPct = 100 / totalLanes;
+                      
+                      const seller = users?.find(u => String(u.id) === String(ev.userId));
+                      const sellerName = seller?.fullName || seller?.name || 'Sistemas Admin';
+                      const showFullDetails = height >= 140;
+                      const isCompactHeight = height <= 72;
 
-                    const formatMoneyGT = (val) => {
-                      return 'Cot Q ' + Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    };
+                      const formatMoneyGT = (val) => {
+                        return 'Cot Q ' + Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      };
 
-                    return (
+                      return (
                       <div
                         key={ev.id}
                         onClick={(e) => { e.stopPropagation(); handleEventClick(ev.id); }}
@@ -714,13 +739,29 @@ export default function Calendar() {
                           transition: 'background 0.2s',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '3px'
+                          gap: '3px',
+                          overflow: 'hidden'
                         }}
                         onMouseEnter={e => {
                           e.currentTarget.style.background = hoverBg;
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setEventTooltip({
+                            x: r.left + r.width / 2,
+                            y: r.top,
+                            name: ev.name,
+                            status: ev.status,
+                            startTime: ev.startTime,
+                            endTime: ev.endTime,
+                            salon: ev.salon,
+                            seller: sellerName,
+                            pax: ev.pax || ev.quote?.people || 0,
+                            quote: ev.quote?.total || 0,
+                            notes: ev.notes || ''
+                          });
                         }}
                         onMouseLeave={e => {
                           e.currentTarget.style.background = normalBg;
+                          setEventTooltip(null);
                         }}
                       >
                         {showFullDetails ? (
@@ -729,7 +770,7 @@ export default function Calendar() {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                 <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
-                                <span onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setStatusTooltip({ text: ev.status, x: r.left + r.width / 2, y: r.top }); }} onMouseLeave={() => setStatusTooltip(null)} style={{ fontSize: '10px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.status}</span>
+                                <span style={{ fontSize: '10px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.status}</span>
                               </div>
                               <span style={{
                                 width: '28px',
@@ -766,7 +807,7 @@ export default function Calendar() {
                             {/* Horario */}
                             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
                               <span style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Horario</span>
-                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>{ev.startTime} - {ev.endTime}</span>
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.startTime} - {ev.endTime}</span>
                             </div>
 
                             {/* Salon */}
@@ -801,7 +842,7 @@ export default function Calendar() {
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
                                   <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
-                                  <span onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setStatusTooltip({ text: ev.status, x: r.left + r.width / 2, y: r.top }); }} onMouseLeave={() => setStatusTooltip(null)} style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {ev.status}
                                   </span>
                                 </div>
@@ -836,7 +877,7 @@ export default function Calendar() {
                             }}>
                               {ev.status === 'Mantenimiento' ? 'Mantenimiento: ' : ev.status === 'Mantenimiento Realizado' ? 'Mantenimiento realizado: ' : ''}{ev.name}
                             </div>
-                            <div style={{ fontSize: isCompactHeight ? '9.5px' : '10.5px', fontWeight: isCompactHeight ? '600' : '600', color: '#475569', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: isCompactHeight ? '9.5px' : '10.5px', fontWeight: isCompactHeight ? '600' : '600', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               Horario: {ev.startTime} - {ev.endTime}
                             </div>
                             {!isCompactHeight && (
@@ -849,15 +890,45 @@ export default function Calendar() {
                         )}
                       </div>
                     );
-                  })}
-                </div>
-              );
-            })}
-          </div>
+                  });
+                })()}
+                {layouts['__overflow__'] && (() => {
+                  const ov = layouts['__overflow__'];
+                  return (
+                    <div
+                      onClick={() => { setCurrentDate(formatDate(weekDates[idx])); setViewMode('day'); }}
+                      style={{
+                        position: 'absolute',
+                        top: `${ov.top}px`,
+                        left: '4px',
+                        right: '4px',
+                        height: `${ov.height - 2}px`,
+                        borderRadius: '8px',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 20,
+                        color: 'white',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        border: '1px dashed rgba(255,255,255,0.4)'
+                      }}
+                    >
+                      +{ov.count} más
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
   const renderMonthView = () => {
@@ -916,16 +987,17 @@ export default function Calendar() {
                   color: item.isCurrentMonth ? '#0f172a' : '#94a3b8',
                   textAlign: 'center'
                 }}>{item.date.getDate()}</div>
-                {dayEvents.slice(0, 2).map(ev => {
+                {dayEvents.slice(0, 4).map(ev => {
                   const color = STATUS_META[ev.status]?.color || '#64748b';
                   const abbrev = getStatusAbbreviation(ev.status);
                   return (
                     <div
                       key={ev.id}
+                      onClick={(e) => { e.stopPropagation(); handleDayClick(dateStr); }}
                       style={{
-                        fontSize: '10.5px',
-                        padding: '2px 4px',
-                        borderRadius: '4px',
+                        fontSize: '10px',
+                        padding: '1px 4px',
+                        borderRadius: '3px',
                         background: `${color}20`,
                         color: color,
                         fontWeight: '600',
@@ -933,7 +1005,8 @@ export default function Calendar() {
                         maxWidth: '100%',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '3px'
+                        gap: '3px',
+                        cursor: 'pointer'
                       }}
                     >
                       <span style={{
@@ -944,13 +1017,18 @@ export default function Calendar() {
                         background: color,
                         flexShrink: 0
                       }} />
-                      {abbrev && <span style={{ fontWeight: 800, flexShrink: 0 }}>{abbrev}</span>}
+                      {abbrev && <span style={{ fontWeight: 800, flexShrink: 0, fontSize: '9px' }}>{abbrev}</span>}
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</span>
                     </div>
                   );
                 })}
-                {dayEvents.length > 2 && (
-                  <div style={{ fontSize: '10.5px', color: '#64748b', textAlign: 'center' }}>+{dayEvents.length - 2}</div>
+                {dayEvents.length > 4 && (
+                  <div
+                    onClick={(e) => { e.stopPropagation(); handleDayClick(dateStr); }}
+                    style={{ fontSize: '10px', color: '#6366f1', textAlign: 'center', cursor: 'pointer', fontWeight: '700', padding: '1px 0' }}
+                  >
+                    +{dayEvents.length - 4} más
+                  </div>
                 )}
               </div>
             );
@@ -1097,7 +1175,9 @@ export default function Calendar() {
               background: 'transparent'
             }} />
             
-            {dayEvents.map((ev) => {
+            {(() => {
+              return dayEvents.map((ev) => {
+              const layout = layouts[ev.id] || { lane: 0, totalLanes: 1 };
               const top = timeToY(ev.startTime);
               const height = Math.max(44, timeToY(ev.endTime) - top);
               const isCompactHeight = height <= 72;
@@ -1112,7 +1192,6 @@ export default function Calendar() {
                 ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px) #ffffff`
                 : `linear-gradient(0deg, ${color}20, ${color}20) #ffffff`;
 
-              const layout = layouts[ev.id] || { lane: 0, totalLanes: 1 };
               const lane = layout.lane;
               const totalLanes = layout.totalLanes;
               
@@ -1140,24 +1219,40 @@ export default function Calendar() {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
-                    gap: '4px'
+                    gap: '4px',
+                    overflow: 'hidden'
                   }}
                   onMouseEnter={e => {
                     e.currentTarget.style.transform = 'scale(1.01)';
                     e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.08)';
                     e.currentTarget.style.background = hoverBg;
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setEventTooltip({
+                      x: r.left + r.width / 2,
+                      y: r.top,
+                      name: ev.name,
+                      status: ev.status,
+                      startTime: ev.startTime,
+                      endTime: ev.endTime,
+                      salon: ev.salon,
+                      seller: sellerName,
+                      pax: ev.pax || ev.quote?.people || 0,
+                      quote: ev.quote?.total || 0,
+                      notes: ev.notes || ''
+                    });
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.transform = 'none';
                     e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.02)';
                     e.currentTarget.style.background = normalBg;
+                    setEventTooltip(null);
                   }}
                 >
                     {isCompactHeight && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
                         <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
-                        <span onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setStatusTooltip({ text: ev.status, x: r.left + r.width / 2, y: r.top }); }} onMouseLeave={() => setStatusTooltip(null)} style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {ev.status}
                         </span>
                       </div>
@@ -1191,8 +1286,8 @@ export default function Calendar() {
                   }}>
                     {ev.status === 'Mantenimiento' ? 'Mantenimiento: ' : ev.status === 'Mantenimiento Realizado' ? 'Mantenimiento realizado: ' : ''}{ev.name}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: isCompactHeight ? '8px' : '12px', fontSize: isCompactHeight ? '9.5px' : '11px', color: '#475569', flexWrap: 'wrap' }}>
-                    <span>Horario: {ev.startTime} - {ev.endTime}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: isCompactHeight ? '8px' : '12px', fontSize: isCompactHeight ? '9.5px' : '11px', color: '#475569', flexWrap: 'wrap', overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Horario: {ev.startTime} - {ev.endTime}</span>
                     {!isCompactHeight && (
                       <>
                         <span>|</span>
@@ -1209,7 +1304,8 @@ export default function Calendar() {
                   </div>
                 </div>
               );
-            })}
+            });
+            })()}
           </div>
         </div>
       </div>
@@ -1833,26 +1929,41 @@ export default function Calendar() {
       )}
 
 
-      {statusTooltip && (
+      {eventTooltip && (() => {
+        const tooltipHeight = 200;
+        const spaceAbove = eventTooltip.y;
+        const showBelow = spaceAbove < tooltipHeight;
+        return (
         <div style={{
           position: 'fixed',
-          top: statusTooltip.y - 8,
-          left: statusTooltip.x,
-          transform: 'translate(-50%, -100%)',
+          top: showBelow ? eventTooltip.y + 8 : eventTooltip.y - 8,
+          left: eventTooltip.x,
+          transform: showBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
           background: '#1e293b',
           color: '#fff',
-          padding: '4px 10px',
-          borderRadius: '6px',
-          fontSize: '11px',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
+          padding: '10px 14px',
+          borderRadius: '10px',
+          fontSize: '12px',
+          fontWeight: 500,
           zIndex: 99999,
           pointerEvents: 'none',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          maxWidth: '360px',
+          lineHeight: 1.4
         }}>
-          {statusTooltip.text}
+          <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '6px', color: '#f1f5f9' }}>{eventTooltip.name}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px', color: '#cbd5e1' }}>
+            <span><span style={{ color: '#94a3b8' }}>Estado:</span> {eventTooltip.status}</span>
+            <span><span style={{ color: '#94a3b8' }}>Horario:</span> {eventTooltip.startTime} - {eventTooltip.endTime}</span>
+            <span><span style={{ color: '#94a3b8' }}>Salón:</span> {eventTooltip.salon || '—'}</span>
+            <span><span style={{ color: '#94a3b8' }}>Vendedor:</span> {eventTooltip.seller}</span>
+            <span><span style={{ color: '#94a3b8' }}>PAX:</span> {eventTooltip.pax}</span>
+            <span><span style={{ color: '#94a3b8' }}>Cot:</span> Q {String(Number(eventTooltip.quote || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }))}</span>
+            {eventTooltip.notes && <span style={{ marginTop: '2px' }}><span style={{ color: '#94a3b8' }}>Notas:</span> {eventTooltip.notes}</span>}
+          </div>
         </div>
-      )}
+        );
+      })()}
 
     </div>
   );

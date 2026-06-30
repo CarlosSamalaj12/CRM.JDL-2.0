@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 export async function getEquipos(req, res, next) {
   try {
@@ -22,6 +23,7 @@ export async function createEquipo(req, res, next) {
       'INSERT INTO equipos_trabajo (nombre, descripcion) VALUES (?, ?)',
       [nombre.trim(), descripcion?.trim() || null]
     );
+    emitChange(req, 'equipo_trabajo', 'created', { id: result.insertId });
     const [nuevo] = await pool.query('SELECT * FROM equipos_trabajo WHERE id = ?', [result.insertId]);
     res.status(201).json(nuevo[0]);
   } catch (error) { next(error); }
@@ -42,6 +44,7 @@ export async function updateEquipo(req, res, next) {
       values
     );
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Equipo no encontrado' });
+    emitChange(req, 'equipo_trabajo', 'updated', { id });
     const [updated] = await pool.query('SELECT * FROM equipos_trabajo WHERE id = ?', [id]);
     res.json(updated[0]);
   } catch (error) { next(error); }
@@ -53,6 +56,7 @@ export async function deleteEquipo(req, res, next) {
     await pool.query('UPDATE usuarios SET equipo_id = NULL WHERE equipo_id = ?', [id]);
     const [result] = await pool.query('DELETE FROM equipos_trabajo WHERE id = ?', [id]);
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Equipo no encontrado' });
+    emitChange(req, 'equipo_trabajo', 'deleted', { id });
     res.json({ message: 'Equipo eliminado' });
   } catch (error) { next(error); }
 }

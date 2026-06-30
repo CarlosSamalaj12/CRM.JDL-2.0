@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
+import { useDataSync } from '../../hooks/useDataSync.js';
 
 const ROLE_LABELS = {
   admin: 'Administrador',
@@ -47,6 +48,8 @@ export default function SettingsUsers() {
       window.removeEventListener('usersUpdated', handleSync);
     };
   }, []);
+
+  useDataSync('usuario', () => fetchUsers());
 
   const saveState = async (updatedUsers) => {
     const currentState = await loadCrmState();

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import api from '../../services/api';
 import { toast, modernConfirm } from '../../utils/toast';
+import { useDataSyncMulti } from '../../hooks/useDataSync.js';
 
 const emptyService = { id: '', name: '', price: '', category: '', subcategory: '', quantityMode: 'MANUAL', description: '', active: true };
 const emptyCategory = { id: '', name: '' };
@@ -55,6 +56,8 @@ export default function SettingsServicios({ inline, onBack }) {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useDataSyncMulti(['servicio', 'categoria_servicio', 'subcategoria_servicio'], () => loadData());
 
   const handleClose = () => { if (onBack) onBack(); };
 

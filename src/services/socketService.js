@@ -45,6 +45,10 @@ class SocketService {
       console.error('[SocketService] Error de conexión Socket.IO:', error.message);
       this.isConnected = false;
     });
+
+    this.socket.on('entity:changed', (data) => {
+      window.dispatchEvent(new CustomEvent('entity:changed', { detail: data }));
+    });
   }
 
   disconnect() {

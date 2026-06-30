@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 const EVENTO_USER_JOIN = `
   LEFT JOIN eventos ev ON e.Idocupacion = ev.id
@@ -145,6 +146,7 @@ export async function updateEventStatus(req, res, next) {
       'UPDATE eventos SET estado = ? WHERE id = ?',
       [mappedStatus, id]
     );
+    emitChange(req, 'evento_status', 'updated', { id });
 
     res.json({ message: 'Estatus actualizado correctamente' });
   } catch (error) {

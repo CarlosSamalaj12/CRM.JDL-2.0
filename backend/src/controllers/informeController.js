@@ -387,3 +387,22 @@ export async function saveDiaMenuDetalle(req, res, next) {
     res.status(201).json({ message: 'ok', insertados: result.affectedRows });
   } catch (error) { next(error); }
 }
+
+// ─── Actualizar notas de un ítem individual ───
+export async function updateDiaMenuItemNotas(req, res, next) {
+  try {
+    const { itemId } = req.params;
+    const { notas } = req.body;
+
+    if (notas === undefined) {
+      return res.status(400).json({ message: 'El campo "notas" es requerido' });
+    }
+
+    await pool.query(
+      'UPDATE informe_dia_menu_detalle SET notas = ? WHERE id = ?',
+      [notas || null, itemId]
+    );
+
+    res.json({ message: 'ok', id: itemId, notas: notas || null });
+  } catch (error) { next(error); }
+}

@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 function normalizeTipo(tipo) {
   if (!tipo) return 'otros';
@@ -8,6 +9,7 @@ function normalizeTipo(tipo) {
   if (t === 'proteínas' || t === 'proteinas' || t === 'proteina' || t === 'carne') return 'proteina';
   if (t === 'postres' || t === 'postre') return 'postre';
   if (t === 'bebidas' || t === 'bebida') return 'bebida';
+  if (t === 'entradas' || t === 'entrada') return 'entradas';
   return t;
 }
 
@@ -16,6 +18,7 @@ export async function createIngrediente(req, res, next) {
   try {
     const { nombre, tipo } = req.body;
     const [result] = await pool.query('INSERT INTO cat_ingredientes (nombre, tipo) VALUES (?, ?)', [nombre, tipo]);
+    emitChange(req, 'ingrediente', 'created', { id: result.insertId });
     res.status(201).json({ id: result.insertId, nombre, tipo });
   } catch (error) { next(error); }
 }
@@ -38,6 +41,7 @@ export async function updateIngrediente(req, res, next) {
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
     params.push(id);
     await pool.query(`UPDATE cat_ingredientes SET ${fields.join(', ')} WHERE id = ?`, params);
+    emitChange(req, 'ingrediente', 'updated', { id });
     const [rows] = await pool.query('SELECT * FROM cat_ingredientes WHERE id = ?', [id]);
     res.json(rows[0]);
   } catch (error) { next(error); }
@@ -50,6 +54,7 @@ export async function deleteIngrediente(req, res, next) {
     await pool.query('DELETE FROM menu_items WHERE ingrediente_id = ?', [id]);
     await pool.query('DELETE FROM platillo_componentes WHERE ingrediente_id = ?', [id]);
     await pool.query('DELETE FROM cat_ingredientes WHERE id = ?', [id]);
+    emitChange(req, 'ingrediente', 'deleted', { id });
     res.status(204).send();
   } catch (error) { next(error); }
 }
@@ -59,6 +64,7 @@ export async function createOpcionIngrediente(req, res, next) {
   try {
     const { ingrediente_id, nombre_opcion } = req.body;
     const [result] = await pool.query('INSERT INTO cat_opciones_ingrediente (ingrediente_id, nombre_opcion) VALUES (?, ?)', [ingrediente_id, nombre_opcion]);
+    emitChange(req, 'opcion_ingrediente', 'created', { id: result.insertId, ingrediente_id });
     res.status(201).json({ id: result.insertId, ingrediente_id, nombre_opcion });
   } catch (error) { next(error); }
 }
@@ -83,6 +89,7 @@ export async function updateOpcionIngrediente(req, res, next) {
     const { nombre_opcion } = req.body;
     if (!nombre_opcion) return res.status(400).json({ message: 'nombre_opcion requerido' });
     await pool.query('UPDATE cat_opciones_ingrediente SET nombre_opcion = ? WHERE id = ?', [nombre_opcion, id]);
+    emitChange(req, 'opcion_ingrediente', 'updated', { id });
     const [rows] = await pool.query('SELECT * FROM cat_opciones_ingrediente WHERE id = ?', [id]);
     res.json(rows[0]);
   } catch (error) { next(error); }
@@ -92,6 +99,7 @@ export async function deleteOpcionIngrediente(req, res, next) {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM cat_opciones_ingrediente WHERE id = ?', [id]);
+    emitChange(req, 'opcion_ingrediente', 'deleted', { id });
     res.status(204).send();
   } catch (error) { next(error); }
 }
@@ -101,6 +109,7 @@ export async function createMenu(req, res, next) {
   try {
     const { nombre_menu, descripcion, categoria_id } = req.body;
     const [result] = await pool.query('INSERT INTO cat_menus (nombre_menu, descripcion, categoria_id) VALUES (?, ?, ?)', [nombre_menu, descripcion, categoria_id || null]);
+    emitChange(req, 'menu', 'created', { id: result.insertId });
     const [row] = await pool.query(
       'SELECT m.*, c.nombre AS categoria_nombre FROM cat_menus m LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id WHERE m.id = ?',
       [result.insertId]
@@ -121,6 +130,7 @@ export async function updateMenu(req, res, next) {
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
     params.push(id);
     await pool.query(`UPDATE cat_menus SET ${fields.join(', ')} WHERE id = ?`, params);
+    emitChange(req, 'menu', 'updated', { id });
     const [rows] = await pool.query(
       'SELECT m.*, c.nombre AS categoria_nombre FROM cat_menus m LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id WHERE m.id = ?',
       [id]
@@ -203,6 +213,7 @@ export async function createCategoria(req, res, next) {
   try {
     const { nombre } = req.body;
     const [result] = await pool.query('INSERT INTO cat_categorias_alimento (nombre) VALUES (?)', [nombre]);
+    emitChange(req, 'categoria_alimento', 'created', { id: result.insertId });
     res.status(201).json({ id: result.insertId, nombre });
   } catch (error) { next(error); }
 }
@@ -225,6 +236,7 @@ export async function updateCategoria(req, res, next) {
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos' });
     params.push(id);
     await pool.query(`UPDATE cat_categorias_alimento SET ${fields.join(', ')} WHERE id = ?`, params);
+    emitChange(req, 'categoria_alimento', 'updated', { id });
     const [rows] = await pool.query('SELECT * FROM cat_categorias_alimento WHERE id = ?', [id]);
     res.json(rows[0]);
   } catch (error) { next(error); }
@@ -235,6 +247,7 @@ export async function deleteCategoria(req, res, next) {
     const { id } = req.params;
     await pool.query('UPDATE cat_platillos SET categoria_id = NULL WHERE categoria_id = ?', [id]);
     await pool.query('DELETE FROM cat_categorias_alimento WHERE id = ?', [id]);
+    emitChange(req, 'categoria_alimento', 'deleted', { id });
     res.json({ message: 'Categoría eliminada' });
   } catch (error) { next(error); }
 }
@@ -247,6 +260,7 @@ export async function createMenuItem(req, res, next) {
       'INSERT INTO menu_items (menu_id, ingrediente_id, opcion_id, cantidad) VALUES (?, ?, ?, ?)',
       [menu_id, ingrediente_id, opcion_id || null, cantidad]
     );
+    emitChange(req, 'menu_item', 'created', { id: result.insertId, menu_id });
     res.status(201).json({ id: result.insertId, menu_id, ingrediente_id, opcion_id, cantidad });
   } catch (error) { next(error); }
 }
@@ -262,6 +276,7 @@ export async function updateMenuItem(req, res, next) {
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
     params.push(id);
     await pool.query(`UPDATE menu_items SET ${fields.join(', ')} WHERE id = ?`, params);
+    emitChange(req, 'menu_item', 'updated', { id });
     res.json({ message: 'Item actualizado' });
   } catch (error) { next(error); }
 }
@@ -270,6 +285,7 @@ export async function deleteMenuItem(req, res, next) {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM menu_items WHERE id = ?', [id]);
+    emitChange(req, 'menu_item', 'deleted', { id });
     res.json({ message: 'Item eliminado' });
   } catch (error) { next(error); }
 }

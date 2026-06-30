@@ -538,6 +538,18 @@ export async function getUsuarios() {
   return response.json();
 }
 
+// ─── Actualizar notas de un ítem individual del detalle de menú ───
+export async function updateDiaMenuItemNotas(itemId, notas) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/informes/detalle/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ notas }),
+  });
+  if (!response.ok) throw new Error('Error al actualizar notas');
+  return response.json();
+}
+
 // --- MONTAJE API ---
 
 export async function saveMontaje(diaId, data) {

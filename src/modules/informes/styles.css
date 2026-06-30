@@ -31,6 +31,8 @@
   --bg-elevated: #eef2f8;
   --bg-input: #ffffff;
   --bg-input-hover: #f8faff;
+  --surface-2: #eef2f8;
+  --surface-hover: #f8fafc;
 
   /* Borders */
   --border: #e2e8f0;
@@ -99,6 +101,8 @@ html.informes-theme-root {
   --bg-elevated: #1a2639;
   --bg-input: #1e293b;
   --bg-input-hover: #263348;
+  --surface-2: #1a2639;
+  --surface-hover: #263348;
 
   --border: #334155;
   --border-light: #475569;
@@ -129,18 +133,8 @@ html.informes-theme-root {
   border-color: var(--border);
 }
 
-[data-theme="dark"] .view-toggle-btn {
-  background: #1a2639;
-  color: #94a3b8;
-}
-
 [data-theme="dark"] .view-toggle-btn.active {
-  background: #6366f1;
   color: #ffffff;
-}
-
-[data-theme="dark"] .view-toggle-btn:not(.active):hover {
-  background: #263348;
 }
 
 [data-theme="dark"] .status-message::before {
@@ -148,15 +142,15 @@ html.informes-theme-root {
 }
 
 [data-theme="dark"] .chart-bar-track {
-  background: #1a2639;
+  background: var(--bg-elevated);
 }
 
 [data-theme="dark"] .chart-bar-fill {
-  color: #0f172a;
+  color: var(--text-main);
 }
 
 [data-theme="dark"] .kanban-column {
-  background: #1a2639;
+  background: var(--bg-elevated);
 }
 
 [data-theme="dark"] .pos-tab {
@@ -165,6 +159,14 @@ html.informes-theme-root {
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb {
   background: #334155;
+}
+
+[data-theme="dark"] .week-filter-input-wrap input[type="date"] {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] .reports-root input[type="date"] {
+  color-scheme: dark;
 }
 
 /* ============================================
@@ -1119,8 +1121,8 @@ button[data-tooltip-bottom]::after {
 .kanban-filter .view-toggle-btn {
   padding: 0.3rem 0.55rem;
   font-size: 0.72rem;
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--surface-2, #f1f5f9);
+  color: var(--text-main, #0f172a);
   border: none;
   cursor: pointer;
   display: flex;
@@ -1130,12 +1132,12 @@ button[data-tooltip-bottom]::after {
 }
 
 .kanban-filter .view-toggle-btn.active {
-  background: #6366f1;
-  color: #ffffff;
+  background: var(--primary, #6366f1);
+  color: var(--text-inverse, #ffffff);
 }
 
 .kanban-filter .view-toggle-btn:not(.active):hover {
-  background: #e2e8f0;
+  background: var(--border, #e2e8f0);
 }
 
 /* ============================================
@@ -1300,6 +1302,19 @@ button[data-tooltip-bottom]::after {
   color: #a855f7;
 }
 .event-tag-purple::before { background: #a855f7; }
+
+/* ─── Table context: hide ::before dot, use simpler badge ─── */
+.tabla-eventos .event-tag::before {
+  display: none;
+}
+.tabla-eventos .event-tag {
+  font-size: 0.68rem !important;
+  padding: 0.15rem 0.5rem !important;
+  border-radius: 4px;
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
 
 .event-card h3 {
   margin: 0;
@@ -4387,7 +4402,7 @@ button[data-tooltip-bottom]::after {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  height: calc(100vh - 8.5rem);
+  height: calc(100vh - 7.5rem);
   overflow: hidden;
 }
 
@@ -5153,7 +5168,7 @@ button[data-tooltip-bottom]::after {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  height: calc(100vh - 8.5rem);
+  height: calc(100vh - 7.5rem);
   overflow-y: auto;
 }
 
@@ -5178,7 +5193,7 @@ button[data-tooltip-bottom]::after {
 .pos-topbar-badge { font-size: 0.7rem; color: var(--primary); background: var(--primary-bg); padding: 0.2rem 0.5rem; border-radius: var(--radius-full); font-weight: 700; }
 
 /* Tabs */
-.pos-tabs { display: flex; gap: 0.25rem; flex-shrink: 0; overflow-x: auto; position: sticky; top: 9rem; z-index: 98; background: var(--bg-app); padding-top: 0.25rem; }
+.pos-tabs { display: flex; gap: 0.25rem; flex-shrink: 0; overflow-x: auto; position: relative; top: 0; z-index: 98; background: var(--bg-app); padding-top: 0.25rem; }
 .pos-tab {
   padding: 0.4rem 0.85rem; font-size: 0.78rem; font-weight: 600;
   background: var(--bg-card); color: var(--text-muted);
@@ -5207,6 +5222,7 @@ button[data-tooltip-bottom]::after {
   gap: 0.5rem;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 /* ═══ LEFT PANEL: TICKET ═══ */
@@ -5307,6 +5323,7 @@ button[data-tooltip-bottom]::after {
 .pos-ticket-item-opts { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.1rem; }
 .pos-ticket-item-prep { font-size: 0.6rem; font-weight: 700; color: var(--primary); }
 .pos-ticket-item-opc { font-size: 0.6rem; color: var(--text-muted); font-style: italic; }
+.pos-ticket-item-notes { font-size: 0.6rem; color: var(--warning); font-style: italic; background: var(--warning-bg); padding: 0 0.25rem; border-radius: 4px; }
 
 /* Drag handle */
 .pos-ticket-item-drag {
@@ -5356,6 +5373,7 @@ button[data-tooltip-bottom]::after {
 }
 
 /* ═══ CENTER PANEL: CATEGORIES ═══ */
+.pos-categorias { overflow-y: auto; min-height: 0; }
 .pos-categorias::-webkit-scrollbar { width: 3px; }
 .pos-categorias::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
@@ -5403,6 +5421,8 @@ button[data-tooltip-bottom]::after {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .pos-elem-search {
@@ -5428,6 +5448,8 @@ button[data-tooltip-bottom]::after {
   gap: 0.35rem;
   align-content: start;
   padding: 0.15rem;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .pos-elem-grid::-webkit-scrollbar { width: 4px; }
@@ -5634,7 +5656,7 @@ button[data-tooltip-bottom]::after {
   display: flex;
   gap: 0.35rem;
   flex-shrink: 0;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1rem 0.5rem 5rem !important;
   background: var(--bg-card);
   border-top: 1px solid var(--border);
   position: sticky;
@@ -6485,15 +6507,102 @@ button[data-tooltip-bottom]::after {
   border-top: none !important;
   box-shadow: var(--shadow-sm);
   margin-top: 0 !important;
-  position: sticky;
-  top: 4.8rem;
+  position: relative;
   z-index: 99;
   background: var(--bg-card);
 }
 
 @media (max-width: 767px) {
   .informes-shell:has(.pos-page, .informe-creator-pos) .pos-topbar {
-    top: 3.8rem;
+    top: 0;
   }
-  .pos-tabs { top: 8rem; }
+  .pos-tabs { top: 0; }
+}
+
+
+/* ─── ITEM NOTES ─── */
+.iv-item-notes {
+  color: var(--warning);
+  font-size: 0.75rem;
+  font-style: italic;
+  background: var(--warning-bg);
+  padding: 0.02rem 0.35rem;
+  border-radius: var(--radius-sm);
+  line-height: 1.5;
+}
+
+/* ─── INLINE EDIT NOTES (InformeView) ─── */
+.iv-item-notes-editable {
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+  border: 1px dashed transparent;
+}
+
+.iv-item-notes-editable:hover {
+  border-color: var(--warning);
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.iv-item-notes-editing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+}
+
+.iv-nota-input {
+  width: 140px;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--text-main);
+  outline: none;
+  font-style: normal;
+}
+
+.iv-nota-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.iv-nota-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: var(--success-bg);
+  color: var(--success-color);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.iv-nota-btn:hover {
+  background: var(--success);
+  color: white;
+}
+
+.iv-nota-btn-cancel {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.iv-nota-btn-cancel:hover {
+  background: var(--danger);
+  color: white;
+}
+
+.iv-nota-saving {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: normal;
+  animation: pulse 0.8s ease-in-out infinite;
 }

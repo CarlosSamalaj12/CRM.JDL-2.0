@@ -6,8 +6,8 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 import { fetchEvents } from '../services/api.js';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import EventCard from '../components/EventCard.jsx';
+import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 
 import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconAlertCircle, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload, IconClipboardList } from '../components/Icons.jsx';
 import LoadingSpinner from '../../../components/LoadingSpinner';
@@ -21,23 +21,17 @@ const statusMap = {
   7: { label: 'Pre-reserva', color: 'fucsia' },
   8: { label: 'Mantenimiento', color: 'purple' },
 };
+const mobileStatusMap = {
+  4: { label: 'C', color: 'green' },
+  7: { label: 'PR', color: 'fucsia' },
+  8: { label: 'MNT', color: 'purple' },
+};
 
 function formatDateShort(iso) {
   const d = new Date(iso + 'T12:00:00');
-  return d.toLocaleDateString('es-ES', { weekday:'short', day:'numeric', month:'short' });
+  return d.toLocaleDateString('es-ES', { day:'numeric', month:'short' });
 }
 const fmtTime = (t) => (t || '').slice(0, 5) || '??:??';
-
-function getWeekMonday(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
-  if (isNaN(d.getTime())) return null;
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d);
-  monday.setDate(diff);
-  return monday.toISOString().slice(0, 10);
-}
 
 export default function Kanban() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -61,6 +55,15 @@ export default function Kanban() {
   const [mobileDayIndex, setMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
   const [isMobileView, setIsMobileView] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  const toggleRow = (id) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const handlePrevWeek = () => {
     const d = new Date(selectedDate + 'T12:00:00');
@@ -125,10 +128,6 @@ export default function Kanban() {
     if (vm && ['kanban', 'tabla', 'tareas'].includes(vm)) return vm;
     return 'kanban';
   });
-  const [occupancyOps, setOccupancyOps] = useState({});
-  const [editingDay, setEditingDay] = useState(null);
-  const [editDes, setEditDes] = useState(0);
-  const [editHab, setEditHab] = useState(0);
   const currentUser = (() => {
     try {
       const raw = localStorage.getItem('user');
@@ -144,50 +143,16 @@ export default function Kanban() {
       return { ...u, rol };
     } catch { return null; }
   })();
-  const isOccupancyEditable = currentUser && ['Admin', 'Vendedor', 'FrontOffice'].includes(currentUser.rol);
-
-  useEffect(() => {
-    const loadOcc = () => {
-      loadCrmState().then(state => {
-        setOccupancyOps(state?.occupancyWeeklyOps || {});
-      }).catch(() => {});
-    };
-    loadOcc();
-    window.addEventListener('stateUpdated', loadOcc);
-    return () => window.removeEventListener('stateUpdated', loadOcc);
-  }, []);
-
-  const handleOccupancySave = async (isoDate) => {
-    if (!isoDate) return;
-    const weekStart = getWeekMonday(isoDate);
-    if (!weekStart) return;
-    setEditingDay(null);
-    try {
-      const state = await loadCrmState();
-      const serverWeekly = state?.occupancyWeeklyOps || {};
-      const currentWeekly = serverWeekly[weekStart] || {};
-      const merged = {
-        ...serverWeekly,
-        [weekStart]: { ...currentWeekly, [isoDate]: { breakfasts: Math.max(0, Number(editDes) || 0), rooms: Math.max(0, Number(editHab) || 0) } }
-      };
-      await saveCrmState({ ...state, occupancyWeeklyOps: merged });
-      setOccupancyOps(merged);
-      window.dispatchEvent(new Event('stateUpdated'));
-    } catch { toast?.error?.('Error al guardar ocupación') || console.error('Error saving occupancy'); }
-  };
-
   const filterStatus = searchParams.get('status');
   const filterTipo = searchParams.get('tipo');
   const filterSalon = searchParams.get('salon');
   const filterAlertas = searchParams.get('alertas');
   const hasFilter = filterStatus || filterTipo || filterSalon || filterAlertas;
 
-  useEffect(() => {
+  const loadEvents = useCallback(() => {
     setLoading(true);
     fetchEvents(selectedDate)
       .then((eventsData) => {
-        // La BD ya entrega una fila por día (cada día con su propio Idocupacion).
-        // NO expandir por día — solo asignar displayDate y dayIndex desde FechaEvento.
         const mapped = eventsData.map(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
           const d = new Date(fecha + 'T12:00:00');
@@ -203,8 +168,11 @@ export default function Kanban() {
       })
       .catch((err) => setError(err.message || 'Error desconocido'))
       .finally(() => setLoading(false));
-
   }, [selectedDate]);
+
+  useEffect(() => { loadEvents(); }, [loadEvents]);
+
+  useDataSyncMulti(['evento_status', 'evento'], () => loadEvents());
 
   const selectedDateObj = new Date(selectedDate + 'T12:00:00');
   const fallbackDate = isNaN(selectedDateObj.getTime()) ? new Date() : selectedDateObj;
@@ -251,6 +219,11 @@ export default function Kanban() {
     const dayEvents = events.filter((e) => e.dayIndex === realDayIndex);
     return { isoDate, label, events: dayEvents, shortDate: formatDateShort(isoDate) };
   }).filter((d) => d.events.length > 0);
+  
+  // En mobile vista tabla, filtrar por día seleccionado
+  const filteredDays = (isMobileView && viewMode === 'tabla' && columns[mobileDayIndex])
+    ? days.filter(d => d.events.some(e => e.dayIndex === columns[mobileDayIndex].dayIndex))
+    : days;
   const clearFilters = () => {
     if (filterExiting) return;
     setFilterExiting(true);
@@ -262,16 +235,12 @@ export default function Kanban() {
 
   const exportToExcel = () => {
     const rows = events.map(e => {
-      const dateStr = e.displayDate || '';
-      const dayOps = dateStr ? (occupancyOps[getWeekMonday(dateStr)]?.[dateStr]) || { breakfasts: 0, rooms: 0 } : { breakfasts: 0, rooms: 0 };
       return {
-        'Fecha': dateStr,
+        'Fecha': e.displayDate || '',
         'Institución': e.Institucion || '',
         'Salón': e.Salon || '',
         'Horario': `${fmtTime(e.HoraI)} - ${fmtTime(e.HoraF)}`,
         'Pax': e.Pax || 0,
-        'Des': dayOps.breakfasts,
-        'Hab': dayOps.rooms,
         'Tipo': e.TipoEvento || '',
         'Estado': statusMap[e.Estatuscotizacion]?.label || '',
         'Vendedor': e.Vendedor || '',
@@ -316,9 +285,9 @@ export default function Kanban() {
 
     for (const day of weekDays) {
       const hasEvents = day.events.length > 0;
-      tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="15" style="background:#f0f4ff;font-weight:700;padding:8px 12px;font-size:13px;border-bottom:1px solid #d1d9e6;">${day.label}</td></tr>`;
+      tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="13" style="background:#f0f4ff;font-weight:700;padding:8px 12px;font-size:13px;border-bottom:1px solid #d1d9e6;">${day.label}</td></tr>`;
       if (!hasEvents) {
-        tableRows += `<tr><td colspan="15" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
+        tableRows += `<tr><td colspan="13" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
       } else {
         const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
         for (const ev of day.events) {
@@ -335,8 +304,6 @@ export default function Kanban() {
           dayTotals.ref_pm += rpVal;
           dayTotals.cenas += cVal;
           const st = statusMap[ev.Estatuscotizacion] || { label: '—', color: 'gray' };
-          const dateStr = ev.displayDate || '';
-          const dayOps = dateStr ? (occupancyOps[getWeekMonday(dateStr)]?.[dateStr]) || { breakfasts: 0, rooms: 0 } : { breakfasts: 0, rooms: 0 };
           const alerta = (ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? '⚠' : '';
           tableRows += `<tr>
             <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtShort(new Date(ev.displayDate + 'T12:00:00'))}</td>
@@ -350,8 +317,6 @@ export default function Kanban() {
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${aVal || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${rpVal || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${cVal || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;color:#16a34a;">${dayOps.breakfasts}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;color:#2563eb;">${dayOps.rooms}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${alerta}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${ev.Vendedor || '—'}</td>
           </tr>`;
@@ -371,7 +336,7 @@ export default function Kanban() {
           <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.almuerzos}</td>
           <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.ref_pm}</td>
           <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.cenas}</td>
-          <td colspan="4" style="border-bottom:1px solid #e2e8f0;"></td>
+          <td colspan="2" style="border-bottom:1px solid #e2e8f0;"></td>
         </tr>`;
       }
     }
@@ -384,7 +349,7 @@ export default function Kanban() {
         <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.almuerzos}</td>
         <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.ref_pm}</td>
         <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.cenas}</td>
-        <td colspan="4" style="border-top:2px solid #6366f1;"></td>
+        <td colspan="2" style="border-top:2px solid #6366f1;"></td>
       </tr>`;
     }
 
@@ -422,7 +387,7 @@ export default function Kanban() {
   </div>
   <table>
     <thead><tr>
-      <th>Día</th><th>Estado</th><th>Institución</th><th>Salón</th><th>Horario</th><th>Pax</th><th title="Cantidad Desayunos">Des.</th><th title="Cantidad Refacciones AM">Ref.AM</th><th title="Cantidad Almuerzos">Alm.</th><th title="Cantidad Refacciones PM">Ref.PM</th><th title="Cantidad Cenas">Cenas</th><th>Des</th><th>Hab</th><th>Alertas</th><th>Vendedor</th>
+      <th>Día</th><th>Estado</th><th>Institución</th><th>Salón</th><th>Horario</th><th>Pax</th><th title="Cantidad Desayunos">Des.</th><th title="Cantidad Refacciones AM">Ref.AM</th><th title="Cantidad Almuerzos">Alm.</th><th title="Cantidad Refacciones PM">Ref.PM</th><th title="Cantidad Cenas">Cenas</th><th>Alertas</th><th>Vendedor</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>
@@ -621,8 +586,8 @@ export default function Kanban() {
       )}
 
       {/* Day selector — visible en mobile */}
-      {!loading && !error && viewMode === 'kanban' && (
-        <div className="kanban-day-selector">
+      {!loading && !error && (viewMode === 'kanban' || (viewMode === 'tabla' && isMobileView)) && (
+        <div className={`kanban-day-selector${viewMode === 'tabla' ? ' tabla-day-selector' : ''}`}>
           {filteredColumns.map((col, i) => (
             <button
               key={col.isoDate}
@@ -645,41 +610,12 @@ export default function Kanban() {
           {filteredColumns
             .filter((_, i) => !isMobileView || i === mobileDayIndex)
             .map((column, ci) => {
-            const dayOps = (occupancyOps[getWeekMonday(column.isoDate)]?.[column.isoDate]) || { breakfasts: 0, rooms: 0 };
-            const isEditing = editingDay === column.isoDate;
             return (
             <div key={column.name} id={`kcol-${ci}`} className="kanban-column">
               <div className="kanban-column-header">
-                <div style={{display:'flex',flexDirection:'column',gap:'2px',width:'100%'}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',flexWrap:'wrap',gap:'4px'}}>
-                    <span style={{textTransform:'capitalize'}}>{column.name}</span>
-                    <span className="kanban-column-count">{column.items.length}</span>
-                  </div>
-                  {!isEditing ? (
-                    <div style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'0.6rem',fontWeight:600}}>
-                      <span style={{padding:'1px 5px',borderRadius:'4px',background:'#f0fdf4',color:'#16a34a'}}>Des {dayOps.breakfasts}</span>
-                      <span style={{padding:'1px 5px',borderRadius:'4px',background:'#eff6ff',color:'#2563eb'}}>Hab {dayOps.rooms}</span>
-                      {isOccupancyEditable && (
-                        <button type="button" onClick={() => { setEditingDay(column.isoDate); setEditDes(dayOps.breakfasts); setEditHab(dayOps.rooms); }}
-                          style={{padding:'0 5px',border:'1px solid #d1d9e6',borderRadius:'4px',background:'#fff',cursor:'pointer',fontSize:'10px',lineHeight:'18px',color:'#6366f1'}}>
-                          {'\u270F\uFE0F'}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'0.6rem'}}>
-                      <span style={{fontWeight:600,color:'#16a34a'}}>Des</span>
-                      <input type="number" min="0" value={editDes} onChange={e => setEditDes(Number(e.target.value))}
-                        style={{width:'44px',padding:'1px 4px',border:'1px solid #d1d9e6',borderRadius:'4px',fontSize:'0.65rem',fontWeight:600,textAlign:'center'}} />
-                      <span style={{fontWeight:600,color:'#2563eb'}}>Hab</span>
-                      <input type="number" min="0" value={editHab} onChange={e => setEditHab(Number(e.target.value))}
-                        style={{width:'44px',padding:'1px 4px',border:'1px solid #d1d9e6',borderRadius:'4px',fontSize:'0.65rem',fontWeight:600,textAlign:'center'}} />
-                      <button type="button" onClick={() => handleOccupancySave(column.isoDate)}
-                        style={{padding:'0 6px',border:'none',borderRadius:'4px',background:'#10b981',color:'#fff',cursor:'pointer',fontSize:'10px',fontWeight:700,lineHeight:'18px'}}>OK</button>
-                      <button type="button" onClick={() => setEditingDay(null)}
-                        style={{padding:'0 6px',border:'1px solid #d1d9e6',borderRadius:'4px',background:'#fff',cursor:'pointer',fontSize:'10px',lineHeight:'18px',color:'#94a3b8'}}>X</button>
-                    </div>
-                  )}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',flexWrap:'wrap',gap:'4px'}}>
+                  <span style={{textTransform:'capitalize'}}>{column.name}</span>
+                  <span className="kanban-column-count">{column.items.length}</span>
                 </div>
               </div>
               <div className="kanban-column-body">
@@ -710,35 +646,33 @@ export default function Kanban() {
       {!loading && !error && viewMode === 'tabla' && (
         <div style={{overflowX:'auto'}}>
           <table className="tabla-eventos"><thead><tr>
-                <th>Día</th>
-                <th>Estado</th>
-                <th>Institución</th>
-                <th>Salón</th>
-                <th>Horario</th>
-                <th>Pax</th>
-                <th title="Cantidad Desayunos">Des.</th>
-                <th title="Cantidad Refacciones AM">Ref. AM</th>
-                <th title="Cantidad Almuerzos">Alm.</th>
-                <th title="Cantidad Refacciones PM">Ref. PM</th>
-                <th title="Cantidad Cenas">Cenas</th>
-                <th>Des</th>
-                <th>Hab</th>
-                <th>Alertas</th>
-                <th>Vendedor</th>
+                <th className="col-dia">Día</th>
+                <th className="col-estado">Estado</th>
+                <th className="col-inst">Institución</th>
+                <th className="col-salon">Salón</th>
+                <th className="col-horario">Horario</th>
+                <th className="col-pax">Pax</th>
+                <th className="col-food" title="Cantidad Desayunos">Des.</th>
+                <th className="col-food" title="Cantidad Refacciones AM">Ref. AM</th>
+                <th className="col-food" title="Cantidad Almuerzos">Alm.</th>
+                <th className="col-food" title="Cantidad Refacciones PM">Ref. PM</th>
+                <th className="col-food" title="Cantidad Cenas">Cenas</th>
+                <th className="col-alertas">Alertas</th>
+                <th className="col-vendedor">Vendedor</th>
               </tr></thead><tbody>
-              {days.length === 0 ? (
+              {filteredDays.length === 0 ? (
                 <tr>
-                <td colSpan={15} style={{textAlign:'center',padding:'2rem',color:'var(--text-muted)'}}>
-                  No hay eventos esta semana
+                <td colSpan={13} style={{textAlign:'center',padding:'2rem',color:'var(--text-muted)'}}>
+                  {isMobileView && viewMode === 'tabla' ? 'Sin eventos este día' : 'No hay eventos esta semana'}
                 </td>
                 </tr>
               ) : (() => {
                 let weeklyTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
-                return days.flatMap((day) => {
+                return filteredDays.flatMap((day) => {
                   const rows = [];
                   rows.push(
                     <tr key={day.isoDate} className="tabla-dia-header">
-                      <td colSpan={15}><div className="tabla-dia-inner">
+                      <td colSpan={13}><div className="tabla-dia-inner">
                         <span className="tabla-dia-label">{day.label}</span>
                       </div></td>
                     </tr>
@@ -746,14 +680,13 @@ export default function Kanban() {
                   if (day.events.length === 0) {
                     rows.push(
                       <tr key={`${day.isoDate}-empty`}>
-                        <td style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{day.shortDate}</td>
-                        <td colSpan={14} style={{color:'var(--text-muted)',fontSize:'0.82rem',textAlign:'center'}}>
-                          Sin eventos este día
+                        <td style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{isMobileView ? day.isoDate.slice(8) : day.shortDate}</td>
+                        <td colSpan={12} style={{color:'var(--text-muted)',fontSize:'0.82rem',textAlign:'center'}}>
+                          {isMobileView ? 'Sin eventos' : 'Sin eventos este día'}
                         </td>
                       </tr>
                     );
                   } else {
-                    const dayOps = (occupancyOps[getWeekMonday(day.isoDate)]?.[day.isoDate]) || { breakfasts: 0, rooms: 0 };
                     const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
                     day.events.forEach((ev, ei) => {
                       const paxVal = Number(ev.Pax) || 0;
@@ -769,25 +702,77 @@ export default function Kanban() {
                       dayTotals.ref_pm += rpVal;
                       dayTotals.cenas += cVal;
                       const st = statusMap[ev.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
+                      const rowId = `${day.isoDate}-${ev.Idocupacion}-${ei}`;
+                      const isExpanded = expandedRows.has(rowId);
+                      const hasAlerts = (ev.tiene_alertas == 1 || ev.tiene_alertas === true);
                       rows.push(
-                        <tr key={`${day.isoDate}-${ev.Idocupacion}-${ei}`}>
-                          <td style={{fontSize:'0.75rem',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{day.shortDate}</td>
-                          <td><span className={`event-tag event-tag-${st.color}`} style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>{st.label}</span></td>
-                          <td style={{fontWeight:500}}>{ev.Institucion || '—'}</td>
-                          <td><IconMapPin size={13} /> {ev.Salon || '—'}</td>
-                          <td><IconClock size={13} /> {fmtTime(ev.HoraI)} - {fmtTime(ev.HoraF)}</td>
-                          <td>{paxVal || '—'}</td>
-                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dVal || '—'}</td>
-                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{raVal || '—'}</td>
-                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{aVal || '—'}</td>
-                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{rpVal || '—'}</td>
-                          <td style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{cVal || '—'}</td>
-                          <td style={{fontSize:'0.75rem',fontWeight:600,color:'#16a34a',textAlign:'center'}}>{dayOps.breakfasts}</td>
-                          <td style={{fontSize:'0.75rem',fontWeight:600,color:'#2563eb',textAlign:'center'}}>{dayOps.rooms}</td>
-                          <td>{(ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? <span className="event-tag event-tag-warning" style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>⚠️ Alertas</span> : '—'}</td>
-                          <td><IconUser size={13} /> {ev.Vendedor || '—'}</td>
+                        <tr
+                          key={rowId}
+                          className={`tabla-eventos-row${isExpanded ? ' row-expanded' : ''}`}
+                          onClick={() => { if (isMobileView) toggleRow(rowId); }}
+                        >
+                          <td className="col-dia">{isMobileView ? day.isoDate.slice(8) : day.shortDate}</td>
+                          <td className="col-estado"><span className={`event-tag event-tag-${st.color}`} style={{fontSize: isMobileView ? '0.55rem' : '0.65rem',padding:'0.1rem 0.2rem'}}>{isMobileView ? (mobileStatusMap[ev.Estatuscotizacion]?.label || st.label) : st.label}</span></td>
+                          <td className="col-inst" style={{fontWeight:500,fontSize: isMobileView ? '0.6rem' : 'inherit'}}>{ev.Institucion || '—'}</td>
+                          <td className="col-salon">{isMobileView ? '' : <IconMapPin size={13} />} {ev.Salon || '—'}</td>
+                          <td className="col-horario">{isMobileView ? '' : <IconClock size={13} />} {fmtTime(ev.HoraI)} - {fmtTime(ev.HoraF)}</td>
+                          <td className="col-pax">{paxVal || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dVal || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{raVal || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{aVal || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{rpVal || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{cVal || '—'}</td>
+                          <td className="col-alertas">
+                            {hasAlerts
+                              ? <span className="event-tag event-tag-warning" style={{fontSize: isMobileView ? '0.55rem' : '0.65rem',padding:'0.1rem 0.2rem'}}>⚠️</span>
+                              : <span className="mobile-only mob-no-alertas">—</span>
+                            }
+                          </td>
+                          <td className="col-vendedor">{isMobileView ? '' : <IconUser size={13} />} {ev.Vendedor || '—'}</td>
                         </tr>
                       );
+                      /* ─── Expandable detail row (mobile) ─── */
+                      if (isExpanded) {
+                        rows.push(
+                          <tr key={`${rowId}-detail`} className="tabla-detail-row">
+                            <td colSpan={13}>
+                              <div className="tabla-detail-content">
+                                <div className="detail-section">
+                                  <span className="detail-label">Fecha</span>
+                                  <div className="detail-info-row">
+                                    <span>{new Date(day.isoDate + 'T12:00:00').toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</span>
+                                    <span>{fmtTime(ev.HoraI)} - {fmtTime(ev.HoraF)}</span>
+                                  </div>
+                                </div>
+                                <div className="detail-section">
+                                  <span className="detail-label">Estado</span>
+                                  <div className="detail-info-row">
+                                    <span className={`event-tag event-tag-${st.color}`} style={{fontSize:'0.6rem',padding:'0.1rem 0.35rem'}}>{st.label}</span>
+                                    <span>Salón: {ev.Salon || '—'}</span>
+                                  </div>
+                                </div>
+                                <div className="detail-section">
+                                  <span className="detail-label">Alimentos</span>
+                                  <div className="detail-food-grid">
+                                    <span className="detail-food-item"><span className="food-title">Des.</span> {dVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Ref.AM</span> {raVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Alm.</span> {aVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Ref.PM</span> {rpVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Cenas</span> {cVal || 0}</span>
+                                  </div>
+                                </div>
+                                <div className="detail-section">
+                                  <span className="detail-label">Información</span>
+                                  <div className="detail-info-row">
+                                    <span>Vendedor: {ev.Vendedor || '—'}</span>
+                                    {hasAlerts && <span className="event-tag event-tag-warning" style={{fontSize:'0.55rem',padding:'0.08rem 0.25rem'}}>⚠️ Alertas</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
                     });
                     weeklyTotals.pax += dayTotals.pax;
                     weeklyTotals.desayunos += dayTotals.desayunos;
@@ -796,25 +781,25 @@ export default function Kanban() {
                     weeklyTotals.ref_pm += dayTotals.ref_pm;
                     weeklyTotals.cenas += dayTotals.cenas;
                     rows.push(
-                      <tr key={`${day.isoDate}-total`} style={{background:'#f1f5f9'}}>
-                        <td colSpan={5} style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>
-                          Total {day.shortDate}
+                      <tr key={`${day.isoDate}-total`} className="tabla-total-row" style={{background:'var(--surface-2, #f1f5f9)'}}>
+                        <td colSpan={5} className="col-dia col-estado col-inst col-salon col-horario" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>
+                          {isMobileView ? 'Total' : `Total ${day.shortDate}`}
                         </td>
-                        <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#1e40af'}}>
+                        <td className="col-pax" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#1e40af'}}>
                           {dayTotals.pax}
                         </td>
-                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.desayunos}</td>
-                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_am}</td>
-                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.almuerzos}</td>
-                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_pm}</td>
-                        <td style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.cenas}</td>
-                        <td colSpan={4} style={{borderBottom:'1px solid #e2e8f0'}}></td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.desayunos}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_am}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.almuerzos}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_pm}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.cenas}</td>
+                        <td colSpan={2} className="col-alertas col-vendedor" style={{borderBottom:'1px solid #e2e8f0'}}></td>
                       </tr>
                     );
                   }
                   return rows;
                 }).concat(
-                  days.length > 0 ? (
+                  filteredDays.length > 0 && !(isMobileView && viewMode === 'tabla') ? (
                     <tr key="semana-total" style={{background:'#e0e7ff'}}>
                       <td colSpan={5} style={{fontSize:'0.75rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>
                         TOTAL SEMANA
@@ -827,7 +812,7 @@ export default function Kanban() {
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.almuerzos}</td>
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.ref_pm}</td>
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.cenas}</td>
-                      <td colSpan={4} style={{borderTop:'2px solid #6366f1'}}></td>
+                      <td colSpan={2} style={{borderTop:'2px solid #6366f1'}}></td>
                     </tr>
                   ) : []
                 );

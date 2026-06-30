@@ -436,15 +436,15 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
       {/* Stats bar */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '16px', flexWrap: 'wrap',
-        marginBottom: '16px', padding: isMobile ? '10px 12px' : '12px 16px', background: '#ffffff',
-        border: '1px solid #e2e8f0', borderRadius: '12px',
+        marginBottom: '16px', padding: isMobile ? '10px 12px' : '12px 16px', background: 'var(--bg-card)',
+        border: '1px solid var(--border)', borderRadius: '12px',
       }}>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', width: isMobile ? '100%' : 'auto' }}>
+        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', width: isMobile ? '100%' : 'auto' }}>
           <span style={{color:'#10b981', marginRight:4}}>✓</span>
           Tareas de la semana
         </span>
         <div style={{ display: 'flex', gap: isMobile ? '10px' : '12px', fontSize: '12px', fontWeight: 600, flexWrap: 'wrap', flex: 1 }}>
-          <span style={{ color: '#64748b' }}>Total <strong style={{ color: '#0f172a' }}>{totalCount}</strong></span>
+          <span style={{ color: 'var(--text-muted)' }}>Total <strong style={{ color: 'var(--text-main)' }}>{totalCount}</strong></span>
           <span style={{ color: '#16a34a' }}>Completadas <strong>{completedCount}</strong></span>
           <span style={{ color: '#f59e0b' }}>Pendientes <strong>{pendingCount}</strong></span>
           {noRealizadoCount > 0 && (
@@ -454,13 +454,13 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
         <button
           onClick={handleToggleHistorial}
           style={{
-            marginLeft: isMobile ? '0' : 'auto', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
-            background: showHistorial ? '#f1f5f9' : '#ffffff', cursor: 'pointer', fontSize: '11px',
-            fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px',
+            marginLeft: isMobile ? '0' : 'auto', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+            background: showHistorial ? 'var(--surface-2)' : 'var(--bg-card)', cursor: 'pointer', fontSize: '11px',
+            fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px',
             transition: 'all 0.15s', width: isMobile ? '100%' : 'auto', justifyContent: 'center',
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = showHistorial ? '#f1f5f9' : '#ffffff'; }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-2)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = showHistorial ? 'var(--surface-2)' : 'var(--bg-card)'; }}
         >
           Historial
         </button>
@@ -481,9 +481,9 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
             <button key={key} onClick={() => setFilterStatus(key)}
               style={{
                 padding: '4px 12px', borderRadius: '999px', border: '1px solid',
-                borderColor: active ? color : '#e2e8f0',
-                background: active ? `${color}15` : '#ffffff',
-                color: active ? color : '#64748b',
+                borderColor: active ? color : 'var(--border)',
+                background: active ? `${color}15` : 'var(--bg-card)',
+                color: active ? color : 'var(--text-muted)',
                 cursor: 'pointer', fontSize: '11px', fontWeight: active ? 700 : 600,
                 transition: 'all 0.12s',
               }}
@@ -497,41 +497,41 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
       {/* History panel */}
       {showHistorial && (
         <div style={{
-          marginBottom: '16px', padding: '12px 16px', background: '#f8fafc',
-          border: '1px solid #e2e8f0', borderRadius: '10px', maxHeight: '240px',
+          marginBottom: '16px', padding: '12px 16px', background: 'var(--surface-hover)',
+          border: '1px solid var(--border)', borderRadius: '10px', maxHeight: '240px',
           overflowY: 'auto', fontSize: '12px',
         }}>
-          <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '8px', fontSize: '12px' }}>
+          <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px', fontSize: '12px' }}>
             Historial de cambios
           </div>
           {histLoading ? (
-            <span style={{ color: '#94a3b8' }}>Cargando...</span>
+            <span style={{ color: 'var(--text-muted)' }}>Cargando...</span>
           ) : historial.length === 0 ? (
-            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin cambios registrados</span>
+            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin cambios registrados</span>
           ) : (
             historial.map(h => (
               <div key={h.id} style={{
                 display: 'flex', alignItems: 'flex-start', gap: '8px',
-                padding: '6px 0', borderBottom: '1px solid #e2e8f0',
+                padding: '6px 0', borderBottom: '1px solid var(--border)',
               }}>
                 <span style={{
                   padding: '2px 7px', borderRadius: '4px', fontSize: '10px',
                   fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-                  background: h.accion === 'deleted' ? '#fef2f2' : h.accion === 'completed' ? '#f0fdf4' : h.accion === 'no_realizado' ? '#fff7ed' : '#f1f5f9',
-                  color: h.accion === 'deleted' ? '#ef4444' : h.accion === 'completed' ? '#16a34a' : h.accion === 'no_realizado' ? '#d97706' : '#64748b',
+                  background: h.accion === 'deleted' ? 'var(--danger-bg)' : h.accion === 'completed' ? 'var(--success-bg)' : h.accion === 'no_realizado' ? 'var(--warning-bg)' : 'var(--surface-2)',
+                  color: h.accion === 'deleted' ? '#ef4444' : h.accion === 'completed' ? '#16a34a' : h.accion === 'no_realizado' ? '#d97706' : 'var(--text-muted)',
                 }}>
                   {ACCION_LABELS[h.accion] || h.accion}
                 </span>
-                <span style={{ flex: 1, color: '#334155', minWidth: 0 }}>
+                <span style={{ flex: 1, color: 'var(--text-main)', minWidth: 0 }}>
                   {h.accion === 'deleted' ? (
-                    <span style={{ textDecoration: 'line-through', color: '#94a3b8' }}>{h.contenido_previo}</span>
+                    <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{h.contenido_previo}</span>
                   ) : h.accion === 'edited' ? (
                     <span>"{h.contenido_previo}" → "{h.contenido_nuevo}"</span>
                   ) : (
                     <span>{h.contenido_nuevo || h.contenido_previo}</span>
                   )}
                 </span>
-                <span style={{ color: '#94a3b8', fontSize: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {h.usuario_nombre} {formatHora(h.creado_en)}
                 </span>
               </div>
@@ -554,29 +554,29 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
             flex: isMobile ? '1 1 auto' : '1 1 200px',
             width: isMobile ? '100%' : 'auto',
             height: isMobile ? '44px' : '36px', padding: '0 12px', borderRadius: '8px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--border)',
             fontSize: isMobile ? '16px' : '13px', outline: 'none',
-            background: '#ffffff', color: '#0f172a', minWidth: isMobile ? '0' : '150px',
+            background: 'var(--bg-card)', color: 'var(--text-main)', minWidth: isMobile ? '0' : '150px',
           }}
           onFocus={e => e.target.style.borderColor = '#6366f1'}
-          onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+          onBlur={e => e.target.style.borderColor = 'var(--border)'}
         />
         <input
           type="date" value={newFecha} onChange={e => { setNewFecha(e.target.value); setNewIdOcupacion(''); setNewSelectedDays([]); }}
           style={{
             width: isMobile ? '100%' : 'auto',
             height: isMobile ? '44px' : '36px', padding: '0 10px', borderRadius: '8px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--border)',
             fontSize: isMobile ? '16px' : '12px', outline: 'none',
-            background: '#ffffff', color: '#0f172a',
+            background: 'var(--bg-card)', color: 'var(--text-main)',
           }}
         />
         <select value={newIdOcupacion} onChange={e => { setNewIdOcupacion(e.target.value); setNewSelectedDays([]); }}
           style={{
             width: isMobile ? '100%' : 'auto',
             height: isMobile ? '44px' : '36px', padding: '0 10px', borderRadius: '8px',
-            border: '1px solid #e2e8f0', fontSize: isMobile ? '14px' : '12px', outline: 'none',
-            background: '#ffffff', color: '#0f172a', maxWidth: isMobile ? 'none' : '220px',
+            border: '1px solid var(--border)', fontSize: isMobile ? '14px' : '12px', outline: 'none',
+            background: 'var(--bg-card)', color: 'var(--text-main)', maxWidth: isMobile ? 'none' : '220px',
             cursor: 'pointer',
           }}
         >
@@ -589,7 +589,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
         </select>
         {diasEvento.length > 1 && (
           <div style={{ width: '100%', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', padding: '4px 0' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Asignar a:</span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Asignar a:</span>
             {diasEvento.map(day => {
               const checked = newSelectedDays.includes(day);
               return (
@@ -603,9 +603,9 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                   style={{
                     fontSize: '11px', fontWeight: checked ? 700 : 500, cursor: 'pointer',
                     padding: '6px 12px', borderRadius: '6px', border: '1px solid',
-                    borderColor: checked ? '#6366f1' : '#e2e8f0',
-                    background: checked ? '#eef2ff' : '#ffffff',
-                    color: checked ? '#6366f1' : '#475569',
+                    borderColor: checked ? '#6366f1' : 'var(--border)',
+                    background: checked ? 'var(--primary-bg)' : 'var(--bg-card)',
+                    color: checked ? '#6366f1' : 'var(--text-secondary)',
                     transition: 'all 0.12s', minHeight: '36px',
                     WebkitTapHighlightColor: 'transparent',
                     touchAction: 'manipulation',
@@ -625,8 +625,8 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
               flex: isMobile ? '1 1 auto' : '0 0 auto',
               width: isMobile ? '100%' : 'auto',
               height: isMobile ? '44px' : '36px', padding: '0 10px', borderRadius: '8px',
-              border: '1px solid #e2e8f0', fontSize: isMobile ? '14px' : '12px', outline: 'none',
-              background: '#ffffff', color: '#0f172a', cursor: 'pointer', maxWidth: isMobile ? 'none' : '180px',
+              border: '1px solid var(--border)', fontSize: isMobile ? '14px' : '12px', outline: 'none',
+              background: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', maxWidth: isMobile ? 'none' : '180px',
             }}
           >
             <option value="">Asignar a...</option>
@@ -642,8 +642,8 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
             return (
               <span style={{
                 fontSize: '11px', fontWeight: 700, color: '#d97706', flexShrink: 0,
-                padding: '2px 8px', borderRadius: '4px', background: '#fef3c7',
-                border: '1px solid #fcd34d', whiteSpace: 'nowrap',
+                padding: '2px 8px', borderRadius: '4px', background: 'var(--warning-bg)',
+                border: '1px solid var(--warning)', whiteSpace: 'nowrap',
               }}>
                 → {selectedEq.nombre}
               </span>
@@ -654,7 +654,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
           style={{
             width: isMobile ? '100%' : 'auto',
             height: isMobile ? '44px' : '36px', padding: isMobile ? '0 12px' : '0 16px', borderRadius: '8px', border: 'none',
-            background: !user ? '#cbd5e1' : '#6366f1', color: '#ffffff', cursor: !user ? 'not-allowed' : 'pointer',
+            background: !user ? 'var(--border-light)' : '#6366f1', color: '#ffffff', cursor: !user ? 'not-allowed' : 'pointer',
             fontSize: isMobile ? '14px' : '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
             transition: 'background 0.15s',
           }}
@@ -667,7 +667,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
 
       {/* Loading state */}
       {loading ? (
-        <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
           Cargando tareas...
         </div>
       ) : (
@@ -680,29 +680,29 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
             const isToday = day.iso === new Date().toISOString().slice(0, 10);
             return (
               <div key={day.iso} style={{
-                border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden',
-                background: isToday ? '#f8faff' : '#ffffff',
-                borderColor: isToday ? '#6366f1' : '#e2e8f0',
+                border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden',
+                background: isToday ? 'var(--bg-card-hover)' : 'var(--bg-card)',
+                borderColor: isToday ? '#6366f1' : 'var(--border)',
                 opacity: day.tareas.length === 0 ? 0.6 : 1,
               }}>
                 <div style={{
                   padding: '8px 14px', fontSize: '12px', fontWeight: 700,
-                  background: isToday ? 'rgba(99,102,241,0.06)' : '#f8fafc',
-                  color: isToday ? '#6366f1' : '#475569',
-                  borderBottom: '1px solid #e2e8f0',
+                  background: isToday ? 'rgba(99,102,241,0.06)' : 'var(--surface-hover)',
+                  color: isToday ? '#6366f1' : 'var(--text-secondary)',
+                  borderBottom: '1px solid var(--border)',
                   display: 'flex', alignItems: 'center', gap: '8px',
                 }}>
                   <span>{formatFechaCorta(day.iso)}</span>
                   <span style={{
-                    fontSize: '10px', fontWeight: 600, color: '#94a3b8',
-                    background: '#f1f5f9', padding: '1px 7px', borderRadius: '999px',
+                    fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)',
+                    background: 'var(--surface-2)', padding: '1px 7px', borderRadius: '999px',
                   }}>
                     {day.tareas.filter(t => t.completada).length}/{day.tareas.length}
                   </span>
                 </div>
 
                 {day.tareas.length === 0 ? (
-                  <div style={{ padding: '10px 14px', fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                  <div style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                     Sin tareas para este día
                   </div>
                 ) : (
@@ -714,27 +714,27 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                         display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '10px',
                         flexWrap: isMobile ? 'wrap' : 'nowrap',
                         padding: isMobile ? '10px 12px' : '8px 14px', borderBottom: '1px solid #f1f5f9',
-                        background: t.completada ? '#fafdfa' : t.no_realizado ? '#fef2f2' : '#ffffff',
+                        background: t.completada ? 'var(--success-bg)' : t.no_realizado ? 'var(--danger-bg)' : 'var(--bg-card)',
                         opacity: t.completada ? 0.7 : 1,
                       }}>
                         {canCompleteTask(t) ? (
                           <button onClick={() => handleToggleComplete(t)}
                             style={{
                               padding: isMobile ? '5px 12px' : (t.completada ? '3px 12px' : '3px 10px'), borderRadius: '20px', border: '2px solid',
-                              borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : '#d1d5db',
-                              background: t.completada ? '#10b981' : t.no_realizado ? '#fef2f2' : '#ffffff',
+                              borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : 'var(--border)',
+                              background: t.completada ? '#10b981' : t.no_realizado ? 'var(--danger-bg)' : 'var(--bg-card)',
                               cursor: 'pointer', flexShrink: 0,
                               fontSize: isMobile ? '12px' : '11px', fontWeight: 700, lineHeight: isMobile ? '24px' : '20px',
                               minHeight: isMobile ? '36px' : 'auto',
-                              color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : '#6b7280',
+                              color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : 'var(--text-muted)',
                               transition: 'all 0.15s', whiteSpace: 'nowrap',
                             }}
                             data-tooltip={t.completada ? 'Desmarcar' : 'Completar'}
                             onMouseEnter={e => {
-                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = '#eef2ff'; }
+                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = 'var(--primary-bg)'; }
                             }}
                             onMouseLeave={e => {
-                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = '#ffffff'; }
+                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-card)'; }
                             }}
                           >
                             {Boolean(t.completada) && 'Hecho'}
@@ -744,12 +744,12 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                         ) : (
                           <span style={{
                             padding: isMobile ? '5px 12px' : (t.completada ? '3px 12px' : '3px 10px'), borderRadius: '20px', border: '2px solid',
-                            borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : '#e2e8f0',
-                            background: t.completada ? '#10b981' : t.no_realizado ? '#fef2f2' : '#f8fafc',
+                            borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : 'var(--border)',
+                            background: t.completada ? '#10b981' : t.no_realizado ? 'var(--danger-bg)' : 'var(--surface-hover)',
                             flexShrink: 0,
                             fontSize: isMobile ? '12px' : '11px', fontWeight: 700, lineHeight: isMobile ? '24px' : '20px',
                             minHeight: isMobile ? '36px' : 'auto',
-                            color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : '#94a3b8',
+                            color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : 'var(--text-muted)',
                             whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center',
                           }}>
                             {Boolean(t.completada) && 'Hecho'}
@@ -775,8 +775,8 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                             <select value={editIdOcupacion} onChange={e => setEditIdOcupacion(e.target.value)}
                               style={{
                                 height: '28px', padding: '0 6px', borderRadius: '6px',
-                                border: '1px solid #e2e8f0', fontSize: '11px', outline: 'none',
-                                background: '#ffffff', color: '#0f172a', cursor: 'pointer',
+                                border: '1px solid var(--border)', fontSize: '11px', outline: 'none',
+                                background: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer',
                                 maxWidth: '180px',
                               }}
                             >
@@ -802,7 +802,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                               OK
                             </button>
                             <button onClick={() => setEditingId(null)}
-                              style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                              style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                               Cancelar
                             </button>
                           </div>
@@ -811,7 +811,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                             onClick={() => { setEditingId(t.id); setEditText(t.contenido); setEditIdOcupacion(t.id_ocupacion || ''); }}
                             style={{
                               flex: 1, fontSize: isMobile ? '13px' : '12.5px', cursor: 'text', minWidth: 0,
-                              color: t.completada ? '#94a3b8' : t.no_realizado ? '#ef4444' : '#0f172a',
+                              color: t.completada ? 'var(--text-muted)' : t.no_realizado ? '#ef4444' : 'var(--text-main)',
                               textDecoration: t.completada ? 'line-through' : 'none',
                             }}
                           >
@@ -828,7 +828,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                           {(t.evento_institucion || t.id_ocupacion) && !isEditing && (
                             <span style={{
                               fontSize: '10px', fontWeight: 600, color: '#6366f1', flexShrink: 0,
-                              padding: '1px 7px', borderRadius: '4px', background: '#eef2ff',
+                              padding: '1px 7px', borderRadius: '4px', background: 'var(--primary-bg)',
                               maxWidth: isMobile ? '100%' : '180px', overflow: 'hidden', textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '3px',
                             }}>
@@ -837,8 +837,8 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                           )}
 
                           <span style={{
-                            fontSize: '10px', fontWeight: 600, color: '#94a3b8', flexShrink: 0,
-                            padding: '1px 6px', borderRadius: '4px', background: '#f1f5f9',
+                            fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0,
+                            padding: '1px 6px', borderRadius: '4px', background: 'var(--surface-2)',
                           }}>
                             {t.usuario_nombre || '—'}
                           </span>
@@ -849,8 +849,8 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                             return (
                               <span style={{
                                 fontSize: '11px', fontWeight: 700, color: isMyTeam ? '#0ea5e9' : '#d97706', flexShrink: 0,
-                                padding: '2px 8px', borderRadius: '4px', background: isMyTeam ? '#e0f2fe' : '#fef3c7',
-                                border: `1px solid ${isMyTeam ? '#7dd3fc' : '#fcd34d'}`,
+                                padding: '2px 8px', borderRadius: '4px', background: isMyTeam ? 'var(--primary-bg)' : 'var(--warning-bg)',
+                                border: `1px solid ${isMyTeam ? 'var(--primary)' : 'var(--warning)'}`,
                               }}>
                                 {eq.nombre}
                               </span>
@@ -860,7 +860,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                           <button onClick={() => { if (!isEditing) { setEditingId(t.id); setEditText(t.contenido); setEditIdOcupacion(t.id_ocupacion || ''); } }}
                             style={{
                               padding: isMobile ? '5px 9px' : '2px 7px', borderRadius: '4px', border: '1px solid transparent',
-                              cursor: 'pointer', color: '#94a3b8', flexShrink: 0,
+                              cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0,
                               fontSize: isMobile ? '12px' : '11px', fontWeight: 600, lineHeight: isMobile ? '24px' : '20px',
                               transition: 'all 0.15s', background: 'transparent',
                               minHeight: isMobile ? '36px' : '30px',
@@ -872,7 +872,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
                           <button onClick={() => handleDelete(t)}
                             style={{
                               padding: isMobile ? '5px 9px' : '2px 7px', borderRadius: '4px', border: '1px solid transparent',
-                              cursor: 'pointer', color: '#94a3b8', flexShrink: 0,
+                              cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0,
                               fontSize: isMobile ? '12px' : '11px', fontWeight: 600, lineHeight: isMobile ? '24px' : '20px',
                               transition: 'all 0.15s', background: 'transparent',
                               minHeight: isMobile ? '36px' : '30px',
@@ -894,7 +894,7 @@ export default function WeeklyTasks({ selectedDate, events = [], onDateChange })
 
       <style>{`
         button[data-tooltip="Editar"]:hover,
-        button[data-tooltip="Eliminar"]:hover { background: #f1f5f9 !important; }
+        button[data-tooltip="Eliminar"]:hover { background: var(--surface-2) !important; }
         button[data-tooltip="Eliminar"]:hover { color: #ef4444 !important; }
         button[data-tooltip="Editar"]:hover { color: #6366f1 !important; }
       `}</style>

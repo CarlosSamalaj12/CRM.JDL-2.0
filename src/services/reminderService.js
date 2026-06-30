@@ -38,7 +38,8 @@ export const reminderService = {
       notes: reminderData.notes || '',
       createdAt: new Date().toISOString(),
       createdBy: authService.getCurrentUser()?.id || 'unknown',
-      creatorName: authService.getCurrentUser()?.name || authService.getCurrentUser()?.email || 'Usuario'
+      creatorName: authService.getCurrentUser()?.name || authService.getCurrentUser()?.email || 'Usuario',
+      finalizado: false
     };
 
     const updatedReminders = {
@@ -71,6 +72,32 @@ export const reminderService = {
       return true;
     } catch (err) {
       console.error('Error eliminando recordatorio:', err);
+      throw err;
+    }
+  },
+
+  async markAsFinalizado(eventId, reminderId) {
+    const currentReminders = await this.getAll();
+    const eventReminders = currentReminders[eventId] || [];
+
+    const updatedRemindersList = eventReminders.map(rem => {
+      if (rem.id === reminderId) {
+        return { ...rem, finalizado: true };
+      }
+      return rem;
+    });
+
+    const updatedReminders = {
+      ...currentReminders,
+      [eventId]: updatedRemindersList
+    };
+
+    try {
+      const currentState = await loadState();
+      await saveState({ ...currentState, reminders: updatedReminders });
+      return true;
+    } catch (err) {
+      console.error('Error marcando recordatorio como finalizado:', err);
       throw err;
     }
   },
@@ -116,10 +143,10 @@ export const reminderService = {
 
     Object.entries(reminders).forEach(([eventId, eventReminders]) => {
       eventReminders.forEach(rem => {
-        // Filtrar por usuario: solo ver sus propias citas.
         const creatorId = rem.createdBy || rem.createdByUserId;
         const isMine = !creatorId || creatorId === currentUser?.id;
         if (!isMine) return;
+        if (rem.finalizado) return;
 
         const reminderDateTime = new Date(`${rem.date}T${rem.time}:00`);
         if (reminderDateTime >= now) {

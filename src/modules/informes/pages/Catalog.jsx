@@ -29,9 +29,11 @@ import { useToast } from '../context/ToastContext.jsx';import {
   updateCategoria,
   deleteCategoria,
 } from '../services/api.js';
+import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 import { IconPackage, IconChefHat, IconMenu, IconTag, IconPlus, IconTrash, IconCheckCircle, IconSearch, IconX } from '../components/Icons.jsx';
 
 const TIPO_LABELS = {
+  entradas:     { label: 'Entradas',      icon: '🍲', color: '#f97316' },
   proteina:     { label: 'Proteína',      icon: '🥩', color: '#ef4444' },
   guarnicion:   { label: 'Guarnición',    icon: '🥗', color: '#10b981' },
   salsa:        { label: 'Salsa',         icon: '🫗', color: '#f59e0b' },
@@ -41,7 +43,7 @@ const TIPO_LABELS = {
   otros:        { label: 'Otros',         icon: '📦', color: '#64748b' },
 };
 
-const TIPO_OPTS = ['proteina','guarnicion','salsa','postre','tortilla_pan','bebida','otros'];
+const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','tortilla_pan','bebida','otros'];
 
 function SugerenciaTipoSection({ tipo, ingredientes, opcionesPorIng, seleccionados, onToggle, onOpcionChange }) {
   const cfg = TIPO_LABELS[tipo] || TIPO_LABELS.otros;
@@ -176,6 +178,16 @@ export default function Catalog() {
     try { setCategorias(await getCategorias()); }
     catch (err) { toast.error('Error al cargar categorías: ' + err.message); }
   };
+
+  useDataSyncMulti(
+    ['ingrediente', 'opcion_ingrediente', 'menu', 'menu_item', 'categoria_alimento', 'platillo', 'componente'],
+    ({ entity }) => {
+      if (entity === 'ingrediente' || entity === 'opcion_ingrediente') loadIngredientes();
+      if (entity === 'platillo' || entity === 'componente' || entity === 'categoria_alimento') { loadPlatillos(); loadCategorias(); }
+      if (entity === 'menu' || entity === 'menu_item') loadMenus();
+      if (entity === 'categoria_alimento') loadCategorias();
+    }
+  );
 
   const handleIngredienteSelect = async (ing) => {
     setSelectedIngrediente(ing);
@@ -549,13 +561,7 @@ export default function Catalog() {
                 required 
               />
               <select value={newIngrediente.tipo} onChange={e => setNewIngrediente({...newIngrediente, tipo: e.target.value})}>
-                <option value="proteina">Proteína</option>
-                <option value="guarnicion">Guarnición</option>
-                <option value="salsa">Salsa</option>
-                <option value="postre">Postre</option>
-                <option value="tortilla_pan">Tortilla / Pan</option>
-                <option value="bebida">Bebida</option>
-                <option value="otros">Otros</option>
+                {TIPO_OPTS.map(t => <option key={t} value={t}>{TIPO_LABELS[t]?.label || t}</option>)}
               </select>
               <button type="submit" className="btn-primary"><IconPlus size={15} /> Añadir Ingrediente</button>
             </form>

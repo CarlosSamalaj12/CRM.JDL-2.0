@@ -29,6 +29,7 @@ import '../styles.css';
 const CATEGORIAS = [
   { id: 'menus',      label: 'Menús',       icon: '📋', color: '#6366f1' },
   { id: 'platillos',  label: 'Platillos',   icon: '🍽️', color: '#ec4899' },
+  { id: 'entradas',   label: 'Entradas',    icon: '🍲', color: '#f97316' },
   { id: 'carnes',     label: 'Carnes',      icon: '🥩', color: '#ef4444' },
   { id: 'guarniciones', label: 'Guarniciones', icon: '🥗', color: '#10b981' },
   { id: 'salsas',     label: 'Salsas',      icon: '🫗', color: '#f59e0b' },
@@ -43,6 +44,7 @@ const TIPO_LABELS = {
   carne: 'CARNES', guarnición: 'GUARNICIONES', guarnicion: 'GUARNICIONES', guarniciones: 'GUARNICIONES',
   salsa: 'SALSAS', salsas: 'SALSAS', postre: 'POSTRES', postres: 'POSTRES', bebida: 'BEBIDAS', bebidas: 'BEBIDAS',
   proteina: 'PROTEÍNA', proteína: 'PROTEÍNA', proteinas: 'PROTEÍNAS', proteínas: 'PROTEÍNAS',
+  entradas: 'ENTRADAS', entrada: 'ENTRADAS',
   tortilla_pan: 'TORTILLA/PAN', otros: 'OTROS', Otros: 'OTROS',
 };
 
@@ -854,6 +856,10 @@ export default function ConstructorInforme() {
         const tipo = (i.tipo || '').toLowerCase();
         return tipo === 'carne' || tipo === 'proteina' || tipo === 'proteínas' || tipo === 'proteinas';
       })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'entradas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'entradas' || tipo === 'entrada';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
       case 'guarniciones': return filtrar(ingredientes.filter(i => {
         const tipo = (i.tipo || '').toLowerCase();
         return tipo === 'guarnición' || tipo === 'guarnicion' || tipo === 'guarniciones';
@@ -888,19 +894,9 @@ export default function ConstructorInforme() {
           <span className="pos-topbar-inst">{evento?.Institucion || 'Cargando...'}</span>
           <span className="pos-topbar-meta">
             <strong>{evento?.Pax || '?'}</strong> pax · {evento?.Salon || '?'} · {evento?.TipoEvento || '?'}
-          </span>
-          <span className="pos-topbar-meta" style={{fontSize:'0.72rem',marginTop:'0.1rem',opacity:0.85}}>
-            {(() => {
-              const parts = [];
-              if (evento?.Vendedor) parts.push(<><strong>Vendedor:</strong> {evento.Vendedor}</>);
-              if (evento?.EncargadoEvento) parts.push(<><strong>Encargado:</strong> {evento.EncargadoEvento}</>);
-              if (evento?.HoraI) parts.push(<><strong>Horario:</strong> {evento.HoraI}{evento.HoraF ? ` - ${evento.HoraF}` : ''}</>);
-              if (evento?.NoDoc) parts.push(<><strong>No. Cotización:</strong> {evento.NoDoc}</>);
-              if (parts.length === 0) parts.push(<span>Sin datos adicionales</span>);
-              return parts.map((p, i) => (
-                <span key={i}>{i > 0 && <span> · </span>}{p}</span>
-              ));
-            })()}
+            {evento?.Vendedor && <span> · {evento.Vendedor}</span>}
+            {evento?.HoraI && <span> · {evento.HoraI}{evento.HoraF ? `-${evento.HoraF}` : ''}</span>}
+            {evento?.NoDoc && <span> · {evento.NoDoc}</span>}
           </span>
         </div>
         <div className="pos-topbar-right">
@@ -1050,10 +1046,11 @@ export default function ConstructorInforme() {
                           <IconX size={11} />
                         </button>
                       </div>
-                      {(item.metodo_preparacion || item.opcion_nombre) && (
+                      {(item.metodo_preparacion || item.opcion_nombre || item.notas) && (
                         <div className="pos-ticket-item-opts">
                           {item.metodo_preparacion && <span className="pos-ticket-item-prep">Prep: {item.metodo_preparacion}</span>}
                           {item.opcion_nombre && <span className="pos-ticket-item-opc">{item.opcion_nombre}</span>}
+                          {item.notas && <span className="pos-ticket-item-notes">📝 {item.notas}</span>}
                         </div>
                       )}
                     </div>
@@ -1180,7 +1177,7 @@ export default function ConstructorInforme() {
             )}
 
             {/* Categorías: Ingredientes */}
-            {['carnes', 'guarniciones', 'salsas', 'postres', 'bebidas'].includes(categoriaActiva) && elementosFiltrados.map(ing => {
+            {['entradas', 'carnes', 'guarniciones', 'salsas', 'postres', 'bebidas'].includes(categoriaActiva) && elementosFiltrados.map(ing => {
               const selected = diaActivo.selectedItems.some(i => i.ingrediente_id === ing.id);
               return (
                 <button
@@ -1459,19 +1456,7 @@ export default function ConstructorInforme() {
       </div>
 
       {/* ─── BOTTOM ACTIONS ─── */}
-      <div className="pos-bottom-actions">
-        <button className="pos-bottom-btn" onClick={() => navigate('/kanban')}>
-          <IconSearch size={15} /> Buscar
-        </button>
-        <button className="pos-bottom-btn" onClick={() => emitOpenEventChecklist(id_ocupacion)} style={{background:'var(--primary-bg)',color:'var(--primary)',fontWeight:700}}>
-          ✅ CHK
-        </button>
-        <button className="pos-bottom-btn" onClick={addDia}>
-          <IconPlus size={15} /> Día
-        </button>
-        <button className="pos-bottom-btn" onClick={() => setCategoriaActiva('montaje')}>
-          🔧 Montaje
-        </button>
+      <div className="pos-bottom-actions" style={{paddingLeft: '5rem'}}>
         <button className="pos-bottom-btn" onClick={async () => {
           if (!informeId) { toast.info('Guarda primero el informe'); return; }
           await loadHistorial();
@@ -1531,13 +1516,13 @@ export default function ConstructorInforme() {
 
       {/* ─── MODAL SELECCIÓN DE VERSIÓN ─── */}
       {showVersionSelector && (
-        <div className="pos-modal-overlay" onClick={() => setShowVersionSelector(false)}>
-          <div className="pos-modal" onClick={e => e.stopPropagation()} style={{maxWidth:'480px'}}>
+        <div className="pos-modal-overlay" onClick={() => setShowVersionSelector(false)} style={{padding:'1rem', overflowY:'auto'}}>
+          <div className="pos-modal" onClick={e => e.stopPropagation()} style={{maxWidth:'480px', maxHeight:'85vh', display:'flex', flexDirection:'column'}}>
             <div className="pos-modal-header">
               <h3><IconFileText size={16} /> Versiones del Informe</h3>
               <button onClick={() => setShowVersionSelector(false)}><IconX size={16} /></button>
             </div>
-            <div className="pos-modal-body">
+            <div className="pos-modal-body" style={{overflowY:'auto'}}>
               <p style={{fontSize:'0.85rem',color:'var(--text-secondary)',marginBottom:'0.5rem'}}>
                 Ya existen {versiones.length} versión(es) de informe para esta ocupación.
                 ¿Qué deseas hacer?

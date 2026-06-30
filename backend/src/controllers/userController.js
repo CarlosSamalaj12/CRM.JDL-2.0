@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 function normalizeRole(role) {
   return String(role || 'Vendedor').trim().toLowerCase();
@@ -52,6 +53,7 @@ export async function createUser(req, res, next) {
       [userId, nombre, nombre, email, passwordHash, normalizeRole(rol)]
     );
 
+    emitChange(req, 'usuario', 'created', { id: userId });
     res.status(201).json({
       id: userId,
       nombre,
@@ -88,6 +90,7 @@ export async function updateUser(req, res, next) {
       await pool.query('UPDATE usuarios SET contrasena = ? WHERE id = ?', [passwordHash, id]);
     }
 
+    emitChange(req, 'usuario', 'updated', { id });
     res.json({ message: 'Usuario actualizado' });
   } catch (error) { next(error); }
 }
@@ -102,6 +105,7 @@ export async function toggleUserActive(req, res, next) {
 
     const newState = rows[0].activo ? 0 : 1;
     await pool.query('UPDATE usuarios SET activo = ? WHERE id = ?', [newState, id]);
+    emitChange(req, 'usuario', 'updated', { id });
     res.json({ id, activo: newState });
   } catch (error) { next(error); }
 }
@@ -113,6 +117,7 @@ export async function deleteUser(req, res, next) {
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
+    emitChange(req, 'usuario', 'deleted', { id });
     res.json({ message: 'Usuario eliminado permanentemente' });
   } catch (error) { next(error); }
 }

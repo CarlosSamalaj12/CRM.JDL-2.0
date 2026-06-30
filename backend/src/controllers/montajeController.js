@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 // ─── Guardar/actualizar montaje de un día ───
 export async function saveMontaje(req, res, next) {
@@ -31,6 +32,7 @@ export async function saveMontaje(req, res, next) {
       );
     }
 
+    emitChange(req, 'montaje', 'updated', { dia_id });
     res.json({ message: 'Montaje guardado correctamente', montaje: JSON.parse(montajeJson) });
   } catch (error) { next(error); }
 }
