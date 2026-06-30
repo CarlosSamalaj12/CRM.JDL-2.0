@@ -48,7 +48,7 @@ function formatTime(hour) {
 
 const MAX_VISIBLE_LANES = 4;
 
-function computeEventLayouts(dayEvents) {
+function computeEventLayouts(dayEvents, maxLanes = MAX_VISIBLE_LANES) {
   if (!dayEvents || dayEvents.length === 0) return {};
   
   const sorted = [...dayEvents].sort((a, b) => {
@@ -98,14 +98,14 @@ function computeEventLayouts(dayEvents) {
         laneIndex = lanes.length;
         lanes.push(event.endTime || '23:59');
       }
-      if (laneIndex >= MAX_VISIBLE_LANES) {
+      if (laneIndex >= maxLanes) {
         overflowEvents.push(event);
         continue;
       }
       layouts[event.id] = { lane: laneIndex, totalLanes: 0 };
     }
     
-    const visibleLanes = Math.min(lanes.length, MAX_VISIBLE_LANES);
+    const visibleLanes = Math.min(lanes.length, maxLanes);
     for (const event of cluster) {
       if (layouts[event.id]) {
         layouts[event.id].totalLanes = visibleLanes;
@@ -896,7 +896,7 @@ export default function Calendar() {
                   const ov = layouts['__overflow__'];
                   return (
                     <div
-                      onClick={() => { setCurrentDate(formatDate(weekDates[idx])); setViewMode('day'); }}
+                      onClick={() => { setCurrentDate(new Date(weekDates[idx])); setViewMode('day'); }}
                       style={{
                         position: 'absolute',
                         top: `${ov.top}px`,
@@ -1040,9 +1040,13 @@ export default function Calendar() {
 
   const renderDayView = () => {
     const dateStr = formatDate(currentDate);
-    const dayEvents = getEventsForDay(dateStr);
+    const dayEvents = [...getEventsForDay(dateStr)].sort((a, b) => {
+      const startDiff = (a.startTime || '').localeCompare(b.startTime || '');
+      if (startDiff !== 0) return startDiff;
+      return (a.endTime || '').localeCompare(b.endTime || '');
+    });
     const isToday = dateStr === todayStr;
-    const layouts = computeEventLayouts(dayEvents);
+    const layouts = computeEventLayouts(dayEvents, 12);
 
     return (
       <div className="cal-day-view" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>

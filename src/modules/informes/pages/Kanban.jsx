@@ -77,6 +77,14 @@ export default function Kanban() {
     setSelectedDate(d.toISOString().slice(0, 10));
   };
 
+  const handlePrevDay = () => {
+    setMobileDayIndex(prev => (prev > 0 ? prev - 1 : 6));
+  };
+
+  const handleNextDay = () => {
+    setMobileDayIndex(prev => (prev < 6 ? prev + 1 : 0));
+  };
+
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
     setIsMobileView(mq.matches);
@@ -585,28 +593,29 @@ export default function Kanban() {
         </div>
       )}
 
-      {/* Day selector — visible en mobile */}
-      {!loading && !error && (viewMode === 'kanban' || (viewMode === 'tabla' && isMobileView)) && (
-        <div className={`kanban-day-selector${viewMode === 'tabla' ? ' tabla-day-selector' : ''}`}>
-          {filteredColumns.map((col, i) => (
-            <button
-              key={col.isoDate}
-              className={`kanban-day-pill ${mobileDayIndex === i ? 'active' : ''}`}
-              onClick={() => setMobileDayIndex(i)}
-            >
-              <span className="pill-day">{col.name.slice(0, 3).replace('.','')}</span>
-              <span className="pill-date">{col.isoDate.slice(5)}</span>
-              <span className="pill-count">{col.items.length}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
       {loading && <p className="status-message">Cargando eventos...</p>}
       {error && <p className="status-message status-error">{error}</p>}
 
       {!loading && !error && viewMode === 'kanban' && (
-        <div className={`kanban-board ${isMobileView ? 'kanban-board--mobile' : ''}`}>
+        <>
+          {isMobileView && (
+            <div style={{display:'flex',alignItems:'stretch',width:'100%',borderRadius:'8px',border:'1px solid var(--border)',background:'var(--bg-card)',overflow:'hidden',marginBottom:'0.75rem',marginTop:'0.5rem',position:'relative',zIndex:10,flexShrink:0}}>
+              <button onClick={handlePrevDay} style={{display:'flex',alignItems:'center',justifyContent:'center',minWidth:'36px',fontSize:'1.3rem',fontWeight:700,border:'none',background:'var(--bg-elevated)',color:'var(--text-secondary)',cursor:'pointer',padding:0,flexShrink:0}}>‹</button>
+              <div style={{display:'flex',flex:1,overflowX:'auto',scrollbarWidth:'none'}}>
+                {filteredColumns.map((col, i) => (
+                  <button key={col.isoDate} onClick={() => setMobileDayIndex(i)} style={{
+                    flex:'1 0 auto',padding:'0.4rem 0.25rem',border:'none',borderRight:'1px solid var(--border)',background: mobileDayIndex === i ? 'var(--primary)' : 'transparent',color: mobileDayIndex === i ? '#fff' : 'inherit',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:'0.1rem',fontFamily:'inherit',transition:'background 0.15s',minWidth:0
+                  }}>
+                    <span style={{fontSize:'0.65rem',fontWeight:700,textTransform:'uppercase'}}>{col.name.slice(0, 3).replace('.','')}</span>
+                    <span style={{fontSize:'0.6rem',fontWeight:500,opacity:0.7}}>{col.isoDate.slice(5)}</span>
+                    <span style={{fontSize:'0.6rem',fontWeight:700,background: mobileDayIndex === i ? 'rgba(255,255,255,0.25)' : 'var(--bg-elevated)',color: mobileDayIndex === i ? '#fff' : 'var(--text-secondary)',padding:'0.05rem 0.25rem',borderRadius:'999px',minWidth:'16px',textAlign:'center'}}>{col.items.length}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={handleNextDay} style={{display:'flex',alignItems:'center',justifyContent:'center',minWidth:'36px',fontSize:'1.3rem',fontWeight:700,border:'none',background:'var(--bg-elevated)',color:'var(--text-secondary)',cursor:'pointer',padding:0,flexShrink:0}}>›</button>
+            </div>
+          )}
+          <div className={`kanban-board ${isMobileView ? 'kanban-board--mobile' : ''}`}>
           {filteredColumns
             .filter((_, i) => !isMobileView || i === mobileDayIndex)
             .map((column, ci) => {
@@ -637,6 +646,7 @@ export default function Kanban() {
           );
         })}
         </div>
+        </>
       )}
 
       {!loading && !error && viewMode === 'tareas' && (

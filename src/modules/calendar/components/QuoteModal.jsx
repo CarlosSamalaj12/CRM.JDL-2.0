@@ -3323,14 +3323,37 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             gap: 10px !important;
           }
           .qp-header {
-            align-items: center !important;
+            align-items: flex-start !important;
             padding: 10px 14px !important;
+            flex-direction: column !important;
+            gap: 10px !important;
           }
           .qp-header > div:first-child > div:first-child {
             font-size: 8px !important;
           }
           .qp-header img {
             height: 20px !important;
+          }
+          .qp-header > div:first-child > div:nth-child(2) {
+            font-size: 16px !important;
+          }
+          .qp-header > div:first-child > div:nth-child(3) {
+            font-size: 10px !important;
+            white-space: normal !important;
+            line-height: 1.3 !important;
+          }
+          .qp-header > div:last-child {
+            width: 100% !important;
+            align-items: flex-start !important;
+            gap: 8px !important;
+          }
+          .qp-header select {
+            width: 100% !important;
+          }
+          #qp-root .qp-sticky-left-panel {
+            position: static !important;
+            max-height: none !important;
+            overflow-y: visible !important;
           }
           .qp-floating-footer {
             position: sticky !important;

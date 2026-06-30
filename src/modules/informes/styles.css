@@ -1021,18 +1021,47 @@ button[data-tooltip-bottom]::after {
 @media (max-width: 767px) {
   .kanban-day-selector {
     display: flex !important;
-    overflow-x: hidden !important;
+    align-items: stretch !important;
     gap: 0 !important;
     width: 100% !important;
     border-radius: var(--radius-md) !important;
     border: 1px solid var(--border) !important;
     background: var(--bg-card) !important;
     padding: 0 !important;
+    overflow: hidden !important;
+  }
+  .kanban-day-arrow {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 32px !important;
+    font-size: 1.2rem !important;
+    font-weight: 700 !important;
+    border: none !important;
+    background: var(--bg-elevated) !important;
+    color: var(--text-secondary) !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    transition: background 0.15s !important;
+    flex-shrink: 0 !important;
+  }
+  .kanban-day-arrow:active {
+    background: var(--border) !important;
+  }
+  .kanban-day-pills-wrap {
+    display: flex !important;
+    flex: 1 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .kanban-day-pills-wrap::-webkit-scrollbar {
+    display: none !important;
   }
   .kanban-day-pill {
-    flex: 1 1 0% !important;
+    flex: 1 0 auto !important;
     min-width: 0 !important;
-    padding: 0.35rem 0.1rem !important;
+    padding: 0.35rem 0.2rem !important;
     border: none !important;
     border-right: 1px solid var(--border) !important;
     border-radius: 0 !important;
@@ -1053,6 +1082,12 @@ button[data-tooltip-bottom]::after {
     padding: 0.05rem 0.2rem !important;
     min-width: 14px !important;
   }
+}
+.kanban-day-arrow {
+  display: none;
+}
+.kanban-day-pills-wrap {
+  display: contents;
 }
 .kanban-day-pill {
   display: flex;
