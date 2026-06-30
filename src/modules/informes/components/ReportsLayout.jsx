@@ -379,7 +379,7 @@ export default function ReportsLayout() {
               gap: 0.4rem !important;
               flex-wrap: wrap !important;
               border-radius: var(--radius-lg) !important;
-              margin-bottom: 0.75rem !important;
+              margin-bottom: 0.25rem !important;
               top: 0.5rem !important;
             }
             /* Ocultar navegación en móvil — está en el drawer */
