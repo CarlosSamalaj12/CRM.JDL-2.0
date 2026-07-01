@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
+import ReportInfo from './components/ReportInfo';
 
 export default function ReportsVentas({ onClose }) {
   const { events, users, salones } = useOutletContext();
@@ -9,7 +10,7 @@ export default function ReportsVentas({ onClose }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [userFilter, setUserFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('Confirmado');
   const [salonFilter, setSalonFilter] = useState('all');
 
   const getEventSeries = (ev, allEvents) => {
@@ -165,7 +166,7 @@ export default function ReportsVentas({ onClose }) {
     setDateFrom('');
     setDateTo('');
     setUserFilter('all');
-    setStatusFilter('all');
+    setStatusFilter('Confirmado');
     setSalonFilter('all');
   };
 
@@ -197,6 +198,7 @@ export default function ReportsVentas({ onClose }) {
             <div className="reports-subtitle">Pipeline comercial, cotizaciones y facturación</div>
           </div>
         </div>
+        <ReportInfo reportKey="ventas" />
         <button className="btn-exit" type="button" onClick={onClose}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver
@@ -285,8 +287,48 @@ export default function ReportsVentas({ onClose }) {
             </div>
           </div>
 
+          {/* Totales por estado */}
+          {(() => {
+            const statusCounts = {};
+            const statusAmounts = {};
+            for (const row of reportData) {
+              const s = row.status || 'Sin estado';
+              statusCounts[s] = (statusCounts[s] || 0) + 1;
+              statusAmounts[s] = (statusAmounts[s] || 0) + row.total;
+            }
+            const entries = Object.entries(statusCounts);
+            if (!entries.length) return null;
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                {entries.map(([status, count]) => {
+                  const firstRow = reportData.find(r => r.status === status);
+                  const c = firstRow?.statusColor || '#64748b';
+                  const amount = statusAmounts[status] || 0;
+                  return (
+                    <div key={status} style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      background: `${c}10`, border: `1px solid ${c}30`,
+                      borderRadius: '10px', padding: '8px 14px',
+                    }}>
+                      <span style={{
+                        width: '8px', height: '8px', borderRadius: '50%',
+                        background: c, display: 'inline-block', flexShrink: 0,
+                      }} />
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: c }}>{status}</div>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                          {count} eventos · {formatMoney(amount)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {/* Event Table */}
-          <div className="reports-table-wrap">
+          <div className="reports-table-wrap" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <table className="reports-table">
               <thead>
                 <tr>

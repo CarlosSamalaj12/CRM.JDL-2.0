@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { loadCrmState, normalizeCompanyRecord, saveCrmState, uid } from './settingsDataUtils';
 import { toast, modernConfirm } from '../../utils/toast';
 
@@ -19,6 +19,7 @@ const emptyCompany = {
 const emptyManager = { id: '', name: '', phone: '', email: '', address: '' };
 
 export default function CompanyModal({ onClose }) {
+  const companyModalRef = useRef(null);
   const [stateSnapshot, setStateSnapshot] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [disabledCompanies, setDisabledCompanies] = useState([]);
@@ -210,8 +211,8 @@ export default function CompanyModal({ onClose }) {
   };
 
   return (
-    <div className="modalBackdrop" id="companyBackdrop" hidden onClick={(e) => { if (e.target.classList.contains('modalBackdrop')) handleClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="companyTitle">
+    <div className="modalBackdrop" id="companyBackdrop" hidden onClick={(e) => { if (companyModalRef.current && !companyModalRef.current.contains(e.target)) handleClose(); }}>
+      <div ref={companyModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="companyTitle">
         <div className="modalHeader">
           <div>
             <div className="modalTitle" id="companyTitle">{selectedId ? 'Editar empresa' : 'Nueva empresa'}</div>

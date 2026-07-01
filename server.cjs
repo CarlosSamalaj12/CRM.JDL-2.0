@@ -263,6 +263,44 @@ async function ensureUsersExtendedStructure() {
     if (!colSet.has("equipo_id")) {
       await conn.query("ALTER TABLE usuarios ADD COLUMN equipo_id INT NULL");
     }
+    if (!colSet.has("puede_autorizar_descuento")) {
+      await conn.query("ALTER TABLE usuarios ADD COLUMN puede_autorizar_descuento TINYINT(1) NOT NULL DEFAULT 0");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function ensureDiscountAuthStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS solicitudes_autorizacion (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        evento_id VARCHAR(120) NOT NULL,
+        cotizacion_id VARCHAR(120) NULL,
+        solicitante_id VARCHAR(120) NOT NULL,
+        autorizador_id VARCHAR(120) NULL,
+        tipo_descuento VARCHAR(12) NOT NULL DEFAULT 'AMOUNT',
+        valor_descuento DECIMAL(12,2) NOT NULL DEFAULT 0,
+        monto_descuento DECIMAL(12,2) NOT NULL DEFAULT 0,
+        estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+        evento_nombre VARCHAR(200) NULL,
+        evento_cliente VARCHAR(200) NULL,
+        evento_fecha VARCHAR(20) NULL,
+        evento_salon VARCHAR(100) NULL,
+        evento_total DECIMAL(12,2) NOT NULL DEFAULT 0,
+        respuesta_motivo TEXT NULL,
+        fecha_solicitud TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        fecha_respuesta TIMESTAMP NULL,
+        PRIMARY KEY (id),
+        KEY idx_solicitudes_evento (evento_id),
+        KEY idx_solicitudes_estado (estado),
+        KEY idx_solicitudes_autorizador (autorizador_id),
+        KEY idx_solicitudes_solicitante (solicitante_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } finally {
     if (conn) conn.release();
   }
@@ -1171,6 +1209,7 @@ async function readStateFromTables() {
           goalTiers,
           role: str(u.rol || 'vendedor'),
           teamId: u.equipo_id ? Number(u.equipo_id) : null,
+          canAuthorizeDiscount: Number(u.puede_autorizar_descuento) !== 0,
         };
       }).filter((u) => u.id && u.name),
       companies: empresas.map((c) => ({
@@ -1466,6 +1505,34 @@ async function readStateFromTables() {
         createdByUserId: str(row.id_usuario_creador),
         finalizado: !!row.finalizado,
       });
+    }
+
+    // Cargar solicitudes de autorización de descuento
+    try {
+      const solicitudes = await conn.query(
+        `SELECT * FROM solicitudes_autorizacion ORDER BY fecha_solicitud DESC LIMIT 200`
+      );
+      state.discountAuthRequests = solicitudes.map(r => ({
+        id: Number(r.id),
+        eventoId: str(r.evento_id),
+        cotizacionId: str(r.cotizacion_id),
+        solicitanteId: str(r.solicitante_id),
+        autorizadorId: str(r.autorizador_id),
+        tipoDescuento: str(r.tipo_descuento),
+        valorDescuento: Number(r.valor_descuento),
+        montoDescuento: Number(r.monto_descuento),
+        estado: str(r.estado),
+        eventoNombre: str(r.evento_nombre),
+        eventoCliente: str(r.evento_cliente),
+        eventoFecha: str(r.evento_fecha),
+        eventoSalon: str(r.evento_salon),
+        eventoTotal: Number(r.evento_total),
+        respuestaMotivo: r.respuesta_motivo || null,
+        fechaSolicitud: r.fecha_solicitud,
+        fechaRespuesta: r.fecha_respuesta,
+      }));
+    } catch (_) {
+      state.discountAuthRequests = [];
     }
 
     return { state, updatedAt: new Date().toISOString() };
@@ -1778,7 +1845,7 @@ async function authenticateUser(userId, password) {
     conn = await pool.getConnection();
     const rows = await conn.query(
       `
-        SELECT id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, firma_data_url, rol, equipo_id
+        SELECT id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, firma_data_url, rol, equipo_id, puede_autorizar_descuento
         FROM usuarios
         WHERE id = ? AND activo = 1
         LIMIT 1
@@ -1799,6 +1866,7 @@ async function authenticateUser(userId, password) {
       signatureDataUrl: str(row.firma_data_url),
       role: str(row.rol || 'vendedor'),
       equipo_id: row.equipo_id ? Number(row.equipo_id) : null,
+      canAuthorizeDiscount: Number(row.puede_autorizar_descuento) !== 0,
     };
   } finally {
     if (conn) conn.release();
@@ -1942,12 +2010,13 @@ async function writeStateToTables(state) {
         : [];
       const rol = str(u?.role || u?.rol || 'vendedor').trim();
       const equipoId = u?.teamId ? Number(u.teamId) : null;
+      const puedeAutorizar = u?.canAuthorizeDiscount === true ? 1 : 0;
       if (!id || !nombre) continue;
       await conn.query(
         `
           INSERT INTO usuarios
-            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, puede_autorizar_descuento)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             nombre = VALUES(nombre),
             nombre_usuario = VALUES(nombre_usuario),
@@ -1962,7 +2031,8 @@ async function writeStateToTables(state) {
             metas_mensuales_json = VALUES(metas_mensuales_json),
             tiers_comision_json = VALUES(tiers_comision_json),
             rol = VALUES(rol),
-            equipo_id = VALUES(equipo_id)
+            equipo_id = VALUES(equipo_id),
+            puede_autorizar_descuento = VALUES(puede_autorizar_descuento)
         `,
         [
           id,
@@ -1980,6 +2050,7 @@ async function writeStateToTables(state) {
           JSON.stringify(goalTiers),
           rol,
           equipoId,
+          puedeAutorizar,
         ]
       );
     }
@@ -3081,7 +3152,7 @@ app.post("/api/auth/firebase", async (req, res) => {
     
     // 1. Buscar si el ID de Firebase ya existe
     const existingById = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo, rol, equipo_id FROM usuarios WHERE id = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo, rol, equipo_id, puede_autorizar_descuento FROM usuarios WHERE id = ? LIMIT 1",
       [uid]
     );
 
@@ -3119,6 +3190,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           signatureDataUrl: str(u.firma_data_url),
           role: str(u.rol || 'vendedor'),
           equipo_id: u.equipo_id ? Number(u.equipo_id) : null,
+          canAuthorizeDiscount: Number(u.puede_autorizar_descuento) !== 0,
         },
         token
       });
@@ -3126,7 +3198,7 @@ app.post("/api/auth/firebase", async (req, res) => {
 
     // 2. Buscar si ya existe un usuario local con el mismo correo para vincularlo
     const existingByEmail = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo, rol, equipo_id FROM usuarios WHERE correo = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo, rol, equipo_id, puede_autorizar_descuento FROM usuarios WHERE correo = ? LIMIT 1",
       [email]
     );
 
@@ -3195,6 +3267,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           signatureDataUrl: str(u.firma_data_url),
           role: targetRole,
           equipo_id: u.equipo_id ? Number(u.equipo_id) : null,
+          canAuthorizeDiscount: Number(u.puede_autorizar_descuento) !== 0,
         },
         token
       });
@@ -3236,6 +3309,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           signatureDataUrl: null,
           role: 'admin',
           equipo_id: null,
+          canAuthorizeDiscount: true,
         },
         token
       });
@@ -3676,6 +3750,161 @@ app.put("/api/state", async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toLocaleTimeString()}] ❌ Error crítico al escribir en MariaDB:`, sanitizeForLog(error));
     return res.status(500).json({ message: "No se pudo guardar en tablas reales.", detail: error.message });
+  }
+});
+
+// ==========================================
+// DISCOUNT AUTHORIZATION ROUTES
+// ==========================================
+
+// Solicitar autorización de descuento
+app.post("/api/discount-auth/solicitar", async (req, res) => {
+  const { eventoId, cotizacionId, tipoDescuento, valorDescuento, montoDescuento, solicitanteId, eventoNombre, eventoCliente, eventoFecha, eventoSalon, eventoTotal } = req.body;
+  if (!eventoId || !solicitanteId) return res.status(400).json({ message: "Faltan datos requeridos" });
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const result = await conn.query(
+      `INSERT INTO solicitudes_autorizacion
+        (evento_id, cotizacion_id, solicitante_id, tipo_descuento, valor_descuento, monto_descuento, estado, evento_nombre, evento_cliente, evento_fecha, evento_salon, evento_total)
+       VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?, ?)`,
+      [eventoId, cotizacionId || null, solicitanteId, tipoDescuento || 'AMOUNT', valorDescuento || 0, montoDescuento || 0, eventoNombre || '', eventoCliente || '', eventoFecha || '', eventoSalon || '', eventoTotal || 0]
+    );
+    const solicitudId = result.insertId;
+
+    // Notificar a todos los usuarios autorizadores vía socket
+    if (io) {
+      const autorizadores = await conn.query(
+        "SELECT id, nombre_completo FROM usuarios WHERE puede_autorizar_descuento = 1 AND activo = 1 AND id != ?",
+        [solicitanteId]
+      );
+      for (const auth of autorizadores) {
+        io.emit('discount-auth-request', {
+          solicitudId,
+          eventoId,
+          solicitanteId,
+          tipoDescuento,
+          valorDescuento,
+          montoDescuento,
+          eventoNombre,
+          eventoCliente,
+          eventoFecha,
+          eventoSalon,
+          eventoTotal,
+          autorizadorId: str(auth.id),
+        });
+      }
+    }
+
+    return res.json({ ok: true, solicitudId });
+  } catch (error) {
+    console.error('[DISCOUNT-AUTH] Error al solicitar:', error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Responder a una solicitud (aprobar/rechazar)
+app.post("/api/discount-auth/responder", async (req, res) => {
+  const { solicitudId, autorizadorId, estado, motivo } = req.body;
+  if (!solicitudId || !autorizadorId || !estado) return res.status(400).json({ message: "Faltan datos" });
+  if (!['aprobado', 'rechazado'].includes(estado)) return res.status(400).json({ message: "Estado inválido" });
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(
+      `UPDATE solicitudes_autorizacion SET estado = ?, autorizador_id = ?, respuesta_motivo = ?, fecha_respuesta = NOW() WHERE id = ? AND estado = 'pendiente'`,
+      [estado, autorizadorId, motivo || null, solicitudId]
+    );
+    // Obtener la solicitud actualizada para notificar al solicitante
+    const [solicitud] = await conn.query("SELECT * FROM solicitudes_autorizacion WHERE id = ?", [solicitudId]);
+    if (solicitud && io) {
+      io.emit('discount-auth-response', {
+        solicitudId: Number(solicitud.id),
+        eventoId: str(solicitud.evento_id),
+        solicitanteId: str(solicitud.solicitante_id),
+        estado: str(solicitud.estado),
+        motivo: solicitud.respuesta_motivo || null,
+        tipoDescuento: str(solicitud.tipo_descuento),
+        valorDescuento: Number(solicitud.valor_descuento),
+        montoDescuento: Number(solicitud.monto_descuento),
+      });
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('[DISCOUNT-AUTH] Error al responder:', error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Obtener solicitudes pendientes para un usuario autorizador
+app.get("/api/discount-auth/pendientes", async (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ message: "userId requerido" });
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      `SELECT * FROM solicitudes_autorizacion WHERE estado = 'pendiente' AND solicitante_id != ? ORDER BY fecha_solicitud DESC`,
+      [userId]
+    );
+    return res.json(rows.map(r => ({
+      id: Number(r.id),
+      eventoId: str(r.evento_id),
+      cotizacionId: str(r.cotizacion_id),
+      solicitanteId: str(r.solicitante_id),
+      tipoDescuento: str(r.tipo_descuento),
+      valorDescuento: Number(r.valor_descuento),
+      montoDescuento: Number(r.monto_descuento),
+      estado: str(r.estado),
+      eventoNombre: str(r.evento_nombre),
+      eventoCliente: str(r.evento_cliente),
+      eventoFecha: str(r.evento_fecha),
+      eventoSalon: str(r.evento_salon),
+      eventoTotal: Number(r.evento_total),
+      fechaSolicitud: r.fecha_solicitud,
+    })));
+  } catch (error) {
+    console.error('[DISCOUNT-AUTH] Error al obtener pendientes:', error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Obtener estado de autorización para un evento
+app.get("/api/discount-auth/estado/:eventoId", async (req, res) => {
+  const { eventoId } = req.params;
+  if (!eventoId) return res.status(400).json({ message: "eventoId requerido" });
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      `SELECT * FROM solicitudes_autorizacion WHERE evento_id = ? ORDER BY fecha_solicitud DESC LIMIT 1`,
+      [eventoId]
+    );
+    if (!rows.length) return res.json(null);
+    const r = rows[0];
+    return res.json({
+      id: Number(r.id),
+      estado: str(r.estado),
+      tipoDescuento: str(r.tipo_descuento),
+      valorDescuento: Number(r.valor_descuento),
+      montoDescuento: Number(r.monto_descuento),
+      solicitanteId: str(r.solicitante_id),
+      autorizadorId: str(r.autorizador_id),
+      respuestaMotivo: r.respuesta_motivo || null,
+      fechaSolicitud: r.fecha_solicitud,
+      fechaRespuesta: r.fecha_respuesta,
+    });
+  } catch (error) {
+    console.error('[DISCOUNT-AUTH] Error al obtener estado:', error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -4122,6 +4351,7 @@ async function start() {
     await ensureCotizacionesEventoColumnSize();
     await ensureRequiredTables();
     await ensureDefaultUserCarlos();
+    await ensureDiscountAuthStructure();
 
     // Migración: ampliar columna url de informe_imagenes para soportar Base64
     try {
@@ -4191,6 +4421,14 @@ async function start() {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
     app.use("/uploads", express.static(uploadsDir));
+    // Log de solicitudes de archivos de plantillas (encabezados, etc.)
+    app.use("/templates", (req, res, next) => {
+      const tmplPath = path.join(__dirname, "public/templates", req.path);
+      const tmplExists = fs.existsSync(tmplPath);
+      console.log(`[TEMPLATES] ${tmplExists ? '✓' : '✗'} ${req.path}${tmplExists ? '' : ' — ¡NO ENCONTRADO!'}`);
+      next();
+    });
+    app.use("/templates", express.static(path.join(__dirname, "public/templates")));
 
     const server = http.createServer(app);
     io = new Server(server, {

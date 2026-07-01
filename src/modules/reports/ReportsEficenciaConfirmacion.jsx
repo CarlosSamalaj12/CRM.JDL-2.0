@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
+import ReportInfo from './components/ReportInfo';
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -303,6 +304,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
             <div className="reports-subtitle">Eventos confirmados por vendedor · Montos en Quetzales · Porcentajes</div>
           </div>
         </div>
+        <ReportInfo reportKey="eficienciaConfirmacion" />
         <button className="btn-exit" type="button" onClick={onClose}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver

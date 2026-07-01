@@ -411,7 +411,10 @@ export default function InformeCreator() {
                                       min="0"
                                       step="0.1"
                                       value={sel.cantidad}
-                                      onChange={e => handleItemChange(comp.id, 'cantidad', parseFloat(e.target.value) || 0)}
+                                      onChange={e => {
+                                        const raw = e.target.value;
+                                        handleItemChange(comp.id, 'cantidad', raw === '' ? '' : parseFloat(raw) || 0);
+                                      }}
                                       className="pos-qty-input"
                                       title="Cantidad"
                                     />

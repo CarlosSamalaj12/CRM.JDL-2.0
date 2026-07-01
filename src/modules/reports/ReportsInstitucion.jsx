@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { loadState as loadCrmState } from '../../services/stateService';
 import { STATUS_META } from '../calendar/constants';
+import ReportInfo from './components/ReportInfo';
 
 const API = '';
 
@@ -317,6 +318,7 @@ export default function ReportsInstitucion({ onClose }) {
             <div className="reports-subtitle">Dashboard de clientes, consumo y comportamiento histórico</div>
           </div>
         </div>
+        <ReportInfo reportKey="institucion" />
         <button className="btn-exit" type="button" onClick={() => onClose?.()}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver
@@ -557,7 +559,46 @@ export default function ReportsInstitucion({ onClose }) {
             <div className="reports-detail-section-title">Eventos del rango</div>
             <div className="reports-detail-section-subtitle">Detalle para bajar a un caso específico</div>
           </div>
-          <div className="reports-table-wrap">
+          {/* Totales por estado */}
+          {(() => {
+            const statusCounts = {};
+            const statusAmounts = {};
+            for (const row of filteredRows) {
+              const s = row.status || 'Sin estado';
+              statusCounts[s] = (statusCounts[s] || 0) + 1;
+              statusAmounts[s] = (statusAmounts[s] || 0) + row.total;
+            }
+            const entries = Object.entries(statusCounts);
+            if (!entries.length) return null;
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                {entries.map(([status, count]) => {
+                  const color = STATUS_META[status]?.color || '#64748b';
+                  const amount = statusAmounts[status] || 0;
+                  return (
+                    <div key={status} style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      background: `${color}10`, border: `1px solid ${color}30`,
+                      borderRadius: '10px', padding: '8px 14px',
+                    }}>
+                      <span style={{
+                        width: '8px', height: '8px', borderRadius: '50%',
+                        background: color, display: 'inline-block', flexShrink: 0,
+                      }} />
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color }}>{status}</div>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                          {count} eventos · {money(amount)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          {/* Tabla con scroll */}
+          <div className="reports-table-wrap" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <table className="reports-table" style={{ minWidth: '900px' }}>
               <thead>
                 <tr>

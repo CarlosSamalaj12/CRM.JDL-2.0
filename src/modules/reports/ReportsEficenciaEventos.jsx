@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import ReportInfo from './components/ReportInfo';
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -251,6 +252,7 @@ export default function ReportsEficenciaEventos({ onClose }) {
             <div className="reports-subtitle">Distribución porcentual mensual de eventos por estado · 100% = total de eventos del mes</div>
           </div>
         </div>
+        <ReportInfo reportKey="eficienciaEventos" />
         <button className="btn-exit" type="button" onClick={onClose}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { loadState } from '../../services/stateService';
+import ReportInfo from './components/ReportInfo';
 
 const RATING_LEVELS = [
   { value: 'malo', label: 'Malo', emoji: '🔴', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
@@ -203,6 +204,7 @@ export default function ReportsSatisfaccion({ onClose }) {
             <div className="reports-subtitle">Evaluación de servicio por evento con ratings Malo / Regular / Bueno / Excelente</div>
           </div>
         </div>
+        <ReportInfo reportKey="satisfaccion" />
         <button className="btn-exit" type="button" onClick={onClose}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver

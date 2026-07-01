@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import authService from '../../../services/authService';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
+import api from '../../../services/api';
+import socketService from '../../../services/socketService';
 
 
 const uid = () => `row_${Math.random().toString(36).substr(2, 8)}`;
@@ -256,6 +258,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const [serviceQty, setServiceQty] = useState(1);
 
+  const [discountAuth, setDiscountAuth] = useState(null); // { estado, id, ... } or null
+  const [authLoading, setAuthLoading] = useState(false);
+
   const loadState = useCallback(async () => {
     try {
       const data = await loadCrmState();
@@ -298,6 +303,31 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       .catch(() => {});
     return () => document.body.classList.remove('quoteModeOpen');
   }, [loadState]);
+
+  // Load discount auth status and listen for responses
+  useEffect(() => {
+    const eventoId = event?.id || event?.code || '';
+    if (!eventoId) return;
+
+    (async () => {
+      try {
+        const res = await api.get(`/api/discount-auth/estado/${encodeURIComponent(eventoId)}`);
+        setDiscountAuth(res);
+      } catch (_) {}
+    })();
+
+    const unsub = socketService.on('discount-auth-response', (data) => {
+      if (data.eventoId === eventoId) {
+        setDiscountAuth(prev => prev ? { ...prev, estado: data.estado, respuestaMotivo: data.motivo, fechaRespuesta: new Date().toISOString() } : { estado: data.estado, respuestaMotivo: data.motivo });
+        if (data.estado === 'aprobado') {
+          toast.success('✅ Descuento autorizado');
+        } else if (data.estado === 'rechazado') {
+          toast.error(`❌ Descuento rechazado${data.motivo ? ': ' + data.motivo : ''}`);
+        }
+      }
+    });
+    return () => { unsub(); };
+  }, [event?.id, event?.code]);
 
   const availableServiceDates = useMemo(() => {
     const datesSet = new Set();
@@ -669,7 +699,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const paxVal = Math.max(0, Number(quote.people || 0));
     const newItem = {
       rowId: uid(), serviceId: serviceObj.id, name: serviceObj.name,
-      qty: serviceObj.quantityMode === 'PAX' ? paxVal : serviceQty,
+      qty: serviceObj.quantityMode === 'PAX' ? paxVal : (Number(serviceQty) || 1),
       price: serviceObj.quantityMode === 'PAX' ? Math.max(0, Number(serviceObj.price || 0) * paxVal) : Number(serviceObj.price || 0),
       quantityMode: serviceObj.quantityMode || 'MANUAL',
       serviceDate: selectedServiceDate || availableServiceDates[0]
@@ -4167,7 +4197,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       type="number"
                       min="1"
                       value={serviceQty}
-                      onChange={e => setServiceQty(parseInt(e.target.value) || 1)}
+                      onChange={e => {
+                        const raw = e.target.value;
+                        setServiceQty(raw === '' ? '' : parseInt(raw) || 1);
+                      }}
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -4227,10 +4260,66 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 900, color: '#0f172a', paddingTop: 4, borderTop: '1px solid #e2e8f0', marginTop: 2 }}>
                     <span>Total</span><strong>{moneyGT(totals.total, quote.currency)}</strong>
                   </div>
+                  {(() => {
+                    const curUser = authService.getCurrentUser();
+                    const isAuthorizer = curUser?.canAuthorizeDiscount === true;
+                    const hasDiscount = Number(quote.discountValue) > 0;
+                    if (!hasDiscount || isAuthorizer) return null;
+                    const isPending = discountAuth?.estado === 'pendiente';
+                    const isApproved = discountAuth?.estado === 'aprobado';
+                    const isRejected = discountAuth?.estado === 'rechazado';
+                    return (
+                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
+                        {!discountAuth && (
+                          <button
+                            type="button"
+                            disabled={authLoading}
+                            onClick={async () => {
+                              setAuthLoading(true);
+                              try {
+                                const eventoId = event?.id || event?.code || '';
+                                if (!eventoId) { toast.error('ID de evento no disponible'); return; }
+                                await api.post('/api/discount-auth/solicitar', {
+                                  eventoId, cotizacionId: quote.code || null,
+                                  tipoDescuento: quote.discountType, valorDescuento: Number(quote.discountValue),
+                                  montoDescuento: totals.discountAmount, solicitanteId: curUser?.id || '',
+                                  eventoNombre: event?.name || '', eventoCliente: quote.companyName || '',
+                                  eventoFecha: event?.date || quote.eventDate || '', eventoSalon: event?.salon || quote.venue || '',
+                                  eventoTotal: totals.total,
+                                });
+                                setDiscountAuth({ estado: 'pendiente' });
+                                toast.success('Solicitud de autorización enviada');
+                              } catch (err) {
+                                toast.error('Error al solicitar autorización: ' + (err.message || ''));
+                              } finally { setAuthLoading(false); }
+                            }}
+                            style={{ width: '100%', padding: '5px 0', fontSize: 11, fontWeight: 700, border: '1px solid #f59e0b', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer' }}
+                          >
+                            {authLoading ? 'Enviando...' : '🔒 Solicitar autorización'}
+                          </button>
+                        )}
+                        {isPending && (
+                          <span style={{ display: 'block', textAlign: 'center', padding: '4px 0', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 700 }}>
+                            ⏳ Autorización pendiente
+                          </span>
+                        )}
+                        {isApproved && (
+                          <span style={{ display: 'block', textAlign: 'center', padding: '4px 0', borderRadius: 6, background: '#d1fae5', color: '#065f46', fontSize: 11, fontWeight: 700 }}>
+                            ✅ Descuento autorizado
+                          </span>
+                        )}
+                        {isRejected && (
+                          <span style={{ display: 'block', textAlign: 'center', padding: '4px 0', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 700 }} title={discountAuth.respuestaMotivo || ''}>
+                            ❌ Descuento rechazado{discountAuth.respuestaMotivo ? `: ${discountAuth.respuestaMotivo}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-            </div>
             {/* fin panel izquierdo */}
 
             {/* ════ ZONA TABLA ════ */}
@@ -4347,13 +4436,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                           </select>
                                         </td>
                                         <td>
-                                          <input type="number" value={item.qty} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, qty: parseInt(e.target.value) || 1 } : i) }))} />
+                                          <input type="number" value={item.qty} onChange={e => {
+                                            const raw = e.target.value;
+                                            setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, qty: raw === '' ? '' : parseInt(raw) || 1 } : i) }));
+                                          }} />
                                         </td>
                                         <td>
                                           <input type="text" value={item.name} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, name: e.target.value } : i) }))} />
                                         </td>
                                         <td>
-                                          <input type="number" value={item.price} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, price: parseFloat(e.target.value) || 0 } : i) }))} />
+                                          <input type="number" value={item.price} onChange={e => {
+                                            const raw = e.target.value;
+                                            setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, price: raw === '' ? '' : parseFloat(raw) || 0 } : i) }));
+                                          }} />
                                         </td>
                                         <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{moneyGT(lineTotal, quote.currency)}</td>
                                         <td style={{ textAlign: 'center' }}>
@@ -4386,7 +4481,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     </div>
                     <div>
                       <label style={fieldLabel}>Valor descuento</label>
-                      <input style={{ ...fieldInput, width: 110 }} type="number" value={quote.discountValue} onChange={e => setQuote(p => ({ ...p, discountValue: parseFloat(e.target.value) || 0 }))} min="0" step="0.01" />
+                      <input style={{ ...fieldInput, width: 110 }} type="number" value={quote.discountValue} onChange={e => {
+                        const raw = e.target.value;
+                        setQuote(p => ({ ...p, discountValue: raw === '' ? '' : parseFloat(raw) || 0 }));
+                      }} min="0" step="0.01" />
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast } from '../../utils/toast';
 
 export default function SettingsTipoCambio({ inline, onBack }) {
+  const tipoCambioModalRef = useRef(null);
   const [exchangeRate, setExchangeRate] = useState('7.75');
   const [saving, setSaving] = useState(false);
 
@@ -109,8 +110,8 @@ export default function SettingsTipoCambio({ inline, onBack }) {
   }
 
   return (
-    <div className="modalBackdrop" id="tipoCambioBackdrop" hidden onClick={(e) => { if (e.target.id === 'tipoCambioBackdrop') onBack?.(); }}>
-      <div className="modal" role="dialog" aria-modal="true">
+    <div className="modalBackdrop" id="tipoCambioBackdrop" hidden onClick={(e) => { if (tipoCambioModalRef.current && !tipoCambioModalRef.current.contains(e.target)) onBack?.(); }}>
+      <div ref={tipoCambioModalRef} className="modal" role="dialog" aria-modal="true">
         <div className="modalHeader">
           <div>
             <div className="modalTitle">Tipo de Cambio USD → GTQ</div>

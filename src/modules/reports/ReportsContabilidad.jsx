@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { loadState as loadCrmState } from '../../services/stateService';
 import authService from '../../services/authService';
 import { STATUS_META } from '../calendar/constants';
+import ReportInfo from './components/ReportInfo';
 
 export default function ReportsContabilidad({ onClose }) {
   const { events, users, handleAddEvent } = useOutletContext();
@@ -673,6 +674,7 @@ export default function ReportsContabilidad({ onClose }) {
             <div className="reports-subtitle">Cartera por institución para cobro y aplicación de pagos</div>
           </div>
         </div>
+        <ReportInfo reportKey="contabilidad" />
         <button className="btn-exit" type="button" onClick={onClose}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver

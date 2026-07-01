@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
+import './search.css';
+import '../../styles/tooltips.css';
 
 const STATUS_DESCRIPTIONS = {
   'Reserva sin Cotizacion': 'Cliente potencial recién agregado, sin cotización creada',
@@ -14,13 +16,11 @@ const STATUS_DESCRIPTIONS = {
   'Mantenimiento': 'Salón en mantenimiento programado',
   'Mantenimiento Realizado': 'Mantenimiento completado',
 };
-import './search.css';
-import '../../styles/tooltips.css';
 
 export default function SearchModule() {
   const { events, users, salones } = useOutletContext();
   const navigate = useNavigate();
-  
+
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -29,28 +29,26 @@ export default function SearchModule() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Debounce: espera 300ms después de que el usuario deja de escribir
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 300);
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
 
   const filteredEvents = useMemo(() => {
     if (!events) return [];
-    
+
     let filtered = events;
 
     if (debouncedQuery) {
       const term = debouncedQuery.toLowerCase();
-      filtered = filtered.filter(ev => 
+      filtered = filtered.filter(ev =>
         ev.name?.toLowerCase().includes(term) ||
         ev.clientName?.toLowerCase().includes(term) ||
         ev.clientPhone?.toLowerCase().includes(term) ||
         ev.salon?.toLowerCase().includes(term) ||
         ev.notes?.toLowerCase().includes(term) ||
-        ev.id?.toLowerCase().includes(term)
+        ev.id?.toLowerCase().includes(term) ||
+        ev.quote?.code?.toLowerCase().includes(term)
       );
     }
 
@@ -74,7 +72,7 @@ export default function SearchModule() {
       filtered = filtered.filter(ev => ev.date <= dateTo);
     }
 
-    return filtered.sort((a, b) => b.date.localeCompare(a.date));
+    return filtered.sort((a, b) => b.date?.localeCompare(a.date));
   }, [events, debouncedQuery, statusFilter, salonFilter, userFilter, dateFrom, dateTo]);
 
   const clearFilters = () => {
@@ -86,17 +84,26 @@ export default function SearchModule() {
     setDateTo('');
   };
 
-  const getStatusColor = (status) => {
-    return STATUS_META[status]?.color || '#64748b';
-  };
+  const getStatusColor = (status) => STATUS_META[status]?.color || '#64748b';
 
   return (
     <div className="search-page">
       <div className="search-card">
         {/* Header */}
         <div className="search-header">
-          <h2 className="search-title">Buscar Eventos</h2>
-          <p className="search-subtitle">Encuentra reservas por nombre, cliente, salón, fecha y más</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '38px', height: '38px', borderRadius: '10px',
+              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '17px', boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
+              flexShrink: 0,
+            }}>🔍</div>
+            <div>
+              <h2 className="search-title">Buscar Eventos</h2>
+              <p className="search-subtitle">Encuentra reservas por nombre, cliente, salón, No. Doc y más</p>
+            </div>
+          </div>
         </div>
 
         {/* Filters */}
@@ -109,8 +116,8 @@ export default function SearchModule() {
                   <path d="m16 16 4 4" />
                 </svg>
               </span>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoComplete="off"
@@ -127,13 +134,10 @@ export default function SearchModule() {
                 </svg>
               </button>
             </div>
-            
+
             <div className="search-field">
               <label className="search-field-label">Estado</label>
-              <select 
-                value={statusFilter} 
-                onChange={e => setStatusFilter(e.target.value)}
-              >
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                 <option value="all">Todos</option>
                 {Object.keys(STATUS_META).map(s => (
                   <option key={s} value={s}>{s}</option>
@@ -143,66 +147,46 @@ export default function SearchModule() {
 
             <div className="search-field">
               <label className="search-field-label">Salón</label>
-              <select 
-                value={salonFilter} 
-                onChange={e => setSalonFilter(e.target.value)}
-              >
+              <select value={salonFilter} onChange={e => setSalonFilter(e.target.value)}>
                 <option value="all">Todos</option>
-                {salones?.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {salones?.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
             <div className="search-field">
               <label className="search-field-label">Vendedor</label>
-              <select 
-                value={userFilter} 
-                onChange={e => setUserFilter(e.target.value)}
-              >
+              <select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
                 <option value="all">Todos</option>
-                {users?.map(u => (
-                  <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
-                ))}
+                {users?.map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
               </select>
             </div>
 
             <div className="search-field">
               <label className="search-field-label">Desde</label>
-              <input 
-                type="date" 
-                value={dateFrom} 
-                onChange={e => setDateFrom(e.target.value)}
-              />
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
             </div>
 
             <div className="search-field">
               <label className="search-field-label">Hasta</label>
-              <input 
-                type="date" 
-                value={dateTo} 
-                onChange={e => setDateTo(e.target.value)}
-              />
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
             </div>
 
             <div className="search-actions">
               <span className="search-result-count">
                 {filteredEvents.length} resultados
               </span>
-              <button className="search-clear-btn" onClick={clearFilters}>
-                Limpiar
-              </button>
+              <button className="search-clear-btn" onClick={clearFilters}>Limpiar</button>
             </div>
           </div>
         </div>
 
-        {/* Table area */}
+        {/* Table */}
         <div className="search-table-area">
           <div className="search-table-wrap">
             <table className="search-table">
               <thead>
                 <tr>
-                  <th>CÓDIGO</th>
+                  <th>No. DOC</th>
                   <th>EVENTO</th>
                   <th>CLIENTE</th>
                   <th>SALÓN</th>
@@ -223,13 +207,16 @@ export default function SearchModule() {
                 ) : (
                   filteredEvents.map(ev => {
                     const assignedUser = users?.find(u => u.id === ev.userId);
+                    const docCode = ev.quote?.code || ev.id?.substring(0, 12) || '-';
                     return (
                       <tr key={ev.id}>
-                        <td className="mono">{ev.id?.substring(0, 12)}</td>
+                        <td>
+                          <span className="search-doc-code">{docCode}</span>
+                        </td>
                         <td>
                           <div className="search-event-name">{ev.name}</div>
                           <div className="search-event-assignee">
-                            Encargado: {assignedUser?.fullName || assignedUser?.name || 'Sin asignar'}
+                            {assignedUser?.fullName || assignedUser?.name || 'Sin asignar'}
                           </div>
                         </td>
                         <td>
@@ -242,7 +229,7 @@ export default function SearchModule() {
                           <div className="search-date-time">{ev.startTime} - {ev.endTime}</div>
                         </td>
                         <td>
-                          <span className="search-status-badge" data-desc={STATUS_DESCRIPTIONS[ev.status] || ''} style={{ 
+                          <span className="search-status-badge" data-desc={STATUS_DESCRIPTIONS[ev.status] || ''} style={{
                             background: `${getStatusColor(ev.status)}15`,
                             color: getStatusColor(ev.status),
                             border: `1px solid ${getStatusColor(ev.status)}30`
@@ -251,10 +238,7 @@ export default function SearchModule() {
                           </span>
                         </td>
                         <td className="center">
-                          <button 
-                            className="search-view-btn"
-                            onClick={() => navigate(`/reserva/${ev.id}`)}
-                          >
+                          <button className="search-view-btn" onClick={() => navigate(`/reserva/${ev.id}`)}>
                             Ver
                           </button>
                         </td>

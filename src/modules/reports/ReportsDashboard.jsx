@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { loadState } from '../../services/stateService';
+import ReportInfo from './components/ReportInfo';
 
 const STATUS = { CONFIRMADO: 'Confirmado', PRERESERVA: 'Pre reserva' };
 const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
@@ -367,6 +368,7 @@ export default function ReportsDashboard({ onClose }) {
             <div className="reports-subtitle">Metas comerciales, rendimiento y analítica del periodo</div>
           </div>
         </div>
+        <ReportInfo reportKey="dashboard" />
         <button className="btn-exit" type="button" onClick={onClose}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver
@@ -970,79 +972,129 @@ export default function ReportsDashboard({ onClose }) {
               </div>
             </div>
 
-            {/* Mini bar distribution */}
+            {/* Bar chart distribution — PAX vs Capacidad */}
             <div style={{
-              background: '#ffffff', borderRadius: '14px', padding: '16px 20px',
+              background: '#ffffff', borderRadius: '14px', padding: '20px 24px',
               border: '1px solid #f1f5f9',
               boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  📊 Distribución diaria PAX vs Capacidad
-                </div>
-                <div style={{ display: 'flex', gap: '8px', fontSize: '9px', fontWeight: 600, color: '#94a3b8' }}>
-                  <span>◉ ≥90%</span>
-                  <span>◉ 70-89%</span>
-                  <span>◉ 40-69%</span>
-                  <span>◉ 1-39%</span>
-                  <span>◉ 0%</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '48px', position: 'relative' }}>
-                {/* Background grid lines */}
-                {[25, 50, 75].map(pct => (
-                  <div key={pct} style={{
-                    position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
-                    height: '1px', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none', opacity: 0.5,
-                  }} />
-                ))}
-                {occupancyData.dayList.map((dateObj, i) => {
-                  const dStr = dateObj.toISOString().split('T')[0];
-                  const pax = occupancyData.dayPax[dStr] || 0;
-                  const pct = occupancyData.totalMarkedCapacity > 0 ? (pax / occupancyData.totalMarkedCapacity) * 100 : 0;
-                  const barColor = pct >= 90 ? '#10b981' : pct >= 70 ? '#3b82f6' : pct >= 40 ? '#60a5fa' : pct > 0 ? '#a5b4fc' : '#e2e8f0';
-                  const isToday = dStr === new Date().toISOString().split('T')[0];
-                  return (
-                    <div
-                      key={dStr}
-                      title={`${dStr}: ${pax} PAX (${Math.round(pct)}% de ${occupancyData.totalMarkedCapacity.toLocaleString()} PAX)`}
-                      style={{
-                        flex: '1 1 0', minWidth: '4px', maxWidth: '20px',
-                        height: '100%', display: 'flex', flexDirection: 'column',
-                        justifyContent: 'flex-end', alignItems: 'center',
-                        position: 'relative', cursor: 'help',
-                      }}
-                    >
-                      <div style={{
-                        width: '100%',
-                        height: `${Math.max(pct > 0 ? Math.max(3, pct) : 0, 0)}%`,
-                        background: barColor,
-                        borderRadius: '2px 2px 0 0',
-                        transition: 'height 0.3s ease',
-                        minHeight: pax > 0 ? '3px' : '0',
-                        opacity: isToday ? 1 : 0.8,
-                        boxShadow: isToday ? `0 0 4px ${barColor}60` : 'none',
-                      }} />
-                      {isToday && (
-                        <div style={{
-                          position: 'absolute', bottom: '-14px',
-                          fontSize: '6px', fontWeight: 900, color: '#2563eb',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          HOY
-                        </div>
-                      )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '32px', height: '32px', borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '15px', boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
+                  }}>📊</div>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+                      Ocupación Diaria
                     </div>
-                  );
-                })}
+                    <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>
+                      PAX vs Capacidad ({occupancyData.totalMarkedCapacity.toLocaleString()} PAX/día)
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', fontSize: '9px', fontWeight: 600, color: '#94a3b8', background: '#f8fafc', padding: '4px 10px', borderRadius: '8px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#10b981', display: 'inline-block' }} /> ≥90%</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#3b82f6', display: 'inline-block' }} /> 70-89%</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#60a5fa', display: 'inline-block' }} /> 40-69%</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#a5b4fc', display: 'inline-block' }} /> 1-39%</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#e2e8f0', display: 'inline-block' }} /> 0%</span>
+                </div>
               </div>
-              {/* X-axis date labels */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '8px', fontWeight: 600, color: '#94a3b8' }}>
+              {/* Chart area */}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {/* Y-axis labels */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '32px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '20px' }}>
+                  <span>100%</span>
+                  <span>75%</span>
+                  <span>50%</span>
+                  <span>25%</span>
+                  <span style={{ color: '#cbd5e1' }}>0%</span>
+                </div>
+                {/* Bars container */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '160px', position: 'relative' }}>
+                    {/* Background grid lines */}
+                    {[25, 50, 75].map(pct => (
+                      <div key={pct} style={{
+                        position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
+                        height: '1px', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none', opacity: 0.5,
+                      }} />
+                    ))}
+                    {occupancyData.dayList.map((dateObj, i) => {
+                      const dStr = dateObj.toISOString().split('T')[0];
+                      const pax = occupancyData.dayPax[dStr] || 0;
+                      const pct = occupancyData.totalMarkedCapacity > 0 ? (pax / occupancyData.totalMarkedCapacity) * 100 : 0;
+                      const barColor = pct >= 90 ? '#10b981' : pct >= 70 ? '#3b82f6' : pct >= 40 ? '#60a5fa' : pct > 0 ? '#a5b4fc' : '#e2e8f0';
+                      const isToday = dStr === new Date().toISOString().split('T')[0];
+                      const dayNum = dateObj.getDate();
+                      const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                      return (
+                        <div
+                          key={dStr}
+                          title={`${dStr}: ${pax} PAX (${Math.round(pct)}% de ${occupancyData.totalMarkedCapacity.toLocaleString()} PAX)`}
+                          style={{
+                            flex: '1 1 0', minWidth: '8px',
+                            height: '100%', display: 'flex', flexDirection: 'column',
+                            justifyContent: 'flex-end', alignItems: 'center',
+                            position: 'relative', cursor: 'help',
+                          }}
+                        >
+                          <div style={{
+                            width: '100%', maxWidth: '36px',
+                            height: `${Math.max(pct > 0 ? Math.max(4, pct) : 0, 0)}%`,
+                            background: `linear-gradient(180deg, ${barColor}, ${barColor}dd)`,
+                            borderRadius: '3px 3px 0 0',
+                            transition: 'height 0.3s ease',
+                            minHeight: pax > 0 ? '4px' : '0',
+                            opacity: isToday ? 1 : 0.85,
+                            boxShadow: isToday ? `0 0 8px ${barColor}50` : 'inset 0 1px 0 rgba(255,255,255,0.2)',
+                            position: 'relative',
+                          }}>
+                            {/* PAX label on bar if big enough */}
+                            {pct >= 30 && (
+                              <span style={{
+                                position: 'absolute', top: '4px', left: '50%',
+                                transform: 'translateX(-50%)',
+                                fontSize: '8px', fontWeight: 800, color: '#fff',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {pax}
+                              </span>
+                            )}
+                          </div>
+                          {/* Day number label */}
+                          <div style={{
+                            fontSize: isToday ? '8px' : '7px', fontWeight: isToday ? 900 : 600,
+                            color: isToday ? '#2563eb' : isWeekend ? '#94a3b8' : '#64748b',
+                            marginTop: '3px', lineHeight: 1, whiteSpace: 'nowrap',
+                          }}>
+                            {dayNum}
+                          </div>
+                          {isToday && (
+                            <div style={{
+                              fontSize: '6px', fontWeight: 900, color: '#2563eb',
+                              lineHeight: 1, marginTop: '1px',
+                            }}>
+                              HOY
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              {/* X-axis date range labels */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '9px', fontWeight: 600, color: '#94a3b8', paddingLeft: '38px' }}>
                 {occupancyData.dayList.length > 0 && (
                   <span>{occupancyData.dayList[0].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>
                 )}
                 {occupancyData.dayList.length > 10 && (
-                  <span style={{ marginLeft: 'auto' }}>
+                  <span>
                     {occupancyData.dayList[Math.floor(occupancyData.dayList.length / 2)].toLocaleDateString('es', { month: 'short', day: 'numeric' })}
                   </span>
                 )}
@@ -1081,47 +1133,73 @@ export default function ReportsDashboard({ onClose }) {
                   );
                 })}
               </div>
-              {/* Stacked chart */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '140px', position: 'relative' }}>
+              {/* Stacked chart — Horizontal */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {statusMonthlyData.map((mData, mIdx) => {
                   const activeSeg = hoveredStatusSeg?.monthIdx === mIdx
                     ? mData.segments[hoveredStatusSeg.segIdx]
                     : null;
                   return (
                     <div key={mData.monthKey} style={{
-                      flex: '1 1 0', minWidth: '24px', maxWidth: '50px',
-                      height: '100%', display: 'flex', flexDirection: 'column',
-                      justifyContent: 'flex-end', position: 'relative',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      position: 'relative',
                     }}>
                       <div style={{
-                        width: '100%', height: mData.segments.length > 0 ? '100%' : '4px',
-                        borderRadius: '3px 3px 0 0', overflow: 'hidden',
-                        background: mData.segments.length > 0 ? 'transparent' : '#f1f5f9',
-                        display: 'flex', flexDirection: 'column-reverse',
+                        minWidth: '52px', fontSize: '10px', fontWeight: 700,
+                        color: '#334155', textAlign: 'right', lineHeight: 1.2,
                       }}>
-                        {mData.segments.map((seg, segIdx) => {
+                        {mData.monthName}
+                      </div>
+                      <div style={{
+                        flex: 1, height: '28px', borderRadius: '6px',
+                        overflow: 'hidden', background: '#f1f5f9',
+                        display: 'flex', position: 'relative',
+                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
+                      }}>
+                        {mData.segments.length > 0 ? mData.segments.map((seg, segIdx) => {
                           const isHovered = hoveredStatusSeg?.monthIdx === mIdx && hoveredStatusSeg?.segIdx === segIdx;
                           return (
                             <div key={seg.statusKey}
                               style={{
-                                width: '100%', height: `${Math.max(seg.pct, 2)}%`,
+                                height: '100%', width: `${Math.max(seg.pct, 1)}%`,
                                 background: isHovered
                                   ? `linear-gradient(180deg, ${seg.color}, ${seg.color}dd)`
                                   : seg.color,
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease',
-                                borderBottom: '1px solid rgba(255,255,255,0.25)',
+                                borderRight: '1px solid rgba(255,255,255,0.25)',
                                 filter: isHovered ? 'brightness(1.15)' : 'none',
-                                minHeight: '3px',
+                                minWidth: '3px',
+                                display: 'flex', alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                               onMouseEnter={() => setHoveredStatusSeg({ monthIdx: mIdx, segIdx })}
                               onMouseLeave={() => setHoveredStatusSeg(null)}
-                            />
+                            >
+                              {seg.pct >= 8 && (
+                                <span style={{
+                                  fontSize: '9px', fontWeight: 800, color: '#fff',
+                                  textShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                                  whiteSpace: 'nowrap', overflow: 'hidden',
+                                  textOverflow: 'ellipsis', padding: '0 4px',
+                                }}>
+                                  {Math.round(seg.pct)}%
+                                </span>
+                              )}
+                            </div>
                           );
-                        })}
+                        }) : (
+                          <div style={{ width: '100%', height: '100%', background: '#f1f5f9', borderRadius: '6px' }} />
+                        )}
+                      </div>
+                      <div style={{
+                        minWidth: '28px', fontSize: '10px', fontWeight: 700,
+                        color: '#64748b', textAlign: 'left',
+                      }}>
+                        {mData.total}
                       </div>
 
-                      {/* Tooltip outside overflow:hidden */}
+                      {/* Tooltip */}
                       {activeSeg && (
                         <div style={{
                           position: 'absolute', bottom: '100%', left: '50%',
@@ -1155,13 +1233,6 @@ export default function ReportsDashboard({ onClose }) {
                           }} />
                         </div>
                       )}
-
-                      <div style={{
-                        fontSize: '8px', fontWeight: 700, color: '#94a3b8',
-                        textAlign: 'center', marginTop: '4px', lineHeight: 1,
-                      }}>
-                        {mData.monthShort}
-                      </div>
                     </div>
                   );
                 })}

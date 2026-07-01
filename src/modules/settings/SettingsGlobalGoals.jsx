@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 
 export default function SettingsGlobalGoals({ inline, onBack }) {
+  const globalGoalsModalRef = useRef(null);
   const [goals, setGoals] = useState([]);
   const [goalMonth, setGoalMonth] = useState('');
   const [goalAmount, setGoalAmount] = useState('');
@@ -199,8 +200,8 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
   }
 
   return (
-    <div className="modalBackdrop" id="globalGoalsBackdrop" hidden onClick={(e) => { if (e.target.id === 'globalGoalsBackdrop') handleClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="globalGoalsTitle">
+    <div className="modalBackdrop" id="globalGoalsBackdrop" hidden onClick={(e) => { if (globalGoalsModalRef.current && !globalGoalsModalRef.current.contains(e.target)) handleClose(); }}>
+      <div ref={globalGoalsModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="globalGoalsTitle">
         <div className="modalHeader">
           <div>
             <div className="modalTitle" id="globalGoalsTitle">Metas Globales de Ventas</div>

@@ -7,6 +7,7 @@ import { emitOpenEventChecklist } from '../../utils/appEvents';
 import SettingsChecklist from '../settings/SettingsChecklist';
 import { toast } from '../../utils/toast';
 import { loadState } from '../../services/stateService';
+import ReportInfo from './components/ReportInfo';
 
 const getLocalDateString = (d) => {
   const y = d.getFullYear();
@@ -28,7 +29,7 @@ function getAllChkItems(chk) {
 }
 
 export default function ReportsOcupacion({ onClose }) {
-  const { events, users, occupancyWeeklyOps, handleUpdateOccupancyOps } = useOutletContext();
+  const { events, users } = useOutletContext();
   
   const [companies, setCompanies] = useState([]);
   const [eventChecklists, setEventChecklists] = useState({});
@@ -162,7 +163,6 @@ export default function ReportsOcupacion({ onClose }) {
   const dayCards = useMemo(() => weekDays.map(d => {
     const dayRows = rows.filter(r => r.eventDate === d);
     const dateObj = new Date(d + 'T00:00:00');
-    const opsData = occupancyWeeklyOps?.[currentWeekStart]?.[d] || { breakfasts: 0, rooms: 0 };
     return {
       date: d,
       dayName: ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'][dateObj.getDay()],
@@ -170,9 +170,8 @@ export default function ReportsOcupacion({ onClose }) {
       count: dayRows.length, confirmedCount: dayRows.filter(r => r.status === STATUS.CONFIRMADO).length,
       preCount: dayRows.filter(r => r.status === STATUS.PRERESERVA).length,
       revenue: dayRows.reduce((a,r) => a+r.total, 0), rows: dayRows,
-      breakfasts: opsData.breakfasts, rooms: opsData.rooms
     };
-  }), [weekDays, rows, occupancyWeeklyOps, currentWeekStart]);
+  }), [weekDays, rows, currentWeekStart]);
 
   const formatMoneyGT = (v) => 'Q ' + Number(v||0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -271,6 +270,7 @@ export default function ReportsOcupacion({ onClose }) {
             <div className="reports-subtitle">Semana {weekDays[0]} a {weekDays[6]} (Lunes a Domingo)</div>
           </div>
         </div>
+        <ReportInfo reportKey="ocupacion" />
         <button className="btn-exit" type="button" onClick={onClose}>
           <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
           Volver
@@ -360,8 +360,6 @@ export default function ReportsOcupacion({ onClose }) {
                   <span><b style={{ color: '#1e293b' }}>{d.count}</b> eventos</span>
                   <span><b style={{ color: '#16a34a' }}>{d.confirmedCount}</b> conf.</span>
                   <span><b style={{ color: '#d97706' }}>{d.preCount}</b> pre</span>
-                  <span><b style={{ color: '#475569' }}>{d.breakfasts}</b> desayunos</span>
-                  <span><b style={{ color: '#475569' }}>{d.rooms}</b> habitaciones</span>
                 </div>
 
                 {/* Revenue */}
@@ -427,38 +425,7 @@ export default function ReportsOcupacion({ onClose }) {
           </div>
         </section>
 
-        {/* ── Operational Panel ── */}
-        <section className="reports-hero-panel" style={{ gap: '8px' }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Operación hotelera</span>
-              <h3 className="reports-section-title">Desayunos y habitaciones</h3>
-              <p className="reports-section-text">Edición habilitada — modifica los valores directamente</p>
-            </div>
-          </div>
 
-          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
-            {dayCards.map(d => (
-              <div key={d.date} className="bento-tile" style={{ borderTop: '3px solid #94a3b8', padding: '12px', gap: '10px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>
-                  {d.dayName.substring(0, 3)} <strong style={{ fontSize: '14px', display: 'block', color: '#0f172a' }}>{d.dayNumber}</strong>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Desayunos</label>
-                  <input type="number" value={d.breakfasts}
-                    onChange={e => handleUpdateOccupancyOps(currentWeekStart, d.date, { breakfasts: parseInt(e.target.value)||0, rooms: d.rooms })}
-                    style={{ height: '28px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', textAlign: 'center', padding: '0 4px' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Habitaciones</label>
-                  <input type="number" value={d.rooms}
-                    onChange={e => handleUpdateOccupancyOps(currentWeekStart, d.date, { breakfasts: d.breakfasts, rooms: parseInt(e.target.value)||0 })}
-                    style={{ height: '28px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', textAlign: 'center', padding: '0 4px' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         {/* ── Events Table ── */}
         <section className="reports-hero-panel" style={{ gap: '8px' }}>

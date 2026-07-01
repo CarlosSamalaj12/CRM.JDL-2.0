@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { getEquipos } from '../../services/api.js';
 import toast from 'react-hot-toast';
@@ -34,6 +34,9 @@ export default function UserModal({ onClose }) {
   const [active, setActive] = useState(true);
   const [salesTargetEnabled, setSalesTargetEnabled] = useState(false);
   const [goalTiers, setGoalTiers] = useState([]);
+  const [canAuthorizeDiscount, setCanAuthorizeDiscount] = useState(false);
+
+  const userModalRef = useRef(null);
 
   const formatNumberWithCommas = (value) => {
     if (value === null || value === undefined || value === '') return '';
@@ -90,6 +93,7 @@ export default function UserModal({ onClose }) {
     setActive(true);
     setSalesTargetEnabled(false);
     setGoalTiers([]);
+    setCanAuthorizeDiscount(false);
     setAvatarDataUrl('');
     setSignatureDataUrl('');
     setTierName('');
@@ -141,6 +145,7 @@ export default function UserModal({ onClose }) {
         setActive(user.active !== false);
         setSalesTargetEnabled(user.salesTargetEnabled === true);
         setGoalTiers(user.goalTiers || []);
+        setCanAuthorizeDiscount(user.canAuthorizeDiscount === true);
         setAvatarDataUrl(user.avatarDataUrl || '');
         setSignatureDataUrl(user.signatureDataUrl || '');
         setTeamId(user.teamId ? String(user.teamId) : '');
@@ -353,6 +358,7 @@ export default function UserModal({ onClose }) {
               active: active,
               salesTargetEnabled: salesTargetEnabled,
               goalTiers: goalTiers,
+              canAuthorizeDiscount: canAuthorizeDiscount,
               avatarDataUrl: avatarDataUrl,
               signatureDataUrl: signatureDataUrl,
             };
@@ -381,6 +387,7 @@ export default function UserModal({ onClose }) {
           active: active,
           salesTargetEnabled: salesTargetEnabled,
           goalTiers: goalTiers,
+          canAuthorizeDiscount: canAuthorizeDiscount,
           avatarDataUrl: avatarDataUrl,
           signatureDataUrl: signatureDataUrl,
         };
@@ -409,9 +416,9 @@ export default function UserModal({ onClose }) {
       className="modalBackdrop" 
       id="userBackdrop" 
       hidden 
-      onClick={(e) => { if (e.target.classList.contains('modalBackdrop')) handleClose(); }}
+      onClick={(e) => { if (userModalRef.current && !userModalRef.current.contains(e.target)) handleClose(); }}
     >
-      <div className="modal settings-user-modal" role="dialog" aria-modal="true" aria-labelledby="userTitle">
+      <div ref={userModalRef} className="modal settings-user-modal" role="dialog" aria-modal="true" aria-labelledby="userTitle">
         <div className="modalHeader">
           <div>
             <div className="modalTitle" id="userTitle">
@@ -559,6 +566,22 @@ export default function UserModal({ onClose }) {
                   ))}
                 </select>
               </label>
+            </div>
+
+            {/* Puede autorizar descuentos */}
+            <div className="settings-modern-field">
+              <span>Autorizar descuentos</span>
+              <label className="settings-switch-inline">
+                <input
+                  type="checkbox"
+                  checked={canAuthorizeDiscount}
+                  onChange={(e) => setCanAuthorizeDiscount(e.target.checked)}
+                />
+                <span>PUEDE AUTORIZAR DESCUENTOS</span>
+              </label>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                Recibirá notificaciones para aprobar o rechazar descuentos en cotizaciones
+              </div>
             </div>
 
             {/* Avatar + Signature */}

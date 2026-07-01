@@ -563,6 +563,7 @@ const TAB_OPERATIVA = 'operativa';
 const TAB_EVALUACION = 'evaluacion';
 
 export default function SettingsChecklist() {
+  const checklistModalRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const styleElRef = useRef(null);
 
@@ -946,12 +947,12 @@ export default function SettingsChecklist() {
 
       <div
         id="eventChecklistBackdrop"
-        onClick={e => { if (e.target.id === 'eventChecklistBackdrop') closeEvent(); }}
+        onClick={e => { if (checklistModalRef.current && !checklistModalRef.current.contains(e.target)) closeEvent(); }}
         style={{
           display: isOpen ? 'flex' : 'none',
         }}
       >
-        <div role="dialog" style={{
+        <div ref={checklistModalRef} role="dialog" style={{
           width: 'min(94vw, 880px)',
           height: 'min(92vh, 880px)',
           display: 'flex', flexDirection: 'column',

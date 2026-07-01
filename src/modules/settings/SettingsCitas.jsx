@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast } from '../../utils/toast';
 
 export default function SettingsCitas({ inline, onBack }) {
+  const citasModalRef = useRef(null);
   const [reminderOffset, setReminderOffset] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -104,8 +105,8 @@ export default function SettingsCitas({ inline, onBack }) {
   }
 
   return (
-    <div className="modalBackdrop" id="citasBackdrop" hidden onClick={(e) => { if (e.target.id === 'citasBackdrop') onBack?.(); }}>
-      <div className="modal" role="dialog" aria-modal="true">
+    <div className="modalBackdrop" id="citasBackdrop" hidden onClick={(e) => { if (citasModalRef.current && !citasModalRef.current.contains(e.target)) onBack?.(); }}>
+      <div ref={citasModalRef} className="modal" role="dialog" aria-modal="true">
         <div className="modalHeader">
           <div>
             <div className="modalTitle">Configuración de Citas</div>

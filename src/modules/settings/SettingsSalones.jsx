@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 
 export default function SettingsSalones({ inline, onBack }) {
+  const salonesModalRef = useRef(null);
   const [salones, setSalones] = useState([]);
   const [disabledSalones, setDisabledSalones] = useState([]);
   const [salonCapacities, setSalonCapacities] = useState({});
@@ -341,8 +342,8 @@ export default function SettingsSalones({ inline, onBack }) {
   return (
     <>
       <style>{`#salonesBackdrop{display:none;}`}</style>
-      <div className="modalBackdrop" id="salonesBackdrop" hidden onClick={(e) => { if (e.target.id === 'salonesBackdrop') handleClose(); }}>
-        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="salonesTitle">
+      <div className="modalBackdrop" id="salonesBackdrop" hidden onClick={(e) => { if (salonesModalRef.current && !salonesModalRef.current.contains(e.target)) handleClose(); }}>
+        <div ref={salonesModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="salonesTitle">
           <div className="modalHeader">
             <div>
               <div className="modalTitle" id="salonesTitle">Salones</div>

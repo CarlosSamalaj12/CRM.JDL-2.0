@@ -431,7 +431,26 @@
   font-size: 14px;
 }
 
+/* ── No. Doc Code ── */
+.search-doc-code {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  display: inline-block;
+}
+
 /* ── Responsive ── */
+@media (max-width: 900px) {
+  .search-table {
+    min-width: 720px;
+  }
+}
+
 @media (max-width: 768px) {
   .search-filters {
     padding: 12px 16px;
@@ -460,12 +479,18 @@
 @media (max-width: 480px) {
   .search-card {
     border-radius: 12px;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
   }
   .search-header {
     padding: 10px 12px;
   }
   .search-title {
     font-size: 18px;
+  }
+  .search-subtitle {
+    font-size: 12px;
   }
   .search-filters {
     padding: 10px 12px;
@@ -474,6 +499,29 @@
     padding: 0 8px 8px 8px;
   }
   .search-table {
-    min-width: 650px;
+    min-width: 580px;
+  }
+  .search-table th,
+  .search-table td {
+    padding: 10px 10px;
+    font-size: 11px;
+  }
+  .search-table th {
+    font-size: 10px;
+  }
+  .search-event-name {
+    font-size: 12px;
+  }
+  .search-status-badge {
+    font-size: 9px;
+    padding: 3px 8px;
+  }
+  .search-view-btn {
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+  .search-doc-code {
+    font-size: 10px;
+    padding: 2px 6px;
   }
 }
