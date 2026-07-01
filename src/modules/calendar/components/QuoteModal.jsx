@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
@@ -90,6 +91,7 @@ const emptyServiceDraft = {
 
 export default function QuoteModal({ event: eventProp, eventData, slots = [], onClose, onSave, openAdvancesOnMount, inlineMode }) {
   const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
   const event = useMemo(() => ({
     ...(eventData || {}),
     ...(eventProp || {}),
@@ -3712,6 +3714,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 >
                   Datos empresa
                 </button>
+                {event?.id && (
+                  <button 
+                    className="qp-btn" 
+                    type="button" 
+                    style={{ 
+                      height: 32, 
+                      padding: '0 12px', 
+                      fontSize: 12, 
+                      fontWeight: 700,
+                      background: '#10b981',
+                      color: '#ffffff',
+                      borderColor: '#059669',
+                      boxSizing: 'border-box'
+                    }} 
+                    onClick={() => {
+                      const evDate = event?.date || event?.eventDateStart || new Date().toISOString().split('T')[0];
+                      navigate(`/kanban?highlightEvento=${event.id}&date=${evDate.slice(0, 10)}`);
+                    }}
+                  >
+                    📋 Informe
+                  </button>
+                )}
               </div>
             </div>
 

@@ -921,24 +921,30 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             .cargoTable col:last-child{ width:28%; }
             .cargoTable th,.cargoTable td{ padding:10px 14px; border-bottom:1px solid var(--line-light); }
             .cargoTable thead th{ 
-              background:linear-gradient(180deg, var(--brand) 0%, var(--brand-deep) 100%);
+              background: var(--brand) !important;
+              background:linear-gradient(180deg, var(--brand) 0%, var(--brand-deep) 100%) !important;
               color:#fff;
               font-size:11.5px;
               font-weight:800;
               text-transform:uppercase;
               letter-spacing:0.5px;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             .cargoTable thead th:first-child{ text-align:left; border-right:1px solid rgba(255,255,255,0.2); }
             .cargoTable thead th:last-child,.cargoAmount{ text-align:right; }
             .cargoTable tbody td:first-child{ border-right:1px solid var(--line-light); }
             .cargoLabel{ font-weight:700; color:#1f3b4d; }
             .cargoAmount{ white-space:nowrap; font-weight:800; color:var(--title); }
-            .cargoEm{ font-weight:800; background:#edf0f4 !important; }
-            .cargoEmFinal{ 
+            .cargoEm td{ font-weight:800; background:#edf0f4 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .cargoEmFinal td{ 
+              background: var(--brand-deep) !important;
               background:linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%) !important;
-              color:#fff;
+              color:#fff !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
-            .cargoEmFinal .cargoLabel,.cargoEmFinal .cargoAmount{ color:#fff; font-size:13px; }
+            .cargoEmFinal .cargoLabel,.cargoEmFinal .cargoAmount{ color:#fff !important; font-size:13px; }
             .signatureSection{
               margin:14px 16px 0;
               padding:16px 14px 10px;
