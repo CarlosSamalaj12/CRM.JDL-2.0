@@ -1251,12 +1251,13 @@ async function readStateFromTables() {
       changeHistory: {},
       reminders: {},
       events: (() => {
-        const advancesByEvent = new Map();
+        const advancesByBaseEvent = new Map();
         for (const a of dbAnticipos) {
           const eid = str(a.id_evento);
           if (!eid) continue;
-          if (!advancesByEvent.has(eid)) advancesByEvent.set(eid, []);
-          advancesByEvent.get(eid).push({
+          const baseId = eid.replace(/_(s|slot)\d+_\d{6,}$/, '');
+          if (!advancesByBaseEvent.has(baseId)) advancesByBaseEvent.set(baseId, []);
+          advancesByBaseEvent.get(baseId).push({
             id: str(a.id),
             amount: Number(a.monto),
             paymentType: str(a.tipo_pago),
@@ -1280,10 +1281,15 @@ async function readStateFromTables() {
               quote = null;
             }
           }
-          const tableAdvances = advancesByEvent.get(str(e.id));
+          const baseId = str(e.id).replace(/_(s|slot)\d+_\d{6,}$/, '');
+          const tableAdvances = advancesByBaseEvent.get(baseId);
           if (tableAdvances && tableAdvances.length > 0) {
             if (!quote || typeof quote !== "object") quote = {};
-            quote.advances = tableAdvances;
+            const uniqueMap = new Map();
+            for (const adv of tableAdvances) {
+              uniqueMap.set(adv.id, adv);
+            }
+            quote.advances = Array.from(uniqueMap.values());
           }
           return {
             id: str(e.id),
@@ -2181,9 +2187,10 @@ async function writeStateToTables(state) {
       );
 
       // === UPSERT: anticipos_evento (normalizar pagos en tabla propia) ===
+      const baseId = id.replace(/_(s|slot)\d+_\d{6,}$/, '');
       const existingAdvancesById = new Map();
       try {
-        const dbExisting = await conn.query("SELECT id, creado_en_iso, id_usuario_creador, nombre_usuario_creador, datos_evidencia FROM anticipos_evento WHERE id_evento = ?", [id]);
+        const dbExisting = await conn.query("SELECT id, creado_en_iso, id_usuario_creador, nombre_usuario_creador, datos_evidencia FROM anticipos_evento WHERE id_evento = ? OR id_evento = ?", [baseId, id]);
         for (const ea of dbExisting) {
           existingAdvancesById.set(str(ea.id), {
             createdAt: str(ea.creado_en_iso || ""),
@@ -2211,7 +2218,7 @@ async function writeStateToTables(state) {
             const logAt = str(delLog?.at || nowIso).trim();
             await conn.query(
               `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, 'deleted', ?, ?, ?, ?)`,
-              [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, existingId, id, actorId, actorName, detalle, logAt]
+              [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, existingId, baseId, actorId, actorName, detalle, logAt]
             );
           }
         }
@@ -2219,7 +2226,7 @@ async function writeStateToTables(state) {
         const deleteIds = [...existingAdvancesById.keys()].filter(eid => !incomingIds.has(eid));
         if (deleteIds.length > 0) {
           const placeholders = deleteIds.map(() => "?").join(",");
-          await conn.query(`DELETE FROM anticipos_evento WHERE id_evento = ? AND id IN (${placeholders})`, [id, ...deleteIds]);
+          await conn.query(`DELETE FROM anticipos_evento WHERE (id_evento = ? OR id_evento = ?) AND id IN (${placeholders})`, [baseId, id, ...deleteIds]);
         }
 
         // Insertar o actualizar cada advance con ON DUPLICATE KEY UPDATE
@@ -2249,6 +2256,7 @@ async function writeStateToTables(state) {
                (id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso, editado_por_id, editado_por_nombre, editado_en_iso)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
+               id_evento = VALUES(id_evento),
                fecha_anticipo = VALUES(fecha_anticipo),
                monto = VALUES(monto),
                tipo_pago = VALUES(tipo_pago),
@@ -2262,7 +2270,7 @@ async function writeStateToTables(state) {
                editado_en_iso = VALUES(editado_en_iso)`,
             [
               advId,
-              id,
+              baseId,
               asDate(adv.date || ""),
               Math.max(0, Number(adv.amount || 0)),
               str(adv.paymentType || "Efectivo").trim(),
