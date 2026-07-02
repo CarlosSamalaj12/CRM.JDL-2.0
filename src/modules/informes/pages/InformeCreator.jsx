@@ -47,6 +47,16 @@ function sumarDias(fechaStr, dias) {
   return d.toISOString().slice(0, 10);
 }
 
+function mapCategoriaToTiempoComida(categoriaNombre) {
+  if (!categoriaNombre) return null;
+  const n = categoriaNombre.toLowerCase().trim();
+  if (n.includes('desayuno')) return 'desayuno';
+  if (n.includes('refacción') || n.includes('refaccion')) return 'refaccion_am';
+  if (n.includes('almuerzo')) return 'almuerzo';
+  if (n.includes('cena')) return 'cena';
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════
@@ -114,7 +124,7 @@ export default function InformeCreator() {
     const newDias = [...dias];
     newDias[diaIndex] = {
       ...newDias[diaIndex],
-      platillo: { id: platillo.id, nombre_platillo: platillo.nombre_platillo },
+      platillo: { id: platillo.id, nombre_platillo: platillo.nombre_platillo, categoria_nombre: platillo.categoria_nombre },
       platilloDetalle: null,
       selectedItems: [],
       platilloSearch: '',
@@ -193,11 +203,22 @@ export default function InformeCreator() {
         const dia = dias[i];
         if (!dia.fecha) continue;
 
+        const catNombre = dia.platillo?.categoria_nombre || '';
+        const tc = mapCategoriaToTiempoComida(catNombre);
+        const itemsTc = dia.selectedItems.map(() => tc);
+
+        const descripcionMontaje = JSON.stringify({
+          _v: 2,
+          nombre_platillo: dia.platillo?.nombre_platillo || '',
+          tiempo_comida: tc,
+          items_tiempo_comida: itemsTc,
+        });
+
         const diaRes = await createInformeDia({
           informe_id: targetId,
           fecha_evento: dia.fecha,
           menu_id: null,
-          descripcion_montaje: dia.platillo?.nombre_platillo || null,
+          descripcion_montaje: descripcionMontaje,
         });
         diasGuardados++;
 

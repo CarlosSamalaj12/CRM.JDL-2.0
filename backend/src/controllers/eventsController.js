@@ -78,12 +78,25 @@ export async function getEvents(req, res, next) {
 
     let params = [];
 
-    if (date) {
-      query += ` AND YEARWEEK(FechaEvento, 1) = YEARWEEK(?, 1)`;
-      params.push(date);
-    } else {
-      query += ` AND YEARWEEK(FechaEvento, 1) = YEARWEEK(CURDATE(), 1)`;
-    }
+    const refDate = date || new Date().toISOString().slice(0, 10);
+    // Calcular lunes y domingo de la semana que contiene refDate
+    const refDay = new Date(refDate + 'T12:00:00');
+    const dayOfWeek = refDay.getDay(); // 0=Dom, 1=Lun, ...
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const weekMonday = new Date(refDay);
+    weekMonday.setDate(refDay.getDate() + diffToMonday);
+    const weekSunday = new Date(weekMonday);
+    weekSunday.setDate(weekMonday.getDate() + 6);
+    const mondayStr = weekMonday.toISOString().slice(0, 10);
+    const sundayStr = weekSunday.toISOString().slice(0, 10);
+
+    // Incluir eventos que caen dentro de la semana O eventos multi-día que la atraviesan
+    query += ` AND (
+      (FechaEvento >= ? AND FechaEvento <= ?)
+      OR (FechaSalida IS NOT NULL AND FechaSalida > FechaEvento AND FechaSalida >= ? AND FechaSalida <= ?)
+      OR (FechaSalida IS NOT NULL AND FechaSalida > FechaEvento AND FechaEvento <= ? AND FechaSalida >= ?)
+    )`;
+    params.push(mondayStr, sundayStr, mondayStr, sundayStr, sundayStr, mondayStr);
 
     query += ` ORDER BY FechaEvento ASC, HoraI ASC;`;
 
