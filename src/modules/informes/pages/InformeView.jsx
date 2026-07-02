@@ -242,7 +242,9 @@ export default function InformeView() {
 
   const formatFechaDia = (fechaStr) => {
     if (!fechaStr) return 'Fecha no asignada';
-    const date = fechaStr.length <= 10 ? new Date(fechaStr + 'T12:00:00') : new Date(fechaStr);
+    const cleanFecha = String(fechaStr).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanFecha)) return 'Fecha no asignada';
+    const date = new Date(cleanFecha + 'T12:00:00');
     if (isNaN(date.getTime())) return 'Fecha no asignada';
     
     const formatted = date.toLocaleDateString('es-ES', {

@@ -917,7 +917,7 @@ export default function ConstructorInforme() {
       <div className="pos-tabs">
         {dias.map((d, i) => (
           <button key={i} className={`pos-tab ${activeDay === i ? 'pos-tab-active' : ''}`} onClick={() => setActiveDay(i)}>
-            {d.fecha && <span style={{ color: '#a855f7', fontWeight: 800, fontSize: '0.85rem' }}>{(() => { const dt = d.fecha.length <= 10 ? new Date(d.fecha + 'T12:00:00') : new Date(d.fecha); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }); })()}</span>}
+            {d.fecha && <span style={{ color: '#a855f7', fontWeight: 800, fontSize: '0.85rem' }}>{(() => { const cf = String(d.fecha).slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(cf)) return ''; const dt = new Date(cf + 'T12:00:00'); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }); })()}</span>}
             <span style={{ fontSize: '0.65rem', opacity: 0.6, display: 'block' }}>Día {i + 1}</span>
             {dias.length > 0 && (
               <span onClick={(e) => {
