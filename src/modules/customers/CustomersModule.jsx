@@ -15,8 +15,17 @@ const PIPELINE_STAGES = [
 const EXCLUDED_STATUSES = new Set(['Cancelado', 'Perdido', 'Mantenimiento', 'Mantenimiento Realizado', 'Realizado']);
 
 export default function CustomersModule() {
-  const navigate = useNavigate();
-  const { events, users } = useOutletContext();
+  let navigate;
+  let outlet = {};
+  try {
+    navigate = useNavigate();
+    outlet = useOutletContext();
+  } catch (_err) {
+    navigate = (path) => { window.location.href = path; };
+    outlet = {};
+  }
+  const events = outlet?.events || [];
+  const users = outlet?.users || [];
 
   const [search, setSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');

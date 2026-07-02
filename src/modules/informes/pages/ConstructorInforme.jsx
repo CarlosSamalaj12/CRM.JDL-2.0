@@ -215,8 +215,14 @@ function sumarDias(fechaStr, dias) {
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════
 export default function ConstructorInforme() {
-  const { id_ocupacion } = useParams();
-  const navigate = useNavigate();
+  const params = (() => { try { return useParams(); } catch { return {}; } })();
+  const { id_ocupacion } = params;
+  let navigate;
+  try {
+    navigate = useNavigate();
+  } catch (_err) {
+    navigate = (path) => { window.location.href = path; };
+  }
   const toast = useToast();
   const { user } = useAuth();
   const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();
@@ -1215,7 +1221,6 @@ export default function ConstructorInforme() {
                               setNewIngTipo(tipoMap[categoriaActiva] || 'proteina');
                             }}
                 title="Agregar nuevo ingrediente"
-                style={{ marginLeft:'0.25rem', flexShrink:0, fontSize:'0.78rem', fontWeight:700, color:'var(--success)', display:'inline-flex', alignItems:'center', gap:'2px', padding:'0.2rem 0.4rem', borderRadius:'var(--radius-sm)', border:'1px solid var(--success)', background:'transparent', cursor:'pointer', lineHeight:1 }}
               >
                 <IconPlus size={13} /> Nvo
               </button>

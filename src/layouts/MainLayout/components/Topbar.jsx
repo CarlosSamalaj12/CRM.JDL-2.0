@@ -23,7 +23,10 @@ export default function Topbar({
   setSearchQuery,
   roomFilter,
   setRoomFilter,
-  salones
+  salones,
+  sellerFilter,
+  setSellerFilter,
+  users
 }) {
   const isFilterActive = isCalendarView && (viewMode === 'month' || viewMode === 'week');
 
@@ -201,7 +204,39 @@ export default function Topbar({
         </select>
       </div>
 
-      {/* 4. ROOM FILTER */}
+      {/* 4. SELLER FILTER */}
+      <div className="topbar-seller-select" style={{ flexShrink: 0 }}>
+        <select
+          value={sellerFilter}
+          onChange={(e) => setSellerFilter(e.target.value)}
+          style={{
+            height: '34px',
+            minWidth: '150px',
+            fontSize: '12px',
+            fontWeight: sellerFilter !== 'all' ? 700 : 500,
+            cursor: 'pointer',
+            borderRadius: '8px',
+            padding: '0 10px',
+            border: sellerFilter !== 'all' ? '2px solid #6366f1' : '1px solid #e2e8f0',
+            color: sellerFilter !== 'all' ? '#6366f1' : '#475569',
+            background: sellerFilter !== 'all' ? '#eef2ff' : '#ffffff',
+            outline: 'none',
+            appearance: 'auto',
+          }}
+        >
+          <option value="all">Todos los Vendedores</option>
+          {users?.filter(u => {
+            const r = String(u.role || '').trim().toLowerCase();
+            return ['admin','vendedor','recepcionista','frontoffice','front_office'].includes(r);
+          }).map(user => (
+            <option key={user.id} value={user.id}>
+              {user.fullName || user.name || user.nombre}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 5. ROOM FILTER */}
       <div className="topbar-room-select" style={{ flexShrink: 0 }}>
         <select
           value={roomFilter}

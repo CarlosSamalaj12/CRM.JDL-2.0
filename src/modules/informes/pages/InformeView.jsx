@@ -39,8 +39,14 @@ const ALERTAS_PREDEFINIDAS = [
 ];
 
 export default function InformeView() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+  const params = (() => { try { return useParams(); } catch { return {}; } })();
+  const { id } = params;
+  let navigate;
+  try {
+    navigate = useNavigate();
+  } catch (_err) {
+    navigate = (path) => { window.location.href = path; };
+  }
   const toast = useToast();
   const { user } = useAuth();
   const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();

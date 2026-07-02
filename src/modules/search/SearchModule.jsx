@@ -18,8 +18,16 @@ const STATUS_DESCRIPTIONS = {
 };
 
 export default function SearchModule() {
-  const { events, users, salones } = useOutletContext();
-  const navigate = useNavigate();
+  let navigate;
+  let outlet = {};
+  try {
+    navigate = useNavigate();
+    outlet = useOutletContext();
+  } catch (_err) {
+    navigate = (path) => { window.location.href = path; };
+    outlet = {};
+  }
+  const { events = [], users = [], salones = [] } = outlet;
 
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');

@@ -5410,16 +5410,6 @@ button[data-tooltip-bottom]::after {
 .pos-ticket-item-drag-over { border-top: 2px solid var(--primary); }
 .pos-ticket-item-drag-over:first-child { border-top-color: var(--primary); }
 
-/* Meal time badge per item */
-.pos-ticket-item-tc-badge {
-  font-size: 0.6rem; padding: 0.05rem 0.3rem; border-radius: var(--radius-full);
-  background: var(--primary-bg); color: var(--primary); border: 1px solid transparent;
-  cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center;
-  gap: 0.1rem; flex-shrink: 0; transition: all 0.15s ease;
-}
-.pos-ticket-item-tc-badge:hover { background: var(--primary); color: white; }
-.pos-ticket-item-tc-badge--none { background: var(--bg-elevated); color: var(--text-muted); font-size: 0.55rem; padding: 0.05rem 0.2rem; }
-.pos-ticket-item-tc-badge--none:hover { background: var(--text-muted); color: white; }
 /* Select dropdown for tiempo de comida */
 .pos-ticket-item-tc-select-wrapper {
   display: inline-flex;
@@ -5492,7 +5482,6 @@ button[data-tooltip-bottom]::after {
   background-size: 0.45rem !important;
   padding-right: 0.65rem !important;
 }
-
 
 .pos-ticket-montaje {
   padding: 0.3rem 0.4rem; margin-top: 0.4rem;
@@ -5583,6 +5572,36 @@ button[data-tooltip-bottom]::after {
 .pos-elem-search input:focus { box-shadow: none !important; }
 .pos-elem-clear { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; display: flex; }
 .pos-elem-clear:hover { color: var(--text-main); }
+.pos-elem-add-btn {
+  margin-left: 0.25rem;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--success);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--success);
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  position: relative;
+  overflow: visible !important;
+}
+.pos-elem-add-btn::after { display: none !important; }
+.pos-elem-add-btn:hover {
+  background: var(--success);
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+.pos-elem-add-btn:active {
+  transform: scale(0.95);
+}
+
 
 .pos-elem-grid {
   flex: 1;

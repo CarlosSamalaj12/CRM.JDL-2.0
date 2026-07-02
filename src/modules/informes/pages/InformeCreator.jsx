@@ -53,8 +53,14 @@ function sumarDias(fechaStr, dias) {
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════
 export default function InformeCreator() {
-  const { id_ocupacion } = useParams();
-  const navigate = useNavigate();
+  const params = (() => { try { return useParams(); } catch { return {}; } })();
+  const { id_ocupacion } = params;
+  let navigate;
+  try {
+    navigate = useNavigate();
+  } catch (_err) {
+    navigate = (path) => { window.location.href = path; };
+  }
   const toast = useToast();
 
   const [loading, setLoading] = useState(false);

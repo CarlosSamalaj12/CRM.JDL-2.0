@@ -192,20 +192,29 @@ function SeriesBadge({ label, color = '#2563eb', compact = false }) {
 }
 
 export default function Calendar() {
+  let outlet = {};
+  let navigate;
+  let location = { pathname: '' };
+  try {
+    outlet = useOutletContext();
+    navigate = useNavigate();
+    location = useLocation();
+  } catch (_err) {
+    navigate = (path) => { window.location.href = path; };
+    location = { pathname: '' };
+  }
   const { 
-    viewMode, 
-    setViewMode,
-    currentDate, 
-    setCurrentDate, 
-    events, 
-    users,
-    statusFilter,
-    searchQuery,
-    roomFilter
-  } = useOutletContext();
-  
-  const navigate = useNavigate();
-  const location = useLocation();
+    viewMode = 'week', 
+    setViewMode = () => {},
+    currentDate = new Date(), 
+    setCurrentDate = () => {},
+    events = [], 
+    users = [],
+    statusFilter = 'all',
+    searchQuery = '',
+    roomFilter = 'all',
+    sellerFilter = 'all'
+  } = outlet;
 
   const todayRef = useRef(null);
 
@@ -426,6 +435,10 @@ export default function Calendar() {
       result = result.filter(ev => ev.salon?.toLowerCase().includes(roomFilter.toLowerCase()));
     }
 
+    if (sellerFilter && sellerFilter !== 'all') {
+      result = result.filter(ev => String(ev.userId) === String(sellerFilter));
+    }
+
     if (searchQuery) {
       const term = searchQuery.toLowerCase();
       result = result.filter(ev => 
@@ -439,7 +452,7 @@ export default function Calendar() {
     }
 
     return result;
-  }, [events, statusFilter, roomFilter, searchQuery]);
+  }, [events, statusFilter, roomFilter, sellerFilter, searchQuery]);
 
   const getEventsForDay = (dateStr) => {
     return filteredEvents.filter(ev => {

@@ -445,7 +445,6 @@ export async function importEventRows(state, rows, onProgress) {
       const company = findCompanyForImport(state, row);
       const manager = upsertManagerForImport(company, row);
       const user = findUserForImport(state, row);
-      const totalCot = normalizeImportNumber(row.total_cotizacion);
       const salones = String(row.salones || salon)
         .split(',')
         .map((item) => String(item || '').trim())
@@ -485,7 +484,7 @@ export async function importEventRows(state, rows, onProgress) {
           version: 1,
           discountType: 'FIXED',
           discountValue: 0,
-          items: totalCot > 0 ? [{ name: 'Importado', qty: 1, price: totalCot, category: 'Miscelaneos' }] : [],
+          items: [],
         };
       }
 

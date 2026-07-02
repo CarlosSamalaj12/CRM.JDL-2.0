@@ -20,7 +20,12 @@ function getHomePath(user) {
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
-  const navigate = useNavigate();
+  let navigate;
+  try {
+    navigate = useNavigate();
+  } catch (_err) {
+    navigate = (path) => { window.location.href = path; };
+  }
   const { syncSession } = useAuth();
   const googleLoginRef = useRef(false);
 

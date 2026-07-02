@@ -127,7 +127,13 @@ const reports = {
 };
 
 export default function ReportsModule() {
-  const navigate = useNavigate();
+  let navigate;
+  try {
+    navigate = useNavigate();
+  } catch (_err) {
+    // Fallback si useNavigate falla (ocurre con Vite HMR en recargas rápidas)
+    navigate = (path) => { window.location.href = path; };
+  }
   const [selectedReport, setSelectedReport] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 

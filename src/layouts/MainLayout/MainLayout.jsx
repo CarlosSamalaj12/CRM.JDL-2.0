@@ -33,6 +33,7 @@ export default function MainLayout() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [roomFilter, setRoomFilter] = useState('all');
+  const [sellerFilter, setSellerFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
   // Siempre iniciar en la semana actual cuando se cambia a vista semanal
@@ -203,6 +204,17 @@ export default function MainLayout() {
     };
   }, [navigate]);
 
+  // Auto-filtrar por el usuario actual al entrar al calendario
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (currentUser?.id) {
+      const role = String(currentUser.role || '').trim().toLowerCase();
+      if (['admin','vendedor','recepcionista','frontoffice','front_office'].includes(role)) {
+        setSellerFilter(currentUser.id);
+      }
+    }
+  }, []);
+
   const handleAddEvent = async (eventData) => {
     try {
       const isEditing = !!eventData.id;
@@ -341,6 +353,9 @@ export default function MainLayout() {
               roomFilter={roomFilter}
               setRoomFilter={setRoomFilter}
               salones={salones}
+              sellerFilter={sellerFilter}
+              setSellerFilter={setSellerFilter}
+              users={users}
             />
             <Legend />
           </>
@@ -384,6 +399,8 @@ export default function MainLayout() {
             setSearchQuery,
             roomFilter,
             setRoomFilter,
+            sellerFilter,
+            setSellerFilter,
             occupancyWeeklyOps,
             handleUpdateOccupancyOps
           }} />
