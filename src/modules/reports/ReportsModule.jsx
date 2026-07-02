@@ -181,7 +181,7 @@ export default function ReportsModule() {
       `}</style>
     <div style={{ 
       padding: '32px 40px', height: '100%', background: '#ffffff',
-      display: 'flex', flexDirection: 'column', overflow: 'auto',
+      display: 'flex', flexDirection: 'column',
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>

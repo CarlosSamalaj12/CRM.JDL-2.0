@@ -13,17 +13,30 @@ function makeCrud(table, entity) {
     async create(req, res, next) {
       try {
         const { nombre } = req.body;
-        if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
-        const [result] = await pool.query(`INSERT INTO ${table} (nombre) VALUES (?)`, [nombre]);
+        if (!nombre || !String(nombre).trim()) return res.status(400).json({ message: 'Nombre requerido' });
+        const nombreTrim = String(nombre).trim();
+        const [existing] = await pool.query(`SELECT id FROM ${table} WHERE LOWER(nombre) = LOWER(?)`, [nombreTrim]);
+        if (existing.length > 0) {
+          return res.status(409).json({ message: `Ya existe un registro con el nombre "${nombreTrim}"` });
+        }
+        const [result] = await pool.query(`INSERT INTO ${table} (nombre) VALUES (?)`, [nombreTrim]);
         emitChange(req, entity, 'created', { id: result.insertId });
-        res.status(201).json({ id: result.insertId, nombre, activo: 1 });
+        res.status(201).json({ id: result.insertId, nombre: nombreTrim, activo: 1 });
       } catch (error) { next(error); }
     },
     async update(req, res, next) {
       try {
         const { id } = req.params;
         const { nombre, activo } = req.body;
-        if (nombre !== undefined) await pool.query(`UPDATE ${table} SET nombre = ? WHERE id = ?`, [nombre, id]);
+        if (nombre !== undefined) {
+          const nombreTrim = String(nombre).trim();
+          if (!nombreTrim) return res.status(400).json({ message: 'El nombre no puede estar vacío' });
+          const [existing] = await pool.query(`SELECT id FROM ${table} WHERE LOWER(nombre) = LOWER(?) AND id != ?`, [nombreTrim, id]);
+          if (existing.length > 0) {
+            return res.status(409).json({ message: `Ya existe otro registro con el nombre "${nombreTrim}"` });
+          }
+          await pool.query(`UPDATE ${table} SET nombre = ? WHERE id = ?`, [nombreTrim, id]);
+        }
         if (activo !== undefined) await pool.query(`UPDATE ${table} SET activo = ? WHERE id = ?`, [activo, id]);
         emitChange(req, entity, 'updated', { id });
         res.json({ message: 'Actualizado' });

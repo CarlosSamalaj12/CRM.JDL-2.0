@@ -8,6 +8,7 @@ router.post('/ingredientes', catalogController.createIngrediente);
 router.get('/ingredientes', catalogController.getIngredientes);
 router.put('/ingredientes/:id', catalogController.updateIngrediente);
 router.delete('/ingredientes/:id', catalogController.deleteIngrediente);
+router.get('/ingredientes/:id/asociaciones', catalogController.getIngredienteAsociaciones);
 
 // Opciones
 router.post('/opciones', catalogController.createOpcionIngrediente);

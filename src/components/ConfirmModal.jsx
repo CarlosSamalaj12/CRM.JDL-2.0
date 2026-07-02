@@ -34,7 +34,7 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
           }}>
             {isDanger ? '⚠️ ' : '❓ '} {title}
           </h2>
-          <p style={{ margin: 0, fontSize: '15px', color: '#475569', lineHeight: '1.5' }}>
+          <p style={{ margin: 0, fontSize: '15px', color: '#475569', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
             {message}
           </p>
         </div>

@@ -49,14 +49,20 @@ export default function SettingsEquipos() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!nombre.trim()) return;
+    const nombreTrim = nombre.trim();
+    if (!nombreTrim) return;
+    // Validación local de duplicado (case-insensitive, excluyendo el que se edita)
+    if (equipos.some(eq => eq.id !== editId && eq.nombre.toLowerCase() === nombreTrim.toLowerCase())) {
+      toast.error(`Ya existe un equipo llamado "${nombreTrim}"`);
+      return;
+    }
     setSaving(true);
     try {
       if (editId) {
-        await updateEquipo(editId, { nombre: nombre.trim(), descripcion: descripcion.trim() });
+        await updateEquipo(editId, { nombre: nombreTrim, descripcion: descripcion.trim() });
         toast('Equipo actualizado ✓');
       } else {
-        await createEquipo({ nombre: nombre.trim(), descripcion: descripcion.trim() });
+        await createEquipo({ nombre: nombreTrim, descripcion: descripcion.trim() });
         toast('Equipo creado ✓');
       }
       setShowForm(false);

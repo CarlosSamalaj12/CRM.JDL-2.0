@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -361,10 +361,13 @@ export default function ReportsContabilidad({ onClose }) {
   const todayISO = () => new Date().toISOString().split('T')[0];
 
   const [formasPago, setFormasPago] = useState([]);
-  const [advanceForm, setAdvanceForm] = useState({ amount: '', date: todayISO(), paymentType: 'Efectivo', voucherNumber: '', description: '', evidenceName: '' });
+  const [advanceForm, setAdvanceFormState] = useState({ amount: '', date: todayISO(), paymentType: 'Efectivo', voucherNumber: '', description: '', evidenceName: '' });
+  const setAdvanceForm = useCallback((update) => { setFormFeedback(null); setAdvanceFormState(update); }, []);
   const [advanceEvidenceFile, setAdvanceEvidenceFile] = useState(null);
   const [advanceEditingId, setAdvanceEditingId] = useState('');
   const [advanceEvidenceInputKey, setAdvanceEvidenceInputKey] = useState(0);
+  const [savingAdvance, setSavingAdvance] = useState(false);
+  const [formFeedback, setFormFeedback] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialOpen, setHistorialOpen] = useState(false);
@@ -394,10 +397,12 @@ export default function ReportsContabilidad({ onClose }) {
     setAdvanceEditingId('');
     setAdvanceEvidenceFile(null);
     setAdvanceEvidenceInputKey(k => k + 1);
-    setAdvanceForm({ amount: '', date: todayISO(), paymentType: 'Efectivo', voucherNumber: '', description: '', evidenceName: '' });
+    setAdvanceFormState({ amount: '', date: todayISO(), paymentType: 'Efectivo', voucherNumber: '', description: '', evidenceName: '' });
+    setTimeout(() => setFormFeedback(null), 3000);
   };
 
   const handleSaveAdvanceInModal = async (eventId) => {
+    if (savingAdvance) return;
     const amount = Math.max(0, Number(advanceForm.amount || 0));
     const paymentType = normalizeAdvancePaymentType(advanceForm.paymentType);
     const date = String(advanceForm.date || '').trim();
@@ -423,6 +428,8 @@ export default function ReportsContabilidad({ onClose }) {
     if (!event) { toast.error('No se encontró el evento.'); return; }
     const quote = { ...(event.quote || {}), advances: [...(event.quote?.advances || [])] };
 
+    setSavingAdvance(true);
+
     if (advanceEditingId) {
       const idx = quote.advances.findIndex(a => String(a.id) === String(advanceEditingId));
       if (idx >= 0) {
@@ -440,9 +447,15 @@ export default function ReportsContabilidad({ onClose }) {
 
     try {
       await handleAddEvent({ ...event, quote });
-      toast.success(advanceEditingId ? 'Anticipo actualizado.' : 'Anticipo agregado.');
+      setSavingAdvance(false);
+      setFormFeedback({ type: 'success', text: `✔ Anticipo agregado — Q ${amount.toFixed(2)}` });
+      setTimeout(() => setFormFeedback(null), 4000);
       resetAdvanceFormInModal();
-    } catch { toast.error('No se pudo guardar el anticipo.'); }
+    } catch {
+      setSavingAdvance(false);
+      setFormFeedback({ type: 'error', text: '✖ Error al guardar el anticipo' });
+      setTimeout(() => setFormFeedback(null), 5000);
+    }
   };
 
   const handleDeleteAdvanceInModal = async (eventId, advanceId) => {
@@ -661,7 +674,7 @@ export default function ReportsContabilidad({ onClose }) {
 
   return (
     <div className="reports-page-container">
-      <style>{`@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+      <style>{`@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       {/* Header */}
       <div className="reports-page-header">
         <div className="reports-brand-header">
@@ -1503,15 +1516,31 @@ export default function ReportsContabilidad({ onClose }) {
                               </small>
                             </div>
                           </div>
+                          {formFeedback && (
+                            <div style={{ padding: '8px 12px', borderRadius: '8px', marginBottom: '8px', fontSize: '12px', fontWeight: 700, background: formFeedback.type === 'success' ? '#ecfdf5' : '#fef2f2', color: formFeedback.type === 'success' ? '#065f46' : '#991b1b', border: `1px solid ${formFeedback.type === 'success' ? '#a7f3d0' : '#fecaca'}`, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {formFeedback.type === 'success' ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#065f46" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="16 8 10 16 7 13"/></svg>
+                              ) : (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                              )}
+                              {formFeedback.text}
+                            </div>
+                          )}
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
                             <button type="button" onClick={resetAdvanceFormInModal} style={{ padding: '7px 16px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', transition: 'all 0.15s' }}
                               onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
                               onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0'; }}>Limpiar</button>
-                            <button type="button" onClick={() => handleSaveAdvanceInModal(eventId)} style={{ padding: '7px 18px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}
-                              onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.3)'; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = 'none'; }}>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                              {advanceEditingId ? 'Guardar cambios' : 'Agregar pago'}
+                            <button type="button" disabled={savingAdvance} onClick={() => handleSaveAdvanceInModal(eventId)} style={{ padding: '7px 18px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', border: 'none', background: savingAdvance ? '#93c5fd' : '#2563eb', color: '#fff', cursor: savingAdvance ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}
+                              onMouseEnter={e => { if (!savingAdvance) { e.currentTarget.style.background = '#1d4ed8'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.3)'; } }}
+                              onMouseLeave={e => { if (!savingAdvance) { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = 'none'; } }}>
+                              {savingAdvance ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.8s linear infinite' }}>
+                                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                                </svg>
+                              ) : (
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                              )}
+                              {savingAdvance ? 'Guardando...' : (advanceEditingId ? 'Guardar cambios' : 'Agregar pago')}
                             </button>
                           </div>
                         </div>

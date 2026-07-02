@@ -2,7 +2,7 @@ import pool from '../config/db.js';
 import { emitChange } from '../helpers/socketEvents.js';
 
 function normalizeTipo(tipo) {
-  if (!tipo) return 'otros';
+  if (!tipo) return 'entradas';
   const t = tipo.toLowerCase().trim();
   if (t === 'salsas' || t === 'salsa') return 'salsa';
   if (t === 'guarniciones' || t === 'guarnición' || t === 'guarnicion') return 'guarnición';
@@ -10,16 +10,26 @@ function normalizeTipo(tipo) {
   if (t === 'postres' || t === 'postre') return 'postre';
   if (t === 'bebidas' || t === 'bebida') return 'bebida';
   if (t === 'entradas' || t === 'entrada') return 'entradas';
-  return t;
+  if (t === 'tortilla_pan' || t === 'otros' || t === 'otro') return 'entradas';
+  return 'entradas';
 }
 
 // --- INGREDIENTES ---
 export async function createIngrediente(req, res, next) {
   try {
     const { nombre, tipo } = req.body;
-    const [result] = await pool.query('INSERT INTO cat_ingredientes (nombre, tipo) VALUES (?, ?)', [nombre, tipo]);
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ message: 'El nombre del ingrediente es requerido' });
+    }
+    const nombreTrim = nombre.trim();
+    // Verificar duplicado (case-insensitive)
+    const [existing] = await pool.query('SELECT id FROM cat_ingredientes WHERE LOWER(nombre) = LOWER(?)', [nombreTrim]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: `Ya existe un ingrediente llamado "${nombreTrim}"` });
+    }
+    const [result] = await pool.query('INSERT INTO cat_ingredientes (nombre, tipo) VALUES (?, ?)', [nombreTrim, tipo]);
     emitChange(req, 'ingrediente', 'created', { id: result.insertId });
-    res.status(201).json({ id: result.insertId, nombre, tipo });
+    res.status(201).json({ id: result.insertId, nombre: nombreTrim, tipo });
   } catch (error) { next(error); }
 }
 
@@ -36,7 +46,16 @@ export async function updateIngrediente(req, res, next) {
     const { nombre, tipo } = req.body;
     const fields = [];
     const params = [];
-    if (nombre !== undefined) { fields.push('nombre = ?'); params.push(nombre); }
+    if (nombre !== undefined) {
+      const nombreTrim = String(nombre).trim();
+      if (!nombreTrim) return res.status(400).json({ message: 'El nombre del ingrediente no puede estar vacío' });
+      // Verificar duplicado excluyendo el registro actual
+      const [existing] = await pool.query('SELECT id FROM cat_ingredientes WHERE LOWER(nombre) = LOWER(?) AND id != ?', [nombreTrim, id]);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: `Ya existe otro ingrediente llamado "${nombreTrim}"` });
+      }
+      fields.push('nombre = ?'); params.push(nombreTrim);
+    }
     if (tipo !== undefined) { fields.push('tipo = ?'); params.push(tipo); }
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
     params.push(id);
@@ -50,6 +69,7 @@ export async function updateIngrediente(req, res, next) {
 export async function deleteIngrediente(req, res, next) {
   try {
     const { id } = req.params;
+    await pool.query('DELETE FROM informe_dia_menu_detalle WHERE ingrediente_id = ?', [id]);
     await pool.query('DELETE FROM cat_opciones_ingrediente WHERE ingrediente_id = ?', [id]);
     await pool.query('DELETE FROM menu_items WHERE ingrediente_id = ?', [id]);
     await pool.query('DELETE FROM platillo_componentes WHERE ingrediente_id = ?', [id]);
@@ -59,13 +79,51 @@ export async function deleteIngrediente(req, res, next) {
   } catch (error) { next(error); }
 }
 
+export async function getIngredienteAsociaciones(req, res, next) {
+  try {
+    const { id } = req.params;
+    const [platillos] = await pool.query(
+      `SELECT DISTINCT cp.id, cp.nombre_platillo
+       FROM platillo_componentes pc
+       JOIN cat_platillos cp ON cp.id = pc.platillo_id
+       WHERE pc.ingrediente_id = ?`, [id]
+    );
+    const [menus] = await pool.query(
+      `SELECT DISTINCT cm.id, cm.nombre_menu
+       FROM menu_items mi
+       JOIN cat_menus cm ON cm.id = mi.menu_id
+       WHERE mi.ingrediente_id = ?`, [id]
+    );
+    const [informes] = await pool.query(
+      `SELECT DISTINCT ie.id, ie.id_ocupacion
+       FROM informe_dia_menu_detalle idmd
+       JOIN informe_dias_detalle idd ON idd.id = idmd.dia_id
+       JOIN informes_eventos ie ON ie.id = idd.informe_id
+       WHERE idmd.ingrediente_id = ?`, [id]
+    );
+    res.json({ platillos, menus, informes });
+  } catch (error) { next(error); }
+}
+
 // --- OPCIONES DE INGREDIENTES ---
 export async function createOpcionIngrediente(req, res, next) {
   try {
     const { ingrediente_id, nombre_opcion } = req.body;
-    const [result] = await pool.query('INSERT INTO cat_opciones_ingrediente (ingrediente_id, nombre_opcion) VALUES (?, ?)', [ingrediente_id, nombre_opcion]);
+    if (!nombre_opcion || !nombre_opcion.trim()) {
+      return res.status(400).json({ message: 'El nombre de la opción es requerido' });
+    }
+    const nombreTrim = nombre_opcion.trim();
+    // Verificar duplicado dentro del mismo ingrediente
+    const [existing] = await pool.query(
+      'SELECT id FROM cat_opciones_ingrediente WHERE ingrediente_id = ? AND LOWER(nombre_opcion) = LOWER(?)',
+      [ingrediente_id, nombreTrim]
+    );
+    if (existing.length > 0) {
+      return res.status(409).json({ message: `Ya existe una opción llamada "${nombreTrim}" para este ingrediente` });
+    }
+    const [result] = await pool.query('INSERT INTO cat_opciones_ingrediente (ingrediente_id, nombre_opcion) VALUES (?, ?)', [ingrediente_id, nombreTrim]);
     emitChange(req, 'opcion_ingrediente', 'created', { id: result.insertId, ingrediente_id });
-    res.status(201).json({ id: result.insertId, ingrediente_id, nombre_opcion });
+    res.status(201).json({ id: result.insertId, ingrediente_id, nombre_opcion: nombreTrim });
   } catch (error) { next(error); }
 }
 
@@ -87,8 +145,21 @@ export async function updateOpcionIngrediente(req, res, next) {
   try {
     const { id } = req.params;
     const { nombre_opcion } = req.body;
-    if (!nombre_opcion) return res.status(400).json({ message: 'nombre_opcion requerido' });
-    await pool.query('UPDATE cat_opciones_ingrediente SET nombre_opcion = ? WHERE id = ?', [nombre_opcion, id]);
+    if (!nombre_opcion || !String(nombre_opcion).trim()) return res.status(400).json({ message: 'nombre_opcion requerido' });
+    const nombreTrim = String(nombre_opcion).trim();
+    // Obtener el ingrediente_id de la opción actual
+    const [current] = await pool.query('SELECT ingrediente_id FROM cat_opciones_ingrediente WHERE id = ?', [id]);
+    if (current.length === 0) return res.status(404).json({ message: 'Opción no encontrada' });
+    const ingredienteId = current[0].ingrediente_id;
+    // Verificar duplicado dentro del mismo ingrediente, excluyendo la opción actual
+    const [existing] = await pool.query(
+      'SELECT id FROM cat_opciones_ingrediente WHERE ingrediente_id = ? AND LOWER(nombre_opcion) = LOWER(?) AND id != ?',
+      [ingredienteId, nombreTrim, id]
+    );
+    if (existing.length > 0) {
+      return res.status(409).json({ message: `Ya existe otra opción llamada "${nombreTrim}" para este ingrediente` });
+    }
+    await pool.query('UPDATE cat_opciones_ingrediente SET nombre_opcion = ? WHERE id = ?', [nombreTrim, id]);
     emitChange(req, 'opcion_ingrediente', 'updated', { id });
     const [rows] = await pool.query('SELECT * FROM cat_opciones_ingrediente WHERE id = ?', [id]);
     res.json(rows[0]);
@@ -108,7 +179,15 @@ export async function deleteOpcionIngrediente(req, res, next) {
 export async function createMenu(req, res, next) {
   try {
     const { nombre_menu, descripcion, categoria_id } = req.body;
-    const [result] = await pool.query('INSERT INTO cat_menus (nombre_menu, descripcion, categoria_id) VALUES (?, ?, ?)', [nombre_menu, descripcion, categoria_id || null]);
+    if (!nombre_menu || !nombre_menu.trim()) {
+      return res.status(400).json({ message: 'El nombre del menú es requerido' });
+    }
+    const nombreTrim = nombre_menu.trim();
+    const [existing] = await pool.query('SELECT id FROM cat_menus WHERE LOWER(nombre_menu) = LOWER(?)', [nombreTrim]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: `Ya existe un menú llamado "${nombreTrim}"` });
+    }
+    const [result] = await pool.query('INSERT INTO cat_menus (nombre_menu, descripcion, categoria_id) VALUES (?, ?, ?)', [nombreTrim, descripcion, categoria_id || null]);
     emitChange(req, 'menu', 'created', { id: result.insertId });
     const [row] = await pool.query(
       'SELECT m.*, c.nombre AS categoria_nombre FROM cat_menus m LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id WHERE m.id = ?',
@@ -124,7 +203,15 @@ export async function updateMenu(req, res, next) {
     const { nombre_menu, descripcion, categoria_id } = req.body;
     const fields = [];
     const params = [];
-    if (nombre_menu !== undefined) { fields.push('nombre_menu = ?'); params.push(nombre_menu); }
+    if (nombre_menu !== undefined) {
+      const nombreTrim = String(nombre_menu).trim();
+      if (!nombreTrim) return res.status(400).json({ message: 'El nombre del menú no puede estar vacío' });
+      const [existing] = await pool.query('SELECT id FROM cat_menus WHERE LOWER(nombre_menu) = LOWER(?) AND id != ?', [nombreTrim, id]);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: `Ya existe otro menú llamado "${nombreTrim}"` });
+      }
+      fields.push('nombre_menu = ?'); params.push(nombreTrim);
+    }
     if (descripcion !== undefined) { fields.push('descripcion = ?'); params.push(descripcion); }
     if (categoria_id !== undefined) { fields.push('categoria_id = ?'); params.push(categoria_id || null); }
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
@@ -212,9 +299,17 @@ export async function getMenuDetalle(req, res, next) {
 export async function createCategoria(req, res, next) {
   try {
     const { nombre } = req.body;
-    const [result] = await pool.query('INSERT INTO cat_categorias_alimento (nombre) VALUES (?)', [nombre]);
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ message: 'El nombre de la categoría es requerido' });
+    }
+    const nombreTrim = nombre.trim();
+    const [existing] = await pool.query('SELECT id FROM cat_categorias_alimento WHERE LOWER(nombre) = LOWER(?)', [nombreTrim]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: `Ya existe una categoría llamada "${nombreTrim}"` });
+    }
+    const [result] = await pool.query('INSERT INTO cat_categorias_alimento (nombre) VALUES (?)', [nombreTrim]);
     emitChange(req, 'categoria_alimento', 'created', { id: result.insertId });
-    res.status(201).json({ id: result.insertId, nombre });
+    res.status(201).json({ id: result.insertId, nombre: nombreTrim });
   } catch (error) { next(error); }
 }
 
@@ -231,7 +326,15 @@ export async function updateCategoria(req, res, next) {
     const { nombre, activo } = req.body;
     const fields = [];
     const params = [];
-    if (nombre !== undefined) { fields.push('nombre = ?'); params.push(nombre); }
+    if (nombre !== undefined) {
+      const nombreTrim = String(nombre).trim();
+      if (!nombreTrim) return res.status(400).json({ message: 'El nombre de la categoría no puede estar vacío' });
+      const [existing] = await pool.query('SELECT id FROM cat_categorias_alimento WHERE LOWER(nombre) = LOWER(?) AND id != ?', [nombreTrim, id]);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: `Ya existe otra categoría llamada "${nombreTrim}"` });
+      }
+      fields.push('nombre = ?'); params.push(nombreTrim);
+    }
     if (activo !== undefined) { fields.push('activo = ?'); params.push(activo); }
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos' });
     params.push(id);

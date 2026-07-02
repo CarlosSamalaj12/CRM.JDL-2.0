@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useToast } from '../context/ToastContext.jsx';import {
   getIngredientes, 
   createIngrediente, 
   updateIngrediente,
   deleteIngrediente,
+  getIngredienteAsociaciones,
   getOpcionesIngrediente, 
   createOpcionIngrediente,
   updateOpcionIngrediente,
@@ -30,6 +31,7 @@ import { useToast } from '../context/ToastContext.jsx';import {
   deleteCategoria,
 } from '../services/api.js';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
+import ConfirmModal from '../../../components/ConfirmModal.jsx';
 import { IconPackage, IconChefHat, IconMenu, IconTag, IconPlus, IconTrash, IconCheckCircle, IconSearch, IconX } from '../components/Icons.jsx';
 
 const TIPO_LABELS = {
@@ -38,17 +40,14 @@ const TIPO_LABELS = {
   guarnicion:   { label: 'Guarnición',    icon: '🥗', color: '#10b981' },
   salsa:        { label: 'Salsa',         icon: '🫗', color: '#f59e0b' },
   postre:       { label: 'Postre',        icon: '🍰', color: '#ec4899' },
-  tortilla_pan: { label: 'Tortilla/Pan',  icon: '🌮', color: '#a855f7' },
   bebida:       { label: 'Bebida',        icon: '🥤', color: '#06b6d4' },
-  otros:        { label: 'Otros',         icon: '📦', color: '#64748b' },
 };
 
-const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','tortilla_pan','bebida','otros'];
+const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','bebida'];
 
 function SugerenciaTipoSection({ tipo, ingredientes, opcionesPorIng, seleccionados, onToggle, onOpcionChange }) {
-  const cfg = TIPO_LABELS[tipo] || TIPO_LABELS.otros;
+  const cfg = TIPO_LABELS[tipo] || { label: tipo, icon: '📦', color: '#64748b' };
   const disponibles = ingredientes.filter(i => i.tipo === tipo || 
-    (tipo === 'tortilla_pan' && i.tipo === 'tortilla_pan') ||
     (tipo === 'guarnicion' && i.tipo === 'guarnición'));
 
   if (disponibles.length === 0) return null;
@@ -150,6 +149,14 @@ export default function Catalog() {
     ? menus.filter(m => m.nombre_menu.toLowerCase().includes(searchMenus.toLowerCase()))
     : menus;
 
+  const [confirmState, setConfirmState] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  const openConfirm = useCallback((title, message, onConfirm) => {
+    setConfirmState({ isOpen: true, title, message, onConfirm });
+  }, []);
+  const closeConfirm = useCallback(() => {
+    setConfirmState(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
   useEffect(() => {
     loadIngredientes();
     loadPlatillos();
@@ -231,9 +238,16 @@ export default function Catalog() {
 
   const onAddIngrediente = async (e) => {
     e.preventDefault();
+    const nombre = newIngrediente.nombre.trim();
+    if (!nombre) return;
+    // Validación local de duplicado
+    if (ingredientes.some(i => i.nombre.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe un ingrediente llamado "${nombre}"`);
+      return;
+    }
     try {
-      await createIngrediente(newIngrediente);
-      toast.success(`Ingrediente "${newIngrediente.nombre}" creado`);
+      await createIngrediente({ ...newIngrediente, nombre });
+      toast.success(`Ingrediente "${nombre}" creado`);
       setNewIngrediente({ nombre: '', tipo: 'proteina' });
       loadIngredientes();
     } catch (err) {
@@ -249,12 +263,18 @@ export default function Catalog() {
   };
 
   const saveEditIngrediente = async () => {
-    if (!editIngNombre.trim()) return;
+    const nombre = editIngNombre.trim();
+    if (!nombre) return;
+    // Validación local de duplicado (excluyendo el que se edita)
+    if (ingredientes.some(i => i.id !== editingIngId && i.nombre.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe otro ingrediente llamado "${nombre}"`);
+      return;
+    }
     try {
-      await updateIngrediente(editingIngId, { nombre: editIngNombre.trim(), tipo: editIngTipo });
+      await updateIngrediente(editingIngId, { nombre, tipo: editIngTipo });
       toast.success('Ingrediente actualizado');
       setEditingIngId(null);
-      if (selectedIngrediente?.id === editingIngId) setSelectedIngrediente(prev => ({ ...prev, nombre: editIngNombre.trim(), tipo: editIngTipo }));
+      if (selectedIngrediente?.id === editingIngId) setSelectedIngrediente(prev => ({ ...prev, nombre, tipo: editIngTipo }));
       loadIngredientes();
     } catch (err) {
       toast.error('Error al actualizar: ' + err.message);
@@ -263,22 +283,45 @@ export default function Catalog() {
 
   const handleDeleteIngrediente = async (ing, e) => {
     e.stopPropagation();
-    if (!confirm(`¿Eliminar "${ing.nombre}"? También se quitará de menús y platillos.`)) return;
     try {
-      await deleteIngrediente(ing.id);
-      toast.success(`"${ing.nombre}" eliminado`);
-      if (selectedIngrediente?.id === ing.id) { setSelectedIngrediente(null); setOpciones([]); }
-      loadIngredientes();
+      const { platillos, menus, informes } = await getIngredienteAsociaciones(ing.id);
+      let msg = `¿Eliminar "${ing.nombre}"?`;
+      const partes = [];
+      if (platillos.length > 0) partes.push(`🍽 Platillos (${platillos.length}): ${platillos.map(p => p.nombre_platillo).join(', ')}`);
+      if (menus.length > 0) partes.push(`📋 Menús (${menus.length}): ${menus.map(m => m.nombre_menu).join(', ')}`);
+      if (informes.length > 0) partes.push(`📄 Informes (${informes.length}): ${informes.map(i => i.id_ocupacion).join(', ')}`);
+      if (partes.length > 0) {
+        msg += `\n\nEstá asociado a:\n${partes.join('\n')}\n\nSe eliminará de todas estas entradas.`;
+      } else {
+        msg += '\n\nNo está asociado a ningún platillo, menú o informe.';
+      }
+      openConfirm('Eliminar Ingrediente', msg, async () => {
+        try {
+          await deleteIngrediente(ing.id);
+          toast.success(`"${ing.nombre}" eliminado`);
+          if (selectedIngrediente?.id === ing.id) { setSelectedIngrediente(null); setOpciones([]); }
+          loadIngredientes();
+        } catch (err) {
+          toast.error('Error al eliminar: ' + err.message);
+        }
+      });
     } catch (err) {
-      toast.error('Error al eliminar: ' + err.message);
+      toast.error('Error al consultar asociaciones: ' + err.message);
     }
   };
 
   const onAddOpcion = async (e) => {
     e.preventDefault();
+    const nombreOpcion = newOpcion.nombre_opcion.trim();
+    if (!nombreOpcion) return;
+    // Validación local de duplicado
+    if (opciones.some(o => o.nombre_opcion.toLowerCase() === nombreOpcion.toLowerCase())) {
+      toast.error(`Ya existe una opción llamada "${nombreOpcion}" para este ingrediente`);
+      return;
+    }
     try {
-      await createOpcionIngrediente({ ...newOpcion, ingrediente_id: selectedIngrediente.id });
-      toast.success(`Opción "${newOpcion.nombre_opcion}" añadida`);
+      await createOpcionIngrediente({ nombre_opcion: nombreOpcion, ingrediente_id: selectedIngrediente.id });
+      toast.success(`Opción "${nombreOpcion}" añadida`);
       setNewOpcion({ nombre_opcion: '' });
       handleIngredienteSelect(selectedIngrediente);
     } catch (err) {
@@ -293,9 +336,15 @@ export default function Catalog() {
   };
 
   const saveEditOpcion = async () => {
-    if (!editOptNombre.trim()) return;
+    const nombre = editOptNombre.trim();
+    if (!nombre) return;
+    // Validación local de duplicado (excluyendo la opción que se edita)
+    if (opciones.some(o => o.id !== editingOptId && o.nombre_opcion.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe otra opción llamada "${nombre}" para este ingrediente`);
+      return;
+    }
     try {
-      await updateOpcionIngrediente(editingOptId, { nombre_opcion: editOptNombre.trim() });
+      await updateOpcionIngrediente(editingOptId, { nombre_opcion: nombre });
       toast.success('Opción actualizada');
       setEditingOptId(null);
       handleIngredienteSelect(selectedIngrediente);
@@ -304,23 +353,35 @@ export default function Catalog() {
     }
   };
 
-  const handleDeleteOpcion = async (optId, e) => {
+  const handleDeleteOpcion = (optId, e) => {
     e.stopPropagation();
-    if (!confirm('¿Eliminar esta opción?')) return;
-    try {
-      await deleteOpcionIngrediente(optId);
-      toast.success('Opción eliminada');
-      handleIngredienteSelect(selectedIngrediente);
-    } catch (err) {
-      toast.error('Error al eliminar opción: ' + err.message);
-    }
+    openConfirm(
+      'Eliminar Opción',
+      '¿Eliminar esta opción?',
+      async () => {
+        try {
+          await deleteOpcionIngrediente(optId);
+          toast.success('Opción eliminada');
+          handleIngredienteSelect(selectedIngrediente);
+        } catch (err) {
+          toast.error('Error al eliminar opción: ' + err.message);
+        }
+      }
+    );
   };
 
   const onAddPlatillo = async (e) => {
     e.preventDefault();
+    const nombre = newPlatillo.nombre_platillo.trim();
+    if (!nombre) return;
+    // Validación local de duplicado
+    if (platillos.some(p => p.nombre_platillo.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe un platillo llamado "${nombre}"`);
+      return;
+    }
     try {
-      const nuevo = await createPlatillo(newPlatillo);
-      toast.success(`Platillo "${newPlatillo.nombre_platillo}" creado`);
+      const nuevo = await createPlatillo({ ...newPlatillo, nombre_platillo: nombre });
+      toast.success(`Platillo "${nombre}" creado`);
       setNewPlatillo({ nombre_platillo: '', descripcion: '', categoria_id: '' });
       await loadPlatillos();
       handlePlatilloSelect(nuevo);
@@ -338,17 +399,23 @@ export default function Catalog() {
   };
 
   const saveEditPlatillo = async () => {
-    if (!editPlatNombre.trim()) return;
+    const nombre = editPlatNombre.trim();
+    if (!nombre) return;
+    // Validación local de duplicado (excluyendo el que se edita)
+    if (platillos.some(p => p.id !== editingPlatId && p.nombre_platillo.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe otro platillo llamado "${nombre}"`);
+      return;
+    }
     try {
       await updatePlatillo(editingPlatId, {
-        nombre_platillo: editPlatNombre.trim(),
+        nombre_platillo: nombre,
         descripcion: editPlatDesc.trim() || null,
         categoria_id: editPlatCatId || null,
       });
       toast.success('Platillo actualizado');
       setEditingPlatId(null);
       if (selectedPlatillo?.id === editingPlatId) {
-        setSelectedPlatillo(prev => ({ ...prev, nombre_platillo: editPlatNombre.trim() }));
+        setSelectedPlatillo(prev => ({ ...prev, nombre_platillo: nombre }));
       }
       loadPlatillos();
     } catch (err) {
@@ -356,25 +423,36 @@ export default function Catalog() {
     }
   };
 
-  const handleDeletePlatillo = async (plat, e) => {
+  const handleDeletePlatillo = (plat, e) => {
     e.stopPropagation();
-    if (!confirm(`¿Eliminar el platillo "${plat.nombre_platillo}"?`)) return;
-    try {
-      await deletePlatillo(plat.id);
-      toast.success(`"${plat.nombre_platillo}" eliminado`);
-      if (selectedPlatillo?.id === plat.id) { setSelectedPlatillo(null); setPlatilloDetalle(null); }
-      loadPlatillos();
-    } catch (err) {
-      toast.error('Error al eliminar: ' + err.message);
-    }
+    openConfirm(
+      'Eliminar Platillo',
+      `¿Eliminar el platillo "${plat.nombre_platillo}"?`,
+      async () => {
+        try {
+          await deletePlatillo(plat.id);
+          toast.success(`"${plat.nombre_platillo}" eliminado`);
+          if (selectedPlatillo?.id === plat.id) { setSelectedPlatillo(null); setPlatilloDetalle(null); }
+          loadPlatillos();
+        } catch (err) {
+          toast.error('Error al eliminar: ' + err.message);
+        }
+      }
+    );
   };
 
   const onAddCategoria = async (e) => {
     e.preventDefault();
-    if (!newCategoria.trim()) return;
+    const nombre = newCategoria.trim();
+    if (!nombre) return;
+    // Validación local de duplicado
+    if (categorias.some(c => c.nombre.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe una categoría llamada "${nombre}"`);
+      return;
+    }
     try {
-      await createCategoria(newCategoria.trim());
-      toast.success(`Categoría "${newCategoria.trim()}" creada`);
+      await createCategoria(nombre);
+      toast.success(`Categoría "${nombre}" creada`);
       setNewCategoria('');
       loadCategorias();
     } catch (err) {
@@ -388,9 +466,15 @@ export default function Catalog() {
   };
 
   const saveEditCategoria = async () => {
-    if (!editCategoriaName.trim()) return;
+    const nombre = editCategoriaName.trim();
+    if (!nombre) return;
+    // Validación local de duplicado (excluyendo la que se edita)
+    if (categorias.some(c => c.id !== editingCategoriaId && c.nombre.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe otra categoría llamada "${nombre}"`);
+      return;
+    }
     try {
-      await updateCategoria(editingCategoriaId, { nombre: editCategoriaName.trim() });
+      await updateCategoria(editingCategoriaId, { nombre });
       toast.success('Categoría actualizada');
       setEditingCategoriaId(null);
       loadCategorias();
@@ -400,23 +484,35 @@ export default function Catalog() {
     }
   };
 
-  const onDeleteCategoria = async (id, nombre) => {
-    if (!confirm(`¿Eliminar la categoría "${nombre}"? Se quitará de los platillos que la usen.`)) return;
-    try {
-      await deleteCategoria(id);
-      toast.success(`Categoría "${nombre}" eliminada`);
-      loadCategorias();
-      loadPlatillos();
-    } catch (err) {
-      toast.error('Error al eliminar categoría: ' + err.message);
-    }
+  const onDeleteCategoria = (id, nombre) => {
+    openConfirm(
+      'Eliminar Categoría',
+      `¿Eliminar la categoría "${nombre}"? Se quitará de los platillos que la usen.`,
+      async () => {
+        try {
+          await deleteCategoria(id);
+          toast.success(`Categoría "${nombre}" eliminada`);
+          loadCategorias();
+          loadPlatillos();
+        } catch (err) {
+          toast.error('Error al eliminar categoría: ' + err.message);
+        }
+      }
+    );
   };
 
   const onAddMenu = async (e) => {
     e.preventDefault();
+    const nombre = newMenu.nombre_menu.trim();
+    if (!nombre) return;
+    // Validación local de duplicado
+    if (menus.some(m => m.nombre_menu.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe un menú llamado "${nombre}"`);
+      return;
+    }
     try {
-      const nuevo = await createMenu(newMenu);
-      toast.success(`Menú "${newMenu.nombre_menu}" creado`);
+      const nuevo = await createMenu({ ...newMenu, nombre_menu: nombre });
+      toast.success(`Menú "${nombre}" creado`);
       resetNewMenuForm();
       await loadMenus();
       handleMenuSelect(nuevo);
@@ -437,10 +533,16 @@ export default function Catalog() {
   };
 
   const saveEditMenu = async () => {
-    if (!editMenuName.trim()) return;
+    const nombre = editMenuName.trim();
+    if (!nombre) return;
+    // Validación local de duplicado (excluyendo el que se edita)
+    if (menus.some(m => m.id !== editingMenuId && m.nombre_menu.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe otro menú llamado "${nombre}"`);
+      return;
+    }
     try {
       const updated = await updateMenu(editingMenuId, {
-        nombre_menu: editMenuName.trim(),
+        nombre_menu: nombre,
         descripcion: editMenuDesc.trim() || null,
         categoria_id: editMenuCategoriaId || null,
       });
@@ -1033,9 +1135,8 @@ export default function Catalog() {
               ) : menuDetalle ? (
                 <div className="sug-tipo-grid">
                   {TIPO_OPTS.map(tipo => {
-                    const cfg = TIPO_LABELS[tipo] || TIPO_LABELS.otros;
+                    const cfg = TIPO_LABELS[tipo] || { label: tipo, icon: '📦', color: '#64748b' };
                     const disponibles = (ingredientes || []).filter(i => i.tipo === tipo || 
-                      (tipo === 'tortilla_pan' && i.tipo === 'tortilla_pan') ||
                       (tipo === 'guarnicion' && i.tipo === 'guarnición'));
                     if (disponibles.length === 0) return null;
                     return (
@@ -1085,6 +1186,16 @@ export default function Catalog() {
           )}
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText="Sí, eliminar"
+        cancelText="Cancelar"
+        isDanger={true}
+        onConfirm={() => { confirmState.onConfirm?.(); closeConfirm(); }}
+        onCancel={closeConfirm}
+      />
     </div>
   );
 }

@@ -19,12 +19,10 @@ const TIPO_LABELS = {
   guarnicion:   { label: 'Guarnición',    icon: '🥗', color: '#10b981' },
   salsa:        { label: 'Salsa',         icon: '🫗', color: '#f59e0b' },
   postre:       { label: 'Postre',        icon: '🍰', color: '#ec4899' },
-  tortilla_pan: { label: 'Tortilla/Pan',  icon: '🌮', color: '#a855f7' },
   bebida:       { label: 'Bebida',        icon: '🥤', color: '#06b6d4' },
-  otros:        { label: 'Otros',         icon: '📦', color: '#64748b' },
 };
 
-const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','tortilla_pan','bebida','otros'];
+const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','bebida'];
 const METODOS_PREPARACION = [
   'A la plancha', 'Al vapor', 'Frito', 'Parrilla', 'Horneado',
   'Salteado', 'Guisado', 'Crudo / Fresco', 'Otro'
@@ -350,7 +348,7 @@ export default function InformeCreator() {
                   {TIPO_OPTS.map(tipo => {
                     const componentes = diaActivo.platilloDetalle.componentes_agrupados[tipo] || [];
                     if (componentes.length === 0) return null;
-                    const cfg = TIPO_LABELS[tipo] || TIPO_LABELS.otros;
+                    const cfg = TIPO_LABELS[tipo] || { label: tipo, icon: '📦', color: '#64748b' };
                     const seleccionados = diaActivo.selectedItems.filter(s => s.tipo === tipo);
 
                     return (
@@ -545,7 +543,7 @@ function LivePreview({ evento, dias, informeId }) {
                     {TIPO_OPTS.map(tipo => {
                       const items = dia.selectedItems.filter(s => s.tipo === tipo);
                       if (items.length === 0) return null;
-                      const cfg = TIPO_LABELS[tipo] || TIPO_LABELS.otros;
+                      const cfg = TIPO_LABELS[tipo] || { label: tipo, icon: '📦', color: '#64748b' };
                       return (
                         <div key={tipo} className="live-preview-tipo">
                           <span className="live-preview-tipo-label" style={{ color: cfg.color }}>

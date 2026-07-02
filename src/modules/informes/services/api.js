@@ -47,7 +47,11 @@ export async function createIngrediente(data) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error('Error al crear ingrediente');
+  if (!response.ok) {
+    let msg = 'Error al crear ingrediente';
+    try { const body = await response.json(); if (body?.message) msg = body.message; } catch {}
+    throw new Error(msg);
+  }
   return response.json();
 }
 
@@ -72,6 +76,11 @@ export async function deleteIngrediente(id) {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error('Error al eliminar ingrediente');
+}
+
+export async function getIngredienteAsociaciones(id) {
+  const response = await fetch(`${apiUrl}/api/catalog/ingredientes/${id}/asociaciones`);
+  if (!response.ok) throw new Error('Error al consultar asociaciones del ingrediente');
   return response.json();
 }
 
@@ -82,7 +91,11 @@ export async function createOpcionIngrediente(data) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error('Error al crear opción');
+  if (!response.ok) {
+    let msg = 'Error al crear opción';
+    try { const body = await response.json(); if (body?.message) msg = body.message; } catch {}
+    throw new Error(msg);
+  }
   return response.json();
 }
 

@@ -19,9 +19,14 @@ export async function createEquipo(req, res, next) {
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ message: 'El nombre del equipo es requerido' });
     }
+    const nombreTrim = nombre.trim();
+    const [existing] = await pool.query('SELECT id FROM equipos_trabajo WHERE LOWER(nombre) = LOWER(?)', [nombreTrim]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: `Ya existe un equipo llamado "${nombreTrim}"` });
+    }
     const [result] = await pool.query(
       'INSERT INTO equipos_trabajo (nombre, descripcion) VALUES (?, ?)',
-      [nombre.trim(), descripcion?.trim() || null]
+      [nombreTrim, descripcion?.trim() || null]
     );
     emitChange(req, 'equipo_trabajo', 'created', { id: result.insertId });
     const [nuevo] = await pool.query('SELECT * FROM equipos_trabajo WHERE id = ?', [result.insertId]);
@@ -35,7 +40,15 @@ export async function updateEquipo(req, res, next) {
     const { nombre, descripcion } = req.body;
     const updates = [];
     const values = [];
-    if (nombre !== undefined) { updates.push('nombre = ?'); values.push(nombre.trim()); }
+    if (nombre !== undefined) {
+      const nombreTrim = nombre.trim();
+      if (!nombreTrim) return res.status(400).json({ message: 'El nombre del equipo no puede estar vacío' });
+      const [existing] = await pool.query('SELECT id FROM equipos_trabajo WHERE LOWER(nombre) = LOWER(?) AND id != ?', [nombreTrim, id]);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: `Ya existe otro equipo llamado "${nombreTrim}"` });
+      }
+      updates.push('nombre = ?'); values.push(nombreTrim);
+    }
     if (descripcion !== undefined) { updates.push('descripcion = ?'); values.push(descripcion?.trim() || null); }
     if (updates.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
     values.push(id);

@@ -2,7 +2,7 @@ import pool from '../config/db.js';
 import { emitChange } from '../helpers/socketEvents.js';
 
 function normalizeTipo(tipo) {
-  if (!tipo) return 'otros';
+  if (!tipo) return 'entradas';
   const t = tipo.toLowerCase().trim();
   if (t === 'salsas' || t === 'salsa') return 'salsa';
   if (t === 'guarniciones' || t === 'guarnición' || t === 'guarnicion') return 'guarnición';
@@ -10,7 +10,8 @@ function normalizeTipo(tipo) {
   if (t === 'postres' || t === 'postre') return 'postre';
   if (t === 'bebidas' || t === 'bebida') return 'bebida';
   if (t === 'entradas' || t === 'entrada') return 'entradas';
-  return t;
+  if (t === 'tortilla_pan' || t === 'otros' || t === 'otro') return 'entradas';
+  return 'entradas';
 }
 
 // --- GESTIÓN DE PLATILLOS ---
@@ -19,9 +20,17 @@ function normalizeTipo(tipo) {
 export async function createPlatillo(req, res, next) {
   try {
     const { nombre_platillo, descripcion, precio_base, categoria_id } = req.body;
+    if (!nombre_platillo || !nombre_platillo.trim()) {
+      return res.status(400).json({ message: 'El nombre del platillo es requerido' });
+    }
+    const nombreTrim = nombre_platillo.trim();
+    const [existing] = await pool.query('SELECT id FROM cat_platillos WHERE LOWER(nombre_platillo) = LOWER(?)', [nombreTrim]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: `Ya existe un platillo llamado "${nombreTrim}"` });
+    }
     const [result] = await pool.query(
       'INSERT INTO cat_platillos (nombre_platillo, descripcion, categoria_id, precio_base) VALUES (?, ?, ?, ?)',
-      [nombre_platillo, descripcion, categoria_id || null, precio_base || 0]
+      [nombreTrim, descripcion, categoria_id || null, precio_base || 0]
     );
     emitChange(req, 'platillo', 'created', { id: result.insertId });
     const [row] = await pool.query(
@@ -141,7 +150,15 @@ export async function updatePlatillo(req, res, next) {
     const { nombre_platillo, descripcion, categoria_id, precio_base } = req.body;
     const fields = [];
     const params = [];
-    if (nombre_platillo !== undefined) { fields.push('nombre_platillo = ?'); params.push(nombre_platillo); }
+    if (nombre_platillo !== undefined) {
+      const nombreTrim = String(nombre_platillo).trim();
+      if (!nombreTrim) return res.status(400).json({ message: 'El nombre del platillo no puede estar vacío' });
+      const [existing] = await pool.query('SELECT id FROM cat_platillos WHERE LOWER(nombre_platillo) = LOWER(?) AND id != ?', [nombreTrim, id]);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: `Ya existe otro platillo llamado "${nombreTrim}"` });
+      }
+      fields.push('nombre_platillo = ?'); params.push(nombreTrim);
+    }
     if (descripcion !== undefined) { fields.push('descripcion = ?'); params.push(descripcion); }
     if (categoria_id !== undefined) { fields.push('categoria_id = ?'); params.push(categoria_id || null); }
     if (precio_base !== undefined) { fields.push('precio_base = ?'); params.push(precio_base); }

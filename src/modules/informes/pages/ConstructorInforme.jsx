@@ -46,7 +46,6 @@ const TIPO_LABELS = {
   salsa: 'SALSAS', salsas: 'SALSAS', postre: 'POSTRES', postres: 'POSTRES', bebida: 'BEBIDAS', bebidas: 'BEBIDAS',
   proteina: 'PROTEÍNA', proteína: 'PROTEÍNA', proteinas: 'PROTEÍNAS', proteínas: 'PROTEÍNAS',
   entradas: 'ENTRADAS', entrada: 'ENTRADAS',
-  tortilla_pan: 'TORTILLA/PAN', otros: 'OTROS', Otros: 'OTROS',
 };
 
 const METODOS_PREPARACION = [
@@ -298,13 +297,21 @@ export default function ConstructorInforme() {
   const [creatingIng, setCreatingIng] = useState(false);
 
   const handleCreateIngrediente = async () => {
-    if (!newIngNombre.trim() || creatingIng) return;
+    const nombre = newIngNombre.trim();
+    if (!nombre || creatingIng) return;
+    // Validación local de duplicado
+    if (ingredientes.some(i => i.nombre.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe un ingrediente llamado "${nombre}"`);
+      setShowNewIngModal(false);
+      setNewIngNombre('');
+      return;
+    }
     // Cerrar el modal inmediatamente para evitar overlocks
     setShowNewIngModal(false);
     setCreatingIng(true);
     try {
-      await createIngrediente({ nombre: newIngNombre.trim(), tipo: newIngTipo });
-      toast.success(`✅ "${newIngNombre.trim()}" creado`);
+      await createIngrediente({ nombre, tipo: newIngTipo });
+      toast.success(`✅ "${nombre}" creado`);
       const updated = await getIngredientes();
       setIngredientes(updated);
       setNewIngNombre('');

@@ -3824,30 +3824,65 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <div ref={institutionFieldRef}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <label style={{ ...fieldLabel, marginBottom: 0 }}>Institución</label>
-                        <button
-                          type="button"
-                          onClick={openCreateCompanyModal}
-                          style={{ 
-                            minHeight: 28, 
-                            padding: '0 12px', 
-                            fontSize: 11, 
-                            fontWeight: 900, 
-                            background: '#2563eb', 
-                            color: '#ffffff', 
-                            borderRadius: '6px', 
-                            border: 'none', 
-                            boxShadow: '0 2px 4px rgba(37,99,235,0.2)', 
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            transition: 'background .12s'
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
-                          onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
-                        >
-                          + Agregar empresa
-                        </button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {selectedQuoteCompany && (
+                            <button
+                              type="button"
+                              onClick={() => openCreateCompanyModal()}
+                              style={{ 
+                                minHeight: 28, 
+                                padding: '0 10px', 
+                                fontSize: 11, 
+                                fontWeight: 800, 
+                                background: '#f1f5f9', 
+                                color: '#334155', 
+                                borderRadius: '6px', 
+                                border: '1px solid #cbd5e1', 
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                transition: 'background .12s'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                              onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+                            >
+                              ✏️ Editar
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCompanyDraftId('');
+                              setCompanyDraft(emptyCompanyDraft);
+                              setCompanyManagersDraft([]);
+                              setManagerDraft(emptyManagerDraft);
+                              setEditingManagerId('');
+                              setCompanyDraftActive(true);
+                              setShowCreateCompanyModal(true);
+                            }}
+                            style={{ 
+                              minHeight: 28, 
+                              padding: '0 12px', 
+                              fontSize: 11, 
+                              fontWeight: 900, 
+                              background: '#2563eb', 
+                              color: '#ffffff', 
+                              borderRadius: '6px', 
+                              border: 'none', 
+                              boxShadow: '0 2px 4px rgba(37,99,235,0.2)', 
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'background .12s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
+                          >
+                            + Nueva
+                          </button>
+                        </div>
                       </div>
                       <div style={{ position: 'relative' }}>
                         <input
@@ -3858,13 +3893,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           onBlur={() => setTimeout(() => setShowCompanyResults(false), 200)}
                           placeholder="Buscar institución..."
                         />
-                        {showCompanyResults && filteredCompanies.length > 0 && (
+                        {showCompanyResults && companySearchQuery.trim() && (
                           <div className="qp-company-drop">
                             {filteredCompanies.map(c => (
                               <div key={c.id} onMouseDown={e => { e.preventDefault(); handleCompanySelect(c); }}>
                                 {c.name}
                               </div>
                             ))}
+                            <div
+                              onMouseDown={e => {
+                                e.preventDefault();
+                                setCompanyDraftId('');
+                                setCompanyDraft(emptyCompanyDraft);
+                                setCompanyManagersDraft([]);
+                                setManagerDraft(emptyManagerDraft);
+                                setEditingManagerId('');
+                                setCompanyDraftActive(true);
+                                setShowCreateCompanyModal(true);
+                              }}
+                              style={{ padding: '10px 14px', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 13, borderTop: filteredCompanies.length > 0 ? '1px solid #e2e8f0' : 'none' }}
+                            >
+                              ➕ Crear nueva empresa{companySearchQuery.trim() ? ` "${companySearchQuery.trim()}"` : ''}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -4627,32 +4677,36 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
 
 
-      {/* ── Modal: Cargar versión ── */}
+      {/* ── Modal: Nueva / Editar empresa ── */}
       {showCreateCompanyModal && (
-        <div id="companyCreateBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
-          <div style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(1180px, 98vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#ffffff', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>{companyDraftId ? 'Editar empresa' : 'Nueva empresa'}</div>
-                <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>Se usara en cotizacion</div>
+        <div id="companyCreateBackdrop" onClick={e => e.preventDefault()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(1180px, 98vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#ffffff', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 22 }}>{companyDraftId ? '✏️' : '➕'}</span>
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>{companyDraftId ? 'Editar empresa' : 'Nueva empresa'}</div>
+                    <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+                      {companyDraftId
+                        ? `Editando: ${companies.find(c => String(c.id) === String(companyDraftId))?.name || ''}`
+                        : 'Registra una nueva empresa para usarla en la cotización'}
+                    </div>
+                  </div>
+                </div>
+                <button className="qp-close-btn" type="button" onClick={resetCreateCompanyModal} aria-label="Cerrar">
+                  <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                    <path d="M4 4l10 10M14 4l-10 10" />
+                  </svg>
+                </button>
               </div>
-              <button className="qp-close-btn" type="button" onClick={resetCreateCompanyModal} aria-label="Cerrar">
-                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-                  <path d="M4 4l10 10M14 4l-10 10" />
-                </svg>
-              </button>
-            </div>
 
-            <div style={{ padding: 18, overflow: 'auto' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(280px, 1fr))', gap: '10px 24px' }}>
-                <label style={fieldLabel}>Empresa existente
-                  <select style={fieldSelect} value={companyDraftId} onChange={e => handleCompanyDraftSelect(e.target.value)}>
-                    <option value="">Crear nueva empresa</option>
-                    {companies.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es')).map(company => (
-                      <option key={company.id} value={company.id}>{company.name || 'Empresa'}</option>
-                    ))}
-                  </select>
-                </label>
+              <div style={{ padding: 18, overflow: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(280px, 1fr))', gap: '10px 24px' }}>
+                  {companyDraftId && (
+                    <label style={{ ...fieldLabel, gridColumn: '1 / -1', fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>
+                      Editando: {companies.find(c => String(c.id) === String(companyDraftId))?.name || ''} — los cambios se guardarán sobre esta empresa.
+                    </label>
+                  )}
                 <div style={fieldLabel}>Estado
                   <label className="qp-switch-inline" style={{ color: '#334155', fontSize: 12, fontWeight: 800, textTransform: 'none', letterSpacing: 0 }}>
                     <input type="checkbox" checked={companyDraftActive} onChange={e => setCompanyDraftActive(e.target.checked)} />
@@ -4731,8 +4785,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       {/* Modal: Crear servicio */}
       {showCreateServiceModal && (
-        <div id="serviceCreateBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
-          <div style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(900px, 96vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div id="serviceCreateBackdrop" onClick={e => e.preventDefault()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(900px, 96vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div><div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Nuevo servicio</div><div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>Se agregara al catalogo de cotizacion</div></div>
               <button className="qp-close-btn" type="button" onClick={() => { setShowCreateServiceModal(false); resetServiceDraft(); }} aria-label="Cerrar">
