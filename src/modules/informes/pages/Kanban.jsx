@@ -162,36 +162,15 @@ export default function Kanban() {
     setLoading(true);
     fetchEvents(selectedDate)
       .then((eventsData) => {
-        const mapped = eventsData.flatMap(e => {
+        const mapped = eventsData.map(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
-          const fechaSalida = String(e.FechaSalida || '').slice(0, 10);
-
-          // Evento multi-día: crear una entrada por cada día
-          if (fechaSalida && fechaSalida > fecha) {
-            const entries = [];
-            const current = new Date(fecha + 'T12:00:00');
-            const end = new Date(fechaSalida + 'T12:00:00');
-            while (current <= end) {
-              const dateStr = current.toISOString().slice(0, 10);
-              entries.push({
-                ...e,
-                displayDate: dateStr,
-                dayIndex: current.getDay(),
-                dayLabel: `${dayNames[current.getDay()]} ${dateStr}`,
-              });
-              current.setDate(current.getDate() + 1);
-            }
-            return entries;
-          }
-
-          // Evento de un solo día
           const d = new Date(fecha + 'T12:00:00');
-          return [{
+          return {
             ...e,
             displayDate: fecha,
             dayIndex: d.getDay(),
             dayLabel: `${dayNames[d.getDay()]} ${fecha}`,
-          }];
+          };
         });
         setEvents(mapped);
         setEventsTotal(mapped.length);
