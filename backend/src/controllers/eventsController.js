@@ -6,6 +6,56 @@ const EVENTO_USER_JOIN = `
   LEFT JOIN usuarios u ON ev.id_usuario = u.id
 `;
 
+export async function getWeeklyServices(req, res, next) {
+  try {
+    const { date } = req.query;
+    let weekCondition = '';
+    let params = [];
+
+    if (date) {
+      weekCondition = ' AND YEARWEEK(ice.fecha_servicio, 1) = YEARWEEK(?, 1)';
+      params.push(date);
+    } else {
+      weekCondition = ' AND YEARWEEK(ice.fecha_servicio, 1) = YEARWEEK(CURDATE(), 1)';
+    }
+
+    const query = `
+      SELECT 
+        ice.fecha_servicio AS FechaServicio,
+        ice.id_evento AS Idocupacion,
+        e.Institucion,
+        e.Salon,
+        COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
+        COALESCE(sc.nombre, ice.nombre) AS Subcategoria,
+        CASE
+          WHEN LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%desayuno%' THEN 'desayunos'
+          WHEN LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%refacciones%am%' THEN 'refacciones_am'
+          WHEN LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%almuerzo%' THEN 'almuerzos'
+          WHEN LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%refacciones%pm%' THEN 'refacciones_pm'
+          WHEN LOWER(COALESCE(sc.nombre, ice.nombre)) LIKE '%cenas%' THEN 'cenas'
+          ELSE 'otros'
+        END AS TipoServicio,
+        SUM(ice.cantidad) AS cantidad
+      FROM items_cotizacion_evento ice
+      JOIN tbl_seguimientocotizaciones e ON ice.id_evento = e.Idocupacion
+      LEFT JOIN servicios s ON ice.id_servicio = s.id
+      LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+      LEFT JOIN eventos ev ON e.Idocupacion = ev.id
+      LEFT JOIN usuarios u ON ev.id_usuario = u.id
+      WHERE e.Estatuscotizacion IN (4, 7, 8)
+        AND ice.fecha_servicio IS NOT NULL
+        ${weekCondition}
+      GROUP BY ice.fecha_servicio, ice.id_evento, COALESCE(sc.nombre, ice.nombre)
+      ORDER BY ice.fecha_servicio ASC, TipoServicio ASC
+    `;
+
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getEvents(req, res, next) {
   try {
     const { date } = req.query;
@@ -78,25 +128,12 @@ export async function getEvents(req, res, next) {
 
     let params = [];
 
-    const refDate = date || new Date().toISOString().slice(0, 10);
-    // Calcular lunes y domingo de la semana que contiene refDate
-    const refDay = new Date(refDate + 'T12:00:00');
-    const dayOfWeek = refDay.getDay(); // 0=Dom, 1=Lun, ...
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const weekMonday = new Date(refDay);
-    weekMonday.setDate(refDay.getDate() + diffToMonday);
-    const weekSunday = new Date(weekMonday);
-    weekSunday.setDate(weekMonday.getDate() + 6);
-    const mondayStr = weekMonday.toISOString().slice(0, 10);
-    const sundayStr = weekSunday.toISOString().slice(0, 10);
-
-    // Incluir eventos que caen dentro de la semana O eventos multi-día que la atraviesan
-    query += ` AND (
-      (FechaEvento >= ? AND FechaEvento <= ?)
-      OR (FechaSalida IS NOT NULL AND FechaSalida > FechaEvento AND FechaSalida >= ? AND FechaSalida <= ?)
-      OR (FechaSalida IS NOT NULL AND FechaSalida > FechaEvento AND FechaEvento <= ? AND FechaSalida >= ?)
-    )`;
-    params.push(mondayStr, sundayStr, mondayStr, sundayStr, sundayStr, mondayStr);
+    if (date) {
+      query += ` AND YEARWEEK(FechaEvento, 1) = YEARWEEK(?, 1)`;
+      params.push(date);
+    } else {
+      query += ` AND YEARWEEK(FechaEvento, 1) = YEARWEEK(CURDATE(), 1)`;
+    }
 
     query += ` ORDER BY FechaEvento ASC, HoraI ASC;`;
 

@@ -181,7 +181,11 @@ async function ensureTargetSchema(conn) {
       c.nombre_encargado AS EncargadoEvento,
       c.codigo AS NoDoc
     FROM eventos e
-    LEFT JOIN cotizaciones_evento c ON e.id = c.id_evento
+    LEFT JOIN (
+      SELECT id_evento, tipo_evento, telefono, nombre_encargado, codigo
+      FROM cotizaciones_evento
+      GROUP BY id_evento
+    ) c ON e.id = c.id_evento
     LEFT JOIN usuarios u ON e.id_usuario = u.id
   `;
   await conn.query(createViewSql);

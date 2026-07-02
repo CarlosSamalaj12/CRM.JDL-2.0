@@ -26,6 +26,15 @@ export async function fetchEvents(date) {
   return response.json();
 }
 
+export async function fetchWeeklyServices(date) {
+  const url = date ? `${apiUrl}/api/events/weekly-services?date=${date}` : `${apiUrl}/api/events/weekly-services`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('No se pudieron cargar los servicios semanales');
+  }
+  return response.json();
+}
+
 export async function fetchEventById(id) {
   const response = await fetch(`${apiUrl}/api/events/${encodeURIComponent(id)}`);
   if (!response.ok) throw new Error('Error al cargar el evento');
