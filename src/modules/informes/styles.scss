@@ -3983,38 +3983,38 @@ body.informes-theme {
   /* ─── IMÁGENES ─── */
   
   .iv-imagenes {
-    display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 0.5rem;
   }
   
   .iv-imagen-item {
-    width: 250px;
-    height: 250px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     overflow: hidden;
     background: var(--bg-elevated, #f5f5f5);
+    padding: 0.5rem 0.5rem 0.25rem;
   }
   
-  /* Cuadrado fijo 250x250 — imagen completa sin recorte */
   .iv-imagen-item img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
+    width: 100%;
+    max-height: 220px;
+    object-fit: contain;
     display: block;
   }
   
   .iv-imagen-desc {
-    padding: 0.25rem 0.4rem;
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      text-align: center;
+    padding: 0.35rem 0.25rem 0.15rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    font-style: italic;
+    line-height: 1.2;
   }
   
   /* ─── ITEMS ─── */
@@ -4272,45 +4272,69 @@ body.informes-theme {
         page-break-inside: avoid;
       }
     
-      /* ─── IMÁGENES EN PRINT: tamaño completo con descripción ─── */
+      /* ─── IMÁGENES EN PRINT: 3 columnas × 2 filas por hoja ─── */
       .iv-imagenes {
-        display: block !important;
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 0.25in !important;
         margin: 0 !important;
         padding: 0 !important;
+        page-break-before: always !important;
+        break-before: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
     
       .iv-imagen-item {
-        display: inline-flex !important;
+        display: flex !important;
+        flex-direction: column !important;
         align-items: center !important;
-        justify-content: center !important;
-        width: 200px !important;
-        height: 200px !important;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        margin-bottom: 0 !important;
-        margin-right: 0.5rem;
-        padding: 0;
-        overflow: hidden;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        height: auto !important;
+        border: 1px solid #ccc !important;
+        border-radius: 4px !important;
+        margin: 0 !important;
+        padding: 0.15in !important;
+        overflow: hidden !important;
         background: #f8f8f8 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
 
-      /* Cuadrado 200x200 al imprimir — imagen completa sin recorte */
+      .iv-imagen-item:nth-child(6n) {
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+    
+      .iv-imagen-item:nth-child(6n+1) {
+        page-break-before: always !important;
+        break-before: page !important;
+      }
+
+      .iv-imagen-item:nth-child(1) {
+        page-break-before: auto !important;
+        break-before: auto !important;
+      }
+
       .iv-imagen-item img {
         max-width: 100% !important;
-        max-height: 100% !important;
+        max-height: 2.5in !important;
         width: auto !important;
         height: auto !important;
         display: block !important;
+        object-fit: contain !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
     
       .iv-imagen-desc {
-        padding: 0.4rem 0.6rem;
-        font-size: 9pt;
+        padding: 0.1in 0 0 0 !important;
+        font-size: 8pt;
         color: #333;
         text-align: center;
         font-style: italic;
+        line-height: 1.2;
       }
   }
   

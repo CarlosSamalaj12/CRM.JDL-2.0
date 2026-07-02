@@ -274,6 +274,57 @@ export default function InformeView() {
           background: #ffffff !important;
           background-color: #ffffff !important;
         }
+        .iv-imagenes {
+          display: grid !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+          gap: 0.25in !important;
+          page-break-before: always !important;
+          break-before: page !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+        .iv-imagen-item {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          width: 100% !important;
+          height: auto !important;
+          border: 1px solid #ccc !important;
+          border-radius: 4px !important;
+          margin: 0 !important;
+          padding: 0.15in !important;
+          background: #f8f8f8 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+        .iv-imagen-item:nth-child(6n) {
+          page-break-after: always !important;
+          break-after: page !important;
+        }
+        .iv-imagen-item:nth-child(6n+1) {
+          page-break-before: always !important;
+          break-before: page !important;
+        }
+        .iv-imagen-item:nth-child(1) {
+          page-break-before: auto !important;
+          break-before: auto !important;
+        }
+        .iv-imagen-item img {
+          max-width: 100% !important;
+          max-height: 2.5in !important;
+          width: auto !important;
+          height: auto !important;
+          display: block !important;
+          object-fit: contain !important;
+        }
+        .iv-imagen-desc {
+          padding: 0.1in 0 0 0 !important;
+          font-size: 8pt !important;
+          text-align: center !important;
+          font-style: italic !important;
+          line-height: 1.2 !important;
+        }
       `}</style>
       <div className="informe-print-container">
         {/* ─── BARRA DE ACCIONES (no se imprime) ─── */}
