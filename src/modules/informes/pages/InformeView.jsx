@@ -494,9 +494,14 @@ export default function InformeView() {
                               {grupo.items.map((item, ii) => (
                                 <div key={ii} className="iv-item-row">
                                   <span className="iv-item-nombre">{item.ingrediente_nombre}</span>
-                                  {item.cantidad_total && (
-                                    <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>
-                                  )}
+                                  {(() => {
+                                    const tipoItem = (item.ingrediente_tipo || '').toLowerCase();
+                                    const esProteina = tipoItem === 'carne' || tipoItem === 'proteina' || tipoItem === 'proteína' || tipoItem === 'proteinas' || tipoItem === 'proteínas';
+                                    if (esProteina && item.cantidad_total) {
+                                      return <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>;
+                                    }
+                                    return null;
+                                  })()}
                                   {item.metodo_preparacion && (
                                     <span className="iv-item-prep">Preparación: {item.metodo_preparacion}</span>
                                   )}

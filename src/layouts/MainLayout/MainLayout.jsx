@@ -33,7 +33,9 @@ export default function MainLayout() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [roomFilter, setRoomFilter] = useState('all');
-  const [sellerFilter, setSellerFilter] = useState('all');
+  const [sellerFilter, setSellerFilter] = useState(() => {
+    return localStorage.getItem('calendar_sellerFilter') || 'all';
+  });
   const [loading, setLoading] = useState(true);
 
   // Siempre iniciar en la semana actual cuando se cambia a vista semanal
@@ -209,11 +211,27 @@ export default function MainLayout() {
     const currentUser = authService.getCurrentUser();
     if (currentUser?.id) {
       const role = String(currentUser.role || '').trim().toLowerCase();
-      if (['admin','vendedor','recepcionista','frontoffice','front_office'].includes(role)) {
+      const saved = localStorage.getItem('calendar_sellerFilter');
+
+      if (!saved) {
+        // Primera vez: auto-filtrar solo para no-admins
+        if (role !== 'admin') {
+          setSellerFilter(currentUser.id);
+        }
+      } else if (role !== 'admin' && saved !== currentUser.id && saved !== 'all') {
+        // Un vendedor diferente inició sesión y el filtro guardado era para otro usuario específico
+        // Reajustar a sus propios eventos
         setSellerFilter(currentUser.id);
       }
+      // Para admin: respetar siempre el filtro guardado (ya se inicializó desde useState)
+      // Para no-admin con filtro 'all' o su propio ID: respetar el filtro guardado
     }
   }, []);
+
+  // Guardar el filtro de vendedor en localStorage cuando cambie
+  useEffect(() => {
+    localStorage.setItem('calendar_sellerFilter', sellerFilter);
+  }, [sellerFilter]);
 
   const handleAddEvent = async (eventData) => {
     try {
