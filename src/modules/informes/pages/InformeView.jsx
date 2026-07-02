@@ -7,55 +7,26 @@ import { useSocket } from '../context/SocketContext.jsx';
 import ColaboracionPanel from '../components/ColaboracionPanel.jsx';
 import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle, IconCheckCircle, IconX } from '../components/Icons.jsx';
 
-const TIPO_LABELS = {
-  proteina:     'PROTEÍNAS',
-  guarnicion:   'GUARNICIONES',
-  salsa:        'SALSAS',
-  postre:       'POSTRES',
-  tortilla_pan: 'TORTILLA / PAN',
-  bebida:       'BEBIDAS',
-  otros:        'OTROS',
-};
-
-const TIPO_MAP = {
-  carne: 'proteina',
-  proteina: 'proteina',
-  proteína: 'proteina',
-  proteinas: 'proteina',
-  proteínas: 'proteina',
-  
-  guarnicion: 'guarnicion',
-  guarnición: 'guarnicion',
-  guarniciones: 'guarnicion',
-  
-  salsa: 'salsa',
-  salsas: 'salsa',
-  
-  postre: 'postre',
-  postres: 'postre',
-  
-  tortilla_pan: 'tortilla_pan',
-  
-  bebida: 'bebida',
-  bebidas: 'bebida',
-  
-  otros: 'otros',
-  Otros: 'otros'
-};
-
-const TIPO_OPTS_ORDER = ['entradas', 'proteina', 'guarnicion', 'salsa', 'postre', 'bebida', 'tortilla_pan', 'otros'];
-
 
 const TIEMPOS_COMIDA = [
-  { id: 'desayuno',     label: 'Desayuno',     icon: '🌅' },
+  { id: 'estacion',     label: 'Estación',    icon: '🏛️' },
+  { id: 'desayuno',    label: 'Desayuno',    icon: '🌅' },
   { id: 'refaccion_am', label: 'Refacción AM', icon: '🥐' },
-  { id: 'almuerzo',     label: 'Almuerzo',     icon: '🍽️' },
+  { id: 'almuerzo',    label: 'Almuerzo',    icon: '🍽️' },
   { id: 'refaccion_pm', label: 'Refacción PM', icon: '🧁' },
-  { id: 'cena',         label: 'Cena',         icon: '🌙' },
-  { id: 'box_lunch',    label: 'Box Lunch',    icon: '📦' },
-  { id: 'buffet',       label: 'Buffet',       icon: '🍱' },
-  { id: 'otro',         label: 'Otro',         icon: '📌' },
+  { id: 'postre',      label: 'Postre',      icon: '🍰' },
+  { id: 'cena',        label: 'Cena',        icon: '🌙' },
 ];
+
+const TIEMPO_COMIDA_ORDER = {
+  estacion: 1,
+  desayuno: 2,
+  refaccion_am: 3,
+  almuerzo: 4,
+  refaccion_pm: 5,
+  postre: 6,
+  cena: 7,
+};
 
 const ALERTAS_PREDEFINIDAS = [
   { label: 'Sin Gluten', emoji: '🌾' },
@@ -459,72 +430,66 @@ export default function InformeView() {
                           const p = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : (dia.descripcion_montaje || {});
                           if (p && p._v === 2) itemsTc = p.items_tiempo_comida || [];
                         } catch {}
-                        let flatIdx = 0;
-                        return agruparItems(dia.items).map((grupo, gi) => (
+                        return agruparItemsPorTiempoComida(dia.items, itemsTc).map((grupo, gi) => (
                           <div key={gi} className="iv-grupo">
-                            <div className="iv-grupo-label">{grupo.tipoLabel}</div>
+                            <div className="iv-grupo-label">{grupo.grupoIcon} {grupo.grupoLabel}</div>
                             <div className="iv-grupo-items">
-                              {grupo.items.map((item, ii) => {
-                                const tc = itemsTc[flatIdx] ? TIEMPOS_COMIDA.find(t => t.id === itemsTc[flatIdx]) : null;
-                                flatIdx++;
-                                return (
-                                  <div key={ii} className="iv-item-row">
-                                    <span className="iv-item-nombre">{item.ingrediente_nombre}</span>
-                                    {tc && <span className="iv-item-tc-badge">{tc.icon} {tc.label}</span>}
-                                    {grupo.tipo === 'proteina' && item.cantidad_total && (
-                                      <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>
-                                    )}
-                                    {item.metodo_preparacion && (
-                                      <span className="iv-item-prep">Preparación: {item.metodo_preparacion}</span>
-                                    )}
-                                    {item.opcion_nombre && (
-                                      <span className="iv-item-opc">{item.opcion_nombre}</span>
-                                    )}
-                                    {editingNotaId === item.id ? (
-                                      <span className="iv-item-notes iv-item-notes-editing">
-                                        <input
-                                          ref={notaInputRef}
-                                          type="text"
-                                          className="iv-nota-input"
-                                          value={editingNotaValue}
-                                          onChange={e => setEditingNotaValue(e.target.value)}
-                                          onKeyDown={e => {
-                                            if (e.key === 'Enter') { e.preventDefault(); saveNotaEdit(item.id); }
-                                            if (e.key === 'Escape') cancelEditNota();
-                                          }}
-                                          onBlur={() => saveNotaEdit(item.id)}
-                                          placeholder="Escribe una nota..."
-                                          disabled={savingNotaId === item.id}
-                                        />
-                                        {savingNotaId === item.id ? (
-                                          <span className="iv-nota-saving">…</span>
-                                        ) : (
-                                          <>
-                                            <button className="iv-nota-btn" onMouseDown={e => { e.preventDefault(); saveNotaEdit(item.id); }} data-tooltip="Guardar">
-                                              <IconCheckCircle size={12} />
-                                            </button>
-                                            <button className="iv-nota-btn iv-nota-btn-cancel" onMouseDown={e => { e.preventDefault(); cancelEditNota(); }} data-tooltip="Cancelar">
-                                              <IconX size={12} />
-                                            </button>
-                                          </>
-                                        )}
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className={`iv-item-notes ${user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) ? 'iv-item-notes-editable' : ''}`}
-                                        onClick={() => {
-                                          if (user && ['Admin','Vendedor','FrontOffice'].includes(user.rol)) {
-                                            startEditNota(item.id, item.notas || '');
-                                          }
+                              {grupo.items.map((item, ii) => (
+                                <div key={ii} className="iv-item-row">
+                                  <span className="iv-item-nombre">{item.ingrediente_nombre}</span>
+                                  {item.cantidad_total && (
+                                    <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>
+                                  )}
+                                  {item.metodo_preparacion && (
+                                    <span className="iv-item-prep">Preparación: {item.metodo_preparacion}</span>
+                                  )}
+                                  {item.opcion_nombre && (
+                                    <span className="iv-item-opc">{item.opcion_nombre}</span>
+                                  )}
+                                  {editingNotaId === item.id ? (
+                                    <span className="iv-item-notes iv-item-notes-editing">
+                                      <input
+                                        ref={notaInputRef}
+                                        type="text"
+                                        className="iv-nota-input"
+                                        value={editingNotaValue}
+                                        onChange={e => setEditingNotaValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') { e.preventDefault(); saveNotaEdit(item.id); }
+                                          if (e.key === 'Escape') cancelEditNota();
                                         }}
-                                        title={user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) ? 'Click para editar' : ''}
-                                      >
-                                        📝 {item.notas}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                        onBlur={() => saveNotaEdit(item.id)}
+                                        placeholder="Escribe una nota..."
+                                        disabled={savingNotaId === item.id}
+                                      />
+                                      {savingNotaId === item.id ? (
+                                        <span className="iv-nota-saving">…</span>
+                                      ) : (
+                                        <>
+                                          <button className="iv-nota-btn" onMouseDown={e => { e.preventDefault(); saveNotaEdit(item.id); }} data-tooltip="Guardar">
+                                            <IconCheckCircle size={12} />
+                                          </button>
+                                          <button className="iv-nota-btn iv-nota-btn-cancel" onMouseDown={e => { e.preventDefault(); cancelEditNota(); }} data-tooltip="Cancelar">
+                                            <IconX size={12} />
+                                          </button>
+                                        </>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={`iv-item-notes ${user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) ? 'iv-item-notes-editable' : ''}`}
+                                      onClick={() => {
+                                        if (user && ['Admin','Vendedor','FrontOffice'].includes(user.rol)) {
+                                          startEditNota(item.id, item.notas || '');
+                                        }
+                                      }}
+                                      title={user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) ? 'Click para editar' : ''}
+                                    >
+                                      📝 {item.notas}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           </div>
                         ));
@@ -724,22 +689,25 @@ export default function InformeView() {
   );
 }
 
-// ─── Helper: agrupar items por tipo ───
-function agruparItems(items) {
+// ─── Helper: agrupar items por tiempo de comida ───
+function agruparItemsPorTiempoComida(items, itemsTc) {
   const grupos = {};
-  for (const item of items) {
-    const rawTipo = item.ingrediente_tipo || 'otros';
-    const normalized = rawTipo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const tipo = TIPO_MAP[normalized] || 'otros';
-    if (!grupos[tipo]) grupos[tipo] = [];
-    grupos[tipo].push(item);
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const tcId = itemsTc && i < itemsTc.length ? itemsTc[i] : null;
+    const key = tcId && TIEMPO_COMIDA_ORDER[tcId] ? tcId : '__sin_asignar';
+    if (!grupos[key]) grupos[key] = [];
+    grupos[key].push(item);
   }
   const resultado = [];
-  for (const t of TIPO_OPTS_ORDER) {
-    if (grupos[t] && grupos[t].length > 0) {
-      resultado.push({ tipo: t, tipoLabel: TIPO_LABELS[t] || t.toUpperCase(), items: grupos[t] });
-      delete grupos[t];
+  for (const tc of TIEMPOS_COMIDA) {
+    if (grupos[tc.id] && grupos[tc.id].length > 0) {
+      resultado.push({ grupoLabel: tc.label, grupoIcon: tc.icon, items: grupos[tc.id] });
+      delete grupos[tc.id];
     }
+  }
+  if (grupos['__sin_asignar'] && grupos['__sin_asignar'].length > 0) {
+    resultado.push({ grupoLabel: 'Sin asignar', grupoIcon: '📌', items: grupos['__sin_asignar'] });
   }
   return resultado;
 }

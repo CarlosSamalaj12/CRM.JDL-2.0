@@ -5420,6 +5420,79 @@ button[data-tooltip-bottom]::after {
 .pos-ticket-item-tc-badge:hover { background: var(--primary); color: white; }
 .pos-ticket-item-tc-badge--none { background: var(--bg-elevated); color: var(--text-muted); font-size: 0.55rem; padding: 0.05rem 0.2rem; }
 .pos-ticket-item-tc-badge--none:hover { background: var(--text-muted); color: white; }
+/* Select dropdown for tiempo de comida */
+.pos-ticket-item-tc-select-wrapper {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.pos-ticket-item-tc-select {
+  font-size: 0.6rem !important;
+  padding: 0.05rem 0.5rem 0.05rem 0.3rem !important;
+  border-radius: var(--radius-full) !important;
+  background: var(--primary-bg) !important;
+  color: var(--primary) !important;
+  border: 1px solid transparent !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  line-height: 1.3 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.25rem center !important;
+  background-size: 0.45rem !important;
+  padding-right: 0.65rem !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  overflow: hidden !important;
+}
+
+.pos-ticket-item-tc-select:hover {
+  background: var(--primary) !important;
+  color: white !important;
+  border-color: var(--primary) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.25rem center !important;
+  background-size: 0.45rem !important;
+  padding-right: 0.65rem !important;
+}
+
+.pos-ticket-item-tc-select:focus {
+  box-shadow: 0 0 0 2px var(--primary-glow) !important;
+  border-color: var(--primary);
+}
+
+.pos-ticket-item-tc-select--none {
+  background: var(--bg-elevated) !important;
+  color: var(--text-muted) !important;
+  font-size: 0.55rem !important;
+  padding: 0.05rem 0.5rem 0.05rem 0.3rem !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.25rem center !important;
+  background-size: 0.45rem !important;
+  padding-right: 0.65rem !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+.pos-ticket-item-tc-select--none:hover {
+  background: var(--text-muted) !important;
+  color: white !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.25rem center !important;
+  background-size: 0.45rem !important;
+  padding-right: 0.65rem !important;
+}
+
 
 .pos-ticket-montaje {
   padding: 0.3rem 0.4rem; margin-top: 0.4rem;

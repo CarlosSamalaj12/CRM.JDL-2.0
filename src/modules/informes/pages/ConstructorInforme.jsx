@@ -4,6 +4,7 @@ import {
   createInforme, createInformeDia, saveDiaMenuDetalle,
   getPlatillos, getPlatilloDetalle, fetchEventById,
   getIngredientes, getMenus, getOpcionesIngrediente, getCategorias,
+  createIngrediente,
   getHistorial,
   getInformesByOcupacion, getInformeById,
   getImagenes, createImagen, uploadImagen, deleteImagen, imagenUrl,
@@ -69,15 +70,34 @@ const TIPOS_MONTAJE = [
 ];
 
 const TIEMPOS_COMIDA = [
-  { id: 'desayuno', label: 'Desayuno', icon: '🌅' },
+  { id: 'estacion',     label: 'Estación',    icon: '🏛️' },
+  { id: 'desayuno',    label: 'Desayuno',    icon: '🌅' },
   { id: 'refaccion_am', label: 'Refacción AM', icon: '🥐' },
-  { id: 'almuerzo', label: 'Almuerzo', icon: '🍽️' },
+  { id: 'almuerzo',    label: 'Almuerzo',    icon: '🍽️' },
   { id: 'refaccion_pm', label: 'Refacción PM', icon: '🧁' },
-  { id: 'cena', label: 'Cena', icon: '🌙' },
-  { id: 'box_lunch', label: 'Box Lunch', icon: '📦' },
-  { id: 'buffet', label: 'Buffet', icon: '🍱' },
-  { id: 'otro', label: 'Otro', icon: '📌' },
+  { id: 'postre',      label: 'Postre',      icon: '🍰' },
+  { id: 'cena',        label: 'Cena',        icon: '🌙' },
 ];
+
+const TIEMPO_COMIDA_ORDER = {
+  estacion: 1,
+  desayuno: 2,
+  refaccion_am: 3,
+  almuerzo: 4,
+  refaccion_pm: 5,
+  postre: 6,
+  cena: 7,
+};
+
+const sortItemsByTiempoComida = (items) => {
+  return [...items].sort((a, b) => {
+    const aTc = TIEMPO_COMIDA_ORDER[a.tiempoComida] || 99;
+    const bTc = TIEMPO_COMIDA_ORDER[b.tiempoComida] || 99;
+    if (aTc !== bTc) return aTc - bTc;
+    // Mismo tiempo de comida, ordenar por tipo de ingrediente
+    return (DEFAULT_ORDEN_TIPO[(a.tipo || '').toLowerCase()] || 99) - (DEFAULT_ORDEN_TIPO[(b.tipo || '').toLowerCase()] || 99);
+  });
+};
 
 const TC_ITEM = TIEMPOS_COMIDA; // alias for per-item use
 const DEFAULT_ORDEN_TIPO = {
@@ -180,7 +200,6 @@ function mapCategoriaToTiempoComida(categoriaNombre) {
   if (n.includes('refacción') || n.includes('refaccion')) return 'refaccion_am';
   if (n.includes('almuerzo')) return 'almuerzo';
   if (n.includes('cena')) return 'cena';
-  if (n.includes('buffet')) return 'buffet';
   return null;
 }
 
@@ -265,6 +284,31 @@ export default function ConstructorInforme() {
     setPreviewUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
   }, [selectedFile]);
+
+  // Quick-create ingrediente
+  const [showNewIngModal, setShowNewIngModal] = useState(false);
+  const [newIngNombre, setNewIngNombre] = useState('');
+  const [newIngTipo, setNewIngTipo] = useState('proteina');
+  const [creatingIng, setCreatingIng] = useState(false);
+
+  const handleCreateIngrediente = async () => {
+    if (!newIngNombre.trim() || creatingIng) return;
+    // Cerrar el modal inmediatamente para evitar overlocks
+    setShowNewIngModal(false);
+    setCreatingIng(true);
+    try {
+      await createIngrediente({ nombre: newIngNombre.trim(), tipo: newIngTipo });
+      toast.success(`✅ "${newIngNombre.trim()}" creado`);
+      const updated = await getIngredientes();
+      setIngredientes(updated);
+      setNewIngNombre('');
+      setNewIngTipo('proteina');
+    } catch (err) {
+      toast.error('Error al crear: ' + (err.message || ''));
+    } finally {
+      setCreatingIng(false);
+    }
+  };
 
   // Búsqueda en elementos
   const [searchElemento, setSearchElemento] = useState('');
@@ -389,7 +433,7 @@ export default function ConstructorInforme() {
                     id: d.id,
                     fecha: d.fecha_evento ? d.fecha_evento.slice(0, 10) : new Date().toISOString().slice(0, 10),
                     platillo: null, platilloDetalle: null,
-                    selectedItems: loadedItems,
+                    selectedItems: sortItemsByTiempoComida(loadedItems),
                     menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
                     montaje: mont, alertas, alertaCustom, comentarioMenu: d.comentario_menu || '',
                     tiempoComida,
@@ -462,7 +506,7 @@ export default function ConstructorInforme() {
             fecha: d.fecha_evento ? d.fecha_evento.slice(0, 10) : new Date().toISOString().slice(0, 10),
             platillo: null,
             platilloDetalle: null,
-            selectedItems: loadedItems,
+            selectedItems: sortItemsByTiempoComida(loadedItems),
             menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
             montaje: mont,
             alertas: alertas,
@@ -570,37 +614,55 @@ export default function ConstructorInforme() {
 
   // ─── Agregar ítem al día activo ───
   const agregarItem = (ingrediente, opcionId, metodo, cantidad = 1, notas = '') => {
-    const newDias = [...dias];
-    const items = [...newDias[activeDay].selectedItems];
-    const exists = items.find(i => i.ingrediente_id === ingrediente.id && i.opcion_id === (opcionId || null));
-    if (exists) {
-      exists.cantidad = (exists.cantidad || 0) + cantidad;
-      if (notas) exists.notas = notas;
-    } else {
-      const opc = opcionId ? opcionesIng[ingrediente.id]?.find(o => o.id === opcionId) : null;
-      items.push({
-        comp_id: Date.now(),
-        ingrediente_id: ingrediente.id,
-        ingrediente_nombre: ingrediente.nombre,
-        opcion_id: opcionId || null,
-        opcion_nombre: opc?.nombre_opcion || null,
-        tipo: ingrediente.tipo,
-        metodo_preparacion: metodo || '',
-        cantidad,
-        notas,
-        tiempoComida: null,
-        dbId: null,
-      });
+    try {
+      if (!ingrediente || !ingrediente.id) {
+        console.error('agregarItem: ingrediente inválido', ingrediente);
+        return;
+      }
+      const newDias = [...dias];
+      if (!newDias[activeDay]) {
+        console.error('agregarItem: activeDay sin día', { activeDay, diasLength: newDias.length });
+        toast.error('Error interno: día activo no disponible');
+        return;
+      }
+      const items = [...newDias[activeDay].selectedItems];
+      const exists = items.find(i => i.ingrediente_id === ingrediente.id && i.opcion_id === (opcionId || null));
+      if (exists) {
+        exists.cantidad = (exists.cantidad || 0) + cantidad;
+        if (notas) exists.notas = notas;
+      } else {
+        const opc = opcionId ? opcionesIng[ingrediente.id]?.find(o => o.id === opcionId) : null;
+        items.push({
+          comp_id: Date.now(),
+          ingrediente_id: ingrediente.id,
+          ingrediente_nombre: ingrediente.nombre,
+          opcion_id: opcionId || null,
+          opcion_nombre: opc?.nombre_opcion || null,
+          tipo: ingrediente.tipo,
+          metodo_preparacion: metodo || '',
+          cantidad,
+          notas,
+          tiempoComida: null,
+          dbId: null,
+        });
+      }
+      newDias[activeDay].selectedItems = sortItemsByTiempoComida(items);
+      setDias(newDias);
+    } catch (err) {
+      console.error('Error en agregarItem:', err);
+      toast.error('Error al agregar item: ' + (err.message || ''));
     }
-    items.sort((a, b) => (DEFAULT_ORDEN_TIPO[(a.tipo || '').toLowerCase()] || 99) - (DEFAULT_ORDEN_TIPO[(b.tipo || '').toLowerCase()] || 99));
-    newDias[activeDay].selectedItems = items;
-    setDias(newDias);
   };
 
   const eliminarItem = (compId) => {
-    const newDias = [...dias];
-    newDias[activeDay].selectedItems = newDias[activeDay].selectedItems.filter(i => i.comp_id !== compId);
-    setDias(newDias);
+    try {
+      if (!dias[activeDay]) { console.error('eliminarItem: activeDay sin día'); return; }
+      const newDias = [...dias];
+      newDias[activeDay].selectedItems = newDias[activeDay].selectedItems.filter(i => i.comp_id !== compId);
+      setDias(newDias);
+    } catch (err) {
+      console.error('Error en eliminarItem:', err);
+    }
   };
 
   const cambiarItem = (compId, field, value) => {
@@ -640,14 +702,12 @@ export default function ConstructorInforme() {
     setDragOverIdx(null);
   };
 
-  const handleItemTiempoComida = (compId) => {
+  const handleItemTiempoComida = (compId, value) => {
     const nd = [...dias];
     const item = nd[activeDay].selectedItems.find(i => i.comp_id === compId);
     if (!item) return;
-    const current = item.tiempoComida;
-    const idx = current ? TC_ITEM.findIndex(tc => tc.id === current) : -1;
-    const nextIdx = idx + 1;
-    item.tiempoComida = nextIdx >= TC_ITEM.length ? null : TC_ITEM[nextIdx].id;
+    item.tiempoComida = value || null;
+    // No ordenamos automáticamente para que el ítem no se mueva mientras editas
     setDias(nd);
   };
 
@@ -670,7 +730,8 @@ export default function ConstructorInforme() {
         opcion_nombre: c.opcion_nombre, tipo: c.tipo_componente,
         metodo_preparacion: '', cantidad: 1, notas: '',
         tiempoComida: null, dbId: null,
-      })).sort((a, b) => (DEFAULT_ORDEN_TIPO[(a.tipo || '').toLowerCase()] || 99) - (DEFAULT_ORDEN_TIPO[(b.tipo || '').toLowerCase()] || 99));
+      }));
+      upd[activeDay].selectedItems = sortItemsByTiempoComida(upd[activeDay].selectedItems);
       setDias(upd);
     } catch { /* */ }
   };
@@ -685,20 +746,29 @@ export default function ConstructorInforme() {
   };
 
   const toggleIngrediente = (ing) => {
-    const exists = dias[activeDay].selectedItems.find(i => i.ingrediente_id === ing.id);
-    if (exists) { eliminarItem(exists.comp_id); return; }
+    try {
+      if (!ing || !dias[activeDay]) {
+        console.error('toggleIngrediente: estado inválido', { ing, activeDay, diasLen: dias.length });
+        return;
+      }
+      const exists = dias[activeDay].selectedItems.find(i => i.ingrediente_id === ing.id);
+      if (exists) { eliminarItem(exists.comp_id); return; }
 
-    // Solo carnes/proteínas abren modal con preparación, opciones y cantidad
-    const tipo = (ing.tipo || '').toLowerCase();
-    if (tipo === 'carne' || tipo === 'proteina' || tipo === 'proteína' || tipo === 'proteinas' || tipo === 'proteínas') {
-      setModalOpciones(ing);
-      setModalPrep('');
-      setModalOpc('');
-      setModalQty(1);
-      setModalNotas('');
-    } else {
-      // Salsas, guarniciones, postres, bebidas → se agregan directo
-      agregarItem(ing, null, '', 1, '');
+      const tipo = (ing.tipo || '').toLowerCase();
+      if (tipo === 'carne' || tipo === 'proteina' || tipo === 'proteína' || tipo === 'proteinas' || tipo === 'proteínas') {
+        // Si hay un modal de nuevo ingrediente abierto, cerrarlo para evitar overlays bloqueantes
+        if (showNewIngModal) setShowNewIngModal(false);
+        setModalOpciones(ing);
+        setModalPrep('');
+        setModalOpc('');
+        setModalQty(1);
+        setModalNotas('');
+      } else {
+        agregarItem(ing, null, '', 1, '');
+      }
+    } catch (err) {
+      console.error('Error en toggleIngrediente:', err);
+      toast.error('Error al seleccionar: ' + (err.message || ''));
     }
   };
 
@@ -1035,13 +1105,19 @@ export default function ConstructorInforme() {
                         </span>
                         <span className="pos-ticket-item-nombre">{item.ingrediente_nombre}</span>
                         {!esSimple && <span className="pos-ticket-item-qty">×{item.cantidad}</span>}
-                        <button
-                          className={`pos-ticket-item-tc-badge ${tcItem ? '' : 'pos-ticket-item-tc-badge--none'}`}
-                          onClick={() => handleItemTiempoComida(item.comp_id)}
-                          title={tcItem ? tcItem.label : 'Sin tiempo de comida'}
-                        >
-                          {tcItem ? `${tcItem.icon} ${tcItem.label}` : '⏱️'}
-                        </button>
+                        <div className="pos-ticket-item-tc-select-wrapper">
+                          <select
+                            className={`pos-ticket-item-tc-select ${tcItem ? '' : 'pos-ticket-item-tc-select--none'}`}
+                            value={item.tiempoComida || ''}
+                            onChange={e => handleItemTiempoComida(item.comp_id, e.target.value)}
+                            title={tcItem ? tcItem.label : 'Sin tiempo de comida'}
+                          >
+                            <option value="">⏱️ Sin asignar</option>
+                            {TC_ITEM.map(tc => (
+                              <option key={tc.id} value={tc.id}>{tc.icon} {tc.label}</option>
+                            ))}
+                          </select>
+                        </div>
                         <button className="pos-ticket-item-del" onClick={() => eliminarItem(item.comp_id)}>
                           <IconX size={11} />
                         </button>
@@ -1129,6 +1205,21 @@ export default function ConstructorInforme() {
               value={searchElemento} onChange={e => setSearchElemento(e.target.value)}
             />
             {searchElemento && <button className="pos-elem-clear" onClick={() => setSearchElemento('')}><IconX size={14} /></button>}
+            {['entradas', 'carnes', 'guarniciones', 'salsas', 'postres', 'bebidas'].includes(categoriaActiva) && (
+              <button
+                className="pos-elem-add-btn"
+                onClick={() => {
+                              const tipoMap = { entradas:'entradas', carnes:'proteina', guarniciones:'guarnicion', salsas:'salsa', postres:'postre', bebidas:'bebida' };
+                              setShowNewIngModal(true);
+                              setNewIngNombre('');
+                              setNewIngTipo(tipoMap[categoriaActiva] || 'proteina');
+                            }}
+                title="Agregar nuevo ingrediente"
+                style={{ marginLeft:'0.25rem', flexShrink:0, fontSize:'0.78rem', fontWeight:700, color:'var(--success)', display:'inline-flex', alignItems:'center', gap:'2px', padding:'0.2rem 0.4rem', borderRadius:'var(--radius-sm)', border:'1px solid var(--success)', background:'transparent', cursor:'pointer', lineHeight:1 }}
+              >
+                <IconPlus size={13} /> Nvo
+              </button>
+            )}
           </div>
 
           <div className="pos-elem-grid">
@@ -1468,6 +1559,53 @@ export default function ConstructorInforme() {
           <IconFileText size={15} /> {loading ? 'Guardando...' : (informeId ? 'Guardar' : 'Crear Informe')}
         </button>
       </div>
+
+      {/* ─── MODAL CREAR INGREDIENTE RÁPIDO ─── */}
+      {showNewIngModal && (
+        <div className="pos-modal-overlay">
+          <div className="pos-modal" onClick={e => e.stopPropagation()} style={{maxWidth:'380px'}}>
+            <div className="pos-modal-header">
+              <h3>📦 Nuevo Ingrediente</h3>
+              <button onClick={() => setShowNewIngModal(false)}><IconX size={16} /></button>
+            </div>
+            <div className="pos-modal-body">
+              <label>Nombre del ingrediente</label>
+              <input
+                type="text"
+                value={newIngNombre}
+                onChange={e => setNewIngNombre(e.target.value)}
+                placeholder="Ej: Pechuga de pollo, Arroz, Frijol..."
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleCreateIngrediente();
+                  if (e.key === 'Escape') setShowNewIngModal(false);
+                }}
+              />
+              <label>Tipo</label>
+              <select value={newIngTipo} onChange={e => setNewIngTipo(e.target.value)}>
+                <option value="entradas">🍲 Entradas</option>
+                <option value="proteina">🥩 Proteína</option>
+                <option value="guarnicion">🥗 Guarnición</option>
+                <option value="salsa">🫗 Salsa</option>
+                <option value="postre">🍰 Postre</option>
+                <option value="tortilla_pan">🌮 Tortilla/Pan</option>
+                <option value="bebida">🥤 Bebida</option>
+                <option value="otros">📦 Otros</option>
+              </select>
+            </div>
+            <div className="pos-modal-footer">
+              <button className="btn-secondary" onClick={() => setShowNewIngModal(false)}>Cancelar</button>
+              <button
+                className="btn-primary"
+                disabled={!newIngNombre.trim() || creatingIng}
+                onClick={handleCreateIngrediente}
+              >
+                {creatingIng ? 'Creando...' : <><IconCheckCircle size={14} /> Crear Ingrediente</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── MODAL OPCIONES ─── */}
       {modalOpciones && (

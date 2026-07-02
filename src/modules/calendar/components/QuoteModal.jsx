@@ -698,6 +698,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   };
   const addServiceItem = (serviceObj) => {
     if (!serviceObj) { localSwal('Error', 'Selecciona un servicio del catálogo', 'error'); return; }
+    if (!quote.templateIds?.length) { localSwal('Info', 'Selecciona un contrato primero (Servihosp o Jardines)', 'info'); return; }
     const paxVal = Math.max(0, Number(quote.people || 0));
     const newItem = {
       rowId: uid(), serviceId: serviceObj.id, name: serviceObj.name,
@@ -786,6 +787,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           }, 2000);
         }
       }, 300);
+      return;
+    }
+    if (!quote.templateIds?.length) {
+      showOverlayAlert('warning', 'Falta empresa', 'Selecciona un contrato (Servihosp o Jardines) en la barra superior antes de guardar la cotización.');
       return;
     }
     const missing = [];
@@ -4142,6 +4147,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               }}
             >
 
+              {!quote.templateIds?.length ? (
+                <div style={{ ...card, textAlign: 'center', padding: '36px 16px' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Selecciona un contrato</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>Elige Servihosp o Jardines en la barra superior para comenzar a agregar servicios.</div>
+                </div>
+              ) : (
+              <>
               {/* Buscar servicio */}
               <div style={card}>
                 <div className="eyebrow">Catálogo</div>
@@ -4257,6 +4270,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   </button>
                 </div>
               </div>
+              </>
+              )}
               <div style={card}>
                 <div className="eyebrow">Plantillas rápidas</div>
                 <div className="section-title">Aplicar plantilla</div>
@@ -4389,7 +4404,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {quote.items.length === 0 ? (
+                  {!quote.templateIds?.length ? (
+                    <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff' }}>
+                      <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Selecciona un contrato</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>Para agregar servicios, primero elige Servihosp o Jardines en la barra superior.</div>
+                    </div>
+                  ) : quote.items.length === 0 ? (
                     <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff' }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Tu carrito aún está vacío</div>
                       <div style={{ fontSize: 11, color: '#cbd5e1' }}>Busca un servicio en el panel izquierdo</div>
