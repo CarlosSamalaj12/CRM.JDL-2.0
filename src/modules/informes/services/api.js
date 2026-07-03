@@ -1,5 +1,18 @@
 const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
 
+const TAREAS_TIMEOUT = 15000; // 15 segundos
+
+async function fetchWithTimeout(url, options = {}, timeout = TAREAS_TIMEOUT) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 let usuariosCache = null;
 let usuariosCachePromise = null;
 
@@ -440,7 +453,7 @@ export async function saveDiaMenuDetalle(diaId, items) {
 
 export async function getNotificaciones() {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/notificaciones`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/notificaciones`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) throw new Error('Error al cargar notificaciones');
@@ -449,7 +462,7 @@ export async function getNotificaciones() {
 
 export async function getNoLeidasCount() {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/notificaciones/no-leidas`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/notificaciones/no-leidas`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) throw new Error('Error al contar notificaciones');
@@ -458,7 +471,7 @@ export async function getNoLeidasCount() {
 
 export async function marcarLeida(id) {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/notificaciones/${id}/leer`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/notificaciones/${id}/leer`, {
     method: 'PATCH',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -468,7 +481,7 @@ export async function marcarLeida(id) {
 
 export async function marcarTodasLeidas() {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/notificaciones/leer-todas`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/notificaciones/leer-todas`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -662,7 +675,7 @@ export async function getEquipos() {
 
 // Equipos de Trabajo (equipos_trabajo)
 export async function getEquiposTrabajo() {
-  const response = await fetch(`${apiUrl}/api/equipos`, { headers: authHeaders() });
+  const response = await fetchWithTimeout(`${apiUrl}/api/equipos`, { headers: authHeaders() });
   if (!response.ok) throw new Error('Error al cargar equipos de trabajo');
   return response.json();
 }
@@ -890,7 +903,7 @@ export function imagenUrl(url) {
 
 export async function getTareasUsuario(idOcupacion, usuarioId) {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/tareas/${idOcupacion}/usuario?usuario_id=${usuarioId}`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas/${idOcupacion}/usuario?usuario_id=${usuarioId}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) throw new Error('Error al cargar tareas');
@@ -899,7 +912,7 @@ export async function getTareasUsuario(idOcupacion, usuarioId) {
 
 export async function createTarea(idOcupacion, data) {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/tareas/${idOcupacion}`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas/${idOcupacion}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
@@ -910,7 +923,7 @@ export async function createTarea(idOcupacion, data) {
 
 export async function updateTarea(tareaId, data) {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/tareas/${tareaId}`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas/${tareaId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
@@ -921,7 +934,7 @@ export async function updateTarea(tareaId, data) {
 
 export async function deleteTarea(tareaId) {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/tareas/${tareaId}`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas/${tareaId}`, {
     method: 'DELETE',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -932,7 +945,7 @@ export async function deleteTarea(tareaId) {
 // --- TAREAS SEMANALES ---
 
 export async function getTareasSemanaMerged(semanaLunes) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/${semanaLunes}/merged`);
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/${semanaLunes}/merged`);
   if (!response.ok) throw new Error('Error al cargar tareas de la semana');
   return response.json();
 }
@@ -940,13 +953,13 @@ export async function getTareasSemanaMerged(semanaLunes) {
 export async function getTareasSemana(semanaLunes, params = {}) {
   const qs = new URLSearchParams(params).toString();
   const url = qs ? `${apiUrl}/api/tareas-semanales/${semanaLunes}?${qs}` : `${apiUrl}/api/tareas-semanales/${semanaLunes}`;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
   if (!response.ok) throw new Error('Error al cargar tareas semanales');
   return response.json();
 }
 
 export async function createTareaSemanal(data) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -956,7 +969,7 @@ export async function createTareaSemanal(data) {
 }
 
 export async function updateTareaSemanal(id, data) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/${id}`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -966,7 +979,7 @@ export async function updateTareaSemanal(id, data) {
 }
 
 export async function deleteTareaSemanal(id, data) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/${id}`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -976,13 +989,13 @@ export async function deleteTareaSemanal(id, data) {
 }
 
 export async function getHistorialTareasSemana(semanaLunes) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/${semanaLunes}/historial`);
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/${semanaLunes}/historial`);
   if (!response.ok) throw new Error('Error al cargar historial');
   return response.json();
 }
 
 export async function logHistorialEntry(data) {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/log`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/log`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -992,7 +1005,7 @@ export async function logHistorialEntry(data) {
 }
 
 export async function autoMarcarNoRealizado() {
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/auto/no-realizado`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/auto/no-realizado`, {
     method: 'POST',
   });
   if (!response.ok) throw new Error('Error al marcar no realizado');
@@ -1001,14 +1014,14 @@ export async function autoMarcarNoRealizado() {
 
 export async function getTareasSemanaByOcupacion(idOcupacion, params = {}) {
   const qs = Object.keys(params).length > 0 ? `?${new URLSearchParams(params)}` : '';
-  const response = await fetch(`${apiUrl}/api/tareas-semanales/evento/${idOcupacion}${qs}`);
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/evento/${idOcupacion}${qs}`);
   if (!response.ok) throw new Error('Error al cargar tareas semanales del evento');
   return response.json();
 }
 
 export async function getTareasEvento(idOcupacion) {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${apiUrl}/api/tareas/evento/${idOcupacion}`, {
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas/evento/${idOcupacion}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) throw new Error('Error al cargar tareas del evento');

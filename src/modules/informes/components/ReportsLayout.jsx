@@ -31,7 +31,20 @@ export default function ReportsLayout() {
   // Safety net: restaurar scroll del body al montar/desmontar
   useEffect(() => {
     document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
+    document.documentElement.style.overflow = '';
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+
+  // Safety net: resetear overflow del body periódicamente
+  useEffect(() => {
+    const interval = setInterval(() => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {

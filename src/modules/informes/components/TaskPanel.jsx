@@ -88,17 +88,27 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   }, [anchorRef]);
 
   const loadTareas = async () => {
+    if (!currentUserId || !idOcupacion) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = {};
       if (currentUserId) params.usuario_id = currentUserId;
       if (user?.teamId) params.equipo_id = user.teamId;
       const [data, weekly] = await Promise.all([
-        getTareasUsuario(idOcupacion, currentUserId),
-        getTareasSemanaByOcupacion(idOcupacion, params),
+        getTareasUsuario(idOcupacion, currentUserId).catch(err => {
+          console.warn('Error cargando tareas personales:', err);
+          return [];
+        }),
+        getTareasSemanaByOcupacion(idOcupacion, params).catch(err => {
+          console.warn('Error cargando tareas semanales:', err);
+          return [];
+        }),
       ]);
-      setTareas(data);
-      setWeeklyTareas(weekly);
+      setTareas(Array.isArray(data) ? data : []);
+      setWeeklyTareas(Array.isArray(weekly) ? weekly : []);
     } catch {
       toast.error('Error al cargar tareas');
     } finally {

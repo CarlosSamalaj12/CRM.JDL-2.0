@@ -75,6 +75,9 @@ const pool = mariadb.createPool({
   database: DB_NAME,
   connectionLimit: 5,
   collation: "utf8mb4_unicode_ci",
+  acquireTimeout: 15000,  // 15s — si el pool está lleno, no esperar más
+  socketTimeout: 20000,   // 20s — cerrar conexiones sin actividad
+  queryTimeout: 20000,    // 20s — cancelar consultas lentas
 });
 
 let io;
@@ -98,6 +101,14 @@ app.use((req, res, next) => {
 });
 app.use(compression({ threshold: 512 }));
 app.use(express.json({ limit: "25mb" }));
+
+// Timeout de 25 segundos para todas las rutas API — complementa el timeout de 15s del cliente
+app.use((req, res, next) => {
+  res.setTimeout(25000, () => {
+    res.status(503).json({ error: 'La solicitud tardó demasiado tiempo. Intente de nuevo.' });
+  });
+  next();
+});
 
 function hashPasswordScrypt(password, saltHex) {
   return new Promise((resolve, reject) => {
@@ -930,7 +941,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','exchangeRate','appointmentReminderOffset')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
@@ -1497,6 +1508,13 @@ async function readStateFromTables() {
       state.appointmentReminderOffset = 0;
     }
 
+    const pastEventEditGraceDaysRow = appStateRows.find((r) => str(r.clave) === "pastEventEditGraceDays");
+    try {
+      state.pastEventEditGraceDays = pastEventEditGraceDaysRow?.valor_json ? Number(JSON.parse(pastEventEditGraceDaysRow.valor_json)) : 0;
+    } catch (_) {
+      state.pastEventEditGraceDays = 0;
+    }
+
     for (const row of recordatorios) {
       const key = str(row.clave_evento);
       if (!key) continue;
@@ -1874,6 +1892,55 @@ async function authenticateUser(userId, password) {
       equipo_id: row.equipo_id ? Number(row.equipo_id) : null,
       canAuthorizeDiscount: Number(row.puede_autorizar_descuento) !== 0,
     };
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function ensureNotificacionesIndexes() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    // Índice compuesto para las consultas principales de notificaciones
+    try {
+      await conn.query(`
+        CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_leido
+        ON notificaciones (usuario_id, leido, fecha_creacion DESC)
+      `);
+    } catch (e) {
+      // MariaDB < 10.6 no soporta CREATE INDEX IF NOT EXISTS
+      // Fallback: verificar si existe antes de crearlo
+      const existing = await conn.query(
+        `SELECT 1 FROM information_schema.statistics
+         WHERE table_schema = ? AND table_name = 'notificaciones' AND index_name = 'idx_notificaciones_usuario_leido'
+         LIMIT 1`,
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query(
+          'CREATE INDEX idx_notificaciones_usuario_leido ON notificaciones (usuario_id, leido, fecha_creacion DESC)'
+        );
+      }
+    }
+    // Índice para ordenar por fecha cuando el filtro es por usuario NULL
+    try {
+      await conn.query(`
+        CREATE INDEX IF NOT EXISTS idx_notificaciones_fecha
+        ON notificaciones (fecha_creacion DESC)
+      `);
+    } catch (e) {
+      const existing = await conn.query(
+        `SELECT 1 FROM information_schema.statistics
+         WHERE table_schema = ? AND table_name = 'notificaciones' AND index_name = 'idx_notificaciones_fecha'
+         LIMIT 1`,
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query(
+          'CREATE INDEX idx_notificaciones_fecha ON notificaciones (fecha_creacion DESC)'
+        );
+      }
+    }
   } finally {
     if (conn) conn.release();
   }
@@ -2761,6 +2828,16 @@ async function writeStateToTables(state) {
         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
       `,
       [JSON.stringify(appointmentReminderOffset)]
+    );
+
+    const pastEventEditGraceDays = Number(state.pastEventEditGraceDays || 0);
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('pastEventEditGraceDays', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(pastEventEditGraceDays)]
     );
 
     // Write to app_state_kv (backward compat)

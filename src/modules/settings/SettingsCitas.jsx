@@ -5,6 +5,7 @@ import { toast } from '../../utils/toast';
 export default function SettingsCitas({ inline, onBack }) {
   const citasModalRef = useRef(null);
   const [reminderOffset, setReminderOffset] = useState(0);
+  const [pastEventGraceDays, setPastEventGraceDays] = useState(0);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -15,6 +16,7 @@ export default function SettingsCitas({ inline, onBack }) {
     try {
       const state = await loadCrmState();
       setReminderOffset(Number(state.appointmentReminderOffset || 0));
+      setPastEventGraceDays(Number(state.pastEventEditGraceDays || 0));
     } catch (err) {
       console.error('Error al cargar la configuración de citas:', err);
     }
@@ -24,7 +26,12 @@ export default function SettingsCitas({ inline, onBack }) {
     setSaving(true);
     try {
       const currentState = await loadCrmState();
-      await saveCrmState({ ...currentState, appointmentReminderOffset: Number(reminderOffset) });
+      const newState = {
+        ...currentState,
+        appointmentReminderOffset: Number(reminderOffset),
+        pastEventEditGraceDays: Number(pastEventGraceDays)
+      };
+      await saveCrmState(newState);
       toast('Configuración de citas guardada ✓');
       window.dispatchEvent(new Event('stateUpdated'));
     } catch (err) {
@@ -70,6 +77,33 @@ export default function SettingsCitas({ inline, onBack }) {
           </select>
           <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
             Las citas que falten más de este tiempo para su inicio no activarán la animación de campana ni se listarán en las notificaciones pendientes de los vendedores.
+          </div>
+        </label>
+      </div>
+
+      <div className="settings-field-group" style={{ marginTop: '20px' }}>
+        <label className="settings-modern-field" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <span style={{ fontWeight: 600, fontSize: '12px', color: '#475569' }}>Días de gracia para editar eventos pasados:</span>
+          <select
+            value={pastEventGraceDays}
+            onChange={e => setPastEventGraceDays(Number(e.target.value))}
+            style={{
+              width: '100%', maxWidth: '320px', padding: '8px 12px', borderRadius: '8px',
+              border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600,
+              color: '#0f172a', background: '#fff', outline: 'none'
+            }}
+          >
+            <option value={0}>Bloquear siempre (requiere código admin)</option>
+            <option value={1}>1 día después del evento</option>
+            <option value={2}>2 días después del evento</option>
+            <option value={3}>3 días después del evento</option>
+            <option value={5}>5 días después del evento</option>
+            <option value={7}>7 días (1 semana) después del evento</option>
+            <option value={14}>14 días (2 semanas) después del evento</option>
+            <option value={30}>30 días (1 mes) después del evento</option>
+          </select>
+          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+            Dentro del período de gracia, los eventos pasados se podrán editar sin ingresar código de administrador.
           </div>
         </label>
       </div>

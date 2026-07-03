@@ -169,22 +169,31 @@ export default function WeeklyTasks({
 
   const loadTareas = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
+    // autoMarcarNoRealizado se ejecuta aparte para que no bloquee la carga si falla
+    autoMarcarNoRealizado().catch(err => {
+      console.warn('autoMarcarNoRealizado falló (no crítico):', err);
+    });
     try {
-      await autoMarcarNoRealizado();
       const params = {};
       const uid = String(user?.id || user?._id || '');
       if (uid) params.usuario_id = uid;
       if (user?.teamId) params.equipo_id = user.teamId;
       const semanales = await getTareasSemana(semana_lunes, params);
-      semanales.sort((a, b) => {
-        const da = String(a.fecha_tarea || '').slice(0, 10);
-        const db = String(b.fecha_tarea || '').slice(0, 10);
-        if (da !== db) return da < db ? -1 : 1;
-        return (a.id || 0) - (b.id || 0);
-      });
-      setTareas(semanales);
+      if (!Array.isArray(semanales)) {
+        console.warn('getTareasSemana returned non-array:', semanales);
+        setTareas([]);
+      } else {
+        semanales.sort((a, b) => {
+          const da = String(a.fecha_tarea || '').slice(0, 10);
+          const db = String(b.fecha_tarea || '').slice(0, 10);
+          if (da !== db) return da < db ? -1 : 1;
+          return (a.id || 0) - (b.id || 0);
+        });
+        setTareas(semanales);
+      }
     } catch (err) {
       console.error('Error loading weekly tasks:', err);
+      toast('Error al cargar tareas. Verifica tu conexión.');
     } finally {
       if (showLoading) setLoading(false);
     }

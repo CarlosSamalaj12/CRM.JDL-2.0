@@ -219,7 +219,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     billTo: event?.quote?.billTo || '',
     address: event?.quote?.address || '',
     eventType: event?.quote?.eventType || event?.type || '',
-    venue: event?.quote?.venue || event?.salon || '',
+    venue: event?.salon || event?.quote?.venue || '',
     schedule: event?.quote?.schedule || '',
     code: event?.quote?.code || '',
     docDate: event?.quote?.docDate || new Date().toISOString().split('T')[0],

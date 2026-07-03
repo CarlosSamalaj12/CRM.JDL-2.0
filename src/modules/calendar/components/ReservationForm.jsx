@@ -5,6 +5,7 @@ import { STATUS_META_LIST, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
 import conflictService from '../../../services/conflictService';
+import { loadState as loadCrmState } from '../../../services/stateService';
 import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
@@ -21,7 +22,16 @@ function reservationKeyFromEvent(ev) {
   return String(ev.groupId || ev.id || "").trim();
 }
 
-function isEventSeriesInPast(events = [], eventId = '') {
+function getSeriesForEvent(events = [], eventId = '') {
+  const target = events.find(ev => String(ev.id) === String(eventId));
+  if (!target) return [];
+  const groupId = String(target.groupId || '').trim();
+  if (!groupId) return [target];
+  const series = events.filter(ev => String(ev.groupId || '').trim() === groupId);
+  return series.length ? series : [target];
+}
+
+function isEventSeriesInPast(events = [], eventId = '', graceDays = 0) {
   const series = getSeriesForEvent(events, eventId);
   if (!series.length) return false;
   const lastDate = series.reduce((max, ev) => {
@@ -32,7 +42,16 @@ function isEventSeriesInPast(events = [], eventId = '') {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  return lastDate < todayIso;
+
+  if (graceDays <= 0) {
+    return lastDate < todayIso;
+  }
+
+  const graceDate = new Date(now);
+  graceDate.setDate(graceDate.getDate() - graceDays);
+  const graceDateIso = `${graceDate.getFullYear()}-${pad(graceDate.getMonth() + 1)}-${pad(graceDate.getDate())}`;
+
+  return lastDate < graceDateIso;
 }
 
 function getAdminCode() {
@@ -42,7 +61,7 @@ function getAdminCode() {
   return `${dd}${mm}`;
 }
 
-async function requestPastEventEditAuthorization(ev) {
+async function requestPastEventEditAuthorization(ev, onAuth) {
   const key = reservationKeyFromEvent(ev);
   if (!key) return false;
   if (pastEventEditAuthorizedKeys.has(key)) return true;
@@ -98,6 +117,7 @@ async function requestPastEventEditAuthorization(ev) {
   }
 
   pastEventEditAuthorizedKeys.add(key);
+  if (onAuth) onAuth(key);
   return true;
 }
 
@@ -138,15 +158,6 @@ const MAINTENANCE_STATUSES = ['Mantenimiento', 'Mantenimiento Realizado'];
 
 function isMaintenanceStatus(status) {
   return MAINTENANCE_STATUSES.includes(status);
-}
-
-function getSeriesForEvent(events = [], eventId = '') {
-  const target = events.find(ev => String(ev.id) === String(eventId));
-  if (!target) return [];
-  const groupId = String(target.groupId || '').trim();
-  if (!groupId) return [target];
-  const series = events.filter(ev => String(ev.groupId || '').trim() === groupId);
-  return series.length ? series : [target];
 }
 
 function slotsFromEventSeries(series = [], fallbackEvent = null) {
@@ -427,6 +438,31 @@ export default function ReservationForm() {
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, type: null, message: '', title: '', isDanger: true });
   const [isCloseHovered, setIsCloseHovered] = useState(false);
   const [isCloseActive, setIsCloseActive] = useState(false);
+  const [pastEventEditGraceDays, setPastEventEditGraceDays] = useState(0);
+  const [graceDaysLoaded, setGraceDaysLoaded] = useState(false);
+  const [authKey, setAuthKey] = useState(null);
+
+  useEffect(() => {
+    const loadGraceDays = async () => {
+      try {
+        const state = await loadCrmState();
+        setPastEventEditGraceDays(Number(state.pastEventEditGraceDays || 0));
+        setGraceDaysLoaded(true);
+      } catch (err) {
+        console.error('Error loading pastEventEditGraceDays:', err);
+        setGraceDaysLoaded(true);
+      }
+    };
+    loadGraceDays();
+    const handleStateUpdate = () => loadGraceDays();
+    window.addEventListener('stateUpdated', handleStateUpdate);
+    return () => window.removeEventListener('stateUpdated', handleStateUpdate);
+  }, []);
+
+  const handlePastEventAuth = useCallback((key) => {
+    pastEventEditAuthorizedKeys.add(key);
+    setAuthKey(key);
+  }, []);
 
   const urlDate = searchParams.get('date');
   const urlEndDate = searchParams.get('endDate') || urlDate;
@@ -482,12 +518,13 @@ export default function ReservationForm() {
   useEffect(() => {
     let active = true;
     const checkPastEvent = async () => {
+      if (!graceDaysLoaded) return;
       if (id && events && events.length > 0) {
         const existingEvent = events.find(ev => String(ev.id) === String(id));
-        if (existingEvent && isEventSeriesInPast(events, id)) {
+        if (existingEvent && isEventSeriesInPast(events, id, pastEventEditGraceDays)) {
           const key = reservationKeyFromEvent(existingEvent);
           if (key && !pastEventEditAuthorizedKeys.has(key)) {
-            const auth = await requestPastEventEditAuthorization(existingEvent);
+            const auth = await requestPastEventEditAuthorization(existingEvent, handlePastEventAuth);
             if (!auth && active) {
               navigate('/calendar');
             }
@@ -499,7 +536,7 @@ export default function ReservationForm() {
     return () => {
       active = false;
     };
-  }, [id, events, navigate]);
+  }, [id, events, navigate, pastEventEditGraceDays, authKey, handlePastEventAuth, graceDaysLoaded]);
 
   const comparableEvents = useMemo(() => {
     if (!id) return events || [];
@@ -1014,7 +1051,7 @@ export default function ReservationForm() {
     if (saving) return;
 
     const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
-    if (existingEvent && isEventSeriesInPast(events, id)) {
+    if (existingEvent && isEventSeriesInPast(events, id, pastEventEditGraceDays)) {
       const key = reservationKeyFromEvent(existingEvent);
       if (!pastEventEditAuthorizedKeys.has(key)) {
         showNotification("Evento de fecha pasada bloqueado. Solicita codigo de administrador.", "error");
