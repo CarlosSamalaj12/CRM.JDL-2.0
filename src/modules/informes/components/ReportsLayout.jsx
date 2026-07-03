@@ -387,6 +387,7 @@ export default function ReportsLayout() {
               border-radius: var(--radius-lg) !important;
               margin-bottom: 0.25rem !important;
               top: 0 !important;
+              z-index: 1001 !important;
             }
             .informes-shell .header-left {
               grid-column: 1 !important;

@@ -3042,6 +3042,12 @@ body.informes-theme {
   
   /* --- Responsive --- */
   
+    @media (max-width: 767px) {
+    .notif-dropdown {
+      z-index: 1001;
+    }
+  }
+  
   @media (max-width: 480px) {
     .notif-dropdown {
         position: fixed;
@@ -3051,7 +3057,8 @@ body.informes-theme {
         width: auto;
         max-height: 70vh;
         border-radius: var(--radius-md);
-      }
+    z-index: 1001;
+        }
       
       .notif-dropdown-body {
         max-height: calc(70vh - 100px);
