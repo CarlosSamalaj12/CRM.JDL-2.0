@@ -1,6 +1,7 @@
 import { modernAlert } from './toast';
 import { loadState } from '../services/stateService';
 import { numberToWords } from './numberToWords';
+import { TIEMPOS_COMIDA } from '../modules/informes/constants/tiemposComida.js';
 
 function escapeHtml(unsafe) {
   return String(unsafe || "")
@@ -423,13 +424,61 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           const eventSalon = info.Salon || quote.salon || event?.salon || 'Salón';
           const entries = info.dias.map(d => {
             const itemsList = Array.isArray(d.items) ? d.items : [];
-            const menuText = itemsList.map(item =>
-              [item.ingrediente_nombre,
-               item.cantidad_total ? `x${item.cantidad_total}` : '',
-               item.opcion_nombre ? `(${item.opcion_nombre})` : '',
-               item.notas ? `- ${item.notas}` : ''
-              ].filter(Boolean).join(' ')
-            ).join('\n') || 'Sin platillo asignado';
+            let itemsTiempoComida = [];
+            if (d.descripcion_montaje) {
+              try {
+                const parsed = typeof d.descripcion_montaje === 'string'
+                  ? JSON.parse(d.descripcion_montaje)
+                  : d.descripcion_montaje;
+                if (parsed?._v === 2) {
+                  itemsTiempoComida = Array.isArray(parsed.items_tiempo_comida) ? parsed.items_tiempo_comida : [];
+                }
+              } catch { /* ignore */ }
+            }
+
+            // Agrupar items por tiempo de comida
+            const grupos = {};
+            itemsList.forEach((item, idx) => {
+              const tcId = itemsTiempoComida[idx] || '__sin_asignar';
+              if (!grupos[tcId]) grupos[tcId] = [];
+              grupos[tcId].push(item);
+            });
+
+            const formatItemLine = (item) => {
+              const parts = [item.ingrediente_nombre];
+              const tipoItem = String(item.ingrediente_tipo || '').toLowerCase();
+              const esProteina = ['carne', 'proteina', 'proteína', 'proteinas', 'proteínas'].includes(tipoItem);
+              if (esProteina && item.cantidad_total) {
+                const qty = parseInt(item.cantidad_total, 10);
+                if (qty > 0) parts.push(`Cantidad: ${qty}`);
+              }
+              if (item.metodo_preparacion) {
+                parts.push(`Preparación: ${item.metodo_preparacion}`);
+              }
+              if (item.opcion_nombre) {
+                parts.push(item.opcion_nombre);
+              }
+              return parts.filter(Boolean).join('  ');
+            };
+
+            const menuLines = [];
+            for (const tc of TIEMPOS_COMIDA) {
+              if (grupos[tc.id] && grupos[tc.id].length > 0) {
+                menuLines.push(`[${tc.label.toUpperCase()}]`);
+                grupos[tc.id].forEach(item => {
+                  menuLines.push(`  ${formatItemLine(item)}`);
+                });
+                menuLines.push('');
+                delete grupos[tc.id];
+              }
+            }
+            if (grupos['__sin_asignar'] && grupos['__sin_asignar'].length > 0) {
+              menuLines.push('[SIN ASIGNAR]');
+              grupos['__sin_asignar'].forEach(item => {
+                menuLines.push(`  ${formatItemLine(item)}`);
+              });
+            }
+            const menuText = menuLines.join('\n') || 'Sin platillo asignado';
             let montajeText = '';
             if (d.descripcion_montaje) {
               try {
@@ -438,7 +487,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   : d.descripcion_montaje;
                 if (parsed?._v === 2) {
                   const mjs = Array.isArray(parsed.montajes) ? parsed.montajes : [];
-                  const LABEL_MAP = { salon: 'Salón', tipo_montaje: 'Tipo de montaje', num_personas: 'No. Personas', horario: 'Horario', equipo_necesario: 'Equipo necesario', manteleria: 'Mantelería', cristaleria: 'Cristalería', mesas: 'Mesas', sillas: 'Sillas' };
+                  const LABEL_MAP = { salon: 'Salón', tipo_montaje: 'Tipo de montaje', num_personas: 'No. Personas', horario: 'Horario', equipo_necesario: 'Equipo necesario', manteleria: 'Mantelería', mesas: 'Mesas', sillas: 'Sillas' };
                   montajeText = mjs.map(m => {
                     const raw = m?.descripcion ?? m ?? '';
                     if (typeof raw === 'string') return raw;
@@ -1429,6 +1478,24 @@ export function renderMenuMontajeRichText(rawText) {
               <span class="mmReportInlinePair"><span class="mmReportInlineLabel">[${escapeHtml(row.label)}]</span> <span class="mmReportMiniValue">${escapeHtml(row.value)}</span></span>
             `).join("")}
           </div>
+        </section>
+      `);
+      sectionTitle = "";
+      sectionItems = [];
+      return;
+    }
+    const tiempoDef = TIEMPOS_COMIDA.find((t) => t.id === sectionTitle || t.label.toUpperCase() === sectionTitle.toUpperCase());
+    if (tiempoDef && sectionItems.length) {
+      const itemsHtml = sectionItems
+        .flatMap((item) => String(item || "").split(/\s+\|\s+/))
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .map((item) => `<p class="mmReportSectionLine">${escapeHtml(item)}</p>`)
+        .join("");
+      htmlParts.push(`
+        <section class="mmReportSection">
+          <div class="mmReportSubtitle">${escapeHtml(tiempoDef.label.toUpperCase())}</div>
+          ${itemsHtml}
         </section>
       `);
       sectionTitle = "";

@@ -941,7 +941,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays','informe_tiempos_orden','informe_tipos_montaje')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
@@ -1513,6 +1513,20 @@ async function readStateFromTables() {
       state.pastEventEditGraceDays = pastEventEditGraceDaysRow?.valor_json ? Number(JSON.parse(pastEventEditGraceDaysRow.valor_json)) : 0;
     } catch (_) {
       state.pastEventEditGraceDays = 0;
+    }
+
+    const informeTiemposOrdenRow = appStateRows.find((r) => str(r.clave) === "informe_tiempos_orden");
+    try {
+      state.informe_tiempos_orden = informeTiemposOrdenRow?.valor_json ? JSON.parse(informeTiemposOrdenRow.valor_json) : null;
+    } catch (_) {
+      state.informe_tiempos_orden = null;
+    }
+
+    const informeTiposMontajeRow = appStateRows.find((r) => str(r.clave) === "informe_tipos_montaje");
+    try {
+      state.informe_tipos_montaje = informeTiposMontajeRow?.valor_json ? JSON.parse(informeTiposMontajeRow.valor_json) : null;
+    } catch (_) {
+      state.informe_tipos_montaje = null;
     }
 
     for (const row of recordatorios) {
@@ -2838,6 +2852,26 @@ async function writeStateToTables(state) {
         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
       `,
       [JSON.stringify(pastEventEditGraceDays)]
+    );
+
+    const informeTiemposOrden = Array.isArray(state.informe_tiempos_orden) ? state.informe_tiempos_orden : null;
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('informe_tiempos_orden', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(informeTiemposOrden)]
+    );
+
+    const informeTiposMontaje = Array.isArray(state.informe_tipos_montaje) ? state.informe_tipos_montaje : null;
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('informe_tipos_montaje', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(informeTiposMontaje)]
     );
 
     // Write to app_state_kv (backward compat)

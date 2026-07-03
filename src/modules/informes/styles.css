@@ -3810,16 +3810,17 @@ button[data-tooltip-bottom]::after {
 }
 
 .iv-grupo-label {
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #0f172a;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.08rem 0.35rem;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  display: inline-block;
-  width: fit-content;
+  letter-spacing: 0.1em;
+  padding: 0.35rem 0;
+  margin: 0.4rem 0 0.15rem;
+  border-bottom: 2px solid var(--tc-color);
+  display: block;
+  width: 100%;
+  font-family: 'Georgia', 'Times New Roman', serif;
 }
 
 .iv-grupo-items {
@@ -3860,10 +3861,20 @@ button[data-tooltip-bottom]::after {
 }
 
 .iv-day-tc-badge {
-  font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: var(--radius-full);
-  background: var(--primary); color: white;
-  white-space: nowrap; display: inline-flex; align-items: center; gap: 0.2rem;
-  font-weight: 600; margin-left: auto;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--tc-bg);
+  color: #0f172a;
+  border: 1.5px solid var(--tc-color);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 800;
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: 'Georgia', 'Times New Roman', serif;
 }
 
 .iv-item-opc {
@@ -3899,18 +3910,26 @@ button[data-tooltip-bottom]::after {
 
 .iv-imagen-item {
   width: 250px;
-  height: 250px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--bg-elevated, #f5f5f5);
 }
 
+.iv-imagen-thumb {
+  width: 250px;
+  height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
 /* Cuadrado fijo — imagen completa sin recorte */
-.iv-imagen-item img {
+.iv-imagen-thumb img {
   max-width: 100%;
   max-height: 100%;
   width: auto;
@@ -3919,10 +3938,14 @@ button[data-tooltip-bottom]::after {
 }
 
 .iv-imagen-desc {
-  padding: 0.25rem 0.4rem;
-  font-size: 0.7rem;
+  padding: 0.4rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   text-align: center;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  background: var(--bg-card);
 }
 
 /* ─── ITEMS ─── */
@@ -3940,22 +3963,23 @@ button[data-tooltip-bottom]::after {
 }
 
 .iv-grupo-label {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #0f172a;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.1rem 0.35rem;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  display: inline-block;
-  width: fit-content;
+  letter-spacing: 0.1em;
+  padding: 0.35rem 0;
+  margin: 0.4rem 0 0.15rem;
+  border-bottom: 2px solid var(--tc-color);
+  display: block;
+  width: 100%;
+  font-family: 'Georgia', 'Times New Roman', serif;
 }
 
 .iv-grupo-items {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.08rem;
   padding-left: 0.6rem;
 }
 
@@ -4162,18 +4186,26 @@ button[data-tooltip-bottom]::after {
 
   .iv-imagen-item {
     width: 200px !important;
-    height: 200px !important;
     display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    flex-direction: column !important;
     border: 1px solid #ddd;
     border-radius: 4px;
     overflow: hidden;
     background: #f8f8f8 !important;
   }
 
+  .iv-imagen-thumb {
+    width: 200px !important;
+    height: 200px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden;
+    flex-shrink: 0 !important;
+  }
+
   /* Cuadrado 200x200 al imprimir — imagen completa sin recorte */
-  .iv-imagen-item img {
+  .iv-imagen-thumb img {
     max-width: 100% !important;
     max-height: 100% !important;
     width: auto !important;
@@ -4182,10 +4214,14 @@ button[data-tooltip-bottom]::after {
   }
 
   .iv-imagen-desc {
-    padding: 0.2rem 0.3rem;
+    padding: 0.25rem 0.4rem;
     font-size: 8pt;
     color: #666;
     text-align: center;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.3;
+    background: #fff;
   }
 }
 
@@ -5490,6 +5526,115 @@ button[data-tooltip-bottom]::after {
   padding-right: 0.65rem !important;
 }
 
+/* Badge + popover de tiempo de comida */
+.pos-ticket-item-tc-popover-wrapper {
+  position: relative;
+  display: inline-flex;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.pos-ticket-item-tc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--tc-color);
+  background: var(--tc-bg);
+  color: var(--tc-color);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 0.35rem;
+  transition: all 0.12s ease;
+}
+
+.pos-ticket-item-tc-badge:hover {
+  transform: scale(1.08);
+  filter: brightness(0.95);
+}
+
+.pos-ticket-item-tc-badge--none {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.pos-ticket-item-tc-badge--none:hover {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.pos-ticket-item-tc-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pos-ticket-item-tc-popover-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 6px 6px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 2px;
+}
+
+.pos-ticket-item-tc-popover-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #0f172a;
+  text-align: left;
+  transition: all 0.1s ease;
+}
+
+.pos-ticket-item-tc-popover-option:hover {
+  background: var(--tc-bg);
+  border-color: var(--tc-color);
+}
+
+.pos-ticket-item-tc-popover-option.selected {
+  background: var(--tc-bg);
+  border-color: var(--tc-color);
+  font-weight: 600;
+}
+
+.pos-ticket-item-tc-popover-icon {
+  font-size: 0.9rem;
+  width: 1.2rem;
+  text-align: center;
+}
+
+.pos-ticket-item-tc-popover-label {
+  flex: 1;
+}
+
+.pos-ticket-item-tc-popover-check {
+  color: var(--tc-color);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .pos-ticket-montaje {
   padding: 0.3rem 0.4rem; margin-top: 0.4rem;
   background: var(--bg-elevated); border-radius: var(--radius-sm);
@@ -6691,25 +6836,35 @@ button[data-tooltip-bottom]::after {
 
 /* ─── ITEM NOTES ─── */
 .iv-item-notes {
-  color: var(--warning);
-  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
   font-style: italic;
-  background: var(--warning-bg);
-  padding: 0.02rem 0.35rem;
-  border-radius: var(--radius-sm);
+  padding: 0.02rem 0.2rem;
   line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.iv-item-notes-icon {
+  opacity: 0.5;
+  flex-shrink: 0;
 }
 
 /* ─── INLINE EDIT NOTES (InformeView) ─── */
 .iv-item-notes-editable {
   cursor: pointer;
   transition: all var(--duration-fast) var(--ease);
-  border: 1px dashed transparent;
+  border-bottom: 1px dashed transparent;
 }
 
 .iv-item-notes-editable:hover {
-  border-color: var(--warning);
-  background: rgba(245, 158, 11, 0.15);
+  border-bottom-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+
+.iv-item-notes-editable:hover .iv-item-notes-icon {
+  opacity: 0.8;
 }
 
 .iv-item-notes-editing {

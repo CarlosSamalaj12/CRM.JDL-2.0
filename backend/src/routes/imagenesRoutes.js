@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middlewares/auth.js';
-import { getImagenes, createImagen, uploadImagenFile, deleteImagen } from '../controllers/imagenesController.js';
+import { getImagenes, createImagen, uploadImagenFile, updateImagen, deleteImagen } from '../controllers/imagenesController.js';
 
 // Usamos memoria en lugar de disco — los archivos no se guardan en el servidor
 const storage = multer.memoryStorage();
@@ -20,6 +20,7 @@ const router = Router();
 router.get('/:id/imagenes', authenticate, getImagenes);
 router.post('/:id/imagenes', authenticate, createImagen);
 router.post('/:id/imagenes/upload', authenticate, upload.single('imagen'), uploadImagenFile);
+router.put('/imagenes/:imgId', authenticate, updateImagen);
 router.delete('/imagenes/:imgId', authenticate, deleteImagen);
 
 export default router;

@@ -58,6 +58,22 @@ export async function uploadImagenFile(req, res, next) {
   } catch (error) { next(error); }
 }
 
+export async function updateImagen(req, res, next) {
+  try {
+    const { imgId } = req.params;
+    const { descripcion } = req.body;
+
+    await pool.query(
+      'UPDATE informe_imagenes SET descripcion = ? WHERE id = ?',
+      [descripcion || null, imgId]
+    );
+
+    emitChange(req, 'informe_imagen', 'updated', { id: imgId });
+    const [updated] = await pool.query('SELECT * FROM informe_imagenes WHERE id = ?', [imgId]);
+    res.json(updated[0] || { id: imgId, descripcion: descripcion || null });
+  } catch (error) { next(error); }
+}
+
 export async function deleteImagen(req, res, next) {
   try {
     const { imgId } = req.params;

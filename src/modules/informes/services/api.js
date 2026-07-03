@@ -649,6 +649,17 @@ export async function uploadImagen(informeId, file, descripcion) {
   return response.json();
 }
 
+export async function updateImagen(imgId, data) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/informes/imagenes/${imgId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Error al actualizar imagen');
+  return response.json();
+}
+
 export async function deleteImagen(imgId) {
   const token = localStorage.getItem('token');
   const response = await fetch(`${apiUrl}/api/informes/imagenes/${imgId}`, {

@@ -4,9 +4,11 @@ import {
   getSillas, createSilla, updateSilla, deleteSilla,
   getMesas, createMesa, updateMesa, deleteMesa,
 } from '../services/api.js';
+import { loadState, saveState } from '../../../services/stateService.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { IconPlus, IconTrash, IconSettings, IconSearch, IconX } from '../components/Icons.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
+import OrdenTiemposEditor from '../components/OrdenTiemposEditor.jsx';
 
 // ─── Componente reutilizable para CRUD con toggle activo/inactivo ───
 function CrudTab({ title, items, onCreate, onDelete, onEdit, onToggleActive, icon }) {
@@ -167,14 +169,54 @@ export default function Configuracion() {
   const [equipos, setEquipos] = useState([]);
   const [sillas, setSillas] = useState([]);
   const [mesas, setMesas] = useState([]);
+  const [tiposMontaje, setTiposMontaje] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+
+  const DEFAULT_TIPOS_MONTAJE = [
+    'Escuela', 'Imperial', 'Banquete', 'Cóctel', 'Auditorio',
+    'Mesa redonda', 'Buffet', 'U', 'Presidencial', 'Personalizado'
+  ];
+
+  const loadTiposMontaje = async () => {
+    try {
+      const state = await loadState();
+      const saved = state?.informe_tipos_montaje;
+      if (Array.isArray(saved) && saved.length > 0) {
+        setTiposMontaje(saved);
+      } else {
+        setTiposMontaje(DEFAULT_TIPOS_MONTAJE.map((nombre, idx) => ({
+          id: `default-${idx}`,
+          nombre,
+          activo: 1,
+        })));
+      }
+    } catch (err) {
+      console.error('Error cargando tipos de montaje:', err);
+      setTiposMontaje(DEFAULT_TIPOS_MONTAJE.map((nombre, idx) => ({
+        id: `default-${idx}`,
+        nombre,
+        activo: 1,
+      })));
+    }
+  };
+
+  const persistTiposMontaje = async (next) => {
+    try {
+      const state = await loadState();
+      await saveState({ ...state, informe_tipos_montaje: next });
+      window.dispatchEvent(new Event('stateUpdated'));
+    } catch (err) {
+      console.error('Error guardando tipos de montaje:', err);
+      throw err;
+    }
+  };
 
   const loadAll = async () => {
     setLoading(true);
     try {
       const [e, s, m] = await Promise.all([
-        getEquipos(), getSillas(), getMesas()
+        getEquipos(), getSillas(), getMesas(), loadTiposMontaje()
       ]);
       setEquipos(e);
       setSillas(s);
@@ -212,6 +254,8 @@ export default function Configuracion() {
     { id: 'equipos', label: 'Equipos', icon: '🔧', count: equipos.length },
     { id: 'sillas', label: 'Sillas', icon: '💺', count: sillas.length },
     { id: 'mesas', label: 'Mesas', icon: '🪑', count: mesas.length },
+    { id: 'tipos-montaje', label: 'Tipos de montaje', icon: '🏛️', count: tiposMontaje.length },
+    { id: 'orden', label: 'Orden tiempos', icon: '🍽️', count: null },
   ];
 
   return (
@@ -234,7 +278,7 @@ export default function Configuracion() {
           >
             <span className="config-tab-btn-icon">{tab.icon}</span>
             <span className="config-tab-btn-label">{tab.label}</span>
-            <span className="config-tab-btn-count">{tab.count}</span>
+            {tab.count !== null && <span className="config-tab-btn-count">{tab.count}</span>}
           </button>
         ))}
       </div>
@@ -271,6 +315,45 @@ export default function Configuracion() {
           onEdit={async (id, data) => { await updateMesa(id, data); loadAll(); }}
           onToggleActive={(id, activo) => toggleItemActive(id, activo, updateMesa)}
         />
+      )}
+
+      {activeTab === 'tipos-montaje' && (
+        <CrudTab
+          title="Tipos de montaje" icon="🏛️"
+          items={tiposMontaje}
+          onCreate={async (nombre) => {
+            const next = [...tiposMontaje, { id: `tm-${Date.now()}`, nombre, activo: 1 }];
+            setTiposMontaje(next);
+            await persistTiposMontaje(next);
+          }}
+          onDelete={async (id) => {
+            const next = tiposMontaje.filter(t => t.id !== id);
+            setTiposMontaje(next);
+            await persistTiposMontaje(next);
+          }}
+          onEdit={async (id, data) => {
+            const next = tiposMontaje.map(t => t.id === id ? { ...t, ...data } : t);
+            setTiposMontaje(next);
+            await persistTiposMontaje(next);
+          }}
+          onToggleActive={async (id, activo) => {
+            const next = tiposMontaje.map(t => t.id === id ? { ...t, activo } : t);
+            setTiposMontaje(next);
+            await persistTiposMontaje(next);
+          }}
+        />
+      )}
+
+      {activeTab === 'orden' && (
+        <div className="config-tab">
+          <div className="config-tab-header">
+            <div className="config-tab-title">
+              <span className="config-tab-icon">🍽️</span>
+              <span>Orden de Tiempos de Comida</span>
+            </div>
+          </div>
+          <OrdenTiemposEditor inline />
+        </div>
       )}
 
     </div>

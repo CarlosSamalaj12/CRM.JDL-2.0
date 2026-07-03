@@ -7,7 +7,7 @@ import {
   createIngrediente,
   getHistorial,
   getInformesByOcupacion, getInformeById,
-  getImagenes, createImagen, uploadImagen, deleteImagen, imagenUrl,
+  getImagenes, createImagen, uploadImagen, updateImagen, deleteImagen, imagenUrl,
   getEquipos, getSillas, getMesas,
   saveMetadatosEvento
 } from '../services/api.js';
@@ -21,6 +21,9 @@ import {
 } from '../components/Icons.jsx';
 import SettingsChecklist from '../../settings/SettingsChecklist';
 import { emitOpenEventChecklist } from '../../../utils/appEvents';
+import OrdenTiemposEditor from '../components/OrdenTiemposEditor.jsx';
+import { TIEMPOS_COMIDA, TIEMPO_COMIDA_ORDER } from '../constants/tiemposComida.js';
+import { loadState as loadCrmState } from '../../../services/stateService.js';
 import '../styles.css';
 
 // ═══════════════════════════════════════════════════════════════
@@ -68,46 +71,29 @@ const TIPOS_MONTAJE = [
   'Mesa redonda', 'Buffet', 'U', 'Presidencial', 'Personalizado'
 ];
 
-const TIEMPOS_COMIDA = [
-  { id: 'estacion',     label: 'Estación',    icon: '🏛️' },
-  { id: 'desayuno',    label: 'Desayuno',    icon: '🌅' },
-  { id: 'refaccion_am', label: 'Refacción AM', icon: '🥐' },
-  { id: 'almuerzo',    label: 'Almuerzo',    icon: '🍽️' },
-  { id: 'refaccion_pm', label: 'Refacción PM', icon: '🧁' },
-  { id: 'postre',      label: 'Postre',      icon: '🍰' },
-  { id: 'cena',        label: 'Cena',        icon: '🌙' },
-];
 
-const TIEMPO_COMIDA_ORDER = {
-  estacion: 1,
-  desayuno: 2,
-  refaccion_am: 3,
-  almuerzo: 4,
-  refaccion_pm: 5,
-  postre: 6,
-  cena: 7,
+
+const buildCustomTiempoComidaOrder = (customOrder) => {
+  if (Array.isArray(customOrder) && customOrder.length > 0) {
+    const map = {};
+    customOrder.forEach((id, idx) => { map[id] = idx + 1; });
+    return map;
+  }
+  return TIEMPO_COMIDA_ORDER;
 };
 
-const sortItemsByTiempoComida = (items) => {
+const sortItemsByTiempoComida = (items, customOrder) => {
+  const order = buildCustomTiempoComidaOrder(customOrder);
   return [...items].sort((a, b) => {
-    const aTc = TIEMPO_COMIDA_ORDER[a.tiempoComida] || 99;
-    const bTc = TIEMPO_COMIDA_ORDER[b.tiempoComida] || 99;
+    const aTc = order[a.tiempoComida] || 99;
+    const bTc = order[b.tiempoComida] || 99;
     if (aTc !== bTc) return aTc - bTc;
-    // Mismo tiempo de comida, ordenar por tipo de ingrediente
-    return (DEFAULT_ORDEN_TIPO[(a.tipo || '').toLowerCase()] || 99) - (DEFAULT_ORDEN_TIPO[(b.tipo || '').toLowerCase()] || 99);
+    // Mismo tiempo de comida: mantener orden de inserción
+    return 0;
   });
 };
 
 const TC_ITEM = TIEMPOS_COMIDA; // alias for per-item use
-const DEFAULT_ORDEN_TIPO = {
-  proteina: 1, carne: 1, 'proteína': 1, 'proteínas': 1, proteinas: 1,
-  salsa: 2, salsas: 2,
-  guarnicion: 3, 'guarnición': 3, guarniciones: 3,
-  postre: 4, postres: 4,
-  tortilla_pan: 5,
-  bebida: 6, bebidas: 6,
-  otros: 7,
-};
 
 const MONTAJE_CAMPOS = [
   { key: 'tipo_montaje', label: 'Tipo de montaje', type: 'select', options: TIPOS_MONTAJE },
@@ -115,7 +101,6 @@ const MONTAJE_CAMPOS = [
   { key: 'horario', label: 'Horario', type: 'text' },
   { key: 'equipo_necesario', label: 'Equipo necesario', type: 'config-equipo' },
   { key: 'manteleria', label: 'Mantelería', type: 'text' },
-  { key: 'cristaleria', label: 'Cristalería', type: 'text' },
   { key: 'mesas', label: 'Mesas', type: 'config-mesa' },
   { key: 'sillas', label: 'Sillas', type: 'config-silla' },
   { key: 'observaciones', label: 'Comentarios', type: 'textarea' },
@@ -224,7 +209,7 @@ export default function ConstructorInforme() {
   }
   const toast = useToast();
   const { user } = useAuth();
-  const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();
+  const { connected: socketConnected, joinRoom, leaveRoom, onEvent } = useSocket();
 
   // State principal
   const [loading, setLoading] = useState(true);
@@ -252,10 +237,11 @@ export default function ConstructorInforme() {
   // Colaboración
   const [historial, setHistorial] = useState([]);
 
-  // Config (equipos, sillas, mesas, salones)
+  // Config (equipos, sillas, mesas, salones, tipos de montaje)
   const [configEquipos, setConfigEquipos] = useState([]);
   const [configSillas, setConfigSillas] = useState([]);
   const [configMesas, setConfigMesas] = useState([]);
+  const [configTiposMontaje, setConfigTiposMontaje] = useState([]);
   const [salonesList, setSalonesList] = useState([]);
 
   // Modales
@@ -295,6 +281,70 @@ export default function ConstructorInforme() {
   const [newIngNombre, setNewIngNombre] = useState('');
   const [newIngTipo, setNewIngTipo] = useState('proteina');
   const [creatingIng, setCreatingIng] = useState(false);
+
+  // Orden personalizado de tiempos de comida
+  const [customTiempoComidaOrder, setCustomTiempoComidaOrder] = useState(null);
+  const [showOrdenModal, setShowOrdenModal] = useState(false);
+  const [openTcPopover, setOpenTcPopover] = useState(null);
+
+  // Cargar orden personalizado de tiempos
+  useEffect(() => {
+    const loadOrder = async () => {
+      try {
+        const state = await loadCrmState();
+        setCustomTiempoComidaOrder(state?.informe_tiempos_orden || null);
+      } catch (err) {
+        console.error('Error cargando orden de tiempos:', err);
+      }
+    };
+    loadOrder();
+    const handleStateUpdate = () => loadOrder();
+    window.addEventListener('stateUpdated', handleStateUpdate);
+    return () => window.removeEventListener('stateUpdated', handleStateUpdate);
+  }, []);
+
+  // Cargar tipos de montaje personalizados
+  useEffect(() => {
+    const loadTipos = async (opts = {}) => {
+      try {
+        const state = await loadCrmState(opts);
+        const saved = state?.informe_tipos_montaje;
+        if (Array.isArray(saved) && saved.length > 0) {
+          setConfigTiposMontaje(saved.filter(t => t.activo !== 0));
+        } else {
+          setConfigTiposMontaje(TIPOS_MONTAJE.map(nombre => ({ id: nombre, nombre, activo: 1 })));
+        }
+      } catch (err) {
+        console.error('Error cargando tipos de montaje:', err);
+        setConfigTiposMontaje(TIPOS_MONTAJE.map(nombre => ({ id: nombre, nombre, activo: 1 })));
+      }
+    };
+    loadTipos();
+    const handleStateUpdate = () => loadTipos({ cacheBust: true });
+    window.addEventListener('stateUpdated', handleStateUpdate);
+    const unsubscribeSocket = onEvent ? onEvent('state-updated', () => loadTipos({ cacheBust: true })) : () => {};
+    const handleVisibility = () => {
+      if (!document.hidden) loadTipos({ cacheBust: true });
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('stateUpdated', handleStateUpdate);
+      unsubscribeSocket();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [onEvent]);
+
+  // Cerrar popover de tiempo de comida al hacer click fuera
+  useEffect(() => {
+    if (!openTcPopover) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.pos-ticket-item-tc-popover-wrapper')) {
+        setOpenTcPopover(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openTcPopover]);
 
   const handleCreateIngrediente = async () => {
     const nombre = newIngNombre.trim();
@@ -446,7 +496,7 @@ export default function ConstructorInforme() {
                     id: d.id,
                     fecha: d.fecha_evento ? d.fecha_evento.slice(0, 10) : new Date().toISOString().slice(0, 10),
                     platillo: null, platilloDetalle: null,
-                    selectedItems: sortItemsByTiempoComida(loadedItems),
+                    selectedItems: sortItemsByTiempoComida(loadedItems, customTiempoComidaOrder),
                     menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
                     montaje: mont, alertas, alertaCustom, comentarioMenu: d.comentario_menu || '',
                     tiempoComida,
@@ -519,7 +569,7 @@ export default function ConstructorInforme() {
             fecha: d.fecha_evento ? d.fecha_evento.slice(0, 10) : new Date().toISOString().slice(0, 10),
             platillo: null,
             platilloDetalle: null,
-            selectedItems: sortItemsByTiempoComida(loadedItems),
+            selectedItems: sortItemsByTiempoComida(loadedItems, customTiempoComidaOrder),
             menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
             montaje: mont,
             alertas: alertas,
@@ -659,7 +709,7 @@ export default function ConstructorInforme() {
           dbId: null,
         });
       }
-      newDias[activeDay].selectedItems = sortItemsByTiempoComida(items);
+      newDias[activeDay].selectedItems = sortItemsByTiempoComida(items, customTiempoComidaOrder);
       setDias(newDias);
     } catch (err) {
       console.error('Error en agregarItem:', err);
@@ -744,7 +794,7 @@ export default function ConstructorInforme() {
         metodo_preparacion: '', cantidad: 1, notas: '',
         tiempoComida: null, dbId: null,
       }));
-      upd[activeDay].selectedItems = sortItemsByTiempoComida(upd[activeDay].selectedItems);
+      upd[activeDay].selectedItems = sortItemsByTiempoComida(upd[activeDay].selectedItems, customTiempoComidaOrder);
       setDias(upd);
     } catch { /* */ }
   };
@@ -850,6 +900,15 @@ export default function ConstructorInforme() {
       await deleteImagen(imgId);
       loadImagenes();
     } catch { toast.error('Error al eliminar imagen'); }
+  };
+
+  const handleUpdateImagenDescripcion = async (imgId, descripcion) => {
+    try {
+      await updateImagen(imgId, { descripcion: descripcion || null });
+      setImagenes(prev => prev.map(img => img.id === imgId ? { ...img, descripcion } : img));
+    } catch {
+      toast.error('Error al guardar descripción');
+    }
   };
 
   const handleUploadImagen = async () => {
@@ -1049,7 +1108,28 @@ export default function ConstructorInforme() {
             Informe {informeId ? `#${informeId}` : '—'}
           </div>
           <div className="pos-ticket-body">
-            <div className="pos-ticket-dia-tag">DÍA {activeDay + 1}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+              <div className="pos-ticket-dia-tag">DÍA {activeDay + 1}</div>
+              <button
+                type="button"
+                onClick={() => setShowOrdenModal(true)}
+                title="Ordenar tiempos de comida"
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-muted)',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                ⚙️ Orden
+              </button>
+            </div>
 
             {/* Menú asignado */}
             {diaActivo.menuAsignado && (
@@ -1101,7 +1181,6 @@ export default function ConstructorInforme() {
                 {diaActivo.selectedItems.map((item, idx) => {
                   const tipoItem = (item.tipo || '').toLowerCase();
                   const esSimple = tipoItem !== 'carne' && tipoItem !== 'proteina' && tipoItem !== 'proteína' && tipoItem !== 'proteinas' && tipoItem !== 'proteínas';
-                  const tcItem = TC_ITEM.find(tc => tc.id === item.tiempoComida);
                   return (
                     <div
                       key={item.comp_id}
@@ -1118,18 +1197,49 @@ export default function ConstructorInforme() {
                         </span>
                         <span className="pos-ticket-item-nombre">{item.ingrediente_nombre}</span>
                         {!esSimple && <span className="pos-ticket-item-qty">×{item.cantidad}</span>}
-                        <div className="pos-ticket-item-tc-select-wrapper">
-                          <select
-                            className={`pos-ticket-item-tc-select ${tcItem ? '' : 'pos-ticket-item-tc-select--none'}`}
-                            value={item.tiempoComida || ''}
-                            onChange={e => handleItemTiempoComida(item.comp_id, e.target.value)}
-                            title={tcItem ? tcItem.label : 'Sin tiempo de comida'}
+                        <div className="pos-ticket-item-tc-popover-wrapper">
+                          <button
+                            type="button"
+                            className={`pos-ticket-item-tc-badge ${item.tiempoComida ? '' : 'pos-ticket-item-tc-badge--none'}`}
+                            onClick={() => setOpenTcPopover(openTcPopover === item.comp_id ? null : item.comp_id)}
+                            title={TC_ITEM.find(tc => tc.id === item.tiempoComida)?.label || 'Sin tiempo de comida'}
+                            style={item.tiempoComida ? {
+                              '--tc-color': TC_ITEM.find(tc => tc.id === item.tiempoComida)?.color,
+                              '--tc-bg': `${TC_ITEM.find(tc => tc.id === item.tiempoComida)?.color}15`,
+                            } : {}}
                           >
-                            <option value="">⏱️ Sin asignar</option>
-                            {TC_ITEM.map(tc => (
-                              <option key={tc.id} value={tc.id}>{tc.icon} {tc.label}</option>
-                            ))}
-                          </select>
+                            {item.tiempoComida
+                              ? TC_ITEM.find(tc => tc.id === item.tiempoComida)?.icon
+                              : '⏱️'}
+                          </button>
+
+                          {openTcPopover === item.comp_id && (
+                            <div className="pos-ticket-item-tc-popover">
+                              <div className="pos-ticket-item-tc-popover-title">Tiempo de comida</div>
+                              {TC_ITEM.map(tc => {
+                                const selected = item.tiempoComida === tc.id;
+                                return (
+                                  <button
+                                    key={tc.id}
+                                    type="button"
+                                    className={`pos-ticket-item-tc-popover-option ${selected ? 'selected' : ''}`}
+                                    onClick={() => {
+                                      handleItemTiempoComida(item.comp_id, selected ? '' : tc.id);
+                                      setOpenTcPopover(null);
+                                    }}
+                                    style={{
+                                      '--tc-color': tc.color,
+                                      '--tc-bg': `${tc.color}15`,
+                                    }}
+                                  >
+                                    <span className="pos-ticket-item-tc-popover-icon">{tc.icon}</span>
+                                    <span className="pos-ticket-item-tc-popover-label">{tc.label}</span>
+                                    {selected && <span className="pos-ticket-item-tc-popover-check">✓</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                         <button className="pos-ticket-item-del" onClick={() => eliminarItem(item.comp_id)}>
                           <IconX size={11} />
@@ -1454,7 +1564,10 @@ export default function ConstructorInforme() {
                         {campo.type === 'select' ? (
                           <select value={montajeData[campo.key] || ''} onChange={e => setMontajeData({...montajeData, [campo.key]: e.target.value})}>
                             <option value="">Seleccionar...</option>
-                            {campo.options.map(o => <option key={o} value={o}>{o}</option>)}
+                            {(campo.key === 'tipo_montaje' && configTiposMontaje.length > 0
+                              ? configTiposMontaje.map(t => t.nombre)
+                              : campo.options
+                            ).map(o => <option key={o} value={o}>{o}</option>)}
                           </select>
                         ) : campo.type === 'textarea' ? (
                           <textarea value={montajeData[campo.key] || ''} onChange={e => setMontajeData({...montajeData, [campo.key]: e.target.value})} rows={2} />
@@ -1487,20 +1600,48 @@ export default function ConstructorInforme() {
                   {imagenes.map(img => (
                     <div key={img.id} style={{
                       width:'250px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)',
-                      overflow:'hidden', background:'var(--bg-card)', position:'relative'
+                      background:'var(--bg-card)', position:'relative', display:'flex', flexDirection:'column'
                     }}>
                       {/* Contenedor cuadrado fijo 250x250 — imagen completa sin recorte */}
-                      <div style={{width:'250px', height:'250px', background:'var(--bg-elevated)', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                      <div style={{width:'250px', height:'250px', borderRadius:'var(--radius-sm) var(--radius-sm) 0 0', overflow:'hidden', background:'var(--bg-elevated)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
                         <img src={imagenUrl(img.url)} alt={img.descripcion || ''}
                           style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block'}}
                           onError={e => { e.target.style.display='none'; }}
                         />
                       </div>
-                      {img.descripcion && (
-                        <div style={{padding:'0.25rem 0.4rem',fontSize:'0.72rem',color:'var(--text-muted)',textAlign:'center'}}>
-                          {img.descripcion}
-                        </div>
-                      )}
+                      <div style={{padding:'0.4rem'}}>
+                        <textarea
+                          defaultValue={img.descripcion || ''}
+                          placeholder="Agregar descripción..."
+                          rows={Math.max(2, (img.descripcion || '').split('\n').length + 1)}
+                          onInput={e => {
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                          }}
+                          onBlur={e => handleUpdateImagenDescripcion(img.id, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.blur(); } }}
+                          style={{
+                            width: '100%',
+                            minHeight: '80px',
+                            fontSize: '0.75rem',
+                            color: 'var(--text)',
+                            textAlign: 'center',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--bg-elevated)',
+                            padding: '0.5rem',
+                            resize: 'vertical',
+                            fontFamily: 'inherit',
+                            lineHeight: 1.5,
+                            overflow: 'auto',
+                            boxSizing: 'border-box',
+                          }}
+                          onFocus={e => {
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                          }}
+                        />
+                      </div>
                       <button onClick={() => handleDeleteImagen(img.id)}
                         style={{position:'absolute',top:'4px',right:'4px',background:'rgba(0,0,0,0.5)',color:'white',border:'none',borderRadius:'50%',width:'22px',height:'22px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px'}}>
                         ✕
@@ -1540,9 +1681,11 @@ export default function ConstructorInforme() {
                     <span style={{fontSize:'0.7rem',color:'var(--text-muted)'}}>o pegar URL</span>
                     <span style={{flex:1,height:'1px',background:'var(--border)'}} />
                   </div>
-                  <div style={{display:'flex',gap:'0.35rem'}}>
+                  <div style={{display:'flex',gap:'0.35rem',flexWrap:'wrap'}}>
                     <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)}
-                      placeholder="https://..." style={{flex:1}} />
+                      placeholder="https://..." style={{flex:1,minWidth:'150px'}} />
+                    <input type="text" value={imagenDesc} onChange={e => setImagenDesc(e.target.value)}
+                      placeholder="Descripción" style={{width:'140px',fontSize:'0.78rem'}} />
                     <button className="btn-primary btn-sm" onClick={handleAddImagen} disabled={!urlInput.trim()}>
                       Agregar URL
                     </button>
@@ -1741,6 +1884,15 @@ export default function ConstructorInforme() {
           </div>
         </div>
       )}
+
+      {/* ─── MODAL ORDEN DE TIEMPOS DE COMIDA ─── */}
+      {showOrdenModal && (
+        <OrdenTiemposEditor
+          onClose={() => setShowOrdenModal(false)}
+          onSaved={(newOrder) => setCustomTiempoComidaOrder(newOrder)}
+        />
+      )}
+
       <SettingsChecklist />
     </div>
   );

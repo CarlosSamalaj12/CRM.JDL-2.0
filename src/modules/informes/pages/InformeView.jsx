@@ -5,28 +5,8 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import ColaboracionPanel from '../components/ColaboracionPanel.jsx';
-import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle, IconCheckCircle, IconX } from '../components/Icons.jsx';
-
-
-const TIEMPOS_COMIDA = [
-  { id: 'estacion',     label: 'Estación',    icon: '🏛️' },
-  { id: 'desayuno',    label: 'Desayuno',    icon: '🌅' },
-  { id: 'refaccion_am', label: 'Refacción AM', icon: '🥐' },
-  { id: 'almuerzo',    label: 'Almuerzo',    icon: '🍽️' },
-  { id: 'refaccion_pm', label: 'Refacción PM', icon: '🧁' },
-  { id: 'postre',      label: 'Postre',      icon: '🍰' },
-  { id: 'cena',        label: 'Cena',        icon: '🌙' },
-];
-
-const TIEMPO_COMIDA_ORDER = {
-  estacion: 1,
-  desayuno: 2,
-  refaccion_am: 3,
-  almuerzo: 4,
-  refaccion_pm: 5,
-  postre: 6,
-  cena: 7,
-};
+import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle, IconCheckCircle, IconX, IconEdit } from '../components/Icons.jsx';
+import { TIEMPOS_COMIDA, TIEMPO_COMIDA_ORDER } from '../constants/tiemposComida.js';
 
 const ALERTAS_PREDEFINIDAS = [
   { label: 'Sin Gluten', emoji: '🌾' },
@@ -387,26 +367,24 @@ export default function InformeView() {
                       <tr>
                         <td className="iv-ht-label">Horario</td>
                         <td className="iv-ht-value">{informe.HoraI || '-'}{informe.HoraF ? ` - ${informe.HoraF}` : ''}</td>
-                        <td className="iv-ht-label">Teléfono</td>
-                        <td className="iv-ht-value">{informe.Telefono || '-'}</td>
-                      </tr>
-                      <tr>
-                        <td className="iv-ht-label">Institución</td>
-                        <td className="iv-ht-value">{informe.Institucion}</td>
                         <td className="iv-ht-label">Fecha Evento</td>
                         <td className="iv-ht-value">{dia.fecha_evento ? formatFechaDia(dia.fecha_evento) : '-'}</td>
                       </tr>
                       <tr>
-                        <td className="iv-ht-label">Salón / Área</td>
-                        <td className="iv-ht-value">{informe.Salon || '-'}</td>
+                        <td className="iv-ht-label">Institución</td>
+                        <td className="iv-ht-value">{informe.Institucion}</td>
                         <td className="iv-ht-label">No Pax</td>
                         <td className="iv-ht-value">{informe.Pax || '-'}</td>
                       </tr>
                       <tr>
-                        <td className="iv-ht-label">Vendedor</td>
-                        <td className="iv-ht-value">{informe.Vendedor || '-'}</td>
+                        <td className="iv-ht-label">Salón / Área</td>
+                        <td className="iv-ht-value">{informe.Salon || '-'}</td>
                         <td className="iv-ht-label">No Folio</td>
                         <td className="iv-ht-value">{informe.folio || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="iv-ht-label">Vendedor</td>
+                        <td className="iv-ht-value" colSpan="3">{informe.Vendedor || '-'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -449,7 +427,7 @@ export default function InformeView() {
                       const p = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : (dia.descripcion_montaje || {});
                       if (p && p._v === 2 && p.tiempo_comida) {
                         const tc = TIEMPOS_COMIDA.find(t => t.id === p.tiempo_comida);
-                        return tc ? <span className="iv-day-tc-badge">{tc.icon} {tc.label}</span> : null;
+                        return tc ? <span className="iv-day-tc-badge" style={{ '--tc-color': tc.color, '--tc-bg': `${tc.color}15` }}>{tc.label}</span> : null;
                       }
                     } catch {}
                     return null;
@@ -489,7 +467,7 @@ export default function InformeView() {
                         } catch {}
                         return agruparItemsPorTiempoComida(dia.items, itemsTc).map((grupo, gi) => (
                           <div key={gi} className="iv-grupo">
-                            <div className="iv-grupo-label">{grupo.grupoIcon} {grupo.grupoLabel}</div>
+                            <div className="iv-grupo-label" style={{ '--tc-color': grupo.grupoColor, '--tc-bg': `${grupo.grupoColor}15` }}>{grupo.grupoLabel}</div>
                             <div className="iv-grupo-items">
                               {grupo.items.map((item, ii) => (
                                 <div key={ii} className="iv-item-row">
@@ -498,7 +476,8 @@ export default function InformeView() {
                                     const tipoItem = (item.ingrediente_tipo || '').toLowerCase();
                                     const esProteina = tipoItem === 'carne' || tipoItem === 'proteina' || tipoItem === 'proteína' || tipoItem === 'proteinas' || tipoItem === 'proteínas';
                                     if (esProteina && item.cantidad_total) {
-                                      return <span className="iv-item-qty">Cantidad: {item.cantidad_total}</span>;
+                                      const qty = parseInt(item.cantidad_total, 10);
+                                      return <span className="iv-item-qty">Cantidad: {qty}</span>;
                                     }
                                     return null;
                                   })()}
@@ -547,7 +526,7 @@ export default function InformeView() {
                                       }}
                                       title={user && ['Admin','Vendedor','FrontOffice'].includes(user.rol) ? 'Click para editar' : ''}
                                     >
-                                      📝 {item.notas}
+                                      <IconEdit size={11} className="iv-item-notes-icon" /> {item.notas}
                                     </span>
                                   )}
                                 </div>
@@ -728,7 +707,9 @@ export default function InformeView() {
             <section className="iv-imagenes" style={{marginTop:'1.5rem'}}>
               {imagenes.map(img => (
                 <div key={img.id} className="iv-imagen-item">
-                  <img src={imagenUrl(img.url)} alt={img.descripcion || ''} />
+                  <div className="iv-imagen-thumb">
+                    <img src={imagenUrl(img.url)} alt={img.descripcion || ''} />
+                  </div>
                   {img.descripcion && <div className="iv-imagen-desc">{img.descripcion}</div>}
                 </div>
               ))}
@@ -764,12 +745,12 @@ function agruparItemsPorTiempoComida(items, itemsTc) {
   const resultado = [];
   for (const tc of TIEMPOS_COMIDA) {
     if (grupos[tc.id] && grupos[tc.id].length > 0) {
-      resultado.push({ grupoLabel: tc.label, grupoIcon: tc.icon, items: grupos[tc.id] });
+      resultado.push({ grupoLabel: tc.label, grupoColor: tc.color, items: grupos[tc.id] });
       delete grupos[tc.id];
     }
   }
   if (grupos['__sin_asignar'] && grupos['__sin_asignar'].length > 0) {
-    resultado.push({ grupoLabel: 'Sin asignar', grupoIcon: '📌', items: grupos['__sin_asignar'] });
+    resultado.push({ grupoLabel: 'Sin asignar', grupoColor: '#94a3b8', items: grupos['__sin_asignar'] });
   }
   return resultado;
 }
