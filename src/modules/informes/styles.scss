@@ -61,7 +61,7 @@
 
 @media print {
   @page {
-    margin: 1cm 1.5cm;
+    margin: 0;
     size: A4;
   }
 }
@@ -3127,8 +3127,9 @@ body.informes-theme {
       border-radius: var(--radius-lg);
       overflow: hidden;
       position: sticky;
-      top: 5rem;
-      max-height: calc(100vh - 8rem);
+      top: 7rem;
+      z-index: 95;
+      max-height: calc(100vh - 9rem);
       display: flex;
       flex-direction: column;
       animation: fadeSlideIn 0.25s var(--ease);
@@ -4208,7 +4209,7 @@ body.informes-theme {
     /* 4. Estilos específicos para el documento al imprimir */
     .iv-documento {
       box-shadow: none !important;
-      padding: 0 !important;
+      padding: 1cm 1.5cm !important;
       margin: 0 auto !important;
       width: 100% !important;
       max-width: 100% !important;
@@ -4447,10 +4448,10 @@ body.informes-theme {
       }
       .iv-header-table tr {
         display: grid !important;
-        grid-template-columns: 110px 1fr !important;
-        gap: 0.4rem 0.5rem !important;
+        grid-template-columns: 110px 1fr 110px 1fr !important;
+        gap: 0.4rem 0.75rem !important;
         align-items: center !important;
-        padding: 0.5rem 0 !important;
+        padding: 0.35rem 0 !important;
         border-bottom: 1px dashed var(--border) !important;
       }
       .iv-header-table tr:last-child {
@@ -4459,6 +4460,9 @@ body.informes-theme {
       .iv-header-table td {
         display: block !important;
         padding: 0 !important;
+      }
+      .iv-header-table .iv-ht-value[colspan] {
+        grid-column: span 3 !important;
       }
       .iv-ht-label {
         width: auto !important;
