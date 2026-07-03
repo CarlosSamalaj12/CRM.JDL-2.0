@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
-import { fetchEvents, fetchWeeklyServices } from '../services/api.js';
+import { fetchEvents } from '../services/api.js';
 import EventCard from '../components/EventCard.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 
@@ -46,7 +46,7 @@ export default function Kanban() {
 
   const [events, setEvents] = useState([]);
   const [eventsTotal, setEventsTotal] = useState(0);
-  const [weeklyServices, setWeeklyServices] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -161,8 +161,8 @@ export default function Kanban() {
 
   const loadEvents = useCallback(() => {
     setLoading(true);
-    Promise.all([fetchEvents(selectedDate), fetchWeeklyServices(selectedDate)])
-      .then(([eventsData, servicesData]) => {
+    fetchEvents(selectedDate)
+      .then((eventsData) => {
         const seenIds = new Set();
         const unicos = eventsData.filter(e => {
           if (seenIds.has(e.Idocupacion)) return false;
@@ -181,7 +181,7 @@ export default function Kanban() {
         });
         setEvents(mapped);
         setEventsTotal(mapped.length);
-        setWeeklyServices(servicesData || []);
+
       })
       .catch((err) => setError(err.message || 'Error desconocido'))
       .finally(() => setLoading(false));
@@ -225,19 +225,7 @@ export default function Kanban() {
 
   const totalEvents = filteredColumns.reduce((sum, col) => sum + col.items.length, 0);
 
-  const dailyServicesMap = weeklyServices.reduce((acc, svc) => {
-    const fecha = String(svc.FechaServicio || '').slice(0, 10);
-    if (!acc[fecha]) {
-      acc[fecha] = { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
-    }
-    const tipo = svc.TipoServicio;
-    if (tipo === 'desayunos') acc[fecha].desayunos += Number(svc.cantidad) || 0;
-    else if (tipo === 'refacciones_am') acc[fecha].refacciones_am += Number(svc.cantidad) || 0;
-    else if (tipo === 'almuerzos') acc[fecha].almuerzos += Number(svc.cantidad) || 0;
-    else if (tipo === 'refacciones_pm') acc[fecha].refacciones_pm += Number(svc.cantidad) || 0;
-    else if (tipo === 'cenas') acc[fecha].cenas += Number(svc.cantidad) || 0;
-    return acc;
-  }, {});
+
 
   const days = dayNames.map((_, index) => {
     const currentDay = new Date(monday);
@@ -272,6 +260,11 @@ export default function Kanban() {
         'Salón': e.Salon || '',
         'Horario': `${fmtTime(e.HoraI)} - ${fmtTime(e.HoraF)}`,
         'Pax': e.Pax || 0,
+        'Des': e.cant_desayunos || 0,
+        'Ref. AM': e.cant_refacciones_am || 0,
+        'Alm.': e.cant_almuerzos || 0,
+        'Ref. PM': e.cant_refacciones_pm || 0,
+        'Cenas': e.cant_cenas || 0,
         'Tipo': e.TipoEvento || '',
         'Estado': statusMap[e.Estatuscotizacion]?.label || '',
         'Vendedor': e.Vendedor || '',
@@ -320,11 +313,20 @@ export default function Kanban() {
       if (!hasEvents) {
         tableRows += `<tr><td colspan="13" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
       } else {
-        const daySvc = dailyServicesMap[day.isoDate] || { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
-        const dayTotals = { pax: 0, desayunos: daySvc.desayunos, ref_am: daySvc.refacciones_am, almuerzos: daySvc.almuerzos, ref_pm: daySvc.refacciones_pm, cenas: daySvc.cenas };
+        const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
         for (const ev of day.events) {
           const paxVal = Number(ev.Pax) || 0;
           dayTotals.pax += paxVal;
+          const evDes = Number(ev.cant_desayunos) || 0;
+          const evRefAm = Number(ev.cant_refacciones_am) || 0;
+          const evAlm = Number(ev.cant_almuerzos) || 0;
+          const evRefPm = Number(ev.cant_refacciones_pm) || 0;
+          const evCen = Number(ev.cant_cenas) || 0;
+          dayTotals.desayunos += evDes;
+          dayTotals.ref_am += evRefAm;
+          dayTotals.almuerzos += evAlm;
+          dayTotals.ref_pm += evRefPm;
+          dayTotals.cenas += evCen;
           const st = statusMap[ev.Estatuscotizacion] || { label: '—', color: 'gray' };
           const alerta = (ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? '⚠' : '';
           tableRows += `<tr>
@@ -334,11 +336,11 @@ export default function Kanban() {
             <td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;">${ev.Salon || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtTime(ev.HoraI)} - ${fmtTime(ev.HoraF)}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${paxVal || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${dayTotals.desayunos || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${dayTotals.ref_am || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${dayTotals.almuerzos || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${dayTotals.ref_pm || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${dayTotals.cenas || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evDes || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evRefAm || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evAlm || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evRefPm || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evCen || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${alerta}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${ev.Vendedor || '—'}</td>
           </tr>`;
@@ -724,11 +726,20 @@ export default function Kanban() {
                       </tr>
                     );
                   } else {
-                    const daySvc = dailyServicesMap[day.isoDate] || { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
-                    const dayTotals = { pax: 0, desayunos: daySvc.desayunos, ref_am: daySvc.refacciones_am, almuerzos: daySvc.almuerzos, ref_pm: daySvc.refacciones_pm, cenas: daySvc.cenas };
+                    const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
                     day.events.forEach((ev, ei) => {
                       const paxVal = Number(ev.Pax) || 0;
                       dayTotals.pax += paxVal;
+                      const evDes = Number(ev.cant_desayunos) || 0;
+                      const evRefAm = Number(ev.cant_refacciones_am) || 0;
+                      const evAlm = Number(ev.cant_almuerzos) || 0;
+                      const evRefPm = Number(ev.cant_refacciones_pm) || 0;
+                      const evCen = Number(ev.cant_cenas) || 0;
+                      dayTotals.desayunos += evDes;
+                      dayTotals.ref_am += evRefAm;
+                      dayTotals.almuerzos += evAlm;
+                      dayTotals.ref_pm += evRefPm;
+                      dayTotals.cenas += evCen;
                       const st = statusMap[ev.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
                       const rowId = `${day.isoDate}-${ev.Idocupacion}-${ei}`;
                       const isExpanded = expandedRows.has(rowId);
@@ -745,11 +756,11 @@ export default function Kanban() {
                           <td className="col-salon">{isMobileView ? '' : <IconMapPin size={13} />} {ev.Salon || '—'}</td>
                           <td className="col-horario">{isMobileView ? '' : <IconClock size={13} />} {fmtTime(ev.HoraI)} - {fmtTime(ev.HoraF)}</td>
                           <td className="col-pax">{paxVal || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dayTotals.desayunos || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dayTotals.ref_am || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dayTotals.almuerzos || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dayTotals.ref_pm || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{dayTotals.cenas || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evDes || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evRefAm || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evAlm || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evRefPm || '—'}</td>
+                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evCen || '—'}</td>
                           <td className="col-alertas">
                             {hasAlerts
                               ? <span className="event-tag event-tag-warning" style={{fontSize: isMobileView ? '0.55rem' : '0.65rem',padding:'0.1rem 0.2rem'}}>⚠️</span>
@@ -782,11 +793,11 @@ export default function Kanban() {
                                 <div className="detail-section">
                                   <span className="detail-label">Alimentos</span>
                                   <div className="detail-food-grid">
-                                    <span className="detail-food-item"><span className="food-title">Des.</span> {dayTotals.desayunos || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Ref.AM</span> {dayTotals.ref_am || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Alm.</span> {dayTotals.almuerzos || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Ref.PM</span> {dayTotals.ref_pm || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Cenas</span> {dayTotals.cenas || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Des.</span> {evDes || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Ref.AM</span> {evRefAm || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Alm.</span> {evAlm || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Ref.PM</span> {evRefPm || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Cenas</span> {evCen || 0}</span>
                                   </div>
                                 </div>
                                 <div className="detail-section">
