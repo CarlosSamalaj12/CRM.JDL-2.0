@@ -16,6 +16,7 @@ export async function getUsers(req, res, next) {
          correo AS email,
          rol,
          activo,
+         avatar_data_url,
          creado_en AS fecha_creacion
        FROM usuarios
        ORDER BY nombre ASC`

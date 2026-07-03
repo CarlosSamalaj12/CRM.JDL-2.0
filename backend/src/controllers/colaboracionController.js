@@ -309,7 +309,7 @@ export async function toggleReaccion(req, res, next) {
 
 export async function getUsuarios(req, res, next) {
   try {
-    const [rows] = await pool.query('SELECT id, nombre, correo AS email, rol FROM usuarios WHERE activo = 1 ORDER BY nombre');
+    const [rows] = await pool.query('SELECT id, nombre, correo AS email, rol, avatar_data_url FROM usuarios WHERE activo = 1 ORDER BY nombre');
     res.json(rows);
   } catch (error) { next(error); }
 }
