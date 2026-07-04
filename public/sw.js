@@ -37,6 +37,23 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
+  // Extraer automáticamente el ID del usuario activo desde el token JWT de las peticiones
+  try {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const payloadBase64 = token.split('.')[1];
+      // Convertir Base64URL a Base64 estándar antes de decodificar con atob
+      const payloadJson = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+      const payload = JSON.parse(payloadJson);
+      if (payload && payload.id) {
+        activeUserId = payload.id;
+      }
+    }
+  } catch (err) {
+    // Ignorar silenciosamente errores de parseo
+  }
+
   // 1. Skip API, Socket.io, Firebase, and dynamic Vite assets entirely (do not cache)
   if (
     url.pathname.includes('api') || 
