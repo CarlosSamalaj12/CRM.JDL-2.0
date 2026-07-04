@@ -1,6 +1,6 @@
 import pool from '../config/db.js';
 import { emitChange } from '../helpers/socketEvents.js';
-import { enviarNotificacionPush } from '../helpers/pushNotifications.js';
+import { enviarNotificacionWebPush } from '../helpers/webPushHelper.js';
 
 async function ensureTables() {
   await pool.query(`
@@ -195,17 +195,15 @@ export async function updateTarea(req, res, next) {
           });
         }
 
-        // Enviar notificación Push FCM
-        enviarNotificacionPush(
+        // Enviar notificación Push nativa PWA
+        enviarNotificacionWebPush(
           prev.usuario_id,
           titulo,
           mensaje,
           {
-            tipo: 'tarea_completada',
-            idocupacion: String(notifIdOcupacion || ''),
-            comentario_id: String(id)
+            url: `/calendar`
           }
-        ).catch(err => console.error('[FCM] Error enviando push completada tarea:', err));
+        ).catch(err => console.error('[WebPush] Error enviando push completada tarea:', err));
       } catch { /* notification is non-critical */ }
     }
 

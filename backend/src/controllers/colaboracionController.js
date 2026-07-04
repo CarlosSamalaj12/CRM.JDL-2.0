@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { enviarNotificacionPush } from '../helpers/pushNotifications.js';
+import { enviarNotificacionWebPush } from '../helpers/webPushHelper.js';
 
 // ==============================
 // COMENTARIOS
@@ -123,18 +123,15 @@ export async function createComentario(req, res, next) {
           fecha_creacion: new Date()
         });
 
-        // Enviar notificación Push FCM
-        enviarNotificacionPush(
+        // Enviar notificación Push nativa PWA
+        enviarNotificacionWebPush(
           parentComment[0].usuario_id,
           `${nombreUsuario} respondió a tu comentario`,
           `${nombreUsuario} respondió a tu comentario en el informe`,
           {
-            tipo: 'respuesta',
-            informe_id: String(id),
-            idocupacion: String(id_ocupacion || ''),
-            comentario_id: String(result.insertId)
+            url: `/informes/${id}`
           }
-        ).catch(err => console.error('[FCM] Error enviando push respuesta:', err));
+        ).catch(err => console.error('[WebPush] Error enviando push respuesta:', err));
       }
     }
 
@@ -162,18 +159,15 @@ export async function createComentario(req, res, next) {
           fecha_creacion: new Date()
         });
 
-        // Enviar notificación Push FCM
-        enviarNotificacionPush(
+        // Enviar notificación Push nativa PWA
+        enviarNotificacionWebPush(
           mid,
           `Te mencionaron en un comentario`,
           `${nombreUsuario} te mencionó en el informe`,
           {
-            tipo: 'mencion',
-            informe_id: String(id),
-            idocupacion: String(id_ocupacion || ''),
-            comentario_id: String(result.insertId)
+            url: `/informes/${id}`
           }
-        ).catch(err => console.error('[FCM] Error enviando push mencion:', err));
+        ).catch(err => console.error('[WebPush] Error enviando push mencion:', err));
       }
     }
 

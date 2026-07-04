@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { enviarNotificacionPush } from '../helpers/pushNotifications.js';
+import { enviarNotificacionWebPush } from '../helpers/webPushHelper.js';
 
 export async function getNotas(req, res, next) {
   try {
@@ -129,17 +129,15 @@ export async function createNota(req, res, next) {
           fecha_creacion: new Date()
         });
 
-        // Enviar notificación Push FCM
-        enviarNotificacionPush(
+        // Enviar notificación Push nativa PWA
+        enviarNotificacionWebPush(
           mid,
           `Te mencionaron en una nota`,
           `${nombreUsuario} te mencionó en una nota del evento`,
           {
-            tipo: 'mencion',
-            idocupacion: String(idocupacion || ''),
-            comentario_id: String(notaId)
+            url: `/calendar`
           }
-        ).catch(err => console.error('[FCM] Error enviando push mencion nota:', err));
+        ).catch(err => console.error('[WebPush] Error enviando push mencion nota:', err));
       }
     }
 

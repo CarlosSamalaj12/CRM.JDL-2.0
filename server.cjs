@@ -1996,17 +1996,22 @@ async function ensureNotificacionesComentarioId() {
   }
 }
 
-async function ensureFcmTokensTable() {
+async function ensureWebPushSubscriptionsTable() {
   let conn;
   try {
     conn = await pool.getConnection();
+    // Limpiar tabla antigua de FCM
+    await conn.query("DROP TABLE IF EXISTS usuarios_fcm_tokens");
+    
+    // Crear tabla para suscripciones push nativas
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS usuarios_fcm_tokens (
+      CREATE TABLE IF NOT EXISTS usuarios_push_subscriptions (
         usuario_id VARCHAR(100) NOT NULL,
-        token VARCHAR(255) NOT NULL,
-        dispositivo VARCHAR(100) NULL,
+        endpoint VARCHAR(500) NOT NULL,
+        p256dh VARCHAR(255) NOT NULL,
+        auth VARCHAR(255) NOT NULL,
         creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (usuario_id, token),
+        PRIMARY KEY (usuario_id, endpoint),
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
@@ -4549,7 +4554,7 @@ const MIGRATIONS = [
   { name: 'DiscountAuth', fn: ensureDiscountAuthStructure },
   { name: 'NotificacionesIndexes', fn: ensureNotificacionesIndexes },
   { name: 'NotificacionesComentarioId', fn: ensureNotificacionesComentarioId },
-  { name: 'FcmTokensTable', fn: ensureFcmTokensTable },
+  { name: 'WebPushSubscriptionsTable', fn: ensureWebPushSubscriptionsTable },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -4571,7 +4576,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureDiscountAuthStructure',
   'ensureNotificacionesIndexes',
   'ensureNotificacionesComentarioId',
-  'ensureFcmTokensTable',
+  'ensureWebPushSubscriptionsTable',
 ]);
 
 /**
