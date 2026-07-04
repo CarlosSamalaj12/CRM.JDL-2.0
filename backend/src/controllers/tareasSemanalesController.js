@@ -200,8 +200,7 @@ export async function updateTarea(req, res, next) {
           prev.usuario_id,
           titulo,
           mensaje,
-          {
-            url: `/calendar`
+            url: prev.id_ocupacion ? `/reserva/${prev.id_ocupacion}` : '/calendar'
           }
         ).catch(err => console.error('[WebPush] Error enviando push completada tarea:', err));
       } catch { /* notification is non-critical */ }

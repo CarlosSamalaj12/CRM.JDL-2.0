@@ -96,26 +96,34 @@ self.addEventListener('fetch', (event) => {
 
 // Evento push: Recibir mensaje del backend y mostrar notificación flotante
 self.addEventListener('push', (event) => {
-  let data = {};
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch (e) {
-      data = { title: 'Jardines del Lago', body: event.data.text() };
-    }
-  }
-
-  const title = data.title || 'Jardines del Lago';
-  const options = {
-    body: data.body || 'Nueva notificación recibida',
-    icon: '/logo.png',
-    badge: '/icons/icon-192.png',
-    vibrate: [100, 50, 100],
-    data: data.data || {}
-  };
-
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Si la app está abierta, activa y enfocada, omitimos mostrar la notificación del sistema operativo (para no duplicar con el toast de Socket)
+      const isAppVisible = clients.some(client => client.visibilityState === 'visible' && client.focused);
+      if (isAppVisible) {
+        return;
+      }
+
+      let data = {};
+      if (event.data) {
+        try {
+          data = event.data.json();
+        } catch (e) {
+          data = { title: 'Jardines del Lago', body: event.data.text() };
+        }
+      }
+
+      const title = data.title || 'Jardines del Lago';
+      const options = {
+        body: data.body || 'Nueva notificación recibida',
+        icon: '/logo.png',
+        badge: '/icons/icon-192.png',
+        vibrate: [100, 50, 100],
+        data: data.data || {}
+      };
+
+      return self.registration.showNotification(title, options);
+    })
   );
 });
 

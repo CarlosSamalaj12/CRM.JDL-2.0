@@ -134,8 +134,7 @@ export async function createNota(req, res, next) {
           mid,
           `Te mencionaron en una nota`,
           `${nombreUsuario} te mencionó en una nota del evento`,
-          {
-            url: `/calendar`
+            url: `/reserva/${idocupacion}`
           }
         ).catch(err => console.error('[WebPush] Error enviando push mencion nota:', err));
       }
