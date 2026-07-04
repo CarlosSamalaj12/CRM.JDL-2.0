@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jardines-ems-cache-v1';
+const CACHE_NAME = 'jardines-ems-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -37,14 +37,16 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // 1. Skip API, Socket.io, and Firebase Messaging requests entirely (do not cache)
+  // 1. Skip API, Socket.io, Firebase, and dynamic Vite assets entirely (do not cache)
   if (
     url.pathname.includes('api') || 
     url.pathname.includes('socket.io') ||
     url.pathname.includes('firebase-messaging-sw.js') ||
+    url.pathname.includes('/assets/') ||
     request.url.includes('api') ||
     request.url.includes('socket.io') ||
     request.url.includes('firebase-messaging-sw.js') ||
+    request.url.includes('/assets/') ||
     request.url.includes('googleapis.com') ||
     request.url.includes('fcmregistrations')
   ) {
