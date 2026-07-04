@@ -37,9 +37,9 @@ export default function Login() {
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (user) {
-      navigate(getHomePath(user));
+      window.location.href = getHomePath(user);
     }
-  }, [navigate, contextUser]);
+  }, [contextUser]);
 
   // Complete Google redirect login when popup auth is blocked by the browser.
   useEffect(() => {
