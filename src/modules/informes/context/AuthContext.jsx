@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import authService from '../../../services/authService';
 
 const AuthContext = createContext(null);
@@ -61,6 +62,42 @@ export function AuthProvider({ children }) {
       window.removeEventListener('focus', syncSession);
     };
   }, [syncSession]);
+
+  useEffect(() => {
+    if (user && token) {
+      // Registrar e inicializar Firebase Cloud Messaging
+      import('../../../services/firebase.js').then(({ requestNotificationPermissionAndGetToken, onMessageRegister }) => {
+        // Solicitar permisos y registrar token en el backend
+        requestNotificationPermissionAndGetToken();
+
+        // Configurar listener en primer plano (Foreground)
+        const unsubscribe = onMessageRegister((payload) => {
+          console.log('[FCM] Mensaje recibido en primer plano:', payload);
+          if (payload.notification) {
+            const titulo = payload.notification.title || 'Nueva notificación';
+            const cuerpo = payload.notification.body || '';
+            toast(`${titulo}: ${cuerpo}`, {
+              duration: 6000,
+              icon: '🔔',
+              style: {
+                background: 'var(--bg-card, #ffffff)',
+                color: 'var(--text-main, #334155)',
+                border: '1px solid var(--border, #e2e8f0)',
+                borderRadius: '10px',
+                fontWeight: '600'
+              }
+            });
+          }
+        });
+
+        return () => {
+          if (typeof unsubscribe === 'function') unsubscribe();
+        };
+      }).catch(err => {
+        console.warn('[FCM] Error inicializando en AuthContext:', err.message);
+      });
+    }
+  }, [user, token]);
 
   const login = async () => {
     throw new Error('Use el login principal del EMS para acceder a Informes.');

@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { enviarNotificacionPush } from '../helpers/pushNotifications.js';
 
 // ==============================
 // COMENTARIOS
@@ -121,6 +122,19 @@ export async function createComentario(req, res, next) {
           leido: 0,
           fecha_creacion: new Date()
         });
+
+        // Enviar notificación Push FCM
+        enviarNotificacionPush(
+          parentComment[0].usuario_id,
+          `${nombreUsuario} respondió a tu comentario`,
+          `${nombreUsuario} respondió a tu comentario en el informe`,
+          {
+            tipo: 'respuesta',
+            informe_id: String(id),
+            idocupacion: String(id_ocupacion || ''),
+            comentario_id: String(result.insertId)
+          }
+        ).catch(err => console.error('[FCM] Error enviando push respuesta:', err));
       }
     }
 
@@ -147,6 +161,19 @@ export async function createComentario(req, res, next) {
           leido: 0,
           fecha_creacion: new Date()
         });
+
+        // Enviar notificación Push FCM
+        enviarNotificacionPush(
+          mid,
+          `Te mencionaron en un comentario`,
+          `${nombreUsuario} te mencionó en el informe`,
+          {
+            tipo: 'mencion',
+            informe_id: String(id),
+            idocupacion: String(id_ocupacion || ''),
+            comentario_id: String(result.insertId)
+          }
+        ).catch(err => console.error('[FCM] Error enviando push mencion:', err));
       }
     }
 

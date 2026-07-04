@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { enviarNotificacionPush } from '../helpers/pushNotifications.js';
 
 export async function getNotas(req, res, next) {
   try {
@@ -127,6 +128,18 @@ export async function createNota(req, res, next) {
           leido: 0,
           fecha_creacion: new Date()
         });
+
+        // Enviar notificación Push FCM
+        enviarNotificacionPush(
+          mid,
+          `Te mencionaron en una nota`,
+          `${nombreUsuario} te mencionó en una nota del evento`,
+          {
+            tipo: 'mencion',
+            idocupacion: String(idocupacion || ''),
+            comentario_id: String(notaId)
+          }
+        ).catch(err => console.error('[FCM] Error enviando push mencion nota:', err));
       }
     }
 

@@ -15,6 +15,7 @@ import userRouter from './routes/userRoutes.js';
 import tareasRouter from './routes/tareasRoutes.js';
 import tareasSemanalesRouter from './routes/tareasSemanalesRoutes.js';
 import equiposRouter from './routes/equiposRoutes.js';
+import fcmRouter from './routes/fcmRoutes.js';
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use('/users', userRouter);
 router.use('/tareas', tareasRouter);
 router.use('/tareas-semanales', tareasSemanalesRouter);
 router.use('/equipos', equiposRouter);
+router.use('/', fcmRouter);
 
 export default router;

@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { emitChange } from '../helpers/socketEvents.js';
+import { enviarNotificacionPush } from '../helpers/pushNotifications.js';
 
 async function ensureTables() {
   await pool.query(`
@@ -193,6 +194,18 @@ export async function updateTarea(req, res, next) {
             fecha_creacion: new Date(),
           });
         }
+
+        // Enviar notificación Push FCM
+        enviarNotificacionPush(
+          prev.usuario_id,
+          titulo,
+          mensaje,
+          {
+            tipo: 'tarea_completada',
+            idocupacion: String(notifIdOcupacion || ''),
+            comentario_id: String(id)
+          }
+        ).catch(err => console.error('[FCM] Error enviando push completada tarea:', err));
       } catch { /* notification is non-critical */ }
     }
 

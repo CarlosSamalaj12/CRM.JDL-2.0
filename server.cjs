@@ -1996,6 +1996,25 @@ async function ensureNotificacionesComentarioId() {
   }
 }
 
+async function ensureFcmTokensTable() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS usuarios_fcm_tokens (
+        usuario_id VARCHAR(100) NOT NULL,
+        token VARCHAR(255) NOT NULL,
+        dispositivo VARCHAR(100) NULL,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (usuario_id, token),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureDefaultUserCarlos() {
   let conn;
   try {
@@ -4530,6 +4549,7 @@ const MIGRATIONS = [
   { name: 'DiscountAuth', fn: ensureDiscountAuthStructure },
   { name: 'NotificacionesIndexes', fn: ensureNotificacionesIndexes },
   { name: 'NotificacionesComentarioId', fn: ensureNotificacionesComentarioId },
+  { name: 'FcmTokensTable', fn: ensureFcmTokensTable },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -4551,6 +4571,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureDiscountAuthStructure',
   'ensureNotificacionesIndexes',
   'ensureNotificacionesComentarioId',
+  'ensureFcmTokensTable',
 ]);
 
 /**
