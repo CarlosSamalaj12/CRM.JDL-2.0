@@ -137,29 +137,31 @@ self.addEventListener('notificationclick', (event) => {
   const absoluteUrl = new URL(path, self.location.origin).href;
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windowClients) => {
-      // Intentar enfocar una ventana existente de la PWA
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Buscar si ya hay alguna ventana abierta del mismo origen
+      let matchingClient = null;
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          try {
-            // Intentar navegar al nuevo path de forma reactiva
-            if ('navigate' in client) {
-              await client.navigate(absoluteUrl);
-            } else {
-              // Fallback en navegadores antiguos
-              client.url = absoluteUrl;
-            }
-          } catch (err) {
-            console.error('[SW] Fallo al usar client.navigate, abriendo ventana nueva:', err);
-            if (self.clients.openWindow) {
-              await self.clients.openWindow(absoluteUrl);
-            }
-          }
-          return client.focus();
+        if (client.url.includes(self.location.origin)) {
+          matchingClient = client;
+          break;
         }
       }
-      // Si no hay ventana abierta, abrir una nueva
+
+      // Si la ventana ya existe, enfocarla primero (síncrono al gesto del usuario) y luego navegar
+      if (matchingClient) {
+        if ('focus' in matchingClient) {
+          matchingClient.focus();
+        }
+        if ('navigate' in matchingClient) {
+          return matchingClient.navigate(absoluteUrl);
+        } else {
+          matchingClient.url = absoluteUrl;
+          return;
+        }
+      }
+
+      // Si no hay ninguna ventana abierta, abrir una nueva inmediatamente
       if (self.clients.openWindow) {
         return self.clients.openWindow(absoluteUrl);
       }
