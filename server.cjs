@@ -4624,7 +4624,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureDiscountAuthStructure',
   'ensureNotificacionesIndexes',
   'ensureNotificacionesComentarioId',
-  'ensureWebPushSubscriptionsTable',
+  'ensurePushSubscriptionsTable',
 ]);
 
 /**
