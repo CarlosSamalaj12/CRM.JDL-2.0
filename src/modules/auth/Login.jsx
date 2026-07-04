@@ -26,7 +26,7 @@ export default function Login() {
   } catch (_err) {
     navigate = (path) => { window.location.href = path; };
   }
-  const { syncSession } = useAuth();
+  const { user: contextUser, syncSession } = useAuth();
   const googleLoginRef = useRef(false);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function Login() {
     if (user) {
       navigate(getHomePath(user));
     }
-  }, [navigate]);
+  }, [navigate, contextUser]);
 
   // Complete Google redirect login when popup auth is blocked by the browser.
   useEffect(() => {
