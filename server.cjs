@@ -2044,7 +2044,7 @@ async function ensureNotificacionesComentarioId() {
   }
 }
 
-async function ensureWebPushSubscriptionsTable() {
+async function ensurePushSubscriptionsTable() {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4602,7 +4602,7 @@ const MIGRATIONS = [
   { name: 'DiscountAuth', fn: ensureDiscountAuthStructure },
   { name: 'NotificacionesIndexes', fn: ensureNotificacionesIndexes },
   { name: 'NotificacionesComentarioId', fn: ensureNotificacionesComentarioId },
-  { name: 'WebPushSubscriptionsTable', fn: ensureWebPushSubscriptionsTable },
+  { name: 'WebPushSubscriptionsTable', fn: ensurePushSubscriptionsTable },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
