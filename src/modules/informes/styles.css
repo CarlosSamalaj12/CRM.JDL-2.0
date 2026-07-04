@@ -1206,6 +1206,10 @@ button[data-tooltip-bottom]::after {
   padding: 0.6rem 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 9.5rem;
+  z-index: 80;
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .tabla-eventos td {
