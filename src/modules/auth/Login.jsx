@@ -58,7 +58,7 @@ export default function Login() {
         toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
         syncSession();
         const homePath = getHomePath(localUser);
-        setTimeout(() => navigate(homePath), 500);
+        setTimeout(() => { window.location.href = homePath; }, 500);
       } catch (err) {
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
@@ -99,7 +99,7 @@ export default function Login() {
       toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
       syncSession();
       const homePath = getHomePath(localUser);
-      setTimeout(() => navigate(homePath), 500);
+      setTimeout(() => { window.location.href = homePath; }, 500);
     } catch (err) {
       console.error('Google login error detail:', err);
       if (loadingToast) toast.dismiss(loadingToast);
