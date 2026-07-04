@@ -63,16 +63,26 @@ function HomeRedirect() {
 
 function App() {
   React.useEffect(() => {
+    const handleSWMessage = (event) => {
+      if (event.data && event.data.type === 'NAVIGATE_TO' && event.data.url) {
+        console.log('[SW Message] Redirigiendo vía mensaje:', event.data.url);
+        window.location.href = event.data.url;
+      }
+    };
+    
+    // Escuchar a través del canal de Service Worker
     if ('serviceWorker' in navigator) {
-      const handleSWMessage = (event) => {
-        if (event.data && event.data.type === 'NAVIGATE_TO' && event.data.url) {
-          console.log('[SW Message] Redirigiendo vía mensaje:', event.data.url);
-          window.location.href = event.data.url;
-        }
-      };
       navigator.serviceWorker.addEventListener('message', handleSWMessage);
-      return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage);
     }
+    // Escuchar a través del objeto window global de forma cruzada
+    window.addEventListener('message', handleSWMessage);
+    
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+      }
+      window.removeEventListener('message', handleSWMessage);
+    };
   }, []);
 
   return (

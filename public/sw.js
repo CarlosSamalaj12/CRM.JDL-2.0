@@ -99,13 +99,7 @@ self.addEventListener('fetch', (event) => {
 // Evento push: Recibir mensaje del backend y mostrar notificación flotante
 self.addEventListener('push', (event) => {
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // Si la app está abierta, activa y enfocada, omitimos mostrar la notificación del sistema operativo (para no duplicar con el toast de Socket)
-      const isAppVisible = clients.some(client => client.visibilityState === 'visible' && client.focused);
-      if (isAppVisible) {
-        return;
-      }
-
+    Promise.resolve().then(() => {
       let data = {};
       if (event.data) {
         try {
@@ -148,14 +142,21 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
 
-      // Si la ventana ya existe, enfocarla (síncrono al gesto del usuario) y enviar postMessage
+      // Si la ventana ya existe, enfocarla (síncrono al gesto del usuario) y enviar postMessage con respaldo de navigate
       if (matchingClient) {
         if ('focus' in matchingClient) {
           matchingClient.focus();
         }
-        // Comunicar al frontend la navegación requerida en caliente
+        // Comunicar al frontend la navegación requerida en caliente (React-side)
         matchingClient.postMessage({ type: 'NAVIGATE_TO', url: absoluteUrl });
-        return;
+        
+        // Respaldo doble: si la PWA no reacciona al postMessage, forzar navegación nativa del cliente
+        if ('navigate' in matchingClient) {
+          return matchingClient.navigate(absoluteUrl);
+        } else {
+          matchingClient.url = absoluteUrl;
+          return;
+        }
       }
 
       // Si no hay ninguna ventana abierta, abrir una nueva inmediatamente
