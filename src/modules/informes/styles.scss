@@ -1413,31 +1413,38 @@ body.informes-theme {
      TABLE VIEW
      ============================================ */
   
+  .tabla-eventos-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 220px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-sm);
+  }
+
   .tabla-eventos {
     width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: 0.85rem;
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      overflow: hidden;
-      box-shadow: var(--shadow-sm);
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.85rem;
+    table-layout: fixed;
+    background: transparent;
   }
   
   .tabla-eventos th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     background: var(--surface-2);
-      color: var(--text-muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.72rem;
-      letter-spacing: 0.04em;
-      padding: 0.6rem 0.75rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 9.5rem;
-      z-index: 80;
-      box-shadow: inset 0 -1px 0 var(--border);
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
   }
   
   .tabla-eventos td {

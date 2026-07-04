@@ -7,17 +7,26 @@
    ========================================================================== */
 
 /* ─── Desktop table (default) ─── */
+.reports-root .tabla-eventos-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 12px);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
 .reports-root .tabla-eventos {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.85rem;
-  background: var(--bg-card);
-  border-radius: var(--radius, 12px);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  background: transparent;
 }
 .reports-root .tabla-eventos th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   background: var(--surface-2, #f1f5f9);
   color: var(--text-muted);
   font-weight: 600;

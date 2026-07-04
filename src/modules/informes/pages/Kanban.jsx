@@ -709,7 +709,7 @@ export default function Kanban() {
       )}
 
       {!loading && !error && viewMode === 'tabla' && (
-        <div style={{overflowX:'auto'}}>
+        <div className="tabla-eventos-wrapper">
           <table className="tabla-eventos"><thead><tr>
                 <th className="col-dia">Día</th>
                 <th className="col-estado">Estado</th>
@@ -847,18 +847,37 @@ export default function Kanban() {
                     weeklyTotals.cenas += dayTotals.cenas;
                     rows.push(
                       <tr key={`${day.isoDate}-total`} className="tabla-total-row" style={{background:'var(--surface-2, #f1f5f9)'}}>
-                        <td colSpan={5} className="col-dia col-estado col-inst col-salon col-horario" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>
-                          {isMobileView ? 'Total' : `Total ${day.shortDate}`}
-                        </td>
-                        <td className="col-pax" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#1e40af'}}>
+                        {isMobileView ? (
+                          <td colSpan={5} className="col-dia col-estado col-inst col-salon col-horario" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>
+                            Total
+                          </td>
+                        ) : (
+                          <>
+                            <td className="col-dia" style={{borderBottom:'1px solid var(--border)'}}></td>
+                            <td className="col-estado" style={{borderBottom:'1px solid var(--border)'}}></td>
+                            <td className="col-inst" style={{borderBottom:'1px solid var(--border)'}}></td>
+                            <td className="col-salon" style={{borderBottom:'1px solid var(--border)'}}></td>
+                            <td className="col-horario" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid var(--border)',color:'#475569'}}>
+                              Total {day.shortDate}
+                            </td>
+                          </>
+                        )}
+                        <td className="col-pax" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#1e40af'}}>
                           {dayTotals.pax}
                         </td>
-                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.desayunos}</td>
-                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_am}</td>
-                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.almuerzos}</td>
-                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.ref_pm}</td>
-                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>{dayTotals.cenas}</td>
-                        <td colSpan={2} className="col-alertas col-vendedor" style={{borderBottom:'1px solid #e2e8f0'}}></td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.desayunos}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.ref_am}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.almuerzos}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.ref_pm}</td>
+                        <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.cenas}</td>
+                        {isMobileView ? (
+                          <td colSpan={2} className="col-alertas col-vendedor" style={{borderBottom:'1px solid var(--border)'}}></td>
+                        ) : (
+                          <>
+                            <td className="col-alertas" style={{borderBottom:'1px solid var(--border)'}}></td>
+                            <td className="col-vendedor" style={{borderBottom:'1px solid var(--border)'}}></td>
+                          </>
+                        )}
                       </tr>
                     );
                   }
@@ -866,9 +885,21 @@ export default function Kanban() {
                 }).concat(
                   filteredDays.length > 0 && !(isMobileView && viewMode === 'tabla') ? (
                     <tr key="semana-total" style={{background:'#e0e7ff'}}>
-                      <td colSpan={5} style={{fontSize:'0.75rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>
-                        TOTAL SEMANA
-                      </td>
+                      {isMobileView ? (
+                        <td colSpan={5} style={{fontSize:'0.75rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>
+                          TOTAL SEMANA
+                        </td>
+                      ) : (
+                        <>
+                          <td className="col-dia" style={{borderTop:'2px solid #6366f1'}}></td>
+                          <td className="col-estado" style={{borderTop:'2px solid #6366f1'}}></td>
+                          <td className="col-inst" style={{borderTop:'2px solid #6366f1'}}></td>
+                          <td className="col-salon" style={{borderTop:'2px solid #6366f1'}}></td>
+                          <td className="col-horario" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>
+                            TOTAL SEMANA
+                          </td>
+                        </>
+                      )}
                       <td style={{fontSize:'0.82rem',fontWeight:900,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#1e40af'}}>
                         {weeklyTotals.pax}
                       </td>
@@ -877,7 +908,14 @@ export default function Kanban() {
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.almuerzos}</td>
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.ref_pm}</td>
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.cenas}</td>
-                      <td colSpan={2} style={{borderTop:'2px solid #6366f1'}}></td>
+                      {isMobileView ? (
+                        <td colSpan={2} style={{borderTop:'2px solid #6366f1'}}></td>
+                      ) : (
+                        <>
+                          <td className="col-alertas" style={{borderTop:'2px solid #6366f1'}}></td>
+                          <td className="col-vendedor" style={{borderTop:'2px solid #6366f1'}}></td>
+                        </>
+                      )}
                     </tr>
                   ) : []
                 );
