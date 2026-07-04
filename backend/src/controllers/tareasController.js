@@ -71,7 +71,8 @@ export async function createTarea(req, res, next) {
         'Nueva tarea asignada',
         `${assignerName} te asignó: "${contenido.trim().slice(0, 100)}"`,
         {
-          url: `/kanban?viewMode=tareas&highlightEvento=${id_ocupacion}`
+          url: `/kanban?viewMode=tareas&highlightEvento=${id_ocupacion}`,
+          autorId: creadorId
         }
       ).catch(err => console.error('[WebPush] Error enviando push asignacion tarea:', err));
     }

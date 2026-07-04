@@ -160,7 +160,8 @@ export async function createTarea(req, res, next) {
         'Nueva tarea semanal asignada',
         `${assignerName} te asignó: "${contenido.trim().slice(0, 100)}"`,
         {
-          url: redirectUrl
+          url: redirectUrl,
+          autorId: creadorId
         }
       ).catch(err => console.error('[WebPush] Error enviando push asignacion tarea semanal:', err));
     }
@@ -244,7 +245,8 @@ export async function updateTarea(req, res, next) {
           titulo,
           mensaje,
           {
-            url: prev.id_ocupacion ? `/kanban?viewMode=tareas&highlightEvento=${prev.id_ocupacion}` : '/kanban?viewMode=tareas'
+            url: prev.id_ocupacion ? `/kanban?viewMode=tareas&highlightEvento=${prev.id_ocupacion}` : '/kanban?viewMode=tareas',
+            autorId: req.user?.id || usuario_id
           }
         ).catch(err => console.error('[WebPush] Error enviando push completada tarea:', err));
       } catch { /* notification is non-critical */ }

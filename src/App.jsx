@@ -73,6 +73,21 @@ function App() {
     // Escuchar a través del canal de Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', handleSWMessage);
+
+      const syncActiveUser = () => {
+        const user = authService.getCurrentUser();
+        if (user && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SET_ACTIVE_USER',
+            userId: user.id
+          });
+        }
+      };
+
+      // Sincronizar usuario activo ahora
+      syncActiveUser();
+      // Sincronizar si cambia el controlador del Service Worker
+      navigator.serviceWorker.addEventListener('controllerchange', syncActiveUser);
     }
     // Escuchar a través del objeto window global de forma cruzada
     window.addEventListener('message', handleSWMessage);

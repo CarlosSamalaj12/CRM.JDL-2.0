@@ -129,7 +129,8 @@ export async function createComentario(req, res, next) {
           `${nombreUsuario} respondió a tu comentario`,
           `${nombreUsuario} respondió: "${contenido.slice(0, 100)}"`,
           {
-            url: `/informes/${id}`
+            url: `/informes/${id}`,
+            autorId: usuario_id
           }
         ).catch(err => console.error('[WebPush] Error enviando push respuesta:', err));
       }
@@ -165,7 +166,8 @@ export async function createComentario(req, res, next) {
           `Te mencionaron en un comentario`,
           `${nombreUsuario} te mencionó: "${contenido.slice(0, 100)}"`,
           {
-            url: `/informes/${id}`
+            url: `/informes/${id}`,
+            autorId: usuario_id
           }
         ).catch(err => console.error('[WebPush] Error enviando push mencion:', err));
       }

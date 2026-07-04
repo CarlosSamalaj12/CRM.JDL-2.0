@@ -96,16 +96,19 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+let activeUserId = null;
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SET_ACTIVE_USER') {
+    activeUserId = event.data.userId;
+    console.log('[SW] Usuario activo registrado en SW:', activeUserId);
+  }
+});
+
 // Evento push: Recibir mensaje del backend y mostrar notificación flotante
 self.addEventListener('push', (event) => {
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // Si la app está abierta, activa y enfocada, omitimos mostrar la notificación del sistema operativo (para no duplicar)
-      const isAppVisible = clients.some(client => client.visibilityState === 'visible' && client.focused);
-      if (isAppVisible) {
-        return;
-      }
-
+    Promise.resolve().then(() => {
       let data = {};
       if (event.data) {
         try {
@@ -113,6 +116,12 @@ self.addEventListener('push', (event) => {
         } catch (e) {
           data = { title: 'Jardines del Lago', body: event.data.text() };
         }
+      }
+
+      // Si el autor de la mención es el mismo usuario logueado en este navegador, NO notificar
+      if (data.data?.autorId && activeUserId && String(data.data.autorId) === String(activeUserId)) {
+        console.log('[SW] Ignorando notificacion push de autoria propia.');
+        return;
       }
 
       const title = data.title || 'Jardines del Lago';

@@ -144,7 +144,8 @@ export async function createNota(req, res, next) {
           `Te mencionaron en una nota`,
           `${nombreUsuario} te mencionó: "${contenido.slice(0, 100)}"`,
           {
-            url: redirectUrl
+            url: redirectUrl,
+            autorId: usuario_id
           }
         ).catch(err => console.error('[WebPush] Error enviando push mencion nota:', err));
       }
