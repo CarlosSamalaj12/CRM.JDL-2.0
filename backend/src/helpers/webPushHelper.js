@@ -1,19 +1,19 @@
 import webpush from 'web-push';
 import mysql from 'mysql2/promise';
 
-// Configurar los detalles de VAPID
-const publicKey = process.env.VITE_FIREBASE_VAPID_KEY;
-const privateKey = process.env.WEB_PUSH_PRIVATE_VAPID_KEY;
+// Configurar los detalles de VAPID con las mismas variables que server.cjs
+const publicKey = process.env.VAPID_PUBLIC_KEY;
+const privateKey = process.env.VAPID_PRIVATE_KEY;
 
 if (publicKey && privateKey) {
   webpush.setVapidDetails(
-    'mailto:kevin@jardinesdellago.tech',
+    'mailto:sistema@jardinesdellago.com',
     publicKey,
     privateKey
   );
-  console.log('[WebPush] Configurado exitosamente con claves VAPID.');
+  console.log('[WebPush Helper] Configurado exitosamente con claves VAPID.');
 } else {
-  console.warn('[WebPush] ADVERTENCIA: No se detectaron claves VAPID en las variables de entorno.');
+  console.warn('[WebPush Helper] ADVERTENCIA: No se detectaron claves VAPID en las variables de entorno.');
 }
 
 // Configurar pool de base de datos
@@ -39,10 +39,10 @@ export async function enviarNotificacionWebPush(usuarioId, titulo, cuerpo, data 
   try {
     conn = await pool.getConnection();
     
-    // Obtener las suscripciones activas del usuario
+    // Obtener las suscripciones activas del usuario desde push_subscriptions
     const [subs] = await conn.query(
-      'SELECT endpoint, p256dh, auth FROM usuarios_push_subscriptions WHERE usuario_id = ?',
-      [usuarioId]
+      'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE usuario_id = ?',
+      [String(usuarioId)]
     );
 
     if (!subs.length) {
@@ -52,7 +52,11 @@ export async function enviarNotificacionWebPush(usuarioId, titulo, cuerpo, data 
     const payload = JSON.stringify({
       title: titulo,
       body: cuerpo,
-      data: data
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-72.png',
+      url: data.url || '/',
+      tag: data.url || 'default',
+      requireInteraction: true,
     });
 
     const promesas = subs.map(async (sub) => {
@@ -69,20 +73,20 @@ export async function enviarNotificacionWebPush(usuarioId, titulo, cuerpo, data 
       } catch (err) {
         // Si el código de estado es 404 o 410, la suscripción expiró o fue eliminada por el usuario
         if (err.statusCode === 404 || err.statusCode === 410) {
-          console.log(`[WebPush] Suscripción obsoleta detectada. Eliminando de la BD: ${sub.endpoint}`);
+          console.log(`[WebPush Helper] Suscripción obsoleta detectada. Eliminando de la BD: ${sub.endpoint}`);
           await conn.query(
-            'DELETE FROM usuarios_push_subscriptions WHERE usuario_id = ? AND endpoint = ?',
-            [usuarioId, sub.endpoint]
+            'DELETE FROM push_subscriptions WHERE usuario_id = ? AND endpoint = ?',
+            [String(usuarioId), sub.endpoint]
           );
         } else {
-          console.error(`[WebPush] Error enviando a suscripción del usuario ${usuarioId}:`, err.message);
+          console.error(`[WebPush Helper] Error enviando a suscripción del usuario ${usuarioId}:`, err.message);
         }
       }
     });
 
     await Promise.all(promesas);
   } catch (dbErr) {
-    console.error(`[WebPush] Error en la base de datos al buscar suscripciones para el usuario ${usuarioId}:`, dbErr.message);
+    console.error(`[WebPush Helper] Error en la base de datos al buscar suscripciones para el usuario ${usuarioId}:`, dbErr.message);
   } finally {
     if (conn) conn.release();
   }
