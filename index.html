@@ -21,11 +21,28 @@
     <script type="module" src="/src/main.jsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Service Worker registered successfully:', reg.scope))
-            .catch(err => console.error('Service Worker registration failed:', err));
-        });
+        const isLogin = window.location.pathname === '/login';
+        if (isLogin) {
+          // Desregistrar activamente el Service Worker viejo y purgar cachés en la pantalla de Login
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            for (let reg of regs) {
+              reg.unregister().then(() => console.log('[SW] Desregistrado forzadamente en Login.'));
+            }
+          });
+          if (window.caches) {
+            caches.keys().then(names => {
+              for (let name of names) {
+                caches.delete(name).then(() => console.log('[Cache] Borrada cache vieja:', name));
+              }
+            });
+          }
+        } else {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+              .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+              .catch(err => console.error('Service Worker registration failed:', err));
+          });
+        }
       }
     </script>
   </body>
