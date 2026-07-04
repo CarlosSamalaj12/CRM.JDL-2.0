@@ -62,6 +62,19 @@ function HomeRedirect() {
 }
 
 function App() {
+  React.useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const handleSWMessage = (event) => {
+        if (event.data && event.data.type === 'NAVIGATE_TO' && event.data.url) {
+          console.log('[SW Message] Redirigiendo vía mensaje:', event.data.url);
+          window.location.href = event.data.url;
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleSWMessage);
+      return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+    }
+  }, []);
+
   return (
     <Router>
       <ErrorBoundary>

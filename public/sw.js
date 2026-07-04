@@ -148,17 +148,14 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
 
-      // Si la ventana ya existe, enfocarla primero (síncrono al gesto del usuario) y luego navegar
+      // Si la ventana ya existe, enfocarla (síncrono al gesto del usuario) y enviar postMessage
       if (matchingClient) {
         if ('focus' in matchingClient) {
           matchingClient.focus();
         }
-        if ('navigate' in matchingClient) {
-          return matchingClient.navigate(absoluteUrl);
-        } else {
-          matchingClient.url = absoluteUrl;
-          return;
-        }
+        // Comunicar al frontend la navegación requerida en caliente
+        matchingClient.postMessage({ type: 'NAVIGATE_TO', url: absoluteUrl });
+        return;
       }
 
       // Si no hay ninguna ventana abierta, abrir una nueva inmediatamente
