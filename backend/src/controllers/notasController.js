@@ -119,7 +119,7 @@ export async function createNota(req, res, next) {
       );
       const redirectUrl = informeRows.length > 0
         ? `/informes/${informeRows[0].id}`
-        : `/reserva/${idocupacion}`;
+        : `/kanban?highlightEvento=${idocupacion}&notaId=${notaId}`;
 
       for (const mid of mencionIds) {
         const [notifResult] = await pool.query(

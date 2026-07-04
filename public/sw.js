@@ -131,24 +131,24 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  // Obtener la URL de redirección
-  const urlToOpen = event.notification.data?.url || '/';
+  // Obtener la URL de redirección y forzarla a ser absoluta con el origen actual
+  const path = event.notification.data?.url || '/';
+  const absoluteUrl = new URL(path, self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Si la ventana ya está abierta, navegar a la URL y enfocar
+      // Si la ventana ya está abierta, navegar a la URL absoluta y enfocar
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          if (urlToOpen && client.url !== urlToOpen) {
-            client.navigate(urlToOpen);
-          }
+          // Navegamos al endpoint absoluto
+          client.navigate(absoluteUrl);
           return client.focus();
         }
       }
-      // Si no hay ventana abierta, abrir una nueva
+      // Si no hay ventana abierta, abrir una nueva con el endpoint absoluto
       if (self.clients.openWindow) {
-        return self.clients.openWindow(urlToOpen);
+        return self.clients.openWindow(absoluteUrl);
       }
     })
   );

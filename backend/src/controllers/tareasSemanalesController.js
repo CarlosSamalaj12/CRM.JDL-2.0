@@ -134,7 +134,9 @@ export async function createTarea(req, res, next) {
 
     // Si se asigna a otra persona, notificarle
     if (usuario_id && usuario_id !== creadorId) {
-      const redirectUrl = id_ocupacion ? `/reserva/${id_ocupacion}` : '/calendar';
+      const redirectUrl = id_ocupacion
+        ? `/kanban?viewMode=tareas&highlightEvento=${id_ocupacion}`
+        : '/kanban?viewMode=tareas';
       const [notifResult] = await pool.query(
         'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
         [usuario_id, 'tarea_asignada', 'Nueva tarea semanal asignada', `${assignerName} te asignó una tarea semanal`, id_ocupacion || null, result.insertId]
@@ -242,7 +244,7 @@ export async function updateTarea(req, res, next) {
           titulo,
           mensaje,
           {
-            url: prev.id_ocupacion ? `/reserva/${prev.id_ocupacion}` : '/calendar'
+            url: prev.id_ocupacion ? `/kanban?viewMode=tareas&highlightEvento=${prev.id_ocupacion}` : '/kanban?viewMode=tareas'
           }
         ).catch(err => console.error('[WebPush] Error enviando push completada tarea:', err));
       } catch { /* notification is non-critical */ }
