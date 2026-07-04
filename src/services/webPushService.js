@@ -87,7 +87,11 @@ export async function requestNotificationPermissionAndSubscribe() {
 
     return null;
   } catch (error) {
-    console.error('[WebPush] Error al solicitar permisos o suscribirse a push:', error);
+    if (error.name === 'AbortError' || error.message?.includes('Registration failed') || error.message?.includes('push service error')) {
+      console.warn('[WebPush] El servicio Push del navegador no está disponible temporalmente (posible bloqueo de notificaciones en el sistema operativo o problemas de conexión de Chrome con los servidores de Google FCM).');
+    } else {
+      console.error('[WebPush] Error al solicitar permisos o suscribirse a push:', error);
+    }
     return null;
   }
 }
