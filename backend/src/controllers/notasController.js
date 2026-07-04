@@ -114,7 +114,7 @@ export async function createNota(req, res, next) {
 
       // Buscar si hay un informe asociado para la redirección directa al informe
       const [informeRows] = await pool.query(
-        'SELECT id FROM informes WHERE id_ocupacion = ? LIMIT 1',
+        'SELECT id FROM informes_eventos WHERE id_ocupacion = ? LIMIT 1',
         [idocupacion]
       );
       const redirectUrl = informeRows.length > 0
