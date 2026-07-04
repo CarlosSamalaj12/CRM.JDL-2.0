@@ -99,7 +99,13 @@ self.addEventListener('fetch', (event) => {
 // Evento push: Recibir mensaje del backend y mostrar notificación flotante
 self.addEventListener('push', (event) => {
   event.waitUntil(
-    Promise.resolve().then(() => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Si la app está abierta, activa y enfocada, omitimos mostrar la notificación del sistema operativo (para no duplicar)
+      const isAppVisible = clients.some(client => client.visibilityState === 'visible' && client.focused);
+      if (isAppVisible) {
+        return;
+      }
+
       let data = {};
       if (event.data) {
         try {
