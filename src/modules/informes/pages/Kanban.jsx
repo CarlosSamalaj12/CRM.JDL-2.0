@@ -135,6 +135,16 @@ export default function Kanban() {
       if (fechaEvento) {
         setEventoResaltado(highlightEventoId);
         setSelectedDate(fechaEvento);
+
+        // Sincronizar automáticamente el carrusel de días móviles al día correspondiente
+        try {
+          const d = new Date(fechaEvento + 'T12:00:00');
+          const day = d.getDay();
+          const dayIdx = day === 0 ? 6 : day - 1;
+          setMobileDayIndex(dayIdx);
+        } catch (err) {
+          console.warn('[Kanban] Error al calcular el index móvil del día:', err);
+        }
         
         // Hacer scroll al evento después de un breve delay
         setTimeout(() => {

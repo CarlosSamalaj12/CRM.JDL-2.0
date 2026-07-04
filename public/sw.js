@@ -133,22 +133,33 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  // Obtener la URL de redirección y forzarla a ser absoluta con el origen actual
   const path = event.notification.data?.url || '/';
   const absoluteUrl = new URL(path, self.location.origin).href;
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Si la ventana ya está abierta, navegar a la URL absoluta y enfocar
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windowClients) => {
+      // Intentar enfocar una ventana existente de la PWA
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // Navegamos al endpoint absoluto
-          client.navigate(absoluteUrl);
+          try {
+            // Intentar navegar al nuevo path de forma reactiva
+            if ('navigate' in client) {
+              await client.navigate(absoluteUrl);
+            } else {
+              // Fallback en navegadores antiguos
+              client.url = absoluteUrl;
+            }
+          } catch (err) {
+            console.error('[SW] Fallo al usar client.navigate, abriendo ventana nueva:', err);
+            if (self.clients.openWindow) {
+              await self.clients.openWindow(absoluteUrl);
+            }
+          }
           return client.focus();
         }
       }
-      // Si no hay ventana abierta, abrir una nueva con el endpoint absoluto
+      // Si no hay ventana abierta, abrir una nueva
       if (self.clients.openWindow) {
         return self.clients.openWindow(absoluteUrl);
       }
