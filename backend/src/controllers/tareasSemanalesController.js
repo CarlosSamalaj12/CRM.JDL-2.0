@@ -195,11 +195,11 @@ export async function updateTarea(req, res, next) {
           });
         }
 
-        // Enviar notificación Push nativa PWA
         enviarNotificacionWebPush(
           prev.usuario_id,
           titulo,
           mensaje,
+          {
             url: prev.id_ocupacion ? `/reserva/${prev.id_ocupacion}` : '/calendar'
           }
         ).catch(err => console.error('[WebPush] Error enviando push completada tarea:', err));
