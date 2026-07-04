@@ -39,7 +39,12 @@ class ApiClient {
       }
 
       if (response.status === 401) {
-        if (this.onUnauthorized) this.onUnauthorized();
+        const currentToken = localStorage.getItem('token');
+        if (this.token && currentToken && this.token !== currentToken) {
+          console.warn('[API] Token obsoleto detectado en petición 401. Ignorando redirección.');
+        } else {
+          if (this.onUnauthorized) this.onUnauthorized();
+        }
         const error = await response.json().catch(() => ({ message: 'Sesión expirada' }));
         throw new ApiError(error.message || 'Sesión expirada', 401, 'AUTH_ERROR');
       }

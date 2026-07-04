@@ -1,6 +1,10 @@
 import api from './api';
 
 api.setOnUnauthorized(() => {
+  if (window.location.pathname === '/login') {
+    console.warn('[Auth] Evitando redirección recursiva 401 en la página de Login.');
+    return;
+  }
   authService.clearSession();
   window.location.href = '/login';
 });
