@@ -111,6 +111,16 @@ export async function createNota(req, res, next) {
       const [userRow] = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id]);
       const nombreUsuario = userRow[0]?.nombre || 'Alguien';
       const notaId = result.insertId;
+
+      // Buscar si hay un informe asociado para la redirección directa al informe
+      const [informeRows] = await pool.query(
+        'SELECT id FROM informes WHERE id_ocupacion = ? LIMIT 1',
+        [idocupacion]
+      );
+      const redirectUrl = informeRows.length > 0
+        ? `/informes/${informeRows[0].id}`
+        : `/reserva/${idocupacion}`;
+
       for (const mid of mencionIds) {
         const [notifResult] = await pool.query(
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
@@ -132,9 +142,9 @@ export async function createNota(req, res, next) {
         enviarNotificacionWebPush(
           mid,
           `Te mencionaron en una nota`,
-          `${nombreUsuario} te mencionó en una nota del evento`,
+          `${nombreUsuario} te mencionó: "${contenido.slice(0, 100)}"`,
           {
-            url: `/reserva/${idocupacion}`
+            url: redirectUrl
           }
         ).catch(err => console.error('[WebPush] Error enviando push mencion nota:', err));
       }

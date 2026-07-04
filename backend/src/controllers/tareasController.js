@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { emitChange } from '../helpers/socketEvents.js';
+import { enviarNotificacionWebPush } from '../helpers/webPushHelper.js';
 
 export async function getTareasUsuario(req, res, next) {
   try {
@@ -35,6 +36,46 @@ export async function createTarea(req, res, next) {
     );
     emitChange(req, 'tarea_evento', 'created', { id: result.insertId, id_ocupacion });
     
+    // Obtener nombre del usuario que asigna (req.user)
+    const creadorId = req.user?.id;
+    let assignerName = 'Un administrador';
+    if (creadorId) {
+      const [assignerRow] = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [creadorId]);
+      if (assignerRow.length > 0) {
+        assignerName = assignerRow[0].nombre;
+      }
+    }
+
+    // Si se asigna a otra persona, notificarle
+    if (usuario_id && usuario_id !== creadorId) {
+      const [notifResult] = await pool.query(
+        'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
+        [usuario_id, 'tarea_asignada', 'Nueva tarea asignada', `${assignerName} te asignó una tarea del evento`, id_ocupacion, result.insertId]
+      );
+
+      req.io.to(`usuario:${usuario_id}`).emit('notificacion:created', {
+        id: notifResult.insertId,
+        usuario_id: parseInt(usuario_id),
+        tipo: 'tarea_asignada',
+        titulo: 'Nueva tarea asignada',
+        mensaje: `${assignerName} te asignó una tarea del evento`,
+        informe_id: null,
+        idocupacion: id_ocupacion,
+        comentario_id: result.insertId,
+        leido: 0,
+        fecha_creacion: new Date()
+      });
+
+      enviarNotificacionWebPush(
+        usuario_id,
+        'Nueva tarea asignada',
+        `${assignerName} te asignó: "${contenido.trim().slice(0, 100)}"`,
+        {
+          url: `/reserva/${id_ocupacion}`
+        }
+      ).catch(err => console.error('[WebPush] Error enviando push asignacion tarea:', err));
+    }
+
     const [newTarea] = await pool.query('SELECT * FROM tareas_evento WHERE id = ?', [result.insertId]);
     res.status(201).json(newTarea[0]);
   } catch (error) {

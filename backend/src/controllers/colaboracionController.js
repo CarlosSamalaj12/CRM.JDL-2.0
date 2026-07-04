@@ -127,7 +127,7 @@ export async function createComentario(req, res, next) {
         enviarNotificacionWebPush(
           parentComment[0].usuario_id,
           `${nombreUsuario} respondió a tu comentario`,
-          `${nombreUsuario} respondió a tu comentario en el informe`,
+          `${nombreUsuario} respondió: "${contenido.slice(0, 100)}"`,
           {
             url: `/informes/${id}`
           }
@@ -163,7 +163,7 @@ export async function createComentario(req, res, next) {
         enviarNotificacionWebPush(
           mid,
           `Te mencionaron en un comentario`,
-          `${nombreUsuario} te mencionó en el informe`,
+          `${nombreUsuario} te mencionó: "${contenido.slice(0, 100)}"`,
           {
             url: `/informes/${id}`
           }
