@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getNotas, createNota, getUsuariosCached, toggleReaccionNota, getTareasUsuario, getTareasSemanaByOcupacion } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -40,7 +40,6 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   const [hoverAlertBadge, setHoverAlertBadge] = useState(false);
   const [tareasCount, setTareasCount] = useState(0);
   const notaInputRef = useRef(null);
-
   const cardRef = useRef(null);
   const userMap = useMemo(() => {
     const map = {};
@@ -51,6 +50,20 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     try { const t = localStorage.getItem('token'); if (!t) return user?.id || null; return JSON.parse(atob(t.split('.')[1])).id || user?.id || null; } catch { return user?.id || null; }
   })();
   const currentUserEmail = user?.email || '';
+
+  const loadTareasCount = useCallback(() => {
+    if (!currentUserId || !event.Idocupacion) return;
+    const params = {};
+    if (user?.teamId) params.equipo_id = user.teamId;
+    Promise.all([
+      getTareasUsuario(event.Idocupacion, currentUserId).catch(() => []),
+      getTareasSemanaByOcupacion(event.Idocupacion, params).catch(() => []),
+    ]).then(([personales, semanales]) => {
+      const pendingPersonales = personales.filter(t => !t.completada).length;
+      const pendingSemanales = semanales.filter(t => !t.completada).length;
+      setTareasCount(pendingPersonales + pendingSemanales);
+    });
+  }, [currentUserId, event.Idocupacion, user?.teamId]);
   const currentUserName = user?.nombre || user?.name || '';
   const REACCIONES = [
     { emoji: '❤️', label: 'Me encanta' },
@@ -68,22 +81,19 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   }, []);
 
   useEffect(() => {
-    if (!currentUserId || !event.Idocupacion) return;
-    const displayDate = event.displayDate ? String(event.displayDate).slice(0, 10) : '';
-    const params = {};
-    if (user?.teamId) params.equipo_id = user.teamId;
-    Promise.all([
-      getTareasUsuario(event.Idocupacion, currentUserId).catch(() => []),
-      getTareasSemanaByOcupacion(event.Idocupacion, params).catch(() => []),
-    ]).then(([personales, semanales]) => {
-      const pendingPersonales = personales.filter(t => !t.completada).length;
-      const semanalesDelDia = displayDate
-        ? semanales.filter(t => String(t.fecha_tarea || '').slice(0, 10) === displayDate)
-        : [];
-      const pendingSemanales = semanalesDelDia.filter(t => !t.completada).length;
-      setTareasCount(pendingPersonales + pendingSemanales);
-    });
-  }, [currentUserId, event.Idocupacion, event.displayDate, notasOpen, user?.teamId]);
+    loadTareasCount();
+  }, [loadTareasCount]);
+
+  // Escuchar cambios en tiempo real via socket (entity:changed -> tarea_semanal / tarea_evento)
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.entity === 'tarea_semanal' || e.detail?.entity === 'tarea_evento') {
+        loadTareasCount();
+      }
+    };
+    window.addEventListener('entity:changed', handler);
+    return () => window.removeEventListener('entity:changed', handler);
+  }, [loadTareasCount]);
 
   useEffect(() => {
     getNotas(event.Idocupacion).then(setNotas).catch(() => {});

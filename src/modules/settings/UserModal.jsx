@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
-import { getEquipos } from '../../services/api.js';
+import { getEquipos, updateUserEquipo } from '../../services/api.js';
 import toast from 'react-hot-toast';
 
 const ROLE_LABELS = {
@@ -396,6 +396,13 @@ export default function UserModal({ onClose }) {
       }
 
       await saveCrmState({ ...currentState, users: updatedUsers });
+
+      // Sincronizar equipo_id directamente en la tabla usuarios para que el equipo se refleje en tareas semanales
+      if (selectedUserId && !selectedUserId.startsWith('user_prereg_')) {
+        updateUserEquipo(selectedUserId, teamId ? Number(teamId) : null).catch(err => {
+          console.warn('No se pudo sincronizar equipo_id en la BD:', err);
+        });
+      }
 
       toast.success(selectedUserId ? `Datos de ${fullName} actualizados.` : `${fullName} pre-registrado y autorizado.`, { duration: 2000 });
 

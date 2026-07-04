@@ -9,6 +9,14 @@ import { toast } from '../../utils/toast';
 import { loadState } from '../../services/stateService';
 import ReportInfo from './components/ReportInfo';
 
+const getMonday = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return getLocalDateString(d);
+};
+
 const getLocalDateString = (d) => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -303,7 +311,7 @@ export default function ReportsOcupacion({ onClose }) {
           <div className="reports-toolbar">
             <label className="field">
               <span>Semana (desde lunes)</span>
-              <input type="date" value={currentWeekStart} onChange={e => setCurrentWeekStart(e.target.value)} />
+              <input type="date" value={currentWeekStart} onChange={e => setCurrentWeekStart(getMonday(e.target.value))} />
             </label>
             <div className="reports-actions">
               <button type="button" onClick={handlePrevWeek}>‹ Anterior</button>

@@ -111,16 +111,21 @@ export async function createNota(req, res, next) {
       const nombreUsuario = userRow[0]?.nombre || 'Alguien';
       const notaId = result.insertId;
       for (const mid of mencionIds) {
-        await pool.query(
+        const [notifResult] = await pool.query(
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
           [mid, 'mencion', `Te mencionaron en una nota`, `${nombreUsuario} te mencionó en una nota del evento`, idocupacion, notaId]
         );
         req.io.to(`usuario:${mid}`).emit('notificacion:created', {
+          id: notifResult.insertId,
+          usuario_id: parseInt(mid),
           tipo: 'mencion',
           titulo: `Te mencionaron en una nota`,
           mensaje: `${nombreUsuario} te mencionó en una nota del evento`,
-          nota_id: notaId,
-          idocupacion
+          informe_id: null,
+          idocupacion,
+          comentario_id: notaId,
+          leido: 0,
+          fecha_creacion: new Date()
         });
       }
     }

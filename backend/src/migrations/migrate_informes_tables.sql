@@ -283,6 +283,7 @@ CREATE TABLE IF NOT EXISTS notificaciones (
   mensaje TEXT NULL,
   informe_id BIGINT UNSIGNED NULL,
   idocupacion VARCHAR(120) NULL,
+  comentario_id VARCHAR(80) NULL,
   leido TINYINT(1) NOT NULL DEFAULT 0,
   fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

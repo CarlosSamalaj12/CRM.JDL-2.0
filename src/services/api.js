@@ -140,3 +140,8 @@ export async function deleteEquipo(id) {
   ensureApiToken();
   return api.delete(`/api/equipos/${id}`);
 }
+
+export async function updateUserEquipo(userId, equipoId) {
+  ensureApiToken();
+  return api.put(`/api/users/${userId}/equipo`, { equipo_id: equipoId });
+}

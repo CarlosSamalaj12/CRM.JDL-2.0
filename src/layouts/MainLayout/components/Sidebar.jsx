@@ -167,10 +167,39 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
       setNotifCount(prev => Math.max(0, prev - 1));
       setNotifs(prev => prev.filter(x => x.id !== n.id));
     } catch {}
-    if (n.idocupacion) {
+    
+    // Si es una mención sin informe_id, viene de una nota de kanban → ir a kanban con la nota
+    if (n.tipo === 'mencion' && !n.informe_id && n.idocupacion) {
       const params = new URLSearchParams({ highlightEvento: n.idocupacion });
       if (n.comentario_id) params.set('notaId', n.comentario_id);
       navigate(`/kanban?${params.toString()}`);
+    } else if ((n.tipo === 'mencion' || n.tipo === 'respuesta') && n.idocupacion) {
+      // Intentar navegar al informe con el comentario resaltado
+      try {
+        const response = await fetch(`${NOTIF_API}/api/informes/ocupacion/${n.idocupacion}`, {
+          headers: getAuthHeaders()
+        });
+        if (response.ok) {
+          const informes = await response.json();
+          if (Array.isArray(informes) && informes.length > 0) {
+            const informe = informes[0];
+            navigate(`/informe/${informe.id}?highlightComentario=${n.comentario_id || ''}`);
+          } else {
+            navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+          }
+        } else {
+          navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+        }
+      } catch {
+        navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+      }
+    } else if (n.tipo === 'tarea_completada') {
+      const dateParam = n.idocupacion ? `&date=${n.idocupacion}` : '';
+      navigate(`/kanban?viewMode=tareas${dateParam}`);
+    } else if (n.idocupacion) {
+      navigate(`/kanban?highlightEvento=${n.idocupacion}`);
+    } else if (n.informe_id) {
+      navigate(`/informe/${n.informe_id}`);
     }
   };
 

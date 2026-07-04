@@ -271,6 +271,7 @@ async function ensureTargetSchema(conn) {
       mensaje TEXT,
       informe_id INT,
       idocupacion VARCHAR(255) DEFAULT NULL,
+      comentario_id VARCHAR(80) DEFAULT NULL,
       leido TINYINT(1) DEFAULT 0,
       fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id)

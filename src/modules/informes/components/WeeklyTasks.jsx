@@ -203,6 +203,17 @@ export default function WeeklyTasks({
     loadTareas(true);
   }, [loadTareas]);
 
+  // Escuchar cambios en tiempo real via socket (entity:changed → tarea_semanal)
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.entity === 'tarea_semanal') {
+        loadTareas(false);
+      }
+    };
+    window.addEventListener('entity:changed', handler);
+    return () => window.removeEventListener('entity:changed', handler);
+  }, [loadTareas]);
+
   const addLocalHistory = (entry) => {
     localHistoryRef.current.unshift({ id: `local-${Date.now()}`, ...entry });
   };
@@ -430,7 +441,7 @@ export default function WeeklyTasks({
               id="week-filter-tareas"
               type="date"
               value={selectedDate}
-              onChange={(e) => onDateChange(e.target.value)}
+              onChange={(e) => onDateChange(getMonday(e.target.value))}
             />
           </div>
           <button

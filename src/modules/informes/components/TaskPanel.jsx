@@ -34,6 +34,28 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
     loadTareas();
   }, [currentUserId, idOcupacion]);
 
+  // Escuchar cambios en tiempo real via socket
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.entity === 'tarea_semanal' || e.detail?.entity === 'tarea_evento') {
+        // Recarga silenciosa (sin mostrar loading) cuando viene de socket
+        if (!currentUserId || !idOcupacion) return;
+        const params = {};
+        if (currentUserId) params.usuario_id = currentUserId;
+        if (user?.teamId) params.equipo_id = user.teamId;
+        Promise.all([
+          getTareasUsuario(idOcupacion, currentUserId).catch(() => []),
+          getTareasSemanaByOcupacion(idOcupacion, params).catch(() => []),
+        ]).then(([data, weekly]) => {
+          setTareas(Array.isArray(data) ? data : []);
+          setWeeklyTareas(Array.isArray(weekly) ? weekly : []);
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('entity:changed', handler);
+    return () => window.removeEventListener('entity:changed', handler);
+  }, [currentUserId, idOcupacion, user?.teamId]);
+
   useEffect(() => {
     if (!anchorRef?.current) return;
     

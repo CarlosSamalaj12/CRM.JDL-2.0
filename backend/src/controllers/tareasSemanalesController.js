@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 async function ensureTables() {
   await pool.query(`
@@ -118,6 +119,7 @@ export async function createTarea(req, res, next) {
     );
     const [newTarea] = await pool.query('SELECT * FROM tareas_semanales WHERE id = ?', [result.insertId]);
     await logHistory(result.insertId, 'created', null, contenido.trim(), usuario_id, usuario_nombre);
+    emitChange(req, 'tarea_semanal', 'created', { id: result.insertId, semana_lunes, fecha_tarea, id_ocupacion, equipo_id, usuario_id });
     res.status(201).json(newTarea[0]);
   } catch (error) { next(error); }
 }
@@ -156,6 +158,7 @@ export async function updateTarea(req, res, next) {
     if (fields.length === 0) return res.status(400).json({ message: 'Sin campos para actualizar' });
     params.push(id);
     await pool.query(`UPDATE tareas_semanales SET ${fields.join(', ')} WHERE id = ?`, params);
+    emitChange(req, 'tarea_semanal', 'updated', { id: Number(id), usuario_id, completada, no_realizado });
     const [updated] = await pool.query('SELECT * FROM tareas_semanales WHERE id = ?', [id]);
     let accion = 'updated';
     if (completada !== undefined) accion = completada ? 'completed' : 'uncompleted';
@@ -171,9 +174,10 @@ export async function updateTarea(req, res, next) {
         const teamName = teamRows.length > 0 ? teamRows[0].nombre : 'Otro equipo';
         const titulo = 'Tarea completada';
         const mensaje = `El equipo "${teamName}" completó: ${prev.contenido}`;
+        const notifIdOcupacion = String(prev.id_ocupacion || '');
         const [notifResult] = await pool.query(
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
-          [prev.usuario_id, 'tarea_completada', titulo, mensaje, String(prev.fecha_tarea || '').slice(0, 10), Number(id)]
+          [prev.usuario_id, 'tarea_completada', titulo, mensaje, notifIdOcupacion, Number(id)]
         );
         if (req.io) {
           req.io.to(`usuario:${prev.usuario_id}`).emit('notificacion:created', {
@@ -183,7 +187,7 @@ export async function updateTarea(req, res, next) {
             titulo,
             mensaje,
             informe_id: null,
-            idocupacion: String(prev.fecha_tarea || '').slice(0, 10),
+            idocupacion: notifIdOcupacion,
             comentario_id: Number(id),
             leido: 0,
             fecha_creacion: new Date(),
@@ -205,6 +209,7 @@ export async function deleteTarea(req, res, next) {
     const { usuario_id, usuario_nombre } = req.body;
     await logHistory(id, 'deleted', existing[0].contenido, null, usuario_id, usuario_nombre);
     await pool.query('DELETE FROM tareas_semanales WHERE id = ?', [id]);
+    emitChange(req, 'tarea_semanal', 'deleted', { id: Number(id) });
     res.json({ message: 'Tarea eliminada' });
   } catch (error) { next(error); }
 }

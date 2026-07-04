@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
-import { fetchEvents } from '../services/api.js';
+import { fetchEvents, fetchEventById } from '../services/api.js';
 import EventCard from '../components/EventCard.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 
@@ -67,16 +67,24 @@ export default function Kanban() {
     });
   };
 
+  const getMonday = (dateStr) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    return d.toISOString().slice(0, 10);
+  };
+
   const handlePrevWeek = () => {
     const d = new Date(selectedDate + 'T12:00:00');
     d.setDate(d.getDate() - 7);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(getMonday(d.toISOString().slice(0, 10)));
   };
 
   const handleNextWeek = () => {
     const d = new Date(selectedDate + 'T12:00:00');
     d.setDate(d.getDate() + 7);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(getMonday(d.toISOString().slice(0, 10)));
   };
 
   const handlePrevDay = () => {
@@ -103,13 +111,30 @@ export default function Kanban() {
   // Efecto para resaltar evento desde notificación
   useEffect(() => {
     const highlightEventoId = searchParams.get('highlightEvento');
-    if (highlightEventoId && events.length > 0) {
-      // Buscar el evento en la lista
+    if (!highlightEventoId) return;
+    
+    const handleHighlight = async () => {
+      // Buscar el evento en la lista actual
       const evento = events.find(e => String(e.Idocupacion) === String(highlightEventoId));
+      
+      let fechaEvento = null;
       if (evento) {
+        fechaEvento = (evento.FechaEvento || evento.displayDate || '').slice(0, 10);
+      } else {
+        // Si el evento no está en la semana actual, obtener su fecha llamando a la API
+        try {
+          const eventData = await fetchEventById(highlightEventoId);
+          if (eventData && (eventData.FechaEvento || eventData.fecha)) {
+            fechaEvento = String(eventData.FechaEvento || eventData.fecha || '').slice(0, 10);
+          }
+        } catch {
+          // No se pudo obtener el evento
+        }
+      }
+      
+      if (fechaEvento) {
         setEventoResaltado(highlightEventoId);
-        // Navegar a la semana del evento
-        setSelectedDate((evento.FechaEvento || evento.displayDate || '').slice(0, 10));
+        setSelectedDate(fechaEvento);
         
         // Hacer scroll al evento después de un breve delay
         setTimeout(() => {
@@ -118,19 +143,20 @@ export default function Kanban() {
             elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
         }, 500);
-        
-        // Quitar el resaltado después de 5 segundos
-        setTimeout(() => {
-          setEventoResaltado(null);
-          // Limpiar los parámetros de la URL
-          const newParams = new URLSearchParams(searchParams);
-          newParams.delete('highlightEvento');
-          newParams.delete('comentarioId');
-          newParams.delete('notaId');
-          setSearchParams(newParams);
-        }, 5000);
       }
-    }
+      
+      // Quitar el resaltado después de 5 segundos y limpiar parámetros
+      setTimeout(() => {
+        setEventoResaltado(null);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('highlightEvento');
+        newParams.delete('comentarioId');
+        newParams.delete('notaId');
+        setSearchParams(newParams);
+      }, 5000);
+    };
+    
+    handleHighlight();
   }, [searchParams, events]);
 
   const [viewMode, setViewMode] = useState(() => {
@@ -572,8 +598,8 @@ export default function Kanban() {
               <input 
                 id="week-filter" 
                 type="date" 
-                value={selectedDate ? selectedDate.slice(0, 10) : ''} 
-                onChange={(e) => setSelectedDate(e.target.value)}
+                value={selectedDate ? getMonday(selectedDate.slice(0, 10)) : ''} 
+                onChange={(e) => setSelectedDate(getMonday(e.target.value))}
               />
             </div>
             <button 

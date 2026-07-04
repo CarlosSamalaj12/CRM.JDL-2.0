@@ -1327,6 +1327,7 @@ CREATE TABLE IF NOT EXISTS `notificaciones` (
   `mensaje` text DEFAULT NULL,
   `informe_id` int(11) DEFAULT NULL,
   `idocupacion` varchar(255) DEFAULT NULL,
+  `comentario_id` varchar(80) DEFAULT NULL,
   `leido` tinyint(1) DEFAULT 0,
   `fecha_creacion` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),

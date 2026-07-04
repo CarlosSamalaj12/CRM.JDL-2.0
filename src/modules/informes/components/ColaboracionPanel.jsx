@@ -13,7 +13,7 @@ import {
   IconEye, IconUsers, IconAlertCircle
 } from './Icons.jsx';
 
-export default function ColaboracionPanel({ informeId, diaId }) {
+export default function ColaboracionPanel({ informeId, diaId, highlightComentarioId }) {
   const [activeTab, setActiveTab] = useState('comentarios');
   const [comentarios, setComentarios] = useState([]);
   const [lecturas, setLecturas] = useState([]);
@@ -33,6 +33,27 @@ export default function ColaboracionPanel({ informeId, diaId }) {
   const comentarioRef = useRef(null);
   const respuestaRef = useRef(null);
   const commentListRef = useRef(null);
+  const highlightAppliedRef = useRef(false);
+
+  // Buscar un elemento de comentario por ID
+  const findCommentEl = (commentId) => {
+    return document.getElementById(`comentario-${commentId}`);
+  };
+
+  // Hacer scroll al comentario resaltado
+  const scrollToHighlightedComment = (commentId) => {
+    if (!commentId) return;
+    if (highlightAppliedRef.current) return;
+    highlightAppliedRef.current = true;
+    setTimeout(() => {
+      const el = findCommentEl(Number(commentId));
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('colab-comment-highlighted');
+        setTimeout(() => el.classList.remove('colab-comment-highlighted'), 3000);
+      }
+    }, 400);
+  };
   const { connected: socketConnected, onEvent, joinRoom } = useSocket();
   const userMap = useMemo(() => {
     const map = {};
@@ -64,6 +85,9 @@ export default function ColaboracionPanel({ informeId, diaId }) {
       setLecturas(lect);
       setHistorial(hist);
       setUsuarios(users);
+
+      // Scroll al comentario resaltado (solo en la primera carga)
+      scrollToHighlightedComment(highlightComentarioId);
 
       // Hacer scroll al final después de actualizar
       setTimeout(() => {
@@ -238,7 +262,7 @@ export default function ColaboracionPanel({ informeId, diaId }) {
                 <p className="colab-empty">Sin comentarios aún. Usa @ para mencionar a alguien.</p>
               )}
               {comentarios.map((c) => (
-                <div key={c.id} className={`colab-comment-item ${c.dia_id === diaId ? 'colab-highlight' : ''}`}>
+                <div key={c.id} id={`comentario-${c.id}`} className={`colab-comment-item ${c.dia_id === diaId ? 'colab-highlight' : ''}`}>
                   <div className="colab-avatar">{c.usuario_nombre?.charAt(0) || '?'}</div>
                   <div className="colab-comment-body">
                     <div className="colab-comment-header">
@@ -416,10 +440,9 @@ export default function ColaboracionPanel({ informeId, diaId }) {
                     )}
                     {/* Respuestas anidadas */}
                     {c.respuestas && c.respuestas.length > 0 && (
-                      <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.5rem' }}>
-                        {c.respuestas.map(r => (
+                      <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.5rem' }}>                          {c.respuestas.map(r => (
                           <div key={r.id}>
-                            <div className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
+                            <div id={`comentario-${r.id}`} className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
                               <div className="colab-avatar">{r.usuario_nombre?.charAt(0) || '?'}</div>
                               <div className="colab-comment-body">
                                 <div className="colab-comment-header">
@@ -494,7 +517,7 @@ export default function ColaboracionPanel({ informeId, diaId }) {
                             {r.respuestas && r.respuestas.length > 0 && (
                               <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.3rem' }}>
                                 {r.respuestas.map(r2 => (
-                                  <div key={r2.id} className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
+                                  <div key={r2.id} id={`comentario-${r2.id}`} className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
                                     <div className="colab-avatar">{r2.usuario_nombre?.charAt(0) || '?'}</div>
                                     <div className="colab-comment-body">
                                       <div className="colab-comment-header">

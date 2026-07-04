@@ -1910,6 +1910,25 @@ async function authenticateUser(userId, password) {
     if (conn) conn.release();
   }
 }
+/**
+ * Crea la tabla migration_log si no existe.
+ * Esta tabla registra qué migraciones ya se aplicaron para evitar repetirlas.
+ */
+async function ensureMigrationLogTable() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS migration_log (
+        name VARCHAR(120) NOT NULL PRIMARY KEY,
+        applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 
 async function ensureNotificacionesIndexes() {
   let conn;
@@ -1955,6 +1974,23 @@ async function ensureNotificacionesIndexes() {
         );
       }
     }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+/**
+ * Asegura que la columna comentario_id exista en la tabla notificaciones.
+ * Limpia notificaciones obsoletas de tipo "informe" que ya no se emiten.
+ */
+async function ensureNotificacionesComentarioId() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query("DELETE FROM notificaciones WHERE tipo = 'informe'");
+    try {
+      await conn.query("ALTER TABLE notificaciones ADD COLUMN comentario_id VARCHAR(80) NULL AFTER idocupacion");
+    } catch { /* ya existe */ }
   } finally {
     if (conn) conn.release();
   }
@@ -3225,6 +3261,25 @@ app.get("/api/usuarios/:id/media", async (req, res) => {
   }
 });
 
+app.put("/api/users/:id/equipo", async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    const { equipo_id } = req.body;
+    conn = await pool.getConnection();
+    await conn.query("UPDATE usuarios SET equipo_id = ? WHERE id = ?", [
+      equipo_id ? Number(equipo_id) : null,
+      id
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Error updating equipo_id:", err);
+    res.status(500).json({ message: "Error al actualizar equipo" });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 app.post("/api/login", async (req, res) => {
   const userId = str(req.body?.userId).trim();
   const password = str(req.body?.password);
@@ -4454,23 +4509,107 @@ app.get("/sw.js", (req, res) => {
 
 
 
+// === REGISTRO CENTRALIZADO DE MIGRACIONES ===
+// Agregar nuevas funciones ensure* aquí en el orden de ejecución deseado
+const MIGRATIONS = [
+  { name: 'MigrationLog', fn: ensureMigrationLogTable },
+  { name: 'AppStateExtra', fn: ensureAppStateExtraStructure },
+  { name: 'ServiceCatalog', fn: ensureServiceCatalogStructure },
+  { name: 'QuoteVersion', fn: ensureQuoteVersionStructure },
+  { name: 'EventDateRange', fn: ensureEventDateRangeStructure },
+  { name: 'Advances', fn: ensureAdvancesStructure },
+  { name: 'MenuMontajeCatalog', fn: ensureMenuMontajeCatalogStructure },
+  { name: 'DocumentSequence', fn: ensureDocumentSequenceStructure },
+  { name: 'UsersExtended', fn: ensureUsersExtendedStructure },
+  { name: 'EquiposTrabajo', fn: ensureEquiposTrabajoStructure },
+  { name: 'QuoteItemPKColSize', fn: ensureQuoteItemPrimaryKeyColumnSize },
+  { name: 'EncargadosEmpresaColSize', fn: ensureEncargadosEmpresaColumnSize },
+  { name: 'CotizacionesEventoColSize', fn: ensureCotizacionesEventoColumnSize },
+  { name: 'RequiredTables', fn: ensureRequiredTables },
+  { name: 'DefaultUserCarlos', fn: ensureDefaultUserCarlos },
+  { name: 'DiscountAuth', fn: ensureDiscountAuthStructure },
+  { name: 'NotificacionesIndexes', fn: ensureNotificacionesIndexes },
+  { name: 'NotificacionesComentarioId', fn: ensureNotificacionesComentarioId },
+];
+
+const CANONICAL_MIGRATIONS = new Set([
+  'ensureMigrationLogTable',
+  'ensureAppStateExtraStructure',
+  'ensureServiceCatalogStructure',
+  'ensureQuoteVersionStructure',
+  'ensureEventDateRangeStructure',
+  'ensureAdvancesStructure',
+  'ensureMenuMontajeCatalogStructure',
+  'ensureDocumentSequenceStructure',
+  'ensureUsersExtendedStructure',
+  'ensureEquiposTrabajoStructure',
+  'ensureQuoteItemPrimaryKeyColumnSize',
+  'ensureEncargadosEmpresaColumnSize',
+  'ensureCotizacionesEventoColumnSize',
+  'ensureRequiredTables',
+  'ensureDefaultUserCarlos',
+  'ensureDiscountAuthStructure',
+  'ensureNotificacionesIndexes',
+  'ensureNotificacionesComentarioId',
+]);
+
+/**
+ * Ejecuta todas las migraciones registradas en MIGRATIONS en orden.
+ * Verifica contra CANONICAL_MIGRATIONS que no falte ninguna.
+ */
+async function runMigrations() {
+  const registered = new Set(MIGRATIONS.map(m => m.fn.name));
+  const missing = [...CANONICAL_MIGRATIONS].filter(n => !registered.has(n));
+  const extra = [...registered].filter(n => !CANONICAL_MIGRATIONS.has(n));
+  if (missing.length) {
+    console.warn('[MIGRATIONS] \u26a0\ufe0f Faltan migraciones: ' + missing.join(', '));
+  }
+  if (extra.length) {
+    console.warn('[MIGRATIONS] \u26a0\ufe0f Migraciones extra: ' + extra.join(', '));
+  }
+
+  // Leer migraciones ya aplicadas desde la BD
+  let applied = new Set();
+  try {
+    const rows = await pool.query('SELECT name FROM migration_log');
+    applied = new Set(rows.map(r => String(r.name || '')));
+  } catch { /* migration_log aun no existe (primera ejecucion) */ }
+
+  let appliedCount = 0;
+  let skippedCount = 0;
+  for (const m of MIGRATIONS) {
+    if (applied.has(m.name)) {
+      skippedCount++;
+      continue;
+    }
+    try {
+      console.log('[MIGRATIONS] \u25b6\ufe0f ' + m.name + '...');
+      await m.fn();
+      try {
+        await pool.query(
+          'INSERT IGNORE INTO migration_log (name) VALUES (?)',
+          [m.name]
+        );
+      } catch { /* no critico si falla el log */ }
+      appliedCount++;
+    } catch (err) {
+      console.error('[MIGRATIONS] \u274c ' + m.name + ': ' + (err.message || err));
+      throw err;
+    }
+  }
+  if (skippedCount > 0) {
+    console.log('[MIGRATIONS] \u23ed\ufe0f ' + skippedCount + ' migraciones ya aplicadas, omitidas');
+  }
+  if (appliedCount === 0) {
+    console.log("[MIGRATIONS] ✅ Todas las " + MIGRATIONS.length + " migraciones ya estaban aplicadas");
+  } else {
+    console.log("[MIGRATIONS] ✅ " + appliedCount + "/" + MIGRATIONS.length + " migraciones ejecutadas");
+  }}
+
+
 async function start() {
   try {
-    await ensureAppStateExtraStructure();
-    await ensureServiceCatalogStructure();
-    await ensureQuoteVersionStructure();
-    await ensureEventDateRangeStructure();
-    await ensureAdvancesStructure();
-    await ensureMenuMontajeCatalogStructure();
-    await ensureDocumentSequenceStructure();
-    await ensureUsersExtendedStructure();
-    await ensureEquiposTrabajoStructure();
-    await ensureQuoteItemPrimaryKeyColumnSize();
-    await ensureEncargadosEmpresaColumnSize();
-    await ensureCotizacionesEventoColumnSize();
-    await ensureRequiredTables();
-    await ensureDefaultUserCarlos();
-    await ensureDiscountAuthStructure();
+    await runMigrations();
 
     // Migración: ampliar columna url de informe_imagenes para soportar Base64
     try {
@@ -4571,16 +4710,7 @@ async function start() {
     const reportsRouter = await import("./backend/src/app_routes.js");
     app.use("/api", reportsRouter.default);
 
-    // Limpiar notificaciones antiguas de tipo informe (ya no se emiten)
-    try {
-      const conn = await pool.getConnection();
-      await conn.query("DELETE FROM notificaciones WHERE tipo = 'informe'");
-      // Asegurar columna comentario_id para almacenar nota_id en menciones
-      try {
-        await conn.query("ALTER TABLE notificaciones ADD COLUMN comentario_id VARCHAR(80) NULL AFTER idocupacion");
-      } catch { /* ya existe */ }
-      conn.release();
-    } catch { /* no crítico */ }
+    // ensureNotificacionesComentarioId ahora en runMigrations()
 
     // Error middleware global (después de todas las rutas)
     const { notFound, errorHandler } = await import("./backend/src/middlewares/errorHandler.js");

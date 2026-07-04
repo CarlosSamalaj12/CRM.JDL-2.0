@@ -96,11 +96,17 @@ export default function NotificationBell() {
 
   const handleNotifClick = async (n) => {
     if (!n.leido) {
+      // Optimistic update: marcar como leída de inmediato
+      setNoLeidas((prev) => Math.max(0, prev - 1));
+      setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, leido: 1 } : x));
+      
       try {
         await marcarLeida(n.id);
-        setNoLeidas((prev) => Math.max(0, prev - 1));
-        setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, leido: 1 } : x));
-      } catch { /* ignore */ }
+      } catch {
+        // Si falla, revertir el optimistic update
+        setNoLeidas((prev) => prev + 1);
+        setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, leido: 0 } : x));
+      }
     }
     
     // Si es una mención sin informe_id, viene de una nota de kanban → ir a kanban con la nota
@@ -136,6 +142,9 @@ export default function NotificationBell() {
         // En caso de error, ir al Kanban
         navigate(`/kanban?highlightEvento=${n.idocupacion}`);
       }
+    } else if (n.tipo === 'tarea_completada') {
+      // tarea_completada tiene idocupacion como ID real del evento
+      navigate(`/kanban?viewMode=tareas${n.idocupacion ? `&highlightEvento=${n.idocupacion}` : ''}`);
     } else if (n.idocupacion) {
       // Para otros tipos de notificaciones con idocupacion, intentar ir al informe
       try {
@@ -156,9 +165,6 @@ export default function NotificationBell() {
       } catch {
         navigate(`/kanban?highlightEvento=${n.idocupacion}`);
       }
-    } else if (n.tipo === 'tarea_completada') {
-      const dateParam = n.idocupacion ? `&date=${n.idocupacion}` : '';
-      navigate(`/kanban?viewMode=tareas${dateParam}`);
     } else if (n.informe_id) {
       navigate(`/informe/${n.informe_id}`);
     }

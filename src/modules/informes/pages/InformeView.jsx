@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getInformeById, getImagenes, imagenUrl, marcarInformeLeido, updateDiaMenuItemNotas } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -22,11 +22,15 @@ export default function InformeView() {
   const params = (() => { try { return useParams(); } catch { return {}; } })();
   const { id } = params;
   let navigate;
+  let searchParams;
   try {
     navigate = useNavigate();
+    [searchParams] = useSearchParams();
   } catch (_err) {
     navigate = (path) => { window.location.href = path; };
+    searchParams = new URLSearchParams(window.location.search);
   }
+  const highlightComentarioId = searchParams.get('highlightComentario') || null;
   const toast = useToast();
   const { user } = useAuth();
   const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();
@@ -725,7 +729,7 @@ export default function InformeView() {
             <h3><IconMessageCircle size={16} /> Colaboración</h3>
             <button className="btn-ghost btn-sm" onClick={() => setColabOpen(false)}>✕</button>
           </div>
-          <ColaboracionPanel informeId={informe?.id} />
+          <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} />
         </aside>
       )}
     </div>

@@ -88,6 +88,10 @@ export async function createComentario(req, res, next) {
       [id, usuario_id, 'comentario', parent_id ? 'Respondió a un comentario' : 'Agregó un comentario al informe']
     );
 
+    // Obtener id_ocupacion del informe (para socket emits)
+    const [infRow] = await pool.query('SELECT id_ocupacion FROM informes_eventos WHERE id = ?', [id]);
+    const id_ocupacion = infRow.length > 0 ? infRow[0].id_ocupacion : null;
+
     // Si es una respuesta, notificar al autor del comentario padre
     if (parent_id) {
       const [parentComment] = await pool.query(
@@ -99,16 +103,23 @@ export async function createComentario(req, res, next) {
         const [userRow] = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id]);
         const nombreUsuario = userRow[0]?.nombre || 'Alguien';
         
-        await pool.query(
+        const [notifResult] = await pool.query(
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, informe_id, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, (SELECT id_ocupacion FROM informes_eventos WHERE id = ?), ?)',
           [parentComment[0].usuario_id, 'respuesta', `${nombreUsuario} respondió a tu comentario`, `${nombreUsuario} respondió a tu comentario en el informe`, id, id, result.insertId]
         );
         
-        // Emitir evento de socket para notificación en tiempo real
+        // Emitir evento de socket para notificación en tiempo real con todos los campos
         req.io.to(`usuario:${parentComment[0].usuario_id}`).emit('notificacion:created', {
+          id: notifResult.insertId,
+          usuario_id: parentComment[0].usuario_id,
           tipo: 'respuesta',
           titulo: `${nombreUsuario} respondió a tu comentario`,
-          mensaje: `${nombreUsuario} respondió a tu comentario en el informe`
+          mensaje: `${nombreUsuario} respondió a tu comentario en el informe`,
+          informe_id: parseInt(id),
+          idocupacion: id_ocupacion,
+          comentario_id: result.insertId,
+          leido: 0,
+          fecha_creacion: new Date()
         });
       }
     }
@@ -118,16 +129,23 @@ export async function createComentario(req, res, next) {
       const [userRow] = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id]);
       const nombreUsuario = userRow[0]?.nombre || 'Alguien';
       for (const mid of mencionIds) {
-        await pool.query(
+        const [notifResult] = await pool.query(
           'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, informe_id, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, (SELECT id_ocupacion FROM informes_eventos WHERE id = ?), ?)',
           [mid, 'mencion', `Te mencionaron en un comentario`, `${nombreUsuario} te mencionó en el informe`, id, id, result.insertId]
         );
         
-        // Emitir evento de socket para notificación en tiempo real
+        // Emitir evento de socket para notificación en tiempo real con todos los campos
         req.io.to(`usuario:${mid}`).emit('notificacion:created', {
+          id: notifResult.insertId,
+          usuario_id: parseInt(mid),
           tipo: 'mencion',
           titulo: `Te mencionaron en un comentario`,
-          mensaje: `${nombreUsuario} te mencionó en el informe`
+          mensaje: `${nombreUsuario} te mencionó en el informe`,
+          informe_id: parseInt(id),
+          idocupacion: id_ocupacion,
+          comentario_id: result.insertId,
+          leido: 0,
+          fecha_creacion: new Date()
         });
       }
     }
