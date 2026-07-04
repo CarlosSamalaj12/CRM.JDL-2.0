@@ -28,7 +28,7 @@ const Dashboard = lazy(() => import('./modules/informes/pages/Dashboard'));
 
 function getHomePath(user) {
   if (!user) return '/login';
-  const role = String(user.role || '').trim().toLowerCase();
+  const role = String(user.rol || user.role || '').trim().toLowerCase();
   if (['admin', 'vendedor', 'recepcionista', 'frontoffice', 'front_office'].includes(role)) {
     return '/calendar';
   }
