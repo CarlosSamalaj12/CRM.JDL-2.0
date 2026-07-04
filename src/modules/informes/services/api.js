@@ -1039,3 +1039,41 @@ export async function getTareasEvento(idOcupacion) {
   return response.json();
 }
 
+// ─── WEB PUSH API ───
+
+export async function getVapidPublicKey() {
+  const response = await fetch(`${apiUrl}/api/push/vapid-public-key`);
+  if (!response.ok) throw new Error('Error al obtener VAPID public key');
+  return response.json();
+}
+
+export async function subscribePush(subscription) {
+  const response = await fetch(`${apiUrl}/api/push/subscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ subscription }),
+  });
+  if (!response.ok) throw new Error('Error al suscribir push');
+  return response.json();
+}
+
+export async function unsubscribePush(endpoint) {
+  const response = await fetch(`${apiUrl}/api/push/unsubscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ endpoint }),
+  });
+  if (!response.ok) throw new Error('Error al desuscribir push');
+  return response.json();
+}
+
+export async function sendPushNotification({ title, body, url } = {}) {
+  const response = await fetch(`${apiUrl}/api/push/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ title, body, url }),
+  });
+  if (!response.ok) throw new Error('Error al enviar notificación push');
+  return response.json();
+}
+

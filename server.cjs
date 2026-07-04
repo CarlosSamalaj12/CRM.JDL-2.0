@@ -9,6 +9,22 @@ const jwt = require("jsonwebtoken");
 const compression = require("compression");
 require("dotenv").config();
 const { createGoogleEvent, createUserReminder, deleteUserReminder } = require("./googleCalendar.cjs");
+const webpush = require('web-push');
+
+// VAPID keys para Web Push
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:sistema@jardinesdellago.com',
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+  console.log('[WEB PUSH] VAPID configurado correctamente.');
+} else {
+  console.warn('[WEB PUSH] ⚠️ VAPID keys no configuradas en .env. Ejecuta: npx web-push generate-vapid-keys');
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sistema_informes_secret_key_change_in_prod';
 
@@ -1914,6 +1930,38 @@ async function authenticateUser(userId, password) {
  * Crea la tabla migration_log si no existe.
  * Esta tabla registra qué migraciones ya se aplicaron para evitar repetirlas.
  */
+// ═══════════════════════════════════════════════════════
+// WEB PUSH: Tabla de suscripciones push
+// ═══════════════════════════════════════════════════════
+
+async function ensurePushSubscriptionsTable() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        usuario_id VARCHAR(120) NOT NULL,
+        endpoint TEXT NOT NULL,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        user_agent VARCHAR(500) NULL,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_push_subscriptions_usuario (usuario_id),
+        UNIQUE KEY uq_push_endpoint (endpoint(500))
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// FIN WEB PUSH
+// ═══════════════════════════════════════════════════════
+
 async function ensureMigrationLogTable() {
   let conn;
   try {
@@ -4735,6 +4783,146 @@ async function start() {
     // Cargar dinámicamente rutas ESM del módulo de informes
     const reportsRouter = await import("./backend/src/app_routes.js");
     app.use("/api", reportsRouter.default);
+
+    // ─── WEB PUSH: Rutas de suscripción ───
+
+    // Middleware inline de autenticación JWT para endpoints push
+    function authenticatePushJWT(req, res, next) {
+      const header = req.headers.authorization;
+      if (!header || !header.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token requerido' });
+      }
+      try {
+        const token = header.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        next();
+      } catch {
+        return res.status(401).json({ message: 'Token inválido o expirado' });
+      }
+    }
+
+    // Endpoint público: obtener VAPID public key (no requiere auth)
+    app.get("/api/push/vapid-public-key", (req, res) => {
+      res.json({ publicKey: VAPID_PUBLIC_KEY });
+    });
+
+    // Suscribir (protegido) - usa el usuario_id del token JWT
+    app.post("/api/push/subscribe", authenticatePushJWT, async (req, res, next) => {
+      let conn;
+      try {
+        const { subscription } = req.body;
+        if (!subscription || !subscription.endpoint || !subscription.keys) {
+          return res.status(400).json({ message: 'Suscripción inválida' });
+        }
+        const usuario_id = req.user.id || req.user.sub || '';
+        conn = await pool.getConnection();
+        await conn.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
+        await conn.query(
+          "INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth, user_agent) VALUES (?, ?, ?, ?, ?)",
+          [
+            str(usuario_id),
+            subscription.endpoint,
+            subscription.keys.p256dh || '',
+            subscription.keys.auth || '',
+            req.headers['user-agent'] || null
+          ]
+        );
+        res.json({ message: 'Suscripción guardada' });
+      } catch (error) {
+        next(error);
+      } finally {
+        if (conn) conn.release();
+      }
+    });
+
+    // Desuscribir (protegido)
+    app.post("/api/push/unsubscribe", authenticatePushJWT, async (req, res, next) => {
+      let conn;
+      try {
+        const { endpoint } = req.body;
+        if (!endpoint) return res.status(400).json({ message: 'Endpoint requerido' });
+        conn = await pool.getConnection();
+        await conn.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+        res.json({ message: 'Suscripción eliminada' });
+      } catch (error) {
+        next(error);
+      } finally {
+        if (conn) conn.release();
+      }
+    });
+
+    // Obtener suscripciones del usuario autenticado (protegido)
+    app.get("/api/push/subscriptions", authenticatePushJWT, async (req, res, next) => {
+      let conn;
+      try {
+        const usuario_id = req.user.id || req.user.sub || '';
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+          "SELECT id, endpoint, p256dh, auth, user_agent, creado_en FROM push_subscriptions WHERE usuario_id = ? ORDER BY creado_en DESC",
+          [usuario_id]
+        );
+        res.json(rows);
+      } catch (error) {
+        next(error);
+      } finally {
+        if (conn) conn.release();
+      }
+    });
+
+    // Enviar notificación push al usuario autenticado (protegido)
+    app.post("/api/push/send", authenticatePushJWT, async (req, res, next) => {
+      let conn;
+      try {
+        const { title, body, url } = req.body;
+        const usuario_id = req.user.id || req.user.sub || '';
+        if (!VAPID_PUBLIC_KEY) return res.status(500).json({ message: 'VAPID no configurado' });
+
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+          "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE usuario_id = ?",
+          [usuario_id]
+        );
+
+        if (rows.length === 0) {
+          return res.status(404).json({ message: 'No hay suscripciones para este usuario' });
+        }
+
+        const payload = JSON.stringify({
+          title: title || 'Jardines EMS',
+          body: body || '',
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-72.png',
+          url: url || '/',
+          tag: 'notif_' + Date.now(),
+          requireInteraction: true
+        });
+
+        const results = [];
+        for (const row of rows) {
+          try {
+            const subscription = {
+              endpoint: row.endpoint,
+              keys: { p256dh: row.p256dh, auth: row.auth }
+            };
+            await webpush.sendNotification(subscription, payload);
+            results.push({ endpoint: row.endpoint.slice(0, 50) + '...', status: 'ok' });
+          } catch (err) {
+            results.push({ endpoint: row.endpoint.slice(0, 50) + '...', status: 'error', message: err.message });
+            if (err.statusCode === 410) {
+              await conn.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [row.endpoint]);
+            }
+          }
+        }
+
+        res.json({ sent: results.filter(r => r.status === 'ok').length, failed: results.filter(r => r.status !== 'ok').length, results });
+      } catch (error) {
+        next(error);
+      } finally {
+        if (conn) conn.release();
+      }
+    });
+    // ─── FIN WEB PUSH ───
 
     // ensureNotificacionesComentarioId ahora en runMigrations()
 

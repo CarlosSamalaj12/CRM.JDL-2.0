@@ -68,7 +68,9 @@ export default function WeeklyTasks({
   onDateChange,
   mobileDayIndex: parentMobileDayIndex,
   setMobileDayIndex: parentSetMobileDayIndex,
-  setTaskCounts
+  setTaskCounts,
+  targetEventId,
+  onTargetEventProcessed
 }) {
   const user = getCurrentUser();
   const semana_lunes = getMonday(selectedDate);
@@ -94,6 +96,7 @@ export default function WeeklyTasks({
   const [editIdOcupacion, setEditIdOcupacion] = useState('');
 
   const [filterStatus, setFilterStatus] = useState('todas');
+  const [collapseNoPending, setCollapseNoPending] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [localMobileDayIndex, setLocalMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
   const mobileDayIndex = parentMobileDayIndex !== undefined ? parentMobileDayIndex : localMobileDayIndex;
@@ -396,14 +399,44 @@ export default function WeeklyTasks({
   });
 
   const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
+    const days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(semana_lunes + 'T12:00:00');
       d.setDate(d.getDate() + i);
       const iso = d.toISOString().slice(0, 10);
       const tareasDia = filteredTareas.filter(t => String(t.fecha_tarea || '').slice(0, 10) === iso);
       return { iso, label: `${DAY_LABELS[d.getDay()]} ${d.getDate()}`, tareas: tareasDia };
     });
+    // Ordenar: días con tareas pendientes primero, luego orden cronológico
+    return days.sort((a, b) => {
+      const aHasPending = a.tareas.some(t => !t.completada && !t.no_realizado);
+      const bHasPending = b.tareas.some(t => !t.completada && !t.no_realizado);
+      if (aHasPending && !bHasPending) return -1;
+      if (!aHasPending && bHasPending) return 1;
+      return a.iso < b.iso ? -1 : 1;
+    });
   }, [semana_lunes, filteredTareas]);
+
+  // Navegar al primer día con tareas pendientes del evento seleccionado
+  useEffect(() => {
+    if (!targetEventId || !tareas.length) return;
+
+    // Buscar el primer día que tenga tareas PENDIENTES (no completadas) de ese evento
+    for (let i = 0; i < weekDays.length; i++) {
+      const day = weekDays[i];
+      const hasPending = day.tareas.some(t =>
+        String(t.id_ocupacion) === String(targetEventId) && !t.completada && !t.no_realizado
+      );
+      if (hasPending) {
+        setMobileDayIndex(i);
+        break;
+      }
+    }
+
+    // Limpiar el target después de procesarlo
+    if (onTargetEventProcessed) {
+      onTargetEventProcessed();
+    }
+  }, [targetEventId, tareas, weekDays, setMobileDayIndex, onTargetEventProcessed]);
 
   useEffect(() => {
     if (setTaskCounts) {
@@ -490,9 +523,10 @@ export default function WeeklyTasks({
         </button>
       </div>
 
-      {/* Filter chips */}
+      {/* Filter chips + collapse button */}
       <div style={{
         display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap',
+        alignItems: 'center',
       }}>
         {[
           { key: 'todas', label: 'Todas', color: '#6366f1' },
@@ -516,6 +550,22 @@ export default function WeeklyTasks({
             </button>
           );
         })}
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={() => setCollapseNoPending(!collapseNoPending)}
+          style={{
+            padding: '4px 12px', borderRadius: '999px', border: '1px solid',
+            borderColor: collapseNoPending ? '#6366f1' : 'var(--border)',
+            background: collapseNoPending ? 'var(--primary-bg)' : 'var(--bg-card)',
+            color: collapseNoPending ? '#6366f1' : 'var(--text-muted)',
+            cursor: 'pointer', fontSize: '11px', fontWeight: collapseNoPending ? 700 : 600,
+            transition: 'all 0.12s', display: 'flex', alignItems: 'center', gap: '4px',
+          }}
+          data-tooltip={collapseNoPending ? 'Mostrar todos los días' : 'Ocultar días sin tareas pendientes'}
+        >
+          <span style={{ fontSize: '12px', lineHeight: 1 }}>{collapseNoPending ? '▣' : '☐'}</span>
+          {collapseNoPending ? 'Mostrar todos' : 'Ocultar sin pendientes'}
+        </button>
       </div>
 
       {/* History panel */}
@@ -699,6 +749,7 @@ export default function WeeklyTasks({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {weekDays
             .filter((_, i) => !isMobile || i === mobileDayIndex)
+            .filter(day => isMobile || !collapseNoPending || day.tareas.some(t => !t.completada && !t.no_realizado))
             .map(day => {
             const isFuture = day.iso > new Date().toISOString().slice(0, 10);
             const isToday = day.iso === new Date().toISOString().slice(0, 10);

@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useSocket } from '../context/SocketContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import SearchBar from './SearchBar.jsx';
+import PwaInstallBanner from './PwaInstallBanner.jsx';
 import {
   IconGrid,
   IconHome,
@@ -17,6 +19,7 @@ import '../mobile-table.css';
 
 export default function ReportsLayout() {
   const { user, logout } = useAuth();
+  const { pushSupported, pushSubscribed, enablePushNotifications } = useSocket();
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const navigate = useNavigate();
   const location = useLocation();
@@ -347,6 +350,11 @@ export default function ReportsLayout() {
               {darkMode ? <IconSun size={16} /> : <IconMoon size={16} />}
             </button>
             <NotificationBell />
+            <PwaInstallBanner
+              onEnableNotifications={enablePushNotifications}
+              isPushSubscribed={pushSubscribed}
+              isPushSupported={pushSupported}
+            />
             {isCrmUser && (
               <button
                 type="button"

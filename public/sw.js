@@ -32,6 +32,61 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// ─── WEB PUSH NOTIFICATIONS ───
+
+// Receive push event from server
+self.addEventListener('push', (event) => {
+  let data = { title: 'Jardines EMS', body: '', icon: '/icons/icon-192.png', badge: '/icons/icon-72.png', url: '/' };
+
+  if (event.data) {
+    try {
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
+    } catch (e) {
+      data.body = event.data.text() || data.body;
+    }
+  }
+
+  const title = data.title || 'Jardines EMS';
+  const options = {
+    body: data.body || '',
+    icon: data.icon || '/icons/icon-192.png',
+    badge: data.badge || '/icons/icon-72.png',
+    vibrate: [200, 100, 200],
+    data: { url: data.url || '/' },
+    tag: data.tag || 'default',
+    renotify: data.renotify || false,
+    requireInteraction: data.requireInteraction || true,
+    silent: data.silent || false,
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+// Handle user clicking on a notification
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const urlToOpen = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If a window tab matching the URL is already focused, focus it
+      for (const client of windowClients) {
+        if (client.url.includes(urlToOpen) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+
 // Fetch event: handle offline fallback and runtime caching
 self.addEventListener('fetch', (event) => {
   const request = event.request;

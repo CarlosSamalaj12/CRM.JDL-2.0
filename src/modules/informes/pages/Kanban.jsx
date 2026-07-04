@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
-import { fetchEvents, fetchEventById } from '../services/api.js';
+import { fetchEvents, fetchEventById, fetchWeeklyServices } from '../services/api.js';
 import EventCard from '../components/EventCard.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 
@@ -33,6 +33,21 @@ function formatDateShort(iso) {
 }
 const fmtTime = (t) => (t || '').slice(0, 5) || '??:??';
 
+// Obtener cantidades de comida por evento+fecha desde weeklyServices
+const getServiceCounts = (services, idOcupacion, fecha) => {
+  const dayServices = services.filter(s =>
+    String(s.FechaServicio) === fecha && String(s.Idocupacion) === String(idOcupacion)
+  );
+  if (dayServices.length === 0) return null;
+  const result = { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
+  for (const s of dayServices) {
+    const tipo = s.TipoServicio;
+    const cantidad = Number(s.cantidad) || 0;
+    if (tipo in result) result[tipo] += cantidad;
+  }
+  return result;
+};
+
 export default function Kanban() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -57,7 +72,9 @@ export default function Kanban() {
   const [isMobileView, setIsMobileView] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [weeklyServices, setWeeklyServices] = useState([]);
   const [taskCounts, setTaskCounts] = useState({});
+  const [targetEventId, setTargetEventId] = useState(null);
 
   const toggleRow = (id) => {
     setExpandedRows(prev => {
@@ -225,6 +242,13 @@ export default function Kanban() {
 
   useEffect(() => { loadEvents(); }, [loadEvents]);
 
+  // Cargar servicios semanales con desglose por fecha
+  useEffect(() => {
+    fetchWeeklyServices(selectedDate)
+      .then(data => setWeeklyServices(data))
+      .catch(() => { /* fallback: usar datos de eventos */ });
+  }, [selectedDate]);
+
   useDataSyncMulti(['evento_status', 'evento'], () => loadEvents());
 
   const selectedDateObj = new Date(selectedDate + 'T12:00:00');
@@ -289,24 +313,28 @@ export default function Kanban() {
   };
 
   const exportToExcel = () => {
-    const rows = events.map(e => {
-      return {
-        'Fecha': e.displayDate || '',
-        'Institución': e.Institucion || '',
-        'Salón': e.Salon || '',
-        'Horario': `${fmtTime(e.HoraI)} - ${fmtTime(e.HoraF)}`,
-        'Pax': e.Pax || 0,
-        'Des': e.cant_desayunos || 0,
-        'Ref. AM': e.cant_refacciones_am || 0,
-        'Alm.': e.cant_almuerzos || 0,
-        'Ref. PM': e.cant_refacciones_pm || 0,
-        'Cenas': e.cant_cenas || 0,
-        'Tipo': e.TipoEvento || '',
-        'Estado': statusMap[e.Estatuscotizacion]?.label || '',
-        'Vendedor': e.Vendedor || '',
-        'Alertas': (e.tiene_alertas == 1 || e.tiene_alertas === true) ? 'Sí' : 'No',
-      };
-    });
+    const rows = [];
+    for (const day of days) {
+      for (const e of day.events) {
+        const svcX = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, e.Idocupacion, day.isoDate) : null;
+        rows.push({
+          'Fecha': day.isoDate || e.displayDate || '',
+          'Institución': e.Institucion || '',
+          'Salón': e.Salon || '',
+          'Horario': `${fmtTime(e.HoraI)} - ${fmtTime(e.HoraF)}`,
+          'Pax': e.Pax || 0,
+          'Des': svcX ? svcX.desayunos : (e.cant_desayunos || 0),
+          'Ref. AM': svcX ? svcX.refacciones_am : (e.cant_refacciones_am || 0),
+          'Alm.': svcX ? svcX.almuerzos : (e.cant_almuerzos || 0),
+          'Ref. PM': svcX ? svcX.refacciones_pm : (e.cant_refacciones_pm || 0),
+          'Cenas': svcX ? svcX.cenas : (e.cant_cenas || 0),
+          'Tipo': e.TipoEvento || '',
+          'Estado': statusMap[e.Estatuscotizacion]?.label || '',
+          'Vendedor': e.Vendedor || '',
+          'Alertas': (e.tiene_alertas == 1 || e.tiene_alertas === true) ? 'Sí' : 'No',
+        });
+      }
+    }
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, 'Eventos');
@@ -353,11 +381,12 @@ export default function Kanban() {
         for (const ev of day.events) {
           const paxVal = Number(ev.Pax) || 0;
           dayTotals.pax += paxVal;
-          const evDes = Number(ev.cant_desayunos) || 0;
-          const evRefAm = Number(ev.cant_refacciones_am) || 0;
-          const evAlm = Number(ev.cant_almuerzos) || 0;
-          const evRefPm = Number(ev.cant_refacciones_pm) || 0;
-          const evCen = Number(ev.cant_cenas) || 0;
+          const svcP = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate) : null;
+          const evDes = svcP ? svcP.desayunos : (Number(ev.cant_desayunos) || 0);
+          const evRefAm = svcP ? svcP.refacciones_am : (Number(ev.cant_refacciones_am) || 0);
+          const evAlm = svcP ? svcP.almuerzos : (Number(ev.cant_almuerzos) || 0);
+          const evRefPm = svcP ? svcP.refacciones_pm : (Number(ev.cant_refacciones_pm) || 0);
+          const evCen = svcP ? svcP.cenas : (Number(ev.cant_cenas) || 0);
           dayTotals.desayunos += evDes;
           dayTotals.ref_am += evRefAm;
           dayTotals.almuerzos += evAlm;
@@ -694,7 +723,10 @@ export default function Kanban() {
                         key={`${event.Idocupacion}-${event.displayDate}`} 
                         event={event} 
                         highlighted={eventoResaltado === String(event.Idocupacion)}
-                        onNavigateToTareas={() => setViewMode('tareas')}
+                        onNavigateToTareas={(id) => {
+                          setTargetEventId(id);
+                          setViewMode('tareas');
+                        }}
                         highlightNotaId={searchParams.get('notaId')}
                       />
                   ))
@@ -715,6 +747,8 @@ export default function Kanban() {
           mobileDayIndex={mobileDayIndex}
           setMobileDayIndex={setMobileDayIndex}
           setTaskCounts={setTaskCounts}
+          targetEventId={targetEventId}
+          onTargetEventProcessed={() => setTargetEventId(null)}
         />
       )}
 
@@ -766,11 +800,12 @@ export default function Kanban() {
                     day.events.forEach((ev, ei) => {
                       const paxVal = Number(ev.Pax) || 0;
                       dayTotals.pax += paxVal;
-                      const evDes = Number(ev.cant_desayunos) || 0;
-                      const evRefAm = Number(ev.cant_refacciones_am) || 0;
-                      const evAlm = Number(ev.cant_almuerzos) || 0;
-                      const evRefPm = Number(ev.cant_refacciones_pm) || 0;
-                      const evCen = Number(ev.cant_cenas) || 0;
+                      const svc = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate) : null;
+                      const evDes = svc ? svc.desayunos : (Number(ev.cant_desayunos) || 0);
+                      const evRefAm = svc ? svc.refacciones_am : (Number(ev.cant_refacciones_am) || 0);
+                      const evAlm = svc ? svc.almuerzos : (Number(ev.cant_almuerzos) || 0);
+                      const evRefPm = svc ? svc.refacciones_pm : (Number(ev.cant_refacciones_pm) || 0);
+                      const evCen = svc ? svc.cenas : (Number(ev.cant_cenas) || 0);
                       dayTotals.desayunos += evDes;
                       dayTotals.ref_am += evRefAm;
                       dayTotals.almuerzos += evAlm;

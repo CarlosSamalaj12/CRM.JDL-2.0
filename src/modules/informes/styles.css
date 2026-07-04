@@ -4541,6 +4541,134 @@ button[data-tooltip-bottom]::after {
   .form-row { grid-template-columns: 1fr; }
 }
 
+/* ═══════════════════════════════════════════════════
+   PWA INSTALL BANNER (iOS "Add to Home Screen")
+   ═══════════════════════════════════════════════════ */
+
+.pwa-ios-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  padding: 0.75rem;
+  animation: pwaBannerSlideUp 0.35s var(--ease);
+}
+
+.pwa-ios-banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.pwa-ios-banner-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.pwa-ios-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pwa-ios-banner-text strong {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.pwa-ios-banner-text p {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.4rem;
+}
+
+.pwa-ios-banner-text ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pwa-ios-banner-text ol li {
+  line-height: 1.4;
+}
+
+.pwa-ios-icon {
+  display: inline-block;
+  font-size: 0.9rem;
+  color: var(--primary);
+}
+
+.pwa-ios-banner-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.pwa-ios-banner-close:hover {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+@keyframes pwaBannerSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Botón de activar push en el header */
+.pwa-enable-push {
+  color: var(--text-muted) !important;
+  border: 1px solid transparent !important;
+  transition: all var(--duration-fast) var(--ease) !important;
+}
+
+.pwa-enable-push:hover {
+  color: var(--primary) !important;
+  background: var(--primary-bg) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Indicador push activo */
+.pwa-push-active {
+  opacity: 0.7;
+  animation: pwaPulse 2s ease-in-out infinite;
+}
+
+@keyframes pwaPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
 /* SCROLLBAR */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

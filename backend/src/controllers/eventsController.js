@@ -11,17 +11,18 @@ export async function getWeeklyServices(req, res, next) {
     const { date } = req.query;
     let weekCondition = '';
     let params = [];
+    const dateCol = 'COALESCE(ice.fecha_servicio, e.FechaEvento)';
 
     if (date) {
-      weekCondition = ' AND YEARWEEK(ice.fecha_servicio, 1) = YEARWEEK(?, 1)';
+      weekCondition = ` AND YEARWEEK(${dateCol}, 1) = YEARWEEK(?, 1)`;
       params.push(date);
     } else {
-      weekCondition = ' AND YEARWEEK(ice.fecha_servicio, 1) = YEARWEEK(CURDATE(), 1)';
+      weekCondition = ` AND YEARWEEK(${dateCol}, 1) = YEARWEEK(CURDATE(), 1)`;
     }
 
     const query = `
       SELECT 
-        ice.fecha_servicio AS FechaServicio,
+        ${dateCol} AS FechaServicio,
         ice.id_evento AS Idocupacion,
         e.Institucion,
         e.Salon,
@@ -43,16 +44,19 @@ export async function getWeeklyServices(req, res, next) {
         END AS TipoServicio,
         SUM(ice.cantidad) AS cantidad
       FROM items_cotizacion_evento ice
-      JOIN tbl_seguimientocotizaciones e ON ice.id_evento = e.Idocupacion
+      JOIN (
+        SELECT DISTINCT Idocupacion, FechaEvento, Institucion, Salon, Vendedor
+        FROM tbl_seguimientocotizaciones
+        WHERE Estatuscotizacion IN (4, 7, 8)
+      ) e ON ice.id_evento = e.Idocupacion
       LEFT JOIN servicios s ON ice.id_servicio = s.id
       LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
       LEFT JOIN eventos ev ON e.Idocupacion = ev.id
       LEFT JOIN usuarios u ON ev.id_usuario = u.id
-      WHERE e.Estatuscotizacion IN (4, 7, 8)
-        AND ice.fecha_servicio IS NOT NULL
+      WHERE 1=1
         ${weekCondition}
-      GROUP BY ice.fecha_servicio, ice.id_evento, COALESCE(sc.nombre, ice.nombre)
-      ORDER BY ice.fecha_servicio ASC, TipoServicio ASC
+      GROUP BY ${dateCol}, ice.id_evento, COALESCE(sc.nombre, ice.nombre)
+      ORDER BY ${dateCol} ASC, TipoServicio ASC
     `;
 
     const [rows] = await pool.query(query, params);
