@@ -19,8 +19,7 @@ function daysInMonth(year, month) {
 }
 
 const ACTIVE_STATUSES = new Set([
-  'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
-  'Lista de Espera', 'Confirmado', 'Realizado',
+  'Confirmado',
 ]);
 
 // ── Commission calculation logic ──
@@ -125,7 +124,7 @@ export default function ReportsComisiones({ onClose }) {
       if (!userId) continue;
       const salesAmount = salesByUser[userId] || 0;
       const tiers = Array.isArray(user.goalTiers) ? user.goalTiers.filter(t => t.amount > 0) : [];
-      const hasTiers = tiers.length > 0 && user.salesTargetEnabled;
+      const hasTiers = tiers.length > 0;
 
       const { reachedTier, commissionAmount, nextTier, progressToNext } = hasTiers
         ? calcCommission(salesAmount, tiers)
@@ -262,7 +261,7 @@ export default function ReportsComisiones({ onClose }) {
 
   const handleExportExcel = () => {
     const escCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-    const headers = ['Vendedor', 'Ventas (GTQ)', 'Tier Alcanzado', '% Comisión', 'Comisión (GTQ)', 'Siguiente Tier', 'Progreso (%)'];
+    const headers = ['Vendedor', 'Ventas (GTQ)', 'Nivel Alcanzado', '% Comisión', 'Comisión (GTQ)', 'Siguiente Nivel', 'Progreso (%)'];
     const rows = userRows.map(r => [
       escCsv(r.name),
       r.salesAmount.toFixed(2),
@@ -708,7 +707,7 @@ export default function ReportsComisiones({ onClose }) {
                 <tr>
                   <th>Vendedor</th>
                   <th>Ventas (Q)</th>
-                  <th>Tier alcanzado</th>
+                  <th>Nivel alcanzado</th>
                   <th>% Comisión</th>
                   <th>Comisión (Q)</th>
                   <th>Siguiente meta</th>

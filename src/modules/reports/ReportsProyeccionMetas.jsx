@@ -19,8 +19,7 @@ function daysInMonth(year, month) {
 }
 
 const ACTIVE_STATUSES = new Set([
-  'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
-  'Lista de Espera', 'Confirmado', 'Realizado',
+  'Confirmado',
 ]);
 
 export default function ReportsProyeccionMetas({ onClose }) {
@@ -102,7 +101,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       const currentSales = salesByUser[userId] || 0;
       const eventCount = eventsByUser[userId] || 0;
       const tiers = Array.isArray(user.goalTiers) ? [...user.goalTiers].filter(t => t.amount > 0).sort((a, b) => a.amount - b.amount) : [];
-      const hasTiers = tiers.length > 0 && user.salesTargetEnabled;
+      const hasTiers = tiers.length > 0;
 
       // Find current tier and next tier
       let reachedTier = null;

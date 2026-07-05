@@ -88,7 +88,9 @@ export default function MainLayout() {
       const eventsData = stateRes?.events || [];
       const salonesData = stateRes?.salones || [];
       const stateUsers = stateRes?.users || [];
-      const loadedUsers = usersData.length > 0 ? usersData : stateUsers;
+      // Usar stateUsers (datos completos con goalTiers, salesTargetEnabled, etc.)
+      // en lugar de usersData del endpoint de login que solo trae columnas básicas
+      const loadedUsers = stateUsers.length > 0 ? stateUsers : usersData;
       const loadedOps = (stateRes?.occupancyWeeklyOps && typeof stateRes.occupancyWeeklyOps === 'object') 
         ? stateRes.occupancyWeeklyOps 
         : {};
