@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import Legend from './components/Legend';
@@ -398,32 +399,34 @@ export default function MainLayout() {
             }} />
           )}
 
-          <Outlet context={{ 
-            viewMode, 
-            setViewMode,
-            currentDate, 
-            setCurrentDate,
-            customTitle, 
-            setCustomTitle,
-            events, 
-            salones,
-            users,
-            handleAddEvent,
-            handleDeleteEvent,
-            handleUpdateEventStatus,
-            refreshData: loadInitialData,
-            loadingData: loading,
-            statusFilter,
-            setStatusFilter,
-            searchQuery,
-            setSearchQuery,
-            roomFilter,
-            setRoomFilter,
-            sellerFilter,
-            setSellerFilter,
-            occupancyWeeklyOps,
-            handleUpdateOccupancyOps
-          }} />
+          <ErrorBoundary>
+            <Outlet context={{ 
+              viewMode, 
+              setViewMode,
+              currentDate, 
+              setCurrentDate,
+              customTitle, 
+              setCustomTitle,
+              events, 
+              salones,
+              users,
+              handleAddEvent,
+              handleDeleteEvent,
+              handleUpdateEventStatus,
+              refreshData: loadInitialData,
+              loadingData: loading,
+              statusFilter,
+              setStatusFilter,
+              searchQuery,
+              setSearchQuery,
+              roomFilter,
+              setRoomFilter,
+              sellerFilter,
+              setSellerFilter,
+              occupancyWeeklyOps,
+              handleUpdateOccupancyOps
+            }} />
+          </ErrorBoundary>
         </div>
       </div>
       

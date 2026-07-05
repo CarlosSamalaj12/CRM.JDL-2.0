@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import ErrorBoundary from '../../../components/ErrorBoundary';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
@@ -372,7 +373,9 @@ export default function ReportsLayout() {
       </header>
 
       <main>
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <style>{`

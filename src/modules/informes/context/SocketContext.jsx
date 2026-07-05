@@ -200,7 +200,7 @@ export function SocketProvider({ children }) {
       globalSocket = null;
       setConnected(false);
     };
-  }, [user, token]);
+  }, [user?.id, token]);
 
   const joinRoom = useCallback((room) => {
     roomsRef.current.add(room);

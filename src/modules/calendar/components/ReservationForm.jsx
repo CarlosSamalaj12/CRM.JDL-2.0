@@ -441,6 +441,7 @@ export default function ReservationForm() {
   const [pastEventEditGraceDays, setPastEventEditGraceDays] = useState(0);
   const [graceDaysLoaded, setGraceDaysLoaded] = useState(false);
   const [authKey, setAuthKey] = useState(null);
+  const lastLoadedIdRef = useRef(null);
 
   useEffect(() => {
     const loadGraceDays = async () => {
@@ -470,8 +471,8 @@ export default function ReservationForm() {
   const urlEnd = searchParams.get('end');
   const urlOpenAdvances = searchParams.get('openAdvances') === 'true';
 
-  const getDefaultDate = useCallback(() => urlDate || new Date().toISOString().split('T')[0], [urlDate]);
-  const getDefaultEndDate = useCallback(() => urlEndDate || getDefaultDate(), [urlEndDate, getDefaultDate]);
+  const defaultDate = urlDate || new Date().toISOString().split('T')[0];
+  const defaultEndDate = urlEndDate || defaultDate;
 
   const getCurrentUserId = () => {
     const currentUser = authService.getCurrentUser();
@@ -482,8 +483,8 @@ export default function ReservationForm() {
     name: '',
     salon: '',
     status: 'Reserva sin Cotizacion',
-    date: getDefaultDate(),
-    endDate: getDefaultEndDate(),
+    date: defaultDate,
+    endDate: defaultEndDate,
     startTime: urlStart || '10:00',
     endTime: urlEnd || '12:00',
     pax: '',
@@ -493,7 +494,7 @@ export default function ReservationForm() {
   });
 
   const [slots, setSlots] = useState([
-    { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion' }
+    { salon: '', pax: '', dateStart: defaultDate, dateEnd: defaultEndDate, startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion' }
   ]);
 
   const [saving, setSaving] = useState(false);
@@ -562,7 +563,12 @@ export default function ReservationForm() {
 
 
   useEffect(() => {
-    if (id && events) {
+    if (id) {
+      // Skip if we already loaded this event — prevents reset on every data refresh
+      if (id === lastLoadedIdRef.current) return;
+      // Wait for events data to be available before initializing
+      if (!events) return;
+
       const existingEvent = events.find(ev => String(ev.id) === String(id));
       if (existingEvent) {
         const series = getSeriesForEvent(events, id);
@@ -571,18 +577,18 @@ export default function ReservationForm() {
         const firstDate = series.reduce((min, ev) => {
           const date = String(ev.date || '');
           return date && (!min || date < min) ? date : min;
-        }, existingEvent.date || getDefaultDate());
+        }, existingEvent.date || defaultDate);
         const lastDate = series.reduce((max, ev) => {
           const date = String(ev.date || '');
           return date && (!max || date > max) ? date : max;
-        }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || getDefaultDate());
+        }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || defaultDate);
         const totalPaxFromSlots = seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
         setFormData({
           name: existingEvent.name || '',
           salon: firstSlot.salon || existingEvent.salon || '',
           status: existingEvent.status || 'Reserva sin Cotizacion',
-          date: existingEvent.eventDateStart || firstDate || getDefaultDate(),
-          endDate: existingEvent.eventDateEnd || lastDate || existingEvent.date || getDefaultDate(),
+          date: existingEvent.eventDateStart || firstDate || defaultDate,
+          endDate: existingEvent.eventDateEnd || lastDate || existingEvent.date || defaultDate,
           startTime: firstSlot.startTime || existingEvent.startTime || '10:00',
           endTime: firstSlot.endTime || existingEvent.endTime || '12:00',
           pax: totalPaxFromSlots || existingEvent.pax || '',
@@ -597,21 +603,25 @@ export default function ReservationForm() {
           setSlots([{
             salon: existingEvent.salon || (salones?.length > 0 ? salones[0] : ''),
             pax: existingEvent.pax || '',
-            dateStart: existingEvent.date || getDefaultDate(),
-            dateEnd: existingEvent.endDate || existingEvent.date || getDefaultDate(),
+            dateStart: existingEvent.date || defaultDate,
+            dateEnd: existingEvent.endDate || existingEvent.date || defaultDate,
             startTime: existingEvent.startTime || '10:00',
             endTime: existingEvent.endTime || '12:00',
             status: existingEvent.status || 'Reserva sin Cotizacion'
           }]);
         }
+
+        // Mark as initialized ONLY after successful form population
+        lastLoadedIdRef.current = id;
       }
     } else {
+      lastLoadedIdRef.current = null;
       setFormData({
         name: '',
         salon: salones?.length > 0 ? salones[0] : '',
         status: 'Reserva sin Cotizacion',
-        date: getDefaultDate(),
-        endDate: getDefaultEndDate(),
+        date: defaultDate,
+        endDate: defaultEndDate,
         startTime: urlStart || '10:00',
         endTime: urlEnd || '12:00',
         pax: '',
@@ -622,14 +632,14 @@ export default function ReservationForm() {
       setSlots([{
         salon: salones?.length > 0 ? salones[0] : '',
         pax: '',
-        dateStart: getDefaultDate(),
-        dateEnd: getDefaultEndDate(),
+        dateStart: defaultDate,
+        dateEnd: defaultEndDate,
         startTime: urlStart || '10:00',
         endTime: urlEnd || '12:00',
         status: 'Reserva sin Cotizacion'
       }]);
     }
-  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate]);
+  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd]);
 
   useEffect(() => {
     if (urlOpenAdvances && id) {

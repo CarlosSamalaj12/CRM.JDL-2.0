@@ -8,6 +8,7 @@ import { loadState as loadCrmState, saveState as saveCrmState } from '../../../s
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
 import api from '../../../services/api';
 import socketService from '../../../services/socketService';
+import { useAutoSave, loadDraft, clearDraft } from '../../../hooks/useAutoSave';
 
 
 const uid = () => `row_${Math.random().toString(36).substr(2, 8)}`;
@@ -255,6 +256,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     advanceLogs: event?.quote?.advanceLogs || []
   });
   const savedQuoteSnapshotRef = useRef(quoteSnapshot(quote));
+  // ─── Auto-save draft to localStorage ───
+  useAutoSave(event, quote);
+
   const lastSavedQuoteRef = useRef(event?.quote && typeof event.quote === 'object' ? { ...event.quote } : null);
   const institutionFieldRef = useRef(null);
 
@@ -270,7 +274,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       setCatalogServices(data?.services || []);
       setQuickTemplates(data?.quoteServiceTemplates || data?.quickTemplates || []);
       setContractTemplates(Array.isArray(data?.contractTemplates) ? data.contractTemplates : []);
-      if (!quote.code) {
+      setQuote(prev => {
+        if (prev.code) return prev;
         const evs = data?.events || [];
         let maxCOT = 0;
         evs.forEach(ev => {
@@ -278,12 +283,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             const m = ev.quote.code.match(/^COT-(\d+)$/);
             if (m) maxCOT = Math.max(maxCOT, parseInt(m[1], 10));
           }
-
         });
-        setQuote(prev => ({ ...prev, code: `COT-${String(maxCOT + 1).padStart(3, '0')}` }));
-      }
+        return { ...prev, code: `COT-${String(maxCOT + 1).padStart(3, '0')}` };
+      });
     } catch (err) { console.error('Error:', err); }
-  }, [quote.code, setQuote]);
+  }, [setQuote]);
 
   useEffect(() => {
     if (openAdvancesOnMount) {
@@ -295,16 +299,40 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   useEffect(() => {
     loadState();
     document.body.classList.add('quoteModeOpen');
-    const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    const token = localStorage.getItem('token');
-    fetch(`${apiUrl}/api/config/formas-pago`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
-      .then(r => r.json())
+    api.get('/api/config/formas-pago')
       .then(data => setFormasPago(Array.isArray(data) ? data.filter(fp => fp.activo !== 0) : []))
-      .catch(() => {});
+      .catch(err => {
+        console.warn('Error cargando formas de pago:', err);
+        // Fallback: intentar una vez más después de 2 segundos
+        setTimeout(() => {
+          api.get('/api/config/formas-pago')
+            .then(data => setFormasPago(Array.isArray(data) ? data.filter(fp => fp.activo !== 0) : []))
+            .catch(() => {});
+        }, 2000);
+      });
     return () => document.body.classList.remove('quoteModeOpen');
-  }, [loadState]);
+}, []);
+
+// ─── Restore draft from localStorage on mount ───
+  useEffect(() => {
+    const draft = loadDraft(event);
+    if (draft && draft.items && draft.items.length > 0) {
+      const timer = setTimeout(() => {
+        const restored = {
+          ...quote,
+          ...draft,
+          items: draft.items.map(item => ({
+            ...item,
+            rowId: item.rowId || 'row_' + Math.random().toString(36).substr(2, 8)
+          }))
+        };
+        setQuote(restored);
+        savedQuoteSnapshotRef.current = JSON.stringify(restored);
+        toast.success('🔄 Borrador recuperado: el carrito se restauró desde tu último progreso');
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Load discount auth status and listen for responses
   useEffect(() => {
@@ -879,6 +907,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       lastSavedQuoteRef.current = { ...finalQuote, versions: undefined };
 
       if (typeof onSave === 'function') {
+        await onSave(finalQuote, { keepOpen: true });
+      }
+      clearDraft(event); {
         await onSave(finalQuote, { keepOpen: true });
       }
 

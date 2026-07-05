@@ -5,7 +5,9 @@ import { SupportModule } from './modules/shared/GenericModule';
 import authService from './services/authService';
 
 import ErrorBoundary from './components/ErrorBoundary';
+import SafeRoute from './components/SafeRoute';
 import ProtectedRoute from './modules/informes/components/ProtectedRoute';
+import Kanban from './modules/informes/pages/Kanban';
 import ReportsLayout from './modules/informes/components/ReportsLayout';
 
 import { AuthProvider } from './modules/informes/context/AuthContext';
@@ -18,7 +20,6 @@ const CustomersModule = lazy(() => import('./modules/customers/CustomersModule')
 const ReportsModule = lazy(() => import('./modules/reports/ReportsModule'));
 const SearchModule = lazy(() => import('./modules/search/SearchModule'));
 const SettingsMain = lazy(() => import('./modules/settings/SettingsMain'));
-const Kanban = lazy(() => import('./modules/informes/pages/Kanban'));
 const Catalog = lazy(() => import('./modules/informes/pages/Catalog'));
 const ConstructorInforme = lazy(() => import('./modules/informes/pages/ConstructorInforme'));
 const InformeCreator = lazy(() => import('./modules/informes/pages/InformeCreator'));
@@ -108,28 +109,28 @@ function App() {
           <SocketProvider>
             <Suspense fallback={<div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', color:'#64748b' }}>Cargando...</div>}>
             <Routes>
-              <Route path="/login" element={<Login />} />
+              <Route path="/login" element={<SafeRoute><Login /></SafeRoute>} />
 
               <Route element={<ReportsLayout />}>
-                <Route path="/informes" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/kanban" element={<ProtectedRoute><Kanban /></ProtectedRoute>} />
-                <Route path="/catalog" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Catalog /></ProtectedRoute>} />
-                <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><ConstructorInforme /></ProtectedRoute>} />
-                <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><InformeCreator /></ProtectedRoute>} />
-                <Route path="/informe/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos', 'Coordinador']}><InformeView /></ProtectedRoute>} />
-                <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><Configuracion /></ProtectedRoute>} />
+                <Route path="/informes" element={<ProtectedRoute><SafeRoute><Dashboard /></SafeRoute></ProtectedRoute>} />
+                <Route path="/kanban" element={<ProtectedRoute><SafeRoute><Kanban /></SafeRoute></ProtectedRoute>} />
+                <Route path="/catalog" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><SafeRoute><Catalog /></SafeRoute></ProtectedRoute>} />
+                <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><SafeRoute><ConstructorInforme /></SafeRoute></ProtectedRoute>} />
+                <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><SafeRoute><InformeCreator /></SafeRoute></ProtectedRoute>} />
+                <Route path="/informe/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos', 'Coordinador']}><SafeRoute><InformeView /></SafeRoute></ProtectedRoute>} />
+                <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><SafeRoute><Configuracion /></SafeRoute></ProtectedRoute>} />
               </Route>
 
               <Route path="/" element={<CrmProtectedRoute><MainLayout /></CrmProtectedRoute>}>
                 <Route index element={<HomeRedirect />} />
-                <Route path="calendar" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
-                <Route path="nueva-reserva" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
-                <Route path="reserva/:id" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><Calendar /></RoleRoute>} />
-                <Route path="customers" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><CustomersModule /></RoleRoute>} />
-                <Route path="reports" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><ReportsModule /></RoleRoute>} />
-                <Route path="settings" element={<RoleRoute roles={['admin']}><SettingsMain /></RoleRoute>} />
+                <Route path="calendar" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
+                <Route path="nueva-reserva" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
+                <Route path="reserva/:id" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
+                <Route path="customers" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><CustomersModule /></SafeRoute></RoleRoute>} />
+                <Route path="reports" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><ReportsModule /></SafeRoute></RoleRoute>} />
+                <Route path="settings" element={<RoleRoute roles={['admin']}><SafeRoute><SettingsMain /></SafeRoute></RoleRoute>} />
                 <Route path="support" element={<SupportModule />} />
-                <Route path="search" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SearchModule /></RoleRoute>} />
+                <Route path="search" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><SearchModule /></SafeRoute></RoleRoute>} />
               </Route>
 
               <Route path="*" element={<Navigate to="/login" replace />} />
