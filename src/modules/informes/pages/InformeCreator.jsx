@@ -20,9 +20,12 @@ const TIPO_LABELS = {
   salsa:        { label: 'Salsa',         icon: '🫗', color: '#f59e0b' },
   postre:       { label: 'Postre',        icon: '🍰', color: '#ec4899' },
   bebida:       { label: 'Bebida',        icon: '🥤', color: '#06b6d4' },
+  refaccion:    { label: 'Refacción',     icon: '🥪', color: '#8b5cf6' },
+  boquita:      { label: 'Boquita',       icon: '🍿', color: '#f43f5e' },
+  desayuno:     { label: 'Desayuno',      icon: '🌅', color: '#f59e0b' },
 };
 
-const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','bebida'];
+const TIPO_OPTS = ['entradas','proteina','guarnicion','salsa','postre','bebida','refaccion','boquita','desayuno'];
 const METODOS_PREPARACION = [
   'A la plancha', 'Al vapor', 'Frito', 'Parrilla', 'Horneado',
   'Salteado', 'Guisado', 'Crudo / Fresco', 'Otro'

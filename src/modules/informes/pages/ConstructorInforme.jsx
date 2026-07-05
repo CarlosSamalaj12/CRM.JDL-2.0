@@ -39,6 +39,9 @@ const CATEGORIAS = [
   { id: 'salsas',     label: 'Salsas',      icon: '🫗', color: '#f59e0b' },
   { id: 'postres',    label: 'Postres',     icon: '🍰', color: '#ec4899' },
   { id: 'bebidas',    label: 'Bebidas',     icon: '🥤', color: '#06b6d4' },
+  { id: 'refacciones', label: 'Refacciones', icon: '🥪', color: '#8b5cf6' },
+  { id: 'boquitas',   label: 'Boquitas',    icon: '🍿', color: '#f43f5e' },
+  { id: 'desayunos',  label: 'Desayunos',   icon: '🌅', color: '#f59e0b' },
   { id: 'alertas',    label: 'Alertas',     icon: '⚠️', color: '#ef4444' },
   { id: 'montaje',    label: 'Montaje',     icon: '🔧', color: '#64748b' },
   { id: 'imagenes',    label: 'Imágenes',    icon: '🖼️', color: '#06b6d4' },
@@ -49,6 +52,9 @@ const TIPO_LABELS = {
   salsa: 'SALSAS', salsas: 'SALSAS', postre: 'POSTRES', postres: 'POSTRES', bebida: 'BEBIDAS', bebidas: 'BEBIDAS',
   proteina: 'PROTEÍNA', proteína: 'PROTEÍNA', proteinas: 'PROTEÍNAS', proteínas: 'PROTEÍNAS',
   entradas: 'ENTRADAS', entrada: 'ENTRADAS',
+  refacción: 'REFACCIONES', refaccion: 'REFACCIONES', refacciones: 'REFACCIONES',
+  boquita: 'BOQUITAS', boquitas: 'BOQUITAS',
+  desayuno: 'DESAYUNOS', desayunos: 'DESAYUNOS',
 };
 
 const METODOS_PREPARACION = [
@@ -1018,6 +1024,18 @@ export default function ConstructorInforme() {
         const tipo = (i.tipo || '').toLowerCase();
         return tipo === 'bebida' || tipo === 'bebidas';
       })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'refacciones': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'refacción' || tipo === 'refaccion' || tipo === 'refacciones';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'boquitas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'boquita' || tipo === 'boquitas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'desayunos': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'desayuno' || tipo === 'desayunos';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
       default: return [];
     }
   }, [categoriaActiva, searchElemento, menus, platillos, ingredientes, menuCategoriaFiltro, platilloCategoriaFiltro]);
@@ -1328,11 +1346,11 @@ export default function ConstructorInforme() {
               value={searchElemento} onChange={e => setSearchElemento(e.target.value)}
             />
             {searchElemento && <button className="pos-elem-clear" onClick={() => setSearchElemento('')}><IconX size={14} /></button>}
-            {['entradas', 'carnes', 'guarniciones', 'salsas', 'postres', 'bebidas'].includes(categoriaActiva) && (
+            {['entradas', 'carnes', 'guarniciones', 'salsas', 'postres', 'bebidas', 'refacciones', 'boquitas', 'desayunos'].includes(categoriaActiva) && (
               <button
                 className="pos-elem-add-btn"
                 onClick={() => {
-                              const tipoMap = { entradas:'entradas', carnes:'proteina', guarniciones:'guarnicion', salsas:'salsa', postres:'postre', bebidas:'bebida' };
+                              const tipoMap = { entradas:'entradas', carnes:'proteina', guarniciones:'guarnicion', salsas:'salsa', postres:'postre', bebidas:'bebida', refacciones:'refaccion', boquitas:'boquita', desayunos:'desayuno' };
                               setShowNewIngModal(true);
                               setNewIngNombre('');
                               setNewIngTipo(tipoMap[categoriaActiva] || 'proteina');
@@ -1390,7 +1408,7 @@ export default function ConstructorInforme() {
             )}
 
             {/* Categorías: Ingredientes */}
-            {['entradas', 'carnes', 'guarniciones', 'salsas', 'postres', 'bebidas'].includes(categoriaActiva) && elementosFiltrados.map(ing => {
+            {['entradas', 'carnes', 'guarniciones', 'salsas', 'postres', 'bebidas', 'refacciones', 'boquitas', 'desayunos'].includes(categoriaActiva) && elementosFiltrados.map(ing => {
               const selected = diaActivo.selectedItems.some(i => i.ingrediente_id === ing.id);
               return (
                 <button
@@ -1745,6 +1763,9 @@ export default function ConstructorInforme() {
                 <option value="postre">🍰 Postre</option>
                 <option value="tortilla_pan">🌮 Tortilla/Pan</option>
                 <option value="bebida">🥤 Bebida</option>
+                <option value="refaccion">🥪 Refacción</option>
+                <option value="boquita">🍿 Boquita</option>
+                <option value="desayuno">🌅 Desayuno</option>
                 <option value="otros">📦 Otros</option>
               </select>
             </div>

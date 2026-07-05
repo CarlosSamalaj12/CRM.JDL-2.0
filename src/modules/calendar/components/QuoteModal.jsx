@@ -705,6 +705,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       qty: serviceObj.quantityMode === 'PAX' ? paxVal : (Number(serviceQty) || 1),
       price: serviceObj.quantityMode === 'PAX' ? Math.max(0, Number(serviceObj.price || 0) * paxVal) : Number(serviceObj.price || 0),
       quantityMode: serviceObj.quantityMode || 'MANUAL',
+      category: serviceObj.category || 'General',
       serviceDate: selectedServiceDate || availableServiceDates[0]
     };
     setQuote(prev => ({ ...prev, items: [...prev.items, newItem] }));
@@ -1143,6 +1144,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       qty: Number(item.qty) || 1,
       price: Number(item.price) || 0,
       quantityMode: item.quantityMode || 'MANUAL',
+      category: item.category || '',
       serviceDate: item.serviceDate || availableServiceDates[0]
     }));
     setQuote(prev => ({ ...prev, items: [...prev.items, ...templateItems] }));

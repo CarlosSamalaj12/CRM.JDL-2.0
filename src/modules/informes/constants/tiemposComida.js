@@ -4,7 +4,6 @@ export const TIEMPOS_COMIDA = [
   { id: 'refaccion_am', label: 'Refacción AM', icon: '🥐', color: '#f97316' },
   { id: 'almuerzo',    label: 'Almuerzo',    icon: '🍽️', color: '#10b981' },
   { id: 'refaccion_pm', label: 'Refacción PM', icon: '🧁', color: '#ec4899' },
-  { id: 'postre',      label: 'Postre',      icon: '🍰', color: '#6366f1' },
   { id: 'cena',        label: 'Cena',        icon: '🌙', color: '#0f172a' },
 ];
 
@@ -14,6 +13,5 @@ export const TIEMPO_COMIDA_ORDER = {
   refaccion_am: 3,
   almuerzo: 4,
   refaccion_pm: 5,
-  postre: 6,
-  cena: 7,
+  cena: 6,
 };

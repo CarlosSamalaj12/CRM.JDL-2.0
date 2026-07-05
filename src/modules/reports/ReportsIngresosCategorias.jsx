@@ -60,11 +60,31 @@ export default function ReportsIngresosCategorias({ onClose }) {
     return months;
   }, [fromDate, toDate]);
 
-  const pickCatAmount = (catBuckets, key) => {
-    if (!catBuckets) return 0;
-    const bucket = catBuckets[key];
-    if (!bucket) return 0;
-    return Math.max(0, Number(bucket.amount || 0));
+  const CAT_ITEM_MAP = [
+    { key: 'alimentosBebidas', patterns: ['alimentos', 'bebidas', 'comida', 'catering', 'menu', 'bar', 'coctel'] },
+    { key: 'hospedajeJdl',     patterns: ['hospedaje jdl', 'hospedaje propio'] },
+    { key: 'hospedajeTerceros', patterns: ['hospedaje de terceros', 'hospedaje terceros', 'hospedaje 3ros'] },
+  ];
+
+  const mapCategoryToBucket = (cat, itemName) => {
+    // First, try to match from the service category
+    if (cat) {
+      const c = cat.toLowerCase().trim();
+      // Check terceros first so it takes priority
+      if (c.includes('terceros') || c.includes('3ros')) return 'hospedajeTerceros';
+      if (c.includes('alimentos') || c.includes('bebidas') || c.includes('comida') || c.includes('catering') || c.includes('menu') || c.includes('bar') || c.includes('coctel')) return 'alimentosBebidas';
+      if (c.includes('hospedaje') || c.includes('alojamiento')) return 'hospedajeJdl';
+    }
+    // Fallback: try to infer from the item name
+    if (itemName) {
+      const n = itemName.toLowerCase().trim();
+      if (n.includes('hospedaje') || n.includes('alojamiento') || n.includes('hotel') || n.includes('habitacion')) {
+        if (n.includes('terceros') || n.includes('3ros')) return 'hospedajeTerceros';
+        return 'hospedajeJdl';
+      }
+      if (n.includes('alimentos') || n.includes('bebidas') || n.includes('comida') || n.includes('menu') || n.includes('catering') || n.includes('bar')) return 'alimentosBebidas';
+    }
+    return 'miscelaneos';
   };
 
   const chartData = useMemo(() => {
@@ -83,19 +103,17 @@ export default function ReportsIngresosCategorias({ onClose }) {
       if (!ACTIVE_STATUSES.has(String(ev.status || '').trim())) continue;
 
       const monthKey = d.substring(0, 7);
-      const catBuckets = ev.quote?.catBuckets || {};
-
+      const quoteItems = ev.quote?.items || [];
       if (!monthlyCatTotals[monthKey]) {
         monthlyCatTotals[monthKey] = { alimentosBebidas: 0, hospedajeJdl: 0, hospedajeTerceros: 0, miscelaneos: 0 };
       }
-
-      for (const cat of CATEGORIES) {
-        const amount = pickCatAmount(catBuckets, cat.key);
-        if (amount > 0) {
-          catTotals[cat.key] += amount;
-          grandTotal += amount;
-          monthlyCatTotals[monthKey][cat.key] += amount;
-        }
+      for (const item of quoteItems) {
+        const itemTotal = Number(item.qty || 0) * Number(item.price || 0);
+        if (itemTotal <= 0) continue;
+        const bucketKey = mapCategoryToBucket(item.category || '', item.name);
+        catTotals[bucketKey] += itemTotal;
+        grandTotal += itemTotal;
+        monthlyCatTotals[monthKey][bucketKey] += itemTotal;
       }
     }
 

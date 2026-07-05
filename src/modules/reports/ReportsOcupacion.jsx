@@ -208,7 +208,7 @@ export default function ReportsOcupacion({ onClose }) {
       const worksheetData = rows.map(r => {
         const ev = r.rawEvent;
         return {
-          'Encargado Evento': ev.quote?.phone || ev.clientPhone || '-',
+          'Encargado Evento': ev.quote?.contact || ev.quote?.managerName || ev.quote?.companyName || ev.clientPhone || ev.quote?.phone || '-',
           'Vendedor': r.seller,
           'Última Cotización': ev.quote ? `V${ev.quote.version || 1} - ${ev.quote.quotedAt ? new Date(ev.quote.quotedAt).toISOString().split('T')[0] : ''}` : '-',
           'Último Informe M&M': ev.quote?.menuMontajeVersion ? `V${ev.quote.menuMontajeVersion}` : '-',
@@ -255,6 +255,14 @@ export default function ReportsOcupacion({ onClose }) {
     { label: 'Pre Reserva', value: summary.pre, accent: '#d97706', meta: `${100 - summary.confirmedPct}% pendiente` },
     { label: 'PAX Totales', value: summary.pax.toLocaleString(), accent: '#7c3aed', meta: 'personas' },
     { label: 'Facturación', value: formatMoneyGT(summary.totalRevenue), accent: '#0d9488', meta: 'valor cotizado' },
+  ];
+
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const NAV_SECTIONS = [
+    ['occupancyWeekStrip', '📅 Distribución'],
+    ['occupancyDayDetail', '📊 Detalle del día'],
+    ['occupancyTable', '📋 Resultados'],
   ];
 
   // Restore occupancyDaysStrip scroll position after re-renders (useLayoutEffect for no visual flash)
@@ -330,8 +338,17 @@ export default function ReportsOcupacion({ onClose }) {
           </p>
         </div>
 
+        {/* ── Navigation Tabs ── */}
+        <div className="reports-nav-tabs">
+          {NAV_SECTIONS.map(([id, label]) => (
+            <button key={id} className="reports-nav-tab-btn" type="button" onClick={() => scrollTo(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* ── Week Strip ── */}
-        <section className="reports-hero-panel" style={{ gap: '8px' }}>
+        <section id="occupancyWeekStrip" className="reports-hero-panel" style={{ gap: '8px' }}>
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Comportamiento diario</span>
@@ -409,7 +426,7 @@ export default function ReportsOcupacion({ onClose }) {
         </section>
 
         {/* ── Day Detail ── */}
-        <section className="reports-hero-panel" style={{ gap: '10px' }}>
+        <section id="occupancyDayDetail" className="reports-hero-panel" style={{ gap: '10px' }}>
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Foco del día</span>
@@ -436,7 +453,7 @@ export default function ReportsOcupacion({ onClose }) {
 
 
         {/* ── Events Table ── */}
-        <section className="reports-hero-panel" style={{ gap: '8px' }}>
+        <section id="occupancyTable" className="reports-hero-panel" style={{ gap: '8px' }}>
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Operación Detallada</span>
@@ -493,7 +510,7 @@ export default function ReportsOcupacion({ onClose }) {
 
                   return (
                     <tr key={r.eventId}>
-                      <td style={{ fontWeight: 700 }}>{ev.quote?.phone || ev.clientPhone || '-'}</td>
+                      <td style={{ fontWeight: 700 }}>{ev.quote?.contact || ev.quote?.managerName || ev.quote?.companyName || ev.clientPhone || ev.quote?.phone || '-'}</td>
                       <td>{r.seller || '-'}</td>
                       <td>
                         {hasQuote ? (

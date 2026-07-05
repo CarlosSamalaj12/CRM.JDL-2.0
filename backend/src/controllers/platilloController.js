@@ -10,6 +10,9 @@ function normalizeTipo(tipo) {
   if (t === 'postres' || t === 'postre') return 'postre';
   if (t === 'bebidas' || t === 'bebida') return 'bebida';
   if (t === 'entradas' || t === 'entrada') return 'entradas';
+  if (t === 'refacción' || t === 'refaccion' || t === 'refacciones') return 'refacción';
+  if (t === 'boquita' || t === 'boquitas') return 'boquita';
+  if (t === 'desayuno' || t === 'desayunos') return 'desayuno';
   if (t === 'tortilla_pan' || t === 'otros' || t === 'otro') return 'entradas';
   return 'entradas';
 }

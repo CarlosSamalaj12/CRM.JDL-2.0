@@ -355,7 +355,7 @@ export default function ReportsInstitucion({ onClose }) {
               {!!search && (
                 <div className="institutionSearchResults">
                   {visibleCompanyOptions.slice(0, 5).map((company) => (
-                    <button key={company.token} type="button" className="btn" onClick={() => setCompanyToken(company.token)}>{company.name}</button>
+                    <button key={company.token} type="button" onClick={() => { setCompanyToken(company.token); setSearch(''); }}>{company.name}</button>
                   ))}
                 </div>
               )}

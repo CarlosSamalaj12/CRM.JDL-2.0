@@ -276,33 +276,70 @@ export default function ReportsOcupacionBarras({ onClose }) {
               <button type="button" onClick={handleReset}>Mes Actual</button>
             </div>
 
-            {/* Mini KPI chips */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📅 <strong style={{ color: '#0f172a' }}>{monthList.length}</strong> {monthList.length === 1 ? 'mes' : 'meses'}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                🧑 <strong style={{ color: '#0f172a' }}>{totalPax.toLocaleString()}</strong> PAX total
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📊 <strong style={{ color: '#0f172a' }}>{activeMonths}</strong> {activeMonths === 1 ? 'mes activo' : 'meses activos'}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📈 Prom. <strong style={{ color: '#0f172a' }}>{avgMonthly.toFixed(0)}</strong> PAX/mes
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                🏭 Cap. <strong style={{ color: '#0f172a' }}>{(totalMarkedCapacity).toLocaleString()}</strong> PAX/día
-              </span>
+            {/* Metric Cards */}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+              {[
+                { icon: '📅', label: 'Meses', value: `${monthList.length}`, sub: monthList.length === 1 ? 'mes' : 'meses', color: '#6366f1' },
+                { icon: '🧑', label: 'PAX total', value: totalPax.toLocaleString(), sub: `${activeMonths} activo(s)`, color: '#10b981' },
+                { icon: '📈', label: 'Promedio', value: `${avgMonthly.toFixed(0)}`, sub: 'PAX/mes', color: '#f59e0b' },
+                { icon: '🏭', label: 'Capacidad', value: totalMarkedCapacity.toLocaleString(), sub: 'PAX/día', color: '#3b82f6' },
+                { icon: '🎯', label: 'Utilización', value: `${paxUtilPct.toFixed(1)}%`, sub: 'global', color: '#ec4899' },
+              ].map((metric, idx) => (
+                <div key={idx} style={{
+                  background: `linear-gradient(135deg, ${metric.color}08, ${metric.color}02)`,
+                  border: `1px solid ${metric.color}20`,
+                  borderRadius: '10px', padding: '10px 14px',
+                  minWidth: '100px',
+                  display: 'flex', flexDirection: 'column', gap: '2px',
+                  transition: 'all 0.2s ease',
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 12px ${metric.color}20`; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '14px' }}>{metric.icon}</span>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: metric.color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{metric.label}</span>
+                  </div>
+                  <strong style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', lineHeight: 1.1 }}>{metric.value}</strong>
+                  <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600 }}>{metric.sub}</span>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         {/* ── Storytelling ── */}
-        <div className="reports-storytelling-card" style={sectionStyle(200)}>
-          <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Análisis del período</span>
-          <p className="reports-story-text">
-            En el rango del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> hay <strong className="highlight-blue">{totalPax.toLocaleString()}</strong> PAX distribuidos en <strong className="highlight-slate">{totalEvents}</strong> eventos sobre <strong className="highlight-slate">{activeMonths}</strong> {activeMonths === 1 ? 'mes activo' : 'meses activos'}, de un total de <strong className="highlight-slate">{monthList.length}</strong> {monthList.length === 1 ? 'mes' : 'meses'}. La capacidad total diaria de los salones que influyen es de <strong className="highlight-accent">{totalMarkedCapacity.toLocaleString()}</strong> PAX/día. El mes pico fue <strong className="highlight-blue">{peakMonth.monthName}</strong> con <strong className="highlight-green">{peakMonth.totalPax.toLocaleString()}</strong> PAX ({peakMonth.pct.toFixed(1)}% de su capacidad mensual). La utilización global del período es del <strong className="highlight-blue">{paxUtilPct.toFixed(1)}%</strong> con un promedio de <strong className="highlight-accent">{avgMonthly.toFixed(0)}</strong> PAX/mes.
-          </p>
+        <div className="reports-storytelling-card" style={{ ...sectionStyle(200), padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 320px', minWidth: '200px' }}>
+              <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '6px' }}>Análisis del período</span>
+              <p className="reports-story-text" style={{ margin: 0, lineHeight: 1.7 }}>
+                Del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> ·
+                <strong className="highlight-blue"> {totalPax.toLocaleString()} PAX</strong> en <strong>{totalEvents} eventos</strong>
+                sobre <strong>{activeMonths}</strong> {activeMonths === 1 ? 'mes activo' : 'meses activos'} de {monthList.length}.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #0f172a, #1e293b)',
+                color: '#fff', borderRadius: '10px', padding: '10px 18px',
+                textAlign: 'center', minWidth: '120px',
+              }}>
+                <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>Mes pico</div>
+                <div style={{ fontSize: '15px', fontWeight: 900, marginTop: '2px' }}>{peakMonth.monthName}</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#10b981' }}>{peakMonth.totalPax.toLocaleString()} PAX · {peakMonth.pct.toFixed(1)}%</div>
+              </div>
+              <div style={{
+                background: 'linear-gradient(135deg, #065f46, #059669)',
+                color: '#fff', borderRadius: '10px', padding: '10px 18px',
+                textAlign: 'center', minWidth: '120px',
+              }}>
+                <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6ee7b7' }}>Utilización global</div>
+                <div style={{ fontSize: '24px', fontWeight: 900, marginTop: '2px', lineHeight: 1 }}>{paxUtilPct.toFixed(1)}%</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#6ee7b7' }}>{avgMonthly.toFixed(0)} PAX/mes prom.</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ── Bar Chart ── */}
@@ -413,7 +450,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
                       {/* The bar */}
                       <div style={{
                         width: '100%',
-                        height: `${Math.max(d.pct > 0 ? Math.max(4, d.pct) : 0, d.pct > 0 ? 4 : 0)}%`,
+                        height: `${d.pct > 0 ? Math.max(4, d.pct) : 0}%`,
                         background: d.pct === 0 ? '#f1f5f9' : `linear-gradient(180deg, ${barColor}, ${barColor}dd)`,
                         borderRadius: '4px 4px 0 0',
                         transition: 'opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, transform 0.15s ease',
