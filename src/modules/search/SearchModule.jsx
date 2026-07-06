@@ -244,7 +244,7 @@ export default function SearchModule() {
                       const docCode = ev.quote?.code || ev.id?.substring(0, 12) || '-';
                       const isMultiSalon = ev._subEvents.length > 1;
                       return (
-                        <tr key={targetId}>
+                        <tr key={ev.id}>
                           <td>
                             <span className="search-doc-code">{docCode}</span>
                           </td>
