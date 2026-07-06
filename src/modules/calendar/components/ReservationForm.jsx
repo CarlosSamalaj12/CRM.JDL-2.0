@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useOutletContext, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { STATUS_META_LIST, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
@@ -426,8 +426,14 @@ const StatusSelectCustom = ({ value, options, onChange, disabled, size = 'sm' })
 export default function ReservationForm() {
   const { events, salones, users, handleAddEvent, refreshData } = useOutletContext();
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+
+  const handleBack = useCallback(() => {
+    const fromSearch = location.state?.from === 'search';
+    navigate(fromSearch ? '/search' : '/calendar');
+  }, [navigate, location]);
 
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -897,7 +903,7 @@ export default function ReservationForm() {
       }
 
       showNotification('Mantenimiento guardado', 'success');
-      setTimeout(() => navigate('/calendar'), 1000);
+      setTimeout(handleBack, 1000);
     } catch {
       showNotification('Error al guardar mantenimiento', 'error');
       setSaving(false);
@@ -937,7 +943,7 @@ export default function ReservationForm() {
       }
 
       showNotification('Mantenimiento liberado: salón disponible', 'success');
-      setTimeout(() => navigate('/calendar'), 1000);
+      setTimeout(handleBack, 1000);
     } catch {
       showNotification('Error al liberar mantenimiento', 'error');
       setSaving(false);
@@ -974,7 +980,7 @@ export default function ReservationForm() {
         quote: existingEvent?.quote || undefined
       });
       showNotification('Evento cancelado');
-      setTimeout(() => navigate('/calendar'), 1000);
+      setTimeout(handleBack, 1000);
     } catch {
       showNotification('Error al cancelar', 'error');
     }
@@ -1116,7 +1122,7 @@ export default function ReservationForm() {
       }
 
       showNotification(moveToFollowUp ? 'Cambios guardados. Estado a Seguimiento.' : (id ? 'Cambios guardados' : 'Reserva creada'));
-      setTimeout(() => navigate('/calendar'), 1000);
+      setTimeout(handleBack, 1000);
     } catch {
       showNotification('Error al guardar', 'error');
       setSaving(false);
@@ -1163,7 +1169,7 @@ export default function ReservationForm() {
         </div>
         
         <button
-          onClick={() => navigate('/calendar')}
+          onClick={handleBack}
           onMouseEnter={() => setIsCloseHovered(true)}
           onMouseLeave={() => { setIsCloseHovered(false); setIsCloseActive(false); }}
           onMouseDown={() => setIsCloseActive(true)}

@@ -29,18 +29,41 @@ export default function SearchModule() {
   }
   const { events = [], users = [], salones = [] } = outlet;
 
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [salonFilter, setSalonFilter] = useState('all');
-  const [userFilter, setUserFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '');
+  const [debouncedQuery, setDebouncedQuery] = useState(() => sessionStorage.getItem('search_query') || '');
+  const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem('search_status') || 'all');
+  const [salonFilter, setSalonFilter] = useState(() => sessionStorage.getItem('search_salon') || 'all');
+  const [userFilter, setUserFilter] = useState(() => sessionStorage.getItem('search_user') || 'all');
+  const [dateFrom, setDateFrom] = useState(() => sessionStorage.getItem('search_date_from') || '');
+  const [dateTo, setDateTo] = useState(() => sessionStorage.getItem('search_date_to') || '');
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+      sessionStorage.setItem('search_query', query);
+    }, 300);
     return () => clearTimeout(timer);
   }, [query]);
+
+  useEffect(() => {
+    sessionStorage.setItem('search_status', statusFilter);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('search_salon', salonFilter);
+  }, [salonFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('search_user', userFilter);
+  }, [userFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('search_date_from', dateFrom);
+  }, [dateFrom]);
+
+  useEffect(() => {
+    sessionStorage.setItem('search_date_to', dateTo);
+  }, [dateTo]);
 
   const groupedEvents = useMemo(() => {
     if (!events) return [];
@@ -116,6 +139,12 @@ export default function SearchModule() {
     setUserFilter('all');
     setDateFrom('');
     setDateTo('');
+    sessionStorage.removeItem('search_query');
+    sessionStorage.removeItem('search_status');
+    sessionStorage.removeItem('search_salon');
+    sessionStorage.removeItem('search_user');
+    sessionStorage.removeItem('search_date_from');
+    sessionStorage.removeItem('search_date_to');
   };
 
   const getStatusColor = (status) => STATUS_META[status]?.color || '#64748b';
@@ -285,7 +314,7 @@ export default function SearchModule() {
                             </span>
                           </td>
                           <td className="center">
-                            <button className="search-view-btn" onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`)}>
+                            <button className="search-view-btn" onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search' } })}>
                               Ver
                             </button>
                           </td>
