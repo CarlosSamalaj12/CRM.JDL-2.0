@@ -13,22 +13,12 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
-import LoadingSpinner from '../../../components/LoadingSpinner';
 
 const pastEventEditAuthorizedKeys = new Set();
 
 function reservationKeyFromEvent(ev) {
   if (!ev) return "";
   return String(ev.groupId || ev.id || "").trim();
-}
-
-function getSeriesForEvent(events = [], eventId = '') {
-  const target = events.find(ev => String(ev.id) === String(eventId));
-  if (!target) return [];
-  const groupId = String(target.groupId || '').trim();
-  if (!groupId) return [target];
-  const series = events.filter(ev => String(ev.groupId || '').trim() === groupId);
-  return series.length ? series : [target];
 }
 
 function isEventSeriesInPast(events = [], eventId = '', graceDays = 0) {
@@ -40,28 +30,13 @@ function isEventSeriesInPast(events = [], eventId = '', graceDays = 0) {
   }, '');
   if (!lastDate) return false;
   const now = new Date();
+  now.setDate(now.getDate() - graceDays);
   const pad = (n) => String(n).padStart(2, '0');
-  const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-
-  if (graceDays <= 0) {
-    return lastDate < todayIso;
-  }
-
-  const graceDate = new Date(now);
-  graceDate.setDate(graceDate.getDate() - graceDays);
-  const graceDateIso = `${graceDate.getFullYear()}-${pad(graceDate.getMonth() + 1)}-${pad(graceDate.getDate())}`;
-
-  return lastDate < graceDateIso;
+  const cutoffIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return lastDate < cutoffIso;
 }
 
-function getAdminCode() {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  return `${dd}${mm}`;
-}
-
-async function requestPastEventEditAuthorization(ev, onAuth) {
+async function requestPastEventEditAuthorization(ev) {
   const key = reservationKeyFromEvent(ev);
   if (!key) return false;
   if (pastEventEditAuthorizedKeys.has(key)) return true;
@@ -70,6 +45,11 @@ async function requestPastEventEditAuthorization(ev, onAuth) {
     document.activeElement.blur();
   }
   await new Promise(resolve => setTimeout(resolve, 0));
+
+  const root = document.getElementById('root');
+  const prevRootAria = root ? root.getAttribute('aria-hidden') : null;
+  if (root) root.removeAttribute('aria-hidden');
+
   const result = await Swal.fire({
     icon: "warning",
     title: "Evento de fecha pasada",
@@ -87,20 +67,28 @@ async function requestPastEventEditAuthorization(ev, onAuth) {
       if (!String(value || "").trim()) return "Ingresa el codigo.";
       return null;
     },
-    didOpen: () => {
-      const c = Swal.getContainer();
-      if (c) c.style.setProperty('z-index', '10000001', 'important');
-    },
+    target: document.body,
+    zIndex: 200000,
+    didOpen: (popup) => {
+      if (popup?.parentElement) popup.parentElement.style.zIndex = '9999999';
+    }
   });
+
+  if (root && prevRootAria !== null) root.setAttribute('aria-hidden', prevRootAria);
 
   if (!result.isConfirmed) return false;
   const code = String(result.value || "").trim();
 
-  if (code !== getAdminCode()) {
+  if (code !== "JDL-ADMIN-2026") {
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
       document.activeElement.blur();
     }
     await new Promise(resolve => setTimeout(resolve, 0));
+
+    const root2 = document.getElementById('root');
+    const prevRootAria2 = root2 ? root2.getAttribute('aria-hidden') : null;
+    if (root2) root2.removeAttribute('aria-hidden');
+
     await Swal.fire({
       icon: "error",
       title: "Codigo invalido",
@@ -108,16 +96,18 @@ async function requestPastEventEditAuthorization(ev, onAuth) {
       background: "#f8fbff",
       color: "#10243b",
       confirmButtonColor: "#2563eb",
-      didOpen: () => {
-        const c = Swal.getContainer();
-        if (c) c.style.setProperty('z-index', '10000001', 'important');
-      },
+      target: document.body,
+      zIndex: 200000,
+      didOpen: (popup) => {
+        if (popup?.parentElement) popup.parentElement.style.zIndex = '9999999';
+      }
     });
+
+    if (root2 && prevRootAria2 !== null) root2.setAttribute('aria-hidden', prevRootAria2);
     return false;
   }
 
   pastEventEditAuthorizedKeys.add(key);
-  if (onAuth) onAuth(key);
   return true;
 }
 
@@ -158,6 +148,15 @@ const MAINTENANCE_STATUSES = ['Mantenimiento', 'Mantenimiento Realizado'];
 
 function isMaintenanceStatus(status) {
   return MAINTENANCE_STATUSES.includes(status);
+}
+
+function getSeriesForEvent(events = [], eventId = '') {
+  const target = events.find(ev => String(ev.id) === String(eventId));
+  if (!target) return [];
+  const groupId = String(target.groupId || '').trim();
+  if (!groupId) return [target];
+  const series = events.filter(ev => String(ev.groupId || '').trim() === groupId);
+  return series.length ? series : [target];
 }
 
 function slotsFromEventSeries(series = [], fallbackEvent = null) {
@@ -438,32 +437,6 @@ export default function ReservationForm() {
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, type: null, message: '', title: '', isDanger: true });
   const [isCloseHovered, setIsCloseHovered] = useState(false);
   const [isCloseActive, setIsCloseActive] = useState(false);
-  const [pastEventEditGraceDays, setPastEventEditGraceDays] = useState(0);
-  const [graceDaysLoaded, setGraceDaysLoaded] = useState(false);
-  const [authKey, setAuthKey] = useState(null);
-  const lastLoadedIdRef = useRef(null);
-
-  useEffect(() => {
-    const loadGraceDays = async () => {
-      try {
-        const state = await loadCrmState();
-        setPastEventEditGraceDays(Number(state.pastEventEditGraceDays || 0));
-        setGraceDaysLoaded(true);
-      } catch (err) {
-        console.error('Error loading pastEventEditGraceDays:', err);
-        setGraceDaysLoaded(true);
-      }
-    };
-    loadGraceDays();
-    const handleStateUpdate = () => loadGraceDays();
-    window.addEventListener('stateUpdated', handleStateUpdate);
-    return () => window.removeEventListener('stateUpdated', handleStateUpdate);
-  }, []);
-
-  const handlePastEventAuth = useCallback((key) => {
-    pastEventEditAuthorizedKeys.add(key);
-    setAuthKey(key);
-  }, []);
 
   const urlDate = searchParams.get('date');
   const urlEndDate = searchParams.get('endDate') || urlDate;
@@ -471,8 +444,8 @@ export default function ReservationForm() {
   const urlEnd = searchParams.get('end');
   const urlOpenAdvances = searchParams.get('openAdvances') === 'true';
 
-  const defaultDate = urlDate || new Date().toISOString().split('T')[0];
-  const defaultEndDate = urlEndDate || defaultDate;
+  const getDefaultDate = useCallback(() => urlDate || new Date().toISOString().split('T')[0], [urlDate]);
+  const getDefaultEndDate = useCallback(() => urlEndDate || getDefaultDate(), [urlEndDate, getDefaultDate]);
 
   const getCurrentUserId = () => {
     const currentUser = authService.getCurrentUser();
@@ -483,22 +456,26 @@ export default function ReservationForm() {
     name: '',
     salon: '',
     status: 'Reserva sin Cotizacion',
-    date: defaultDate,
-    endDate: defaultEndDate,
+    date: getDefaultDate(),
+    endDate: getDefaultEndDate(),
     startTime: urlStart || '10:00',
     endTime: urlEnd || '12:00',
     pax: '',
+    paxCompartido: null,
     notes: '',
     userId: getCurrentUserId(),
     quote: null
   });
 
   const [slots, setSlots] = useState([
-    { salon: '', pax: '', dateStart: defaultDate, dateEnd: defaultEndDate, startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion' }
+    { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion' }
   ]);
 
   const [saving, setSaving] = useState(false);
-  const [savingMsg, setSavingMsg] = useState('');
+
+  const [salonCapacities, setSalonCapacities] = useState({});
+  const [pastEventEditGraceDays, setPastEventEditGraceDays] = useState(null);
+  const [pastEventCheckDone, setPastEventCheckDone] = useState(false);
 
   const labelStyle = {
     display: 'block',
@@ -516,28 +493,51 @@ export default function ReservationForm() {
     boxSizing: 'border-box',
   };
 
+  const stateLoadedRef = useRef(false);
+
+  useEffect(() => {
+    const fetchState = async () => {
+      try {
+        const data = await loadCrmState();
+        if (data?.salonCapacities) {
+          setSalonCapacities(data.salonCapacities);
+        }
+        const graceDays = data?.pastEventEditGraceDays !== undefined ? Number(data.pastEventEditGraceDays) : 0;
+        setPastEventEditGraceDays(graceDays);
+        stateLoadedRef.current = true;
+      } catch (err) {
+        console.error("Error loading capacities:", err);
+      }
+    };
+    fetchState();
+  }, []);
+
   useEffect(() => {
     let active = true;
     const checkPastEvent = async () => {
-      if (!graceDaysLoaded) return;
+      setPastEventCheckDone(false);
+      if (!stateLoadedRef.current) {
+        if (active) setPastEventCheckDone(true);
+        return;
+      }
       if (id && events && events.length > 0) {
         const existingEvent = events.find(ev => String(ev.id) === String(id));
         if (existingEvent && isEventSeriesInPast(events, id, pastEventEditGraceDays)) {
           const key = reservationKeyFromEvent(existingEvent);
           if (key && !pastEventEditAuthorizedKeys.has(key)) {
-            const auth = await requestPastEventEditAuthorization(existingEvent, handlePastEventAuth);
+            const auth = await requestPastEventEditAuthorization(existingEvent);
             if (!auth && active) {
               navigate('/calendar');
+              return;
             }
           }
         }
       }
+      if (active) setPastEventCheckDone(true);
     };
     checkPastEvent();
-    return () => {
-      active = false;
-    };
-  }, [id, events, navigate, pastEventEditGraceDays, authKey, handlePastEventAuth, graceDaysLoaded]);
+    return () => { active = false; };
+  }, [id, events, navigate, pastEventEditGraceDays]);
 
   const comparableEvents = useMemo(() => {
     if (!id) return events || [];
@@ -563,12 +563,7 @@ export default function ReservationForm() {
 
 
   useEffect(() => {
-    if (id) {
-      // Skip if we already loaded this event — prevents reset on every data refresh
-      if (id === lastLoadedIdRef.current) return;
-      // Wait for events data to be available before initializing
-      if (!events) return;
-
+    if (id && events) {
       const existingEvent = events.find(ev => String(ev.id) === String(id));
       if (existingEvent) {
         const series = getSeriesForEvent(events, id);
@@ -577,21 +572,24 @@ export default function ReservationForm() {
         const firstDate = series.reduce((min, ev) => {
           const date = String(ev.date || '');
           return date && (!min || date < min) ? date : min;
-        }, existingEvent.date || defaultDate);
+        }, existingEvent.date || getDefaultDate());
         const lastDate = series.reduce((max, ev) => {
           const date = String(ev.date || '');
           return date && (!max || date > max) ? date : max;
-        }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || defaultDate);
+        }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || getDefaultDate());
         const totalPaxFromSlots = seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
         setFormData({
           name: existingEvent.name || '',
           salon: firstSlot.salon || existingEvent.salon || '',
           status: existingEvent.status || 'Reserva sin Cotizacion',
-          date: existingEvent.eventDateStart || firstDate || defaultDate,
-          endDate: existingEvent.eventDateEnd || lastDate || existingEvent.date || defaultDate,
+          date: existingEvent.eventDateStart || firstDate || getDefaultDate(),
+          endDate: existingEvent.eventDateEnd || lastDate || existingEvent.date || getDefaultDate(),
           startTime: firstSlot.startTime || existingEvent.startTime || '10:00',
           endTime: firstSlot.endTime || existingEvent.endTime || '12:00',
           pax: totalPaxFromSlots || existingEvent.pax || '',
+          paxCompartido: existingEvent.paxCompartido !== undefined && existingEvent.paxCompartido !== null
+            ? (existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1)
+            : false,
           notes: existingEvent.notes || '',
           userId: existingEvent.userId || '',
           quote: existingEvent.quote || null
@@ -603,28 +601,25 @@ export default function ReservationForm() {
           setSlots([{
             salon: existingEvent.salon || (salones?.length > 0 ? salones[0] : ''),
             pax: existingEvent.pax || '',
-            dateStart: existingEvent.date || defaultDate,
-            dateEnd: existingEvent.endDate || existingEvent.date || defaultDate,
+            dateStart: existingEvent.date || getDefaultDate(),
+            dateEnd: existingEvent.endDate || existingEvent.date || getDefaultDate(),
             startTime: existingEvent.startTime || '10:00',
             endTime: existingEvent.endTime || '12:00',
             status: existingEvent.status || 'Reserva sin Cotizacion'
           }]);
         }
-
-        // Mark as initialized ONLY after successful form population
-        lastLoadedIdRef.current = id;
       }
     } else {
-      lastLoadedIdRef.current = null;
       setFormData({
         name: '',
         salon: salones?.length > 0 ? salones[0] : '',
         status: 'Reserva sin Cotizacion',
-        date: defaultDate,
-        endDate: defaultEndDate,
+        date: getDefaultDate(),
+        endDate: getDefaultEndDate(),
         startTime: urlStart || '10:00',
         endTime: urlEnd || '12:00',
         pax: '',
+        paxCompartido: null,
         notes: '',
         userId: getCurrentUserId(),
         quote: null
@@ -632,14 +627,14 @@ export default function ReservationForm() {
       setSlots([{
         salon: salones?.length > 0 ? salones[0] : '',
         pax: '',
-        dateStart: defaultDate,
-        dateEnd: defaultEndDate,
+        dateStart: getDefaultDate(),
+        dateEnd: getDefaultEndDate(),
         startTime: urlStart || '10:00',
         endTime: urlEnd || '12:00',
         status: 'Reserva sin Cotizacion'
       }]);
     }
-  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd]);
+  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate]);
 
   useEffect(() => {
     if (urlOpenAdvances && id) {
@@ -787,6 +782,7 @@ export default function ReservationForm() {
     if (!isMaintenanceMode) {
       const totalPax = syncEventPaxFromSlots();
       if (!totalPax || totalPax <= 0) issues.push('PAX total debe ser mayor a 0');
+      if (formData.paxCompartido === null) issues.push('Tipo PAX: selecciona Compartido o No Compartido');
     }
 
     if (!slots.length) issues.push('Debes seleccionar al menos un salón y horario');
@@ -837,7 +833,7 @@ export default function ReservationForm() {
 
     setValidationErrors(issues);
     return { ok: issues.length === 0, issues };
-  }, [formData, slots, syncEventPaxFromSlots, id]);
+  }, [formData, slots, syncEventPaxFromSlots, id, salonCapacities]);
 
   const handleMaintenance = async () => {
     if (saving) return;
@@ -871,7 +867,6 @@ export default function ReservationForm() {
       return;
     }
 
-    setSavingMsg('Guardando mantenimiento...');
     setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
@@ -911,7 +906,6 @@ export default function ReservationForm() {
 
   const handleReleaseMaintenance = async () => {
     if (saving) return;
-    setSavingMsg('Liberando mantenimiento...');
     setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
@@ -970,8 +964,6 @@ export default function ReservationForm() {
 
   const executeCancelEvent = async () => {
     setConfirmConfig(prev => ({ ...prev, isOpen: false }));
-    setSavingMsg('Cancelando evento...');
-    setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
       await handleAddEvent({
@@ -985,7 +977,6 @@ export default function ReservationForm() {
       setTimeout(() => navigate('/calendar'), 1000);
     } catch {
       showNotification('Error al cancelar', 'error');
-      setSaving(false);
     }
   };
 
@@ -1020,8 +1011,6 @@ export default function ReservationForm() {
   };
 
   const handleQuoteSave = async (quoteData, options = {}) => {
-    setSavingMsg('Guardando cotización...');
-    setSaving(true);
     try {
       const currentEvent = events.find(ev => String(ev.id) === String(id));
       const previousQuote = currentEvent?.quote || null;
@@ -1052,8 +1041,6 @@ export default function ReservationForm() {
       if (!options?.keepOpen) setShowQuoteModal(false);
     } catch {
       showNotification('Error al guardar cotizacion', 'error');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -1092,7 +1079,6 @@ export default function ReservationForm() {
       return;
     }
 
-    setSavingMsg('Guardando reserva...');
     setSaving(true);
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
@@ -1146,6 +1132,14 @@ export default function ReservationForm() {
   ];
 
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === formData.status);
+
+  if (!pastEventCheckDone) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', background: '#f8fafc' }}>
+        <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Verificando...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
@@ -1442,9 +1436,80 @@ export default function ReservationForm() {
                   </div>
                 </div>
 
-                <div style={{ marginTop: '12px', padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #bfdbfe' }}>
-                  <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e40af' }}>PAX TOTAL:</span>
-                  <span style={{ fontSize: '16.5px', fontWeight: '900', color: '#1e40af' }}>{isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)}</span>
+                <div style={{ marginTop: '12px', padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e40af' }}>PAX TOTAL:</span>
+                    <span style={{ fontSize: '16.5px', fontWeight: '900', color: '#1e40af' }}>{isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)}</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '6px 0 2px 0',
+                    borderTop: '1px solid #bfdbfe'
+                  }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569', whiteSpace: 'nowrap' }}>
+                      Tipo PAX:
+                    </span>
+                    <div style={{
+                      display: 'flex',
+                      borderRadius: '20px',
+                      overflow: 'hidden',
+                      border: '1.5px solid',
+                      borderColor: formData.paxCompartido === null ? '#f97316' : '#e2e8f0',
+                      boxShadow: formData.paxCompartido === null ? '0 0 0 3px rgba(249,115,22,0.15)' : 'none',
+                      transition: 'box-shadow 0.2s'
+                    }}>
+                      <div
+                        onClick={() => setFormData(prev => ({ ...prev, paxCompartido: true }))}
+                        style={{
+                          padding: '5px 18px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          background: formData.paxCompartido === true ? '#005954' : '#f8fafc',
+                          color: formData.paxCompartido === true ? 'white' : '#475569',
+                          transition: 'all 0.2s',
+                          userSelect: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        {formData.paxCompartido === true && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        )}
+                        Compartido
+                      </div>
+                      <div style={{ width: '1px', background: formData.paxCompartido === null ? '#f97316' : '#e2e8f0' }} />
+                      <div
+                        onClick={() => setFormData(prev => ({ ...prev, paxCompartido: false }))}
+                        style={{
+                          padding: '5px 18px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          background: formData.paxCompartido === false ? '#2563eb' : '#f8fafc',
+                          color: formData.paxCompartido === false ? 'white' : '#475569',
+                          transition: 'all 0.2s',
+                          userSelect: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        {formData.paxCompartido === false && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        )}
+                        No Compartido
+                      </div>
+                    </div>
+                    {formData.paxCompartido === null && (
+                      <span style={{ fontSize: '11px', color: '#f97316', fontWeight: '600' }}>Obligatorio</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1765,7 +1830,7 @@ export default function ReservationForm() {
       `}</style>
 
       {showAppointmentModal && id && (
-        <div id="appointmentBackdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()}>
             <AppointmentModal eventId={id} eventName={formData.name} onClose={() => setShowAppointmentModal(false)} onSaved={refreshData} />
           </div>
@@ -1817,11 +1882,6 @@ export default function ReservationForm() {
         onConfirm={onConfirmAction}
         onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
       />
-
-      {saving && createPortal(
-        <LoadingSpinner mensaje={savingMsg} />,
-        document.body
-      )}
     </div>
   );
 }

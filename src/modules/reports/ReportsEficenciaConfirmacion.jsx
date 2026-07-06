@@ -20,6 +20,10 @@ function daysInMonth(year, month) {
 
 export default function ReportsEficenciaConfirmacion({ onClose }) {
   const { events, users } = useOutletContext();
+  const sellerUsers = useMemo(() => (users || []).filter(u => {
+    const r = String(u.role || '').toLowerCase();
+    return r === 'vendedor' || r === 'admin';
+  }), [users]);
 
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -61,8 +65,9 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     const from = monthList[0].key + '-01';
     const to = monthList[monthList.length - 1].key + '-' + String(monthList[monthList.length - 1].daysInMonth).padStart(2, '0');
 
-    // Aggregate by userId
+    // Aggregate by userId (deduplicando por groupId)
     const userAgg = {}; // { userId: { count, totalAmount, monthBreakdown: { "YYYY-MM": { count, amount } } } }
+    const seenReservations = new Set();
 
     for (const ev of events) {
       const d = String(ev.date || '');
@@ -72,6 +77,10 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
       if (userFilter !== 'all' && userId !== userFilter) continue;
+
+      const groupKey = ev.groupId || ev.id;
+      if (seenReservations.has(groupKey)) continue;
+      seenReservations.add(groupKey);
 
       const monthKey = d.substring(0, 7);
       const amount = Math.max(0, Number(ev.quote?.total || 0));
@@ -359,7 +368,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
                 background: 'white', cursor: 'pointer',
               }}>
                 <option value="all">Todos</option>
-                {users?.map(u => (
+                {sellerUsers.map(u => (
                   <option key={u.id} value={String(u.id)}>{u.fullName || u.name || u.username}</option>
                 ))}
               </select>

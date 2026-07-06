@@ -55,6 +55,10 @@ function calcCommission(totalSales, tiers) {
 
 export default function ReportsComisiones({ onClose }) {
   const { events, users } = useOutletContext();
+  const sellerUsers = useMemo(() => (users || []).filter(u => {
+    const r = String(u.role || '').toLowerCase();
+    return r === 'vendedor' || r === 'admin';
+  }), [users]);
 
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -97,8 +101,9 @@ export default function ReportsComisiones({ onClose }) {
     const from = monthList[0].key + '-01';
     const to = monthList[monthList.length - 1].key + '-' + String(monthList[monthList.length - 1].daysInMonth).padStart(2, '0');
 
-    // Aggregate sales by userId
+    // Aggregate sales by userId (deduplicando por groupId igual que Reporte de Ventas)
     const salesByUser = {};
+    const seenReservations = new Set();
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < from || d > to) continue;
@@ -109,6 +114,11 @@ export default function ReportsComisiones({ onClose }) {
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
       if (userFilter !== 'all' && userId !== userFilter) continue;
+
+      // Deduplicar por groupId: eventos multi-salón solo cuentan 1 vez
+      const groupKey = ev.groupId || ev.id;
+      if (seenReservations.has(groupKey)) continue;
+      seenReservations.add(groupKey);
 
       salesByUser[userId] = (salesByUser[userId] || 0) + amount;
     }
@@ -122,19 +132,17 @@ export default function ReportsComisiones({ onClose }) {
     for (const user of users) {
       const userId = String(user.id).trim();
       if (!userId) continue;
-      const salesAmount = salesByUser[userId] || 0;
       const tiers = Array.isArray(user.goalTiers) ? user.goalTiers.filter(t => t.amount > 0) : [];
-      const hasTiers = tiers.length > 0;
+      if (tiers.length === 0) continue;
 
-      const { reachedTier, commissionAmount, nextTier, progressToNext } = hasTiers
-        ? calcCommission(salesAmount, tiers)
-        : { reachedTier: null, commissionAmount: 0, nextTier: null, progressToNext: 0 };
+      const salesAmount = salesByUser[userId] || 0;
+      const { reachedTier, commissionAmount, nextTier, progressToNext } = calcCommission(salesAmount, tiers);
 
       rows.push({
         userId,
         name: user.fullName || user.name || userId,
         salesAmount,
-        hasTiers: hasTiers && tiers.length > 0,
+        hasTiers: true,
         tiers,
         reachedTier,
         commissionAmount,
@@ -145,7 +153,7 @@ export default function ReportsComisiones({ onClose }) {
 
       totalSales += salesAmount;
       totalCommission += commissionAmount;
-      if (hasTiers && tiers.length > 0) totalUsersWithTiers++;
+      totalUsersWithTiers++;
     }
 
     // Sort: users with sales first, then by commission amount desc
@@ -361,7 +369,7 @@ export default function ReportsComisiones({ onClose }) {
                 background: 'white', cursor: 'pointer',
               }}>
                 <option value="all">Todos</option>
-                {users?.map(u => (
+                {sellerUsers.map(u => (
                   <option key={u.id} value={String(u.id)}>{u.fullName || u.name || u.username}</option>
                 ))}
               </select>

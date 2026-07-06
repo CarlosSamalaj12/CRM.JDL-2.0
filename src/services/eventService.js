@@ -58,10 +58,14 @@ function expandEventSlots(eventData, existingEvent = null) {
     return rawId.length <= 70 ? rawId : rawId.slice(0, 65) + '_' + Math.random().toString(16).slice(2, 6);
   };
 
+  const isSharedPax = eventData.paxCompartido === true;
   slots.forEach((slot, slotIndex) => {
     const slotDates = normalizeDateRange(slot.dateStart || eventDateStart, slot.dateEnd || slot.dateStart || eventDateEnd || eventDateStart);
     slotDates.forEach((date, dateIndex) => {
       const isFirst = slotIndex === 0 && dateIndex === 0;
+      const slotPaxVal = slot.pax === '' || slot.pax === null || slot.pax === undefined
+        ? null
+        : Math.max(0, Number(slot.pax || 0));
       expanded.push({
         ...eventData,
         id: makeExpandedId(baseId, slotIndex, date, isFirst),
@@ -76,10 +80,11 @@ function expandEventSlots(eventData, existingEvent = null) {
         startTime: slot.startTime || eventData.startTime,
         endTime: slot.endTime || eventData.endTime,
         status: slot.status || eventData.status || 'Reserva sin Cotizacion',
-        pax: slot.pax === '' || slot.pax === null || slot.pax === undefined
+        pax: isSharedPax
           ? (Number.isFinite(totalPax) && totalPax > 0 ? totalPax : null)
-          : Math.max(0, Number(slot.pax || 0)),
-        slotPax: slot.pax === '' || slot.pax === null || slot.pax === undefined ? null : Math.max(0, Number(slot.pax || 0)),
+          : (slotPaxVal ?? (Number.isFinite(totalPax) && totalPax > 0 ? totalPax : null)),
+        slotPax: slotPaxVal,
+        paxCompartido: isSharedPax,
         slots: undefined,
       });
     });

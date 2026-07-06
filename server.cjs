@@ -715,6 +715,40 @@ async function ensureEventDateRangeStructure() {
   }
 }
 
+async function ensurePaxCompartidoStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'eventos'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("pax_compartido")) {
+      await conn.query("ALTER TABLE eventos ADD COLUMN pax_compartido TINYINT(1) NOT NULL DEFAULT 1 AFTER pax");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function ensureSlotPaxStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'eventos'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("slot_pax")) {
+      await conn.query("ALTER TABLE eventos ADD COLUMN slot_pax INT NULL AFTER pax_compartido");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureAdvancesStructure() {
   let conn;
   try {
@@ -954,7 +988,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, firma_data_url, avatar_data_url, puede_autorizar_descuento FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
-      conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
+      conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
       conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays','informe_tiempos_orden','informe_tipos_montaje')"),
@@ -1332,6 +1366,8 @@ async function readStateFromTables() {
             endTime: toHHmm(e.hora_fin),
             userId: str(e.id_usuario),
             pax: e.pax === null || e.pax === undefined ? null : Number(e.pax),
+            paxCompartido: e.pax_compartido !== 0,
+            slotPax: e.slot_pax === null || e.slot_pax === undefined ? null : Number(e.slot_pax),
             notes: str(e.notes),
             quote,
           };
@@ -2340,8 +2376,8 @@ async function writeStateToTables(state) {
       await conn.query(
         `
           INSERT INTO eventos
-            (id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, notas, cotizacion_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (            id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             id_grupo = VALUES(id_grupo),
             nombre = VALUES(nombre),
@@ -2354,6 +2390,8 @@ async function writeStateToTables(state) {
             estado = VALUES(estado),
             id_usuario = VALUES(id_usuario),
             pax = VALUES(pax),
+            pax_compartido = VALUES(pax_compartido),
+            slot_pax = VALUES(slot_pax),
             notas = VALUES(notas),
             cotizacion_json = VALUES(cotizacion_json)
         `,
@@ -2370,6 +2408,8 @@ async function writeStateToTables(state) {
           str(e?.status).trim() || "Lista de Espera",
           str(e?.userId).trim() || null,
           e?.pax === null || e?.pax === undefined || e?.pax === "" ? null : Math.max(0, Number(e.pax)),
+          e?.paxCompartido === true ? 1 : 0,
+          e?.slotPax === null || e?.slotPax === undefined || e?.slotPax === "" ? null : Math.max(0, Number(e.slotPax)),
           str(e?.notes).trim() || null,
           e?.quote && typeof e.quote === "object" ? JSON.stringify(Object.assign({}, e.quote, { advances: undefined })) : e?.quote ? JSON.stringify(e.quote) : null,
         ]
@@ -2716,6 +2756,11 @@ async function writeStateToTables(state) {
             );
           }
         }
+        // Re-escribir cotizacion_json en eventos por si el codigo fue reasignado
+        await conn.query(
+          `UPDATE eventos SET cotizacion_json = ? WHERE id = ?`,
+          [JSON.stringify(Object.assign({}, q, { advances: undefined })), id]
+        );
       }
     }
 
@@ -4603,6 +4648,8 @@ const MIGRATIONS = [
   { name: 'NotificacionesIndexes', fn: ensureNotificacionesIndexes },
   { name: 'NotificacionesComentarioId', fn: ensureNotificacionesComentarioId },
   { name: 'WebPushSubscriptionsTable', fn: ensurePushSubscriptionsTable },
+  { name: 'PaxCompartido', fn: ensurePaxCompartidoStructure },
+  { name: 'SlotPax', fn: ensureSlotPaxStructure },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -4625,6 +4672,8 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureNotificacionesIndexes',
   'ensureNotificacionesComentarioId',
   'ensurePushSubscriptionsTable',
+  'ensurePaxCompartidoStructure',
+  'ensureSlotPaxStructure',
 ]);
 
 /**

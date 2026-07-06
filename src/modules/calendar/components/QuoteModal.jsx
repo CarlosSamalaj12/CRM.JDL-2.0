@@ -137,10 +137,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             || document.getElementById('qp-root')
             || document.body;
           const shell = document.getElementById('appShell');
-          const prevAria = shell ? shell.getAttribute('aria-hidden') : null;
+          const root = document.getElementById('root');
+          const prevShellAria = shell ? shell.getAttribute('aria-hidden') : null;
+          const prevRootAria = root ? root.getAttribute('aria-hidden') : null;
           if (shell) shell.removeAttribute('aria-hidden');
+          if (root) root.removeAttribute('aria-hidden');
           Swal.fire({ ...opts, target }).then((result) => {
-            if (shell && prevAria !== null) shell.setAttribute('aria-hidden', prevAria);
+            if (shell && prevShellAria !== null) shell.setAttribute('aria-hidden', prevShellAria);
+            if (root && prevRootAria !== null) root.setAttribute('aria-hidden', prevRootAria);
             resolve(result);
           });
         }
@@ -310,7 +314,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             .catch(() => {});
         }, 2000);
       });
-    return () => document.body.classList.remove('quoteModeOpen');
+    return () => {
+      document.body.classList.remove('quoteModeOpen');
+      const root = document.getElementById('root');
+      if (root) root.removeAttribute('aria-hidden');
+    };
 }, []);
 
 // ─── Restore draft from localStorage on mount ───

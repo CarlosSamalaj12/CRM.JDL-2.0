@@ -133,6 +133,40 @@ export function checkSlotConflicts(slot, existingEvents, eventId = null) {
   return evaluateRules(slot, existingEvents, ignoreIds);
 }
 
+export function datesOverlap(aStart, aEnd, bStart, bEnd) {
+  const aS = String(aStart || '');
+  const aE = String(aEnd || aS);
+  const bS = String(bStart || '');
+  const bE = String(bEnd || bS);
+  if (!aS || !bS) return true;
+  return aS <= bE && bS <= aE;
+}
+
+export function checkSameSalonOverlap(slots) {
+  const results = [];
+  for (let i = 0; i < slots.length; i++) {
+    for (let j = i + 1; j < slots.length; j++) {
+      const a = slots[i];
+      const b = slots[j];
+      if (String(a.salon || '').trim().toLowerCase() !== String(b.salon || '').trim().toLowerCase()) continue;
+      const aDateS = a.dateStart || a.date || a.fecha_evento;
+      const aDateE = a.dateEnd || a.endDate || aDateS;
+      const bDateS = b.dateStart || b.date || b.fecha_evento;
+      const bDateE = b.dateEnd || b.endDate || bDateS;
+      if (!datesOverlap(aDateS, aDateE, bDateS, bDateE)) continue;
+      const aStart = a.startTime || a.hora_inicio;
+      const aEnd = a.endTime || a.hora_fin;
+      const bStart = b.startTime || b.hora_inicio;
+      const bEnd = b.endTime || b.hora_fin;
+      if (!timesOverlap(aStart, aEnd, bStart, bEnd)) continue;
+      const msg = `El salón "${a.salon}" tiene horarios traslapados (${aStart}-${aEnd} y ${bStart}-${bEnd})`;
+      results.push({ index: i, ok: false, message: msg, hint: msg, type: 'conflict', slot: a });
+      results.push({ index: j, ok: false, message: msg, hint: msg, type: 'conflict', slot: b });
+    }
+  }
+  return results;
+}
+
 export const conflictService = {
   timesOverlap,
   isHardBlockingStatus,
@@ -141,12 +175,18 @@ export const conflictService = {
   findAllConflicts,
   evaluateRules,
   checkSlotConflicts,
+  checkSameSalonOverlap,
   
   checkAllSlots(slots, existingEvents, eventId = null) {
     const results = [];
     const ignoreIds = eventId ? [eventId] : [];
     
+    const overlapResults = checkSameSalonOverlap(slots);
+    const overlapIndexes = new Set(overlapResults.map(r => r.index));
+    results.push(...overlapResults);
+    
     for (let i = 0; i < slots.length; i++) {
+      if (overlapIndexes.has(i)) continue;
       const slot = slots[i];
       const result = evaluateRules(slot, existingEvents, ignoreIds);
       results.push({ index: i, ...result, slot });

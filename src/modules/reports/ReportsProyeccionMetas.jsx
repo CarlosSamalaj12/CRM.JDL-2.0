@@ -18,12 +18,30 @@ function daysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();
 }
 
-const ACTIVE_STATUSES = new Set([
-  'Confirmado',
-]);
+const ALL_STATUSES = [
+  'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
+  'Lista de Espera', 'Confirmado', 'Cancelado', 'Mantenimiento', 'Perdido', 'Realizado'
+];
+
+const STATUS_COLORS = {
+  'Pre reserva': { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
+  'Reserva sin Cotizacion': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+  '1er Cotizacion': { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd' },
+  'Seguimiento': { bg: '#e0e7ff', text: '#3730a3', border: '#a5b4fc' },
+  'Lista de Espera': { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
+  'Confirmado': { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
+  'Cancelado': { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
+  'Mantenimiento': { bg: '#f3e8ff', text: '#6b21a8', border: '#c4b5fd' },
+  'Perdido': { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4' },
+  'Realizado': { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
+};
 
 export default function ReportsProyeccionMetas({ onClose }) {
   const { events, users } = useOutletContext();
+  const sellerUsers = useMemo(() => (users || []).filter(u => {
+    const r = String(u.role || '').toLowerCase();
+    return r === 'vendedor' || r === 'admin';
+  }), [users]);
 
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -32,6 +50,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
   const [userFilter, setUserFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(new Set(['Confirmado']));
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -76,19 +95,24 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const projectionData = useMemo(() => {
     if (!events || !monthList.length || !users) return { userRows: [] };
 
-    // Aggregate sales by userId
+    // Aggregate sales by userId (deduplicando por groupId igual que Comisiones)
     const salesByUser = {};
     const eventsByUser = {};
+    const seenReservations = new Set();
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < fromDate || d > toDate) continue;
       const status = String(ev.status || '').trim();
-      if (!ACTIVE_STATUSES.has(status)) continue;
+      if (!statusFilter.has(status)) continue;
       const amount = Math.max(0, Number(ev.quote?.total || 0));
       if (amount <= 0) continue;
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
       if (userFilter !== 'all' && userId !== userFilter) continue;
+
+      const groupKey = ev.groupId || ev.id;
+      if (seenReservations.has(groupKey)) continue;
+      seenReservations.add(groupKey);
 
       salesByUser[userId] = (salesByUser[userId] || 0) + amount;
       eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
@@ -160,7 +184,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     });
 
     return { userRows: rows };
-  }, [events, monthList, users, periodInfo, userFilter]);
+  }, [events, monthList, users, periodInfo, userFilter, statusFilter]);
 
   const { userRows } = projectionData;
 
@@ -413,12 +437,45 @@ export default function ReportsProyeccionMetas({ onClose }) {
               }}
             >
               <option value="all">👥 Todos</option>
-              {users?.map(u => (
+              {sellerUsers.map(u => (
                 <option key={u.id} value={String(u.id)}>
                   {u.fullName || u.name || u.id}
                 </option>
               ))}
             </select>
+            {/* Status chips */}
+            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {ALL_STATUSES.map(s => {
+                const active = statusFilter.has(s);
+                const c = STATUS_COLORS[s] || { bg: '#f8fafc', text: '#94a3b8', border: '#e2e8f0' };
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      const next = new Set(statusFilter);
+                      if (active) next.delete(s); else next.add(s);
+                      setStatusFilter(next);
+                    }}
+                    style={{
+                      fontSize: '10px', fontWeight: 700, padding: '5px 12px',
+                      borderRadius: '999px', border: `1.5px solid ${active ? c.border : '#e2e8f0'}`,
+                      background: active ? c.bg : '#ffffff',
+                      color: active ? c.text : '#94a3b8',
+                      cursor: 'pointer', outline: 'none',
+                      transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap',
+                      boxShadow: active ? `0 1px 4px ${c.border}60` : 'none',
+                      opacity: active ? 1 : 0.6,
+                    }}
+                    onMouseEnter={e => { if (!active) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.borderColor = c.border; e.currentTarget.style.background = '#f8fafc'; }}}
+                    onMouseLeave={e => { if (!active) { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#ffffff'; }}}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
             {/* Export PDF */}
             <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
               fontSize: '11px', fontWeight: 800, padding: '7px 14px',

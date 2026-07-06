@@ -12,7 +12,6 @@ import ReportsEficenciaEventos from './ReportsEficenciaEventos';
 import ReportsEficenciaConfirmacion from './ReportsEficenciaConfirmacion';
 import ReportsIngresosCategorias from './ReportsIngresosCategorias';
 import ReportsSeguimientosPendientes from './ReportsSeguimientosPendientes';
-import ReportsVentasUsuario from './ReportsVentasUsuario';
 import ReportsComisiones from './ReportsComisiones';
 import ReportsProyeccionMetas from './ReportsProyeccionMetas';
 import './reports.css';
@@ -85,12 +84,6 @@ const BENTO_CARDS = [
     icon: '💰', variant: 'indigo', featured: true,
   },
   { 
-    id: 'ventasUsuario', title: 'Ventas por Usuario',
-    desc: 'Montos generados por vendedor · Eventos con valor económico · Porcentajes y promedios',
-    badge: 'Vendedores • Montos • % Porcentajes',
-    icon: '👤', variant: 'amber', featured: true,
-  },
-  { 
     id: 'comisiones', title: 'Comisiones',
     desc: 'Ventas vs niveles de meta · Cálculo de comisiones · Progreso hacia siguiente nivel',
     badge: 'Comisiones • Metas • %',
@@ -121,7 +114,6 @@ const reports = {
   eficenciaConfirmacion: (handleClose) => <ReportsEficenciaConfirmacion onClose={handleClose} />,
   ingresosCategorias: (handleClose) => <ReportsIngresosCategorias onClose={handleClose} />,
   seguimientosPendientes: (handleClose) => <ReportsSeguimientosPendientes onClose={handleClose} />,
-  ventasUsuario: (handleClose) => <ReportsVentasUsuario onClose={handleClose} />,
   comisiones: (handleClose) => <ReportsComisiones onClose={handleClose} />,
   proyeccionMetas: (handleClose) => <ReportsProyeccionMetas onClose={handleClose} />,
 };

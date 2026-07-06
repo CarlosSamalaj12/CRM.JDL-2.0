@@ -56,6 +56,8 @@ export default function ReportsDashboard({ onClose }) {
   const [checklists, setChecklists] = useState({});
   const [satLoading, setSatLoading] = useState(true);
 
+
+
   // ── Global Monthly Goals (from Settings → Metas Globales) ──
   const [globalMonthlyGoals, setGlobalMonthlyGoals] = useState([]);
   const [globalGoalsLoading, setGlobalGoalsLoading] = useState(true);
@@ -66,8 +68,6 @@ export default function ReportsDashboard({ onClose }) {
         const state = await loadState({ cacheBust: true });
         setChecklists((state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {});
         setGlobalMonthlyGoals(Array.isArray(state.globalMonthlyGoals) ? state.globalMonthlyGoals : []);
-        setSalonCapacitiesOccupancy((state.salonCapacities && typeof state.salonCapacities === 'object') ? state.salonCapacities : {});
-        setSalonOccupancyEnabled(Array.isArray(state.salonOccupancyEnabled) ? state.salonOccupancyEnabled : []);
       } catch (err) { console.error(err); }
       finally { setSatLoading(false); setGlobalGoalsLoading(false); }
     })();
@@ -87,12 +87,14 @@ export default function ReportsDashboard({ onClose }) {
   const dashboardRows = useMemo(() => {
     if (!events) return [];
     const { from, to } = getDateRange();
-    const rows = []; const groups = new Map();
-    for (const ev of events) { const key = `${ev.date}|${ev.salon||''}|${ev.id}`; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(ev); }
-    for (const [, series] of groups.entries()) {
-      if (!series.some(ev => { const d = ev.date; return d >= from && d <= to; })) continue;
-      const head = series[0];
-      rows.push({ userId: String(head.userId||''), status: head.status, eventDate: head.date, salon: head.salon||'', total: Math.max(0, head.quote?.totalGtq || head.quote?.total||0), type: (head.quote?.eventType||head.name||'').toLowerCase().includes('corporativo') ? 'corp' : (head.quote?.eventType||head.name||'').toLowerCase().includes('social') ? 'social' : 'otro', monthKey: head.date?.substring(0,7) });
+    const rows = []; const seenGroups = new Set();
+    for (const ev of events) {
+      const d = String(ev.date || '');
+      if (!d || d < from || d > to) continue;
+      const key = ev.groupId || ev.id;
+      if (seenGroups.has(key)) continue;
+      seenGroups.add(key);
+      rows.push({ userId: String(ev.userId||''), status: ev.status, eventDate: ev.date, salon: ev.salon||'', total: Math.max(0, ev.quote?.totalGtq || ev.quote?.total||0), type: (ev.quote?.eventType||ev.name||'').toLowerCase().includes('corporativo') ? 'corp' : (ev.quote?.eventType||ev.name||'').toLowerCase().includes('social') ? 'social' : 'otro', monthKey: ev.date?.substring(0,7) });
     }
     return rows;
   }, [events, getDateRange]);
@@ -195,70 +197,7 @@ export default function ReportsDashboard({ onClose }) {
     return { totalEvents: satisfactionData.length, totalRatings, globalAvg, totalDist };
   }, [satisfactionData]);
 
-  // ── Daily Occupancy KPIs (from ReportsOcupacionBarras) ──
-  const ACTIVE_STATUSES = new Set([STATUS.CONFIRMADO, STATUS.PRERESERVA]);
 
-  const [salonCapacitiesOccupancy, setSalonCapacitiesOccupancy] = useState({});
-  const [salonOccupancyEnabled, setSalonOccupancyEnabled] = useState([]);
-
-  const totalMarkedCapacity = useMemo(() => {
-    return salonOccupancyEnabled.reduce((sum, name) => sum + Math.max(0, Number(salonCapacitiesOccupancy[name] || 0)), 0);
-  }, [salonCapacitiesOccupancy, salonOccupancyEnabled]);
-
-  const markedSalonSet = useMemo(() => new Set(salonOccupancyEnabled), [salonOccupancyEnabled]);
-
-  const occupancyData = useMemo(() => {
-    if (!events) return null;
-    const { from, to } = getDateRange();
-    // Generate day list for the range
-    const start = new Date(from + 'T00:00:00');
-    const end = new Date(to + 'T00:00:00');
-    const dayList = [];
-    const cur = new Date(start);
-    while (cur <= end) {
-      dayList.push(new Date(cur));
-      cur.setDate(cur.getDate() + 1);
-    }
-    if (!dayList.length) return null;
-
-    // Sum PAX per day for active events in marked salons
-    const dayPax = {};
-    const dayCounts = {};
-    for (const ev of events) {
-      const d = String(ev.date || '');
-      if (!d || d < from || d > to) continue;
-      if (!ACTIVE_STATUSES.has(String(ev.status || ''))) continue;
-      const evSalon = String(ev.salon || '').trim();
-      if (!markedSalonSet.has(evSalon)) continue;
-      const pax = Math.max(0, Number(ev.pax || 0));
-      if (pax > 0) {
-        dayPax[d] = (dayPax[d] || 0) + pax;
-      }
-      dayCounts[d] = (dayCounts[d] || 0) + 1;
-    }
-
-    const totalPax = Object.values(dayPax).reduce((a, b) => a + b, 0);
-    const totalEvents = Object.values(dayCounts).reduce((a, b) => a + b, 0);
-    const activeDays = Object.keys(dayPax).length;
-    const totalDays = dayList.length;
-    const avgDaily = totalDays > 0 ? totalPax / totalDays : 0;
-    const maxPax = totalMarkedCapacity > 0 ? totalMarkedCapacity : 1;
-
-    let peakDate = '', peakPax = 0, peakCount = 0;
-    for (const [d, p] of Object.entries(dayPax)) {
-      if (p > peakPax) { peakPax = p; peakDate = d; peakCount = dayCounts[d] || 0; }
-    }
-
-    const paxUtilPct = (totalMarkedCapacity > 0 && totalDays > 0)
-      ? (totalPax / (totalMarkedCapacity * totalDays)) * 100
-      : 0;
-
-    return { 
-      totalPax, totalEvents, activeDays, totalDays, avgDaily, 
-      maxPax, peakDate, peakPax, peakCount, 
-      dayPax, dayList, totalMarkedCapacity, paxUtilPct 
-    };
-  }, [events, getDateRange, markedSalonSet, totalMarkedCapacity]);
 
   const handleReset = () => { const n = new Date(); setMonthKey(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`); setFromDate(''); setToDate(''); setRole(USER_ROLES.SELLER); setScope('all'); setSelectedSellerId(''); };
 
@@ -864,247 +803,127 @@ export default function ReportsDashboard({ onClose }) {
           </section>
         )}
 
-        {/* ── 3.5. Ocupación KPIs ── */}
-        {occupancyData && (
-          <section className="reports-hero-panel" style={{ gap: '10px' }}>
-            <div className="reports-section-intro">
-              <div>
-                <span className="reports-eyebrow">Ocupación diaria (PAX)</span>
-                <h3 className="reports-section-title">PAX ocupados vs capacidad de salones</h3>
-                <p className="reports-section-text">Capacidad total de salones marcados: <strong>{occupancyData.totalMarkedCapacity.toLocaleString()}</strong> PAX/día</p>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
-              {/* Días activos */}
-              <div className="bento-tile" style={{
-                border: 'none', borderRadius: '14px', padding: '14px 16px',
-                background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
-                borderLeft: '4px solid #0284c7',
-                boxShadow: '0 1px 3px rgba(2,132,199,0.12), 0 4px 12px rgba(2,132,199,0.06)',
-                transition: 'all 0.25s ease', cursor: 'default',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(2,132,199,0.18), 0 8px 24px rgba(2,132,199,0.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(2,132,199,0.12), 0 4px 12px rgba(2,132,199,0.06)'; }}
-              >
-                <div style={{ fontSize: '9px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                  📅 Días activos
-                </div>
-                <strong style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
-                  {occupancyData.activeDays}
-                </strong>
-                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '3px' }}>
-                  de {occupancyData.totalDays} días ({((occupancyData.activeDays / occupancyData.totalDays) * 100).toFixed(0)}%)
-                </div>
-                <div style={{ height: '5px', borderRadius: '999px', background: '#bae6fd', marginTop: '6px', overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', borderRadius: '999px',
-                    background: 'linear-gradient(90deg, #38bdf8, #0284c7)',
-                    width: `${(occupancyData.activeDays / occupancyData.totalDays) * 100}%`,
-                    transition: 'width 0.5s ease',
-                  }} />
+        {/* ── 3.6. PAX por día (solo Confirmado) ── */}
+        {(() => {
+          if (!events) return null;
+          const { from, to } = getDateRange();
+          const start = new Date(from + 'T00:00:00');
+          const end = new Date(to + 'T00:00:00');
+          const dayList = [];
+          const cur = new Date(start);
+          while (cur <= end) { dayList.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+          if (!dayList.length) return null;
+          const dayPax = {};
+          const dayEvents = {};
+          const seenEvents = new Set();
+          for (const ev of events) {
+            const d = String(ev.date || '');
+            if (!d || d < from || d > to) continue;
+            if (String(ev.status || '').trim() !== 'Confirmado') continue;
+            const groupKey = ev.groupId || ev.id;
+            const pax = Math.max(0, Number(ev.pax || 0));
+            if (!seenEvents.has(groupKey)) {
+              seenEvents.add(groupKey);
+              dayEvents[d] = (dayEvents[d] || 0) + 1;
+              dayPax[d] = (dayPax[d] || 0) + pax;
+            }
+          }
+          const totalPax = Object.values(dayPax).reduce((a, b) => a + b, 0);
+          const maxDayPax = Math.max(1, ...Object.values(dayPax));
+          return (
+            <section className="reports-hero-panel" style={{ gap: '10px' }}>
+              <div className="reports-section-intro">
+                <div>
+                  <span className="reports-eyebrow">PAX por día</span>
+                  <h3 className="reports-section-title">Asistencia total por día (todos los salones)</h3>
+                  <p className="reports-section-text"><strong>{totalPax.toLocaleString()}</strong> PAX totales en el periodo</p>
                 </div>
               </div>
-
-              {/* PAX totales */}
-              <div className="bento-tile" style={{
-                border: 'none', borderRadius: '14px', padding: '14px 16px',
-                background: 'linear-gradient(135deg, #f0fdf4, #ecfdf5)',
-                borderLeft: '4px solid #16a34a',
-                boxShadow: '0 1px 3px rgba(22,163,74,0.12), 0 4px 12px rgba(22,163,74,0.06)',
-                transition: 'all 0.25s ease', cursor: 'default',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(22,163,74,0.18), 0 8px 24px rgba(22,163,74,0.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(22,163,74,0.12), 0 4px 12px rgba(22,163,74,0.06)'; }}
-              >
-                <div style={{ fontSize: '9px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                  🧑 PAX totales
-                </div>
-                <strong style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
-                  {occupancyData.totalPax.toLocaleString()}
-                </strong>
-                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '3px' }}>
-                  {occupancyData.totalEvents} eventos · Cap. {occupancyData.totalMarkedCapacity.toLocaleString()}/día
-                </div>
-              </div>
-
-              {/* Utilización mensual */}
-              <div className="bento-tile" style={{
-                border: 'none', borderRadius: '14px', padding: '14px 16px',
-                background: 'linear-gradient(135deg, #fefce8, #fffbeb)',
-                borderLeft: '4px solid #ca8a04',
-                boxShadow: '0 1px 3px rgba(202,138,4,0.12), 0 4px 12px rgba(202,138,4,0.06)',
-                transition: 'all 0.25s ease', cursor: 'default',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(202,138,4,0.18), 0 8px 24px rgba(202,138,4,0.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(202,138,4,0.12), 0 4px 12px rgba(202,138,4,0.06)'; }}
-              >
-                <div style={{ fontSize: '9px', fontWeight: 700, color: '#a16207', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                  📊 Utilización mensual
-                </div>
-                <strong style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
-                  {occupancyData.paxUtilPct.toFixed(1)}%
-                </strong>
-                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '3px' }}>
-                  Prom. {occupancyData.avgDaily.toFixed(0)} PAX / {occupancyData.totalMarkedCapacity.toLocaleString()} cap.
-                </div>
-              </div>
-
-              {/* Día pico */}
-              <div className="bento-tile" style={{
-                border: 'none', borderRadius: '14px', padding: '14px 16px',
-                background: 'linear-gradient(135deg, #fdf2f8, #fce7f3)',
-                borderLeft: '4px solid #db2777',
-                boxShadow: '0 1px 3px rgba(219,39,119,0.12), 0 4px 12px rgba(219,39,119,0.06)',
-                transition: 'all 0.25s ease', cursor: 'default',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(219,39,119,0.18), 0 8px 24px rgba(219,39,119,0.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(219,39,119,0.12), 0 4px 12px rgba(219,39,119,0.06)'; }}
-              >
-                <div style={{ fontSize: '9px', fontWeight: 700, color: '#be185d', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                  🏆 Día pico
-                </div>
-                <strong style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-                  {occupancyData.peakDate || '-'}
-                </strong>
-                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
-                  <strong style={{ color: '#db2777' }}>{occupancyData.peakPax.toLocaleString()}</strong> PAX · {((occupancyData.totalMarkedCapacity > 0 ? occupancyData.peakPax / occupancyData.totalMarkedCapacity : 0) * 100).toFixed(0)}% capacidad
-                </div>
-              </div>
-            </div>
-
-            {/* Bar chart distribution — PAX vs Capacidad */}
-            <div style={{
-              background: '#ffffff', borderRadius: '14px', padding: '20px 24px',
-              border: '1px solid #f1f5f9',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    width: '32px', height: '32px', borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '15px', boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
-                  }}>📊</div>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                      Ocupación Diaria
-                    </div>
-                    <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>
-                      PAX vs Capacidad ({occupancyData.totalMarkedCapacity.toLocaleString()} PAX/día)
-                    </div>
+              <div style={{
+                background: '#ffffff', borderRadius: '14px', padding: '20px 24px',
+                border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '32px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '20px' }}>
+                    <span>{maxDayPax}</span>
+                    <span>{Math.round(maxDayPax * 0.75)}</span>
+                    <span>{Math.round(maxDayPax * 0.5)}</span>
+                    <span>{Math.round(maxDayPax * 0.25)}</span>
+                    <span style={{ color: '#cbd5e1' }}>0</span>
                   </div>
-                </div>
-                <div style={{ display: 'flex', gap: '6px', fontSize: '9px', fontWeight: 600, color: '#94a3b8', background: '#f8fafc', padding: '4px 10px', borderRadius: '8px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#10b981', display: 'inline-block' }} /> ≥90%</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#3b82f6', display: 'inline-block' }} /> 70-89%</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#60a5fa', display: 'inline-block' }} /> 40-69%</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#a5b4fc', display: 'inline-block' }} /> 1-39%</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#e2e8f0', display: 'inline-block' }} /> 0%</span>
-                </div>
-              </div>
-              {/* Chart area */}
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {/* Y-axis labels */}
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '32px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '20px' }}>
-                  <span>100%</span>
-                  <span>75%</span>
-                  <span>50%</span>
-                  <span>25%</span>
-                  <span style={{ color: '#cbd5e1' }}>0%</span>
-                </div>
-                {/* Bars container */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '160px', position: 'relative' }}>
-                    {/* Background grid lines */}
-                    {[25, 50, 75].map(pct => (
-                      <div key={pct} style={{
-                        position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
-                        height: '1px', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none', opacity: 0.5,
-                      }} />
-                    ))}
-                    {occupancyData.dayList.map((dateObj, i) => {
-                      const dStr = dateObj.toISOString().split('T')[0];
-                      const pax = occupancyData.dayPax[dStr] || 0;
-                      const pct = occupancyData.totalMarkedCapacity > 0 ? (pax / occupancyData.totalMarkedCapacity) * 100 : 0;
-                      const barColor = pct >= 90 ? '#10b981' : pct >= 70 ? '#3b82f6' : pct >= 40 ? '#60a5fa' : pct > 0 ? '#a5b4fc' : '#e2e8f0';
-                      const isToday = dStr === new Date().toISOString().split('T')[0];
-                      const dayNum = dateObj.getDate();
-                      const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                      return (
-                        <div
-                          key={dStr}
-                          title={`${dStr}: ${pax} PAX (${Math.round(pct)}% de ${occupancyData.totalMarkedCapacity.toLocaleString()} PAX)`}
-                          style={{
-                            flex: '1 1 0', minWidth: '8px',
-                            height: '100%', display: 'flex', flexDirection: 'column',
-                            justifyContent: 'flex-end', alignItems: 'center',
-                            position: 'relative', cursor: 'help',
-                          }}
-                        >
-                          <div style={{
-                            width: '100%', maxWidth: '36px',
-                            height: `${Math.max(pct > 0 ? Math.max(4, pct) : 0, 0)}%`,
-                            background: `linear-gradient(180deg, ${barColor}, ${barColor}dd)`,
-                            borderRadius: '3px 3px 0 0',
-                            transition: 'height 0.3s ease',
-                            minHeight: pax > 0 ? '4px' : '0',
-                            opacity: isToday ? 1 : 0.85,
-                            boxShadow: isToday ? `0 0 8px ${barColor}50` : 'inset 0 1px 0 rgba(255,255,255,0.2)',
-                            position: 'relative',
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '160px', position: 'relative' }}>
+                      {[25, 50, 75].map(pct => (
+                        <div key={pct} style={{
+                          position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
+                          height: '1px', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none', opacity: 0.5,
+                        }} />
+                      ))}
+                      {dayList.map((dateObj) => {
+                        const pad2 = (n) => String(n).padStart(2, '0');
+                        const dStr = `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`;
+                        const pax = dayPax[dStr] || 0;
+                        const pct = (pax / maxDayPax) * 100;
+                        const now = new Date();
+                        const isToday = dStr === `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+                        const dayNum = dateObj.getDate();
+                        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                        return (
+                          <div key={dStr} title={`${dStr}: ${pax} PAX (${dayEvents[dStr] || 0} eventos)`} style={{
+                            flex: '1 1 0', minWidth: '8px', height: '100%',
+                            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                            alignItems: 'center', position: 'relative', cursor: 'help',
                           }}>
-                            {/* PAX label on bar if big enough */}
-                            {pct >= 30 && (
-                              <span style={{
-                                position: 'absolute', top: '4px', left: '50%',
-                                transform: 'translateX(-50%)',
-                                fontSize: '8px', fontWeight: 800, color: '#fff',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.4)',
-                                whiteSpace: 'nowrap',
-                              }}>
-                                {pax}
-                              </span>
-                            )}
-                          </div>
-                          {/* Day number label */}
-                          <div style={{
-                            fontSize: isToday ? '8px' : '7px', fontWeight: isToday ? 900 : 600,
-                            color: isToday ? '#2563eb' : isWeekend ? '#94a3b8' : '#64748b',
-                            marginTop: '3px', lineHeight: 1, whiteSpace: 'nowrap',
-                          }}>
-                            {dayNum}
-                          </div>
-                          {isToday && (
                             <div style={{
-                              fontSize: '6px', fontWeight: 900, color: '#2563eb',
-                              lineHeight: 1, marginTop: '1px',
+                              width: '100%', maxWidth: '36px',
+                              height: `${Math.max(pct > 0 ? Math.max(4, pct) : 2, 0)}%`,
+                              background: pax > 0
+                                ? 'linear-gradient(180deg, #2563eb, #1e40af)'
+                                : '#f1f5f9',
+                              borderRadius: '3px 3px 0 0',
+                              transition: 'height 0.3s ease',
+                              minHeight: pax > 0 ? '4px' : '2px',
+                              opacity: isToday ? 1 : 0.85,
+                              boxShadow: isToday ? '0 0 8px #2563eb50' : 'inset 0 1px 0 rgba(0,0,0,0.05)',
+                              position: 'relative',
                             }}>
-                              HOY
+                              {pax > 0 && (
+                                <span style={{
+                                  position: 'absolute',
+                                  top: pct >= 20 ? '4px' : `-${Math.max(14, pct * 0.4 + 6)}px`,
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  fontSize: '9px', fontWeight: 900,
+                                  color: pct >= 20 ? '#fff' : '#1e40af',
+                                  textShadow: pct >= 20 ? '0 1px 3px rgba(0,0,0,0.5)' : 'none',
+                                  whiteSpace: 'nowrap',
+                                  background: pct < 20 ? '#ffffff' : 'transparent',
+                                  padding: pct < 20 ? '0 3px' : '0',
+                                  borderRadius: pct < 20 ? '3px' : '0',
+                                }}>{pax}</span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                            <div style={{
+                              fontSize: isToday ? '8px' : '7px', fontWeight: isToday ? 900 : 600,
+                              color: isToday ? '#1d4ed8' : isWeekend ? '#94a3b8' : '#64748b',
+                              marginTop: '3px', lineHeight: 1, whiteSpace: 'nowrap',
+                            }}>{dayNum}</div>
+                            {isToday && <div style={{ fontSize: '6px', fontWeight: 900, color: '#1d4ed8', lineHeight: 1, marginTop: '1px' }}>HOY</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '9px', fontWeight: 600, color: '#94a3b8', paddingLeft: '38px' }}>
+                  {dayList.length > 0 && <span>{dayList[0].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>}
+                  {dayList.length > 10 && <span>{dayList[Math.floor(dayList.length / 2)].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>}
+                  {dayList.length > 0 && <span>{dayList[dayList.length - 1].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>}
+                </div>
               </div>
-              {/* X-axis date range labels */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '9px', fontWeight: 600, color: '#94a3b8', paddingLeft: '38px' }}>
-                {occupancyData.dayList.length > 0 && (
-                  <span>{occupancyData.dayList[0].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>
-                )}
-                {occupancyData.dayList.length > 10 && (
-                  <span>
-                    {occupancyData.dayList[Math.floor(occupancyData.dayList.length / 2)].toLocaleDateString('es', { month: 'short', day: 'numeric' })}
-                  </span>
-                )}
-                {occupancyData.dayList.length > 0 && (
-                  <span>{occupancyData.dayList[occupancyData.dayList.length - 1].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
+            </section>
+          );
+        })()}
 
         {/* ── 3.7. Eficiencia por Estado (stacked bar) ── */}
         {statusMonthlyData.length > 0 && (

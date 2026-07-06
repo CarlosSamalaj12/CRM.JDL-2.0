@@ -42,10 +42,36 @@ export default function SearchModule() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const filteredEvents = useMemo(() => {
+  const groupedEvents = useMemo(() => {
     if (!events) return [];
 
-    let filtered = events;
+    const groups = new Map();
+    for (const ev of events) {
+      const key = ev.groupId || ev.id;
+      if (!groups.has(key)) {
+        groups.set(key, { main: ev, subs: [] });
+      }
+      groups.get(key).subs.push(ev);
+    }
+
+    const merged = [];
+    for (const group of groups.values()) {
+      const subs = group.subs.sort((a, b) => {
+        const byDate = String(a?.date || '').localeCompare(String(b?.date || ''));
+        if (byDate !== 0) return byDate;
+        return String(a?.salon || '').localeCompare(String(b?.salon || ''));
+      });
+      const main = subs[0];
+      merged.push({
+        ...main,
+        _subEvents: subs,
+        _salonList: [...new Set(subs.map(s => s.salon).filter(Boolean))],
+        _dateStart: subs[0]?.date || '',
+        _dateEnd: subs[subs.length - 1]?.date || '',
+      });
+    }
+
+    let filtered = merged;
 
     if (debouncedQuery) {
       const term = debouncedQuery.toLowerCase();
@@ -53,10 +79,10 @@ export default function SearchModule() {
         ev.name?.toLowerCase().includes(term) ||
         ev.clientName?.toLowerCase().includes(term) ||
         ev.clientPhone?.toLowerCase().includes(term) ||
-        ev.salon?.toLowerCase().includes(term) ||
         ev.notes?.toLowerCase().includes(term) ||
         ev.id?.toLowerCase().includes(term) ||
-        ev.quote?.code?.toLowerCase().includes(term)
+        ev.quote?.code?.toLowerCase().includes(term) ||
+        ev._salonList.some(s => s.toLowerCase().includes(term))
       );
     }
 
@@ -65,7 +91,7 @@ export default function SearchModule() {
     }
 
     if (salonFilter !== 'all') {
-      filtered = filtered.filter(ev => ev.salon?.includes(salonFilter));
+      filtered = filtered.filter(ev => ev._salonList.some(s => s.includes(salonFilter)));
     }
 
     if (userFilter !== 'all') {
@@ -73,14 +99,14 @@ export default function SearchModule() {
     }
 
     if (dateFrom) {
-      filtered = filtered.filter(ev => ev.date >= dateFrom);
+      filtered = filtered.filter(ev => ev._dateEnd >= dateFrom);
     }
 
     if (dateTo) {
-      filtered = filtered.filter(ev => ev.date <= dateTo);
+      filtered = filtered.filter(ev => ev._dateStart <= dateTo);
     }
 
-    return filtered.sort((a, b) => b.date?.localeCompare(a.date));
+    return filtered.sort((a, b) => b._dateStart?.localeCompare(a._dateStart));
   }, [events, debouncedQuery, statusFilter, salonFilter, userFilter, dateFrom, dateTo]);
 
   const clearFilters = () => {
@@ -181,7 +207,7 @@ export default function SearchModule() {
 
             <div className="search-actions">
               <span className="search-result-count">
-                {filteredEvents.length} resultados
+                {groupedEvents.length} resultados
               </span>
               <button className="search-clear-btn" onClick={clearFilters}>Limpiar</button>
             </div>
@@ -203,58 +229,71 @@ export default function SearchModule() {
                   <th className="center"></th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredEvents.length === 0 ? (
-                  <tr>
-                    <td colSpan={7}>
-                      <div className="search-empty-state">
-                        No se encontraron eventos que coincidan con tu búsqueda
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredEvents.map(ev => {
-                    const assignedUser = users?.find(u => u.id === ev.userId);
-                    const docCode = ev.quote?.code || ev.id?.substring(0, 12) || '-';
-                    return (
-                      <tr key={ev.id}>
-                        <td>
-                          <span className="search-doc-code">{docCode}</span>
-                        </td>
-                        <td>
-                          <div className="search-event-name">{ev.name}</div>
-                          <div className="search-event-assignee">
-                            {assignedUser?.fullName || assignedUser?.name || 'Sin asignar'}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="search-client-name">{ev.clientName || '-'}</div>
-                          {ev.clientPhone && <div className="search-client-phone">{ev.clientPhone}</div>}
-                        </td>
-                        <td><span className="search-salon-name">{ev.salon}</span></td>
-                        <td>
-                          <div className="search-date-main">{ev.date}</div>
-                          <div className="search-date-time">{ev.startTime} - {ev.endTime}</div>
-                        </td>
-                        <td>
-                          <span className="search-status-badge" data-desc={STATUS_DESCRIPTIONS[ev.status] || ''} style={{
-                            background: `${getStatusColor(ev.status)}15`,
-                            color: getStatusColor(ev.status),
-                            border: `1px solid ${getStatusColor(ev.status)}30`
-                          }}>
-                            {ev.status}
-                          </span>
-                        </td>
-                        <td className="center">
-                          <button className="search-view-btn" onClick={() => navigate(`/reserva/${ev.id}`)}>
-                            Ver
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
+                <tbody>
+                  {groupedEvents.length === 0 ? (
+                    <tr>
+                      <td colSpan={7}>
+                        <div className="search-empty-state">
+                          No se encontraron eventos que coincidan con tu búsqueda
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    groupedEvents.map(ev => {
+                      const assignedUser = users?.find(u => u.id === ev.userId);
+                      const docCode = ev.quote?.code || ev.id?.substring(0, 12) || '-';
+                      const isMultiSalon = ev._subEvents.length > 1;
+                      return (
+                        <tr key={targetId}>
+                          <td>
+                            <span className="search-doc-code">{docCode}</span>
+                          </td>
+                          <td>
+                            <div className="search-event-name">{ev.name}</div>
+                            <div className="search-event-assignee">
+                              {assignedUser?.fullName || assignedUser?.name || 'Sin asignar'}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="search-client-name">{ev.clientName || '-'}</div>
+                            {ev.clientPhone && <div className="search-client-phone">{ev.clientPhone}</div>}
+                          </td>
+                          <td>
+                            {isMultiSalon ? (
+                              <div className="search-salon-list">
+                                {ev._salonList.map((s, i) => (
+                                  <span key={i} className="search-salon-tag">{s}</span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="search-salon-name">{ev.salon}</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="search-date-main">
+                              {ev._dateStart}{ev._dateStart !== ev._dateEnd ? ` - ${ev._dateEnd}` : ''}
+                            </div>
+                            <div className="search-date-time">{ev.startTime} - {ev.endTime}</div>
+                          </td>
+                          <td>
+                            <span className="search-status-badge" data-desc={STATUS_DESCRIPTIONS[ev.status] || ''} style={{
+                              background: `${getStatusColor(ev.status)}15`,
+                              color: getStatusColor(ev.status),
+                              border: `1px solid ${getStatusColor(ev.status)}30`
+                            }}>
+                              {ev.status}
+                            </span>
+                          </td>
+                          <td className="center">
+                            <button className="search-view-btn" onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`)}>
+                              Ver
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
             </table>
           </div>
         </div>
