@@ -32,11 +32,13 @@ export function isHardBlockingStatus(status) {
   return HARD_BLOCK_STATUSES.includes(status);
 }
 
-export function findHardBlocks(draft, existingEvents, ignoreIds = null) {
+export function findHardBlocks(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
+  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
   const slotDate = draft.date || draft.dateStart;
   
   return existingEvents.filter(e => {
+    if (noConflictSalons.includes(String(e.salon || '').trim().toLowerCase())) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
@@ -48,11 +50,13 @@ export function findHardBlocks(draft, existingEvents, ignoreIds = null) {
   });
 }
 
-export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null) {
+export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
+  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
   const slotDate = draft.date || draft.dateStart;
   
   return existingEvents.filter(e => {
+    if (noConflictSalons.includes(String(e.salon || '').trim().toLowerCase())) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
@@ -63,11 +67,13 @@ export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null
   });
 }
 
-export function findAllConflicts(draft, existingEvents, ignoreIds = null) {
+export function findAllConflicts(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
+  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
   const slotDate = draft.date || draft.dateStart;
   
   return existingEvents.filter(e => {
+    if (noConflictSalons.includes(String(e.salon || '').trim().toLowerCase())) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
@@ -78,16 +84,21 @@ export function findAllConflicts(draft, existingEvents, ignoreIds = null) {
   });
 }
 
-export function evaluateRules(draft, existingEvents, ignoreIds = null) {
+export function evaluateRules(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
   const slotDate = draft.date || draft.dateStart;
   if (!slotDate || !draft.startTime || !draft.endTime) {
     return { ok: true, message: '', hint: '' };
   }
 
-  const hardBlocks = findHardBlocks(draft, existingEvents, ignoreIds);
+  // Si el salón está marcado como "sin conflicto", no genera conflicto con ningún evento
+  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) {
+    return { ok: true, message: '', hint: '' };
+  }
+
+  const hardBlocks = findHardBlocks(draft, existingEvents, ignoreIds, noConflictSalons);
   const hasHardBlock = hardBlocks.length > 0;
   
-  const maintenanceBlocks = findMaintenanceDayBlocks(draft, existingEvents, ignoreIds);
+  const maintenanceBlocks = findMaintenanceDayBlocks(draft, existingEvents, ignoreIds, noConflictSalons);
   const hasMaintenanceDayBlock = maintenanceBlocks.length > 0;
 
   if (hasMaintenanceDayBlock && draft.status !== 'Lista de Espera' && draft.status !== 'Mantenimiento') {
@@ -128,10 +139,11 @@ export function evaluateRules(draft, existingEvents, ignoreIds = null) {
   return { ok: true, message: '', hint: '' };
 }
 
-export function checkSlotConflicts(slot, existingEvents, eventId = null) {
+export function checkSlotConflicts(slot, existingEvents, eventId = null, noConflictSalons = []) {
   const ignoreIds = eventId ? [eventId] : [];
-  return evaluateRules(slot, existingEvents, ignoreIds);
+  return evaluateRules(slot, existingEvents, ignoreIds, noConflictSalons);
 }
+
 
 export function datesOverlap(aStart, aEnd, bStart, bEnd) {
   const aS = String(aStart || '');
@@ -177,7 +189,7 @@ export const conflictService = {
   checkSlotConflicts,
   checkSameSalonOverlap,
   
-  checkAllSlots(slots, existingEvents, eventId = null) {
+  checkAllSlots(slots, existingEvents, eventId = null, noConflictSalons = []) {
     const results = [];
     const ignoreIds = eventId ? [eventId] : [];
     
@@ -188,7 +200,7 @@ export const conflictService = {
     for (let i = 0; i < slots.length; i++) {
       if (overlapIndexes.has(i)) continue;
       const slot = slots[i];
-      const result = evaluateRules(slot, existingEvents, ignoreIds);
+      const result = evaluateRules(slot, existingEvents, ignoreIds, noConflictSalons);
       results.push({ index: i, ...result, slot });
     }
     

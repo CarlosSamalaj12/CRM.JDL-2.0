@@ -8,6 +8,7 @@ export default function SettingsSalones({ inline, onBack }) {
   const [disabledSalones, setDisabledSalones] = useState([]);
   const [salonCapacities, setSalonCapacities] = useState({});
   const [salonOccupancyEnabled, setSalonOccupancyEnabled] = useState([]);
+  const [salonConflictDisabled, setSalonConflictDisabled] = useState([]);
   
   // Form State
   const [selectedSalon, setSelectedSalon] = useState('');
@@ -15,6 +16,7 @@ export default function SettingsSalones({ inline, onBack }) {
   const [salonCapacityInput, setSalonCapacityInput] = useState('');
   const [salonActive, setSalonActive] = useState(true);
   const [salonOccupancyCheck, setSalonOccupancyCheck] = useState(true);
+  const [salonConflictCheck, setSalonConflictCheck] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -28,10 +30,12 @@ export default function SettingsSalones({ inline, onBack }) {
       const loadedDisabled = Array.isArray(state.disabledSalones) ? state.disabledSalones : [];
       const loadedCapacities = (state.salonCapacities && typeof state.salonCapacities === 'object') ? state.salonCapacities : {};
       const loadedOccupancy = Array.isArray(state.salonOccupancyEnabled) ? state.salonOccupancyEnabled : [];
+      const loadedNoConflict = Array.isArray(state.salonConflictDisabled) ? state.salonConflictDisabled : [];
       setSalones(loadedSalones);
       setDisabledSalones(loadedDisabled);
       setSalonCapacities(loadedCapacities);
       setSalonOccupancyEnabled(loadedOccupancy);
+      setSalonConflictDisabled(loadedNoConflict);
       resetForm();
     } catch (err) {
       console.error('Error al cargar salones:', err);
@@ -49,6 +53,7 @@ export default function SettingsSalones({ inline, onBack }) {
     setSalonCapacityInput('');
     setSalonActive(true);
     setSalonOccupancyCheck(true);
+    setSalonConflictCheck(true);
   };
 
   const handleSalonSelectChange = (e) => {
@@ -59,6 +64,7 @@ export default function SettingsSalones({ inline, onBack }) {
       setSalonCapacityInput(salonCapacities[name] || '');
       setSalonActive(!disabledSalones.includes(name));
       setSalonOccupancyCheck(salonOccupancyEnabled.includes(name));
+      setSalonConflictCheck(!salonConflictDisabled.includes(name));
     } else {
       resetForm();
     }
@@ -70,6 +76,7 @@ export default function SettingsSalones({ inline, onBack }) {
     setSalonCapacityInput(salonCapacities[name] || '');
     setSalonActive(!disabledSalones.includes(name));
     setSalonOccupancyCheck(salonOccupancyEnabled.includes(name));
+    setSalonConflictCheck(!salonConflictDisabled.includes(name));
   };
 
   const handleSave = async () => {
@@ -98,6 +105,7 @@ export default function SettingsSalones({ inline, onBack }) {
       let nextDisabledSalones = [...disabledSalones];
       let nextCapacities = { ...salonCapacities };
       let nextOccupancyEnabled = [...salonOccupancyEnabled];
+      let nextNoConflict = [...salonConflictDisabled];
 
       if (isNew) {
         nextSalones.push(nameTrimmed);
@@ -109,6 +117,7 @@ export default function SettingsSalones({ inline, onBack }) {
           delete nextCapacities[prevName];
           nextDisabledSalones = nextDisabledSalones.map(s => s === prevName ? nameTrimmed : s);
           nextOccupancyEnabled = nextOccupancyEnabled.map(s => s === prevName ? nameTrimmed : s);
+          nextNoConflict = nextNoConflict.map(s => s === prevName ? nameTrimmed : s);
         }
       }
 
@@ -120,6 +129,15 @@ export default function SettingsSalones({ inline, onBack }) {
         }
       } else {
         nextOccupancyEnabled = nextOccupancyEnabled.filter(s => s !== nameTrimmed);
+      }
+
+      // salonConflictCheck = true means salon generates conflicts (not in salonConflictDisabled list)
+      if (salonConflictCheck) {
+        nextNoConflict = nextNoConflict.filter(s => s !== nameTrimmed);
+      } else {
+        if (!nextNoConflict.includes(nameTrimmed)) {
+          nextNoConflict.push(nameTrimmed);
+        }
       }
 
       if (salonActive) {
@@ -138,13 +156,15 @@ export default function SettingsSalones({ inline, onBack }) {
         salones: nextSalones,
         disabledSalones: nextDisabledSalones,
         salonCapacities: nextCapacities,
-        salonOccupancyEnabled: nextOccupancyEnabled
+        salonOccupancyEnabled: nextOccupancyEnabled,
+        salonConflictDisabled: nextNoConflict
       });
 
       setSalones(nextSalones);
       setDisabledSalones(nextDisabledSalones);
       setSalonCapacities(nextCapacities);
       setSalonOccupancyEnabled(nextOccupancyEnabled);
+      setSalonConflictDisabled(nextNoConflict);
       toast(isNew ? 'Salon agregado' : 'Salon actualizado');
       resetForm();
     } catch (err) {
@@ -262,6 +282,22 @@ export default function SettingsSalones({ inline, onBack }) {
         </div>
       </div>
 
+      {/* Row 4: Conflict checkbox */}
+      <div className="settings-field-group">
+        <label className="settings-modern-field">
+          <span>Conflicto de ocupación</span>
+          <label className="settings-switch-inline">
+            <input type="checkbox" checked={salonConflictCheck} onChange={(e) => setSalonConflictCheck(e.target.checked)} />
+            <span>{salonConflictCheck ? 'Genera conflicto de ocupación ⚠️' : 'No genera conflicto 🔕'}</span>
+          </label>
+        </label>
+        <div className="settings-modern-field" style={{ justifyContent: 'center' }}>
+          <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+            Al desactivar, este salón no generará conflictos de horario con otros eventos. Útil para salones simbólicos como &quot;No usa salón&quot; o &quot;Según disponibilidad&quot;.
+          </span>
+        </div>
+      </div>
+
       {/* Salones table */}
       <div className="settings-modern-field">
         <span>Salones registrados</span>
@@ -272,6 +308,7 @@ export default function SettingsSalones({ inline, onBack }) {
                 <th>Nombre</th>
                 <th>Max PAX</th>
                 <th>Ocupación</th>
+                <th>Conflicto</th>
                 <th>Estado</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
@@ -279,7 +316,7 @@ export default function SettingsSalones({ inline, onBack }) {
             <tbody>
               {salones.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
                     No hay salones registrados
                   </td>
                 </tr>
@@ -288,6 +325,7 @@ export default function SettingsSalones({ inline, onBack }) {
                   const isDisabled = disabledSalones.includes(s);
                   const capacity = salonCapacities[s] || '2000';
                   const affectsOccupancy = salonOccupancyEnabled.includes(s);
+                  const noConflict = salonConflictDisabled.includes(s);
                   return (
                     <tr key={s}>
                       <td style={{ fontWeight: '600' }}>{s}</td>
@@ -299,6 +337,15 @@ export default function SettingsSalones({ inline, onBack }) {
                           borderColor: affectsOccupancy ? '#c4b5fd' : '#e2e8f0',
                         }}>
                           {affectsOccupancy ? '📊 Sí influye' : '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="settings-role-badge" style={{
+                          background: noConflict ? '#f1f5f9' : '#fef3c7',
+                          color: noConflict ? '#64748b' : '#92400e',
+                          borderColor: noConflict ? '#e2e8f0' : '#fde68a',
+                        }}>
+                          {noConflict ? '🔕 No genera' : '⚠️ Genera conflicto'}
                         </span>
                       </td>
                       <td>
