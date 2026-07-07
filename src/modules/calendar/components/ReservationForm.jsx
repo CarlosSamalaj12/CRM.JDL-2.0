@@ -239,8 +239,8 @@ function shouldMoveEditedReservationToSeguimiento(existingEvent, series, nextFor
 
   const oldFormData = {
     name: existingEvent.name || '',
-    date: existingEvent.eventDateStart || firstDate || existingEvent.date || '',
-    endDate: existingEvent.eventDateEnd || lastDate || existingEvent.endDate || existingEvent.date || '',
+    date: firstDate || existingEvent.eventDateStart || existingEvent.date || '',
+    endDate: lastDate || existingEvent.eventDateEnd || existingEvent.endDate || existingEvent.date || '',
     pax: oldSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0) || existingEvent.pax || '',
     notes: existingEvent.notes || '',
     userId: existingEvent.userId || '',
@@ -588,8 +588,8 @@ export default function ReservationForm() {
           name: existingEvent.name || '',
           salon: firstSlot.salon || existingEvent.salon || '',
           status: existingEvent.status || 'Reserva sin Cotizacion',
-          date: existingEvent.eventDateStart || firstDate || getDefaultDate(),
-          endDate: existingEvent.eventDateEnd || lastDate || existingEvent.date || getDefaultDate(),
+          date: firstDate || existingEvent.eventDateStart || existingEvent.date || getDefaultDate(),
+          endDate: lastDate || existingEvent.eventDateEnd || existingEvent.date || getDefaultDate(),
           startTime: firstSlot.startTime || existingEvent.startTime || '10:00',
           endTime: firstSlot.endTime || existingEvent.endTime || '12:00',
           pax: totalPaxFromSlots || existingEvent.pax || '',
@@ -1515,6 +1515,19 @@ export default function ReservationForm() {
                     {formData.paxCompartido === null && (
                       <span style={{ fontSize: '11px', color: '#f97316', fontWeight: '600' }}>Obligatorio</span>
                     )}
+                  </div>
+                  <div style={{
+                    fontSize: '10.5px',
+                    color: '#64748b',
+                    marginTop: '8px',
+                    padding: '6px 8px',
+                    background: '#f1f5f9',
+                    borderRadius: '6px',
+                    lineHeight: 1.5,
+                    borderLeft: '2.5px solid #94a3b8'
+                  }}>
+                    <strong style={{ color: '#334155' }}>Compartido</strong>: un solo PAX total que aplica a todos los salones/días del evento.<br />
+                    <strong style={{ color: '#334155' }}>No Compartido</strong>: cada salón tiene su propio PAX, se suman para el total del evento.
                   </div>
                 </div>
               </div>

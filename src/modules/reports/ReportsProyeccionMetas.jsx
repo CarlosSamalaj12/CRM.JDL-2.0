@@ -290,35 +290,60 @@ export default function ReportsProyeccionMetas({ onClose }) {
   };
 
   const handleExportExcel = () => {
-    const escCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-    const headers = [
-      'Vendedor', 'Ventas Actuales (GTQ)', 'Eventos', 'Promedio/Evento (GTQ)',
-      'Tier Actual', 'Siguiente Tier', 'Necesita Vender (GTQ)', 'Diario Necesario (GTQ)',
-      'Promedio Diario (GTQ)', 'Proyectado (GTQ)', 'Estado',
-    ];
-    const rows = userRows.filter(r => r.hasTiers).map(r => [
-      escCsv(r.name),
-      r.currentSales.toFixed(2),
-      r.eventCount,
-      r.eventAvg.toFixed(2),
-      escCsv(r.reachedTier?.name || 'Ninguno'),
-      escCsv(r.nextTier?.name || '—'),
-      r.neededForNext.toFixed(2),
-      r.dailyNeeded.toFixed(2),
-      r.dailyAvg.toFixed(2),
-      r.projectedTotal.toFixed(2),
-      escCsv(r.gapStatus === 'complete' ? 'Completado' : r.gapStatus === 'on_track' ? 'En camino' : 'Requiere impulso'),
-    ]);
-    const csvContent = [
-      escCsv('PROYECCIÓN DE METAS'),
-      `,,Período,${fromDate},a,${toDate},,,,`,
-      headers.join(','),
-      ...rows.map(r => r.join(',')),
-    ].join('\n');
-    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+    const fmtMon = (n) => new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+
+    const rowsWithTiers = userRows.filter(r => r.hasTiers);
+    const rowsHtml = rowsWithTiers.map((r, i) => {
+      const gc = r.gapStatus === 'complete' ? '#10b981' : r.gapStatus === 'on_track' ? '#3b82f6' : '#f59e0b';
+      const gl = r.gapStatus === 'complete' ? 'Completado' : r.gapStatus === 'on_track' ? 'En camino' : 'Requiere impulso';
+      return `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#0f172a">${r.name}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${fmtMon(r.currentSales)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:center;color:#0f172a">${r.eventCount}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:right;color:#475569">${r.eventAvg > 0 ? 'Q ' + fmtMon(r.eventAvg) : '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#92400e;font-weight:600">${r.reachedTier?.name || 'Ninguno'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#0f172a;font-weight:600">${r.nextTier ? r.nextTier.name + ' (Q ' + fmtMon(r.nextTier.amount) + ')' : '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#f59e0b">${r.neededForNext > 0 ? 'Q ' + fmtMon(r.neededForNext) : '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:right;color:#f59e0b">${r.dailyNeeded > 0 ? 'Q ' + fmtMon(r.dailyNeeded) : '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:right;color:#3b82f6">${r.dailyAvg > 0 ? 'Q ' + fmtMon(r.dailyAvg) : '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#2563eb">Q ${fmtMon(r.projectedTotal)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;font-weight:700;text-align:center;color:${gc}">${gl}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="ProgId" content="Excel.Sheet">
+<style>table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;width:100%}
+th{background:#0f172a;color:#fff;padding:8px 10px;border:1px solid #0f172a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}
+th.right{text-align:right}</style></head><body>
+<table>
+  <tr><td colspan="11" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
+  <tr><td colspan="11" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Proyección de Metas</td></tr>
+  <tr><td colspan="11" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} → ${toDate} - Generado: ${dateStr} - ${timeStr}</td></tr>
+  <tr>
+    <th>Vendedor</th><th class="right">Ventas</th><th>Evs</th><th class="right">Prom./Ev</th><th>Tier</th><th>Siguiente</th>
+    <th class="right">Necesita</th><th class="right">Diario Nec.</th><th class="right">Prom. Diario</th><th class="right">Proyectado</th><th>Estado</th>
+  </tr>
+  ${rowsHtml || '<tr><td colspan="11" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
+  <tr>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9;text-align:right">TOTAL - ${rowsWithTiers.length} vendedor(es)</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#059669;background:#f1f5f9">Q ${fmtMon(totalCurrentSales)}</td>
+    <td colspan="4" style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#f59e0b;background:#f1f5f9">Q ${fmtMon(totalGapNeeded)}</td>
+    <td colspan="2" style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#2563eb;background:#f1f5f9">Q ${fmtMon(totalProjected)}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
+  </tr>
+  <tr><td colspan="11" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago - EMS Reservas - Reporte generado el ${dateStr}</td></tr>
+</table></body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `proyeccion_metas_${fromDate}_a_${toDate}.csv`;
+    link.download = `Proyeccion_Metas_${fromDate}_a_${toDate}.xls`;
     link.click();
   };
 

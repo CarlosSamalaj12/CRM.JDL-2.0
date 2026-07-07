@@ -6,6 +6,7 @@ import authService from './services/authService';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import SafeRoute from './components/SafeRoute';
+import UpdateBanner from './components/UpdateBanner';
 import ProtectedRoute from './modules/informes/components/ProtectedRoute';
 import Kanban from './modules/informes/pages/Kanban';
 import ReportsLayout from './modules/informes/components/ReportsLayout';
@@ -103,6 +104,7 @@ function App() {
 
   return (
     <Router>
+      <UpdateBanner />
       <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>

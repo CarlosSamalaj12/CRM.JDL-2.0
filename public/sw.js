@@ -175,6 +175,9 @@ self.addEventListener('message', (event) => {
     activeUserId = event.data.userId;
     console.log('[SW] Usuario activo registrado en SW:', activeUserId);
   }
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Evento push: Recibir mensaje del backend y mostrar notificación flotante

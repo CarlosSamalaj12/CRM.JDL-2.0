@@ -60,7 +60,9 @@ function expandEventSlots(eventData, existingEvent = null) {
 
   const isSharedPax = eventData.paxCompartido === true;
   slots.forEach((slot, slotIndex) => {
-    const slotDates = normalizeDateRange(slot.dateStart || eventDateStart, slot.dateEnd || slot.dateStart || eventDateEnd || eventDateStart);
+    const slotStart = slot.dateStart || eventDateStart;
+    const slotEnd = slot.dateEnd || slot.dateStart || eventDateEnd || eventDateStart;
+    const slotDates = normalizeDateRange(slotStart, slotEnd);
     slotDates.forEach((date, dateIndex) => {
       const isFirst = slotIndex === 0 && dateIndex === 0;
       const slotPaxVal = slot.pax === '' || slot.pax === null || slot.pax === undefined
@@ -74,9 +76,9 @@ function expandEventSlots(eventData, existingEvent = null) {
         mainSalon: salones[0] || String(slot.salon || '').trim(),
         salones,
         date,
-        eventDateStart: eventDateStart || date,
-        eventDateEnd: eventDateEnd || date,
-        endDate: eventDateEnd || eventDateStart || date,
+        eventDateStart: slotStart || date,
+        eventDateEnd: slotEnd || date,
+        endDate: slotEnd || date,
         startTime: slot.startTime || eventData.startTime,
         endTime: slot.endTime || eventData.endTime,
         status: slot.status || eventData.status || 'Reserva sin Cotizacion',

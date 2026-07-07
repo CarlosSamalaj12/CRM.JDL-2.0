@@ -227,58 +227,69 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   };
 
   const handleExportExcel = () => {
-    const escCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+    const fmtMon = (n) => new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
-    // Sheet 1: Summary by vendor
-    const summaryHeaders = ['Vendedor', 'Eventos Confirmados', 'Monto Total (GTQ)', 'Porcentaje (%)', 'Promedio por Evento (GTQ)'];
-    const summaryRows = userData.map(u => [
-      escCsv(u.name),
-      u.count,
-      u.totalAmount.toFixed(2),
-      Math.round(u.pct).toString(),
-      (u.count > 0 ? u.totalAmount / u.count : 0).toFixed(2),
-    ]);
-    const totalRow = [
-      escCsv('TOTAL'),
-      totalConfirmedEvents,
-      totalAmount.toFixed(2),
-      '100',
-      (totalConfirmedEvents > 0 ? totalAmount / totalConfirmedEvents : 0).toFixed(2),
-    ];
+    const sumRowsHtml = userData.map((u, i) => `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#0f172a">${u.name}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#0f172a">${u.count}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${fmtMon(u.totalAmount)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:center;color:#2563eb;font-weight:600">${Math.round(u.pct)}%</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:right;color:#475569">Q ${fmtMon(u.count > 0 ? u.totalAmount / u.count : 0)}</td>
+      </tr>`).join('');
 
-    // Sheet 2: Monthly breakdown by vendor
-    const monthHeaders = ['Mes', 'Vendedor', 'Eventos Confirmados', 'Monto (GTQ)', '% del Mes'];
-    const monthRows = [];
-    for (const m of monthlyData) {
-      const label = `${m.monthName} ${m.year}`;
-      let monthTotal = 0;
-      for (const row of m.userRows) monthTotal += row.amount;
-      for (const row of m.userRows) {
-        monthRows.push([
-          escCsv(label),
-          escCsv(row.name),
-          row.count,
-          row.amount.toFixed(2),
-          monthTotal > 0 ? ((row.amount / monthTotal) * 100).toFixed(1) : '0',
-        ]);
-      }
-    }
+    const monthRowsHtml = monthlyData.map(m => `${m.userRows.map((row, ri) => `<tr${ri % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#0f172a">${m.monthName} ${m.year}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#334155">${row.name}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:center;color:#0f172a">${row.count}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:right;color:#059669">Q ${fmtMon(row.amount)}</td>
+      </tr>`).join('')}`).join('');
 
-    const csvContent = [
-      escCsv('RESUMEN POR VENDEDOR - EFICIENCIA DE CONFIRMACIÓN'),
-      summaryHeaders.join(','),
-      ...summaryRows.map(r => r.join(',')),
-      totalRow.join(','),
-      '',
-      escCsv('DESGLOSE MENSUAL POR VENDEDOR'),
-      monthHeaders.join(','),
-      ...monthRows.map(r => r.join(',')),
-    ].join('\n');
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="ProgId" content="Excel.Sheet">
+<style>table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;width:100%}
+th{background:#0f172a;color:#fff;padding:8px 10px;border:1px solid #0f172a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}
+th.right{text-align:right}</style></head><body>
+<table>
+  <tr><td colspan="5" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
+  <tr><td colspan="5" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Eficiencia de Confirmación de Eventos</td></tr>
+  <tr><td colspan="5" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} → ${toDate} - Generado: ${dateStr} - ${timeStr}</td></tr>
+</table>
+<br>
+<table>
+  <tr><td colspan="5" style="padding:6px 10px;font-size:12px;font-weight:800;color:#0f172a;border:none">RESUMEN POR VENDEDOR</td></tr>
+  <tr>
+    <th>Vendedor</th><th>Eventos</th><th class="right">Total (Q)</th><th>%</th><th class="right">Promedio</th>
+  </tr>
+  ${sumRowsHtml || '<tr><td colspan="5" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
+  <tr>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9">TOTAL - ${userData.length} vendedor(es)</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:center;color:#0f172a;background:#f1f5f9">${totalConfirmedEvents}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#059669;background:#f1f5f9">Q ${fmtMon(totalAmount)}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:center;color:#2563eb;background:#f1f5f9">100%</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#0f172a;background:#f1f5f9">Q ${fmtMon(totalConfirmedEvents > 0 ? totalAmount / totalConfirmedEvents : 0)}</td>
+  </tr>
+</table>
+<br>
+<table>
+  <tr><td colspan="4" style="padding:6px 10px;font-size:12px;font-weight:800;color:#0f172a;border:none">DESGLOSE MENSUAL POR VENDEDOR</td></tr>
+  <tr>
+    <th>Mes</th><th>Vendedor</th><th>Eventos</th><th class="right">Monto (Q)</th>
+  </tr>
+  ${monthRowsHtml || '<tr><td colspan="4" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
+</table>
+<br>
+<table>
+  <tr><td colspan="5" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago - EMS Reservas - Reporte generado el ${dateStr}</td></tr>
+</table>
+</body></html>`;
 
-    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `eficiencia_confirmacion_${fromDate}_a_${toDate}.csv`;
+    link.download = `Eficiencia_Confirmacion_${fromDate}_a_${toDate}.xls`;
     link.click();
   };
 

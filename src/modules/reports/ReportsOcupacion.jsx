@@ -203,23 +203,60 @@ export default function ReportsOcupacion({ onClose }) {
   };
 
   const handleExportExcel = () => {
-    if (!rows.length) { toast("No hay datos para exportar."); return; }
+    if (!rows.length) { toast('No hay datos para exportar.'); return; }
     try {
-      const worksheetData = rows.map(r => {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+      const fmtMon = (n) => new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+
+      const rowsHtml = rows.map((r, i) => {
         const ev = r.rawEvent;
-        return {
-          'Encargado Evento': ev.quote?.contact || ev.quote?.managerName || ev.quote?.companyName || ev.clientPhone || ev.quote?.phone || '-',
-          'Vendedor': r.seller,
-          'Última Cotización': ev.quote ? `V${ev.quote.version || 1} - ${ev.quote.quotedAt ? new Date(ev.quote.quotedAt).toISOString().split('T')[0] : ''}` : '-',
-          'Último Informe M&M': ev.quote?.menuMontajeVersion ? `V${ev.quote.menuMontajeVersion}` : '-',
-          'Check List': ev.checklist ? 'Sí' : 'No', 'Total Evento': r.total,
-          'Última Modificación': formatTimestamp(ev.updatedAt || ev.createdAt || ev.quote?.quotedAt)
-        };
-      });
-      const ws = XLSX.utils.json_to_sheet(worksheetData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Ocupación Semanal');
-      XLSX.writeFile(wb, `Reporte_Ocupacion_${weekDays[0]}_a_${weekDays[6]}.xlsx`);
+        const encargado = ev.quote?.contact || ev.quote?.managerName || ev.quote?.companyName || ev.clientPhone || ev.quote?.phone || '-';
+        const ultCot = ev.quote ? `V${ev.quote.version || 1} - ${ev.quote.quotedAt ? new Date(ev.quote.quotedAt).toISOString().split('T')[0] : ''}` : '-';
+        const ultInf = ev.quote?.menuMontajeVersion ? `V${ev.quote.menuMontajeVersion}` : '-';
+        const check = ev.checklist ? 'Sí' : 'No';
+        const um = ev.updatedAt || ev.createdAt || ev.quote?.quotedAt;
+        const umStr = um ? new Date(um).toLocaleDateString('es-GT') + ' ' + new Date(um).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' }) : '-';
+        return `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#0f172a">${encargado}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#334155">${r.seller}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#475569">${ultCot}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;text-align:center;color:#475569">${ultInf}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:center;color:${check === 'Sí' ? '#059669' : '#94a3b8'};font-weight:${check === 'Sí' ? '700' : '400'}">${check}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#0f172a">Q ${fmtMon(r.total)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#64748b">${umStr}</td>
+      </tr>`;
+      }).join('');
+
+      const totalAmount = rows.reduce((s, r) => s + (r.total || 0), 0);
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="ProgId" content="Excel.Sheet">
+<style>table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;width:100%}
+th{background:#0f172a;color:#fff;padding:8px 10px;border:1px solid #0f172a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}
+th.right{text-align:right}</style></head><body>
+<table>
+  <tr><td colspan="7" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
+  <tr><td colspan="7" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Reporte de Ocupación Semanal</td></tr>
+  <tr><td colspan="7" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Semana: ${weekDays[0]} → ${weekDays[6]} - Generado: ${dateStr} - ${timeStr}</td></tr>
+  <tr>
+    <th>Encargado</th><th>Vendedor</th><th>Ult. Cotización</th><th>M&amp;M</th><th>Check</th><th class="right">Total</th><th>Ult. Mod.</th>
+  </tr>
+  ${rowsHtml || '<tr><td colspan="7" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
+  <tr>
+    <td colspan="5" style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9;text-align:right">TOTAL - ${rows.length} evento(s)</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#0f172a;background:#f1f5f9">Q ${fmtMon(totalAmount)}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
+  </tr>
+  <tr><td colspan="7" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago - EMS Reservas - Reporte generado el ${dateStr}</td></tr>
+</table></body></html>`;
+
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Ocupacion_Semanal_${weekDays[0]}_a_${weekDays[6]}.xls`;
+      link.click();
       toast('Reporte exportado exitosamente');
     } catch (err) { toast('Error al exportar a Excel'); }
   };

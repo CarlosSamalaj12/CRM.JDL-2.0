@@ -186,6 +186,7 @@ export default function ReportsContabilidad({ onClose }) {
         lastAdvanceDate: lastAdvance?.date ? String(lastAdvance.date) : '',
         lastAdvancePaymentType: lastAdvance?.paymentType ? String(lastAdvance.paymentType) : '',
         lastAdvanceDescription: lastAdvance?.description ? String(lastAdvance.description) : '',
+        folio: quote?.folio || '',
         catBuckets: quote?.catBuckets || { alimentosBebidas: { amount: 0 }, hospedajeJdl: { amount: 0 }, hospedajeTerceros: { amount: 0 }, miscelaneos: { amount: 0 } },
         statusColor: STATUS_META[primaryEvent?.status || ev?.status]?.color || '#64748b'
       });
@@ -200,7 +201,7 @@ export default function ReportsContabilidad({ onClose }) {
       filtered = filtered.filter(r => 
         r.name?.toLowerCase().includes(term) || r.clientName?.toLowerCase().includes(term) ||
         r.salon?.toLowerCase().includes(term) || r.userName?.toLowerCase().includes(term) ||
-        r.refId?.toLowerCase().includes(term) || r.companyName?.toLowerCase().includes(term)
+        r.refId?.toLowerCase().includes(term) || r.folio?.toLowerCase().includes(term) || r.companyName?.toLowerCase().includes(term)
       );
     }
     if (dateFrom) filtered = filtered.filter(r => r.eventDate >= dateFrom);
@@ -583,19 +584,61 @@ export default function ReportsContabilidad({ onClose }) {
       toast.error('No hay datos para exportar.');
       return;
     }
-    const csvRows = [
-      '\ufeff' + ['INDICADOR', 'INSTITUCION', 'TELEFONO', 'VENDEDOR PRINCIPAL', 'EVENTOS', 'PENDIENTES', 'VENTA NETA', 'COBRADO', 'SALDO PENDIENTE', 'SALDO A FAVOR', 'FECHA MAXIMA PAGO', 'TIEMPO SUGERIDO COBRO', 'ULTIMO DEPOSITO'].join(','),
-      ...accounts.map(acc => [
-        `"${acc.collectionLabel || ''}"`, `"${acc.companyName || ''}"`, `"${acc.contactPhone || ''}"`,
-        `"${acc.primarySeller || ''}"`, acc.eventsCount || 0, acc.pendingEventsCount || 0,
-        acc.netAmount || 0, acc.collectedAmount || 0, acc.pendingAmount || 0, acc.creditAmount || 0,
-        `"${acc.collectionDueLabel || ''}"`, `"${acc.collectionEta || ''}"`, `"${acc.lastAdvanceDate || ''}"`
-      ].join(','))
-    ];
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+    const fmtMon = (n) => new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+
+    const rowsHtml = accounts.map((acc, i) => `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#334155">${acc.collectionLabel || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#0f172a">${acc.companyName || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569">${acc.contactPhone || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#0f172a">${acc.primarySeller || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#0f172a">${acc.eventsCount}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:center;color:${acc.pendingEventsCount > 0 ? '#dc2626' : '#16a34a'};font-weight:700">${acc.pendingEventsCount}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#0f172a">Q ${fmtMon(acc.netAmount)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:right;color:#16a34a">Q ${fmtMon(acc.collectedAmount)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;text-align:right;color:${acc.pendingAmount > 0 ? '#dc2626' : '#16a34a'}">Q ${fmtMon(acc.pendingAmount)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:right;color:#0d9488">Q ${fmtMon(acc.creditAmount)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#475569">${acc.collectionDueLabel || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#475569">${acc.collectionEta || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#475569">${acc.lastAdvanceDate || '-'}</td>
+      </tr>`).join('');
+
+    const nt = accounts.reduce((s, a) => s + (a.netAmount || 0), 0);
+    const ct = accounts.reduce((s, a) => s + (a.collectedAmount || 0), 0);
+    const pt = accounts.reduce((s, a) => s + (a.pendingAmount || 0), 0);
+    const crt = accounts.reduce((s, a) => s + (a.creditAmount || 0), 0);
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="ProgId" content="Excel.Sheet">
+<style>table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;width:100%}
+th{background:#0f172a;color:#fff;padding:8px 10px;border:1px solid #0f172a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}
+th.right{text-align:right}</style></head><body>
+<table>
+  <tr><td colspan="13" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
+  <tr><td colspan="13" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Estado de Cuenta Contable</td></tr>
+  <tr><td colspan="13" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Generado: ${dateStr} - ${timeStr}</td></tr>
+  <tr>
+    <th>Indicador</th><th>Institución</th><th>Teléfono</th><th>Vendedor</th><th>Eventos</th><th>Pend.</th>
+    <th class="right">Venta Neta</th><th class="right">Cobrado</th><th class="right">Pendiente</th><th class="right">Sdo. Favor</th><th>Propuesta</th><th>Gestión</th><th>Ult. Depósito</th>
+  </tr>
+  ${rowsHtml || '<tr><td colspan="13" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
+  <tr>
+    <td colspan="6" style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9;text-align:right">Total general - ${accounts.length} institución(es)</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#0f172a;background:#f1f5f9">Q ${fmtMon(nt)}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#16a34a;background:#f1f5f9">Q ${fmtMon(ct)}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:${pt > 0 ? '#dc2626' : '#16a34a'};background:#f1f5f9">Q ${fmtMon(pt)}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#0d9488;background:#f1f5f9">Q ${fmtMon(crt)}</td>
+    <td colspan="3" style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
+  </tr>
+  <tr><td colspan="13" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago - EMS Reservas - Reporte generado el ${dateStr}</td></tr>
+</table></body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `estado_cuenta_contable_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Estado_Cuenta_Contable_${now.toISOString().split('T')[0]}.xls`;
     link.click();
   };
 
@@ -901,6 +944,8 @@ export default function ReportsContabilidad({ onClose }) {
                                 <tr>
                                   <th><div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>Estado</div></th>
                                   <th><div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Cotización</div></th>
+                                  <th>No. Folio</th>
+                                  <th>Institución</th>
                                   <th>Fecha</th>
                                   <th>Vendedor</th>
                                   <th>Salón</th>
@@ -936,6 +981,8 @@ export default function ReportsContabilidad({ onClose }) {
                                       </span>
                                     </td>
                                     <td style={{ fontWeight: 700, fontSize: '12px' }}>{r.refId}</td>
+                                    <td style={{ fontWeight: 700, fontSize: '11px', color: '#334155' }}>{r.folio || '-'}</td>
+                                    <td style={{ fontSize: '11px', fontWeight: 600, color: '#0f172a' }}>{r.companyName || '-'}</td>
                                     <td style={{ fontSize: '11px', color: '#475569' }}>{r.eventDate}</td>
                                     <td style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>{r.userName}</td>
                                     <td style={{ fontSize: '11px', color: '#334155' }}>{r.salon}</td>

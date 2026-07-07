@@ -268,27 +268,47 @@ export default function ReportsComisiones({ onClose }) {
   };
 
   const handleExportExcel = () => {
-    const escCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-    const headers = ['Vendedor', 'Ventas (GTQ)', 'Nivel Alcanzado', '% Comisión', 'Comisión (GTQ)', 'Siguiente Nivel', 'Progreso (%)'];
-    const rows = userRows.map(r => [
-      escCsv(r.name),
-      r.salesAmount.toFixed(2),
-      escCsv(r.reachedTier?.name || (r.hasTiers ? 'Ninguno' : '—')),
-      r.reachedTier ? r.reachedTier.percentage.toString() : (r.hasTiers ? '0' : '—'),
-      r.commissionAmount.toFixed(2),
-      escCsv(r.nextTier?.name || '—'),
-      r.hasTiers ? Math.round(r.progressToNext).toString() : '—',
-    ]);
-    const csvContent = [
-      escCsv('REPORTE DE COMISIONES'),
-      headers.join(','),
-      ...rows.map(r => r.join(',')),
-      `,Total,${totalSales.toFixed(2)},,${totalCommission.toFixed(2)},,`,
-    ].join('\n');
-    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+
+    const rowsHtml = userRows.map((r, i) => `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#0f172a">${r.name}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${r.salesAmount.toFixed(2)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#92400e;font-weight:600">${r.reachedTier?.name || (r.hasTiers ? 'Ninguno' : '-')}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#2563eb">${r.reachedTier ? r.reachedTier.percentage + '%' : (r.hasTiers ? '0%' : '-')}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#6366f1">Q ${r.commissionAmount.toFixed(2)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#475569">${r.nextTier ? r.nextTier.name + ' (Q ' + new Intl.NumberFormat('es-GT').format(r.nextTier.amount) + ')' : '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#3b82f6">${r.hasTiers ? Math.round(r.progressToNext) + '%' : '-'}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="ProgId" content="Excel.Sheet">
+<style>table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;width:100%}
+th{background:#0f172a;color:#fff;padding:8px 10px;border:1px solid #0f172a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}
+th.right{text-align:right}</style></head><body>
+<table>
+  <tr><td colspan="7" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
+  <tr><td colspan="7" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Reporte de Comisiones</td></tr>
+  <tr><td colspan="7" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} → ${toDate} - Generado: ${dateStr} - ${timeStr}</td></tr>
+  <tr>
+    <th>Vendedor</th><th class="right">Ventas (Q)</th><th>Nivel</th><th>%</th><th class="right">Comisión</th><th>Siguiente</th><th>Progreso</th>
+  </tr>
+  ${rowsHtml || '<tr><td colspan="7" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
+  <tr>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9">Total - ${userRows.length} vendedor(es)</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#059669;background:#f1f5f9">Q ${new Intl.NumberFormat('es-GT',{minimumFractionDigits:2}).format(totalSales)}</td>
+    <td colspan="2" style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#6366f1;background:#f1f5f9">Q ${new Intl.NumberFormat('es-GT',{minimumFractionDigits:2}).format(totalCommission)}</td>
+    <td colspan="2" style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
+  </tr>
+  <tr><td colspan="7" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago - EMS Reservas - Reporte generado el ${dateStr}</td></tr>
+</table></body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `comisiones_${fromDate}_a_${toDate}.csv`;
+    link.download = `Comisiones_${fromDate}_a_${toDate}.xls`;
     link.click();
   };
 

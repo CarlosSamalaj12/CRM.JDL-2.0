@@ -43,6 +43,8 @@ export default function ReportsVentas({ onClose }) {
       rows.push({
         id: ev.id,
         refId: quote?.code || reservationKey || primaryEvent?.id || ev?.id || '',
+        folio: quote?.folio || '',
+        institucion: quote?.companyName || ev.clientName || quote?.contact || '',
         name: primaryEvent?.name || ev?.name || '',
         eventDate: financialMeta.startDate || primaryEvent?.date || ev?.date || '',
         endDate: financialMeta.endDate || financialMeta.startDate || ev?.date || '',
@@ -73,7 +75,9 @@ export default function ReportsVentas({ onClose }) {
         r.salon?.toLowerCase().includes(term) ||
         r.userName?.toLowerCase().includes(term) ||
         r.refId?.toLowerCase().includes(term) ||
-        r.eventType?.toLowerCase().includes(term)
+        r.eventType?.toLowerCase().includes(term) ||
+        r.folio?.toLowerCase().includes(term) ||
+        r.institucion?.toLowerCase().includes(term)
       );
     }
     if (dateFrom) filtered = filtered.filter(r => r.eventDate >= dateFrom);
@@ -126,16 +130,111 @@ export default function ReportsVentas({ onClose }) {
   };
 
   const handleExportExcel = () => {
-    const headers = ['Estado', 'ID Cotización', 'Vendedor', 'Fecha', 'Evento', 'Horario', 'Salón', 'PAX', 'Monto'];
-    const rows = reportData.map(r => [r.status, r.refId, r.userName, r.eventDate, r.eventType, `${r.startTime} - ${r.endTime}`, r.salon, r.pax, r.total]);
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
-    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const fmtDate = (d) => {
+      if (!d) return '';
+      return new Date(d + 'T12:00:00').toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+    };
+    const fmtNum = (n) => {
+      return new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+    };
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeLabel = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+    const fromLabel = dateFrom ? fmtDate(dateFrom) : '—';
+    const toLabel = dateTo ? fmtDate(dateTo) : '—';
+    const userLabel = userFilter !== 'all' ? (users?.find(u => u.id === userFilter)?.fullName || 'Todos') : 'Todos';
+    const statusLabel = statusFilter !== 'all' ? statusFilter : 'Todos';
+    const salonLabel = salonFilter !== 'all' ? salonFilter : 'Todos';
+
+    const totalAmount = reportData.reduce((s, r) => s + (r.total || 0), 0);
+
+    const rowsHtml = reportData.map((r, i) => `
+      <tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#334155">${r.status || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#0f172a">${r.refId || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#334155">${r.folio || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#0f172a">${r.institucion || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569">${r.userName}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569">${r.eventDate}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#334155">${r.eventType || r.name || '-'}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569;text-align:center">${r.startTime} - ${r.endTime}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#334155">${r.salon}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#0f172a">${r.pax}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${fmtNum(r.total)}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="ProgId" content="Excel.Sheet">
+<style>
+  table { border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; width: 100%; }
+  th { background: #0f172a; color: #fff; padding: 8px 10px; border: 1px solid #0f172a; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
+  th.right { text-align: right; }
+</style>
+</head>
+<body>
+<table>
+  <!-- Title rows -->
+  <tr><td colspan="11" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS · JARDINES DEL LAGO</td></tr>
+  <tr><td colspan="11" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Reporte de Ventas</td></tr>
+  <tr><td colspan="11" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Generado: ${dateLabel} · ${timeLabel}</td></tr>
+
+  <!-- Filter Summary -->
+  <tr><td colspan="11" style="padding:4px 10px 10px;border:none">
+    <table style="border:1px solid #e2e8f0;border-radius:6px;width:auto;font-size:10px">
+      <tr>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;font-weight:700;color:#475569;background:#f8fafc">Periodo</td>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;color:#0f172a;font-weight:600">${fromLabel} → ${toLabel}</td>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;font-weight:700;color:#475569;background:#f8fafc">Vendedor</td>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;color:#0f172a;font-weight:600">${userLabel}</td>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;font-weight:700;color:#475569;background:#f8fafc">Estado</td>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;color:#0f172a;font-weight:600">${statusLabel}</td>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;font-weight:700;color:#475569;background:#f8fafc">Salón</td>
+        <td style="padding:6px 14px;border:1px solid #e2e8f0;color:#0f172a;font-weight:600">${salonLabel}</td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- Separator -->
+  <tr><td colspan="11" style="padding:0;border:none;height:4px"></td></tr>
+
+  <!-- Column headers -->
+  <tr>
+    <th>Estado</th>
+    <th>Cotización</th>
+    <th>No. Folio</th>
+    <th>Institución</th>
+    <th>Vendedor</th>
+    <th>Fecha</th>
+    <th>Evento</th>
+    <th>Horario</th>
+    <th>Salón</th>
+    <th>PAX</th>
+    <th class="right">Monto</th>
+  </tr>
+
+  <!-- Data rows -->
+  ${rowsHtml || '<tr><td colspan="11" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos para los filtros seleccionados.</td></tr>'}
+
+  <!-- Summary row -->
+  <tr>
+    <td colspan="9" style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9;text-align:right">Total general · ${reportData.length} evento(s)</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;text-align:center;color:#0f172a;background:#f1f5f9">${reportData.reduce((s, r) => s + (r.pax || 0), 0)}</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#059669;background:#f1f5f9">Q ${fmtNum(totalAmount)}</td>
+  </tr>
+
+  <!-- Footer -->
+  <tr><td colspan="11" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago · EMS Reservas · Reporte generado el ${dateLabel} a las ${timeLabel}</td></tr>
+</table>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `reporte_ventas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Reporte_Ventas_${now.toISOString().split('T')[0]}.xls`;
     link.click();
   };
 
@@ -289,6 +388,8 @@ export default function ReportsVentas({ onClose }) {
                 <tr>
                   <th>Estado</th>
                   <th>Cotización</th>
+                  <th>No. Folio</th>
+                  <th>Institución</th>
                   <th>Vendedor</th>
                   <th>Fecha</th>
                   <th>Evento</th>
@@ -301,7 +402,7 @@ export default function ReportsVentas({ onClose }) {
               <tbody>
                 {reportData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                       Sin eventos para los filtros seleccionados.
                     </td>
                   </tr>
@@ -317,6 +418,8 @@ export default function ReportsVentas({ onClose }) {
                       </span>
                     </td>
                     <td style={{ fontWeight: 700 }}>{r.refId}</td>
+                    <td style={{ fontWeight: 600, color: '#334155' }}>{r.folio || '-'}</td>
+                    <td style={{ fontWeight: 600, color: '#0f172a' }}>{r.institucion || '-'}</td>
                     <td>{r.userName}</td>
                     <td>{r.eventDate}</td>
                     <td>{r.eventType || r.name}</td>
