@@ -530,6 +530,10 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           }
         }
       }
+      // Si el fetch de la API no devolvió datos, usar entradas cacheadas del quote
+      if (!quoteWithMm.menuMontajeEntries?.length && Array.isArray(quote.menuMontajeEntries) && quote.menuMontajeEntries.length > 0) {
+        quoteWithMm = quote;
+      }
       if (quoteWithMm.menuMontajeEntries?.length) {
         mmContentHtml = buildMenuMontajeSectionHtmlOnly(event, quoteWithMm, "full", { companies, users });
       }
