@@ -424,7 +424,7 @@ const StatusSelectCustom = ({ value, options, onChange, disabled, size = 'sm' })
 };
 
 export default function ReservationForm() {
-  const { events, salones, users, handleAddEvent, refreshData } = useOutletContext();
+  const { events, salones, users, handleAddEvent, refreshData, salonConflictDisabled } = useOutletContext();
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
@@ -562,10 +562,10 @@ export default function ReservationForm() {
 
   useEffect(() => {
     if (events && slots.length > 0) {
-      const conflicts = conflictService.checkAllSlots(slots, comparableEvents, id);
+      const conflicts = conflictService.checkAllSlots(slots, comparableEvents, id, salonConflictDisabled);
       setSlotConflicts(conflicts.filter(r => !r.ok));
     }
-  }, [slots, events, id, comparableEvents]);
+  }, [slots, events, id, comparableEvents, salonConflictDisabled]);
 
 
   useEffect(() => {
@@ -865,7 +865,8 @@ export default function ReservationForm() {
     const conflictCheck = conflictService.checkAllSlots(
       slots.map(s => ({ ...s, status: 'Mantenimiento' })),
       comparableEvents,
-      id
+      id,
+      salonConflictDisabled
     );
     const hardConflicts = conflictCheck.filter(r => r.type === 'conflict' && !r.ok);
     if (hardConflicts.length > 0) {
@@ -1068,7 +1069,7 @@ export default function ReservationForm() {
       return;
     }
 
-    const conflictCheck = conflictService.checkAllSlots(slots, comparableEvents, id);
+    const conflictCheck = conflictService.checkAllSlots(slots, comparableEvents, id, salonConflictDisabled);
     const hasConflicts = conflictCheck.some(r => !r.ok);
     const hardConflicts = conflictCheck.filter(r => r.type === 'conflict' && !r.ok);
     

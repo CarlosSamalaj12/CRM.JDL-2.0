@@ -59,6 +59,7 @@ export default function MainLayout() {
   const [users, setUsers] = useState([]);
   const [occupancyWeeklyOps, setOccupancyWeeklyOps] = useState({});
   const [reminders, setReminders] = useState({});
+  const [salonConflictDisabled, setSalonConflictDisabled] = useState([]);
 
   async function loadInitialData(useCache = true) {
     if (useCache && memoryCache) {
@@ -66,6 +67,8 @@ export default function MainLayout() {
       setSalones(memoryCache.salones);
       setUsers(memoryCache.users);
       setOccupancyWeeklyOps(memoryCache.occupancyWeeklyOps);
+      setReminders(memoryCache.reminders);
+      setSalonConflictDisabled(memoryCache.salonConflictDisabled || []);
       setLoading(false);
       // Cargar del servidor en segundo plano de forma silenciosa
       loadInitialDataFromServer(true);
@@ -96,13 +99,15 @@ export default function MainLayout() {
         ? stateRes.occupancyWeeklyOps 
         : {};
       const loadedReminders = stateRes?.reminders || {};
+      const loadedNoConflict = Array.isArray(stateRes?.salonConflictDisabled) ? stateRes.salonConflictDisabled : [];
 
       memoryCache = {
         events: eventsData,
         salones: salonesData,
         users: loadedUsers,
         occupancyWeeklyOps: loadedOps,
-        reminders: loadedReminders
+        reminders: loadedReminders,
+        salonConflictDisabled: loadedNoConflict
       };
 
       setEvents(eventsData);
@@ -110,6 +115,7 @@ export default function MainLayout() {
       setUsers(loadedUsers);
       setOccupancyWeeklyOps(loadedOps);
       setReminders(loadedReminders);
+      setSalonConflictDisabled(loadedNoConflict);
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
@@ -424,7 +430,8 @@ export default function MainLayout() {
               sellerFilter,
               setSellerFilter,
               occupancyWeeklyOps,
-              handleUpdateOccupancyOps
+              handleUpdateOccupancyOps,
+              salonConflictDisabled
             }} />
           </ErrorBoundary>
         </div>

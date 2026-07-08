@@ -991,7 +991,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
-      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays','informe_tiempos_orden','informe_tipos_montaje')"),
+      conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','salonConflictDisabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays','informe_tiempos_orden','informe_tipos_montaje')"),
       conn.query("SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS tiene_evidencia, creado_en_iso FROM anticipos_evento ORDER BY fecha_anticipo, id"),
     ]);
 
@@ -1434,6 +1434,7 @@ async function readStateFromTables() {
     const occupancyWeeklyOpsRow = appStateRows.find((r) => str(r.clave) === "occupancyWeeklyOps");
     const salonCapacitiesRow = appStateRows.find((r) => str(r.clave) === "salonCapacities");
     const salonOccupancyEnabledRow = appStateRows.find((r) => str(r.clave) === "salonOccupancyEnabled");
+    const salonConflictDisabledRow = appStateRows.find((r) => str(r.clave) === "salonConflictDisabled");
 
     const parseArray = (row) => {
       if (!row?.valor_json) return [];
@@ -1532,6 +1533,12 @@ async function readStateFromTables() {
       state.salonOccupancyEnabled = Array.isArray(parsed) ? parsed : [];
     } catch (_) {
       state.salonOccupancyEnabled = [];
+    }
+    try {
+      const parsed = JSON.parse(str(salonConflictDisabledRow?.valor_json) || "[]");
+      state.salonConflictDisabled = Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      state.salonConflictDisabled = [];
     }
 
     if (dbServiceCategories && dbServiceCategories.length > 0) {
@@ -2166,6 +2173,7 @@ async function writeStateToTables(state) {
     const occupancyWeeklyOps = (state.occupancyWeeklyOps && typeof state.occupancyWeeklyOps === "object") ? state.occupancyWeeklyOps : {};
     const salonCapacities = (state.salonCapacities && typeof state.salonCapacities === "object") ? state.salonCapacities : {};
     const salonOccupancyEnabled = Array.isArray(state.salonOccupancyEnabled) ? state.salonOccupancyEnabled : [];
+    const salonConflictDisabled = Array.isArray(state.salonConflictDisabled) ? state.salonConflictDisabled : [];
     const events = Array.isArray(state.events)
       ? state.events.map((e) => ({ ...e, salon: e?.salon ?? "" }))
       : [];
@@ -2975,6 +2983,14 @@ async function writeStateToTables(state) {
         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
       `,
       [JSON.stringify(salonOccupancyEnabled)]
+    );
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('salonConflictDisabled', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(salonConflictDisabled)]
     );
     const exchangeRate = Number(state.exchangeRate || 7.75);
     const appointmentReminderOffset = Number(state.appointmentReminderOffset || 0);
