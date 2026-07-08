@@ -15,6 +15,7 @@ import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
 import SettingsEquipos from './SettingsEquipos';
 import SettingsCitas from './SettingsCitas';
+import SettingsMantenimiento from './SettingsMantenimiento';
 import authService from '../../services/authService';
 import '../reports/reports.css';
 import './settings.css';
@@ -477,6 +478,10 @@ export default function SettingsMain() {
                 <div className="settings-section-card">
                   <h3 className="settings-section-card-title">Importación de Datos</h3>
                   <SettingsImport />
+                </div>
+
+                <div style={{ marginTop: '24px' }}>
+                  <SettingsMantenimiento />
                 </div>
               </>
             )}

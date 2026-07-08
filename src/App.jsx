@@ -6,6 +6,7 @@ import authService from './services/authService';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import SafeRoute from './components/SafeRoute';
+import MaintenancePage from './components/MaintenancePage';
 import UpdateBanner from './components/UpdateBanner';
 import ProtectedRoute from './modules/informes/components/ProtectedRoute';
 import Kanban from './modules/informes/pages/Kanban';
@@ -64,6 +65,26 @@ function HomeRedirect() {
 }
 
 function App() {
+  const [maintenance, setMaintenance] = React.useState(null);
+
+  const checkMaintenance = React.useCallback(() => {
+    fetch('/api/state')
+      .then(r => r.json())
+      .then(data => {
+        const s = data && typeof data.state === 'object' ? data.state : data;
+        setMaintenance(s.maintenanceMode === true);
+      })
+      .catch(() => setMaintenance(false));
+  }, []);
+
+  React.useEffect(() => {
+    checkMaintenance();
+    window.addEventListener('focus', checkMaintenance);
+    return () => {
+      window.removeEventListener('focus', checkMaintenance);
+    };
+  }, [checkMaintenance]);
+
   React.useEffect(() => {
     const handleSWMessage = (event) => {
       if (event.data && event.data.type === 'NAVIGATE_TO' && event.data.url) {
@@ -109,35 +130,43 @@ function App() {
       <AuthProvider>
         <ToastProvider>
           <SocketProvider>
-            <Suspense fallback={<div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', color:'#64748b' }}>Cargando...</div>}>
-            <Routes>
-              <Route path="/login" element={<SafeRoute><Login /></SafeRoute>} />
+            {maintenance === null ? (
+              <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', background:'#0f172a', color:'#64748b', fontFamily:'system-ui, sans-serif', fontSize:'14px' }}>
+                Verificando...
+              </div>
+            ) : maintenance ? (
+              <MaintenancePage />
+            ) : (
+              <Suspense fallback={<div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', color:'#64748b' }}>Cargando...</div>}>
+              <Routes>
+                <Route path="/login" element={<SafeRoute><Login /></SafeRoute>} />
 
-              <Route element={<ReportsLayout />}>
-                <Route path="/informes" element={<ProtectedRoute><SafeRoute><Dashboard /></SafeRoute></ProtectedRoute>} />
-                <Route path="/kanban" element={<ProtectedRoute><SafeRoute><Kanban /></SafeRoute></ProtectedRoute>} />
-                <Route path="/catalog" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><SafeRoute><Catalog /></SafeRoute></ProtectedRoute>} />
-                <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><SafeRoute><ConstructorInforme /></SafeRoute></ProtectedRoute>} />
-                <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><SafeRoute><InformeCreator /></SafeRoute></ProtectedRoute>} />
-                <Route path="/informe/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos', 'Coordinador']}><SafeRoute><InformeView /></SafeRoute></ProtectedRoute>} />
-                <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><SafeRoute><Configuracion /></SafeRoute></ProtectedRoute>} />
-              </Route>
+                <Route element={<ReportsLayout />}>
+                  <Route path="/informes" element={<ProtectedRoute><SafeRoute><Dashboard /></SafeRoute></ProtectedRoute>} />
+                  <Route path="/kanban" element={<ProtectedRoute><SafeRoute><Kanban /></SafeRoute></ProtectedRoute>} />
+                  <Route path="/catalog" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><SafeRoute><Catalog /></SafeRoute></ProtectedRoute>} />
+                  <Route path="/informe/pos/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><SafeRoute><ConstructorInforme /></SafeRoute></ProtectedRoute>} />
+                  <Route path="/informe/create/:id_ocupacion" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice']}><SafeRoute><InformeCreator /></SafeRoute></ProtectedRoute>} />
+                  <Route path="/informe/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos', 'Coordinador']}><SafeRoute><InformeView /></SafeRoute></ProtectedRoute>} />
+                  <Route path="/config" element={<ProtectedRoute allowedRoles={['Admin', 'Vendedor', 'FrontOffice', 'Eventos']}><SafeRoute><Configuracion /></SafeRoute></ProtectedRoute>} />
+                </Route>
 
-              <Route path="/" element={<CrmProtectedRoute><MainLayout /></CrmProtectedRoute>}>
-                <Route index element={<HomeRedirect />} />
-                <Route path="calendar" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
-                <Route path="nueva-reserva" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
-                <Route path="reserva/:id" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
-                <Route path="customers" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><CustomersModule /></SafeRoute></RoleRoute>} />
-                <Route path="reports" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><ReportsModule /></SafeRoute></RoleRoute>} />
-                <Route path="settings" element={<RoleRoute roles={['admin']}><SafeRoute><SettingsMain /></SafeRoute></RoleRoute>} />
-                <Route path="support" element={<SupportModule />} />
-                <Route path="search" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><SearchModule /></SafeRoute></RoleRoute>} />
-              </Route>
+                <Route path="/" element={<CrmProtectedRoute><MainLayout /></CrmProtectedRoute>}>
+                  <Route index element={<HomeRedirect />} />
+                  <Route path="calendar" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
+                  <Route path="nueva-reserva" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
+                  <Route path="reserva/:id" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><Calendar /></SafeRoute></RoleRoute>} />
+                  <Route path="customers" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><CustomersModule /></SafeRoute></RoleRoute>} />
+                  <Route path="reports" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><ReportsModule /></SafeRoute></RoleRoute>} />
+                  <Route path="settings" element={<RoleRoute roles={['admin']}><SafeRoute><SettingsMain /></SafeRoute></RoleRoute>} />
+                  <Route path="support" element={<SupportModule />} />
+                  <Route path="search" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><SearchModule /></SafeRoute></RoleRoute>} />
+                </Route>
 
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-            </Suspense>
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+              </Suspense>
+            )}
           </SocketProvider>
         </ToastProvider>
       </AuthProvider>
