@@ -382,7 +382,9 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     let mmContentHtml = "";
     if (printOption === "completa" || printOption === "sin_precios") {
       let quoteWithMm = quote;
-      if (!quote.menuMontajeEntries?.length) {
+      // Forzar reconstrucción desde la API para incluir datos actualizados (notas, etc.)
+      const _forceRebuild = true;
+      if (_forceRebuild || !quote.menuMontajeEntries?.length) {
         const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
         const token = localStorage.getItem('token');
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -457,6 +459,9 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               }
               if (item.opcion_nombre) {
                 parts.push(item.opcion_nombre);
+              }
+              if (item.notas) {
+                parts.push(`📝 ${item.notas}`);
               }
               return parts.filter(Boolean).join('  ');
             };
