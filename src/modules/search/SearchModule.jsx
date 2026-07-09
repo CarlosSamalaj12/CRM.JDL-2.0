@@ -18,15 +18,8 @@ const STATUS_DESCRIPTIONS = {
 };
 
 export default function SearchModule() {
-  let navigate;
-  let outlet = {};
-  try {
-    navigate = useNavigate();
-    outlet = useOutletContext();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-    outlet = {};
-  }
+  const navigate = useNavigate();
+  const outlet = useOutletContext() || {};
   const { events = [], users = [], salones = [] } = outlet;
 
   const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '');

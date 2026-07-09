@@ -9,6 +9,7 @@ import { generateQuotePrintDocument } from '../../../utils/printUtils';
 import api from '../../../services/api';
 import socketService from '../../../services/socketService';
 import { useAutoSave, loadDraft, clearDraft } from '../../../hooks/useAutoSave';
+import LoadingSpinner from '../../../components/LoadingSpinner';
 
 
 const uid = () => `row_${Math.random().toString(36).substr(2, 8)}`;
@@ -856,6 +857,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
 
     try {
+      setSaving(true);
       const existingVersions = Array.isArray(quote.versions) ? quote.versions : [];
       const newVersions = existingVersions.map(v => ({ ...v, versions: undefined }));
       let newVersionNum = Number(quote.version || 1);
@@ -917,9 +919,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       if (typeof onSave === 'function') {
         await onSave(finalQuote, { keepOpen: true });
       }
-      clearDraft(event); {
-        await onSave(finalQuote, { keepOpen: true });
-      }
+      clearDraft(event);
+
+      setSaving(false);
 
       const result = await localSwal({
         icon: 'success',
@@ -1081,6 +1083,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
     } catch (err) {
       console.error('Error al guardar cotización:', err);
+      setSaving(false);
       localSwal({ icon: 'error', title: 'Error', text: 'Hubo un problema al aplicar la cotización.' });
     }
   };
@@ -1514,7 +1517,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const card = { background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px' };
 
   return inlineMode ? (
-    <div style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '16px' }}>
+    <div style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '16px', position: 'relative' }}>
+      {saving && <LoadingSpinner mensaje="Guardando cotización..." />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div>
           <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Anticipos</div>
@@ -1651,6 +1655,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     </div>
   ) : (
     <>
+      {saving && <LoadingSpinner mensaje="Guardando cotización..." />}
       {/* ── CSS global ── */}
       <style>{`
         body.quoteModeOpen .reservation-modal-overlay { display: none !important; }

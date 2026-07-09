@@ -21,12 +21,7 @@ import '../reports/reports.css';
 import './settings.css';
 
 export default function SettingsMain() {
-  let navigate;
-  try {
-    navigate = useNavigate();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-  }
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('general');
   // Inline view: null = show overview, otherwise show the specific inline panel
   const [activeInlineView, setActiveInlineView] = useState(null);

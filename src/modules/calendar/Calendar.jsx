@@ -191,18 +191,39 @@ function SeriesBadge({ label, color = '#2563eb', compact = false }) {
   );
 }
 
+const weekViewStyle = { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' };
+const weekScrollContainerStyle = { flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' };
+const weekHeaderStyle = {
+  display: 'flex', 
+  background: '#ffffff', 
+  borderBottom: '2px solid #cbd5e1', 
+  position: 'sticky',
+  top: 0,
+  zIndex: 20,
+  flexShrink: 0
+};
+const weekHourColumnStyle = { 
+  width: '70px', 
+  flexShrink: 0, 
+  borderRight: '1px solid #e2e8f0',
+  borderBottom: '2px solid #cbd5e1',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '12px',
+  fontWeight: '800',
+  color: '#94a3b8',
+  background: '#f8fafc',
+  position: 'sticky',
+  left: 0,
+  zIndex: 21
+};
+const weekHeaderDaysStyle = { flex: 1, display: 'flex' };
+
 export default function Calendar() {
-  let outlet = {};
-  let navigate;
-  let location = { pathname: '' };
-  try {
-    outlet = useOutletContext();
-    navigate = useNavigate();
-    location = useLocation();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-    location = { pathname: '' };
-  }
+  const outlet = useOutletContext() || {};
+  const navigate = useNavigate();
+  const location = useLocation();
   const { 
     viewMode = 'week', 
     setViewMode = () => {},
@@ -220,13 +241,14 @@ export default function Calendar() {
 
   useEffect(() => {
     if (viewMode === 'week' && todayRef.current) {
-      setTimeout(() => {
+      const timerId = setTimeout(() => {
         todayRef.current?.scrollIntoView({
           behavior: 'smooth',
           block: 'nearest',
           inline: 'center'
         });
       }, 100);
+      return () => clearTimeout(timerId);
     }
   }, [viewMode, currentDate]);
 
@@ -485,42 +507,19 @@ export default function Calendar() {
 
   const renderWeekView = () => {
     return (
-      <div className="cal-week-view" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#f8fafc' }}>
+      <div className="cal-week-view" style={weekViewStyle}>
         {/* Contenedor Desplazable que contiene tanto cabecera como cuerpo */}
-        <div className="cal-week-scroll-container" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div className="cal-week-scroll-container" style={weekScrollContainerStyle}>
           
           {/* Cabecera Pinned */}
-          <div className="cal-week-header" style={{ 
-            display: 'flex', 
-            background: '#ffffff', 
-            borderBottom: '2px solid #cbd5e1', 
-            position: 'sticky',
-            top: 0,
-            zIndex: 20,
-            flexShrink: 0
-          }}>
+          <div className="cal-week-header" style={weekHeaderStyle}>
             {/* Espaciador de horas con etiqueta "HORA" */}
-            <div className="cal-week-hour-column" style={{ 
-              width: '70px', 
-              flexShrink: 0, 
-              borderRight: '1px solid #e2e8f0',
-              borderBottom: '2px solid #cbd5e1',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              fontWeight: '800',
-              color: '#94a3b8',
-              background: '#f8fafc',
-              position: 'sticky',
-              left: 0,
-              zIndex: 21
-            }}>
+            <div className="cal-week-hour-column" style={weekHourColumnStyle}>
               HORA
             </div>
             
             {/* Encabezados de días */}
-            <div className="cal-week-header-days" style={{ flex: 1, display: 'flex' }}>
+            <div className="cal-week-header-days" style={weekHeaderDaysStyle}>
             {weekDates.map((day, idx) => {
               const dateStr = formatDate(day);
               const isToday = dateStr === todayStr;

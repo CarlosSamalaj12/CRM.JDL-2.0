@@ -130,6 +130,9 @@ export default function Kanban() {
     const highlightEventoId = searchParams.get('highlightEvento');
     if (!highlightEventoId) return;
     
+    let scrollTimer;
+    let clearTimer;
+
     const handleHighlight = async () => {
       // Buscar el evento en la lista actual
       const evento = events.find(e => String(e.Idocupacion) === String(highlightEventoId));
@@ -164,7 +167,7 @@ export default function Kanban() {
         }
         
         // Hacer scroll al evento después de un breve delay
-        setTimeout(() => {
+        scrollTimer = setTimeout(() => {
           const elemento = document.getElementById(`evento-${highlightEventoId}`);
           if (elemento) {
             elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -173,7 +176,7 @@ export default function Kanban() {
       }
       
       // Quitar el resaltado después de 5 segundos y limpiar parámetros
-      setTimeout(() => {
+      clearTimer = setTimeout(() => {
         setEventoResaltado(null);
         const newParams = new URLSearchParams(searchParams);
         newParams.delete('highlightEvento');
@@ -184,6 +187,10 @@ export default function Kanban() {
     };
     
     handleHighlight();
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
   }, [searchParams, events]);
 
   const [viewMode, setViewMode] = useState(() => {

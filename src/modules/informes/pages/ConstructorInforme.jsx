@@ -205,14 +205,8 @@ function sumarDias(fechaStr, dias) {
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════
 export default function ConstructorInforme() {
-  const params = (() => { try { return useParams(); } catch { return {}; } })();
-  const { id_ocupacion } = params;
-  let navigate;
-  try {
-    navigate = useNavigate();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-  }
+  const { id_ocupacion } = useParams();
+  const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
   const { connected: socketConnected, joinRoom, leaveRoom, onEvent } = useSocket();
@@ -383,11 +377,7 @@ export default function ConstructorInforme() {
   const [searchElemento, setSearchElemento] = useState('');
   const loadedRef = useRef(false);
 
-  if (!id_ocupacion) {
-    return <div className="pos-page"><p className="status-message status-error">Error: No se especificó una ocupación.</p></div>;
-  }
-
-  useEffect(() => { if (!loadedRef.current) { loadedRef.current = true; loadAll(); } }, []);
+  useEffect(() => { if (!loadedRef.current) { loadedRef.current = true; if (id_ocupacion) loadAll(); } }, []);
 
   useEffect(() => {
     if (evento?.FechaEvento && dias.length > 0 && !dias[0].id) {
@@ -408,6 +398,77 @@ export default function ConstructorInforme() {
     joinRoom(room);
     return () => { leaveRoom(room); };
   }, [socketConnected, id_ocupacion, joinRoom, leaveRoom]);
+
+  useEffect(() => {
+    if (!informeId) { setImagenes([]); return; }
+    getImagenes(informeId)
+      .then(imgs => setImagenes(imgs))
+      .catch(() => toast.error('Error al cargar imágenes'));
+  }, [informeId]);
+
+  // ─── Elementos filtrados por categoría ───
+  const elementosFiltrados = useMemo(() => {
+    const q = searchElemento.toLowerCase();
+    const filtrar = (arr) => q ? arr.filter(e => (e.nombre || e.nombre_platillo || e.nombre_menu || '').toLowerCase().includes(q)) : arr;
+
+    switch (categoriaActiva) {
+      case 'menus': {
+        let base = menus;
+        if (menuCategoriaFiltro) {
+          base = menus.filter(m => m.categoria_nombre === menuCategoriaFiltro);
+        }
+        return filtrar(base).map(m => ({ ...m, _tipo: 'menu', _nombre: m.nombre_menu }));
+      }
+      case 'platillos': {
+        let base = platillos;
+        if (platilloCategoriaFiltro) {
+          base = platillos.filter(p => p.categoria_nombre === platilloCategoriaFiltro);
+        }
+        return filtrar(base).map(p => ({ ...p, _tipo: 'platillo', _nombre: p.nombre_platillo }));
+      }
+      case 'carnes': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'carne' || tipo === 'proteina' || tipo === 'proteínas' || tipo === 'proteinas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'entradas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'entradas' || tipo === 'entrada';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'guarniciones': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'guarnición' || tipo === 'guarnicion' || tipo === 'guarniciones';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'salsas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'salsa' || tipo === 'salsas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'postres': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'postre' || tipo === 'postres';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'bebidas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'bebida' || tipo === 'bebidas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'refacciones': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'refacción' || tipo === 'refaccion' || tipo === 'refacciones';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'boquitas': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'boquita' || tipo === 'boquitas';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      case 'desayunos': return filtrar(ingredientes.filter(i => {
+        const tipo = (i.tipo || '').toLowerCase();
+        return tipo === 'desayuno' || tipo === 'desayunos';
+      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
+      default: return [];
+    }
+  }, [categoriaActiva, searchElemento, menus, platillos, ingredientes, menuCategoriaFiltro, platilloCategoriaFiltro]);
+
+  if (!id_ocupacion) {
+    return <div className="pos-page"><p className="status-message status-error">Error: No se especificó una ocupación.</p></div>;
+  }
 
   const loadAll = async () => {
     setLoading(true);
@@ -862,7 +923,6 @@ export default function ConstructorInforme() {
     } catch { toast.error('Error al cargar imágenes'); }
   };
 
-  useEffect(() => { loadImagenes(); }, [informeId]);
 
   const handleAddImagen = async () => {
     if (!urlInput.trim()) return;
@@ -979,66 +1039,6 @@ export default function ConstructorInforme() {
     if (montajeEditIdx === idx) { setMontajeData({}); setMontajeEditIdx(null); }
     toast.success('Montaje eliminado');
   };
-
-  // ─── Elementos filtrados por categoría ───
-  const elementosFiltrados = useMemo(() => {
-    const q = searchElemento.toLowerCase();
-    const filtrar = (arr) => q ? arr.filter(e => (e.nombre || e.nombre_platillo || e.nombre_menu || '').toLowerCase().includes(q)) : arr;
-
-    switch (categoriaActiva) {
-      case 'menus': {
-        let base = menus;
-        if (menuCategoriaFiltro) {
-          base = menus.filter(m => m.categoria_nombre === menuCategoriaFiltro);
-        }
-        return filtrar(base).map(m => ({ ...m, _tipo: 'menu', _nombre: m.nombre_menu }));
-      }
-      case 'platillos': {
-        let base = platillos;
-        if (platilloCategoriaFiltro) {
-          base = platillos.filter(p => p.categoria_nombre === platilloCategoriaFiltro);
-        }
-        return filtrar(base).map(p => ({ ...p, _tipo: 'platillo', _nombre: p.nombre_platillo }));
-      }
-      case 'carnes': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'carne' || tipo === 'proteina' || tipo === 'proteínas' || tipo === 'proteinas';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'entradas': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'entradas' || tipo === 'entrada';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'guarniciones': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'guarnición' || tipo === 'guarnicion' || tipo === 'guarniciones';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'salsas': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'salsa' || tipo === 'salsas';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'postres': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'postre' || tipo === 'postres';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'bebidas': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'bebida' || tipo === 'bebidas';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'refacciones': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'refacción' || tipo === 'refaccion' || tipo === 'refacciones';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'boquitas': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'boquita' || tipo === 'boquitas';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      case 'desayunos': return filtrar(ingredientes.filter(i => {
-        const tipo = (i.tipo || '').toLowerCase();
-        return tipo === 'desayuno' || tipo === 'desayunos';
-      })).map(i => ({ ...i, _tipo: 'ingrediente', _nombre: i.nombre }));
-      default: return [];
-    }
-  }, [categoriaActiva, searchElemento, menus, platillos, ingredientes, menuCategoriaFiltro, platilloCategoriaFiltro]);
 
   const diaActivo = dias[activeDay] || dias[0];
 

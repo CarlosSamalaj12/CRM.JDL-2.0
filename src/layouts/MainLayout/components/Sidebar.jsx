@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSocket } from '../../../modules/informes/context/SocketContext';
 import authService from '../../../services/authService';
@@ -55,7 +55,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     navigate('/login');
   };
 
-  const [reminders, setReminders] = useState([]);
+  const [dismissedIds, setDismissedIds] = useState(new Set());
   const [reminderOffset, setReminderOffset] = useState(0);
 
   useEffect(() => {
@@ -203,7 +203,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     }
   };
 
-  useEffect(() => {
+  const reminders = useMemo(() => {
     const allRems = propsRemindersProp || {};
     const allEvents = propsEvents || [];
     const currentUser = authService.getCurrentUser();
@@ -217,6 +217,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
         const isMine = !creatorId || creatorId === currentUser?.id;
         if (!isMine) return;
         if (r.finalizado) return;
+        if (dismissedIds.has(r.id)) return;
 
         const reminderDateTime = new Date(`${r.date}T${r.time}:00`);
         
@@ -243,8 +244,8 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
       return dateA - dateB;
     });
 
-    setReminders(flat);
-  }, [propsRemindersProp, propsEvents, reminderOffset]);
+    return flat;
+  }, [propsRemindersProp, propsEvents, reminderOffset, dismissedIds]);
 
   const getStatusColor = (status) => {
     return STATUS_META[status]?.color || '#cbd5e1';
@@ -254,7 +255,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     e.stopPropagation();
     try {
       await reminderService.markAsFinalizado(eventId, reminderId);
-      setReminders(prev => prev.filter(r => r.id !== reminderId));
+      setDismissedIds(prev => new Set([...prev, reminderId]));
     } catch (err) {
       console.error('Error al marcar recordatorio como finalizado', err);
     }

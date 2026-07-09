@@ -64,14 +64,8 @@ function mapCategoriaToTiempoComida(categoriaNombre) {
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════
 export default function InformeCreator() {
-  const params = (() => { try { return useParams(); } catch { return {}; } })();
-  const { id_ocupacion } = params;
-  let navigate;
-  try {
-    navigate = useNavigate();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-  }
+  const { id_ocupacion } = useParams();
+  const navigate = useNavigate();
   const toast = useToast();
 
   const [loading, setLoading] = useState(false);
@@ -82,15 +76,7 @@ export default function InformeCreator() {
   const [dias, setDias] = useState([crearDiaVacio()]);
   const [activeDay, setActiveDay] = useState(0);
 
-  if (!id_ocupacion) {
-    return (
-      <div className="informe-creator">
-        <p className="status-message status-error">Error: No se especificó una ocupación válida.</p>
-      </div>
-    );
-  }
-
-  useEffect(() => { loadInitialData(); }, []);
+  useEffect(() => { if (id_ocupacion) loadInitialData(); }, []);
 
   useEffect(() => {
     if (evento?.FechaEvento && dias.length > 0 && !dias[0].id) {
@@ -104,6 +90,14 @@ export default function InformeCreator() {
       }
     }
   }, [evento]);
+
+  if (!id_ocupacion) {
+    return (
+      <div className="informe-creator">
+        <p className="status-message status-error">Error: No se especificó una ocupación válida.</p>
+      </div>
+    );
+  }
 
   const loadInitialData = async () => {
     setLoading(true);

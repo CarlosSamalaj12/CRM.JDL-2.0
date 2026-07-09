@@ -13,6 +13,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
+import LoadingSpinner from '../../../components/LoadingSpinner';
 
 const pastEventEditAuthorizedKeys = new Set();
 
@@ -67,8 +68,7 @@ async function requestPastEventEditAuthorization(ev) {
       if (!String(value || "").trim()) return "Ingresa el codigo.";
       return null;
     },
-    target: document.body,
-    zIndex: 200000,
+    target: document.querySelector('.reservation-modal-overlay') || document.body,
     didOpen: (popup) => {
       if (popup?.parentElement) popup.parentElement.style.zIndex = '9999999';
     }
@@ -96,8 +96,7 @@ async function requestPastEventEditAuthorization(ev) {
       background: "#f8fbff",
       color: "#10243b",
       confirmButtonColor: "#2563eb",
-      target: document.body,
-      zIndex: 200000,
+      target: document.querySelector('.reservation-modal-overlay') || document.body,
       didOpen: (popup) => {
         if (popup?.parentElement) popup.parentElement.style.zIndex = '9999999';
       }
@@ -500,6 +499,7 @@ export default function ReservationForm() {
   };
 
   const stateLoadedRef = useRef(false);
+  const checkedEventIdRef = useRef(null);
 
   useEffect(() => {
     const fetchState = async () => {
@@ -521,6 +521,10 @@ export default function ReservationForm() {
   useEffect(() => {
     let active = true;
     const checkPastEvent = async () => {
+      if (checkedEventIdRef.current === id) {
+        if (active) setPastEventCheckDone(true);
+        return;
+      }
       setPastEventCheckDone(false);
       if (!stateLoadedRef.current) {
         if (active) setPastEventCheckDone(true);
@@ -528,14 +532,19 @@ export default function ReservationForm() {
       }
       if (id && events && events.length > 0) {
         const existingEvent = events.find(ev => String(ev.id) === String(id));
-        if (existingEvent && isEventSeriesInPast(events, id, pastEventEditGraceDays)) {
-          const key = reservationKeyFromEvent(existingEvent);
-          if (key && !pastEventEditAuthorizedKeys.has(key)) {
-            const auth = await requestPastEventEditAuthorization(existingEvent);
-            if (!auth && active) {
-              navigate('/calendar');
-              return;
+        if (existingEvent) {
+          if (isEventSeriesInPast(events, id, pastEventEditGraceDays)) {
+            const key = reservationKeyFromEvent(existingEvent);
+            if (key && !pastEventEditAuthorizedKeys.has(key)) {
+              const auth = await requestPastEventEditAuthorization(existingEvent);
+              if (!auth && active) {
+                navigate('/calendar');
+                return;
+              }
             }
+          }
+          if (active) {
+            checkedEventIdRef.current = id;
           }
         }
       }
@@ -1019,6 +1028,7 @@ export default function ReservationForm() {
 
   const handleQuoteSave = async (quoteData, options = {}) => {
     try {
+      setSaving(true);
       const currentEvent = events.find(ev => String(ev.id) === String(id));
       const previousQuote = currentEvent?.quote || null;
       const quoteChanged = JSON.stringify(previousQuote || null) !== JSON.stringify(quoteData || null);
@@ -1044,10 +1054,12 @@ export default function ReservationForm() {
         status: updatedEvent.status
       }));
 
+      setSaving(false);
       showNotification(shouldFollowUp ? 'Cotizacion actualizada. Estado a Seguimiento.' : 'Cotizacion guardada');
       if (!options?.keepOpen) setShowQuoteModal(false);
     } catch {
       showNotification('Error al guardar cotizacion', 'error');
+      setSaving(false);
     }
   };
 
@@ -1150,6 +1162,7 @@ export default function ReservationForm() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+      {saving && <LoadingSpinner mensaje="Guardando cambios..." />}
       {/* Header bar with title and Cerrar button */}
       <div style={{
         display: 'flex',

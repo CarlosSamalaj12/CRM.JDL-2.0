@@ -19,17 +19,9 @@ const ALERTAS_PREDEFINIDAS = [
 ];
 
 export default function InformeView() {
-  const params = (() => { try { return useParams(); } catch { return {}; } })();
-  const { id } = params;
-  let navigate;
-  let searchParams;
-  try {
-    navigate = useNavigate();
-    [searchParams] = useSearchParams();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-    searchParams = new URLSearchParams(window.location.search);
-  }
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const highlightComentarioId = searchParams.get('highlightComentario') || null;
   const toast = useToast();
   const { user } = useAuth();

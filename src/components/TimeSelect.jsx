@@ -77,7 +77,7 @@ export default function TimeSelect({ value, onChange, disabled, style }) {
   // Scroll active items into view when opening
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => {
+      const timerId = setTimeout(() => {
         if (hourScrollRef.current) {
           const activeHour = hourScrollRef.current.querySelector('.is-active');
           if (activeHour) {
@@ -97,6 +97,7 @@ export default function TimeSelect({ value, onChange, disabled, style }) {
           }
         }
       }, 50);
+      return () => clearTimeout(timerId);
     }
   }, [isOpen, hour, minute]);
 

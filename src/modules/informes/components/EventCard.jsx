@@ -27,7 +27,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   const toast = useToast();
   const { user } = useAuth();
   const { connected: socketConnected, onEvent, joinRoom, leaveRoom } = useSocket();
-  const [notasOpen, setNotasOpen] = useState(false);
+  const [notasOpen, setNotasOpen] = useState(() => Boolean(highlightNotaId));
   const [notaText, setNotaText] = useState('');
   const [notas, setNotas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -99,15 +99,17 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     getNotas(event.Idocupacion).then(setNotas).catch(() => {});
   }, [event.Idocupacion]);
 
+  const lastHighlightRef = useRef(null);
   useEffect(() => {
-    if (highlightNotaId && notas.length > 0) {
+    if (highlightNotaId && notas.length > 0 && highlightNotaId !== lastHighlightRef.current) {
       const hasMatch = notas.some(n => String(n.id) === String(highlightNotaId));
       if (hasMatch) {
-        setNotasOpen(true);
-        setTimeout(() => {
+        lastHighlightRef.current = highlightNotaId;
+        const timerId = setTimeout(() => {
           const el = document.getElementById(`nota-${highlightNotaId}`);
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 150);
+        return () => clearTimeout(timerId);
       }
     }
   }, [highlightNotaId, notas]);

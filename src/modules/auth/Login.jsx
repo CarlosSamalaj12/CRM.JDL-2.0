@@ -20,12 +20,7 @@ function getHomePath(user) {
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
-  let navigate;
-  try {
-    navigate = useNavigate();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-  }
+  const navigate = useNavigate();
   const { user: contextUser, syncSession } = useAuth();
   const googleLoginRef = useRef(false);
 
@@ -154,8 +149,8 @@ export default function Login() {
         </section>
 
         {/* CARD DE INICIO DE SESIÓN */}
-        <section className="loginCard" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div className="loginBrand" style={{ marginBottom: '25px' }}>
+        <section className="loginCard">
+          <div className="loginBrand">
             <div className="loginBrandBadge">
               <img src="/Oficial_JDL_acua.png" alt="Logo Jardines del Lago" className="loginLogoImg" />
             </div>
@@ -169,21 +164,13 @@ export default function Login() {
 
 
           {/* BOTÓN DE GOOGLE LOGIN */}
-          <div style={{ width: '100%' }}>
+          <div className="loginGoogleBtnContainer">
             <button 
               className="loginGoogleBtn" 
               id="btnGoogleLogin" 
               type="button" 
               onClick={handleGoogleLogin}
               disabled={loading}
-              style={{ 
-                width: '100%', padding: '14px', background: '#0b1c30', border: 'none',
-                borderRadius: '10px', fontSize: '14px', fontWeight: '700', color: 'white',
-                cursor: loading ? 'not-allowed' : 'pointer', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', gap: '10px',
-                boxShadow: '0 8px 20px rgba(11,28,48,0.2)', transition: 'all 0.3s ease',
-                transform: loading ? 'scale(0.98)' : 'none', opacity: loading ? 0.8 : 1
-              }}
             >
               {loading ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -331,9 +318,16 @@ export default function Login() {
         /* ═══════════════════════════════════════════
            LOGIN CARD — staggered entrance
            ═══════════════════════════════════════════ */
-        body:not(.informes-theme) .loginCard.loginCard {
-          animation: loginSlideUp 0.5s ease-out 0.15s both;
-        }
+         body:not(.informes-theme) .loginCard.loginCard {
+           animation: loginSlideUp 0.5s ease-out 0.15s both;
+           display: flex;
+           flex-direction: column;
+           justify-content: center;
+         }
+
+         body:not(.informes-theme) .loginBrand {
+           margin-bottom: 25px;
+         }
 
         /* ═══════════════════════════════════════════
            BRAND BADGE — pulse glow
@@ -385,33 +379,56 @@ export default function Login() {
           transform: translateY(0) scale(0.98);
         }
 
-        /* ═══════════════════════════════════════════
-           GOOGLE BUTTON — refined hover/active
-           ═══════════════════════════════════════════ */
-        .loginGoogleBtn {
-          position: relative;
-          overflow: hidden;
-          transition: all 0.25s ease !important;
-        }
-        .loginGoogleBtn::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent 50%);
-          opacity: 0;
-          transition: opacity 0.25s ease;
-        }
-        .loginGoogleBtn:hover:not(:disabled)::before {
-          opacity: 1;
-        }
-        .loginGoogleBtn:hover:not(:disabled) {
-          background: #14283f !important;
-          transform: translateY(-2px);
-          box-shadow: 0 12px 24px rgba(11,28,48,0.3) !important;
-        }
-        .loginGoogleBtn:active:not(:disabled) {
-          transform: translateY(0) scale(0.97) !important;
-        }
+         .loginGoogleBtnContainer {
+           width: 100%;
+         }
+
+         /* ═══════════════════════════════════════════
+            GOOGLE BUTTON — refined hover/active
+            ═══════════════════════════════════════════ */
+         .loginGoogleBtn {
+           position: relative;
+           overflow: hidden;
+           transition: all 0.3s ease !important;
+           width: 100%;
+           padding: 14px;
+           background: #0b1c30;
+           border: none;
+           border-radius: 10px;
+           font-size: 14px;
+           font-weight: 700;
+           color: white;
+           cursor: pointer;
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           gap: 10px;
+           box-shadow: 0 8px 20px rgba(11,28,48,0.2);
+         }
+         .loginGoogleBtn::before {
+           content: '';
+           position: absolute;
+           inset: 0;
+           background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent 50%);
+           opacity: 0;
+           transition: opacity 0.25s ease;
+         }
+         .loginGoogleBtn:hover:not(:disabled)::before {
+           opacity: 1;
+         }
+         .loginGoogleBtn:hover:not(:disabled) {
+           background: #14283f !important;
+           transform: translateY(-2px);
+           box-shadow: 0 12px 24px rgba(11,28,48,0.3) !important;
+         }
+         .loginGoogleBtn:active:not(:disabled) {
+           transform: translateY(0) scale(0.97) !important;
+         }
+         .loginGoogleBtn:disabled {
+           cursor: not-allowed;
+           transform: scale(0.98);
+           opacity: 0.8;
+         }
 
         /* ═══════════════════════════════════════════
            SUPPORT BUTTON — slide-in

@@ -26,7 +26,10 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   console.warn('[WEB PUSH] ⚠️ VAPID keys no configuradas en .env. Ejecuta: npx web-push generate-vapid-keys');
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sistema_informes_secret_key_change_in_prod';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('[server] JWT_SECRET no está definido en las variables de entorno. Agrega JWT_SECRET a tu archivo .env');
+}
 
 // Normaliza roles del CRM a formato capitalizado que esperan los controllers de Informes Eventos
 // 'admin' → 'Admin', 'vendedor' → 'Vendedor', 'recepcionista' → 'FrontOffice'

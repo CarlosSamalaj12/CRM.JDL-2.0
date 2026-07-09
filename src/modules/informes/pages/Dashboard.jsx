@@ -27,12 +27,7 @@ function formatDate(dateStr) {
 }
 
 export default function Dashboard() {
-  let navigate;
-  try {
-    navigate = useNavigate();
-  } catch (_err) {
-    navigate = (path) => { window.location.href = path; };
-  }
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

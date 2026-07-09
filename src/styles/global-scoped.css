@@ -9247,3 +9247,7 @@ body:not(.informes-theme) .loginInput {
     font-size: 12px !important;
     padding: 8px 12px !important;
   }}
+
+.swal2-container.swal2-container {
+  z-index: 999999999 !important;
+}

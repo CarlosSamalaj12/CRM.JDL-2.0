@@ -158,13 +158,14 @@ export default function WeeklyTasks({
   }, [events, newFecha]);
 
   const lastEventRef = useRef(null);
-
-  useEffect(() => {
-    if (lastEventRef.current === newIdOcupacion) return;
+  if (lastEventRef.current !== newIdOcupacion) {
     lastEventRef.current = newIdOcupacion;
-    if (!newIdOcupacion) { setNewSelectedDays([]); return; }
-    setNewSelectedDays(diasEvento.length > 1 ? [newFecha] : diasEvento);
-  }, [newIdOcupacion, newFecha, diasEvento]);
+    if (!newIdOcupacion) {
+      setNewSelectedDays([]);
+    } else {
+      setNewSelectedDays(diasEvento.length > 1 ? [newFecha] : diasEvento);
+    }
+  }
 
   useEffect(() => {
     getEquiposTrabajo().then(data => setEquipos(data)).catch(() => {});
