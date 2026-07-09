@@ -42,3 +42,7 @@ nul
 /import_menus.sh
 /src/Menus jdl*.xlsx
 
+# Scratch files and general SQL dumps
+/scratch/
+/*.sql
+
