@@ -30,7 +30,7 @@ Both share the same JWT token + user JSON in `localStorage`.
 
 - **Local login:** `POST /api/login` — scrypt password hash (N=16384, r=8, p=1), uses `loginUsers` dropdown.
 - **Firebase login:** `POST /api/auth/firebase` — syncs Firebase user to MariaDB via `src/services/firebase.js`.
-- **JWT secret:** Falls back to `sistema_informes_secret_key_change_in_prod` (hardcoded).
+- **JWT secret:** Must be configured in the `.env` file (`JWT_SECRET`). It no longer has a hardcoded fallback string for security.
 - **Role normalization:** `admin`→`Admin`, `recepcionista`→`FrontOffice`, `vendedor`→`Vendedor` (both in `server.cjs` and backend ESM middleware).
 - Admin code for editing past events: `JDL-ADMIN-2026`.
 - Roles: `admin`, `vendedor`, `recepcionista` (aliased `FrontOffice`), `coordinador`, `eventos`.
@@ -71,7 +71,7 @@ Key tables: `salones`, `usuarios`, `empresas`, `encargados_empresa`, `eventos`, 
 
 - **No TypeScript** — all `.jsx` / `.js`. `@types/react` installed but unused.
 - **CSS:** Design system scoped files (`global-scoped.css`, `design-system-scoped.css`) + `responsive-mobile.css`, `tooltips.css`. Unscoped originals also present. Use `scripts/scope_css.cjs` to scope new CSS.
-- **API proxy:** Vite forwards `/api` → `localhost:3000`. Backend serves `/uploads` statically.
+- **API proxy:** Vite forwards `/api` dynamically to the port configured in `APP_PORT` in `.env` (port 4000 for local development, port 3000 for production VPS).
 - **localStorage keys:** `user` (JSON), `token` (JWT), `crm_topbar_settings_v1`, `crm_auth_session_v1`, `crm_quick_templates_v1`, `crm_active_module_screen_v1`.
 - **ESLint ignores:** `dist`, `src/archive/**`, `scripts/**`.
 
