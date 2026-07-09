@@ -10,6 +10,11 @@ import './styles/responsive-mobile.css';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
+      // Periodic update check every 5 minutes in the background
+      const intervalId = setInterval(() => {
+        registration.update().catch(() => {});
+      }, 1000 * 60 * 5);
+
       // Detectar cuando hay una nueva versión del SW (nuevo deploy)
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;

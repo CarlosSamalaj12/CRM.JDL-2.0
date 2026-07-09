@@ -25,6 +25,53 @@ export default function Login() {
   const googleLoginRef = useRef(false);
 
   useEffect(() => {
+    // ── Detector de bucles de redirección (Auto-limpieza de caché) ──
+    const now = Date.now();
+    const lastRedirectStr = sessionStorage.getItem('last_login_redirect_time');
+    const redirectCountStr = sessionStorage.getItem('login_redirect_count');
+    
+    let lastRedirect = lastRedirectStr ? Number(lastRedirectStr) : 0;
+    let redirectCount = redirectCountStr ? Number(redirectCountStr) : 0;
+    
+    if (lastRedirect > 0 && (now - lastRedirect) < 10000) {
+      redirectCount += 1;
+      sessionStorage.setItem('login_redirect_count', String(redirectCount));
+    } else {
+      redirectCount = 0;
+      sessionStorage.setItem('login_redirect_count', '0');
+    }
+    sessionStorage.setItem('last_login_redirect_time', String(now));
+    
+    if (redirectCount >= 2) {
+      console.warn('[Auto-Limpieza] Detectado bucle de redirección. Limpiando caché...');
+      localStorage.clear();
+      
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (let reg of registrations) reg.unregister();
+        }).catch(() => {});
+      }
+      
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          return Promise.all(keys.map(key => caches.delete(key)));
+        }).catch(() => {});
+      }
+      
+      sessionStorage.removeItem('login_redirect_count');
+      sessionStorage.removeItem('last_login_redirect_time');
+      
+      toast.error('Conflicto de caché detectado. Limpiando memoria y reiniciando aplicación...', { 
+        id: 'cache-cleanup', 
+        duration: 5000 
+      });
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+      return;
+    }
+
     toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
   }, []);
 

@@ -16,6 +16,7 @@ import SettingsUsers from './SettingsUsers';
 import SettingsEquipos from './SettingsEquipos';
 import SettingsCitas from './SettingsCitas';
 import SettingsMantenimiento from './SettingsMantenimiento';
+import SettingsUpdateCheck from './SettingsUpdateCheck';
 import authService from '../../services/authService';
 import '../reports/reports.css';
 import './settings.css';
@@ -477,6 +478,10 @@ export default function SettingsMain() {
 
                 <div style={{ marginTop: '24px' }}>
                   <SettingsMantenimiento />
+                </div>
+
+                <div style={{ marginTop: '24px' }}>
+                  <SettingsUpdateCheck />
                 </div>
               </>
             )}
