@@ -705,11 +705,9 @@ export default function WeeklyTasks({
             }}
           >
             <option value="">Asignar a...</option>
-            {equipos
-              .filter(eq => !user?.teamId || eq.id !== Number(user?.teamId))
-              .map(eq => (
-                <option key={eq.id} value={eq.id}>{eq.nombre}</option>
-              ))}
+            {equipos.map(eq => (
+              <option key={eq.id} value={eq.id}>{eq.nombre}</option>
+            ))}
           </select>
           {(() => {
             const selectedEq = newEquipoId ? equipos.find(eq => eq.id === Number(newEquipoId)) : null;

@@ -74,7 +74,7 @@ const emptyCompanyDraft = {
   email: '',
   nit: '',
   businessName: '',
-  eventType: '',
+  eventType: 'Social',
   address: '',
   phone: '',
   notes: ''
@@ -224,7 +224,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     nit: event?.quote?.nit || '',
     billTo: event?.quote?.billTo || '',
     address: event?.quote?.address || '',
-    eventType: event?.quote?.eventType || event?.type || '',
+    eventType: event?.quote?.eventType || '',
     venue: event?.salon || event?.quote?.venue || '',
     schedule: event?.quote?.schedule || '',
     code: event?.quote?.code || '',
@@ -453,7 +453,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       nit: company.nit || '',
       billTo: company.businessName || company.billTo || company.name || '',
       address: company.address || '',
-      eventType: company.eventType || prev.eventType,
+      eventType: company.eventType || prev.eventType || 'Social',
       managerId: manager?.id || '',
       managerName: manager?.name || '',
       dueDate: prev.eventDate ? calculateDueDate(prev.eventDate) : prev.dueDate
@@ -484,7 +484,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       email: existing?.email || quote.email || '',
       nit: existing?.nit || quote.nit || '',
       businessName: existing?.businessName || existing?.billTo || quote.billTo || quote.companyName || companySearchQuery || '',
-      eventType: existing?.eventType || quote.eventType || '',
+      eventType: existing?.eventType || quote.eventType || 'Social',
       address: existing?.address || quote.address || '',
       phone: existing?.phone || quote.phone || '',
       notes: existing?.notes || ''
@@ -523,7 +523,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       email: selected.email || '',
       nit: selected.nit || '',
       businessName: selected.businessName || selected.billTo || selected.name || '',
-      eventType: selected.eventType || '',
+      eventType: selected.eventType || 'Social',
       address: selected.address || '',
       phone: selected.phone || '',
       notes: selected.notes || ''
@@ -605,7 +605,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         nit: clean.nit,
         businessName: clean.businessName || clean.name,
         billTo: clean.businessName || clean.name,
-        eventType: clean.eventType,
+        eventType: clean.eventType || 'Social',
         address: clean.address,
         phone: clean.phone,
         notes: clean.notes,

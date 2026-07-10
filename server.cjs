@@ -4818,7 +4818,7 @@ async function start() {
           e.fecha_fin_reserva AS FechaSalida,
           e.hora_inicio AS HoraI,
           e.hora_fin AS HoraF,
-          COALESCE(c.tipo_evento, 'Evento') AS TipoEvento,
+          CASE WHEN c.tipo_evento IN ('Social','Corporativo','Individual') THEN c.tipo_evento ELSE 'Social' END AS TipoEvento,
           c.telefono AS Telefono,
           e.nombre_salon AS Salon,
           c.nombre_encargado AS EncargadoEvento,
