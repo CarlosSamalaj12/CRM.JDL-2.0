@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build",
+    "build": "node scripts/bump-sw-version.cjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node server.cjs",
     "dev:all": "concurrently \"npm:dev\" \"npm:server\"",
-    "import-menus": "node scripts/import_menus.cjs"
+    "import-menus": "node scripts/import_menus.cjs",
+    "bump-sw-version": "node scripts/bump-sw-version.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,5 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+// Escuchar mensajes del Service Worker (NAVIGATE_TO, SW_ACTIVATED)
+function useSWMessage(handler) {
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data && event.data.type) {
+        handler(event.data);
+      }
+    };
+
+    // Escuchar desde el Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+    }
+    // También por window.postMessage (fallback cross-tab)
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleMessage);
+      }
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [handler]);
+}
+
 // ── Sonido de notificación (suave) usando Web Audio API ──
 function playNotificationSound() {
   try {
@@ -37,32 +62,57 @@ export default function UpdateBanner() {
   const [closeHovered, setCloseHovered] = useState(false);
   const autoDismissRef = useRef(null);
 
+  // Escuchar el evento sw-update-ready (desde main.jsx cuando el SW se instala)
   useEffect(() => {
     const handler = (event) => {
       setWaitingWorker(event.detail);
-      setVisible(true);
-
-      // Reproducir sonido (puede no sonar en algunos navegadores por políticas de autoplay)
-      setTimeout(() => playNotificationSound(), 100);
-
-      // Auto-dismiss después de 15 segundos
-      autoDismissRef.current = setTimeout(() => {
-        setVisible(false);
-        setDismissed(true);
-      }, 15000);
+      showBanner();
     };
 
     window.addEventListener('sw-update-ready', handler);
     return () => {
       window.removeEventListener('sw-update-ready', handler);
+    };
+  }, []);
+
+  // Escuchar SW_ACTIVATED directamente desde el Service Worker
+  // (para cuando el SW se activa sin pasar por updatefound/installed)
+  const handleSWMessage = useCallback((data) => {
+    if (data.type === 'SW_ACTIVATED') {
+      showBanner();
+    }
+  }, []);
+  useSWMessage(handleSWMessage);
+
+  // Limpiar el timer de auto-dismiss si el componente se desmonta
+  useEffect(() => {
+    return () => {
       if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
     };
   }, []);
 
+  function showBanner() {
+    setVisible(true);
+    setDismissed(false);
+
+    // Reproducir sonido
+    setTimeout(() => playNotificationSound(), 100);
+
+    // Limpiar timer previo y auto-dismiss después de 15 segundos
+    if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+    autoDismissRef.current = setTimeout(() => {
+      setVisible(false);
+      setDismissed(true);
+    }, 15000);
+  }
+
   const handleUpdate = useCallback(() => {
+    // Si hay un worker esperando (flow tradicional: updatefound), enviar SKIP_WAITING
     if (waitingWorker) {
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     }
+    // Si no hay worker esperando (flow SW_ACTIVATED), el SW ya está activo
+    // En ambos casos recargar para usar la nueva versión
     window.location.reload();
   }, [waitingWorker]);
 

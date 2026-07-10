@@ -149,7 +149,11 @@ export async function getEvents(req, res, next) {
 
     let params = [];
 
-    if (date) {
+    if (req.query.search) {
+      const searchTerm = `%${req.query.search}%`;
+      query += ` AND (e.Institucion LIKE ? OR e.Salon LIKE ? OR e.Vendedor LIKE ? OR e.TipoEvento LIKE ?)`;
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+    } else if (date) {
       query += ` AND YEARWEEK(FechaEvento, 1) = YEARWEEK(?, 1)`;
       params.push(date);
     } else {

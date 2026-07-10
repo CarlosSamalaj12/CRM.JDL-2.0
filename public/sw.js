@@ -1,14 +1,37 @@
-const CACHE_NAME = 'jardines-ems-cache-v2';
+// ═══════════════════════════════════════════════════════════════
+//  JARDINES EMS — Service Worker
+//  ⚡ Cambia VERSION cada vez que despliegues para forzar actualización
+// ═══════════════════════════════════════════════════════════════
+// ⚠️ CAMBIA este string CADA VEZ que despliegues una nueva versión.
+//    El Service Worker detecta que sw.js cambió y se actualiza solo.
+//    La versión va incluida en el nombre del caché para forzar renovación.
+const VERSION = '2026-07-10-05';
+const CACHE_NAME = `jardines-ems-cache-v3-${VERSION}`;
+
+// Solo cacheamos assets estáticos con hash fijo (íconos, logo, favicon)
+// ⚠️ NO cacheamos index.html — se sirve siempre del servidor (network-first)
+//    para que los usuarios reciban los nuevos bundles JS/CSS al instante.
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/favicon.ico',
   '/logo.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/icon-72.png',
+  '/icons/icon-96.png',
+  '/icons/icon-128.png',
+  '/icons/icon-144.png',
+  '/icons/icon-152.png',
+  '/icons/icon-180.png',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-192-maskable.png',
+  '/icons/icon-256.png',
+  '/icons/icon-256-maskable.png',
+  '/icons/icon-384.png',
+  '/icons/icon-512.png',
+  '/icons/icon-512-maskable.png'
 ];
 
-// Install event: cache initial shell assets
+// ── INSTALL ────────────────────────────────────────────────────
+// Cachea los íconos estáticos y activa el SW inmediatamente
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -17,77 +40,38 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate event: clean up old caches
+// ── ACTIVATE ───────────────────────────────────────────────────
+// Limpia cachés viejas, toma control de todos los clientes,
+// y notifica al frontend que hay una versión activa nueva
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
+      return Promise.all([
+        // Eliminar todas las cachés que no sean la actual
+        ...cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
-        })
-      );
-    }).then(() => self.clients.claim())
-  );
-});
-
-// ─── WEB PUSH NOTIFICATIONS ───
-
-// Receive push event from server
-self.addEventListener('push', (event) => {
-  let data = { title: 'Jardines EMS', body: '', icon: '/icons/icon-192.png', badge: '/icons/icon-72.png', url: '/' };
-
-  if (event.data) {
-    try {
-      const parsed = event.data.json();
-      data = { ...data, ...parsed };
-    } catch (e) {
-      data.body = event.data.text() || data.body;
-    }
-  }
-
-  const title = data.title || 'Jardines EMS';
-  const options = {
-    body: data.body || '',
-    icon: data.icon || '/icons/icon-192.png',
-    badge: data.badge || '/icons/icon-72.png',
-    vibrate: [200, 100, 200],
-    data: { url: data.url || '/' },
-    tag: data.tag || 'default',
-    renotify: data.renotify || false,
-    requireInteraction: data.requireInteraction || true,
-    silent: data.silent || false,
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
-
-// Handle user clicking on a notification
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  const urlToOpen = event.notification.data?.url || '/';
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // If a window tab matching the URL is already focused, focus it
-      for (const client of windowClients) {
-        if (client.url.includes(urlToOpen) && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      // Otherwise open a new window
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
+        }),
+        // Tomar control inmediato de TODAS las pestañas/clients
+        self.clients.claim()
+      ]);
+    }).then(() => {
+      // Notificar al frontend que el SW se activó (por si no pasó por sw-update-ready)
+      self.clients.matchAll({ type: 'window' }).then(clients => {
+        clients.forEach(client => {
+          client.postMessage({ type: 'SW_ACTIVATED', version: VERSION });
+        });
+      });
     })
   );
 });
 
-// Fetch event: handle offline fallback and runtime caching
+// ─── FETCH: ESTRATEGIAS DE CACHE ────────────────────────────
+//  • HTML (navigation) → Network First  (siempre del servidor, offline = último cache)
+//  • Assets (JS/CSS/img) → Stale While Revalidate (cache + actualiza en background)
+//  • API, Socket.io, Firebase → No cachear (siempre del servidor)
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -125,13 +109,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Navigation requests (HTML pages)
+  // 2. Navigation requests (HTML pages) — NETWORK FIRST
+  // ⚠️ Siempre intentar del servidor primero. Solo caer a caché si no hay internet.
+  //    Esto asegura que los usuarios SIEMPRE reciban el index.html más reciente
+  //    (con los nuevos hashes de assets) sin tener que desinstalar/instalar la PWA.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
-        // Offline fallback: return cached SPA index.html
-        return caches.match('/index.html') || caches.match('/');
-      })
+      fetch(request)
+        .then(response => {
+          // Guardar una copia para offline
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put('/offline-shell', clone));
+          return response;
+        })
+        .catch(() => {
+          // Offline: servir la última copia conocida
+          return caches.match('/offline-shell')
+            || caches.match('/index.html')
+            || caches.match('/');
+        })
     );
     return;
   }
@@ -175,9 +171,7 @@ self.addEventListener('message', (event) => {
     activeUserId = event.data.userId;
     console.log('[SW] Usuario activo registrado en SW:', activeUserId);
   }
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  // skipWaiting() ya se ejecuta en install, por eso no hay handler SKIP_WAITING aquí
 });
 
 // Evento push: Recibir mensaje del backend y mostrar notificación flotante

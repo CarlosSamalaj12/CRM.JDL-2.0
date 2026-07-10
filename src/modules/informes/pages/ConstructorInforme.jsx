@@ -180,6 +180,7 @@ function crearDiaVacio(fecha) {
     platillo: null, platilloDetalle: null,
     selectedItems: [], menuAsignado: null, montaje: [], alertas: [], alertaCustom: '', comentarioMenu: '',
     tiempoComida: null,
+    salon: '', horario: '',
   };
 }
 
@@ -530,7 +531,7 @@ export default function ConstructorInforme() {
               setVersionActiva(data.version || 1);
               if (data.dias && data.dias.length > 0) {
                 setDias(data.dias.map(d => {
-                  let mont = [], alertas = [], alertaCustom = '', tiempoComida = null;
+                  let mont = [], alertas = [], alertaCustom = '', tiempoComida = null, salon = '', horario = '';
                   let parsed = null;
                   try {
                     parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || []);
@@ -539,6 +540,8 @@ export default function ConstructorInforme() {
                       alertas = parsed.alertas || [];
                       alertaCustom = parsed.alertaCustom || '';
                       tiempoComida = parsed.tiempo_comida || null;
+                      salon = parsed.salon || '';
+                      horario = parsed.horario || '';
                     } else {
                       mont = Array.isArray(parsed) ? parsed : (parsed && Object.keys(parsed).length > 0 ? [parsed] : []);
                     }
@@ -567,6 +570,7 @@ export default function ConstructorInforme() {
                     menuAsignado: d.menu_id ? { id: d.menu_id, nombre_menu: d.nombre_menu, categoria_nombre: d.categoria_nombre } : null,
                     montaje: mont, alertas, alertaCustom, comentarioMenu: d.comentario_menu || '',
                     tiempoComida,
+                    salon, horario,
                   };
                 }));
               }
@@ -603,6 +607,8 @@ export default function ConstructorInforme() {
           let alertaCustom = '';
           let tiempoComida = null;
           let itemsTc = null;
+          let salon = '';
+          let horario = '';
           try {
             const parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || []);
             if (parsed && parsed._v === 2) {
@@ -611,6 +617,8 @@ export default function ConstructorInforme() {
               alertaCustom = parsed.alertaCustom || '';
               tiempoComida = parsed.tiempo_comida || null;
               itemsTc = parsed.items_tiempo_comida || null;
+              salon = parsed.salon || '';
+              horario = parsed.horario || '';
             } else {
               mont = Array.isArray(parsed) ? parsed : (parsed && Object.keys(parsed).length > 0 ? [parsed] : []);
             }
@@ -643,6 +651,7 @@ export default function ConstructorInforme() {
             alertaCustom: alertaCustom,
             comentarioMenu: d.comentario_menu || '',
             tiempoComida,
+            salon, horario,
           };
         });
         setDias(diasCargados.length > 0 ? diasCargados : [crearDiaVacio()]);
@@ -680,6 +689,8 @@ export default function ConstructorInforme() {
           menu_id: dia.menuAsignado?.id || null,
           descripcion_montaje: JSON.stringify({
             _v: 2,
+            salon: dia.salon || '',
+            horario: dia.horario || '',
             montajes: dia.montaje || [],
             alertas: dia.alertas || [],
             alertaCustom: dia.alertaCustom || '',
@@ -1086,6 +1097,8 @@ export default function ConstructorInforme() {
                 const idx = dias.length;
                   const dup = {
                     ...crearDiaVacio(),
+                    salon: source.salon || '',
+                    horario: source.horario || '',
                     fecha: source.fecha || new Date().toISOString().slice(0, 10),
                     platillo: source.platillo ? { ...source.platillo } : null,
                     platilloDetalle: source.platilloDetalle ? JSON.parse(JSON.stringify(source.platilloDetalle)) : null,
@@ -1147,6 +1160,66 @@ export default function ConstructorInforme() {
               >
                 ⚙️ Orden
               </button>
+            </div>
+
+            {/* Salón y Horario del día */}
+            <div className="pos-ticket-dia-info" style={{
+              display: 'flex', gap: '8px', marginBottom: '10px',
+              padding: '8px 10px',
+              background: 'var(--bg-elevated)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+            }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  🏛️ Salón
+                </label>
+                <input
+                  type="text"
+                  value={diaActivo.salon || ''}
+                  onChange={e => {
+                    const nd = [...dias];
+                    nd[activeDay] = { ...nd[activeDay], salon: e.target.value };
+                    setDias(nd);
+                  }}
+                  placeholder="Escribe o selecciona un salón..."
+                  list="salones-dia-list"
+                  style={{
+                    width: '100%', padding: '0.35rem 0.5rem',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.82rem',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <datalist id="salones-dia-list">
+                  {salonesList.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  🕐 Horario
+                </label>
+                <input
+                  type="text"
+                  value={diaActivo.horario || ''}
+                  onChange={e => {
+                    const nd = [...dias];
+                    nd[activeDay] = { ...nd[activeDay], horario: e.target.value };
+                    setDias(nd);
+                  }}
+                  placeholder="Ej: 8:00 - 18:00"
+                  style={{
+                    width: '100%', padding: '0.35rem 0.5rem',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.82rem',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
             </div>
 
             {/* Menú asignado */}

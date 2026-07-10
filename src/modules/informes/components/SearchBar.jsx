@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchEvents } from '../services/api.js';
+import { buscarOcupaciones } from '../services/api.js';
 import { IconSearch, IconMapPin, IconClock, IconUser } from './Icons.jsx';
 
 export default function SearchBar() {
@@ -17,15 +17,8 @@ export default function SearchBar() {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const data = await fetchEvents(new Date().toISOString().slice(0, 10));
-        const q = query.toLowerCase();
-        const filtered = data.filter((e) =>
-          (e.Institucion && e.Institucion.toLowerCase().includes(q)) ||
-          (e.Salon && e.Salon.toLowerCase().includes(q)) ||
-          (e.Vendedor && e.Vendedor.toLowerCase().includes(q)) ||
-          (e.TipoEvento && e.TipoEvento.toLowerCase().includes(q))
-        );
-        setResults(filtered.slice(0, 10));
+        const data = await buscarOcupaciones({ search: query });
+        setResults((data || []).slice(0, 10));
       } catch { setResults([]); }
       setLoading(false);
     }, 250);

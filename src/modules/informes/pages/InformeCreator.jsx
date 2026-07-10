@@ -39,6 +39,8 @@ function crearDiaVacio(fecha) {
     platilloDetalle: null,
     selectedItems: [],
     platilloSearch: '',
+    salon: '',
+    horario: '',
   };
 }
 
@@ -206,6 +208,8 @@ export default function InformeCreator() {
 
         const descripcionMontaje = JSON.stringify({
           _v: 2,
+          salon: dia.salon || '',
+          horario: dia.horario || '',
           nombre_platillo: dia.platillo?.nombre_platillo || '',
           tiempo_comida: tc,
           items_tiempo_comida: itemsTc,
@@ -311,6 +315,62 @@ export default function InformeCreator() {
                 setDias(newDias);
               }}
             />
+          </div>
+
+          {/* Salón y Horario del día */}
+          <div style={{
+            display: 'flex', gap: '8px', marginBottom: '10px',
+            padding: '8px 10px',
+            background: 'var(--bg-elevated)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border)',
+          }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                🏛️ Salón
+              </label>
+              <input
+                type="text"
+                value={diaActivo.salon || ''}
+                onChange={e => {
+                  const newDias = [...dias];
+                  newDias[activeDay].salon = e.target.value;
+                  setDias(newDias);
+                }}
+                placeholder="Ej: San Francisco"
+                style={{
+                  width: '100%', padding: '0.35rem 0.5rem',
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.82rem',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                🕐 Horario
+              </label>
+              <input
+                type="text"
+                value={diaActivo.horario || ''}
+                onChange={e => {
+                  const newDias = [...dias];
+                  newDias[activeDay].horario = e.target.value;
+                  setDias(newDias);
+                }}
+                placeholder="Ej: 8:00 - 18:00"
+                style={{
+                  width: '100%', padding: '0.35rem 0.5rem',
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.82rem',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
           </div>
 
           {/* Buscador de platillos */}

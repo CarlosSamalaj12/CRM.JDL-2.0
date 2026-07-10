@@ -428,6 +428,31 @@ export default function InformeView() {
                     } catch {}
                     return null;
                   })()}
+                  {(() => {
+                    try {
+                      const p = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : (dia.descripcion_montaje || {});
+                      if (p && p._v === 2 && (p.salon || p.horario)) {
+                        const parts = [];
+                        if (p.salon) parts.push(`🏛️ ${p.salon}`);
+                        if (p.horario) parts.push(`🕐 ${p.horario}`);
+                        return (
+                          <span style={{
+                            fontSize: '0.85rem', fontWeight: 700,
+                            color: 'var(--primary-dark)',
+                            marginLeft: '0.5rem',
+                            display: 'inline-flex', gap: '0.75rem',
+                            alignItems: 'center',
+                            fontFamily: "'Playfair Display','Georgia','Times New Roman',serif",
+                          }}>
+                            {parts.map((part, i) => (
+                              <span key={i}>{part}</span>
+                            ))}
+                          </span>
+                        );
+                      }
+                    } catch {}
+                    return null;
+                  })()}
                 </div>
 
                 {/* ═══ SECCIÓN: MENÚ ═══ */}

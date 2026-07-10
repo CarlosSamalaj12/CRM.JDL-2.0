@@ -14,6 +14,7 @@ const TYPE_CONFIG = {
   respuesta: { icon: IconMessageCircle, label: 'Respuesta', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
   alerta:   { icon: IconAlertCircle, label: 'Alerta',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   recordatorio: { icon: IconClock,  label: 'Recordatorio', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
+  tarea_asignada: { icon: IconCheckCircle, label: 'Tarea asignada', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   tarea_completada: { icon: IconCheckCircle, label: 'Tarea completada', color: '#16a34a', bg: 'rgba(22,163,74,0.1)' },
 };
 
@@ -142,8 +143,8 @@ export default function NotificationBell() {
         // En caso de error, ir al Kanban
         navigate(`/kanban?highlightEvento=${n.idocupacion}`);
       }
-    } else if (n.tipo === 'tarea_completada') {
-      // tarea_completada tiene idocupacion como ID real del evento
+    } else if (n.tipo === 'tarea_asignada' || n.tipo === 'tarea_completada') {
+      // Notificaciones de tareas → ir a tareas semanales con el evento resaltado
       navigate(`/kanban?viewMode=tareas${n.idocupacion ? `&highlightEvento=${n.idocupacion}` : ''}`);
     } else if (n.idocupacion) {
       // Para otros tipos de notificaciones con idocupacion, intentar ir al informe
