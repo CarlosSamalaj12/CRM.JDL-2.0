@@ -122,48 +122,78 @@ export async function createTarea(req, res, next) {
     await logHistory(result.insertId, 'created', null, contenido.trim(), usuario_id, usuario_nombre);
     emitChange(req, 'tarea_semanal', 'created', { id: result.insertId, semana_lunes, fecha_tarea, id_ocupacion, equipo_id, usuario_id });
 
-    // Obtener nombre del usuario que asigna (req.user)
+    // ── Notificaciones: A quién avisar ──
+    // Determinar el nombre real del asignador (usuario_nombre del body es el más confiable)
     const creadorId = req.user?.id;
-    let assignerName = 'Un administrador';
-    if (creadorId) {
-      const [assignerRow] = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [creadorId]);
-      if (assignerRow.length > 0) {
-        assignerName = assignerRow[0].nombre;
+    const assignerName = usuario_nombre || req.user?.nombre || 'Un administrador';
+
+    const redirectUrl = id_ocupacion
+      ? `/kanban?viewMode=tareas&highlightEvento=${id_ocupacion}`
+      : '/kanban?viewMode=tareas';
+
+    // Obtener nombre del equipo si aplica
+    let equipoNombre = '';
+    if (equipo_id) {
+      try {
+        const [eqRows] = await pool.query('SELECT nombre FROM equipos_trabajo WHERE id = ?', [equipo_id]);
+        equipoNombre = eqRows.length > 0 ? eqRows[0].nombre : '';
+      } catch { /* silencioso */ }
+    }
+
+    const crearNotificacionParaUsuario = async (targetUserId) => {
+      if (!targetUserId || String(targetUserId) === String(creadorId)) return; // No notificar al creador
+
+      const contenidoCorto = contenido.trim().slice(0, 120);
+      const mensajeNotif = equipoNombre
+        ? `${assignerName} asignó al equipo "${equipoNombre}": "${contenidoCorto}"`
+        : `${assignerName} te asignó: "${contenidoCorto}"`;
+
+      const [notifResult] = await pool.query(
+        'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
+        [targetUserId, 'tarea_asignada', 'Nueva tarea asignada', mensajeNotif, id_ocupacion || null, result.insertId]
+      );
+
+      if (req.io) {
+        req.io.to(`usuario:${targetUserId}`).emit('notificacion:created', {
+          id: notifResult.insertId,
+          usuario_id: targetUserId,
+          tipo: 'tarea_asignada',
+          titulo: 'Nueva tarea asignada',
+          mensaje: mensajeNotif,
+          informe_id: null,
+          idocupacion: id_ocupacion || null,
+          comentario_id: result.insertId,
+          leido: 0,
+          fecha_creacion: new Date()
+        });
+      }
+
+      enviarNotificacionWebPush(
+        targetUserId,
+        equipoNombre ? `Equipo "${equipoNombre}" — Nueva tarea asignada` : 'Nueva tarea asignada',
+        `${assignerName} asignó${equipoNombre ? ` al equipo "${equipoNombre}"` : ''}: "${contenidoCorto}"`,
+        { url: redirectUrl, autorId: creadorId }
+      ).catch(err => console.error('[WebPush] Error enviando push asignacion tarea semanal:', err));
+    };
+
+    // Caso 1: Asignación a un equipo → notificar a TODOS los miembros del equipo (excepto el creador)
+    if (equipo_id) {
+      try {
+        const [miembros] = await pool.query(
+          'SELECT id, nombre FROM usuarios WHERE equipo_id = ? AND activo = 1',
+          [equipo_id]
+        );
+        for (const miembro of miembros) {
+          await crearNotificacionParaUsuario(miembro.id);
+        }
+      } catch (e) {
+        console.error('[Tareas] Error notificando a miembros del equipo:', e);
       }
     }
 
-    // Si se asigna a otra persona, notificarle
-    if (usuario_id && usuario_id !== creadorId) {
-      const redirectUrl = id_ocupacion
-        ? `/kanban?viewMode=tareas&highlightEvento=${id_ocupacion}`
-        : '/kanban?viewMode=tareas';
-      const [notifResult] = await pool.query(
-        'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [usuario_id, 'tarea_asignada', 'Nueva tarea semanal asignada', `${assignerName} te asignó una tarea semanal`, id_ocupacion || null, result.insertId]
-      );
-
-      req.io.to(`usuario:${usuario_id}`).emit('notificacion:created', {
-        id: notifResult.insertId,
-        usuario_id: parseInt(usuario_id),
-        tipo: 'tarea_asignada',
-        titulo: 'Nueva tarea semanal asignada',
-        mensaje: `${assignerName} te asignó una tarea semanal`,
-        informe_id: null,
-        idocupacion: id_ocupacion || null,
-        comentario_id: result.insertId,
-        leido: 0,
-        fecha_creacion: new Date()
-      });
-
-      enviarNotificacionWebPush(
-        usuario_id,
-        'Nueva tarea semanal asignada',
-        `${assignerName} te asignó: "${contenido.trim().slice(0, 100)}"`,
-        {
-          url: redirectUrl,
-          autorId: creadorId
-        }
-      ).catch(err => console.error('[WebPush] Error enviando push asignacion tarea semanal:', err));
+    // Caso 2: Asignación directa a otro usuario (no al equipo) → notificar solo a ese usuario
+    if (!equipo_id && usuario_id && String(usuario_id) !== String(creadorId)) {
+      await crearNotificacionParaUsuario(usuario_id);
     }
 
     res.status(201).json(newTarea[0]);

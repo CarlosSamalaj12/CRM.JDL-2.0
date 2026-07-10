@@ -1,9 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getTareasUsuario, createTarea, updateTarea, deleteTarea, getTareasSemanaByOcupacion, updateTareaSemanal, getEquiposTrabajo } from '../services/api.js';
+import { getTareasUsuario, createTarea, updateTarea, deleteTarea, getTareasSemanaByOcupacion, createTareaSemanal, updateTareaSemanal, getEquiposTrabajo, fetchEventById } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { IconX, IconCheck, IconTrash, IconEdit } from './Icons.jsx';
+
+function getMonday(isoDate) {
+  const d = new Date(isoDate + 'T12:00:00');
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const m = new Date(d);
+  m.setDate(diff);
+  return m.toISOString().slice(0, 10);
+}
 
 export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const { user } = useAuth();
@@ -12,6 +21,7 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
   const [weeklyTareas, setWeeklyTareas] = useState([]);
   const [equipos, setEquipos] = useState([]);
   const [nuevaTarea, setNuevaTarea] = useState('');
+  const [newEquipoId, setNewEquipoId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -159,14 +169,41 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
     if (!nuevaTarea.trim() || saving) return;
     setSaving(true);
     try {
-      const nueva = await createTarea(idOcupacion, {
-        usuario_id: currentUserId,
-        usuario_nombre: user?.nombre || user?.fullName || user?.email || 'Usuario',
-        contenido: nuevaTarea.trim(),
-      });
-      setTareas([nueva, ...tareas]);
+      if (newEquipoId) {
+        // Asignación a equipo → crear tarea semanal
+        const uid = user?.id || user?._id || currentUserId || '';
+        const uname = user?.nombre || user?.fullName || user?.email || 'Usuario';
+
+        // Obtener fecha del evento para calcular semana
+        let eventDate = new Date().toISOString().slice(0, 10);
+        try {
+          const ev = await fetchEventById(idOcupacion);
+          if (ev?.FechaEvento) eventDate = String(ev.FechaEvento).slice(0, 10);
+        } catch { /* usar hoy */ }
+
+        await createTareaSemanal({
+          semana_lunes: getMonday(eventDate),
+          fecha_tarea: eventDate,
+          contenido: nuevaTarea.trim(),
+          id_ocupacion: idOcupacion,
+          equipo_id: Number(newEquipoId),
+          usuario_id: uid,
+          usuario_nombre: uname,
+        });
+      } else {
+        // Tarea personal
+        const nueva = await createTarea(idOcupacion, {
+          usuario_id: currentUserId,
+          usuario_nombre: user?.nombre || user?.fullName || user?.email || 'Usuario',
+          contenido: nuevaTarea.trim(),
+        });
+        setTareas([nueva, ...tareas]);
+      }
       setNuevaTarea('');
+      setNewEquipoId('');
       inputRef.current?.focus();
+      // Recargar ambas listas
+      await loadTareas();
     } catch {
       toast.error('Error al crear tarea');
     } finally {
@@ -261,6 +298,22 @@ export default function TaskPanel({ idOcupacion, onClose, anchorRef }) {
           onKeyDown={handleKeyDown}
           disabled={saving}
         />
+        <select
+          value={newEquipoId}
+          onChange={(e) => setNewEquipoId(e.target.value)}
+          style={{
+            height: '30px', padding: '0 6px', borderRadius: '6px',
+            border: '1px solid var(--border, #e2e8f0)', fontSize: '10px', outline: 'none',
+            background: 'var(--bg-card, #fff)', color: 'var(--text, #0f172a)', cursor: 'pointer',
+            maxWidth: '110px', flexShrink: 0,
+          }}
+          title={newEquipoId ? 'Asignado a equipo' : 'Asignar a equipo...'}
+        >
+          <option value="">👤 A mí</option>
+          {equipos.map(eq => (
+            <option key={eq.id} value={eq.id}>👥 {eq.nombre}</option>
+          ))}
+        </select>
         <button
           className="btn-primary btn-sm"
           onClick={handleAddTarea}

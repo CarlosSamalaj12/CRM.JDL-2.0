@@ -36,29 +36,26 @@ export async function createTarea(req, res, next) {
     );
     emitChange(req, 'tarea_evento', 'created', { id: result.insertId, id_ocupacion });
     
-    // Obtener nombre del usuario que asigna (req.user)
+    // Obtener nombre del usuario que asigna
     const creadorId = req.user?.id;
-    let assignerName = 'Un administrador';
-    if (creadorId) {
-      const [assignerRow] = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [creadorId]);
-      if (assignerRow.length > 0) {
-        assignerName = assignerRow[0].nombre;
-      }
-    }
+    const assignerName = usuario_nombre || req.user?.nombre || 'Un administrador';
 
     // Si se asigna a otra persona, notificarle
-    if (usuario_id && usuario_id !== creadorId) {
+    if (usuario_id && String(usuario_id) !== String(creadorId)) {
+      const contenidoCorto = contenido.trim().slice(0, 120);
+      const mensajeNotif = `${assignerName} te asignó: "${contenidoCorto}"`;
+
       const [notifResult] = await pool.query(
         'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion, comentario_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [usuario_id, 'tarea_asignada', 'Nueva tarea asignada', `${assignerName} te asignó una tarea del evento`, id_ocupacion, result.insertId]
+        [usuario_id, 'tarea_asignada', 'Nueva tarea asignada', mensajeNotif, id_ocupacion, result.insertId]
       );
 
       req.io.to(`usuario:${usuario_id}`).emit('notificacion:created', {
         id: notifResult.insertId,
-        usuario_id: parseInt(usuario_id),
+        usuario_id: usuario_id,
         tipo: 'tarea_asignada',
         titulo: 'Nueva tarea asignada',
-        mensaje: `${assignerName} te asignó una tarea del evento`,
+        mensaje: mensajeNotif,
         informe_id: null,
         idocupacion: id_ocupacion,
         comentario_id: result.insertId,
@@ -69,7 +66,7 @@ export async function createTarea(req, res, next) {
       enviarNotificacionWebPush(
         usuario_id,
         'Nueva tarea asignada',
-        `${assignerName} te asignó: "${contenido.trim().slice(0, 100)}"`,
+        mensajeNotif,
         {
           url: `/kanban?viewMode=tareas&highlightEvento=${id_ocupacion}`,
           autorId: creadorId

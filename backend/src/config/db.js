@@ -18,7 +18,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  timezone: '+00:00',
+  timezone: '-06:00',
   connectTimeout: 10000,  // 10s — timeout de conexión inicial
   acquireTimeout: 15000,  // 15s — timeout si el pool está lleno
 });

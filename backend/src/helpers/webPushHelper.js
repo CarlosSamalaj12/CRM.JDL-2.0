@@ -71,15 +71,19 @@ export async function enviarNotificacionWebPush(usuarioId, titulo, cuerpo, data 
       try {
         await webpush.sendNotification(subscription, payload);
       } catch (err) {
-        // Si el código de estado es 404 o 410, la suscripción expiró o fue eliminada por el usuario
-        if (err.statusCode === 404 || err.statusCode === 410) {
-          console.log(`[WebPush Helper] Suscripción obsoleta detectada. Eliminando de la BD: ${sub.endpoint}`);
-          await conn.query(
-            'DELETE FROM push_subscriptions WHERE usuario_id = ? AND endpoint = ?',
-            [String(usuarioId), sub.endpoint]
-          );
+        // Si el código de estado es 404, 410, 400 o 401, la suscripción expiró o es inválida
+        if (err.statusCode === 404 || err.statusCode === 410 || err.statusCode === 400 || err.statusCode === 401) {
+          console.log(`[WebPush Helper] Suscripción obsoleta (${err.statusCode}). Eliminando de la BD: ${sub.endpoint?.slice(0, 50)}...`);
+          try {
+            await conn.query(
+              'DELETE FROM push_subscriptions WHERE usuario_id = ? AND endpoint = ?',
+              [String(usuarioId), sub.endpoint]
+            );
+          } catch (delErr) {
+            console.error('[WebPush Helper] Error al eliminar suscripción obsoleta:', delErr.message);
+          }
         } else {
-          console.error(`[WebPush Helper] Error enviando a suscripción del usuario ${usuarioId}:`, err.message);
+          console.error(`[WebPush Helper] Error (${err.statusCode || 'desconocido'}) al enviar push a usuario ${usuarioId}:`, err.message);
         }
       }
     });
