@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
 import ReportInfo from './components/ReportInfo';
@@ -9,14 +9,27 @@ export default function ReportsVentas({ onClose }) {
   const sellerUsers = useMemo(() => (users || []).filter(u => {
     const r = String(u.role || '').toLowerCase();
     return r === 'vendedor' || r === 'admin';
-  }), [users]);
-  
+  }).sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '')), [users]);
+
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [userFilter, setUserFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('Confirmado');
+  const [statusFilter, setStatusFilter] = useState(new Set(['Confirmado', 'Pre reserva']));
   const [salonFilter, setSalonFilter] = useState('all');
+  const [statusDropOpen, setStatusDropOpen] = useState(false);
+  const statusDropRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (statusDropRef.current && !statusDropRef.current.contains(e.target)) {
+        setStatusDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const allStatuses = [
     'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
@@ -83,11 +96,19 @@ export default function ReportsVentas({ onClose }) {
     if (dateFrom) filtered = filtered.filter(r => r.eventDate >= dateFrom);
     if (dateTo) filtered = filtered.filter(r => r.eventDate <= dateTo);
     if (userFilter !== 'all') filtered = filtered.filter(r => r.userId === userFilter);
-    if (statusFilter !== 'all') filtered = filtered.filter(r => r.status === statusFilter);
+    if (statusFilter.size > 0) filtered = filtered.filter(r => statusFilter.has(r.status));
     if (salonFilter !== 'all') filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
 
     return filtered.sort((a, b) => a.eventDate.localeCompare(b.eventDate));
   }, [events, users, search, dateFrom, dateTo, userFilter, statusFilter, salonFilter]);
+
+  const toggleStatus = (status) => {
+    setStatusFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status); else next.add(status);
+      return next;
+    });
+  };
 
   const summary = useMemo(() => {
     const totalEvents = reportData.length;
@@ -120,15 +141,6 @@ export default function ReportsVentas({ onClose }) {
     return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
   };
 
-  const clearFilters = () => {
-    setSearch('');
-    setDateFrom('');
-    setDateTo('');
-    setUserFilter('all');
-    setStatusFilter('Confirmado');
-    setSalonFilter('all');
-  };
-
   const handleExportExcel = () => {
     const fmtDate = (d) => {
       if (!d) return '';
@@ -143,7 +155,7 @@ export default function ReportsVentas({ onClose }) {
     const fromLabel = dateFrom ? fmtDate(dateFrom) : '—';
     const toLabel = dateTo ? fmtDate(dateTo) : '—';
     const userLabel = userFilter !== 'all' ? (users?.find(u => u.id === userFilter)?.fullName || 'Todos') : 'Todos';
-    const statusLabel = statusFilter !== 'all' ? statusFilter : 'Todos';
+    const statusLabel = statusFilter.size > 0 ? `${statusFilter.size} estado(s)` : 'Todos';
     const salonLabel = salonFilter !== 'all' ? salonFilter : 'Todos';
 
     const totalAmount = reportData.reduce((s, r) => s + (r.total || 0), 0);
@@ -322,21 +334,115 @@ export default function ReportsVentas({ onClose }) {
               </select>
             </label>
             <label className="field">
-              <span>Estado</span>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                <option value="all">Todos</option>
-                {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </label>
-            <label className="field">
               <span>Salón</span>
               <select value={salonFilter} onChange={e => setSalonFilter(e.target.value)}>
                 <option value="all">Todos</option>
                 {salones?.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
+            <div className="field" style={{ minWidth: 220, position: 'relative' }} ref={statusDropRef}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Estado</span>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '5px 10px 5px 10px',
+                border: `1px solid ${statusDropOpen ? '#2563eb' : '#e2e8f0'}`,
+                borderRadius: '20px', background: '#ffffff',
+                boxShadow: statusDropOpen ? '0 0 0 2px #2563eb30' : '0 1px 3px #00000008',
+                transition: 'box-shadow 0.15s, border-color 0.15s',
+                minHeight: 36, cursor: 'pointer',
+              }}
+                onClick={() => setStatusDropOpen(o => !o)}
+              >
+                {/* Colored dots only */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, overflow: 'hidden' }}>
+                  {[...statusFilter].map(s => {
+                    const color = STATUS_META[s]?.color || '#64748b';
+                    return (
+                      <span key={s} title={s} style={{
+                        width: 10, height: 10, borderRadius: '50%', background: color,
+                        flexShrink: 0, boxShadow: `0 0 0 2px ${color}25`,
+                      }} />
+                    );
+                  })}
+                  {statusFilter.size === 0 && (
+                    <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 400 }}>Seleccionar...</span>
+                  )}
+                  {statusFilter.size > 6 && (
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginLeft: '2px' }}>+{statusFilter.size - 6}</span>
+                  )}
+                </div>
+                {/* Arrow */}
+                <svg viewBox="0 0 12 12" width="14" height="14" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" style={{ flexShrink: 0, transform: statusDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                  <path d="M2 4l4 4 4-4" />
+                </svg>
+              </div>
+              {statusDropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
+                  background: '#ffffff', borderRadius: '16px',
+                  boxShadow: '0 8px 32px #00000020', zIndex: 999,
+                  overflow: 'hidden', padding: '6px',
+                }}>
+                  {allStatuses.map(s => {
+                    const active = statusFilter.has(s);
+                    const color = STATUS_META[s]?.color || '#64748b';
+                    return (
+                      <label key={s} style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '8px 10px', cursor: 'pointer',
+                        borderRadius: '10px', marginBottom: '2px',
+                        transition: 'background 0.1s',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = active ? `${color}12` : '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        {/* Custom checkbox */}
+                        <div style={{
+                          width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
+                          background: active ? '#2563eb' : '#f1f5f9',
+                          border: active ? 'none' : '1.5px solid #cbd5e1',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s',
+                        }}>
+                          {active && (
+                            <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 6l3 3 5-5" />
+                            </svg>
+                          )}
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={active}
+                          onChange={() => toggleStatus(s)}
+                          style={{ display: 'none' }}
+                        />
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569', flex: 1 }}>{s}</span>
+                      </label>
+                    );
+                  })}
+                  {/* Done button */}
+                  <div style={{ padding: '8px 10px 4px', borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setStatusDropOpen(false)}
+                      style={{
+                        width: '100%', padding: '8px', borderRadius: '14px',
+                        background: '#2563eb', color: '#ffffff',
+                        border: 'none', fontSize: '13px', fontWeight: 700,
+                        cursor: 'pointer', boxShadow: '0 2px 8px #2563eb40',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
+                    >
+                      Listo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="reports-actions">
-              <button type="button" onClick={clearFilters}>Limpiar</button>
               <button className="btnPrimary" type="button" onClick={handleExportExcel}>Exportar Excel</button>
             </div>
           </div>

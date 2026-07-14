@@ -50,11 +50,23 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
   const [userFilter, setUserFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState(new Set(['Confirmado']));
+  const [statusFilter, setStatusFilter] = useState(new Set(['Confirmado', 'Pre reserva']));
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const reportRef = useRef(null);
+  const [statusDropOpen, setStatusDropOpen] = useState(false);
+  const statusDropRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (statusDropRef.current && !statusDropRef.current.contains(e.target)) {
+        setStatusDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // ── Compute days elapsed and remaining ──
   const periodInfo = useMemo(() => {
@@ -468,38 +480,103 @@ th.right{text-align:right}</style></head><body>
                 </option>
               ))}
             </select>
-            {/* Status chips */}
-            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {ALL_STATUSES.map(s => {
-                const active = statusFilter.has(s);
-                const c = STATUS_COLORS[s] || { bg: '#f8fafc', text: '#94a3b8', border: '#e2e8f0' };
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => {
-                      const next = new Set(statusFilter);
-                      if (active) next.delete(s); else next.add(s);
-                      setStatusFilter(next);
-                    }}
-                    style={{
-                      fontSize: '10px', fontWeight: 700, padding: '5px 12px',
-                      borderRadius: '999px', border: `1.5px solid ${active ? c.border : '#e2e8f0'}`,
-                      background: active ? c.bg : '#ffffff',
-                      color: active ? c.text : '#94a3b8',
-                      cursor: 'pointer', outline: 'none',
-                      transition: 'all 0.15s ease',
-                      whiteSpace: 'nowrap',
-                      boxShadow: active ? `0 1px 4px ${c.border}60` : 'none',
-                      opacity: active ? 1 : 0.6,
-                    }}
-                    onMouseEnter={e => { if (!active) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.borderColor = c.border; e.currentTarget.style.background = '#f8fafc'; }}}
-                    onMouseLeave={e => { if (!active) { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#ffffff'; }}}
-                  >
-                    {s}
-                  </button>
-                );
-              })}
+            {/* Status dropdown */}
+            <div className="field" style={{ minWidth: 220, position: 'relative' }} ref={statusDropRef}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Estado</span>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '5px 10px 5px 10px',
+                border: `1px solid ${statusDropOpen ? '#2563eb' : '#e2e8f0'}`,
+                borderRadius: '20px', background: '#ffffff',
+                boxShadow: statusDropOpen ? '0 0 0 2px #2563eb30' : '0 1px 3px #00000008',
+                transition: 'box-shadow 0.15s, border-color 0.15s',
+                minHeight: 36, cursor: 'pointer',
+              }}
+                onClick={() => setStatusDropOpen(o => !o)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, overflow: 'hidden' }}>
+                  {[...statusFilter].map(s => {
+                    const c = STATUS_COLORS[s] || { border: '#64748b' };
+                    return (
+                      <span key={s} title={s} style={{
+                        width: 10, height: 10, borderRadius: '50%', background: c.border,
+                        flexShrink: 0, boxShadow: `0 0 0 2px ${c.border}25`,
+                      }} />
+                    );
+                  })}
+                  {statusFilter.size === 0 && (
+                    <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 400 }}>Seleccionar...</span>
+                  )}
+                  {statusFilter.size > 6 && (
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginLeft: '2px' }}>+{statusFilter.size - 6}</span>
+                  )}
+                </div>
+                <svg viewBox="0 0 12 12" width="14" height="14" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" style={{ flexShrink: 0, transform: statusDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                  <path d="M2 4l4 4 4-4" />
+                </svg>
+              </div>
+              {statusDropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
+                  background: '#ffffff', borderRadius: '16px',
+                  boxShadow: '0 8px 32px #00000020', zIndex: 999,
+                  overflow: 'hidden', padding: '6px',
+                }}>
+                  {ALL_STATUSES.map(s => {
+                    const active = statusFilter.has(s);
+                    const c = STATUS_COLORS[s] || { border: '#64748b', text: '#475569', bg: '#f1f5f9' };
+                    return (
+                      <label key={s} style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '8px 10px', cursor: 'pointer',
+                        borderRadius: '10px', marginBottom: '2px',
+                        transition: 'background 0.1s',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = active ? `${c.border}12` : '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <div style={{
+                          width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
+                          background: active ? '#2563eb' : '#f1f5f9',
+                          border: active ? 'none' : '1.5px solid #cbd5e1',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s',
+                        }}>
+                          {active && (
+                            <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 6l3 3 5-5" />
+                            </svg>
+                          )}
+                        </div>
+                        <input type="checkbox" checked={active} onChange={() => {
+                          const next = new Set(statusFilter);
+                          if (next.has(s)) next.delete(s); else next.add(s);
+                          setStatusFilter(next);
+                        }} style={{ display: 'none' }} />
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.border, flexShrink: 0 }} />
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569', flex: 1 }}>{s}</span>
+                      </label>
+                    );
+                  })}
+                  <div style={{ padding: '8px 10px 4px', borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setStatusDropOpen(false)}
+                      style={{
+                        width: '100%', padding: '8px', borderRadius: '14px',
+                        background: '#2563eb', color: '#ffffff',
+                        border: 'none', fontSize: '13px', fontWeight: 700,
+                        cursor: 'pointer', boxShadow: '0 2px 8px #2563eb40',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
+                    >
+                      Listo
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             {/* Export PDF */}
             <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{

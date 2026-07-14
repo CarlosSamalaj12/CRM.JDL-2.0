@@ -89,7 +89,7 @@ export default function ReportsInstitucion({ onClose }) {
         companyId: quote.companyId || '',
         companyName: getCompanyName(quote, companies),
         nit: company?.nit || quote.nit || '',
-        contact: manager?.name || quote.managerName || quote.contact || company?.owner || '',
+        contact: manager?.name || company?.managers?.find((m) => m.name === quote.managerName)?.name || quote.managerName || '',
         contactPhone: manager?.phone || quote.phone || company?.phone || '',
         contactEmail: manager?.email || quote.email || company?.email || '',
         status: primary?.status || event?.status || '',
@@ -189,8 +189,32 @@ export default function ReportsInstitucion({ onClose }) {
     return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 8);
   };
 
-  const salonRank = useMemo(() => rankBy((row) => row.salon.split(',').map((item) => item.trim())), [filteredRows]);
-  const managerRank = useMemo(() => rankBy((row) => row.contact || 'Sin encargado'), [filteredRows]);
+  // Salon and manager ranks only need counts, no monetary amount
+  const salonRank = useMemo(() => {
+    const map = new Map();
+    filteredRows.forEach((row) => {
+      const labels = row.salon.split(',').map((item) => item.trim());
+      for (const label of labels) {
+        if (!label) continue;
+        const current = map.get(label) || { label, count: 0 };
+        current.count += 1;
+        map.set(label, current);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [filteredRows]);
+
+  const managerRank = useMemo(() => {
+    const map = new Map();
+    filteredRows.forEach((row) => {
+      const label = String(row.contact || 'Sin encargado').trim();
+      if (!label) return;
+      const current = map.get(label) || { label, count: 0 };
+      current.count += 1;
+      map.set(label, current);
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [filteredRows]);
   const dishRank = useMemo(() => {
     const map = new Map();
     filteredRows.forEach((row) => {
@@ -245,7 +269,21 @@ export default function ReportsInstitucion({ onClose }) {
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [filteredRows]);
 
-  const statusRank = useMemo(() => rankBy((row) => row.status || 'Sin estado'), [filteredRows]);
+  const statusRank = useMemo(() => {
+    const map = new Map();
+    const statusMetaKeys = Object.keys(STATUS_META);
+    filteredRows.forEach((row) => {
+      const rawLabel = String(row.status || 'Sin estado').trim();
+      // Normalize: match against STATUS_META keys case-insensitively
+      const metaKey = statusMetaKeys.find(k => k.toLowerCase() === rawLabel.toLowerCase());
+      const label = metaKey || rawLabel;
+      const current = map.get(label) || { label, count: 0, amount: 0 };
+      current.count += 1;
+      current.amount += Number(row.total || 0);
+      map.set(label, current);
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 8);
+  }, [filteredRows]);
   const maxMonthlyAmount = Math.max(1, ...monthlyRank.map((item) => item.amount));
 
   const resetFilters = () => {
@@ -284,17 +322,19 @@ export default function ReportsInstitucion({ onClose }) {
     { label: 'Vendedor Frecuente', value: rankBy((row) => row.userName)[0]?.label || '-', meta: 'Por eventos', accent: '#d97706' },
   ];
 
-  const renderMetricList = (items, emptyText = 'Sin datos para el rango seleccionado.') => (
+  const renderMetricList = (items, emptyText = 'Sin datos para el rango seleccionado.', showAmount = true) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {items.length ? items.map((item) => (
         <div key={item.label} style={{
-          display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center',
+          display: 'grid', gridTemplateColumns: showAmount && item.amount !== undefined ? '1fr auto auto' : '1fr auto', gap: '10px', alignItems: 'center',
           padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#ffffff',
           transition: 'all 0.15s ease',
         }}>
           <strong style={{ color: '#0f172a', fontSize: '14px' }}>{item.label}</strong>
           <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{item.count} registro(s)</span>
-          <span style={{ color: '#0f172a', fontWeight: 900, fontSize: '14px', whiteSpace: 'nowrap' }}>{money(item.amount)}</span>
+          {showAmount && item.amount !== undefined && (
+            <span style={{ color: '#0f172a', fontWeight: 900, fontSize: '14px', whiteSpace: 'nowrap' }}>{money(item.amount)}</span>
+          )}
         </div>
       )) : (
         <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
@@ -456,7 +496,8 @@ export default function ReportsInstitucion({ onClose }) {
               <span className="reports-eyebrow">Eventos por estado</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                 {statusRank.length ? statusRank.map((item) => {
-                  const color = STATUS_META[item.label]?.color || '#64748b';
+                  const statusKey = Object.keys(STATUS_META).find(k => k.toLowerCase() === item.label.toLowerCase());
+                  const color = statusKey ? STATUS_META[statusKey].color : '#64748b';
                   return (
                     <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                       <span style={{ color, background: `${color}18`, border: `1px solid ${color}40`, borderRadius: '999px', padding: '3px 10px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }}>

@@ -272,9 +272,16 @@ export default function ReportsOcupacionBarras({ onClose }) {
               <span>Hasta</span>
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </label>
-            <div className="reports-actions" style={{ gap: '8px' }}>
-              <button type="button" onClick={handleReset}>Mes Actual</button>
-            </div>
+            <button type="button" onClick={handleReset} style={{
+              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
+              borderRadius: '8px', border: '1.5px solid #e2e8f0',
+              background: '#f8fafc', color: '#475569', cursor: 'pointer',
+              marginTop: '16px', transition: 'all 0.15s',
+              flexShrink: 0,
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+            >Mes Actual</button>
 
             {/* Metric Cards */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'stretch', flexWrap: 'wrap' }}>

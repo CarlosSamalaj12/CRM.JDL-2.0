@@ -23,7 +23,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   const sellerUsers = useMemo(() => (users || []).filter(u => {
     const r = String(u.role || '').toLowerCase();
     return r === 'vendedor' || r === 'admin';
-  }), [users]);
+  }).sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '')), [users]);
 
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -33,7 +33,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
-  const [sortBy, setSortBy] = useState('amount');
+  const [sortBy, setSortBy] = useState('name');
   const [userFilter, setUserFilter] = useState('all'); // 'amount' | 'events' | 'name'
 
   // ── Generate months ──

@@ -5,7 +5,7 @@ import ReportInfo from './components/ReportInfo';
 
 const STATUS = { CONFIRMADO: 'Confirmado', PRERESERVA: 'Pre reserva' };
 const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
-const isGoalStatus = (s) => s === STATUS.CONFIRMADO || s === STATUS.PRERESERVA;
+const isGoalStatus = (s) => s === STATUS.CONFIRMADO;
 
 const SAT_RATING_LEVELS = [
   { value: 'malo', label: 'Malo', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
@@ -111,12 +111,12 @@ export default function ReportsDashboard({ onClose }) {
     return { total, confirmed, pct: total ? (confirmed/total)*100 : 0, seg: meta.map(m => ({...m, count: cnt[m.k]||0, pct: total ? ((cnt[m.k]||0)/total)*100 : 0})) };
   }, [filteredRows]);
 
-  const globalGoal = useMemo(() => { const y = monthKey.substring(0,4); let g=0; (users||[]).forEach(u => { if (!u.salesTargetEnabled || !u.monthlyGoals) return; u.monthlyGoals.forEach(m => { if (m.month?.startsWith(y) && m.month === monthKey) g += Number(m.amount||0); }); }); return g; }, [users, monthKey]);
-  const globalAchieved = useMemo(() => filteredRows.filter(r => isGoalStatus(r.status)).reduce((a,r) => a+r.total, 0), [filteredRows]);
+  const usersWithGoal = useMemo(() => new Set((users||[]).filter(u => u.salesTargetEnabled).map(u => u.id)), [users]);
+  const rowsWithGoal = useMemo(() => filteredRows.filter(r => usersWithGoal.has(r.userId)), [filteredRows, usersWithGoal]);
+  const globalAchieved = useMemo(() => rowsWithGoal.filter(r => isGoalStatus(r.status)).reduce((a,r) => a+r.total, 0), [rowsWithGoal]);
   const focusedUser = scope === 'seller' && selectedSellerId ? users?.find(u => u.id === selectedSellerId) : null;
   const personalGoal = focusedUser?.monthlyGoals ? (focusedUser.monthlyGoals.find(g => g.month === monthKey)?.amount||0) : 0;
   const personalAchieved = focusedUser ? filteredRows.filter(r => r.userId === focusedUser.id && isGoalStatus(r.status)).reduce((a,r) => a+r.total, 0) : 0;
-  const gProg = globalGoal ? (globalAchieved/globalGoal)*100 : 0;
   const pProg = personalGoal ? (personalAchieved/personalGoal)*100 : 0;
 
   // ── Settings Global Monthly Goal (from Settings → Metas Globales) ──
@@ -265,15 +265,16 @@ export default function ReportsDashboard({ onClose }) {
   // ── Bento KPI cards data ──
   const kpiCards = [
     {
-      label: `Meta ${getRoleLabel(role)}`, value: formatMoneyGT(globalGoal),
-      trend: `${gProg.toFixed(1)}%`, trendColor: gProg>=100 ? '#15803d' : gProg>=80 ? '#b45309' : '#1d4ed8',
-      trendBg: gProg>=100 ? '#dcfce7' : gProg>=80 ? '#fef3c7' : '#eff6ff',
-      accent: gProg>=100 ? '#16a34a' : gProg>=80 ? '#f59e0b' : '#2563eb',
+      label: 'Meta Global', value: formatMoneyGT(settingsGoalAmount),
+      trend: `${settingsGoalProgress.toFixed(1)}%`,
+      trendColor: settingsGoalProgress>=100 ? '#15803d' : settingsGoalProgress>=80 ? '#b45309' : '#1d4ed8',
+      trendBg: settingsGoalProgress>=100 ? '#dcfce7' : settingsGoalProgress>=80 ? '#fef3c7' : '#eff6ff',
+      accent: settingsGoalProgress>=100 ? '#16a34a' : settingsGoalProgress>=80 ? '#f59e0b' : '#2563eb',
     },
     {
-      label: 'Pendiente Rol', value: formatMoneyGT(Math.max(0,globalGoal-globalAchieved)),
-      trend: globalAchieved >= globalGoal ? 'Superada' : '',
-      accent: globalAchieved >= globalGoal ? '#16a34a' : '#e11d48',
+      label: 'Pendiente Global', value: formatMoneyGT(Math.max(0,settingsGoalAmount-globalAchieved)),
+      trend: globalAchieved >= settingsGoalAmount ? 'Superada' : '',
+      accent: globalAchieved >= settingsGoalAmount ? '#16a34a' : '#e11d48',
     },
     {
       label: 'Meta Personal', value: formatMoneyGT(personalGoal),
@@ -429,7 +430,12 @@ export default function ReportsDashboard({ onClose }) {
             </div>
 
             {/* KPI Cards premium */}
-            {kpiCards.map((kpi, i) => (
+            {kpiCards
+              .filter((kpi, i) => {
+                if (i < 2 && settingsGoalAmount === 0) return false; // hide global cards when no meta configured
+                return true;
+              })
+              .map((kpi, i) => (
               <div
                 key={i}
                 className="bento-tile reports-kpi-tile"
@@ -1065,7 +1071,7 @@ export default function ReportsDashboard({ onClose }) {
           <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Narración ejecutiva</span>
           <p className="reports-story-text">
             En el periodo <strong className="highlight-slate">{dateRange.label}</strong>, el equipo de {getRoleLabel(role).toLowerCase()}s gestionó <strong className="highlight-blue">{statusSummary.total}</strong> eventos con una tasa de confirmación del <strong className="highlight-green">{statusSummary.pct.toFixed(1)}%</strong>. 
-            La meta global del rol es de <strong className="highlight-blue">{formatMoneyGT(globalGoal)}</strong> con un avance del <strong className="highlight-green">{gProg.toFixed(1)}%</strong>.
+            {settingsGoalAmount > 0 ? <>La meta global es de <strong className="highlight-blue">{formatMoneyGT(settingsGoalAmount)}</strong> con un avance del <strong className="highlight-green">{settingsGoalProgress.toFixed(1)}%</strong>.</> : ''}
             {focusedUser ? ` El desempeño de ${focusedUser.fullName || ''} muestra ${personalAchieved >= personalGoal ? 'un cumplimiento sobresaliente de la meta personal.' : `un avance del ${pProg.toFixed(1)}% sobre su meta personal de ${formatMoneyGT(personalGoal)}.`}` : ''}
             {satMetrics && ` En satisfacción, la calificación global es de ${satMetrics.globalAvg.toFixed(1)} / 4.0 (${getSatLabel(satMetrics.globalAvg)}) con ${satMetrics.totalEvents} eventos evaluados.`}
           </p>

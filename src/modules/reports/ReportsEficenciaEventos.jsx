@@ -44,6 +44,18 @@ export default function ReportsEficenciaEventos({ onClose }) {
   const [hoveredSegment, setHoveredSegment] = useState(null); // { monthIdx, segIdx }
   const [hoveredSegPos, setHoveredSegPos] = useState(null);
   const [enabledStatuses, setEnabledStatuses] = useState(() => new Set(STATUS_META.map(s => s.key)));
+  const [statusDropOpen, setStatusDropOpen] = useState(false);
+  const statusDropRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (statusDropRef.current && !statusDropRef.current.contains(e.target)) {
+        setStatusDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const toggleStatus = (key) => {
     setEnabledStatuses(prev => {
@@ -334,49 +346,114 @@ export default function ReportsEficenciaEventos({ onClose }) {
               <h3 className="reports-section-title">Distribución de Estados × Mes</h3>
               <p className="reports-section-text">Pasa el mouse sobre cada segmento para ver el estado, cantidad y porcentaje</p>
             </div>
-            {/* Status filter toggles */}
-            <div style={{ display: 'flex', gap: '8px', fontSize: '10px', fontWeight: 700, color: '#64748b', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, marginRight: '4px' }}>FILTRO:</span>
-              {STATUS_META.map(s => {
-                const isEnabled = enabledStatuses.has(s.key);
-                return (
-                  <span
-                    key={s.key}
-                    onClick={() => toggleStatus(s.key)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '3px 8px',
-                      borderRadius: '999px',
-                      background: isEnabled ? `${s.color}18` : '#f1f5f9',
-                      border: `1.5px solid ${isEnabled ? s.color : '#e2e8f0'}`,
-                      cursor: 'pointer',
-                      opacity: isEnabled ? 1 : 0.5,
-                      transition: 'all 0.15s ease',
-                      userSelect: 'none',
-                    }}
-                  >
-                    <span style={{
-                      width: '8px', height: '8px', borderRadius: '50%',
-                      background: s.color, display: 'inline-block',
-                      opacity: isEnabled ? 1 : 0.3,
-                    }} />
-                    {s.label}
-                  </span>
-                );
-              })}
-              {enabledStatuses.size < STATUS_META.length && (
-                <span
-                  onClick={() => setEnabledStatuses(new Set(STATUS_META.map(s => s.key)))}
-                  style={{
-                    fontSize: '9px', color: '#2563eb', cursor: 'pointer',
-                    fontWeight: 800, marginLeft: '4px',
-                    textDecoration: 'underline', textUnderlineOffset: '2px',
-                  }}
-                >
-                  Restaurar todos
-                </span>
+            {/* Status dropdown */}
+            <div style={{ position: 'relative' }} ref={statusDropRef}>
+              <button
+                type="button"
+                onClick={() => setStatusDropOpen(o => !o)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '6px 12px',
+                  border: `1px solid ${statusDropOpen ? '#2563eb' : '#e2e8f0'}`,
+                  borderRadius: '20px', background: '#ffffff',
+                  boxShadow: statusDropOpen ? '0 0 0 2px #2563eb30' : '0 1px 3px #00000008',
+                  transition: 'box-shadow 0.15s, border-color 0.15s',
+                  cursor: 'pointer', outline: 'none',
+                }}
+              >
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>FILTRO:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden' }}>
+                  {[...enabledStatuses].map(k => {
+                    const s = STATUS_META.find(m => m.key === k);
+                    return s ? (
+                      <span key={k} title={s.label} style={{
+                        width: 10, height: 10, borderRadius: '50%', background: s.color,
+                        flexShrink: 0, boxShadow: `0 0 0 2px ${s.color}25`,
+                      }} />
+                    ) : null;
+                  })}
+                  {enabledStatuses.size === 0 && (
+                    <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 400 }}>Ninguno</span>
+                  )}
+                </div>
+                <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" style={{ flexShrink: 0, transform: statusDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                  <path d="M2 4l4 4 4-4" />
+                </svg>
+              </button>
+              {statusDropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                  background: '#ffffff', borderRadius: '16px',
+                  boxShadow: '0 8px 32px #00000020', zIndex: 999,
+                  overflow: 'hidden', padding: '6px', minWidth: 240,
+                }}>
+                  {STATUS_META.map(s => {
+                    const active = enabledStatuses.has(s.key);
+                    return (
+                      <label key={s.key} style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '8px 10px', cursor: 'pointer',
+                        borderRadius: '10px', marginBottom: '2px',
+                        transition: 'background 0.1s',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = active ? `${s.color}12` : '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <div style={{
+                          width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
+                          background: active ? '#2563eb' : '#f1f5f9',
+                          border: active ? 'none' : '1.5px solid #cbd5e1',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s',
+                        }}>
+                          {active && (
+                            <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 6l3 3 5-5" />
+                            </svg>
+                          )}
+                        </div>
+                        <input type="checkbox" checked={active} onChange={() => toggleStatus(s.key)} style={{ display: 'none' }} />
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569', flex: 1 }}>{s.label}</span>
+                      </label>
+                    );
+                  })}
+                  {enabledStatuses.size < STATUS_META.length && (
+                    <div style={{ padding: '4px 10px 2px', borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setEnabledStatuses(new Set(STATUS_META.map(m => m.key))); setStatusDropOpen(false); }}
+                        style={{
+                          width: '100%', padding: '6px', borderRadius: '10px',
+                          background: '#f1f5f9', color: '#2563eb',
+                          border: 'none', fontSize: '12px', fontWeight: 700,
+                          cursor: 'pointer', transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; }}
+                      >
+                        Restaurar todos
+                      </button>
+                    </div>
+                  )}
+                  <div style={{ padding: '6px 10px 4px', borderTop: enabledStatuses.size < STATUS_META.length ? 'none' : '1px solid #f1f5f9', marginTop: enabledStatuses.size < STATUS_META.length ? '0' : '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setStatusDropOpen(false)}
+                      style={{
+                        width: '100%', padding: '8px', borderRadius: '14px',
+                        background: '#2563eb', color: '#ffffff',
+                        border: 'none', fontSize: '13px', fontWeight: 700,
+                        cursor: 'pointer', boxShadow: '0 2px 8px #2563eb40',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
+                    >
+                      Listo
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -387,83 +464,102 @@ export default function ReportsEficenciaEventos({ onClose }) {
             boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
             border: '1px solid #f1f5f9',
           }}>
-            <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
-              {/* Y-axis */}
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '36px', flexShrink: 0, paddingBottom: '28px' }}>
-                {[100, 80, 60, 40, 20, 0].map(pct => (
-                  <span key={pct} style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', lineHeight: '12px' }}>
-                    {pct}%
-                  </span>
-                ))}
+            {/* Scale at top */}
+            <div style={{ display: 'flex', marginBottom: '8px', paddingLeft: '80px', fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>
+              {[0, 25, 50, 75, 100].map(pct => (
+                <span key={pct} style={{ position: 'absolute', left: `${80 + pct * (100 / 4)}px`, transform: 'translateX(-50%)' }}>
+                  {pct}%
+                </span>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px' }}>
+              {/* Y-axis: month names */}
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-around', width: '70px', flexShrink: 0 }}>
+                {chartData.map((monthData) => {
+                  const isCurrentMonth = monthData.monthKey === currentMonthKey;
+                  return (
+                    <div key={monthData.monthKey} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                      height: '32px', paddingRight: '6px',
+                    }}>
+                      <span style={{
+                        fontSize: isCurrentMonth ? '10px' : '9px',
+                        fontWeight: isCurrentMonth ? 900 : 600,
+                        color: isCurrentMonth ? '#2563eb' : '#94a3b8',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {monthData.monthShort} {monthData.year.toString().slice(2)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Bars area */}
-              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '6px', position: 'relative', minHeight: '280px' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-around', position: 'relative', minHeight: `${Math.max(chartData.length * 36, 200)}px` }}>
                 {/* Grid lines */}
-                {[20, 40, 60, 80].map(pct => (
+                {[25, 50, 75].map(pct => (
                   <div key={pct} style={{
-                    position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
-                    height: '1px', background: '#f1f5f9', pointerEvents: 'none',
-                    borderTop: '1px dashed #e2e8f0',
+                    position: 'absolute', top: 0, bottom: 0, left: `${pct}%`,
+                    width: '1px', background: '#f1f5f9', pointerEvents: 'none',
+                    borderLeft: '1px dashed #e2e8f0',
                   }} />
                 ))}
 
-                {chartData.map((monthData, monthIdx) => {
+                {chartData.length === 0 ? (
+                  <div style={{
+                    position: 'absolute', inset: 0, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    fontSize: '13px', fontWeight: 700, color: '#94a3b8',
+                    flexDirection: 'column', gap: '8px',
+                  }}>
+                    <span style={{ fontSize: '32px' }}>📭</span>
+                    <span>No hay eventos en este período</span>
+                  </div>
+                ) : chartData.map((monthData, monthIdx) => {
                   const isCurrentMonth = monthData.monthKey === currentMonthKey;
-                  const hasVisible = monthData.segments.some(s => s.visible && s.count > 0);
+                  const totalVisible = monthData.segments.filter(s => s.visible && s.count > 0).reduce((sum, s) => sum + s.visiblePct, 0);
 
                   return (
                     <div
                       key={monthData.monthKey}
                       style={{
-                        flex: '1 1 0',
-                        minWidth: '28px',
-                        maxWidth: '60px',
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'flex-end',
-                        alignItems: 'stretch',
-                        position: 'relative',
-                      }}
-                    >
-                      {/* Bar container - overflow hidden to clip segments to border radius */}
-                      <div style={{
-                        width: '100%',
-                        height: hasVisible ? '100%' : '4px',
-                        borderRadius: '4px 4px 0 0',
-                        overflow: 'hidden',
+                        height: '32px', display: 'flex', alignItems: 'center',
+                        position: 'relative', gap: '8px',
                         opacity: monthIdx < visibleBars ? 1 : (animationPhase === 'initial' ? 0 : 1),
                         transition: 'opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                        background: hasVisible ? 'transparent' : '#f1f5f9',
+                      }}
+                    >
+                      {/* Stacked bar */}
+                      <div style={{
+                        flex: 1, height: isCurrentMonth ? '24px' : '20px',
+                        borderRadius: '6px', overflow: 'hidden',
+                        background: '#f1f5f9',
                         display: 'flex',
-                        flexDirection: 'column-reverse',
-                        position: 'relative',
+                        transition: 'height 0.15s ease',
+                        boxShadow: isCurrentMonth ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
                       }}>
                         {monthData.segments.map((seg, segIdx) => {
                           if (!seg.visible || seg.count <= 0) return null;
-                          const pctToUse = seg.visiblePct;
                           const isHovered = hoveredSegment?.monthIdx === monthIdx && hoveredSegment?.segIdx === segIdx;
-
                           return (
                             <div
                               key={seg.statusKey}
                               style={{
-                                width: '100%',
-                                height: `${Math.max(pctToUse, seg.count > 0 ? 3 : 0)}%`,
-                                background: isHovered
-                                  ? `linear-gradient(180deg, ${seg.color}, ${seg.color}dd)`
-                                  : seg.color,
+                                width: `${seg.visiblePct}%`,
+                                height: '100%',
+                                background: isHovered ? `linear-gradient(90deg, ${seg.color}, ${seg.color}dd)` : seg.color,
                                 transition: 'all 0.15s ease',
                                 cursor: 'pointer',
-                                borderBottom: '1px solid rgba(255,255,255,0.3)',
+                                borderRight: '1px solid rgba(255,255,255,0.3)',
                                 filter: isHovered ? 'brightness(1.15)' : 'none',
-                                minHeight: pctToUse > 0 && pctToUse < 3 ? '3px' : '0',
+                                minWidth: seg.visiblePct > 0 ? '2px' : '0',
                               }}
                               onMouseEnter={(e) => {
                                 setHoveredSegment({ monthIdx, segIdx });
                                 const rect = e.currentTarget.getBoundingClientRect();
-                                setHoveredSegPos({ x: rect.left + rect.width / 2, y: rect.top });
+                                setHoveredSegPos({ x: rect.right, y: rect.top + rect.height / 2 });
                               }}
                               onMouseLeave={() => { setHoveredSegment(null); setHoveredSegPos(null); }}
                             />
@@ -471,17 +567,12 @@ export default function ReportsEficenciaEventos({ onClose }) {
                         })}
                       </div>
 
-
-                      {/* Month label at bottom */}
+                      {/* Total % at end of bar */}
                       <div style={{
-                        fontSize: isCurrentMonth ? '10px' : '9px',
-                        fontWeight: isCurrentMonth ? 900 : 600,
-                        color: isCurrentMonth ? '#2563eb' : '#94a3b8',
-                        marginTop: '6px', textAlign: 'center',
-                        lineHeight: 1.1, whiteSpace: 'nowrap',
-                        position: 'absolute', bottom: '-18px', left: 0, right: 0,
+                        fontSize: '9px', fontWeight: 800, color: '#94a3b8',
+                        width: '40px', textAlign: 'right', flexShrink: 0,
                       }}>
-                        {monthData.monthShort}
+                        {Math.round(totalVisible)}%
                       </div>
                     </div>
                   );
@@ -489,12 +580,12 @@ export default function ReportsEficenciaEventos({ onClose }) {
               </div>
             </div>
 
-            {/* X-axis labels */}
-            <div style={{ display: 'flex', marginTop: '28px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', paddingLeft: '44px' }}>
+            {/* Date range */}
+            <div style={{ display: 'flex', marginTop: '12px', paddingLeft: '78px', fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>
               {chartData.length > 0 && (
                 <span>{chartData[0].monthName} {chartData[0].year}</span>
               )}
-              {chartData.length > 6 && chartData.length > 1 && (
+              {chartData.length > 1 && (
                 <span style={{ marginLeft: 'auto' }}>{chartData[chartData.length - 1].monthName} {chartData[chartData.length - 1].year}</span>
               )}
             </div>
@@ -507,9 +598,9 @@ export default function ReportsEficenciaEventos({ onClose }) {
           return (
             <div style={{
               position: 'fixed',
-              left: `${Math.min(hoveredSegPos.x, window.innerWidth - 260)}px`,
-              top: `${Math.max(10, hoveredSegPos.y - 10)}px`,
-              transform: 'translate(-50%, -100%)',
+              left: `${Math.min(hoveredSegPos.x + 12, window.innerWidth - 260)}px`,
+              top: `${Math.max(10, hoveredSegPos.y - 40)}px`,
+              transform: 'translateY(-50%)',
               zIndex: 99999,
               pointerEvents: 'none',
             }}>
@@ -543,12 +634,12 @@ export default function ReportsEficenciaEventos({ onClose }) {
                   </div>
                 </div>
                 <div style={{
-                  position: 'absolute', top: '100%', left: '50%',
-                  transform: 'translateX(-50%)',
+                  position: 'absolute', top: '50%', right: '100%',
+                  transform: 'translateY(-50%)',
                   width: 0, height: 0,
-                  borderLeft: '6px solid transparent',
-                  borderRight: '6px solid transparent',
-                  borderTop: '6px solid #0f172a',
+                  borderTop: '6px solid transparent',
+                  borderBottom: '6px solid transparent',
+                  borderRight: '6px solid #0f172a',
                 }} />
               </div>
             </div>
