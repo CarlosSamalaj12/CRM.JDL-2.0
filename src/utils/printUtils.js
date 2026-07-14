@@ -863,6 +863,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             .quoteItemsTablePrint col.descCol{ width:57%; }
             .quoteItemsTablePrint col.priceCol{ width:16%; }
             .quoteItemsTablePrint col.totalCol{ width:16%; }
+            thead { display: table-row-group; }
             thead th{
               background:linear-gradient(180deg, var(--brand) 0%, var(--brand-deep) 100%);
               border:1px solid var(--brand-deep);
@@ -1255,8 +1256,8 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   <th>Total</th>
                 </tr>
               </thead>
-              <tbody>${itemsRowsHtml}</tbody>
-              <tfoot>
+              <tbody>
+                ${itemsRowsHtml}
                 ${discountDoc > 0 ? `
                 <tr>
                   <td colspan="2"></td>
@@ -1278,7 +1279,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                     CANTIDAD EN LETRAS: ${totalInWords}
                   </td>
                 </tr>
-              </tfoot>
+              </tbody>
             </table>
 
             <div class="policyTitle">NOTAS</div>
