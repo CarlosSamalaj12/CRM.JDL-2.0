@@ -712,6 +712,26 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedQuoteChanges]);
 
+  useEffect(() => {
+    const paxVal = Math.max(0, Number(quote.people || 0));
+    if (paxVal > 0) {
+      setQuote(prev => {
+        let hasChanges = false;
+        const updatedItems = prev.items.map(item => {
+          if (item.quantityMode === 'PAX' && Number(item.qty) !== paxVal) {
+            hasChanges = true;
+            return { ...item, qty: paxVal };
+          }
+          return item;
+        });
+        if (hasChanges) {
+          return { ...prev, items: updatedItems };
+        }
+        return prev;
+      });
+    }
+  }, [quote.people]);
+
   const handleRequestClose = async () => {
     if (!hasUnsavedQuoteChanges) {
       onClose();
@@ -740,7 +760,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const newItem = {
       rowId: uid(), serviceId: serviceObj.id, name: serviceObj.name,
       qty: serviceObj.quantityMode === 'PAX' ? paxVal : (Number(serviceQty) || 1),
-      price: serviceObj.quantityMode === 'PAX' ? Math.max(0, Number(serviceObj.price || 0) * paxVal) : Number(serviceObj.price || 0),
+      price: Number(serviceObj.price || 0),
       quantityMode: serviceObj.quantityMode || 'MANUAL',
       category: serviceObj.category || 'General',
       serviceDate: selectedServiceDate || availableServiceDates[0]
@@ -1179,11 +1199,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const handleApplyTemplate = () => {
     const template = quickTemplates.find(t => String(t.id) === quote.templateId);
     if (!template?.items?.length) { localSwal('Info', 'Plantilla sin items', 'info'); return; }
+    const paxVal = Math.max(0, Number(quote.people || 0));
     const templateItems = template.items.map(item => ({
       rowId: uid(),
       serviceId: item.serviceId || item.id || 'manual',
       name: item.name || 'Item de plantilla',
-      qty: Number(item.qty) || 1,
+      qty: item.quantityMode === 'PAX' ? paxVal : (Number(item.qty) || 1),
       price: Number(item.price) || 0,
       quantityMode: item.quantityMode || 'MANUAL',
       category: item.category || '',
@@ -4629,12 +4650,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
-                      Subtotal: <strong style={{ color: '#334155' }}>{moneyGT(totals.subtotal, quote.currency)}</strong>
-                    </div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
-                      Descuento: <strong style={{ color: '#334155' }}>{moneyGT(totals.discountAmount, quote.currency)}</strong>
-                    </div>
+                    {totals.discountAmount > 0 && (
+                      <>
+                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
+                          Subtotal: <strong style={{ color: '#334155' }}>{moneyGT(totals.subtotal, quote.currency)}</strong>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                          Descuento: <strong style={{ color: '#334155' }}>{moneyGT(totals.discountAmount, quote.currency)}</strong>
+                        </div>
+                      </>
+                    )}
                     <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>
                       Total cotización: <span style={{ color: '#0f172a' }}>{moneyGT(totals.total, quote.currency)}</span>
                     </div>

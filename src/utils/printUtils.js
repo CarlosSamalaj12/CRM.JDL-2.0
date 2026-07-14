@@ -1257,12 +1257,12 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               </thead>
               <tbody>${itemsRowsHtml}</tbody>
               <tfoot>
+                ${discountDoc > 0 ? `
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">SUBTOTAL EVENTO</td>
                   <td class="sumValue">${quoteMoney(subtotalDoc, docCurrency)}</td>
                 </tr>
-                ${discountDoc > 0 ? `
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">${escapeHtml(discountLabel)}</td>
