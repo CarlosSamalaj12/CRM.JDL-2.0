@@ -5,7 +5,7 @@
 // ⚠️ CAMBIA este string CADA VEZ que despliegues una nueva versión.
 //    El Service Worker detecta que sw.js cambió y se actualiza solo.
 //    La versión va incluida en el nombre del caché para forzar renovación.
-const VERSION = '2026-07-16-01';
+const VERSION = '2026-07-16-02';
 const CACHE_NAME = `jardines-ems-cache-v3-${VERSION}`;
 
 // Solo cacheamos assets estáticos con hash fijo (íconos, logo, favicon)
@@ -72,6 +72,8 @@ self.addEventListener('activate', (event) => {
 //  • Assets (JS/CSS/img) → Stale While Revalidate (cache + actualiza en background)
 //  • API, Socket.io, Firebase → No cachear (siempre del servidor)
 
+let activeUserId = null;
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -82,7 +84,6 @@ self.addEventListener('fetch', (event) => {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       const payloadBase64 = token.split('.')[1];
-      // Convertir Base64URL a Base64 estándar antes de decodificar con atob
       const payloadJson = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
       const payload = JSON.parse(payloadJson);
       if (payload && payload.id) {
@@ -163,8 +164,6 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
-
-let activeUserId = null;
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SET_ACTIVE_USER') {
