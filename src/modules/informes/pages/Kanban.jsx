@@ -223,25 +223,71 @@ export default function Kanban() {
     setLoading(true);
     fetchEvents(selectedDate)
       .then((eventsData) => {
-        const seenIds = new Set();
-        const unicos = eventsData.filter(e => {
-          if (seenIds.has(e.Idocupacion)) return false;
-          seenIds.add(e.Idocupacion);
-          return true;
-        });
-        const mapped = unicos.map(e => {
+        const groupedEvents = [];
+        const sharedGroupsMap = new Map();
+
+        eventsData.forEach(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
-          const d = new Date(fecha + 'T12:00:00');
+          const groupId = e.Idocupacion.split('_')[0];
+          const isShared = e.PaxCompartido === 1 || e.PaxCompartido === true;
+
+          if (isShared) {
+            const key = `${groupId}_${fecha}`;
+            if (sharedGroupsMap.has(key)) {
+              const existingIdx = sharedGroupsMap.get(key);
+              const existing = groupedEvents[existingIdx];
+
+              const salonesList = existing.Salon.split(', ').map(s => s.trim());
+              const currentSalon = String(e.Salon || '').trim();
+              if (currentSalon && !salonesList.includes(currentSalon)) {
+                salonesList.push(currentSalon);
+                existing.Salon = salonesList.join(', ');
+              }
+
+              if (e.HoraI && e.HoraI < existing.HoraI) existing.HoraI = e.HoraI;
+              if (e.HoraF && e.HoraF > existing.HoraF) existing.HoraF = e.HoraF;
+
+              existing.cant_desayunos = Math.max(existing.cant_desayunos, Number(e.cant_desayunos) || 0);
+              existing.cant_refacciones_am = Math.max(existing.cant_refacciones_am, Number(e.cant_refacciones_am) || 0);
+              existing.cant_almuerzos = Math.max(existing.cant_almuerzos, Number(e.cant_almuerzos) || 0);
+              existing.cant_refacciones_pm = Math.max(existing.cant_refacciones_pm, Number(e.cant_refacciones_pm) || 0);
+              existing.cant_cenas = Math.max(existing.cant_cenas, Number(e.cant_cenas) || 0);
+            } else {
+              groupedEvents.push({
+                ...e,
+                displayDate: fecha,
+                cant_desayunos: Number(e.cant_desayunos) || 0,
+                cant_refacciones_am: Number(e.cant_refacciones_am) || 0,
+                cant_almuerzos: Number(e.cant_almuerzos) || 0,
+                cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
+                cant_cenas: Number(e.cant_cenas) || 0,
+              });
+              sharedGroupsMap.set(key, groupedEvents.length - 1);
+            }
+          } else {
+            groupedEvents.push({
+              ...e,
+              displayDate: fecha,
+              cant_desayunos: Number(e.cant_desayunos) || 0,
+              cant_refacciones_am: Number(e.cant_refacciones_am) || 0,
+              cant_almuerzos: Number(e.cant_almuerzos) || 0,
+              cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
+              cant_cenas: Number(e.cant_cenas) || 0,
+            });
+          }
+        });
+
+        const mapped = groupedEvents.map(e => {
+          const d = new Date(e.displayDate + 'T12:00:00');
           return {
             ...e,
-            displayDate: fecha,
             dayIndex: d.getDay(),
-            dayLabel: `${dayNames[d.getDay()]} ${fecha}`,
+            dayLabel: `${dayNames[d.getDay()]} ${e.displayDate}`,
           };
         });
+
         setEvents(mapped);
         setEventsTotal(mapped.length);
-
       })
       .catch((err) => setError(err.message || 'Error desconocido'))
       .finally(() => setLoading(false));

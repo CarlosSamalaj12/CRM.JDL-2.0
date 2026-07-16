@@ -4807,6 +4807,7 @@ async function start() {
           e.id AS Idocupacion,
           e.nombre AS Institucion,
           e.pax AS Pax,
+          e.pax_compartido AS PaxCompartido,
           CASE
             WHEN e.estado = 'Confirmado' THEN 4
             WHEN e.estado = 'Pre reserva' OR e.estado = 'Pre-reserva' THEN 7

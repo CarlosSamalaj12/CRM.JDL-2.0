@@ -42,7 +42,18 @@ export async function getWeeklyServices(req, res, next) {
           WHEN LOWER(sc.nombre) LIKE '%cena%' OR LOWER(ice.nombre) LIKE '%cena%' THEN 'cenas'
           ELSE 'otros'
         END AS TipoServicio,
-        SUM(ice.cantidad) AS cantidad
+        SUM(
+          CASE 
+            WHEN ice.id_evento = (
+              SELECT MIN(ice2.id_evento)
+              FROM items_cotizacion_evento ice2
+              LEFT JOIN tbl_seguimientocotizaciones e2 ON ice2.id_evento = e2.Idocupacion
+              WHERE SUBSTRING_INDEX(ice2.id_evento, '_', 1) = SUBSTRING_INDEX(ice.id_evento, '_', 1)
+                AND COALESCE(ice2.fecha_servicio, e2.FechaEvento) = COALESCE(ice.fecha_servicio, e.FechaEvento)
+            ) THEN ice.cantidad
+            ELSE 0
+          END
+        ) AS cantidad
       FROM items_cotizacion_evento ice
       JOIN (
         SELECT DISTINCT Idocupacion, FechaEvento, Institucion, Salon, Vendedor
@@ -73,6 +84,7 @@ export async function getEvents(req, res, next) {
         e.Idocupacion,
         e.Institucion,
         e.Pax,
+        e.PaxCompartido,
         e.Estatuscotizacion,
         COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
         e.FechaEvento,
@@ -101,6 +113,12 @@ export async function getEvents(req, res, next) {
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
          WHERE ice.id_evento = e.Idocupacion
+           AND e.Idocupacion = (
+             SELECT MIN(e2.Idocupacion)
+             FROM tbl_seguimientocotizaciones e2
+             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+               AND e2.FechaEvento = e.FechaEvento
+           )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
            AND (LOWER(sc.nombre) LIKE '%desayuno%' OR LOWER(ice.nombre) LIKE '%desayuno%')
         ) AS cant_desayunos,
@@ -109,6 +127,12 @@ export async function getEvents(req, res, next) {
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
          WHERE ice.id_evento = e.Idocupacion
+           AND e.Idocupacion = (
+             SELECT MIN(e2.Idocupacion)
+             FROM tbl_seguimientocotizaciones e2
+             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+               AND e2.FechaEvento = e.FechaEvento
+           )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
            AND (LOWER(sc.nombre) LIKE '%refa%am%' OR LOWER(ice.nombre) LIKE '%refa%am%' 
                 OR LOWER(sc.nombre) LIKE '%refa%a.m.%' OR LOWER(ice.nombre) LIKE '%refa%a.m.%'
@@ -120,6 +144,12 @@ export async function getEvents(req, res, next) {
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
          WHERE ice.id_evento = e.Idocupacion
+           AND e.Idocupacion = (
+             SELECT MIN(e2.Idocupacion)
+             FROM tbl_seguimientocotizaciones e2
+             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+               AND e2.FechaEvento = e.FechaEvento
+           )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
            AND (LOWER(sc.nombre) LIKE '%almuerzo%' OR LOWER(ice.nombre) LIKE '%almuerzo%')
         ) AS cant_almuerzos,
@@ -128,6 +158,12 @@ export async function getEvents(req, res, next) {
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
          WHERE ice.id_evento = e.Idocupacion
+           AND e.Idocupacion = (
+             SELECT MIN(e2.Idocupacion)
+             FROM tbl_seguimientocotizaciones e2
+             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+               AND e2.FechaEvento = e.FechaEvento
+           )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
            AND (LOWER(sc.nombre) LIKE '%refa%pm%' OR LOWER(ice.nombre) LIKE '%refa%pm%'
                 OR LOWER(sc.nombre) LIKE '%refa%p.m.%' OR LOWER(ice.nombre) LIKE '%refa%p.m.%'
@@ -139,6 +175,12 @@ export async function getEvents(req, res, next) {
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
          WHERE ice.id_evento = e.Idocupacion
+           AND e.Idocupacion = (
+             SELECT MIN(e2.Idocupacion)
+             FROM tbl_seguimientocotizaciones e2
+             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+               AND e2.FechaEvento = e.FechaEvento
+           )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
            AND (LOWER(sc.nombre) LIKE '%cena%' OR LOWER(ice.nombre) LIKE '%cena%')
         ) AS cant_cenas

@@ -240,7 +240,9 @@ function shouldMoveEditedReservationToSeguimiento(existingEvent, series, nextFor
     name: existingEvent.name || '',
     date: firstDate || existingEvent.eventDateStart || existingEvent.date || '',
     endDate: lastDate || existingEvent.eventDateEnd || existingEvent.endDate || existingEvent.date || '',
-    pax: oldSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0) || existingEvent.pax || '',
+    pax: (existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1)
+      ? (oldSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
+      : (oldSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0) || existingEvent.pax || ''),
     notes: existingEvent.notes || '',
     userId: existingEvent.userId || '',
     salon: firstSlot.salon || existingEvent.salon || '',
@@ -592,7 +594,10 @@ export default function ReservationForm() {
           const date = String(ev.date || '');
           return date && (!max || date > max) ? date : max;
         }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || getDefaultDate());
-        const totalPaxFromSlots = seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+        const isShared = existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1;
+        const totalPaxFromSlots = isShared
+          ? (seriesSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
+          : seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
         setFormData({
           name: existingEvent.name || '',
           salon: firstSlot.salon || existingEvent.salon || '',
@@ -602,9 +607,7 @@ export default function ReservationForm() {
           startTime: firstSlot.startTime || existingEvent.startTime || '10:00',
           endTime: firstSlot.endTime || existingEvent.endTime || '12:00',
           pax: totalPaxFromSlots || existingEvent.pax || '',
-          paxCompartido: existingEvent.paxCompartido !== undefined && existingEvent.paxCompartido !== null
-            ? (existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1)
-            : false,
+          paxCompartido: isShared,
           notes: existingEvent.notes || '',
           userId: existingEvent.userId || '',
           quote: existingEvent.quote || null
@@ -680,10 +683,16 @@ export default function ReservationForm() {
   };
 
   const syncEventPaxFromSlots = useCallback(() => {
-    const total = slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+    let total;
+    if (formData.paxCompartido === true) {
+      const firstWithVal = slots.find(s => Number(s.pax) > 0);
+      total = firstWithVal ? Number(firstWithVal.pax) : Number(formData.pax || 0);
+    } else {
+      total = slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+    }
     setFormData(prev => ({ ...prev, pax: total > 0 ? total : '' }));
     return total;
-  }, [slots]);
+  }, [slots, formData.paxCompartido, formData.pax]);
 
   const syncHiddenTimesFromFirstSlot = useCallback(() => {
     if (slots.length > 0) {
@@ -699,7 +708,7 @@ export default function ReservationForm() {
   const addSlotRow = () => {
     const newSlot = {
       salon: salones?.length > 0 ? salones[0] : '',
-      pax: '',
+      pax: formData.paxCompartido === true ? formData.pax : '',
       dateStart: formData.date,
       dateEnd: formData.endDate,
       startTime: '10:00',
@@ -725,11 +734,20 @@ export default function ReservationForm() {
     if (field === 'pax') {
       val = value.replace(/\D/g, '');
     }
-    const newSlots = slots.map((s, i) => i === index ? { ...s, [field]: val } : s);
+    let newSlots;
+    if (field === 'pax' && formData.paxCompartido === true) {
+      newSlots = slots.map(s => ({ ...s, pax: val }));
+    } else {
+      newSlots = slots.map((s, i) => i === index ? { ...s, [field]: val } : s);
+    }
     setSlots(newSlots);
     if (field === 'pax') {
-      const total = newSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
-      setFormData(prev => ({ ...prev, pax: total > 0 ? total : '' }));
+      if (formData.paxCompartido === true) {
+        setFormData(prev => ({ ...prev, pax: val }));
+      } else {
+        const total = newSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+        setFormData(prev => ({ ...prev, pax: total > 0 ? total : '' }));
+      }
     }
     if (field === 'salon' || field === 'startTime' || field === 'endTime') {
       if (index === 0 && newSlots.length > 0) {
@@ -1481,7 +1499,11 @@ export default function ReservationForm() {
                       transition: 'box-shadow 0.2s'
                     }}>
                       <div
-                        onClick={() => setFormData(prev => ({ ...prev, paxCompartido: true }))}
+                        onClick={() => {
+                          const defaultPax = slots.find(s => Number(s.pax) > 0)?.pax || formData.pax || '';
+                          setFormData(prev => ({ ...prev, paxCompartido: true, pax: defaultPax }));
+                          setSlots(prev => prev.map(s => ({ ...s, pax: defaultPax })));
+                        }}
                         style={{
                           padding: '5px 18px',
                           fontSize: '12px',
@@ -1504,7 +1526,10 @@ export default function ReservationForm() {
                       </div>
                       <div style={{ width: '1px', background: formData.paxCompartido === null ? '#f97316' : '#e2e8f0' }} />
                       <div
-                        onClick={() => setFormData(prev => ({ ...prev, paxCompartido: false }))}
+                        onClick={() => {
+                          const total = slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+                          setFormData(prev => ({ ...prev, paxCompartido: false, pax: total > 0 ? total : '' }));
+                        }}
                         style={{
                           padding: '5px 18px',
                           fontSize: '12px',
