@@ -304,7 +304,7 @@ export default function InformeView() {
       `}</style>
       <div className="informe-print-container">
         {/* ─── BARRA DE ACCIONES (no se imprime) ─── */}
-        <div className="no-print actions-bar">
+        <div className="no-print actions-bar" style={{position:'sticky',top:0,zIndex:50,background:'var(--bg-card)',padding:'0.5rem 0',marginBottom:'0.5rem',backdropFilter:'blur(8px)'}}>
           <button onClick={() => navigate(-1)} className="btn-secondary" data-tooltip="Volver">
             <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
           </button>
@@ -349,41 +349,47 @@ export default function InformeView() {
 
                 {/* ═══ DATOS DEL EVENTO ═══ */}
                 <section className="iv-header-table">
-                  <table>
-                    <tbody>
-                      <tr>
-                        <td className="iv-ht-label">Encargado Evento</td>
-                        <td className="iv-ht-value">{informe.EncargadoEvento || '-'}</td>
-                        <td className="iv-ht-label">No Cotización</td>
-                        <td className="iv-ht-value">
-                          {informe.NoDoc || '-'}
-                          {informe.fecha_creacion && <span className="iv-ht-sub">{fechaCreacion}</span>}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="iv-ht-label">Horario</td>
-                        <td className="iv-ht-value">{informe.HoraI || '-'}{informe.HoraF ? ` - ${informe.HoraF}` : ''}</td>
-                        <td className="iv-ht-label">Fecha Evento</td>
-                        <td className="iv-ht-value">{dia.fecha_evento ? formatFechaDia(dia.fecha_evento) : '-'}</td>
-                      </tr>
-                      <tr>
-                        <td className="iv-ht-label">Institución</td>
-                        <td className="iv-ht-value">{informe.Institucion}</td>
-                        <td className="iv-ht-label">No Pax</td>
-                        <td className="iv-ht-value">{informe.Pax || '-'}</td>
-                      </tr>
-                      <tr>
-                        <td className="iv-ht-label">Salón / Área</td>
-                        <td className="iv-ht-value">{informe.Salon || '-'}</td>
-                        <td className="iv-ht-label">No Folio</td>
-                        <td className="iv-ht-value">{informe.folio || '-'}</td>
-                      </tr>
-                      <tr>
-                        <td className="iv-ht-label">Vendedor</td>
-                        <td className="iv-ht-value" colSpan="3">{informe.Vendedor || '-'}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div className="iv-ht-rows">
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">Encargado Evento</span>
+                      <span className="iv-ht-value">{informe.EncargadoEvento || '-'}</span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">No Cotización</span>
+                      <span className="iv-ht-value">
+                        {informe.NoDoc || '-'}
+                        {informe.fecha_creacion && <span className="iv-ht-sub">{fechaCreacion}</span>}
+                      </span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">Horario</span>
+                      <span className="iv-ht-value">{informe.HoraI || '-'}{informe.HoraF ? ` - ${informe.HoraF}` : ''}</span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">Fecha Evento</span>
+                      <span className="iv-ht-value">{dia.fecha_evento ? formatFechaDia(dia.fecha_evento) : '-'}</span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">Institución</span>
+                      <span className="iv-ht-value">{informe.Institucion}</span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">No Pax</span>
+                      <span className="iv-ht-value">{informe.Pax || '-'}</span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">Salón / Área</span>
+                      <span className="iv-ht-value">{informe.Salon || '-'}</span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">No Folio</span>
+                      <span className="iv-ht-value">{informe.folio || '-'}</span>
+                    </div>
+                    <div className="iv-ht-row">
+                      <span className="iv-ht-label">Vendedor</span>
+                      <span className="iv-ht-value">{informe.Vendedor || '-'}</span>
+                    </div>
+                  </div>
                 </section>
 
                 {/* ═══ ALERTAS / RESTRICCIONES ═══ */}

@@ -3642,15 +3642,24 @@ button[data-tooltip-bottom]::after {
   border-radius: var(--radius-md);
 }
 
-.iv-header-table table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+/* Estructura de divs (reemplaza table/tr/td) */
+.iv-ht-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
-.iv-header-table td {
-  padding: 0.2rem 0.4rem;
-  vertical-align: middle;
+.iv-ht-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.iv-ht-row:last-child {
+  border-bottom: none;
 }
 
 .iv-ht-label {
@@ -3659,21 +3668,22 @@ button[data-tooltip-bottom]::after {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  flex: 0 0 130px;
   width: 130px;
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
 }
 
 .iv-ht-value {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-main);
+  flex: 1 1 0;
+  min-width: 0;
   white-space: normal;
   word-break: break-word;
-  padding-left: 28px !important;
-}
-
-.iv-ht-value:last-child {
-  padding-right: 0;
+  overflow-wrap: break-word;
+  padding-left: 0;
 }
 
 .iv-ht-sub {
@@ -4339,33 +4349,24 @@ button[data-tooltip-bottom]::after {
   .actions-bar.no-print button .btn-text {
     display: none !important;
   }
-  .iv-header-table table {
-    table-layout: auto !important;
-  }
-  .iv-header-table tr {
-    display: grid !important;
-    grid-template-columns: 110px 1fr 110px 1fr !important;
-    gap: 0.4rem 0.75rem !important;
-    align-items: center !important;
-    padding: 0.35rem 0 !important;
+  /* Filas de datos del informe (div-based) */
+  .iv-ht-row {
+    padding: 0.3rem 0.25rem !important;
+    gap: 0.35rem !important;
+    align-items: flex-start !important;
     border-bottom: 1px dashed var(--border) !important;
   }
-  .iv-header-table tr:last-child {
-    border-bottom: none !important;
-  }
-  .iv-header-table td {
-    display: block !important;
-    padding: 0 !important;
-  }
-  .iv-header-table .iv-ht-value[colspan] {
-    grid-column: span 3 !important;
-  }
   .iv-ht-label {
-    width: auto !important;
-    white-space: normal !important;
+    flex: 0 0 90px !important;
+    width: 90px !important;
+    font-size: 0.53rem !important;
   }
   .iv-ht-value {
-    padding-left: 0 !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    font-size: 0.8rem !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
   }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .dashboard-header { flex-direction: column; }
@@ -4446,12 +4447,37 @@ button[data-tooltip-bottom]::after {
 
 /* Mobile responsive: Informe View */
 @media (max-width: 768px) {
+  .informe-view-layout {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+  .informe-print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+  .iv-documento {
+    padding: 0.5rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    border-radius: var(--radius-md) !important;
+  }
+  .iv-documento table {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    table-layout: fixed !important;
+  }
   .iv-info-grid { grid-template-columns: repeat(2, 1fr); }
   .iv-header-top { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
   .iv-header-right { align-items: flex-start; text-align: left; }
   .iv-title { font-size: 1.1rem; }
   .iv-event-name { font-size: 1rem; }
-  .iv-documento { padding: 1rem; }
   .iv-montaje-grid { grid-template-columns: 1fr; }
   .no-print { flex-direction: column; }
   .no-print button { width: 100%; justify-content: center; }

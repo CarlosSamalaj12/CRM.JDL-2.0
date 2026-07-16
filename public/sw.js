@@ -5,7 +5,7 @@
 // ⚠️ CAMBIA este string CADA VEZ que despliegues una nueva versión.
 //    El Service Worker detecta que sw.js cambió y se actualiza solo.
 //    La versión va incluida en el nombre del caché para forzar renovación.
-const VERSION = '2026-07-10-05';
+const VERSION = '2026-07-16-01';
 const CACHE_NAME = `jardines-ems-cache-v3-${VERSION}`;
 
 // Solo cacheamos assets estáticos con hash fijo (íconos, logo, favicon)
