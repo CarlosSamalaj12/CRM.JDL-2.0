@@ -6,12 +6,17 @@
  * con el formato YYYY-MM-DD-NN donde NN se incrementa por cada deploy
  * del mismo día.
  *
+ * ⚠️ Importante: Este script NO modifica public/sw.js directamente
+ *    para evitar conflictos con git pull. En su lugar, escribe el
+ *    archivo versionado en dist/sw.js (después de que Vite ya copió
+ *    la versión base desde public/).
+ *
  * Uso:
  *   node scripts/bump-sw-version.cjs
  *
  * Integración (package.json):
  *   "scripts": {
- *     "build": "node scripts/bump-sw-version.cjs && vite build",
+ *     "build": "vite build && node scripts/bump-sw-version.cjs",
  *     "predeploy": "node scripts/bump-sw-version.cjs"
  *   }
  */
@@ -19,23 +24,44 @@
 const fs = require('fs');
 const path = require('path');
 
-const SW_PATH = path.join(__dirname, '..', 'public', 'sw.js');
+const SRC_PATH = path.join(__dirname, '..', 'public', 'sw.js');
+const OUT_PATH = path.join(__dirname, '..', 'dist', 'sw.js');
 
-// ── Leer el archivo ──
+// ── Buscar la versión actual: prioridad a dist/sw.js (último build) ──
+//    Si existe dist/sw.js, usamos esa como base para mantener la
+//    secuencia aunque se hagan múltiples builds el mismo día.
+//    Si no existe (primer build), usamos public/sw.js.
+const versionRegex = /^(const\s+VERSION\s*=\s*')(\d{4}-\d{2}-\d{2}-\d{2})(';?.*)$/m;
+
+let sourcePath = SRC_PATH;
 let content;
-try {
-  content = fs.readFileSync(SW_PATH, 'utf8');
-} catch (err) {
-  console.error(`[bump-sw-version] Error leyendo ${SW_PATH}: ${err.message}`);
-  process.exit(1);
+if (fs.existsSync(OUT_PATH)) {
+  try {
+    const distContent = fs.readFileSync(OUT_PATH, 'utf8');
+    const distMatch = distContent.match(versionRegex);
+    if (distMatch) {
+      content = distContent;
+      sourcePath = 'dist/sw.js';
+      console.log(`[bump-sw-version] Leyendo versión desde ${sourcePath}`);
+    }
+  } catch {}
+}
+
+if (!content) {
+  try {
+    content = fs.readFileSync(SRC_PATH, 'utf8');
+    sourcePath = 'public/sw.js';
+  } catch (err) {
+    console.error(`[bump-sw-version] Error leyendo ${SRC_PATH}: ${err.message}`);
+    process.exit(1);
+  }
 }
 
 // ── Buscar la línea de VERSION ──
-const versionRegex = /^(const\s+VERSION\s*=\s*')(\d{4}-\d{2}-\d{2}-\d{2})(';?.*)$/m;
 const match = content.match(versionRegex);
 
 if (!match) {
-  console.error('[bump-sw-version] No se encontró la constante VERSION en public/sw.js');
+  console.error(`[bump-sw-version] No se encontró la constante VERSION en ${sourcePath}`);
   console.error('[bump-sw-version] Buscaba el patrón: const VERSION = \'YYYY-MM-DD-NN\';');
   process.exit(1);
 }
@@ -66,11 +92,17 @@ if (oldDatePart === todayStr) {
 const newVersion = `${todayStr}-${String(newSeq).padStart(2, '0')}`;
 const newContent = content.replace(versionRegex, `${prefix}${newVersion}${suffix}`);
 
-// ── Escribir el archivo ──
+// ── Escribir SOLO en dist/sw.js (NO tocar public/sw.js) ──
 try {
-  fs.writeFileSync(SW_PATH, newContent, 'utf8');
-  console.log(`[bump-sw-version] ✅ VERSION actualizada: ${oldVersion} → ${newVersion}`);
+  // Asegurar que el directorio dist existe (si Vite ya corrió debería existir)
+  const distDir = path.dirname(OUT_PATH);
+  if (!fs.existsSync(distDir)) {
+    fs.mkdirSync(distDir, { recursive: true });
+  }
+  fs.writeFileSync(OUT_PATH, newContent, 'utf8');
+  console.log(`[bump-sw-version] ✅ VERSION actualizada: ${oldVersion} → ${newVersion} (dist/sw.js)`);
+  console.log(`[bump-sw-version] 💡 NOTA: public/sw.js NO fue modificado — sin conflictos git.`);
 } catch (err) {
-  console.error(`[bump-sw-version] Error escribiendo ${SW_PATH}: ${err.message}`);
+  console.error(`[bump-sw-version] Error escribiendo ${OUT_PATH}: ${err.message}`);
   process.exit(1);
 }
