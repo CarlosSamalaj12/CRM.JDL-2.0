@@ -125,25 +125,26 @@
 /* ─── Mobile: table-layout fixed + explicit widths ─── */
 @media (max-width: 767px) {
   .reports-root .tabla-eventos {
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     border-radius: 8px;
-    table-layout: fixed;
+    table-layout: auto;
+    min-width: 880px;
   }
 
-  /* ── Hide food/alertas/vendedor columns AND day header row ── */
+  /* ── Show all columns and day header rows on mobile ── */
   .reports-root .tabla-eventos th.col-food,
   .reports-root .tabla-eventos th.col-alertas,
   .reports-root .tabla-eventos th.col-vendedor,
   .reports-root .tabla-eventos td.col-food,
   .reports-root .tabla-eventos td.col-alertas,
   .reports-root .tabla-eventos td.col-vendedor {
-    display: none;
+    display: table-cell !important;
   }
   .reports-root .tabla-dia-header {
-    display: none;
+    display: table-row !important;
   }
 
-  /* ── Show only: Día, Estado, Institución, Salón, Horario, Pax ── */
+  /* ── Show all: Día, Estado, Institución, Salón, Horario, Pax ── */
   .reports-root .tabla-eventos th.col-dia,
   .reports-root .tabla-eventos th.col-estado,
   .reports-root .tabla-eventos th.col-inst,
@@ -151,8 +152,8 @@
   .reports-root .tabla-eventos th.col-horario,
   .reports-root .tabla-eventos th.col-pax {
     display: table-cell;
-    font-size: 0.5rem;
-    padding: 0.3rem 0.2rem;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.4rem;
   }
 
   .reports-root .tabla-eventos td.col-dia,
@@ -162,59 +163,59 @@
   .reports-root .tabla-eventos td.col-horario,
   .reports-root .tabla-eventos td.col-pax {
     display: table-cell;
-    padding: 0.45rem 0.2rem;
-    font-size: 0.6rem;
+    padding: 0.5rem 0.4rem;
+    font-size: 0.72rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.3;
   }
 
-  /* ── Explicit column widths (fit 375px iPhone) ── */
+  /* ── Column widths for scroll ── */
   .reports-root .tabla-eventos th.col-dia,
   .reports-root .tabla-eventos td.col-dia {
-    width: 44px;
-    min-width: 44px;
-    max-width: 44px;
-    font-size: 0.5rem;
+    width: 38px;
+    min-width: 38px;
+    max-width: 38px;
     text-align: center;
   }
 
   .reports-root .tabla-eventos th.col-estado,
   .reports-root .tabla-eventos td.col-estado {
-    width: 48px;
-    min-width: 48px;
-    max-width: 48px;
+    width: 60px;
+    min-width: 60px;
+    max-width: 60px;
     text-align: center;
   }
 
   .reports-root .tabla-eventos th.col-inst,
   .reports-root .tabla-eventos td.col-inst {
-    width: auto;
-    font-weight: 600;
-    min-width: 55px;
+    width: 180px;
+    min-width: 180px;
+    max-width: 250px;
+    white-space: normal;
   }
 
   .reports-root .tabla-eventos th.col-salon,
   .reports-root .tabla-eventos td.col-salon {
-    width: 52px;
-    min-width: 52px;
-    max-width: 52px;
+    width: 90px;
+    min-width: 90px;
+    max-width: 140px;
+    white-space: normal;
   }
 
   .reports-root .tabla-eventos th.col-horario,
   .reports-root .tabla-eventos td.col-horario {
-    width: 70px;
-    min-width: 70px;
-    max-width: 70px;
-    font-size: 0.55rem;
+    width: 90px;
+    min-width: 90px;
+    max-width: 90px;
   }
 
   .reports-root .tabla-eventos th.col-pax,
   .reports-root .tabla-eventos td.col-pax {
-    width: 28px;
-    min-width: 28px;
-    max-width: 28px;
+    width: 35px;
+    min-width: 35px;
+    max-width: 35px;
     text-align: center;
     font-weight: 700;
   }

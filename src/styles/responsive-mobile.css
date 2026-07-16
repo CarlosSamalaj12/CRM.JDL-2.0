@@ -1737,5 +1737,26 @@ body:not(.informes-theme) #appShell.lum-calendar {
     font-size: 0.72rem !important;
     padding: 3px 7px !important;
   }
+
+  /* Ocultar texto largo del botón push en móvil */
+  .pwa-btn-text {
+    display: none !important;
+  }
+
+  /* Ajustes para prevenir desborde del header y buscador en móvil */
+  .informes-shell .app-header {
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .informes-shell .header-search-container,
+  .informes-shell .header-search-container > div,
+  .informes-shell .header-search-container input {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
 }
 

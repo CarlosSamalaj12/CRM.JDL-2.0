@@ -7098,3 +7098,49 @@ button[data-tooltip-bottom]::after {
   font-style: normal;
   animation: pulse 0.8s ease-in-out infinite;
 }
+
+@media (max-width: 767px) {
+  /* Forzar a que el selector de semana ocupe el 100% de ancho y se centre */
+  .reports-root .kanban-filter .week-filter-container,
+  .kanban-filter .week-filter-container,
+  .week-filter-container {
+    width: 100% !important;
+    max-width: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    box-sizing: border-box !important;
+    flex-basis: 100% !important;
+    margin-top: 0.5rem !important;
+  }
+
+  .reports-root .kanban-filter .week-filter-input-wrap,
+  .kanban-filter .week-filter-input-wrap,
+  .week-filter-input-wrap {
+    flex: 1 !important;
+    width: auto !important;
+    max-width: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-sm) !important;
+    background: var(--bg-card) !important;
+  }
+
+  .reports-root .kanban-filter .week-filter-input-wrap input[type="date"],
+  .kanban-filter .week-filter-input-wrap input[type="date"],
+  .week-filter-input-wrap input[type="date"] {
+    width: 100% !important;
+    max-width: none !important;
+    text-align: center !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .week-filter-container button {
+    flex-shrink: 0 !important;
+  }
+}

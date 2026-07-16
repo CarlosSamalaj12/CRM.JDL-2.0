@@ -459,35 +459,7 @@ export default function WeeklyTasks({
 
   return (
     <div style={{ padding: isMobile ? '24px 12px 12px 12px' : '16px 20px' }}>
-      {/* Mobile week date selector — mismo diseño que el kanban header */}
-      {isMobile && onDateChange && (
-        <div className="week-filter-container" style={{ width: '100%', justifyContent: 'center', marginBottom: '12px' }}>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            onClick={handlePrevWeek}
-            data-tooltip="Semana anterior"
-          >
-            ‹
-          </button>
-          <div className="week-filter-input-wrap" style={{ flex: 1, maxWidth: 'none' }}>
-            <input
-              id="week-filter-tareas"
-              type="date"
-              value={selectedDate}
-              onChange={(e) => onDateChange(getMonday(e.target.value))}
-            />
-          </div>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            onClick={handleNextWeek}
-            data-tooltip="Semana siguiente"
-          >
-            ›
-          </button>
-        </div>
-      )}
+      {/* Mobile date selector removed to prevent duplication, managed by parent header */}
 
 
 

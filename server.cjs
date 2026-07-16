@@ -2154,12 +2154,43 @@ async function ensureDefaultUserCarlos() {
   }
 }
 
-async function writeStateToTables(state) {
+async function writeStateToTables(state, oldStateOpt = null) {
   let conn;
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
     await conn.query("SET FOREIGN_KEY_CHECKS = 0");
+
+    let oldEvents = [];
+    let oldCompanies = [];
+    let oldUsers = [];
+    let oldChangeHistory = {};
+    let oldReminders = {};
+
+    if (oldStateOpt && typeof oldStateOpt === 'object' && !Array.isArray(oldStateOpt)) {
+      // oldStateOpt es el objeto de estado completo (ej. devuelto por readStateFromTables)
+      const cur = oldStateOpt.state || oldStateOpt;
+      oldEvents = cur.events || [];
+      oldCompanies = cur.companies || [];
+      oldUsers = cur.users || [];
+      oldChangeHistory = cur.changeHistory || {};
+      oldReminders = cur.reminders || {};
+    } else if (Array.isArray(oldStateOpt)) {
+      // Compatibilidad con pase directo de oldEvents
+      oldEvents = oldStateOpt;
+    } else {
+      try {
+        const currentResult = await readStateFromTables();
+        if (currentResult && currentResult.state) {
+          const cur = currentResult.state;
+          oldEvents = cur.events || [];
+          oldCompanies = cur.companies || [];
+          oldUsers = cur.users || [];
+          oldChangeHistory = cur.changeHistory || {};
+          oldReminders = cur.reminders || {};
+        }
+      } catch (_) {}
+    }
 
     const salones = Array.isArray(state.salones) ? state.salones : [];
     const users = Array.isArray(state.users) ? state.users : [];
@@ -2226,6 +2257,12 @@ async function writeStateToTables(state) {
       const id = str(u?.id).trim();
       if (!id || seenIds.has(id)) continue;
       seenIds.add(id);
+
+      const oldUser = oldUsers.find(o => String(o.id) === id);
+      if (oldUser && JSON.stringify(u) === JSON.stringify(oldUser)) {
+        continue;
+      }
+
       const emailCheck = str(u?.email).trim().toLowerCase();
       if (emailCheck && seenEmails.has(emailCheck)) {
         console.warn(`[writeStateToTables] Email duplicado omitido: "${emailCheck}"`);
@@ -2307,6 +2344,12 @@ async function writeStateToTables(state) {
     for (const c of companies) {
       const id = str(c?.id).trim();
       if (!id) continue;
+
+      const oldCompany = oldCompanies.find(o => String(o.id) === id);
+      if (oldCompany && JSON.stringify(c) === JSON.stringify(oldCompany)) {
+        continue;
+      }
+
       await conn.query(
         `
           INSERT INTO empresas
@@ -2378,19 +2421,30 @@ async function writeStateToTables(state) {
     }
     if (incomingEventIds.size > 0 && incomingGroupIds.size > 0) {
       const idList = [...incomingEventIds];
-      const placeholders = idList.map(() => '?').join(',');
-      for (const groupId of incomingGroupIds) {
-        await conn.query(
-          `DELETE FROM eventos WHERE id_grupo = ? AND id NOT IN (${placeholders})`,
-          [groupId, ...idList]
-        );
-      }
+      const groupList = [...incomingGroupIds];
+      const idPlaceholders = idList.map(() => '?').join(',');
+      const groupPlaceholders = groupList.map(() => '?').join(',');
+      await conn.query(
+        `DELETE FROM eventos WHERE id_grupo IN (${groupPlaceholders}) AND id NOT IN (${idPlaceholders})`,
+        [...groupList, ...idList]
+      );
     }
 
     // === UPSERT: eventos ===
     for (const e of events) {
       const id = str(e?.id).trim();
       if (!id) continue;
+
+      const oldEvent = oldEvents.find(o => String(o.id) === id);
+      if (oldEvent && JSON.stringify(e) === JSON.stringify(oldEvent)) {
+        if (e?.quote?.code) {
+          const codeNum = parseQuoteCodeNumber(e.quote.code);
+          const desiredCode = codeNum > 0 ? formatQuoteCode(codeNum) : "";
+          if (desiredCode) usedQuoteCodes.add(desiredCode);
+        }
+        continue;
+      }
+
       await conn.query(
         `
           INSERT INTO eventos
@@ -2783,62 +2837,66 @@ async function writeStateToTables(state) {
     }
 
     // === UPSERT: historial_evento (limpiar y re-insertar para evitar duplicación) ===
-    await conn.query("DELETE FROM historial_evento");
-    for (const [eventKey, rows] of Object.entries(changeHistory)) {
-      if (!Array.isArray(rows)) continue;
-      for (const row of rows) {
-        await conn.query(
-          `
-            INSERT INTO historial_evento
-              (clave_evento, cambiado_en_iso, cambiado_en, id_usuario_actor, nombre_actor, cambio_texto)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `,
-          [
-            str(eventKey).trim(),
-            str(row?.at).trim() || null,
-            asDateTime(row?.at),
-            str(row?.actorUserId).trim() || null,
-            str(row?.actorName).trim() || null,
-            str(row?.change).trim() || "",
-          ]
-        );
+    if (JSON.stringify(changeHistory) !== JSON.stringify(oldChangeHistory)) {
+      await conn.query("DELETE FROM historial_evento");
+      for (const [eventKey, rows] of Object.entries(changeHistory)) {
+        if (!Array.isArray(rows)) continue;
+        for (const row of rows) {
+          await conn.query(
+            `
+              INSERT INTO historial_evento
+                (clave_evento, cambiado_en_iso, cambiado_en, id_usuario_actor, nombre_actor, cambio_texto)
+              VALUES (?, ?, ?, ?, ?, ?)
+            `,
+            [
+              str(eventKey).trim(),
+              str(row?.at).trim() || null,
+              asDateTime(row?.at),
+              str(row?.actorUserId).trim() || null,
+              str(row?.actorName).trim() || null,
+              str(row?.change).trim() || "",
+            ]
+          );
+        }
       }
     }
 
     // === UPSERT: recordatorios (preservar y agregar nuevos) ===
-    for (const [eventKey, rows] of Object.entries(reminders)) {
-      if (!Array.isArray(rows)) continue;
-      for (const row of rows) {
-        const reminderId = str(row?.id).trim() || `rem_${Math.random().toString(16).slice(2)}`;
-        await conn.query(
-          `
-            INSERT INTO recordatorios_evento
-              (id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, creado_en, id_usuario_creador, finalizado)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-              clave_evento = VALUES(clave_evento),
-              fecha_recordatorio = VALUES(fecha_recordatorio),
-              hora_recordatorio = VALUES(hora_recordatorio),
-              medio = VALUES(medio),
-              notas = VALUES(notas),
-              creado_en_iso = VALUES(creado_en_iso),
-              creado_en = VALUES(creado_en),
-              id_usuario_creador = VALUES(id_usuario_creador),
-              finalizado = VALUES(finalizado)
-          `,
-          [
-            reminderId,
-            str(eventKey).trim(),
-            asDate(row?.date),
-            asTime(row?.time),
-            str(row?.channel).trim() || "(sin canal)",
-            str(row?.notes).trim() || null,
-            str(row?.createdAt).trim() || null,
-            asDateTime(row?.createdAt),
-            str(row?.createdByUserId).trim() || null,
-            row?.finalizado ? 1 : 0,
-          ]
-        );
+    if (JSON.stringify(reminders) !== JSON.stringify(oldReminders)) {
+      for (const [eventKey, rows] of Object.entries(reminders)) {
+        if (!Array.isArray(rows)) continue;
+        for (const row of rows) {
+          const reminderId = str(row?.id).trim() || `rem_${Math.random().toString(16).slice(2)}`;
+          await conn.query(
+            `
+              INSERT INTO recordatorios_evento
+                (id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, creado_en, id_usuario_creador, finalizado)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON DUPLICATE KEY UPDATE
+                clave_evento = VALUES(clave_evento),
+                fecha_recordatorio = VALUES(fecha_recordatorio),
+                hora_recordatorio = VALUES(hora_recordatorio),
+                medio = VALUES(medio),
+                notas = VALUES(notas),
+                creado_en_iso = VALUES(creado_en_iso),
+                creado_en = VALUES(creado_en),
+                id_usuario_creador = VALUES(id_usuario_creador),
+                finalizado = VALUES(finalizado)
+            `,
+            [
+              reminderId,
+              str(eventKey).trim(),
+              asDate(row?.date),
+              asTime(row?.time),
+              str(row?.channel).trim() || "(sin canal)",
+              str(row?.notes).trim() || null,
+              str(row?.createdAt).trim() || null,
+              asDateTime(row?.createdAt),
+              str(row?.createdByUserId).trim() || null,
+              row?.finalizado ? 1 : 0,
+            ]
+          );
+        }
       }
     }
 
@@ -4062,7 +4120,7 @@ app.put("/api/state", async (req, res) => {
       console.warn("⚠️ No se pudo leer estado actual para merge, usando solo request:", err.message);
     }
 
-    await writeStateToTables(mergedState);
+    await writeStateToTables(mergedState, oldEvents);
     console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! BD actualizada (${(mergedState.events?.length || nextState.events?.length || 0)} eventos).`);
 
     // Emitir actualización vía Socket.io en tiempo real a todos los clientes

@@ -352,9 +352,9 @@ export default function Kanban() {
     return { isoDate, label, events: dayEvents, shortDate: formatDateShort(isoDate) };
   }).filter((d) => d.events.length > 0);
   
-  // En mobile vista tabla, filtrar por día seleccionado
+  // En mobile vista tabla, filtrar por el día seleccionado en el selector de días
   const filteredDays = (isMobileView && viewMode === 'tabla' && columns[mobileDayIndex])
-    ? days.filter(d => d.events.some(e => e.dayIndex === columns[mobileDayIndex].dayIndex))
+    ? days.filter(d => d.isoDate === columns[mobileDayIndex].isoDate)
     : days;
   const clearFilters = () => {
     if (filterExiting) return;
@@ -706,7 +706,7 @@ export default function Kanban() {
         </div>
         
         {/* Day selector — visible en mobile (colocado dentro de kanban-header para que sea sticky junto con él) */}
-        {!loading && !error && isMobileView && (viewMode === 'kanban' || viewMode === 'tareas') && (
+        {!loading && !error && isMobileView && (viewMode === 'kanban' || viewMode === 'tareas' || viewMode === 'tabla') && (
           <div className="kanban-day-selector" style={{ marginTop: '0.5rem', marginBottom: '0.25rem' }}>
             <button onClick={handlePrevDay} className="kanban-day-arrow">‹</button>
             <div className="kanban-day-pills-wrap">
