@@ -712,26 +712,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedQuoteChanges]);
 
-  useEffect(() => {
-    const paxVal = Math.max(0, Number(quote.people || 0));
-    if (paxVal > 0) {
-      setQuote(prev => {
-        let hasChanges = false;
-        const updatedItems = prev.items.map(item => {
-          if (item.quantityMode === 'PAX' && Number(item.qty) !== paxVal) {
-            hasChanges = true;
-            return { ...item, qty: paxVal };
-          }
-          return item;
-        });
-        if (hasChanges) {
-          return { ...prev, items: updatedItems };
-        }
-        return prev;
-      });
-    }
-  }, [quote.people]);
-
   const handleRequestClose = async () => {
     if (!hasUnsavedQuoteChanges) {
       onClose();
@@ -759,7 +739,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const paxVal = Math.max(0, Number(quote.people || 0));
     const newItem = {
       rowId: uid(), serviceId: serviceObj.id, name: serviceObj.name,
-      qty: serviceObj.quantityMode === 'PAX' ? paxVal : (Number(serviceQty) || 1),
+      qty: Number(serviceQty) || 1,
       price: Number(serviceObj.price || 0),
       quantityMode: serviceObj.quantityMode || 'MANUAL',
       category: serviceObj.category || 'General',
@@ -1199,12 +1179,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const handleApplyTemplate = () => {
     const template = quickTemplates.find(t => String(t.id) === quote.templateId);
     if (!template?.items?.length) { localSwal('Info', 'Plantilla sin items', 'info'); return; }
-    const paxVal = Math.max(0, Number(quote.people || 0));
     const templateItems = template.items.map(item => ({
       rowId: uid(),
       serviceId: item.serviceId || item.id || 'manual',
       name: item.name || 'Item de plantilla',
-      qty: item.quantityMode === 'PAX' ? paxVal : (Number(item.qty) || 1),
+      qty: Number(item.qty) || 1,
       price: Number(item.price) || 0,
       quantityMode: item.quantityMode || 'MANUAL',
       category: item.category || '',
