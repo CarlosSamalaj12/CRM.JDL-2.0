@@ -6,6 +6,9 @@ import { useSocket } from '../context/SocketContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import SearchBar from './SearchBar.jsx';
 import PwaInstallBanner from './PwaInstallBanner.jsx';
+import { useVersionCheck } from '../../../hooks/useVersionCheck';
+import ForceUpdateModal from '../../../components/ForceUpdateModal';
+import VersionFooter from '../../../components/VersionFooter';
 import {
   IconGrid,
   IconHome,
@@ -26,6 +29,10 @@ export default function ReportsLayout() {
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+  // Sistema de control de versiones: polling cada 3h
+  const { updateState, serverVersion, currentVersion, reload } = useVersionCheck({
+    intervalMs: 3 * 60 * 60 * 1000,
+  });
 
   // Auto-ocultar el botón flotante de menú al scrollear hacia abajo
   const [fabVisible, setFabVisible] = useState(true);
@@ -377,6 +384,19 @@ export default function ReportsLayout() {
           <Outlet />
         </ErrorBoundary>
       </main>
+
+      {/* Footer con versión (esquina inferior derecha) */}
+      <VersionFooter style={{ position: 'fixed', bottom: 8, right: 12, zIndex: 1000 }} />
+
+      {/* Modal obligatorio si el server tiene una versión más reciente */}
+      <ForceUpdateModal
+        open={!!updateState}
+        serverVersion={updateState?.serverVersion || serverVersion}
+        currentVersion={currentVersion}
+        message={updateState?.message}
+        reason={updateState?.reason}
+        onUpdate={reload}
+      />
 
       <style>{`
         @media screen {

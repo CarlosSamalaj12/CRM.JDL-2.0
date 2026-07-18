@@ -1,5 +1,20 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import fs from 'fs';
+import path from 'path';
+
+// Lee dist/version.json si existe (lo escribe bump-sw-version.cjs después del build).
+// En dev (npm run dev) no existe aún → usamos "0.0.0-dev".
+function getBuildVersion() {
+  try {
+    const p = path.join(process.cwd(), 'dist', 'version.json');
+    if (fs.existsSync(p)) {
+      const v = JSON.parse(fs.readFileSync(p, 'utf8'));
+      return v.version || '0.0.0-dev';
+    }
+  } catch {}
+  return '0.0.0-dev';
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -9,6 +24,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // Inyecta la versión actual del bundle al frontend como variable global.
+    // Accesible vía import.meta.env.VITE_APP_VERSION
+    define: {
+      __APP_VERSION__: JSON.stringify(getBuildVersion()),
+    },
     server: {
       proxy: {
         '/api': {

@@ -1,82 +1,44 @@
-# CRM-JDL
+# CRM-JDL — Agent Notes
 
-Event management CRM for Jardines del Lago. React 19 + Vite 8 frontend, Express + MariaDB backend.
+## Project
+CRM interno de Jardines del Lago. Stack: React 19 + Vite 8 + Express (server.cjs monolith) + MariaDB.
+Frontend divided: legacy CRM (`src/modules/{calendar,customers,reports,settings}/` con ApiClient)
+y módulo Informes (`src/modules/informes/` con fetch crudo + AuthContext/SocketContext/ToastContext).
 
-## Commands
+## Sistema de control de versiones (instalado 2026-07-18)
 
-| Command | Action |
-|---------|--------|
-| `npm run dev` | Vite dev server (port 5173) |
-| `npm run server` | Express backend (port 3000) |
-| `npm run dev:all` | Both concurrently |
-| `npm run build` | Production build |
-| `npm run lint` | ESLint (`.js`/`.jsx` only) |
-| `npm run import-menus` | Run `scripts/import_menus.cjs` |
+Cómo forzar actualización de clientes desde el server:
 
-No test runner, no typecheck.dd
-sss
-## Architecture
+**Build time:**
+- `scripts/bump-sw-version.cjs` se ejecuta después de `vite build` (definido en `package.json`).
+- Bump formato: `YYYY-MM-DD-NN` (NN se incrementa por build del mismo día, max 99).
+- Escribe `dist/sw.js` (con VERSION actualizada) y `dist/version.json` (con `{version, minVersion, required, message, deployedAt}`).
 
-**Two subsystems sharing the same auth/state/DB:**
+**Backend:**
+- `server.cjs` tiene `GET /api/version` que lee `dist/version.json` con cache por mtime.
+- Override de versión mínima: variable de entorno `APP_MIN_VERSION="2026-07-15-01"` + `APP_UPDATE_MESSAGE="..."` antes del build.
+- Si `APP_MIN_VERSION` está seteado, marca `required: true` y bloquea a clientes por debajo.
 
-1. **Legacy CRM** (`src/modules/calendar/`, `customers/`, `reports/`, `settings/`) — routed under `<MainLayout>`, uses `authService.getCurrentUser()` + `src/services/api.js` (ApiClient class).
-2. **Informes module** (`src/modules/informes/`) — routed under `<ReportsLayout>`, uses `AuthContext`/`SocketContext`/`ToastContext` providers and `informes/services/api.js` (raw fetch calls).
+**Frontend:**
+- `vite.config.js` inyecta `__APP_VERSION__` global leyendo `dist/version.json` (dev = `"0.0.0-dev"`).
+- `src/services/versionService.js` — `fetchServerVersion()` + `compareVersions()` + `evaluateUpdate()`.
+- `src/hooks/useVersionCheck.js` — hook con polling 3h + re-check on visibilitychange.
+- `src/components/ForceUpdateModal.jsx` — modal full-screen portal al body, z-index máx, ESC bloqueado, countdown 30s auto-reload.
+- `src/components/VersionFooter.jsx` — footer con `v{current} · server: v{server} · [↻]`.
+- Integrados en `MainLayout` y `ReportsLayout`.
 
-Both share the same JWT token + user JSON in `localStorage`.
+**Reload trick:** al actualizar, `useVersionCheck.reload()` hace `window.location.replace(url + '?_u=' + Date.now())` para que el SW no sirva la versión cacheada.
 
-**Backend** (`server.cjs`, ~3940 lines): CJS monolith with inline CRM/auth/state routes. At startup it dynamically imports ESM routes from `backend/src/app_routes.js` mounted at `/api`. Auto-migrates schema on every start via `ensure*` functions. Creates `uploads/` dir if missing. Socket.io attached to the HTTP server for real-time events.
+**Importante CORS:** `server.cjs` debe tener `Cache-Control, Pragma` en `Access-Control-Allow-Headers` (ya agregado).
 
-## Auth
+## Bugs históricos resueltos
 
-- **Local login:** `POST /api/login` — scrypt password hash (N=16384, r=8, p=1), uses `loginUsers` dropdown.
-- **Firebase login:** `POST /api/auth/firebase` — syncs Firebase user to MariaDB via `src/services/firebase.js`.
-- **JWT secret:** Must be configured in the `.env` file (`JWT_SECRET`). It no longer has a hardcoded fallback string for security.
-- **Role normalization:** `admin`→`Admin`, `recepcionista`→`FrontOffice`, `vendedor`→`Vendedor` (both in `server.cjs` and backend ESM middleware).
-- Admin code for editing past events: `JDL-ADMIN-2026`.
-- Roles: `admin`, `vendedor`, `recepcionista` (aliased `FrontOffice`), `coordinador`, `eventos`.
+### Salón "No Usa Salon" genera conflicto (2026-07-18)
+- Bug: `conflictService.js` lowercased solo el nombre del slot, no los valores del array `salonConflictDisabled`.
+- Fix: helper `isNoConflictSalon()` case-insensitive en ambos lados.
+- Aplicado en `findHardBlocks`, `findMaintenanceDayBlocks`, `findAllConflicts`, `evaluateRules`, `checkSameSalonOverlap`.
 
-## Database
-
-MariaDB, database `crm_jdl`. **Two DB drivers coexist**: `server.cjs` uses `mariadb` (port 3306), `backend/src/config/db.js` uses `mysql2/promise` (default port 3307). Both read from the same `.env`.
-
-Key tables: `salones`, `usuarios`, `empresas`, `encargados_empresa`, `eventos`, `cotizaciones_evento`, `items_cotizacion_evento`, `cotizacion_versiones_evento`, `items_cotizacion_version_evento`, `historial_evento`, `recordatorios_evento`, `anticipos_evento`, `servicios`, `categorias_servicio`, `subcategorias_servicio`, `app_state_kv`, `doc_sequence`, `equipos_trabajo`, `informe_imagenes`.
-
-## State sync
-
-- `GET /api/state` — reads from relational tables, no in-memory cache.
-- `PUT /api/state` — merges incoming state with current DB (preserves missing keys), then does destructive DELETE+INSERT. Emits `state-updated` via Socket.io after write.
-- Client debounces 700ms via `schedulePersist()`.
-- Cache-Control: `no-store` on all `/api/` routes.
-
-## Key gotchas
-
-- **Hybrid CJS/ESM backend:** `server.cjs` is CJS; it dynamically `import()`s ESM from `backend/src/`. If you add backend code, know which module system you're in.
-- **ESLint disables specific react-hooks rules:** `set-state-in-effect`, `immutability`, `preserve-manual-memoization`, `purity` are all off.
-- **`pdf-lib` loaded from CDN** in `index.html` (not npm). `flatpickr.css`, `slimselect.css`, and Material Symbols font also from CDN.
-- **Google Calendar:** Uses OAuth2 flow (`/auth/google`, `/auth/google/callback`) plus service account for user reminders. Both paths in `googleCalendar.cjs`.
-- **JWT filter:** ESM routes in `backend/src/` use `authenticate` + `authorizeRoles` from `backend/src/middlewares/auth.js`. Inline CJS routes in `server.cjs` do NOT use JWT middleware (auth is only on login).
-- **Login flow:** User dropdown selector → local scrypt password or Firebase Google redirect. Role routes users to `/calendar` (admin/vendedor/recepcionista) or `/kanban` (eventos/coordinador).
-
-## Directory map
-
-- `server.cjs` — Monolith CJS backend (CRM API, auth, state sync, Google Calendar OAuth2)
-- `backend/src/` — ESM informes subsystem: `routes/` (16), `controllers/` (16), `middlewares/` (auth, errorHandler, validate), `config/db.js`, `migrations/migrate_informes_tables.sql`
-- `src/services/` — Shared: `api.js` (ApiClient), `authService.js`, `firebase.js`, `socketService.js`, `stateService.js`, `eventService.js`, `salonService.js`, `reminderService.js`, `historyService.js`, `conflictService.js`
-- `src/modules/informes/` — Reports subsystem (Kanban, ConstructorInforme, Catalog, Dashboard, Configuracion), pages + components + context + `services/api.js`
-- `src/layouts/MainLayout/` — CRM shell
-- `scripts/` — 45 scripts: CSS scoping (`scope_css.cjs`, `verify_css.cjs`, `revert_css.cjs`), DB migrations, tooltip fixers, data cleanup
-- `googleCalendar.cjs` — Google Calendar integration (OAuth2 + service account)
-
-## Conventions
-
-- **No TypeScript** — all `.jsx` / `.js`. `@types/react` installed but unused.
-- **CSS:** Design system scoped files (`global-scoped.css`, `design-system-scoped.css`) + `responsive-mobile.css`, `tooltips.css`. Unscoped originals also present. Use `scripts/scope_css.cjs` to scope new CSS.
-- **API proxy:** Vite forwards `/api` dynamically to the port configured in `APP_PORT` in `.env` (port 4000 for local development, port 3000 for production VPS).
-- **localStorage keys:** `user` (JSON), `token` (JWT), `crm_topbar_settings_v1`, `crm_auth_session_v1`, `crm_quick_templates_v1`, `crm_active_module_screen_v1`.
-- **ESLint ignores:** `dist`, `src/archive/**`, `scripts/**`.
-
-## Import/export
-
-- Events and companies export to Excel (`xlsx` npm package).
-- Events and managers CSV import with downloadable templates.
-- Document codes: `COT-NNN` via `doc_sequence` table.
+### Kanban agrupa eventos `evt_*` incorrectamente (2026-07-18)
+- Bug: `e.Idocupacion.split('_')[0]` da `"evt"` para todos los `evt_xxx`, fusionándolos si `PaxCompartido=1`.
+- Fix: regex `/_s\d+_\d{6,}$/` para obtener el groupId real, + solo agrupa si count > 1.
+- **Causa raíz pendiente**: `PaxCompartido` se setea a 1 por default en creación de eventos (mal).

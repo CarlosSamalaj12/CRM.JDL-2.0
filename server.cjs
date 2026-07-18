@@ -104,7 +104,7 @@ const app = express();
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control, Pragma");
   
   // Desactivar caché del navegador para todas las rutas de la API para evitar datos obsoletos (stale state)
   if (req.path.startsWith("/api/")) {
@@ -3212,6 +3212,51 @@ app.get("/api/health", async (_req, res) => {
   } catch (error) {
     return res.status(500).json({ ok: false, db: "error", message: error.message });
   }
+});
+
+// ==================== VERSIÓN DE LA APP (control de actualizaciones) ====================
+// El script `npm run build` (vía bump-sw-version.cjs) escribe dist/version.json
+// con { version, minVersion, required, message, deployedAt }.
+// Aquí lo leemos en cada request — el archivo NO se cachea para que refleje el último
+// deploy sin necesidad de reiniciar el server. Si el archivo no existe (modo dev sin build),
+// devolvemos una versión "0.0.0-dev" para no romper el flujo.
+// (fs y path ya están requeridos arriba en este archivo)
+let cachedVersionRead = { value: null, mtimeMs: 0 };
+function readAppVersion() {
+  try {
+    // En producción servimos dist/; en dev servimos la raíz del proyecto
+    const candidates = [
+      path.join(__dirname, "dist", "version.json"),
+      path.join(__dirname, "version.json"),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        const stat = fs.statSync(p);
+        // Re-leer solo si cambió el mtime (evita I/O en cada request)
+        if (cachedVersionRead.mtimeMs !== stat.mtimeMs || !cachedVersionRead.value) {
+          const raw = fs.readFileSync(p, "utf8");
+          cachedVersionRead = { value: JSON.parse(raw), mtimeMs: stat.mtimeMs };
+        }
+        return cachedVersionRead.value;
+      }
+    }
+  } catch (err) {
+    // Si falla el parse o lectura, devolvemos default
+  }
+  return {
+    version: "0.0.0-dev",
+    minVersion: "0.0.0-dev",
+    required: false,
+    message: "",
+    deployedAt: new Date(0).toISOString(),
+  };
+}
+
+app.get("/api/version", (_req, res) => {
+  // Sin caché — siempre devuelve la última versión
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  return res.json(readAppVersion());
 });
 
 // ==================== IMPORTACIÓN MASIVA DIRECTA A TABLAS ====================

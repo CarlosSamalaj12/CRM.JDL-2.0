@@ -492,7 +492,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   : d.descripcion_montaje;
                 if (parsed?._v === 2) {
                   const mjs = Array.isArray(parsed.montajes) ? parsed.montajes : [];
-                  const LABEL_MAP = { salon: 'Salón', tipo_montaje: 'Tipo de montaje', num_personas: 'No. Personas', horario: 'Horario', equipo_necesario: 'Equipo necesario', manteleria: 'Mantelería', mesas: 'Mesas', sillas: 'Sillas' };
+                  const LABEL_MAP = { salon: 'Salón', tipo_montaje: 'Tipo de montaje', num_personas: 'No. Personas', horario: 'Horario', equipo_necesario: 'Equipo necesario', manteleria: 'Mantelería', mesas: 'Mesas', sillas: 'Sillas', observaciones: 'Comentarios del Montaje' };
                   montajeText = mjs.map(m => {
                     const raw = m?.descripcion ?? m ?? '';
                     if (typeof raw === 'string') return raw;
@@ -523,6 +523,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               salon: eventSalon,
               menuDescription: menuText,
               montajeDescription: montajeText || 'Sin montaje asignado',
+              comentarioMenu: d.comentario_menu || '',
             };
           }).filter(e => e.date);
           if (entries.length) {
@@ -1580,6 +1581,11 @@ export function buildMenuMontajeSectionHtmlOnly(ev, quoteLike, reportMode = "ful
         <h2 class="mmReportTitle">MENU - ${escapeHtml(String(r.salon || "").toUpperCase())} - ${escapeHtml(date)}</h2>
         ${renderMenuMontajeRichText(String(r.menuDescription || ""))}
       </div>
+      ${r.comentarioMenu ? `
+      <div class="mmReportBlock mmReportBlock--comentarioMenu">
+        <h2 class="mmReportTitle">COMENTARIOS DEL MENÚ - ${escapeHtml(date)}</h2>
+        ${renderMenuMontajeRichText(String(r.comentarioMenu || ""))}
+      </div>` : ""}
       ${reportMode === "menu_only" ? "" : `
       <div class="mmReportBlock">
         <h2 class="mmReportTitle">MONTAJE - ${escapeHtml(String(r.salon || "").toUpperCase())} - ${escapeHtml(date)}</h2>

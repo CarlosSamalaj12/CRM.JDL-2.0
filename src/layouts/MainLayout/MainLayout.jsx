@@ -6,6 +6,9 @@ import Topbar from './components/Topbar';
 import Legend from './components/Legend';
 import eventService from '../../services/eventService';
 import salonService from '../../services/salonService';
+import { useVersionCheck } from '../../hooks/useVersionCheck';
+import ForceUpdateModal from '../../components/ForceUpdateModal';
+import VersionFooter from '../../components/VersionFooter';
 import authService from '../../services/authService';
 import socketService from '../../services/socketService';
 import { loadState, saveState } from '../../services/stateService';
@@ -20,6 +23,10 @@ export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const isCalendarView = location.pathname === '/calendar' || location.pathname === '/nueva-reserva' || location.pathname.startsWith('/reserva/');
+  // Sistema de control de versiones: polling cada 3h, modal obligatorio si hay update
+  const { updateState, serverVersion, currentVersion, reload } = useVersionCheck({
+    intervalMs: 3 * 60 * 60 * 1000,
+  });
   
   const getStartOfWeek = (date) => {
     const d = new Date(date);
@@ -438,6 +445,19 @@ export default function MainLayout() {
       </div>
       
       <div className="toast" id="toast" aria-live="polite"></div>
+
+      {/* Footer con versión actual + server (control de versiones) */}
+      <VersionFooter style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 1000 }} />
+
+      {/* Modal obligatorio si hay una versión más reciente en el server */}
+      <ForceUpdateModal
+        open={!!updateState}
+        serverVersion={updateState?.serverVersion || serverVersion}
+        currentVersion={currentVersion}
+        message={updateState?.message}
+        reason={updateState?.reason}
+        onUpdate={reload}
+      />
     </div>
   );
 }

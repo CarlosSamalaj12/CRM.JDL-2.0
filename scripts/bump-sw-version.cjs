@@ -102,6 +102,30 @@ try {
   fs.writeFileSync(OUT_PATH, newContent, 'utf8');
   console.log(`[bump-sw-version] ✅ VERSION actualizada: ${oldVersion} → ${newVersion} (dist/sw.js)`);
   console.log(`[bump-sw-version] 💡 NOTA: public/sw.js NO fue modificado — sin conflictos git.`);
+
+  // ── Escribir dist/version.json (lo lee el server en GET /api/version) ──
+  //    Schema:
+  //      {
+  //        "version":      "2026-07-18-04",   // versión actual del deploy
+  //        "minVersion":   "2026-07-15-01",   // versión mínima requerida (opcional)
+  //        "required":     false,             // si true, fuerza actualización en clientes viejos
+  //        "message":      "Mensaje opcional para mostrar al usuario",
+  //        "deployedAt":   "2026-07-18T20:30:00.000Z"
+  //      }
+  //    minVersion se puede sobreescribir vía variable de entorno APP_MIN_VERSION.
+  //    Si no se define, se calcula como (newVersion con secuencia 01) — i.e. "el mismo día".
+  const minVersionFromEnv = process.env.APP_MIN_VERSION;
+  const minVersion = minVersionFromEnv || `${todayStr}-01`;
+  const versionInfo = {
+    version: newVersion,
+    minVersion,
+    required: !!minVersionFromEnv,
+    message: process.env.APP_UPDATE_MESSAGE || '',
+    deployedAt: new Date().toISOString(),
+  };
+  const versionJsonPath = path.join(distDir, 'version.json');
+  fs.writeFileSync(versionJsonPath, JSON.stringify(versionInfo, null, 2), 'utf8');
+  console.log(`[bump-sw-version] ✅ dist/version.json escrito: ${JSON.stringify(versionInfo)}`);
 } catch (err) {
   console.error(`[bump-sw-version] Error escribiendo ${OUT_PATH}: ${err.message}`);
   process.exit(1);
