@@ -60,6 +60,13 @@ export async function fetchServerVersion() {
  */
 export function evaluateUpdate(serverInfo) {
   if (!serverInfo) return { needsUpdate: false };
+
+  // Modo dev: la versión local es "0.0.0-dev" (no es comparable contra el server).
+  // No mostrar el modal en dev para que no aparezca cada vez que recargas.
+  if (CURRENT_VERSION === '0.0.0-dev' || CURRENT_VERSION.startsWith('0.0.0-')) {
+    return { needsUpdate: false };
+  }
+
   const cmp = compareVersions(CURRENT_VERSION, serverInfo.version);
   if (cmp < 0) {
     return {
