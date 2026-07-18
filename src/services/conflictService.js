@@ -32,54 +32,63 @@ export function isHardBlockingStatus(status) {
   return HARD_BLOCK_STATUSES.includes(status);
 }
 
+// Helper: case-insensitive check whether a salon name is in the no-conflict list.
+// (La lista puede tener "No usa Salon" con mayúsculas; el draft puede llegar en cualquier case.)
+function isNoConflictSalon(salonName, noConflictSalons) {
+  if (!Array.isArray(noConflictSalons) || noConflictSalons.length === 0) return false;
+  const target = String(salonName || '').trim().toLowerCase();
+  if (!target) return false;
+  return noConflictSalons.some(s => String(s || '').trim().toLowerCase() === target);
+}
+
 export function findHardBlocks(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
-  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) return [];
+  if (isNoConflictSalon(draft.salon, noConflictSalons)) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
   const slotDate = draft.date || draft.dateStart;
-  
+
   return existingEvents.filter(e => {
-    if (noConflictSalons.includes(String(e.salon || '').trim().toLowerCase())) return false;
+    if (isNoConflictSalon(e.salon, noConflictSalons)) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
     if (e.date !== slotDate) return false;
     if (e.status === 'Cancelado') return false;
     if (!HARD_BLOCK_STATUSES.includes(e.status)) return false;
-    
+
     return timesOverlap(e.startTime, e.endTime, draft.startTime, draft.endTime);
   });
 }
 
 export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
-  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) return [];
+  if (isNoConflictSalon(draft.salon, noConflictSalons)) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
   const slotDate = draft.date || draft.dateStart;
-  
+
   return existingEvents.filter(e => {
-    if (noConflictSalons.includes(String(e.salon || '').trim().toLowerCase())) return false;
+    if (isNoConflictSalon(e.salon, noConflictSalons)) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
     if (e.date !== slotDate) return false;
     if (e.status !== 'Mantenimiento') return false;
-    
+
     return timesOverlap(e.startTime, e.endTime, draft.startTime, draft.endTime);
   });
 }
 
 export function findAllConflicts(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
-  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) return [];
+  if (isNoConflictSalon(draft.salon, noConflictSalons)) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
   const slotDate = draft.date || draft.dateStart;
-  
+
   return existingEvents.filter(e => {
-    if (noConflictSalons.includes(String(e.salon || '').trim().toLowerCase())) return false;
+    if (isNoConflictSalon(e.salon, noConflictSalons)) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
     if (e.date !== slotDate) return false;
     if (e.status === 'Cancelado') return false;
-    
+
     return timesOverlap(e.startTime, e.endTime, draft.startTime, draft.endTime);
   });
 }
@@ -91,7 +100,7 @@ export function evaluateRules(draft, existingEvents, ignoreIds = null, noConflic
   }
 
   // Si el salón está marcado como "sin conflicto", no genera conflicto con ningún evento
-  if (noConflictSalons.includes(String(draft.salon || '').trim().toLowerCase())) {
+  if (isNoConflictSalon(draft.salon, noConflictSalons)) {
     return { ok: true, message: '', hint: '' };
   }
 
@@ -154,13 +163,15 @@ export function datesOverlap(aStart, aEnd, bStart, bEnd) {
   return aS <= bE && bS <= aE;
 }
 
-export function checkSameSalonOverlap(slots) {
+export function checkSameSalonOverlap(slots, noConflictSalons = []) {
   const results = [];
   for (let i = 0; i < slots.length; i++) {
     for (let j = i + 1; j < slots.length; j++) {
       const a = slots[i];
       const b = slots[j];
       if (String(a.salon || '').trim().toLowerCase() !== String(b.salon || '').trim().toLowerCase()) continue;
+      // Salones marcados como "sin conflicto" (ej: "No usa Salon") no bloquean slots solapados del mismo evento
+      if (isNoConflictSalon(a.salon, noConflictSalons)) continue;
       const aDateS = a.dateStart || a.date || a.fecha_evento;
       const aDateE = a.dateEnd || a.endDate || aDateS;
       const bDateS = b.dateStart || b.date || b.fecha_evento;
@@ -192,18 +203,18 @@ export const conflictService = {
   checkAllSlots(slots, existingEvents, eventId = null, noConflictSalons = []) {
     const results = [];
     const ignoreIds = eventId ? [eventId] : [];
-    
-    const overlapResults = checkSameSalonOverlap(slots);
+
+    const overlapResults = checkSameSalonOverlap(slots, noConflictSalons);
     const overlapIndexes = new Set(overlapResults.map(r => r.index));
     results.push(...overlapResults);
-    
+
     for (let i = 0; i < slots.length; i++) {
       if (overlapIndexes.has(i)) continue;
       const slot = slots[i];
       const result = evaluateRules(slot, existingEvents, ignoreIds, noConflictSalons);
       results.push({ index: i, ...result, slot });
     }
-    
+
     return results;
   }
 };
