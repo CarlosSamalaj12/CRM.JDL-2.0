@@ -223,13 +223,34 @@ export default function Kanban() {
     setLoading(true);
     fetchEvents(selectedDate)
       .then((eventsData) => {
+        // groupId: para eventos multi-slot como "39901" + "39901_s1_20260801" compartimos el base "39901".
+        // Para IDs con prefijo genérico como "evt_aaa" y "evt_bbb" NO se debe agrupar (son eventos distintos).
+        // La regla: si el Id tiene el sufijo _sN_fecha, lo quitamos para obtener el groupId real.
+        const getEventGroupId = (idOcupacion) =>
+          String(idOcupacion || '').replace(/_s\d+_\d{6,}$/, '');
+
+        // Pre-paso: contar cuántos eventos hay por (groupId + fecha) que tengan PaxCompartido=1.
+        // Solo agrupamos si realmente hay MÁS DE 1 evento con el mismo groupId + fecha.
+        // Esto evita fusionar eventos individuales que tengan PaxCompartido=1 mal seteado.
+        const sharedGroupCounts = new Map();
+        eventsData.forEach(e => {
+          const isShared = e.PaxCompartido === 1 || e.PaxCompartido === true;
+          if (!isShared) return;
+          const fecha = String(e.FechaEvento || '').slice(0, 10);
+          const groupId = getEventGroupId(e.Idocupacion);
+          const key = `${groupId}_${fecha}`;
+          sharedGroupCounts.set(key, (sharedGroupCounts.get(key) || 0) + 1);
+        });
+
         const groupedEvents = [];
         const sharedGroupsMap = new Map();
 
         eventsData.forEach(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
-          const groupId = e.Idocupacion.split('_')[0];
-          const isShared = e.PaxCompartido === 1 || e.PaxCompartido === true;
+          const groupId = getEventGroupId(e.Idocupacion);
+          const hasSharedFlag = e.PaxCompartido === 1 || e.PaxCompartido === true;
+          // Solo agrupar si el flag está Y hay >1 evento con el mismo groupId+fecha
+          const isShared = hasSharedFlag && (sharedGroupCounts.get(`${groupId}_${fecha}`) || 0) > 1;
 
           if (isShared) {
             const key = `${groupId}_${fecha}`;
@@ -237,7 +258,7 @@ export default function Kanban() {
               const existingIdx = sharedGroupsMap.get(key);
               const existing = groupedEvents[existingIdx];
 
-              const salonesList = existing.Salon.split(', ').map(s => s.trim());
+              const salonesList = String(existing.Salon || '').split(', ').map(s => s.trim()).filter(Boolean);
               const currentSalon = String(e.Salon || '').trim();
               if (currentSalon && !salonesList.includes(currentSalon)) {
                 salonesList.push(currentSalon);
