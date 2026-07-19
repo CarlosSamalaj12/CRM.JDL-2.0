@@ -21,7 +21,7 @@ export async function getWeeklyServices(req, res, next) {
     }
 
     const query = `
-      SELECT 
+      SELECT
         ${dateCol} AS FechaServicio,
         ice.id_evento AS Idocupacion,
         e.Institucion,
@@ -30,7 +30,7 @@ export async function getWeeklyServices(req, res, next) {
         COALESCE(sc.nombre, ice.nombre) AS Subcategoria,
         CASE
           WHEN LOWER(sc.nombre) LIKE '%desayuno%' OR LOWER(ice.nombre) LIKE '%desayuno%' THEN 'desayunos'
-          WHEN LOWER(sc.nombre) LIKE '%refa%am%' OR LOWER(ice.nombre) LIKE '%refa%am%' 
+          WHEN LOWER(sc.nombre) LIKE '%refa%am%' OR LOWER(ice.nombre) LIKE '%refa%am%'
             OR LOWER(sc.nombre) LIKE '%refa%a.m.%' OR LOWER(ice.nombre) LIKE '%refa%a.m.%'
             OR LOWER(sc.nombre) LIKE '%refacci%am%' OR LOWER(ice.nombre) LIKE '%refacci%am%'
             OR LOWER(ice.nombre) LIKE '%coffee%break%am%' OR LOWER(ice.nombre) LIKE '%coffee%break%a.m.%' THEN 'refacciones_am'
@@ -43,12 +43,13 @@ export async function getWeeklyServices(req, res, next) {
           ELSE 'otros'
         END AS TipoServicio,
         SUM(
-          CASE 
+          CASE
             WHEN ice.id_evento = (
               SELECT MIN(ice2.id_evento)
               FROM items_cotizacion_evento ice2
               LEFT JOIN tbl_seguimientocotizaciones e2 ON ice2.id_evento = e2.Idocupacion
-              WHERE SUBSTRING_INDEX(ice2.id_evento, '_', 1) = SUBSTRING_INDEX(ice.id_evento, '_', 1)
+              WHERE REGEXP_REPLACE(ice2.id_evento, '_s[0-9]+_[0-9]{6,}$', '')
+                  = REGEXP_REPLACE(ice.id_evento, '_s[0-9]+_[0-9]{6,}$', '')
                 AND COALESCE(ice2.fecha_servicio, e2.FechaEvento) = COALESCE(ice.fecha_servicio, e.FechaEvento)
             ) THEN ice.cantidad
             ELSE 0
@@ -116,7 +117,8 @@ export async function getEvents(req, res, next) {
            AND e.Idocupacion = (
              SELECT MIN(e2.Idocupacion)
              FROM tbl_seguimientocotizaciones e2
-             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
                AND e2.FechaEvento = e.FechaEvento
            )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
@@ -130,11 +132,12 @@ export async function getEvents(req, res, next) {
            AND e.Idocupacion = (
              SELECT MIN(e2.Idocupacion)
              FROM tbl_seguimientocotizaciones e2
-             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
                AND e2.FechaEvento = e.FechaEvento
            )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
-           AND (LOWER(sc.nombre) LIKE '%refa%am%' OR LOWER(ice.nombre) LIKE '%refa%am%' 
+           AND (LOWER(sc.nombre) LIKE '%refa%am%' OR LOWER(ice.nombre) LIKE '%refa%am%'
                 OR LOWER(sc.nombre) LIKE '%refa%a.m.%' OR LOWER(ice.nombre) LIKE '%refa%a.m.%'
                 OR LOWER(sc.nombre) LIKE '%refacci%am%' OR LOWER(ice.nombre) LIKE '%refacci%am%'
                 OR LOWER(ice.nombre) LIKE '%coffee%break%am%' OR LOWER(ice.nombre) LIKE '%coffee%break%a.m.%')
@@ -147,7 +150,8 @@ export async function getEvents(req, res, next) {
            AND e.Idocupacion = (
              SELECT MIN(e2.Idocupacion)
              FROM tbl_seguimientocotizaciones e2
-             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
                AND e2.FechaEvento = e.FechaEvento
            )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
@@ -161,7 +165,8 @@ export async function getEvents(req, res, next) {
            AND e.Idocupacion = (
              SELECT MIN(e2.Idocupacion)
              FROM tbl_seguimientocotizaciones e2
-             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
                AND e2.FechaEvento = e.FechaEvento
            )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
@@ -178,7 +183,8 @@ export async function getEvents(req, res, next) {
            AND e.Idocupacion = (
              SELECT MIN(e2.Idocupacion)
              FROM tbl_seguimientocotizaciones e2
-             WHERE SUBSTRING_INDEX(e2.Idocupacion, '_', 1) = SUBSTRING_INDEX(e.Idocupacion, '_', 1)
+             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
                AND e2.FechaEvento = e.FechaEvento
            )
            AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
