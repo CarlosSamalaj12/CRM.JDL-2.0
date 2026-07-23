@@ -203,14 +203,19 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     }
   };
 
-      const usuariosFiltrados = showMenciones
-    ? usuarios.filter(u =>
-        String(u.id) !== String(currentUserId) && u.email !== currentUserEmail && u.nombre !== currentUserName && (
-          !mencionFilter ||
-          u.nombre.toLowerCase().includes(mencionFilter.toLowerCase()) ||
-          (u.email && u.email.toLowerCase().includes(mencionFilter.toLowerCase()))
-        )
-      )
+  const usuariosFiltrados = showMenciones
+    ? usuarios.filter(u => {
+        const uId = String(u.id || '');
+        const uEmail = String(u.email || u.correo || '');
+        const uNombre = String(u.nombre || u.name || '');
+        const isSelf = uId === String(currentUserId || '') ||
+                       (currentUserEmail && uEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+                       (currentUserName && uNombre.toLowerCase() === currentUserName.toLowerCase());
+        if (isSelf) return false;
+        if (!mencionFilter) return true;
+        const filt = mencionFilter.toLowerCase();
+        return uNombre.toLowerCase().includes(filt) || uEmail.toLowerCase().includes(filt);
+      })
     : [];
 
   const notasFiltradas = notas.filter(n => {
@@ -457,19 +462,21 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
                 position: 'absolute', bottom: '100%', left: 0, right: 0,
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
-                maxHeight: '150px', overflowY: 'auto', zIndex: 10,
+                maxHeight: '150px', overflowY: 'auto', zIndex: 1000,
               }}>
                 {usuariosFiltrados.map(u => (
                   <div key={u.id}
                     style={{ padding: '0.35rem 0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}
+                    onMouseDown={(e) => { e.preventDefault(); selectMencion(u); }}
+                    onTouchStart={(e) => { e.preventDefault(); selectMencion(u); }}
                     onClick={() => selectMencion(u)}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
-                      {u.nombre.charAt(0)}
+                      {(u.nombre || u.email || '?').charAt(0).toUpperCase()}
                     </span>
-                    <span><strong>{u.nombre}</strong> <small style={{ color: 'var(--text-muted)' }}>{u.rol}</small></span>
+                    <span><strong>{u.nombre || u.email}</strong> {u.rol && <small style={{ color: 'var(--text-muted)' }}>{u.rol}</small>}</span>
                   </div>
                 ))}
               </div>
