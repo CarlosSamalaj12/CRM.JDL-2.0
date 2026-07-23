@@ -188,15 +188,18 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
   };
 
   const usuariosFiltrados = showMenciones && mencionFilter !== null
-    ? usuarios.filter(u =>
-        String(u.id) !== String(currentUserId) &&
-        u.email !== currentUserEmail &&
-        u.nombre !== currentUserName && (
-          !mencionFilter ||
-          u.nombre.toLowerCase().includes(mencionFilter.toLowerCase()) ||
-          (u.email && u.email.toLowerCase().includes(mencionFilter.toLowerCase()))
-        )
-      )
+    ? usuarios.filter(u => {
+        const uId = String(u.id || '');
+        const uEmail = String(u.email || u.correo || '');
+        const uNombre = String(u.nombre || u.name || '');
+        const isSelf = uId === String(currentUserId || '') ||
+                       (currentUserEmail && uEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+                       (currentUserName && uNombre.toLowerCase() === currentUserName.toLowerCase());
+        if (isSelf) return false;
+        if (!mencionFilter) return true;
+        const filt = mencionFilter.toLowerCase();
+        return uNombre.toLowerCase().includes(filt) || uEmail.toLowerCase().includes(filt);
+      })
     : [];
 
   const selectMencion = (user) => {
@@ -543,16 +546,22 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
 
             <div className="colab-comment-form">
               {showMenciones && (
-                <div className="colab-mention-list">
+                <div className="colab-mention-list" style={{ position: 'relative', zIndex: 1000 }}>
                   {usuariosFiltrados.length === 0 ? (
                     <div className="colab-mention-item" style={{ cursor: 'default', opacity: 0.6 }}>
                       <span><em>{usuarios.length === 0 ? 'Cargando usuarios...' : 'Sin resultados'}</em></span>
                     </div>
                   ) : (
                     usuariosFiltrados.map((u) => (
-                      <div key={u.id} className="colab-mention-item" onClick={() => selectMencion(u)}>
-                        <span className="colab-mention-avatar">{u.nombre.charAt(0)}</span>
-                        <span><strong>{u.nombre}</strong> <small>{u.rol}</small></span>
+                      <div
+                        key={u.id}
+                        className="colab-mention-item"
+                        onMouseDown={(e) => { e.preventDefault(); selectMencion(u); }}
+                        onTouchStart={(e) => { e.preventDefault(); selectMencion(u); }}
+                        onClick={() => selectMencion(u)}
+                      >
+                        <span className="colab-mention-avatar">{(u.nombre || u.email || '?').charAt(0).toUpperCase()}</span>
+                        <span><strong>{u.nombre || u.email}</strong> {u.rol && <small>{u.rol}</small>}</span>
                       </div>
                     ))
                   )}

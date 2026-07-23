@@ -21,9 +21,22 @@ export const CURRENT_VERSION =
 export function compareVersions(a, b) {
   if (!a || !b) return 0;
   if (a === b) return 0;
-  // Compara lexicográficamente — funciona porque el formato es YYYY-MM-DD-NN
-  if (a < b) return -1;
-  if (a > b) return 1;
+  // Si contiene guiones (viejo formato YYYY-MM-DD-NN), hacemos comparación simple
+  if (a.includes('-') && !a.includes('.') && b.includes('-') && !b.includes('.')) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+  }
+  // Comparación semántica por puntos (ej: 2.0.1, 2.10)
+  const pa = String(a).split('.').map(x => parseInt(x, 10) || 0);
+  const pb = String(b).split('.').map(x => parseInt(x, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na < nb) return -1;
+    if (na > nb) return 1;
+  }
   return 0;
 }
 

@@ -3227,6 +3227,7 @@ function readAppVersion() {
     // En producción servimos dist/; en dev servimos la raíz del proyecto
     const candidates = [
       path.join(__dirname, "dist", "version.json"),
+      path.join(__dirname, "public", "version.json"),
       path.join(__dirname, "version.json"),
     ];
     for (const p of candidates) {

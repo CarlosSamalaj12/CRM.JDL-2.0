@@ -27,69 +27,72 @@ const path = require('path');
 const SRC_PATH = path.join(__dirname, '..', 'public', 'sw.js');
 const OUT_PATH = path.join(__dirname, '..', 'dist', 'sw.js');
 
-// ── Buscar la versión actual: prioridad a dist/sw.js (último build) ──
-//    Si existe dist/sw.js, usamos esa como base para mantener la
-//    secuencia aunque se hagan múltiples builds el mismo día.
-//    Si no existe (primer build), usamos public/sw.js.
-const versionRegex = /^(const\s+VERSION\s*=\s*')(\d{4}-\d{2}-\d{2}-\d{2})(';?.*)$/m;
+// ── Buscar la versión actual: prioridad a public/version.json (nuestro store de version persistente) ──
+const versionRegex = /^(const\s+VERSION\s*=\s*')([^']+)(';?.*)$/m;
+const PUB_VERSION_PATH = path.join(__dirname, '..', 'public', 'version.json');
 
-let sourcePath = SRC_PATH;
+let oldVersion = '2.0.0';
 let content;
-if (fs.existsSync(OUT_PATH)) {
-  try {
-    const distContent = fs.readFileSync(OUT_PATH, 'utf8');
-    const distMatch = distContent.match(versionRegex);
-    if (distMatch) {
-      content = distContent;
-      sourcePath = 'dist/sw.js';
-      console.log(`[bump-sw-version] Leyendo versión desde ${sourcePath}`);
-    }
-  } catch {}
-}
 
-if (!content) {
-  try {
-    content = fs.readFileSync(SRC_PATH, 'utf8');
-    sourcePath = 'public/sw.js';
-  } catch (err) {
-    console.error(`[bump-sw-version] Error leyendo ${SRC_PATH}: ${err.message}`);
-    process.exit(1);
-  }
-}
-
-// ── Buscar la línea de VERSION ──
-const match = content.match(versionRegex);
-
-if (!match) {
-  console.error(`[bump-sw-version] No se encontró la constante VERSION en ${sourcePath}`);
-  console.error('[bump-sw-version] Buscaba el patrón: const VERSION = \'YYYY-MM-DD-NN\';');
+// Siempre leemos public/sw.js como el template de código base
+try {
+  content = fs.readFileSync(SRC_PATH, 'utf8');
+} catch (err) {
+  console.error(`[bump-sw-version] Error leyendo ${SRC_PATH}: ${err.message}`);
   process.exit(1);
 }
 
-const prefix = match[1];   // const VERSION = '
-const oldVersion = match[2]; // YYYY-MM-DD-NN
-const suffix = match[3];   // ';
-
-// ── Calcular la nueva versión ──
-const today = new Date();
-const yyyy = today.getFullYear();
-const mm = String(today.getMonth() + 1).padStart(2, '0');
-const dd = String(today.getDate()).padStart(2, '0');
-const todayStr = `${yyyy}-${mm}-${dd}`;
-
-const oldDatePart = oldVersion.slice(0, 10); // YYYY-MM-DD
-const oldSeq = parseInt(oldVersion.slice(11), 10); // NN
-
-let newSeq;
-if (oldDatePart === todayStr) {
-  // Mismo día → incrementar secuencia
-  newSeq = Math.min(oldSeq + 1, 99);
+// Leemos el valor actual desde public/version.json si existe para no perder la secuencia
+if (fs.existsSync(PUB_VERSION_PATH)) {
+  try {
+    const rawVersionData = JSON.parse(fs.readFileSync(PUB_VERSION_PATH, 'utf8'));
+    if (rawVersionData && rawVersionData.version) {
+      oldVersion = rawVersionData.version;
+      console.log(`[bump-sw-version] Leyendo versión base desde public/version.json: ${oldVersion}`);
+    }
+  } catch {}
+} else if (fs.existsSync(OUT_PATH)) {
+  try {
+    const distContent = fs.readFileSync(OUT_PATH, 'utf8');
+    const distMatch = distContent.match(versionRegex);
+    if (distMatch && distMatch[2]) {
+      oldVersion = distMatch[2];
+      console.log(`[bump-sw-version] Leyendo versión base desde dist/sw.js: ${oldVersion}`);
+    }
+  } catch {}
 } else {
-  // Día diferente → reiniciar secuencia
-  newSeq = 1;
+  // Como fallback del fallback, buscamos lo que esté escrito en public/sw.js
+  const match = content.match(versionRegex);
+  if (match && match[2]) {
+    oldVersion = match[2];
+    console.log(`[bump-sw-version] Leyendo versión base desde public/sw.js: ${oldVersion}`);
+  }
 }
 
-const newVersion = `${todayStr}-${String(newSeq).padStart(2, '0')}`;
+// ── Buscar la línea de VERSION en el template para reemplazar ──
+const match = content.match(versionRegex);
+if (!match) {
+  console.error(`[bump-sw-version] No se encontró la constante VERSION en template sw.js`);
+  process.exit(1);
+}
+const prefix = match[1];   // const VERSION = '
+const suffix = match[3];   // ';
+
+// ── Calcular la nueva versión (ej: "2.0" -> "2.1", "2.9" -> "2.10", "2026-07-22-01" -> "2.0.0") ──
+let newVersion;
+if (oldVersion.includes('.') && !oldVersion.includes('-')) {
+  const parts = oldVersion.split('.').map(x => parseInt(x, 10) || 0);
+  if (parts.length > 0) {
+    parts[parts.length - 1]++;
+    newVersion = parts.join('.');
+  } else {
+    newVersion = '2.0.0';
+  }
+} else {
+  // Transición: Si venía en formato de fecha, iniciamos en 2.0.0
+  newVersion = '2.0.0';
+}
+
 const newContent = content.replace(versionRegex, `${prefix}${newVersion}${suffix}`);
 
 // ── Escribir SOLO en dist/sw.js (NO tocar public/sw.js) ──
@@ -104,18 +107,8 @@ try {
   console.log(`[bump-sw-version] 💡 NOTA: public/sw.js NO fue modificado — sin conflictos git.`);
 
   // ── Escribir dist/version.json (lo lee el server en GET /api/version) ──
-  //    Schema:
-  //      {
-  //        "version":      "2026-07-18-04",   // versión actual del deploy
-  //        "minVersion":   "2026-07-15-01",   // versión mínima requerida (opcional)
-  //        "required":     false,             // si true, fuerza actualización en clientes viejos
-  //        "message":      "Mensaje opcional para mostrar al usuario",
-  //        "deployedAt":   "2026-07-18T20:30:00.000Z"
-  //      }
-  //    minVersion se puede sobreescribir vía variable de entorno APP_MIN_VERSION.
-  //    Si no se define, se calcula como (newVersion con secuencia 01) — i.e. "el mismo día".
   const minVersionFromEnv = process.env.APP_MIN_VERSION;
-  const minVersion = minVersionFromEnv || `${todayStr}-01`;
+  const minVersion = minVersionFromEnv || newVersion;
   const versionInfo = {
     version: newVersion,
     minVersion,

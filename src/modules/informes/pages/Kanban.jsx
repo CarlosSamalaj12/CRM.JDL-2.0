@@ -127,9 +127,16 @@ export default function Kanban() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Guardar fecha seleccionada en localStorage
+  // Guardar fecha seleccionada en localStorage y sincronizar día móvil
   useEffect(() => {
-    localStorage.setItem('kanban_selectedDate', selectedDate.slice(0, 10));
+    if (selectedDate) {
+      const cleanDate = selectedDate.slice(0, 10);
+      localStorage.setItem('kanban_selectedDate', cleanDate);
+      const d = new Date(cleanDate + 'T12:00:00');
+      if (!isNaN(d.getTime())) {
+        setMobileDayIndex((d.getDay() + 6) % 7);
+      }
+    }
   }, [selectedDate]);
 
   // Efecto para resaltar evento desde notificación

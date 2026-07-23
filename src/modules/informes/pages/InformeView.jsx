@@ -305,7 +305,7 @@ export default function InformeView() {
       <div className="informe-print-container">
         {/* ─── BARRA DE ACCIONES (no se imprime) ─── */}
         <div className="no-print actions-bar" style={{position:'sticky',top:0,zIndex:50,background:'var(--bg-card)',padding:'0.5rem 0',marginBottom:'0.5rem',backdropFilter:'blur(8px)'}}>
-          <button onClick={() => navigate(-1)} className="btn-secondary" data-tooltip="Volver">
+          <button onClick={handleVolver} className="btn-secondary" data-tooltip="Volver">
             <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
           </button>
           <button onClick={handleExportPDF} className="btn-success" disabled={pdfLoading} data-tooltip="Descargar como PDF">
