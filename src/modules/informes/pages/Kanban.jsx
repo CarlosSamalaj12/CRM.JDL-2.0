@@ -66,6 +66,12 @@ export default function Kanban() {
     return saved || new Date().toLocaleDateString('en-CA');
   };
 
+  const getInitialMobileDayIndex = () => {
+    const savedIdx = localStorage.getItem('kanban_mobileDayIndex');
+    if (savedIdx !== null) return parseInt(savedIdx, 10);
+    return (new Date().getDay() + 6) % 7;
+  };
+
   const [events, setEvents] = useState([]);
   const [eventsTotal, setEventsTotal] = useState(0);
 
@@ -75,7 +81,7 @@ export default function Kanban() {
   const [selectedDate, setSelectedDate] = useState(getInitialDate());
   const [filterExiting, setFilterExiting] = useState(false);
   const [eventoResaltado, setEventoResaltado] = useState(null);
-  const [mobileDayIndex, setMobileDayIndex] = useState(() => ((new Date().getDay() + 6) % 7));
+  const [mobileDayIndex, setMobileDayIndex] = useState(getInitialMobileDayIndex());
   const [isMobileView, setIsMobileView] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -127,17 +133,17 @@ export default function Kanban() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Guardar fecha seleccionada en localStorage y sincronizar día móvil
+  // Guardar fecha seleccionada en localStorage
   useEffect(() => {
     if (selectedDate) {
-      const cleanDate = selectedDate.slice(0, 10);
-      localStorage.setItem('kanban_selectedDate', cleanDate);
-      const d = new Date(cleanDate + 'T12:00:00');
-      if (!isNaN(d.getTime())) {
-        setMobileDayIndex((d.getDay() + 6) % 7);
-      }
+      localStorage.setItem('kanban_selectedDate', selectedDate.slice(0, 10));
     }
   }, [selectedDate]);
+
+  // Guardar mobileDayIndex seleccionado en localStorage
+  useEffect(() => {
+    localStorage.setItem('kanban_mobileDayIndex', String(mobileDayIndex));
+  }, [mobileDayIndex]);
 
   // Efecto para resaltar evento desde notificación
   useEffect(() => {

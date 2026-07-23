@@ -211,15 +211,7 @@ export default function InformeView() {
   };
 
   const handleVolver = () => {
-    const dateFromUrl = searchParams.get('date');
-    const firstDayDate = informe?.dias?.[0]?.fecha || informe?.fecha_evento;
-    const returnDate = dateFromUrl || firstDayDate;
-    if (returnDate) {
-      const cleanDate = String(returnDate).slice(0, 10);
-      navigate(`/kanban?date=${cleanDate}`);
-    } else {
-      navigate(-1);
-    }
+    navigate(-1);
   };
 
   return (

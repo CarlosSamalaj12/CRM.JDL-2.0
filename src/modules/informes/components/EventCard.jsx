@@ -318,7 +318,21 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
             <IconFileText size={13} /> + Informe
           </button>
         )}
-        <button type="button" onClick={() => navigate(`/informe/${event.Idocupacion}?date=${event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : ''}`)} data-tooltip="Ver informe existente" style={{flex:'0 0 30px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
+        <button 
+          type="button" 
+          onClick={() => navigate(`/informe/${event.Idocupacion}?date=${event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : ''}`)} 
+          data-tooltip="Ver informe" 
+          style={{
+            flex: '0 0 30px',
+            justifyContent: 'center',
+            padding: '0.4rem 0',
+            background: 'transparent',
+            color: 'var(--primary)',
+            borderColor: 'transparent',
+            opacity: event.tiene_informe ? 1 : 0.25,
+            transition: 'all 0.2s ease'
+          }}
+        >
           <IconEye size={13} />
         </button>
         <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{flex:'0 0 32px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>

@@ -107,6 +107,10 @@ export async function getEvents(req, res, next) {
           ) THEN 1
           ELSE 0
         END AS tiene_alertas,
+        EXISTS (
+          SELECT 1 FROM informes_eventos ie
+          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+        ) AS tiene_informe,
         m.alertas_text,
         (SELECT COALESCE(SUM(ice.cantidad), 0)
          FROM items_cotizacion_evento ice
@@ -260,6 +264,10 @@ export async function getEventById(req, res, next) {
         e.EncargadoEvento,
         e.NoDoc,
         COALESCE(m.tiene_alertas, 0) AS tiene_alertas,
+        EXISTS (
+          SELECT 1 FROM informes_eventos ie
+          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+        ) AS tiene_informe,
         m.alertas_text
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion
