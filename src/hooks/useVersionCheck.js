@@ -39,9 +39,23 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
   }, []);
 
   // Función pública: recarga la página (limpia SW viejo, baja assets nuevos)
-  const reload = useCallback(() => {
-    // Truco para evitar que el SW nos siga sirviendo la versión vieja:
-    // ?_t=<timestamp> fuerza al SW a no usar la respuesta cacheada.
+  const reload = useCallback(async () => {
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(key => caches.delete(key)));
+      }
+      // Registrar desregistro del Service Worker para forzar actualización limpia
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+    } catch (e) {
+      console.warn('[useVersionCheck] Error limpiando caches/SW:', e);
+    }
+    // Redirigir con timestamp para saltar el cache HTTP del navegador
     const url = new URL(window.location.href);
     url.searchParams.set('_u', String(Date.now()));
     window.location.replace(url.toString());

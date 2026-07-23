@@ -106,14 +106,29 @@ export default function UpdateBanner() {
     }, 15000);
   }
 
-  const handleUpdate = useCallback(() => {
+  const handleUpdate = useCallback(async () => {
     // Si hay un worker esperando (flow tradicional: updatefound), enviar SKIP_WAITING
     if (waitingWorker) {
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     }
-    // Si no hay worker esperando (flow SW_ACTIVATED), el SW ya está activo
-    // En ambos casos recargar para usar la nueva versión
-    window.location.reload();
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(key => caches.delete(key)));
+      }
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+    } catch (e) {
+      console.warn('[UpdateBanner] Error al purgar cachés en actualización:', e);
+    }
+    // Redirigir con timestamp para saltar el cache HTTP del navegador
+    const url = new URL(window.location.href);
+    url.searchParams.set('_u', String(Date.now()));
+    window.location.replace(url.toString());
   }, [waitingWorker]);
 
   const handleDismiss = useCallback(() => {
