@@ -125,7 +125,9 @@ try {
   };
   const versionJsonPath = path.join(distDir, 'version.json');
   fs.writeFileSync(versionJsonPath, JSON.stringify(versionInfo, null, 2), 'utf8');
-  console.log(`[bump-sw-version] ✅ dist/version.json escrito: ${JSON.stringify(versionInfo)}`);
+  const pubVersionPath = path.join(__dirname, '..', 'public', 'version.json');
+  fs.writeFileSync(pubVersionPath, JSON.stringify(versionInfo, null, 2), 'utf8');
+  console.log(`[bump-sw-version] ✅ version.json escrito en dist y public: ${JSON.stringify(versionInfo)}`);
 } catch (err) {
   console.error(`[bump-sw-version] Error escribiendo ${OUT_PATH}: ${err.message}`);
   process.exit(1);

@@ -7,10 +7,21 @@ import path from 'path';
 // En dev (npm run dev) no existe aún → usamos "0.0.0-dev".
 function getBuildVersion() {
   try {
-    const p = path.join(process.cwd(), 'dist', 'version.json');
-    if (fs.existsSync(p)) {
-      const v = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return v.version || '0.0.0-dev';
+    const pubPath = path.join(process.cwd(), 'public', 'version.json');
+    if (fs.existsSync(pubPath)) {
+      const v = JSON.parse(fs.readFileSync(pubPath, 'utf8'));
+      if (v.version) return v.version;
+    }
+    const distPath = path.join(process.cwd(), 'dist', 'version.json');
+    if (fs.existsSync(distPath)) {
+      const v = JSON.parse(fs.readFileSync(distPath, 'utf8'));
+      if (v.version) return v.version;
+    }
+    const swPath = path.join(process.cwd(), 'public', 'sw.js');
+    if (fs.existsSync(swPath)) {
+      const content = fs.readFileSync(swPath, 'utf8');
+      const match = content.match(/const\s+VERSION\s*=\s*'([^']+)'/);
+      if (match && match[1]) return match[1];
     }
   } catch {}
   return '0.0.0-dev';
