@@ -47,3 +47,6 @@ nul
 /*.sql
 
 COTIZACIÓN BODA MANDRE DE ARÉVALO.pdf
+
+# Auto-generated build version files
+/public/version.json
