@@ -557,7 +557,22 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                         key={u.id}
                         className="colab-mention-item"
                         onMouseDown={(e) => { e.preventDefault(); selectMencion(u); }}
-                        onTouchStart={(e) => { e.preventDefault(); selectMencion(u); }}
+                        onTouchStart={(e) => {
+                          const touch = e.touches[0];
+                          e.currentTarget._touchStart = { x: touch.clientX, y: touch.clientY };
+                        }}
+                        onTouchEnd={(e) => {
+                          const start = e.currentTarget._touchStart;
+                          if (start) {
+                            const touch = e.changedTouches[0];
+                            const dx = Math.abs(touch.clientX - start.x);
+                            const dy = Math.abs(touch.clientY - start.y);
+                            if (dx < 10 && dy < 10) {
+                              e.preventDefault();
+                              selectMencion(u);
+                            }
+                          }
+                        }}
                         onClick={() => selectMencion(u)}
                       >
                         <span className="colab-mention-avatar">{(u.nombre || u.email || '?').charAt(0).toUpperCase()}</span>

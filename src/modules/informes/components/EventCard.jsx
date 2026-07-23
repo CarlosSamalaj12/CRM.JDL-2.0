@@ -468,7 +468,24 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
                   <div key={u.id}
                     style={{ padding: '0.35rem 0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}
                     onMouseDown={(e) => { e.preventDefault(); selectMencion(u); }}
-                    onTouchStart={(e) => { e.preventDefault(); selectMencion(u); }}
+                    onTouchStart={(e) => {
+                      // Guardar coordenadas de inicio para detectar scroll vs tap
+                      const touch = e.touches[0];
+                      e.currentTarget._touchStart = { x: touch.clientX, y: touch.clientY };
+                    }}
+                    onTouchEnd={(e) => {
+                      const start = e.currentTarget._touchStart;
+                      if (start) {
+                        const touch = e.changedTouches[0];
+                        const dx = Math.abs(touch.clientX - start.x);
+                        const dy = Math.abs(touch.clientY - start.y);
+                        // Si se movió menos de 10px en cualquier dirección, es un tap real
+                        if (dx < 10 && dy < 10) {
+                          e.preventDefault();
+                          selectMencion(u);
+                        }
+                      }
+                    }}
                     onClick={() => selectMencion(u)}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
