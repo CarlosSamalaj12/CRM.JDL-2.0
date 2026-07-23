@@ -33,11 +33,18 @@ function formatDateShort(iso) {
 }
 const fmtTime = (t) => (t || '').slice(0, 5) || '??:??';
 
+// Helper para normalizar el ID base de eventos multi-slot (ej. "evt_123_s2_20260728" -> "evt_123")
+const getEventGroupId = (idOcupacion) =>
+  String(idOcupacion || '').replace(/_s\d+_\d{6,}$/, '');
+
 // Obtener cantidades de comida por evento+fecha desde weeklyServices
 const getServiceCounts = (services, idOcupacion, fecha) => {
-  const dayServices = services.filter(s =>
-    String(s.FechaServicio) === fecha && String(s.Idocupacion) === String(idOcupacion)
-  );
+  const targetGroup = getEventGroupId(idOcupacion);
+  const dayServices = services.filter(s => {
+    const rawDate = String(s.FechaServicio || '');
+    const cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate.slice(0, 10);
+    return cleanDate === fecha && getEventGroupId(s.Idocupacion) === targetGroup;
+  });
   if (dayServices.length === 0) return null;
   const result = { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
   for (const s of dayServices) {
