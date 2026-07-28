@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
+import MultiSelect from '../reports/components/MultiSelect';
 import './search.css';
 import '../../styles/tooltips.css';
 
@@ -17,6 +18,26 @@ const STATUS_DESCRIPTIONS = {
   'Mantenimiento Realizado': 'Mantenimiento completado',
 };
 
+// Hydrate a multi-select Set from sessionStorage.
+// Soporta el formato nuevo (JSON array) y el legacy (string simple / "all").
+const readSetFromSession = (key) => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw || raw === 'all' || raw === '') return new Set();
+    if (raw.startsWith('[')) {
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr : []);
+    }
+    return new Set([raw]);
+  } catch {
+    return new Set();
+  }
+};
+const writeSetToSession = (key, set) => {
+  if (!set || set.size === 0) sessionStorage.removeItem(key);
+  else sessionStorage.setItem(key, JSON.stringify([...set]));
+};
+
 export default function SearchModule() {
   const navigate = useNavigate();
   const outlet = useOutletContext() || {};
@@ -24,9 +45,9 @@ export default function SearchModule() {
 
   const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '');
   const [debouncedQuery, setDebouncedQuery] = useState(() => sessionStorage.getItem('search_query') || '');
-  const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem('search_status') || 'all');
-  const [salonFilter, setSalonFilter] = useState(() => sessionStorage.getItem('search_salon') || 'all');
-  const [userFilter, setUserFilter] = useState(() => sessionStorage.getItem('search_user') || 'all');
+  const [statusFilter, setStatusFilter] = useState(() => readSetFromSession('search_status'));
+  const [salonFilter, setSalonFilter] = useState(() => readSetFromSession('search_salon'));
+  const [userFilter, setUserFilter] = useState(() => readSetFromSession('search_user'));
   const [dateFrom, setDateFrom] = useState(() => sessionStorage.getItem('search_date_from') || '');
   const [dateTo, setDateTo] = useState(() => sessionStorage.getItem('search_date_to') || '');
 
@@ -39,15 +60,15 @@ export default function SearchModule() {
   }, [query]);
 
   useEffect(() => {
-    sessionStorage.setItem('search_status', statusFilter);
+    writeSetToSession('search_status', statusFilter);
   }, [statusFilter]);
 
   useEffect(() => {
-    sessionStorage.setItem('search_salon', salonFilter);
+    writeSetToSession('search_salon', salonFilter);
   }, [salonFilter]);
 
   useEffect(() => {
-    sessionStorage.setItem('search_user', userFilter);
+    writeSetToSession('search_user', userFilter);
   }, [userFilter]);
 
   useEffect(() => {
@@ -102,16 +123,16 @@ export default function SearchModule() {
       );
     }
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(ev => ev.status === statusFilter);
+    if (statusFilter.size > 0) {
+      filtered = filtered.filter(ev => statusFilter.has(ev.status));
     }
 
-    if (salonFilter !== 'all') {
-      filtered = filtered.filter(ev => ev._salonList.some(s => s.includes(salonFilter)));
+    if (salonFilter.size > 0) {
+      filtered = filtered.filter(ev => ev._salonList.some(s => salonFilter.has(s)));
     }
 
-    if (userFilter !== 'all') {
-      filtered = filtered.filter(ev => ev.userId === userFilter);
+    if (userFilter.size > 0) {
+      filtered = filtered.filter(ev => userFilter.has(ev.userId));
     }
 
     if (dateFrom) {
@@ -127,9 +148,9 @@ export default function SearchModule() {
 
   const clearFilters = () => {
     setQuery('');
-    setStatusFilter('all');
-    setSalonFilter('all');
-    setUserFilter('all');
+    setStatusFilter(new Set());
+    setSalonFilter(new Set());
+    setUserFilter(new Set());
     setDateFrom('');
     setDateTo('');
     sessionStorage.removeItem('search_query');
@@ -192,29 +213,35 @@ export default function SearchModule() {
             </div>
 
             <div className="search-field">
-              <label className="search-field-label">Estado</label>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                <option value="all">Todos</option>
-                {Object.keys(STATUS_META).map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <MultiSelect
+                selected={statusFilter}
+                onChange={setStatusFilter}
+                options={Object.keys(STATUS_META).map(s => ({ value: s, label: s, color: STATUS_META[s]?.color || '#64748b' }))}
+                placeholder="Estado"
+                emptyLabel="Todos"
+              />
             </div>
 
             <div className="search-field">
-              <label className="search-field-label">Salón</label>
-              <select value={salonFilter} onChange={e => setSalonFilter(e.target.value)}>
-                <option value="all">Todos</option>
-                {salones?.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <MultiSelect
+                selected={salonFilter}
+                onChange={setSalonFilter}
+                options={(salones || []).map(s => ({ value: s, label: s }))}
+                placeholder="Salón"
+                emptyLabel="Todos"
+                searchable
+              />
             </div>
 
             <div className="search-field">
-              <label className="search-field-label">Vendedor</label>
-              <select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
-                <option value="all">Todos</option>
-                {users?.map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
-              </select>
+              <MultiSelect
+                selected={userFilter}
+                onChange={setUserFilter}
+                options={(users || []).map(u => ({ value: u.id, label: u.fullName || u.name }))}
+                placeholder="Vendedor"
+                emptyLabel="Todos"
+                searchable
+              />
             </div>
 
             <div className="search-field">

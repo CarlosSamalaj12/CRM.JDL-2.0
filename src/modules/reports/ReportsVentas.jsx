@@ -1,11 +1,30 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
 import ReportInfo from './components/ReportInfo';
-import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+import MultiSelect from './components/MultiSelect';
+import { getEventSeries, getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+
+// PAX correcto de una reserva, respetando paxCompartido:
+// - true  → todos los slots comparten el mismo PAX (toma el del primer slot con valor)
+// - false → cada slot tiene su propio PAX (se suman)
+function getReservationPax(reservation, allEvents) {
+  const series = getEventSeries(reservation, allEvents);
+  if (!series.length) return Number(reservation?.pax || 0) || 0;
+  const first = series[0];
+  const isShared =
+    first?.paxCompartido === true || first?.PaxCompartido === true ||
+    first?.paxCompartido === 1    || first?.PaxCompartido === 1;
+  if (isShared) {
+    const anyWithPax = series.find(s => Number(s.pax) > 0) || first;
+    return Number(anyWithPax?.pax || anyWithPax?.quote?.people || 0) || 0;
+  }
+  return series.reduce((acc, s) => acc + (Math.max(0, Number(s?.pax)) || 0), 0);
+}
 
 export default function ReportsVentas({ onClose }) {
   const { events, users, salones } = useOutletContext();
+  const navigate = useNavigate();
   const sellerUsers = useMemo(() => (users || []).filter(u => {
     const r = String(u.role || '').toLowerCase();
     return r === 'vendedor' || r === 'admin';
@@ -14,26 +33,13 @@ export default function ReportsVentas({ onClose }) {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [userFilter, setUserFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
   const [statusFilter, setStatusFilter] = useState(new Set(['Confirmado', 'Pre reserva']));
-  const [salonFilter, setSalonFilter] = useState('all');
-  const [statusDropOpen, setStatusDropOpen] = useState(false);
-  const statusDropRef = useRef(null);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (statusDropRef.current && !statusDropRef.current.contains(e.target)) {
-        setStatusDropOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  const [salonFilter, setSalonFilter] = useState(new Set()); // Set vacío = "Todos"
 
   const allStatuses = [
     'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
-    'Lista de Espera', 'Confirmado', 'Cancelado', 'Mantenimiento', 'Perdido', 'Realizado'
+    'Lista de Espera', 'Confirmado', 'Cancelado', 'Perdido'
   ];
 
   const reportData = useMemo(() => {
@@ -52,15 +58,21 @@ export default function ReportsVentas({ onClose }) {
       const primaryEvent = financialMeta.primaryEvent || ev;
       const quote = primaryEvent?.quote || ev?.quote || {};
       const assignedUser = users?.find(u => u.id === (primaryEvent?.userId || ev?.userId));
-      
+
+      // Fecha I = fecha inicial del slot primario (viene de "FECHA INICIAL" del formulario)
+      // Fecha F = fecha final del slot primario (viene de "FECHA FINAL" del formulario)
+      // Fallback a la serie o al evento si no existen.
+      const slotStartDate = String(primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
+      const slotEndDate = String(primaryEvent?.eventDateEnd || primaryEvent?.endDate || ev?.eventDateEnd || ev?.endDate || slotStartDate).trim();
+
       rows.push({
         id: ev.id,
         refId: quote?.code || reservationKey || primaryEvent?.id || ev?.id || '',
         folio: quote?.folio || '',
         institucion: quote?.companyName || ev.clientName || quote?.contact || '',
         name: primaryEvent?.name || ev?.name || '',
-        eventDate: financialMeta.startDate || primaryEvent?.date || ev?.date || '',
-        endDate: financialMeta.endDate || financialMeta.startDate || ev?.date || '',
+        eventDate: slotStartDate,
+        endDate: slotEndDate,
         startTime: financialMeta.startTime || primaryEvent?.startTime || ev?.startTime || '',
         endTime: financialMeta.endTime || primaryEvent?.endTime || ev?.endTime || '',
         salon: financialMeta.mainSalon || primaryEvent?.salon || ev?.salon || '',
@@ -68,7 +80,7 @@ export default function ReportsVentas({ onClose }) {
         userId: primaryEvent?.userId || ev?.userId,
         userName: assignedUser?.fullName || assignedUser?.name || 'Sin asignar',
         clientName: ev.clientName || quote?.companyName || quote?.contact || '',
-        pax: Number(primaryEvent?.pax || ev?.pax || quote?.people || 0),
+        pax: getReservationPax(ev, events),
         quote: quote,
         total: quote?.totalGtq || quote?.total || 0,
         subtotal: quote?.subtotal || 0,
@@ -95,21 +107,21 @@ export default function ReportsVentas({ onClose }) {
     }
     if (dateFrom) filtered = filtered.filter(r => r.eventDate >= dateFrom);
     if (dateTo) filtered = filtered.filter(r => r.eventDate <= dateTo);
-    if (userFilter !== 'all') filtered = filtered.filter(r => r.userId === userFilter);
+    if (userFilter.size > 0) filtered = filtered.filter(r => userFilter.has(r.userId));
     if (statusFilter.size > 0) filtered = filtered.filter(r => statusFilter.has(r.status));
-    if (salonFilter !== 'all') filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
+    if (salonFilter.size > 0) {
+      filtered = filtered.filter(r => {
+        const list = Array.isArray(r.salones) ? r.salones : [];
+        return salonFilter.has(r.salon) || list.some(s => salonFilter.has(s));
+      });
+    }
 
     return filtered.sort((a, b) => a.eventDate.localeCompare(b.eventDate));
   }, [events, users, search, dateFrom, dateTo, userFilter, statusFilter, salonFilter]);
 
-  const toggleStatus = (status) => {
-    setStatusFilter(prev => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status); else next.add(status);
-      return next;
-    });
-  };
-
+  // Los KPIs se calculan sobre reportData, que ya respeta TODOS los filtros
+  // (búsqueda + fechas + vendedor + dropdown de estado + salón + dedupe por groupId).
+  // Si el usuario cambia los estados seleccionados abajo, los KPIs cambian en consecuencia.
   const summary = useMemo(() => {
     const totalEvents = reportData.length;
     const totalPax = reportData.reduce((sum, r) => sum + (r.pax || 0), 0);
@@ -118,14 +130,81 @@ export default function ReportsVentas({ onClose }) {
     return { totalEvents, totalPax, totalVentas, confirmados };
   }, [reportData]);
 
+  // Conversión = Confirmados / total de reservas en estados de pipeline activo.
+  // Estados de pipeline activo: Pre reserva, 1er Cotizacion, Seguimiento, Lista de Espera, Confirmado.
+  // Se calcula sobre los eventos que pasan los filtros "fuertes" (búsqueda, fechas, vendedor, salón),
+  // ignorando el dropdown de estado para que el KPI no se anule al cambiarlo.
   const conversionPct = useMemo(() => {
-    const confirmedCount = reportData.filter((r) => r.status === 'Confirmado').length;
-    return reportData.length ? Math.round((confirmedCount / reportData.length) * 100) : 0;
-  }, [reportData]);
+    if (!events) return 0;
+    const PIPELINE_STATUSES = new Set(['Pre reserva', '1er Cotizacion', 'Seguimiento', 'Lista de Espera', 'Confirmado']);
 
+    const term = search.trim().toLowerCase();
+    const inDateRange = (d) => {
+      if (!d) return true;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    };
+    const userMatches = (ev) => userFilter.size === 0 || userFilter.has(ev.userId);
+    const salonMatches = (ev) => {
+      if (salonFilter.size === 0) return true;
+      const mainSalon = ev.salon || '';
+      const list = Array.isArray(ev.salones) ? ev.salones : [];
+      return salonFilter.has(mainSalon) || list.some(s => salonFilter.has(s));
+    };
+    const textMatches = (ev, primaryEvent) => {
+      if (!term) return true;
+      const assignedUser = users?.find(u => u.id === (primaryEvent?.userId || ev?.userId));
+      const userName = assignedUser?.fullName || assignedUser?.name || '';
+      const quote = primaryEvent?.quote || ev?.quote || {};
+      const haystack = [
+        primaryEvent?.name || ev?.name,
+        ev.clientName || quote.companyName || quote.contact,
+        primaryEvent?.salon || ev?.salon,
+        userName,
+        quote.code,
+        quote.eventType,
+        quote.folio,
+        quote.companyName,
+      ].map(v => String(v || '').toLowerCase());
+      return haystack.some(v => v.includes(term));
+    };
+
+    // Dedupe por groupId|id sobre el set de eventos en pipeline
+    const seen = new Set();
+    const reservations = [];
+    for (const ev of events) {
+      if (!PIPELINE_STATUSES.has(ev.status)) continue;
+      const key = ev.groupId || ev.id;
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      reservations.push(ev);
+    }
+
+    let pipelineCount = 0;
+    let confirmedCount = 0;
+    for (const ev of reservations) {
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const eventDate = financialMeta.startDate || primaryEvent?.date || ev?.date || '';
+      if (!inDateRange(eventDate)) continue;
+      if (!userMatches(primaryEvent)) continue;
+      if (!salonMatches(primaryEvent)) continue;
+      if (!textMatches(ev, primaryEvent)) continue;
+
+      pipelineCount += 1;
+      if (primaryEvent.status === 'Confirmado') confirmedCount += 1;
+    }
+
+    return pipelineCount > 0 ? Math.round((confirmedCount / pipelineCount) * 100) : 0;
+  }, [events, users, search, dateFrom, dateTo, userFilter, salonFilter]);
+
+  // Ticket Promedio PAX = Total Venta / Total PAX (precio por persona)
   const avgTicket = useMemo(() => {
     const totalAmount = reportData.reduce((sum, r) => sum + (r.total || 0), 0);
-    return reportData.length ? (totalAmount / reportData.length) : 0;
+    const totalPaxSum = reportData.reduce((sum, r) => sum + (r.pax || 0), 0);
+    return totalPaxSum > 0 ? (totalAmount / totalPaxSum) : 0;
   }, [reportData]);
 
   const topSeller = useMemo(() => {
@@ -141,6 +220,48 @@ export default function ReportsVentas({ onClose }) {
     return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
   };
 
+  // Formato corto dd-mm-yy para mostrar en la tabla y el Excel.
+  // Acepta: 'YYYY-MM-DD', ISO con hora ('YYYY-MM-DDTHH:mm:ss'),
+  // timestamps numéricos (epoch ms o s), u objetos Date via .toString().
+  // Si la fecha es inválida o es epoch 0 (1970-01-01), devuelve '' para no mostrar 01-01-70.
+  const formatDateShort = (dateStr) => {
+    if (dateStr === null || dateStr === undefined || dateStr === '') return '';
+
+    // 1) Si es timestamp numérico o numérico-en-string (epoch)
+    const asNum = typeof dateStr === 'number' ? dateStr : Number(dateStr);
+    if (!Number.isNaN(asNum) && /^\d{9,}$/.test(String(asNum))) {
+      // 9+ dígitos = epoch en ms (10-13 dígitos). Si tiene 10, es epoch en s.
+      const ms = asNum < 1e12 ? asNum * 1000 : asNum;
+      const d = new Date(ms);
+      if (!Number.isNaN(d.getTime()) && d.getFullYear() > 1970) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yy = String(d.getFullYear()).slice(-2);
+        return `${dd}-${mm}-${yy}`;
+      }
+      return '';
+    }
+
+    // 2) Si matchea el patrón YYYY-MM-DD al inicio (con o sin hora)
+    const m = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      const year = Number(m[1]);
+      // Si es 1970 o anterior, probablemente es epoch 0 → no mostrarlo
+      if (year <= 1970) return '';
+      return `${m[3]}-${m[2]}-${m[1].slice(2)}`;
+    }
+
+    // 3) Último intento: pasar por Date
+    const d = new Date(dateStr);
+    if (!Number.isNaN(d.getTime()) && d.getFullYear() > 1970) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yy = String(d.getFullYear()).slice(-2);
+      return `${dd}-${mm}-${yy}`;
+    }
+    return '';
+  };
+
   const handleExportExcel = () => {
     const fmtDate = (d) => {
       if (!d) return '';
@@ -154,9 +275,13 @@ export default function ReportsVentas({ onClose }) {
     const timeLabel = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
     const fromLabel = dateFrom ? fmtDate(dateFrom) : '—';
     const toLabel = dateTo ? fmtDate(dateTo) : '—';
-    const userLabel = userFilter !== 'all' ? (users?.find(u => u.id === userFilter)?.fullName || 'Todos') : 'Todos';
+    const userLabel = userFilter.size > 0
+      ? `${userFilter.size} vendedor(es)`
+      : 'Todos';
     const statusLabel = statusFilter.size > 0 ? `${statusFilter.size} estado(s)` : 'Todos';
-    const salonLabel = salonFilter !== 'all' ? salonFilter : 'Todos';
+    const salonLabel = salonFilter.size > 0
+      ? `${salonFilter.size} salón(es)`
+      : 'Todos';
 
     const totalAmount = reportData.reduce((s, r) => s + (r.total || 0), 0);
 
@@ -167,9 +292,9 @@ export default function ReportsVentas({ onClose }) {
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#334155">${r.folio || '-'}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#0f172a">${r.institucion || '-'}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569">${r.userName}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569">${r.eventDate}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569">${formatDateShort(r.eventDate)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569">${formatDateShort(r.endDate || r.eventDate)}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#334155">${r.eventType || r.name || '-'}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#475569;text-align:center">${r.startTime} - ${r.endTime}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;color:#334155">${r.salon}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#0f172a">${r.pax}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${fmtNum(r.total)}</td>
@@ -219,9 +344,9 @@ export default function ReportsVentas({ onClose }) {
     <th>No. Folio</th>
     <th>Institución</th>
     <th>Vendedor</th>
-    <th>Fecha</th>
+    <th>Fecha I</th>
+    <th>Fecha F</th>
     <th>Evento</th>
-    <th>Horario</th>
     <th>Salón</th>
     <th>PAX</th>
     <th class="right">Monto</th>
@@ -279,12 +404,12 @@ export default function ReportsVentas({ onClose }) {
             <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#2563eb' }}>
               <span className="reports-eyebrow">Eventos en cartera</span>
               <strong>{summary.totalEvents}</strong>
-              <span style={{ fontSize: 12, color: '#64748b' }}>{summary.confirmados} confirmados</span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>en estados seleccionados</span>
             </div>
             <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#16a34a', gridColumn: 'span 2' }}>
-              <span className="reports-eyebrow">Facturación</span>
+              <span className="reports-eyebrow">Total Venta</span>
               <strong>{formatMoney(summary.totalVentas)}</strong>
-              <span style={{ fontSize: 12, color: '#64748b' }}>valor total</span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>valor cotizado en selección</span>
             </div>
             <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#2563eb' }}>
               <span className="reports-eyebrow">PAX Totales</span>
@@ -292,9 +417,9 @@ export default function ReportsVentas({ onClose }) {
               <span style={{ fontSize: 12, color: '#64748b' }}>personas atendidas</span>
             </div>
             <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#f59e0b' }}>
-              <span className="reports-eyebrow">Ticket Promedio</span>
+              <span className="reports-eyebrow">Ticket Promedio PAX</span>
               <strong>{formatMoney(avgTicket)}</strong>
-              <span style={{ fontSize: 12, color: '#64748b' }}>por reserva</span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>por persona</span>
             </div>
             <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#8b5cf6' }}>
               <span className="reports-eyebrow">Conversión</span>
@@ -326,121 +451,34 @@ export default function ReportsVentas({ onClose }) {
               <span>Hasta</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
             </label>
-            <label className="field">
-              <span>Vendedor</span>
-              <select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
-                <option value="all">Todos</option>
-                {sellerUsers.map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
-              </select>
-            </label>
-            <label className="field">
-              <span>Salón</span>
-              <select value={salonFilter} onChange={e => setSalonFilter(e.target.value)}>
-                <option value="all">Todos</option>
-                {salones?.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </label>
-            <div className="field" style={{ minWidth: 220, position: 'relative' }} ref={statusDropRef}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Estado</span>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '5px 10px 5px 10px',
-                border: `1px solid ${statusDropOpen ? '#2563eb' : '#e2e8f0'}`,
-                borderRadius: '20px', background: '#ffffff',
-                boxShadow: statusDropOpen ? '0 0 0 2px #2563eb30' : '0 1px 3px #00000008',
-                transition: 'box-shadow 0.15s, border-color 0.15s',
-                minHeight: 36, cursor: 'pointer',
-              }}
-                onClick={() => setStatusDropOpen(o => !o)}
-              >
-                {/* Colored dots only */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, overflow: 'hidden' }}>
-                  {[...statusFilter].map(s => {
-                    const color = STATUS_META[s]?.color || '#64748b';
-                    return (
-                      <span key={s} title={s} style={{
-                        width: 10, height: 10, borderRadius: '50%', background: color,
-                        flexShrink: 0, boxShadow: `0 0 0 2px ${color}25`,
-                      }} />
-                    );
-                  })}
-                  {statusFilter.size === 0 && (
-                    <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 400 }}>Seleccionar...</span>
-                  )}
-                  {statusFilter.size > 6 && (
-                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginLeft: '2px' }}>+{statusFilter.size - 6}</span>
-                  )}
-                </div>
-                {/* Arrow */}
-                <svg viewBox="0 0 12 12" width="14" height="14" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" style={{ flexShrink: 0, transform: statusDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-                  <path d="M2 4l4 4 4-4" />
-                </svg>
-              </div>
-              {statusDropOpen && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
-                  background: '#ffffff', borderRadius: '16px',
-                  boxShadow: '0 8px 32px #00000020', zIndex: 999,
-                  overflow: 'hidden', padding: '6px',
-                }}>
-                  {allStatuses.map(s => {
-                    const active = statusFilter.has(s);
-                    const color = STATUS_META[s]?.color || '#64748b';
-                    return (
-                      <label key={s} style={{
-                        display: 'flex', alignItems: 'center', gap: '10px',
-                        padding: '8px 10px', cursor: 'pointer',
-                        borderRadius: '10px', marginBottom: '2px',
-                        transition: 'background 0.1s',
-                      }}
-                        onMouseEnter={e => { e.currentTarget.style.background = active ? `${color}12` : '#f1f5f9'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        {/* Custom checkbox */}
-                        <div style={{
-                          width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
-                          background: active ? '#2563eb' : '#f1f5f9',
-                          border: active ? 'none' : '1.5px solid #cbd5e1',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.15s',
-                        }}>
-                          {active && (
-                            <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M2 6l3 3 5-5" />
-                            </svg>
-                          )}
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={active}
-                          onChange={() => toggleStatus(s)}
-                          style={{ display: 'none' }}
-                        />
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569', flex: 1 }}>{s}</span>
-                      </label>
-                    );
-                  })}
-                  {/* Done button */}
-                  <div style={{ padding: '8px 10px 4px', borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setStatusDropOpen(false)}
-                      style={{
-                        width: '100%', padding: '8px', borderRadius: '14px',
-                        background: '#2563eb', color: '#ffffff',
-                        border: 'none', fontSize: '13px', fontWeight: 700,
-                        cursor: 'pointer', boxShadow: '0 2px 8px #2563eb40',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
-                    >
-                      Listo
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="field">
+              <MultiSelect
+                selected={userFilter}
+                onChange={setUserFilter}
+                options={sellerUsers.map(u => ({ value: u.id, label: u.fullName || u.name }))}
+                placeholder="Vendedor"
+                emptyLabel="Todos los vendedores"
+                searchable
+              />
+            </div>
+            <div className="field">
+              <MultiSelect
+                selected={salonFilter}
+                onChange={setSalonFilter}
+                options={(salones || []).map(s => ({ value: s, label: s }))}
+                placeholder="Salón"
+                emptyLabel="Todos los salones"
+                searchable
+              />
+            </div>
+            <div className="field">
+              <MultiSelect
+                selected={statusFilter}
+                onChange={setStatusFilter}
+                options={allStatuses.map(s => ({ value: s, label: s, color: STATUS_META[s]?.color || '#64748b' }))}
+                placeholder="Estado"
+                emptyLabel="Todos los estados"
+              />
             </div>
             <div className="reports-actions">
               <button className="btnPrimary" type="button" onClick={handleExportExcel}>Exportar Excel</button>
@@ -497,9 +535,9 @@ export default function ReportsVentas({ onClose }) {
                   <th>No. Folio</th>
                   <th>Institución</th>
                   <th>Vendedor</th>
-                  <th>Fecha</th>
+                  <th>Fecha I</th>
+                  <th>Fecha F</th>
                   <th>Evento</th>
-                  <th>Horario</th>
                   <th>Salón</th>
                   <th>PAX</th>
                   <th style={{ textAlign: 'right' }}>Monto</th>
@@ -513,7 +551,14 @@ export default function ReportsVentas({ onClose }) {
                     </td>
                   </tr>
                 ) : reportData.map(r => (
-                  <tr key={r.id}>
+                  <tr
+                    key={r.id}
+                    onClick={() => navigate(`/reserva/${r.id}`)}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                    title="Click para abrir el editor de reserva"
+                  >
                     <td>
                       <span className="reports-table-status" style={{
                         background: `${r.statusColor}18`,
@@ -527,9 +572,9 @@ export default function ReportsVentas({ onClose }) {
                     <td style={{ fontWeight: 600, color: '#334155' }}>{r.folio || '-'}</td>
                     <td style={{ fontWeight: 600, color: '#0f172a' }}>{r.institucion || '-'}</td>
                     <td>{r.userName}</td>
-                    <td>{r.eventDate}</td>
+                    <td>{formatDateShort(r.eventDate)}</td>
+                    <td>{formatDateShort(r.endDate || r.eventDate)}</td>
                     <td>{r.eventType || r.name}</td>
-                    <td>{r.startTime} - {r.endTime}</td>
                     <td>{r.salon}</td>
                     <td style={{ fontWeight: 700, textAlign: 'center' }}>{r.pax}</td>
                     <td style={{ fontWeight: 700, textAlign: 'right', color: '#059669' }}>{formatMoney(r.total)}</td>

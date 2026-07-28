@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import ReportInfo from './components/ReportInfo';
+import MultiSelect from './components/MultiSelect';
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -63,12 +64,14 @@ export default function ReportsComisiones({ onClose }) {
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const lastOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const initialMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
+  const [monthKey, setMonthKey] = useState(initialMonthKey); // YYYY-MM
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
-  const [userFilter, setUserFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
   const [pdfLoading, setPdfLoading] = useState(false);
   const reportRef = useRef(null);
 
@@ -113,7 +116,7 @@ export default function ReportsComisiones({ onClose }) {
       if (amount <= 0) continue;
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
-      if (userFilter !== 'all' && userId !== userFilter) continue;
+      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
       // Deduplicar por groupId: eventos multi-salón solo cuentan 1 vez
       const groupKey = ev.groupId || ev.id;
@@ -226,8 +229,18 @@ export default function ReportsComisiones({ onClose }) {
 
   const handleReset = () => {
     const t = new Date();
+    const mk = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+    setMonthKey(mk);
     setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth(), 1)));
     setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
+  };
+
+  const handleMonthChange = (val) => {
+    if (!val) return;
+    setMonthKey(val);
+    const [y, m] = val.split('-').map(Number);
+    setFromDate(getLocalDateStr(new Date(y, m - 1, 1)));
+    setToDate(getLocalDateStr(new Date(y, m, 0)));
   };
 
   const sectionStyle = (delay) => ({
@@ -367,72 +380,70 @@ th.right{text-align:right}</style></head><body>
           </div>
 
           {/* ── Toolbar ── */}
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px' }}>
-            <label className="field" style={{ flex: '0 0 148px' }}>
-              <span>Desde</span>
-              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
-            </label>
-            <label className="field" style={{ flex: '0 0 148px' }}>
-              <span>Hasta</span>
-              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
-            </label>
-            <div className="reports-actions" style={{ gap: '8px' }}>
-              <button type="button" onClick={handleReset}>Mes Actual</button>
+          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px', alignItems: 'center' }}>
+            {/* Grupo izquierdo: filtro por mes + Mes Actual juntos */}
+            <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label className="field" style={{ flex: '0 0 160px', marginBottom: 0 }}>
+                <span>Mes</span>
+                <input type="month" value={monthKey} onChange={e => handleMonthChange(e.target.value)} />
+              </label>
+              <button type="button" className="btnPrimary" onClick={handleReset} style={{ height: '36px' }}>
+                Mes Actual
+              </button>
             </div>
 
             {/* User filter */}
-            <label className="field" style={{ flex: '0 0 150px' }}>
-              <span>Vendedor</span>
-              <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{
-                fontSize: '11px', fontWeight: 700, padding: '6px 8px',
-                borderRadius: '8px', border: '1.5px solid #e2e8f0',
-                background: 'white', cursor: 'pointer',
-              }}>
-                <option value="all">Todos</option>
-                {sellerUsers.map(u => (
-                  <option key={u.id} value={String(u.id)}>{u.fullName || u.name || u.username}</option>
-                ))}
-              </select>
-            </label>
+            <div className="field" style={{ flex: '0 0 240px' }}>
+              <MultiSelect
+                selected={userFilter}
+                onChange={setUserFilter}
+                options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || u.username }))}
+                placeholder="Vendedor"
+                emptyLabel="Todos"
+                searchable
+                width="100%"
+              />
+            </div>
 
-            {/* Export PDF button */}
-            <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
-              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-              borderRadius: '8px', border: '1.5px solid #dc2626',
-              background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#fff', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              transition: 'all 0.15s ease',
-              opacity: pdfLoading ? 0.7 : 1,
-            }}
-              onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.borderColor = '#b91c1c'; }}}
-              onMouseLeave={e => { if (!pdfLoading) { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}}
-            >
-              <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-                <path d="M5 8l4 4 4-4" />
-                <path d="M9 12V2" />
-              </svg>
-              {pdfLoading ? 'Generando...' : 'Exportar PDF'}
-            </button>
+            {/* Grupo derecho: botones de exportar (alineados a la derecha) */}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
+                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
+                borderRadius: '8px', border: '1.5px solid #dc2626',
+                background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#fff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px',
+                transition: 'all 0.15s ease',
+                opacity: pdfLoading ? 0.7 : 1,
+              }}
+                onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.borderColor = '#b91c1c'; }}}
+                onMouseLeave={e => { if (!pdfLoading) { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}}
+              >
+                <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
+                  <path d="M5 8l4 4 4-4" />
+                  <path d="M9 12V2" />
+                </svg>
+                {pdfLoading ? 'Generando...' : 'Exportar PDF'}
+              </button>
 
-            {/* Export CSV button */}
-            <button type="button" onClick={handleExportExcel} style={{
-              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-              borderRadius: '8px', border: '1.5px solid #16a34a',
-              background: '#16a34a', color: '#fff', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              transition: 'all 0.15s ease',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.borderColor = '#15803d'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.borderColor = '#16a34a'; }}
-            >
-              <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-                <path d="M5 8l4 4 4-4" />
-                <path d="M9 12V2" />
-              </svg>
-              Exportar CSV
-            </button>
+              <button type="button" onClick={handleExportExcel} style={{
+                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
+                borderRadius: '8px', border: '1.5px solid #16a34a',
+                background: '#16a34a', color: '#fff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px',
+                transition: 'all 0.15s ease',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.borderColor = '#15803d'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.borderColor = '#16a34a'; }}
+              >
+                <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
+                  <path d="M5 8l4 4 4-4" />
+                  <path d="M9 12V2" />
+                </svg>
+                Exportar CSV
+              </button>
+            </div>
 
             {/* Mini KPI chips */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>

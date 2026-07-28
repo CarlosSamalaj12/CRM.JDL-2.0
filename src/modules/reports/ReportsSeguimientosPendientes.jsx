@@ -28,16 +28,18 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
   const pendingStatusSet = useMemo(() => STATUS_SET, []);
 
   // ── Aggregate: group pending events by userId, then by status ──
-  const { userData, statusTotals } = useMemo(() => {
-    if (!events || !users) return { userData: [], statusTotals: {} };
+  const { userData, statusTotals, moneyByStatus, totalMoneyAtStake, totalMoneyByUser } = useMemo(() => {
+    if (!events || !users) return { userData: [], statusTotals: {}, moneyByStatus: {}, totalMoneyAtStake: 0, totalMoneyByUser: {} };
 
     const [yr, mo] = monthKey.split('-').map(Number);
     const from = `${monthKey}-01`;
     const to = `${monthKey}-${new Date(yr, mo, 0).getDate()}`;
 
-    // For each userId, collect events by status
-    const userMap = new Map(); // userId -> { name, fullName, events: { statusKey: [ev, ev, ...] } }
+    const userMap = new Map();
     const accTotals = {};
+    const accMoney = {};
+    const accMoneyByUser = {};
+    let grandTotalMoney = 0;
 
     for (const ev of events) {
       const d = String(ev.date || '');
@@ -47,6 +49,9 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
 
       const uid = String(ev.userId || '').trim();
       if (!uid) continue;
+
+      // Calcular dinero cotizado del evento
+      const money = Number(ev.quote?.totalGtq || ev.quote?.total || 0);
 
       if (!userMap.has(uid)) {
         let user = users.find(u => String(u.id) === uid);
@@ -61,7 +66,9 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
           name: user?.fullName || user?.name || uid,
           role: user?.role || '',
           events: {},
+          moneyByStatus: {},
           total: 0,
+          totalMoney: 0,
         });
       }
       const entry = userMap.get(uid);
@@ -73,23 +80,34 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
         salon: ev.salon || ev.nombre_salon || '',
         status,
         pax: ev.pax || 0,
+        money,
       });
       entry.total++;
+      entry.totalMoney += money;
+      entry.moneyByStatus[status] = (entry.moneyByStatus[status] || 0) + money;
       accTotals[status] = (accTotals[status] || 0) + 1;
+      accMoney[status] = (accMoney[status] || 0) + money;
+      accMoneyByUser[uid] = (accMoneyByUser[uid] || 0) + money;
+      grandTotalMoney += money;
     }
 
-    // Sort users by total pending (desc)
-    const sorted = Array.from(userMap.values()).sort((a, b) => b.total - a.total);
+    const sorted = Array.from(userMap.values()).sort((a, b) => b.totalMoney - a.totalMoney);
 
-    // Sort events within each user by date
     for (const u of sorted) {
       for (const statusKey of Object.keys(u.events)) {
         u.events[statusKey].sort((a, b) => a.date.localeCompare(b.date));
       }
     }
 
-    return { userData: sorted, statusTotals: accTotals };
+    return { userData: sorted, statusTotals: accTotals, moneyByStatus: accMoney, totalMoneyAtStake: grandTotalMoney, totalMoneyByUser: accMoneyByUser };
   }, [events, users, monthKey, pendingStatusSet]);
+
+  // ── All vendor users (for the dropdown, even if they have 0 pending) ──
+  const allVendors = useMemo(() => {
+    return (users || [])
+      .filter(u => String(u.role || '').toLowerCase() === 'vendedor')
+      .sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || ''));
+  }, [users]);
 
   // ── Filter by selected user ──
   const filteredUserData = useMemo(() => {
@@ -123,6 +141,8 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
     if (!evs) return null;
     return evs[hoveredEvent.evIdx] || null;
   }, [hoveredEvent, userData]);
+
+  const formatMoneyGT = (v) => 'Q ' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const sectionStyle = { opacity: 1, transform: 'translateY(0)', transition: 'opacity 0.5s ease' };
 
@@ -161,26 +181,34 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
           </div>
 
           {/* ── Toolbar ── */}
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px' }}>
-            <label className="field" style={{ flex: '0 0 160px' }}>
-              <span>Mes</span>
-              <input type="month" value={monthKey} onChange={e => handleMonthChange(e.target.value)} />
-            </label>
-            <label className="field" style={{ flex: '0 0 200px' }}>
-              <span>Vendedor</span>
-              <select value={userIdFilter || ''} onChange={e => setUserIdFilter(e.target.value || null)}>
-                <option value="">Todos los vendedores</option>
-                {userData.map(u => (
-                  <option key={u.userId} value={u.userId}>{u.name}</option>
-                ))}
-              </select>
-            </label>
-            <div className="reports-actions" style={{ gap: '8px' }}>
-              <button type="button" onClick={() => { handleReset(); setUserIdFilter(null); }}>Mes Actual</button>
+          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px', alignItems: 'center' }}>
+            {/* Grupo izquierdo: controles juntos */}
+            <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label className="field" style={{ flex: '0 0 160px', marginBottom: 0 }}>
+                <span>Mes</span>
+                <input type="month" value={monthKey} onChange={e => handleMonthChange(e.target.value)} />
+              </label>
+              <label className="field" style={{ flex: '0 0 220px', marginBottom: 0 }}>
+                <span>Vendedor</span>
+                <select value={userIdFilter || ''} onChange={e => setUserIdFilter(e.target.value || null)}>
+                  <option value="">Todos los vendedores</option>
+                  {allVendors.map(v => {
+                    const pendingCount = userData.find(u => u.userId === String(v.id))?.total || 0;
+                    return (
+                      <option key={v.id} value={String(v.id)}>
+                        {(v.fullName || v.name)}{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <button type="button" className="btnPrimary" onClick={() => { handleReset(); setUserIdFilter(null); }} style={{ height: '36px' }}>
+                Mes Actual
+              </button>
             </div>
 
-            {/* KPI chips */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
+            {/* Grupo derecho: KPI chips */}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 📋 <strong style={{ color: '#0f172a' }}>{totalPending}</strong> pendientes
               </span>
@@ -212,6 +240,77 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
             ))}
           </div>
         </div>
+
+        {/* ── Comparativa en dinero por estado ── */}
+        {totalPending > 0 && (
+          <section className="reports-hero-panel" style={sectionStyle}>
+            <div className="reports-section-intro">
+              <div>
+                <span className="reports-eyebrow">Dinero en juego</span>
+                <h3 className="reports-section-title">¿Cuánto se está dejando en la mesa?</h3>
+                <p className="reports-section-text">
+                  Si el vendedor cierra <strong>todas</strong> estas operaciones en pipeline, recupera este monto. Cada estado muestra el valor cotizado total.
+                </p>
+              </div>
+            </div>
+
+            {/* Total en juego */}
+            <div className="bento-tile" style={{
+              borderTop: '4px solid #10c972',
+              padding: '18px 22px',
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+              display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap',
+            }}>
+              <div style={{ fontSize: '36px' }}>💰</div>
+              <div style={{ flex: 1, minWidth: '180px' }}>
+                <div className="reports-eyebrow">Total en juego este mes</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', lineHeight: 1, marginTop: '2px' }}>
+                  {formatMoneyGT(totalMoneyAtStake)}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>
+                  {totalPending} evento{totalPending !== 1 ? 's' : ''} en pipeline de {totalUsers} vendedor{totalUsers !== 1 ? 'es' : ''}
+                </div>
+              </div>
+              <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 800, background: '#dcfce7', borderRadius: '8px', padding: '6px 12px' }}>
+                POTENCIAL DE CIERRE
+              </div>
+            </div>
+
+            {/* Grid por estado */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              {PENDING_STATUSES.map(s => {
+                const count = statusTotals[s.key] || 0;
+                const money = moneyByStatus[s.key] || 0;
+                const pct = totalMoneyAtStake > 0 ? (money / totalMoneyAtStake) * 100 : 0;
+                if (count === 0) return null;
+                return (
+                  <div key={s.key} className="bento-tile" style={{
+                    borderTop: `4px solid ${s.color}`,
+                    padding: '14px 16px',
+                    gap: '8px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '18px' }}>{s.icon}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: s.color, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{s.label}</span>
+                      </div>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', background: '#f1f5f9', borderRadius: '999px', padding: '2px 8px' }}>{count} ev.</span>
+                    </div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>
+                      {formatMoneyGT(money)}
+                    </div>
+                    <div style={{ height: '6px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(2, pct)}%`, height: '100%', background: s.color, borderRadius: '999px', transition: 'width 0.5s ease' }} />
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700 }}>
+                      {pct.toFixed(1)}% del total en juego
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ── User Cards ── */}
         {filteredUserData.length === 0 ? (
@@ -263,6 +362,11 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <span className="reports-eyebrow" style={{ fontSize: '9px' }}>Vendedor</span>
                       <h3 className="reports-section-title" style={{ fontSize: '16px', margin: '1px 0 0' }}>{user.name}</h3>
+                      {user.totalMoney > 0 && (
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
+                          💰 {formatMoneyGT(user.totalMoney)} en juego
+                        </div>
+                      )}
                     </div>
 
                     {/* Mini stats in header */}
@@ -331,6 +435,7 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', padding: '12px 0', borderBottom: '1px solid #f1f5f9', marginBottom: '14px' }}>
                         {statusBreakdown.map(s => {
                           const pct = Math.round((s.count / user.total) * 100);
+                          const money = user.moneyByStatus[s.key] || 0;
                           return (
                             <div key={s.key} style={{
                               display: 'flex', alignItems: 'center', gap: '8px',
@@ -339,15 +444,20 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                               borderRadius: '10px',
                               padding: '8px 14px',
                               flex: '0 1 auto',
-                              minWidth: '120px',
+                              minWidth: '160px',
                             }}>
                               <span style={{ fontSize: '16px' }}>{s.icon}</span>
                               <div>
                                 <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{s.label}</div>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                                  <span style={{ fontSize: '18px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.count}</span>
-                                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>{pct}%</span>
+                                  <span style={{ fontSize: '16px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.count}</span>
+                                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8' }}>ev.</span>
                                 </div>
+                                {money > 0 && (
+                                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#15803d', marginTop: '1px' }}>
+                                    {formatMoneyGT(money)}
+                                  </div>
+                                )}
                               </div>
                               {/* Mini bar */}
                               <div style={{ width: '40px', height: '6px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden', marginLeft: 'auto', flexShrink: 0 }}>

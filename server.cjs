@@ -5007,9 +5007,17 @@ async function start() {
         }
         const usuario_id = req.user.id || req.user.sub || '';
         conn = await pool.getConnection();
-        await conn.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
+        // INSERT ... ON DUPLICATE KEY UPDATE: atómico, no race condition.
+        // Si dos requests llegan al mismo tiempo, el segundo hace UPDATE en vez de fallar.
         await conn.query(
-          "INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth, user_agent) VALUES (?, ?, ?, ?, ?)",
+          `INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth, user_agent)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             usuario_id = VALUES(usuario_id),
+             p256dh = VALUES(p256dh),
+             auth = VALUES(auth),
+             user_agent = VALUES(user_agent),
+             actualizado_en = CURRENT_TIMESTAMP`,
           [
             str(usuario_id),
             subscription.endpoint,

@@ -1290,6 +1290,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               <p>Estamos sujetos a pagos trimestrales. Aplicamos Clausula de No Show.</p>
               <p>Esta propuesta se formaliza al tener la firma del asesor de ventas y del cliente, junto a comprobante de anticipo y/o orden de compra.</p>
               <p>No se reembolsa el anticipo si no realiza su evento por cualquier causa.</p>
+              <p>Cotización valida por 15 dias a partir de la fecha de emision. Precios sujetos a cambios sin previo aviso.</p>
             </div>
 
             <div class="cargoSummarySection">

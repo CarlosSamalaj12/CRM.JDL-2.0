@@ -4,15 +4,13 @@ import { loadState } from '../../services/stateService';
 import ReportInfo from './components/ReportInfo';
 
 const RATING_LEVELS = [
-  { value: 'malo', label: 'Malo', emoji: '🔴', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
-  { value: 'regular', label: 'Regular', emoji: '🟡', score: 5, color: '#eab308', bg: '#fffbeb' },
-  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 7.5, color: '#22c55e', bg: '#f0fdf4' },
   { value: 'excelente', label: 'Excelente', emoji: '💎', score: 10, color: '#a855f7', bg: '#faf5ff' },
+  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 7.5, color: '#22c55e', bg: '#f0fdf4' },
+  { value: 'regular', label: 'Regular', emoji: '🟡', score: 5, color: '#eab308', bg: '#fffbeb' },
+  { value: 'malo', label: 'Malo', emoji: '🔴', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
 ];
 
-const RATING_COLORS = {
-  malo: '#ef4444', regular: '#eab308', bueno: '#22c55e', excelente: '#a855f7',
-};
+const MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 function getRatingColor(avg) {
   if (avg >= 8.75) return '#22c55e';
@@ -35,6 +33,11 @@ function getRatingLabel(avg) {
   return 'Malo';
 }
 
+function fmtMonth(yyyymm) {
+  const [y, m] = yyyymm.split('-');
+  return `${MONTH_SHORT[parseInt(m, 10) - 1]} ${y.slice(2)}`;
+}
+
 export default function ReportsSatisfaccion({ onClose }) {
   const { events } = useOutletContext();
   const [fromDate, setFromDate] = useState(() => {
@@ -44,7 +47,7 @@ export default function ReportsSatisfaccion({ onClose }) {
   const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [viewTab, setViewTab] = useState('general');
 
-  // ── Load satisfaction data via inline fetch ──
+  // ── Load satisfaction data ──
   const [checklists, setChecklists] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +66,6 @@ export default function ReportsSatisfaccion({ onClose }) {
     if (loading || !events) return null;
 
     const results = [];
-
     for (const [evtId, chk] of Object.entries(checklists)) {
       const ev = Array.isArray(events) ? events.find(e => String(e.id) === evtId) : null;
       if (!ev) continue;
@@ -74,7 +76,6 @@ export default function ReportsSatisfaccion({ onClose }) {
         ? chk.evaluacion.items
         : (Array.isArray(chk?.items) ? chk.items.filter(i => i.sectionType === 'evaluacion') : []);
       const ratedItems = items.filter(i => i.rating !== null && i.rating !== undefined);
-
       if (ratedItems.length === 0) continue;
 
       const totalScore = ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0);
@@ -154,8 +155,6 @@ export default function ReportsSatisfaccion({ onClose }) {
         events: data.events,
       }));
   }, [satisfactionData]);
-
-  const formatMoneyGT = (v) => 'Q ' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleReset = () => {
     const d = new Date(); d.setMonth(d.getMonth() - 3);
@@ -245,7 +244,7 @@ export default function ReportsSatisfaccion({ onClose }) {
           </div>
         ) : (
           <>
-            {/* ── Hero KPI Cards ── */}
+            {/* ── Hero KPI Cards (4 columnas) ── */}
             <section className="reports-hero-panel" style={{ gap: '12px' }}>
               <div className="reports-section-intro">
                 <div>
@@ -254,126 +253,99 @@ export default function ReportsSatisfaccion({ onClose }) {
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
-                {/* Global average */}
-                <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: getRatingColor(metrics.globalAvg), gridColumn: 'span 2' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span className="reports-eyebrow">Calificación global</span>
-                    <span style={{ fontSize: '24px' }}>{getRatingEmoji(metrics.globalAvg)}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-                    <strong style={{ fontSize: '2.2rem', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>
+                {/* Calificación global */}
+                <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: getRatingColor(metrics.globalAvg), gridColumn: 'span 2', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', right: '-10px', top: '-10px', fontSize: '90px', opacity: 0.08 }}>{getRatingEmoji(metrics.globalAvg)}</div>
+                  <span className="reports-eyebrow">Calificación global</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '4px' }}>
+                    <strong style={{ fontSize: '2.4rem', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>
                       {metrics.globalAvg.toFixed(1)}
                     </strong>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: getRatingColor(metrics.globalAvg) }}>
-                      / 10.0 — {getRatingLabel(metrics.globalAvg)}
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: getRatingColor(metrics.globalAvg) }}>
+                      / 10.0
                     </span>
                   </div>
-                  <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', marginTop: '4px' }}>
-                    <div style={{ height: '100%', borderRadius: '999px', background: getRatingColor(metrics.globalAvg), width: `${(metrics.globalAvg / 10) * 100}%`, transition: 'width 0.5s ease' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <span style={{ fontSize: '20px' }}>{getRatingEmoji(metrics.globalAvg)}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: getRatingColor(metrics.globalAvg), textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {getRatingLabel(metrics.globalAvg)}
+                    </span>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                    Basado en {metrics.totalRatings} calificaciones de {metrics.totalEvents} eventos
+                  <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', marginTop: '8px' }}>
+                    <div style={{ height: '100%', borderRadius: '999px', background: `linear-gradient(90deg, ${getRatingColor(metrics.globalAvg)}, ${getRatingColor(metrics.globalAvg)}cc)`, width: `${(metrics.globalAvg / 10) * 100}%`, transition: 'width 0.5s ease' }} />
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>
+                    Basado en <strong>{metrics.totalRatings}</strong> calificaciones de <strong>{metrics.totalEvents}</strong> eventos
                   </div>
                 </div>
 
                 {/* Eventos evaluados */}
-                <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#6366f1' }}>
+                <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#6366f1', gap: '4px' }}>
                   <span className="reports-eyebrow">Eventos evaluados</span>
-                  <strong style={{ fontSize: '1.8rem', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>{metrics.totalEvents}</strong>
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>en el periodo</span>
+                  <strong style={{ fontSize: '2rem', fontWeight: '900', color: '#0f172a', lineHeight: 1, marginTop: '4px' }}>{metrics.totalEvents}</strong>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>en el periodo</span>
                 </div>
 
                 {/* Tendencia reciente */}
-                <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#3b82f6' }}>
+                <div className="bento-tile reports-kpi-tile" style={{ borderTopColor: '#3b82f6', gap: '4px' }}>
                   <span className="reports-eyebrow">Prom. últimos 10</span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                    <strong style={{ fontSize: '1.8rem', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>{metrics.recentAvg.toFixed(1)}</strong>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: metrics.recentAvg >= metrics.globalAvg ? '#16a34a' : '#dc2626' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px' }}>
+                    <strong style={{ fontSize: '2rem', fontWeight: '900', color: '#0f172a', lineHeight: 1 }}>{metrics.recentAvg.toFixed(1)}</strong>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: metrics.recentAvg >= metrics.globalAvg ? '#16a34a' : '#dc2626' }}>
                       {metrics.recentAvg >= metrics.globalAvg ? '↑' : '↓'}
                     </span>
                   </div>
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>vs global {metrics.globalAvg.toFixed(1)}</span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>vs global {metrics.globalAvg.toFixed(1)}</span>
                 </div>
               </div>
             </section>
 
-            {/* ── Distribution Chart ── */}
+            {/* ── Distribution (donut) + Monthly Trend (line chart) ── */}
             <section className="reports-hero-panel" style={{ gap: '12px' }}>
               <div className="reports-section-intro">
                 <div>
-                  <span className="reports-eyebrow">Distribución</span>
-                  <h3 className="reports-section-title">Desglose de calificaciones</h3>
+                  <span className="reports-eyebrow">Distribución y tendencia</span>
+                  <h3 className="reports-section-title">Calificaciones y evolución</h3>
                 </div>
               </div>
-              <div className="reports-charts-grid">
-                <div className="reports-chart-card">
-                  <div className="reports-chart-title">Proporción de ratings</div>
-                  <div className="reports-chart-subtitle">{metrics.totalRatings} calificaciones en total</div>
-                  <div style={{ display: 'flex', height: '24px', borderRadius: '12px', overflow: 'hidden', margin: '16px 0', gap: '3px' }}>
-                    {RATING_LEVELS.map(r => {
-                      const pct = metrics.totalRatings > 0 ? (metrics.totalDist[r.value] / metrics.totalRatings) * 100 : 0;
-                      if (pct === 0) return null;
-                      return (
-                        <div key={r.value} style={{
-                          height: '100%', width: `${pct}%`, background: r.color,
-                          borderRadius: '4px', transition: 'width 0.5s ease',
-                          minWidth: pct > 0 ? '4px' : '0',
-                        }} />
-                      );
-                    })}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)', gap: '14px' }}>
+                {/* Donut de distribución */}
+                <div className="bento-tile" style={{ padding: '20px', gap: '16px' }}>
+                  <div>
+                    <div className="reports-eyebrow">Proporción de ratings</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, marginTop: '2px' }}>{metrics.totalRatings} calificaciones en total</div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px' }}>
-                    {RATING_LEVELS.map(r => {
-                      const count = metrics.totalDist[r.value] || 0;
-                      const pct = metrics.totalRatings > 0 ? (count / metrics.totalRatings) * 100 : 0;
-                      return (
-                        <div key={r.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '8px', background: r.bg }}>
-                          <span style={{ fontWeight: 700, fontSize: '13px' }}>{r.emoji}</span>
-                          <span style={{ flex: 1, fontWeight: 700, color: r.color }}>{r.label}</span>
-                          <span style={{ fontWeight: 800, color: '#0f172a' }}>{count}</span>
-                          <span style={{ color: '#94a3b8' }}>({pct.toFixed(0)}%)</span>
-                        </div>
-                      );
-                    })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                    <DonutChart dist={metrics.totalDist} total={metrics.totalRatings} />
+                    <div style={{ flex: 1, minWidth: '160px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {RATING_LEVELS.map(r => {
+                        const count = metrics.totalDist[r.value] || 0;
+                        const pct = metrics.totalRatings > 0 ? (count / metrics.totalRatings) * 100 : 0;
+                        return (
+                          <div key={r.value} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: r.color, flex: 1 }}>{r.emoji} {r.label}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{count}</span>
+                            <span style={{ fontSize: '11px', color: '#94a3b8', minWidth: '38px', textAlign: 'right' }}>{pct.toFixed(0)}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                {/* Monthly trend */}
-                <div className="reports-chart-card">
-                  <div className="reports-chart-title">Tendencia mensual</div>
-                  <div className="reports-chart-subtitle">Evolución del promedio por mes</div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px', margin: '16px 0', padding: '0 8px' }}>
-                    {monthlyTrend.map(m => {
-                      const pct = (m.avg / 10) * 100;
-                      return (
-                        <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }}>
-                          <div style={{
-                            width: '100%', maxWidth: '40px',
-                            height: `${Math.max(8, pct)}%`,
-                            background: getRatingColor(m.avg),
-                            borderRadius: '6px 6px 0 0',
-                            transition: 'height 0.4s ease',
-                            position: 'relative',
-                          }}>
-                            <span style={{
-                              position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)',
-                              fontSize: '9px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap',
-                            }}>
-                              {m.avg.toFixed(1)}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8', whiteSpace: 'nowrap', transform: 'rotate(-45deg)', transformOrigin: 'left' }}>
-                            {m.month.substring(5, 7)}/{m.month.substring(2, 4)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                {/* Tendencia mensual (line chart) */}
+                <div className="bento-tile" style={{ padding: '20px', gap: '12px' }}>
+                  <div>
+                    <div className="reports-eyebrow">Tendencia mensual</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, marginTop: '2px' }}>Evolución del promedio por mes</div>
                   </div>
+                  <TrendChart data={monthlyTrend} />
                 </div>
               </div>
             </section>
 
-            {/* ── Per-point analysis ── */}
+            {/* ── Per-event detail ── */}
             <section className="reports-hero-panel" style={{ gap: '12px' }}>
               <div className="reports-section-intro">
                 <div>
@@ -450,6 +422,141 @@ export default function ReportsSatisfaccion({ onClose }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Donut Chart (SVG) ───
+function DonutChart({ dist, total }) {
+  const size = 160;
+  const stroke = 22;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const order = ['excelente', 'bueno', 'regular', 'malo'];
+  const levels = order.map(v => RATING_LEVELS.find(r => r.value === v));
+
+  if (total === 0) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
+      </svg>
+    );
+  }
+
+  let offset = 0;
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
+        {levels.map(lv => {
+          const cnt = dist[lv.value] || 0;
+          if (cnt === 0) return null;
+          const len = (cnt / total) * circumference;
+          const seg = (
+            <circle
+              key={lv.value}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={lv.color}
+              strokeWidth={stroke}
+              strokeDasharray={`${len} ${circumference - len}`}
+              strokeDashoffset={-offset}
+            />
+          );
+          offset += len;
+          return seg;
+        })}
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none',
+      }}>
+        <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total</span>
+        <span style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{total}</span>
+        <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>calificaciones</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Line / Area Chart (SVG) ───
+function TrendChart({ data }) {
+  if (!data || data.length === 0) {
+    return <div style={{ padding: '20px', color: '#94a3b8', fontWeight: 700, textAlign: 'center' }}>Sin datos para graficar.</div>;
+  }
+
+  const W = 560;
+  const H = 200;
+  const padL = 36;
+  const padR = 16;
+  const padT = 16;
+  const padB = 36;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  const yMax = 10;
+  const yMin = 0;
+  const points = data.map((d, i) => {
+    const x = data.length === 1 ? padL + innerW / 2 : padL + (i / (data.length - 1)) * innerW;
+    const y = padT + (1 - (d.avg - yMin) / (yMax - yMin)) * innerH;
+    return { x, y, d };
+  });
+
+  // Smooth path with Catmull-Rom-ish line
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L${points[points.length - 1].x.toFixed(1)} ${padT + innerH} L${points[0].x.toFixed(1)} ${padT + innerH} Z`;
+
+  const lastAvg = data[data.length - 1]?.avg || 0;
+  const lineColor = getRatingColor(lastAvg);
+
+  // Y axis labels (0, 5, 10)
+  const yLabels = [0, 5, 10];
+
+  return (
+    <div style={{ width: '100%', overflow: 'hidden' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+        <defs>
+          <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={lineColor} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Gridlines + Y labels */}
+        {yLabels.map(v => {
+          const y = padT + (1 - (v - yMin) / (yMax - yMin)) * innerH;
+          return (
+            <g key={v}>
+              <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#e2e8f0" strokeDasharray="3 4" />
+              <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="10" fontWeight="700" fill="#94a3b8">{v}</text>
+            </g>
+          );
+        })}
+
+        {/* Area */}
+        <path d={areaPath} fill="url(#trendFill)" />
+
+        {/* Line */}
+        <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Points */}
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke={lineColor} strokeWidth="2.5" />
+            <text x={p.x} y={p.y - 12} textAnchor="middle" fontSize="11" fontWeight="800" fill="#0f172a">{p.d.avg.toFixed(1)}</text>
+          </g>
+        ))}
+
+        {/* X labels */}
+        {points.map((p, i) => (
+          <text key={`x${i}`} x={p.x} y={H - padB + 18} textAnchor="middle" fontSize="10" fontWeight="700" fill="#64748b">
+            {fmtMonth(p.d.month)}
+          </text>
+        ))}
+      </svg>
     </div>
   );
 }
