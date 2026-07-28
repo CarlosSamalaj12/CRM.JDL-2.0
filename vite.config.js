@@ -2,28 +2,33 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Lee dist/version.json si existe (lo escribe bump-sw-version.cjs después del build).
 // En dev (npm run dev) no existe aún → usamos "0.0.0-dev".
 function getBuildVersion() {
   try {
-    const pubPath = path.join(process.cwd(), 'public', 'version.json');
+    const pubPath = path.resolve(__dirname, 'public', 'version.json');
     if (fs.existsSync(pubPath)) {
       const v = JSON.parse(fs.readFileSync(pubPath, 'utf8'));
       if (v.version) return v.version;
     }
-    const distPath = path.join(process.cwd(), 'dist', 'version.json');
+    const distPath = path.resolve(__dirname, 'dist', 'version.json');
     if (fs.existsSync(distPath)) {
       const v = JSON.parse(fs.readFileSync(distPath, 'utf8'));
       if (v.version) return v.version;
     }
-    const swPath = path.join(process.cwd(), 'public', 'sw.js');
+    const swPath = path.resolve(__dirname, 'public', 'sw.js');
     if (fs.existsSync(swPath)) {
       const content = fs.readFileSync(swPath, 'utf8');
       const match = content.match(/const\s+VERSION\s*=\s*'([^']+)'/);
       if (match && match[1]) return match[1];
     }
-  } catch {}
+  } catch (err) {
+    console.error('[vite.config.js] Error en getBuildVersion:', err);
+  }
   return '0.0.0-dev';
 }
 
