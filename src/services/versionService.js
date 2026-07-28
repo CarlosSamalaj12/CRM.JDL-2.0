@@ -74,10 +74,9 @@ export async function fetchServerVersion() {
 export function evaluateUpdate(serverInfo) {
   if (!serverInfo) return { needsUpdate: false };
 
-  // Modo dev: la versión local es "0.0.0-dev" o estamos en Vite dev mode.
-  // No mostrar el modal/banner en dev para que no aparezca cada vez que recargas.
+  // Modo dev: la versión local es "0.0.0-dev" (no es comparable contra el server).
+  // No mostrar el modal/banner si la versión tiene el prefijo de desarrollo limpio.
   if (
-    import.meta.env.DEV ||
     CURRENT_VERSION === '0.0.0-dev' ||
     CURRENT_VERSION.startsWith('0.0.0-')
   ) {
