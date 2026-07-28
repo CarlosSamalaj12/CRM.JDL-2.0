@@ -2,6 +2,13 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import ReportInfo from './components/ReportInfo';
+import MultiSelect from './components/MultiSelect';
+
+const PENDING_STATUSES = [
+  'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
+  'Lista de Espera', 'Pre reserva'
+];
+const PENDING_STATUS_SET = new Set(PENDING_STATUSES);
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -34,7 +41,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
   const [sortBy, setSortBy] = useState('name');
-  const [userFilter, setUserFilter] = useState('all'); // 'amount' | 'events' | 'name'
+  const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
 
   // ── Generate months ──
   const monthList = useMemo(() => {
@@ -58,25 +65,27 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     return months;
   }, [fromDate, toDate]);
 
-  // ── Aggregate confirmed events by user ──
+  // ── Aggregate confirmed + pending events by user ──
   const userData = useMemo(() => {
     if (!events || !monthList.length) return [];
 
     const from = monthList[0].key + '-01';
     const to = monthList[monthList.length - 1].key + '-' + String(monthList[monthList.length - 1].daysInMonth).padStart(2, '0');
 
-    // Aggregate by userId (deduplicando por groupId)
-    const userAgg = {}; // { userId: { count, totalAmount, monthBreakdown: { "YYYY-MM": { count, amount } } } }
+    const userAgg = {};
     const seenReservations = new Set();
 
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < from || d > to) continue;
-      if (String(ev.status || '').trim() !== 'Confirmado') continue;
+      const status = String(ev.status || '').trim();
+      const isConfirmed = status === 'Confirmado';
+      const isPending = PENDING_STATUS_SET.has(status);
+      if (!isConfirmed && !isPending) continue;
 
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
-      if (userFilter !== 'all' && userId !== userFilter) continue;
+      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
       const groupKey = ev.groupId || ev.id;
       if (seenReservations.has(groupKey)) continue;
@@ -86,16 +95,33 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
       const amount = Math.max(0, Number(ev.quote?.total || 0));
 
       if (!userAgg[userId]) {
-        userAgg[userId] = { count: 0, totalAmount: 0, monthBreakdown: {} };
+        userAgg[userId] = {
+          count: 0, totalAmount: 0,
+          pendingCount: 0, pendingAmount: 0,
+          monthBreakdown: {}
+        };
       }
-      userAgg[userId].count += 1;
-      userAgg[userId].totalAmount += amount;
+      if (isConfirmed) {
+        userAgg[userId].count += 1;
+        userAgg[userId].totalAmount += amount;
+      } else if (isPending) {
+        userAgg[userId].pendingCount += 1;
+        userAgg[userId].pendingAmount += amount;
+      }
 
       if (!userAgg[userId].monthBreakdown[monthKey]) {
-        userAgg[userId].monthBreakdown[monthKey] = { count: 0, amount: 0 };
+        userAgg[userId].monthBreakdown[monthKey] = {
+          count: 0, amount: 0,
+          pendingCount: 0, pendingAmount: 0,
+        };
       }
-      userAgg[userId].monthBreakdown[monthKey].count += 1;
-      userAgg[userId].monthBreakdown[monthKey].amount += amount;
+      if (isConfirmed) {
+        userAgg[userId].monthBreakdown[monthKey].count += 1;
+        userAgg[userId].monthBreakdown[monthKey].amount += amount;
+      } else if (isPending) {
+        userAgg[userId].monthBreakdown[monthKey].pendingCount += 1;
+        userAgg[userId].monthBreakdown[monthKey].pendingAmount += amount;
+      }
     }
 
     const userIds = Object.keys(userAgg);
@@ -103,7 +129,6 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
 
     const totalAmountAll = userIds.reduce((sum, id) => sum + userAgg[id].totalAmount, 0);
 
-    // Build result array with user info
     const result = userIds.map(userId => {
       const user = (users || []).find(u => String(u.id) === userId);
       const name = user?.fullName || user?.name || userId;
@@ -113,13 +138,14 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
         name,
         count: agg.count,
         totalAmount: agg.totalAmount,
+        pendingCount: agg.pendingCount,
+        pendingAmount: agg.pendingAmount,
         pct: totalAmountAll > 0 ? (agg.totalAmount / totalAmountAll) * 100 : 0,
         avgAmount: agg.count > 0 ? agg.totalAmount / agg.count : 0,
         monthBreakdown: agg.monthBreakdown,
       };
     });
 
-    // Sort
     result.sort((a, b) => {
       if (sortBy === 'amount') return b.totalAmount - a.totalAmount;
       if (sortBy === 'events') return b.count - a.count;
@@ -136,11 +162,15 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     return monthList.map(m => {
       let monthCount = 0;
       let monthAmount = 0;
+      let monthPendingCount = 0;
+      let monthPendingAmount = 0;
       for (const u of userData) {
         const b = u.monthBreakdown[m.key];
         if (b) {
           monthCount += b.count;
           monthAmount += b.amount;
+          monthPendingCount += b.pendingCount || 0;
+          monthPendingAmount += b.pendingAmount || 0;
         }
       }
       return {
@@ -150,13 +180,16 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
         year: m.year,
         count: monthCount,
         totalAmount: monthAmount,
-        // Per-user breakdown for this month
+        pendingCount: monthPendingCount,
+        pendingAmount: monthPendingAmount,
         userRows: userData.map(u => ({
           userId: u.userId,
           name: u.name,
           count: u.monthBreakdown[m.key]?.count || 0,
           amount: u.monthBreakdown[m.key]?.amount || 0,
-        })).filter(r => r.count > 0),
+          pendingCount: u.monthBreakdown[m.key]?.pendingCount || 0,
+          pendingAmount: u.monthBreakdown[m.key]?.pendingAmount || 0,
+        })).filter(r => r.count > 0 || r.pendingCount > 0),
       };
     });
   }, [userData, monthList]);
@@ -164,8 +197,10 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   // ── Aggregated KPIs ──
   const totalConfirmedEvents = useMemo(() => userData.reduce((s, u) => s + u.count, 0), [userData]);
   const totalAmount = useMemo(() => userData.reduce((s, u) => s + u.totalAmount, 0), [userData]);
+  const totalPendingEvents = useMemo(() => userData.reduce((s, u) => s + u.pendingCount, 0), [userData]);
+  const totalPendingAmount = useMemo(() => userData.reduce((s, u) => s + u.pendingAmount, 0), [userData]);
   const totalUsers = userData.length;
-  const maxAmount = useMemo(() => userData.length > 0 ? Math.max(...userData.map(u => u.totalAmount)) : 0, [userData]);
+  const maxAmount = useMemo(() => userData.length > 0 ? Math.max(...userData.map(u => u.totalAmount + u.pendingAmount)) : 0, [userData]);
 
   // Top seller
   const topSeller = useMemo(() => {
@@ -371,19 +406,17 @@ th.right{text-align:right}</style></head><body>
             </label>
 
             {/* User filter */}
-            <label className="field" style={{ flex: '0 0 150px' }}>
-              <span>Vendedor</span>
-              <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{
-                fontSize: '11px', fontWeight: 700, padding: '6px 8px',
-                borderRadius: '8px', border: '1.5px solid #e2e8f0',
-                background: 'white', cursor: 'pointer',
-              }}>
-                <option value="all">Todos</option>
-                {sellerUsers.map(u => (
-                  <option key={u.id} value={String(u.id)}>{u.fullName || u.name || u.username}</option>
-                ))}
-              </select>
-            </label>
+            <div className="field" style={{ flex: '0 0 240px' }}>
+              <MultiSelect
+                selected={userFilter}
+                onChange={setUserFilter}
+                options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || u.username }))}
+                placeholder="Vendedor"
+                emptyLabel="Todos"
+                searchable
+                width="100%"
+              />
+            </div>
 
             {/* Export button */}
             <button type="button" onClick={handleExportExcel} style={{
@@ -407,11 +440,13 @@ th.right{text-align:right}</style></head><body>
             {/* Mini KPI chips */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📋 <strong style={{ color: '#0f172a' }}>{totalConfirmedEvents}</strong> {totalConfirmedEvents === 1 ? 'evento confirmado' : 'eventos confirmados'}
+                ✅ <strong style={{ color: '#10b981' }}>{totalConfirmedEvents}</strong> confirmados · <strong style={{ color: '#0f172a' }}>{formatMoney(totalAmount)}</strong>
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                💰 <strong style={{ color: '#0f172a' }}>{formatMoney(totalAmount)}</strong>
-              </span>
+              {totalPendingEvents > 0 && (
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  ⏳ <strong style={{ color: '#f59e0b' }}>{totalPendingEvents}</strong> pendientes · <strong style={{ color: '#0f172a' }}>{formatMoney(totalPendingAmount)}</strong>
+                </span>
+              )}
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 👤 <strong style={{ color: '#0f172a' }}>{totalUsers}</strong> {totalUsers === 1 ? 'vendedor' : 'vendedores'}
               </span>
@@ -446,20 +481,15 @@ th.right{text-align:right}</style></head><body>
             {/* Legend */}
             <div style={{ display: 'flex', gap: '14px', fontSize: '10px', fontWeight: 700, color: '#64748b', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} /> ≥40%
+                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} /> Confirmado
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#3b82f6', display: 'inline-block' }} /> 20-39%
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#60a5fa', display: 'inline-block' }} /> 10-19%
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#a5b4fc', display: 'inline-block' }} /> {'<10%'}
+                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 3px, #f59e0b99 3px, #f59e0b99 6px)', display: 'inline-block', border: '1px solid #f59e0b' }} /> Pendiente
               </span>
               {totalAmount > 0 && (
                 <span style={{ marginLeft: '4px', color: '#94a3b8', fontStyle: 'italic' }}>
-                  Total: <strong>{formatMoney(totalAmount)}</strong>
+                  Total confirmado: <strong>{formatMoney(totalAmount)}</strong>
+                  {totalPendingAmount > 0 && <> · Pendiente: <strong style={{ color: '#f59e0b' }}>{formatMoney(totalPendingAmount)}</strong></>}
                 </span>
               )}
             </div>
@@ -505,8 +535,12 @@ th.right{text-align:right}</style></head><body>
                 ) : (
                   userData.map((u, i) => {
                     const isHovered = hoveredBar === i;
-                    const pctOfMax = maxAmount > 0 ? (u.totalAmount / maxAmount) * 100 : 0;
+                    const totalForBar = u.totalAmount + u.pendingAmount;
+                    const pctOfMax = maxAmount > 0 ? (totalForBar / maxAmount) * 100 : 0;
+                    const confirmedPctOfBar = totalForBar > 0 ? (u.totalAmount / totalForBar) * 100 : 0;
+                    const pendingPctOfBar = totalForBar > 0 ? (u.pendingAmount / totalForBar) * 100 : 0;
                     const barColor = getBarColor(u.pct, isHovered);
+                    const pendingColor = '#f59e0b';
 
                     return (
                       <div
@@ -530,36 +564,71 @@ th.right{text-align:right}</style></head><body>
                         }}
                         onMouseLeave={() => { setHoveredBar(null); setHoveredBarPos(null); }}
                       >
-                        {/* Amount label above bar */}
+                        {/* Amount labels above bar: confirmado + pendiente */}
                         <div style={{
-                          fontSize: u.totalAmount > 0 ? '10px' : '0',
-                          fontWeight: 900, color: barColor,
-                          lineHeight: 1, marginBottom: '3px',
-                          opacity: isHovered || u.pct > 30 ? 1 : 0.7,
-                          transition: 'all 0.15s ease',
-                          transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px',
+                          marginBottom: '3px', minHeight: '24px',
                         }}>
-                          {u.totalAmount > 0 ? formatMoney(u.totalAmount) : ''}
+                          {u.totalAmount > 0 && (
+                            <div style={{
+                              fontSize: '10px', fontWeight: 900, color: barColor,
+                              lineHeight: 1,
+                              opacity: isHovered || u.pct > 30 ? 1 : 0.85,
+                              transition: 'all 0.15s ease',
+                              transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                            }}>
+                              {formatMoney(u.totalAmount)}
+                            </div>
+                          )}
+                          {u.pendingAmount > 0 && (
+                            <div style={{
+                              fontSize: '9px', fontWeight: 800, color: pendingColor,
+                              lineHeight: 1,
+                              opacity: isHovered ? 1 : 0.75,
+                            }}>
+                              + {formatMoney(u.pendingAmount)} ⏳
+                            </div>
+                          )}
                         </div>
 
-                        {/* The bar */}
+                        {/* The bar (apilado: confirmado + pendiente) */}
                         <div style={{
                           width: '80%',
                           height: `${Math.max(pctOfMax > 0 ? Math.max(4, pctOfMax) : 0, 0)}%`,
-                          background: u.totalAmount === 0
-                            ? '#f1f5f9'
-                            : `linear-gradient(180deg, ${barColor}, ${barColor}dd)`,
-                          borderRadius: '4px 4px 0 0',
+                          display: 'flex', flexDirection: 'column',
+                          borderRadius: '4px 4px 0 0', overflow: 'hidden',
                           transition: 'opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, transform 0.15s ease',
                           opacity: i < visibleBars ? 1 : (animationPhase === 'initial' ? 0 : 1),
-                          boxShadow: u.totalAmount > 0
-                            ? (isHovered ? `0 0 12px ${barColor}50, inset 0 1px 0 rgba(255,255,255,0.3)` : `inset 0 1px 0 rgba(255,255,255,0.3)`)
+                          boxShadow: totalForBar > 0
+                            ? (isHovered ? `0 0 12px ${barColor}50` : `inset 0 1px 0 rgba(255,255,255,0.3)`)
                             : 'none',
-                          transform: isHovered && u.totalAmount > 0 ? 'scaleX(1.1)' : 'scaleX(1)',
-                          minHeight: u.totalAmount > 0 ? '4px' : '2px',
-                        }} />
+                          transform: isHovered && totalForBar > 0 ? 'scaleX(1.1)' : 'scaleX(1)',
+                          minHeight: totalForBar > 0 ? '4px' : '2px',
+                        }}>
+                          {/* Segmento confirmado (abajo) */}
+                          {totalForBar > 0 && (
+                            <div style={{
+                              width: '100%',
+                              height: `${Math.max(confirmedPctOfBar, 0)}%`,
+                              background: u.totalAmount === 0
+                                ? '#f1f5f9'
+                                : `linear-gradient(180deg, ${barColor}, ${barColor}dd)`,
+                              minHeight: u.totalAmount > 0 ? '4px' : '0',
+                            }} />
+                          )}
+                          {/* Segmento pendiente (arriba) */}
+                          {u.pendingAmount > 0 && (
+                            <div style={{
+                              width: '100%',
+                              height: `${pendingPctOfBar}%`,
+                              background: `repeating-linear-gradient(45deg, ${pendingColor}, ${pendingColor} 6px, ${pendingColor}cc 6px, ${pendingColor}cc 12px)`,
+                              borderTop: `1.5px dashed ${pendingColor}`,
+                              minHeight: '4px',
+                            }} />
+                          )}
+                        </div>
 
-                        {/* Name + count at bottom */}
+                        {/* Name + breakdown at bottom */}
                         <div style={{
                           fontSize: '9px',
                           fontWeight: 700,
@@ -578,8 +647,13 @@ th.right{text-align:right}</style></head><body>
                           color: '#94a3b8',
                           position: 'absolute', bottom: '-30px', left: 0, right: 0,
                           textAlign: 'center',
+                          lineHeight: 1.2,
                         }}>
-                          {u.count} {u.count === 1 ? 'ev' : 'evs'} · {Math.round(u.pct)}%
+                          <span style={{ color: barColor, fontWeight: 800 }}>{u.count}c</span>
+                          {u.pendingCount > 0 && (
+                            <span style={{ color: pendingColor, fontWeight: 800 }}> · {u.pendingCount}p</span>
+                          )}
+                          {' · '}{Math.round(u.pct)}%
                         </div>
                       </div>
                     );
@@ -617,11 +691,15 @@ th.right{text-align:right}</style></head><body>
                     {u.name}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px', color: '#cbd5e1' }}>
-                    <span style={{ color: '#94a3b8' }}>💰 Total</span>
-                    <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(u.totalAmount)}</span>
-                    <span style={{ color: '#94a3b8' }}>📋 Eventos</span>
-                    <span style={{ fontWeight: 700, color: '#fff' }}>{u.count}</span>
-                    <span style={{ color: '#94a3b8' }}>📊 Porcentaje</span>
+                    <span style={{ color: '#10b981' }}>✅ Confirmado</span>
+                    <span style={{ fontWeight: 800, color: '#10b981' }}>{u.count} ev · {formatMoney(u.totalAmount)}</span>
+                    {u.pendingCount > 0 && (
+                      <>
+                        <span style={{ color: '#fbbf24' }}>⏳ Pendiente</span>
+                        <span style={{ fontWeight: 800, color: '#fbbf24' }}>{u.pendingCount} ev · {formatMoney(u.pendingAmount)}</span>
+                      </>
+                    )}
+                    <span style={{ color: '#94a3b8' }}>📊 % del total</span>
                     <span style={{ fontWeight: 800, color: '#60a5fa' }}>{Math.round(u.pct)}%</span>
                     <span style={{ color: '#94a3b8' }}>📈 Promedio</span>
                     <span style={{ fontWeight: 700, color: '#fff' }}>{formatMoney(u.avgAmount)} / evento</span>

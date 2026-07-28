@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { loadState } from '../../services/stateService';
 import ReportInfo from './components/ReportInfo';
+import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 
 const STATUS = { CONFIRMADO: 'Confirmado', PRERESERVA: 'Pre reserva' };
 const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
@@ -50,7 +51,6 @@ export default function ReportsDashboard({ onClose }) {
   const [role, setRole] = useState(USER_ROLES.SELLER);
   const [scope, setScope] = useState('all');
   const [selectedSellerId, setSelectedSellerId] = useState('');
-  const [hoveredStatusSeg, setHoveredStatusSeg] = useState(null); // { monthIdx, segIdx }
 
   // ── Satisfaction data ──
   const [checklists, setChecklists] = useState({});
@@ -77,9 +77,24 @@ export default function ReportsDashboard({ onClose }) {
   const getMonthName = (m) => ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m-1] || '';
   const getRoleLabel = (r) => r === USER_ROLES.SELLER ? 'Vendedor' : 'Recepcionista';
 
+  // Formato corto dd-mm-yy para el label del rango
+  const fmtShort = (iso) => {
+    if (!iso) return '';
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return iso;
+    return `${m[3]}-${m[2]}-${m[1].slice(2)}`;
+  };
+
   const getDateRange = useCallback(() => {
-    if (!fromDate || !toDate) { const [y,m] = monthKey.split('-'); const s = new Date(parseInt(y), parseInt(m)-1, 1); const e = new Date(parseInt(y), parseInt(m), 0); return { from: s.toISOString().split('T')[0], to: e.toISOString().split('T')[0], label: `${getMonthName(parseInt(m))} de ${monthKey.split('-')[0]}` }; }
-    return { from: fromDate, to: toDate, label: `${fromDate} - ${toDate}` };
+    if (!fromDate || !toDate) {
+      const [y,m] = monthKey.split('-');
+      const s = new Date(parseInt(y), parseInt(m)-1, 1);
+      const e = new Date(parseInt(y), parseInt(m), 0);
+      const fromIso = s.toISOString().split('T')[0];
+      const toIso = e.toISOString().split('T')[0];
+      return { from: fromIso, to: toIso, label: `${fmtShort(fromIso)} → ${fmtShort(toIso)}` };
+    }
+    return { from: fromDate, to: toDate, label: `${fmtShort(fromDate)} → ${fmtShort(toDate)}` };
   }, [monthKey, fromDate, toDate]);
 
   const filteredUsers = useMemo(() => (users||[]).filter(u => String(u.role||'').toLowerCase() === (role === USER_ROLES.SELLER ? 'vendedor' : 'recepcionista')), [users, role]);
@@ -94,7 +109,24 @@ export default function ReportsDashboard({ onClose }) {
       const key = ev.groupId || ev.id;
       if (seenGroups.has(key)) continue;
       seenGroups.add(key);
-      rows.push({ userId: String(ev.userId||''), status: ev.status, eventDate: ev.date, salon: ev.salon||'', total: Math.max(0, ev.quote?.totalGtq || ev.quote?.total||0), type: (ev.quote?.eventType||ev.name||'').toLowerCase().includes('corporativo') ? 'corp' : (ev.quote?.eventType||ev.name||'').toLowerCase().includes('social') ? 'social' : 'otro', monthKey: ev.date?.substring(0,7) });
+
+      // Mismo cálculo que ReportsVentas: usar el primaryEvent (slot del salón principal)
+      // para que la cotización refleje la reserva completa.
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const quote = primaryEvent?.quote || ev?.quote || {};
+      const typeSrc = (quote?.eventType || primaryEvent?.name || ev?.name || '').toLowerCase();
+      const total = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+
+      rows.push({
+        userId: String(primaryEvent?.userId || ev?.userId || ''),
+        status: primaryEvent?.status || ev?.status || '',
+        eventDate: primaryEvent?.date || ev?.date || '',
+        salon: financialMeta.mainSalon || primaryEvent?.salon || ev?.salon || '',
+        total,
+        type: typeSrc.includes('corporativo') ? 'corp' : typeSrc.includes('social') ? 'social' : 'otro',
+        monthKey: (primaryEvent?.date || ev?.date || '').substring(0, 7)
+      });
     }
     return rows;
   }, [events, getDateRange]);
@@ -120,11 +152,30 @@ export default function ReportsDashboard({ onClose }) {
   const pProg = personalGoal ? (personalAchieved/personalGoal)*100 : 0;
 
   // ── Settings Global Monthly Goal (from Settings → Metas Globales) ──
+  // Se auto-detecta del rango: si el rango es 1 mes, usa la meta de ese mes.
+  // Si es multi-mes, suma las metas de todos los meses incluidos.
+  // Si no hay rango custom, usa el monthKey directamente.
   const settingsGlobalGoal = useMemo(() => {
     if (globalGoalsLoading || !globalMonthlyGoals.length) return null;
-    const goal = globalMonthlyGoals.find(g => g.month === monthKey);
-    return goal ? { amount: goal.amount, active: goal.active !== false } : null;
-  }, [globalMonthlyGoals, monthKey, globalGoalsLoading]);
+    const { from, to } = getDateRange();
+    // Listar todos los meses (YYYY-MM) que cubre el rango [from, to]
+    const months = [];
+    const start = new Date(from + 'T00:00:00');
+    const end = new Date(to + 'T00:00:00');
+    const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cur <= end) {
+      months.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`);
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    // Sumar las metas de los meses incluidos (solo los activos)
+    const goalsInRange = months
+      .map(m => globalMonthlyGoals.find(g => g.month === m))
+      .filter(Boolean)
+      .filter(g => g.active !== false);
+    const totalAmount = goalsInRange.reduce((a, g) => a + (g.amount || 0), 0);
+    if (totalAmount <= 0) return null;
+    return { amount: totalAmount, monthsCount: months.length, months };
+  }, [globalMonthlyGoals, getDateRange, globalGoalsLoading]);
   const settingsGoalAmount = settingsGlobalGoal?.amount || 0;
   const settingsGoalProgress = settingsGoalAmount > 0 ? (globalAchieved / settingsGoalAmount) * 100 : 0;
 
@@ -140,10 +191,29 @@ export default function ReportsDashboard({ onClose }) {
   }, [filteredRows]);
 
   const sellerMetrics = useMemo(() => {
+    const statusList = statusMeta(); // [ {k, l, c}, ... ]
     return filteredUsers.filter(u => !scope || scope==='all' || u.id === selectedSellerId).map(s => {
       const sr = filteredRows.filter(r => r.userId === s.id);
       const cr = sr.filter(r => r.status === STATUS.CONFIRMADO);
-      return { id: s.id, name: s.fullName||s.name||getRoleLabel(role), total: sr.length, confirmed: cr.length, amount: cr.reduce((a,b) => a+b.total, 0) };
+      // Desglose por estado: { statusKey, label, color, count, amount }
+      const breakdown = statusList.map(m => {
+        const statusRows = sr.filter(r => r.status === m.k);
+        return {
+          statusKey: m.k,
+          label: m.l,
+          color: m.c,
+          count: statusRows.length,
+          amount: statusRows.reduce((a, b) => a + b.total, 0),
+        };
+      }).filter(b => b.count > 0);
+      return {
+        id: s.id,
+        name: s.fullName||s.name||getRoleLabel(role),
+        total: sr.length,
+        confirmed: cr.length,
+        amount: cr.reduce((a,b) => a+b.total, 0),
+        breakdown,
+      };
     }).sort((a,b) => b.amount - a.amount);
   }, [filteredUsers, filteredRows, scope, selectedSellerId, role]);
   const maxAmt = Math.max(1, ...sellerMetrics.map(s => s.amount));
@@ -152,7 +222,9 @@ export default function ReportsDashboard({ onClose }) {
     const labels = { corp: 'Corporativo', social: 'Social', otro: 'Otro' };
     const colors = { corp: '#2563eb', social: '#10c972', otro: '#f59e0b' };
     const totals = { corp: { count: 0, amount: 0 }, social: { count: 0, amount: 0 }, otro: { count: 0, amount: 0 } };
-    filteredRows.forEach((row) => {
+    // Mismo criterio que el "Total Venta" global: solo eventos Confirmados
+    // de usuarios que tienen meta habilitada (salesTargetEnabled).
+    rowsWithGoal.filter(r => r.status === STATUS.CONFIRMADO).forEach((row) => {
       const key = totals[row.type] ? row.type : 'otro';
       totals[key].count += 1;
       totals[key].amount += Number(row.total || 0);
@@ -161,7 +233,7 @@ export default function ReportsDashboard({ onClose }) {
     return Object.entries(totals).map(([key, item]) => ({
       key, label: labels[key], color: colors[key], count: item.count, amount: item.amount, pct: (item.amount / max) * 100
     }));
-  }, [filteredRows]);
+  }, [rowsWithGoal]);
 
   // ── Satisfaction metrics ──
   const satisfactionData = useMemo(() => {
@@ -201,57 +273,6 @@ export default function ReportsDashboard({ onClose }) {
 
   const handleReset = () => { const n = new Date(); setMonthKey(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`); setFromDate(''); setToDate(''); setRole(USER_ROLES.SELLER); setScope('all'); setSelectedSellerId(''); };
 
-  // ── Status monthly distribution (stacked bar) ──
-  const statusMonthlyData = useMemo(() => {
-    if (!events) return [];
-    const { from, to } = getDateRange();
-    const start = new Date(from + 'T00:00:00');
-    const end = new Date(to + 'T00:00:00');
-    // Build month list from range
-    const months = [];
-    const cur = new Date(start.getFullYear(), start.getMonth(), 1);
-    while (cur <= end) {
-      const y = cur.getFullYear();
-      const m = cur.getMonth();
-      months.push({
-        key: `${y}-${String(m + 1).padStart(2, '0')}`,
-        monthName: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m],
-        monthShort: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m],
-      });
-      cur.setMonth(cur.getMonth() + 1);
-    }
-    if (!months.length) return [];
-
-    const fromFull = months[0].key + '-01';
-    const lastMonthKey = months[months.length - 1].key;
-    const toFull = lastMonthKey + '-' + String(new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]), 0).getDate()).padStart(2, '0');
-
-    const monthStatusCounts = {};
-    const monthTotals = {};
-    for (const ev of events) {
-      const d = String(ev.date || '');
-      if (!d || d < fromFull || d > toFull) continue;
-      const monthKey = d.substring(0, 7);
-      const status = String(ev.status || 'Reserva sin Cotizacion').trim();
-      if (!monthStatusCounts[monthKey]) { monthStatusCounts[monthKey] = {}; monthTotals[monthKey] = 0; }
-      monthStatusCounts[monthKey][status] = (monthStatusCounts[monthKey][status] || 0) + 1;
-      monthTotals[monthKey] = (monthTotals[monthKey] || 0) + 1;
-    }
-
-    return months.map(m => {
-      const counts = monthStatusCounts[m.key] || {};
-      const total = monthTotals[m.key] || 0;
-      const segments = STATUS_META.map(s => ({
-        statusKey: s.key, label: s.label, color: s.color,
-        count: counts[s.key] || 0,
-        pct: total > 0 ? ((counts[s.key] || 0) / total) * 100 : 0,
-      })).filter(s => s.count > 0);
-      // Sort: larger pct first for visual clarity
-      segments.sort((a, b) => b.pct - a.pct);
-      return { monthKey: m.key, monthName: m.monthName, monthShort: m.monthShort, total, segments };
-    });
-  }, [events, getDateRange]);
-
   const visSeg = statusSummary.seg.filter(s => s.count > 0);
   const dateRange = getDateRange();
 
@@ -275,19 +296,6 @@ export default function ReportsDashboard({ onClose }) {
       label: 'Pendiente Global', value: formatMoneyGT(Math.max(0,settingsGoalAmount-globalAchieved)),
       trend: globalAchieved >= settingsGoalAmount ? 'Superada' : '',
       accent: globalAchieved >= settingsGoalAmount ? '#16a34a' : '#e11d48',
-    },
-    {
-      label: 'Meta Personal', value: formatMoneyGT(personalGoal),
-      trend: `${pProg.toFixed(1)}%`, trendColor: pProg>=100 ? '#15803d' : pProg>=80 ? '#b45309' : '#1d4ed8',
-      trendBg: pProg>=100 ? '#dcfce7' : pProg>=80 ? '#fef3c7' : '#eff6ff',
-      accent: pProg>=100 ? '#16a34a' : pProg>=80 ? '#f59e0b' : '#2563eb',
-      subtitle: focusedUser?.fullName || getRoleLabel(role),
-    },
-    {
-      label: 'Pendiente Personal', value: formatMoneyGT(Math.max(0,personalGoal-personalAchieved)),
-      trend: personalAchieved >= personalGoal ? 'Superada' : '',
-      accent: personalAchieved >= personalGoal ? '#16a34a' : '#e11d48',
-      subtitle: focusedUser?.fullName || getRoleLabel(role),
     },
   ];
 
@@ -931,152 +939,6 @@ export default function ReportsDashboard({ onClose }) {
           );
         })()}
 
-        {/* ── 3.7. Eficiencia por Estado (stacked bar) ── */}
-        {statusMonthlyData.length > 0 && (
-          <section className="reports-hero-panel" style={{ gap: '8px' }}>
-            <div className="reports-section-intro">
-              <div>
-                <span className="reports-eyebrow">Eficiencia por Estado</span>
-                <h3 className="reports-section-title">Distribución mensual de eventos</h3>
-                <p className="reports-section-text">Cada barra es un mes. Pasa el mouse sobre los segmentos.</p>
-              </div>
-            </div>
-            <div style={{
-              background: '#ffffff', borderRadius: '12px', padding: '16px 16px 20px',
-              border: '1px solid #f1f5f9',
-            }}>
-              {/* Mini legend */}
-              <div style={{ display: 'flex', gap: '8px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
-                {STATUS_META.map(s => {
-                  const totalCount = statusMonthlyData.reduce((sum, m) => sum + (m.segments.find(seg => seg.statusKey === s.key)?.count || 0), 0);
-                  if (totalCount === 0) return null;
-                  return (
-                    <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: s.color, display: 'inline-block' }} />
-                      {s.label}
-                    </span>
-                  );
-                })}
-              </div>
-              {/* Stacked chart — Horizontal */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {statusMonthlyData.map((mData, mIdx) => {
-                  const activeSeg = hoveredStatusSeg?.monthIdx === mIdx
-                    ? mData.segments[hoveredStatusSeg.segIdx]
-                    : null;
-                  return (
-                    <div key={mData.monthKey} style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      position: 'relative',
-                    }}>
-                      <div style={{
-                        minWidth: '52px', fontSize: '10px', fontWeight: 700,
-                        color: '#334155', textAlign: 'right', lineHeight: 1.2,
-                      }}>
-                        {mData.monthName}
-                      </div>
-                      <div style={{
-                        flex: 1, height: '28px', borderRadius: '6px',
-                        overflow: 'hidden', background: '#f1f5f9',
-                        display: 'flex', position: 'relative',
-                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
-                      }}>
-                        {mData.segments.length > 0 ? mData.segments.map((seg, segIdx) => {
-                          const isHovered = hoveredStatusSeg?.monthIdx === mIdx && hoveredStatusSeg?.segIdx === segIdx;
-                          return (
-                            <div key={seg.statusKey}
-                              style={{
-                                height: '100%', width: `${Math.max(seg.pct, 1)}%`,
-                                background: isHovered
-                                  ? `linear-gradient(180deg, ${seg.color}, ${seg.color}dd)`
-                                  : seg.color,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                borderRight: '1px solid rgba(255,255,255,0.25)',
-                                filter: isHovered ? 'brightness(1.15)' : 'none',
-                                minWidth: '3px',
-                                display: 'flex', alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                              onMouseEnter={() => setHoveredStatusSeg({ monthIdx: mIdx, segIdx })}
-                              onMouseLeave={() => setHoveredStatusSeg(null)}
-                            >
-                              {seg.pct >= 8 && (
-                                <span style={{
-                                  fontSize: '9px', fontWeight: 800, color: '#fff',
-                                  textShadow: '0 1px 2px rgba(0,0,0,0.35)',
-                                  whiteSpace: 'nowrap', overflow: 'hidden',
-                                  textOverflow: 'ellipsis', padding: '0 4px',
-                                }}>
-                                  {Math.round(seg.pct)}%
-                                </span>
-                              )}
-                            </div>
-                          );
-                        }) : (
-                          <div style={{ width: '100%', height: '100%', background: '#f1f5f9', borderRadius: '6px' }} />
-                        )}
-                      </div>
-                      <div style={{
-                        minWidth: '28px', fontSize: '10px', fontWeight: 700,
-                        color: '#64748b', textAlign: 'left',
-                      }}>
-                        {mData.total}
-                      </div>
-
-                      {/* Tooltip */}
-                      {activeSeg && (
-                        <div style={{
-                          position: 'absolute', bottom: '100%', left: '50%',
-                          transform: 'translateX(-50%)', marginBottom: '6px',
-                          background: '#0f172a', color: '#fff',
-                          padding: '6px 10px', borderRadius: '8px',
-                          fontSize: '10px', fontWeight: 600,
-                          whiteSpace: 'nowrap', zIndex: 9999,
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-                          pointerEvents: 'none',
-                        }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <strong style={{ fontSize: '12px', color: activeSeg.color }}>{activeSeg.label}</strong>
-                            <div style={{ color: '#94a3b8', marginTop: '1px' }}>
-                              {activeSeg.count} {activeSeg.count === 1 ? 'evento' : 'eventos'}
-                            </div>
-                            <div style={{ color: '#fff', fontWeight: 800, fontSize: '12px' }}>
-                              {Math.round(activeSeg.pct)}%
-                            </div>
-                            <div style={{ color: '#64748b', marginTop: '1px', fontSize: '9px' }}>
-                              {mData.monthName} · {mData.total} total
-                            </div>
-                          </div>
-                          <div style={{
-                            position: 'absolute', top: '100%', left: '50%',
-                            transform: 'translateX(-50%)',
-                            width: 0, height: 0,
-                            borderLeft: '5px solid transparent',
-                            borderRight: '5px solid transparent',
-                            borderTop: '5px solid #0f172a',
-                          }} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── 4. Storytelling ── */}
-        <div className="reports-storytelling-card">
-          <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Narración ejecutiva</span>
-          <p className="reports-story-text">
-            En el periodo <strong className="highlight-slate">{dateRange.label}</strong>, el equipo de {getRoleLabel(role).toLowerCase()}s gestionó <strong className="highlight-blue">{statusSummary.total}</strong> eventos con una tasa de confirmación del <strong className="highlight-green">{statusSummary.pct.toFixed(1)}%</strong>. 
-            {settingsGoalAmount > 0 ? <>La meta global es de <strong className="highlight-blue">{formatMoneyGT(settingsGoalAmount)}</strong> con un avance del <strong className="highlight-green">{settingsGoalProgress.toFixed(1)}%</strong>.</> : ''}
-            {focusedUser ? ` El desempeño de ${focusedUser.fullName || ''} muestra ${personalAchieved >= personalGoal ? 'un cumplimiento sobresaliente de la meta personal.' : `un avance del ${pProg.toFixed(1)}% sobre su meta personal de ${formatMoneyGT(personalGoal)}.`}` : ''}
-            {satMetrics && ` En satisfacción, la calificación global es de ${satMetrics.globalAvg.toFixed(1)} / 4.0 (${getSatLabel(satMetrics.globalAvg)}) con ${satMetrics.totalEvents} eventos evaluados.`}
-          </p>
-        </div>
-
         {/* ── 5. Charts Grid ── */}
         <section className="reports-hero-panel" style={{ gap: '12px' }}>
           <div className="reports-section-intro">
@@ -1092,22 +954,104 @@ export default function ReportsDashboard({ onClose }) {
               <div className="reports-chart-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Áreas más utilizadas</div>
               <div className="reports-chart-subtitle">Distribución de salones en el periodo</div>
               {salonData ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginTop: '16px' }}>
-                  <div style={{
-                    width: '100px', height: '100px', borderRadius: '50%', flexShrink: 0,
-                    background: `conic-gradient(${salonData.slices.join(',')})`,
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.3)',
-                    border: '2px solid #fff',
-                  }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: '#64748b', flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', marginTop: '16px' }}>
+                  <div style={{ position: 'relative', width: '180px', height: '180px', flexShrink: 0 }}>
+                    {/* Pie chart con SVG (paths por segmento + labels %) */}
+                    <svg width="180" height="180" viewBox="0 0 180 180" style={{
+                      filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.1))',
+                      overflow: 'visible',
+                    }}>
+                      {(() => {
+                        const cx = 90, cy = 90, r = 84;
+                        let acc = 0;
+                        return salonData.o.map((it, i) => {
+                          const pct = (it.n / salonData.tot) * 100;
+                          const startAngle = (acc / 100) * 360;
+                          acc += pct;
+                          const endAngle = (acc / 100) * 360;
+                          const midAngle = (startAngle + endAngle) / 2;
+                          // Path del segmento
+                          const toRad = (deg) => ((deg - 90) * Math.PI) / 180;
+                          const x1 = cx + r * Math.cos(toRad(startAngle));
+                          const y1 = cy + r * Math.sin(toRad(startAngle));
+                          const x2 = cx + r * Math.cos(toRad(endAngle));
+                          const y2 = cy + r * Math.sin(toRad(endAngle));
+                          const largeArc = pct > 50 ? 1 : 0;
+                          const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                          // Posición del label (radio = 52, en el medio del segmento)
+                          const lx = cx + 52 * Math.cos(toRad(midAngle));
+                          const ly = cy + 52 * Math.sin(toRad(midAngle));
+                          const showLabel = pct >= 8; // solo si el segmento es grande
+                          return (
+                            <g key={i}>
+                              <path
+                                d={path}
+                                fill={it.c}
+                                stroke="#ffffff"
+                                strokeWidth="2"
+                                style={{ transition: 'opacity 0.2s', cursor: 'pointer' }}
+                                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
+                                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                              >
+                                <title>{`${it.l}: ${it.n} (${pct.toFixed(1)}%)`}</title>
+                              </path>
+                              {showLabel && (
+                                <text
+                                  x={lx}
+                                  y={ly}
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  style={{
+                                    fontSize: '14px',
+                                    fontWeight: 900,
+                                    fill: '#ffffff',
+                                    textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+                                    pointerEvents: 'none',
+                                    fontVariantNumeric: 'tabular-nums',
+                                    letterSpacing: '-0.02em',
+                                  }}
+                                >
+                                  {pct.toFixed(0)}%
+                                </text>
+                              )}
+                            </g>
+                          );
+                        });
+                      })()}
+                    </svg>
+                    {/* Centro blanco tipo donut con el total */}
+                    <div style={{
+                      position: 'absolute', top: '50%', left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: '64px', height: '64px',
+                      background: '#ffffff',
+                      borderRadius: '50%',
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center',
+                      textAlign: 'center', lineHeight: 1,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5)',
+                    }}>
+                      <strong style={{
+                        fontSize: '18px', fontWeight: 900,
+                        color: '#0f172a', letterSpacing: '-0.03em',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}>{salonData.tot}</strong>
+                      <span style={{
+                        fontSize: '7px', fontWeight: 800,
+                        color: '#94a3b8', textTransform: 'uppercase',
+                        letterSpacing: '0.08em', marginTop: '2px',
+                      }}>eventos</span>
+                    </div>
+                  </div>
+                  {/* Leyenda: solo color + nombre (sin %) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: '#64748b', flex: 1, minWidth: 0 }}>
                     {salonData.o.map((it,i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', borderRadius: '8px', background: '#f8fafc', transition: 'background 0.15s' }}
                         onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
                         onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
                       >
                         <span style={{ width: '10px', height: '10px', borderRadius: '4px', background: `linear-gradient(135deg, ${it.c}, ${it.c}aa)`, display: 'inline-block', flexShrink: 0 }} />
-                        <strong style={{ color: '#1e293b', fontWeight: 700, fontSize: '12px' }}>{it.l.substring(0,18)}</strong>
-                        <span style={{ marginLeft: 'auto', fontWeight: 800, color: '#0f172a' }}>{((it.n/salonData.tot)*100).toFixed(0)}%</span>
+                        <strong style={{ color: '#1e293b', fontWeight: 700, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.l.substring(0,22)}</strong>
                       </div>
                     ))}
                   </div>
@@ -1197,9 +1141,55 @@ export default function ReportsDashboard({ onClose }) {
                     }} />
                   </div>
                   <div style={{ fontWeight: 700, fontSize: '12px', color: '#0f172a', textAlign: 'center' }}>{s.name}</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center', fontWeight: 600 }}>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center', fontWeight: 600, marginBottom: '8px' }}>
                     <span style={{ color: '#16a34a', fontWeight: 800 }}>{s.confirmed}</span> de {s.total} confirmados
                   </div>
+                  {/* Desglose por estado en dinero */}
+                  {s.breakdown.length > 0 && (
+                    <div style={{
+                      width: '100%', paddingTop: '8px', marginTop: '4px',
+                      borderTop: '1px solid #f1f5f9',
+                      display: 'flex', flexDirection: 'column', gap: '5px',
+                    }}>
+                      {s.breakdown.map(b => (
+                        <div key={b.statusKey} style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr auto',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                        }}>
+                          <span style={{
+                            display: 'flex', alignItems: 'center', gap: '5px',
+                            color: '#475569',
+                            minWidth: 0, // permite que el ellipsis funcione
+                          }}>
+                            <span style={{
+                              width: '7px', height: '7px', borderRadius: '50%',
+                              background: b.color, display: 'inline-block', flexShrink: 0,
+                              boxShadow: `0 0 0 1.5px ${b.color}30`,
+                            }} />
+                            <span style={{
+                              overflow: 'hidden', textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap', minWidth: 0,
+                            }} title={b.label}>
+                              {b.label}
+                            </span>
+                          </span>
+                          <span style={{
+                            color: '#0f172a', fontWeight: 800,
+                            fontSize: '9.5px',
+                            fontVariantNumeric: 'tabular-nums',
+                            whiteSpace: 'nowrap',
+                            textAlign: 'right',
+                          }}>
+                            {formatMoneyGT(b.amount)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             }) : (

@@ -41,6 +41,7 @@ export default function ReportsInstitucion({ onClose }) {
   const [menuRankings, setMenuRankings] = useState(null);
   const [menuLoading, setMenuLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [companyToken, setCompanyToken] = useState('all');
   const [fromDate, setFromDate] = useState(`${currentYear}-01-01`);
   const [toDate, setToDate] = useState(`${currentYear}-12-31`);
@@ -215,21 +216,6 @@ export default function ReportsInstitucion({ onClose }) {
     });
     return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 8);
   }, [filteredRows]);
-  const dishRank = useMemo(() => {
-    const map = new Map();
-    filteredRows.forEach((row) => {
-      row.items.forEach((item) => {
-        const label = String(item.name || item.service || '').trim();
-        if (!label) return;
-        const current = map.get(label) || { label, count: 0, amount: 0 };
-        current.count += Number(item.qty || 1);
-        current.amount += Number(item.qty || 1) * Number(item.price || 0);
-        map.set(label, current);
-      });
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 8);
-  }, [filteredRows]);
-
   const subcategoryRank = useMemo(() => {
     const map = new Map();
     filteredRows.forEach((row) => {
@@ -288,10 +274,14 @@ export default function ReportsInstitucion({ onClose }) {
 
   const resetFilters = () => {
     setSearch('');
+    setSearchInput('');
     setCompanyToken('all');
     setFromDate(`${currentYear}-01-01`);
     setToDate(`${currentYear}-12-31`);
   };
+
+  const applySearch = () => setSearch(searchInput.trim());
+  const clearSearch = () => { setSearchInput(''); setSearch(''); };
 
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -299,7 +289,6 @@ export default function ReportsInstitucion({ onClose }) {
     ['institutionSectionOverview', 'Resumen'],
     ['institutionSectionCharts', 'Gráficas'],
     ['institutionSectionSalons', 'Salones'],
-    ['institutionSectionDishes', 'Platillos'],
     ['institutionSectionSubcategories', 'Subcategorías'],
     ['institutionSectionMenu', 'Menú'],
     ['institutionSectionManagers', 'Encargados'],
@@ -391,11 +380,27 @@ export default function ReportsInstitucion({ onClose }) {
           <div className="reports-toolbar">
             <label className="field institutionSearchField">
               <span>Buscar institución</span>
-              <input type="text" placeholder="Escribe nombre, contacto o correo" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
+                <input
+                  type="text"
+                  placeholder="Escribe nombre, contacto o correo"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); applySearch(); } }}
+                  style={{ flex: 1 }}
+                />
+                <button type="button" className="btnPrimary" onClick={applySearch} title="Buscar">Buscar</button>
+                {(searchInput || search) && (
+                  <button type="button" onClick={clearSearch} title="Limpiar búsqueda" style={{ padding: '0 10px' }}>×</button>
+                )}
+              </div>
+              {searchInput && searchInput !== search && (
+                <small style={{ color: '#94a3b8', fontSize: '11px' }}>Pendiente: presiona Enter o "Buscar" para aplicar.</small>
+              )}
               {!!search && (
                 <div className="institutionSearchResults">
                   {visibleCompanyOptions.slice(0, 5).map((company) => (
-                    <button key={company.token} type="button" onClick={() => { setCompanyToken(company.token); setSearch(''); }}>{company.name}</button>
+                    <button key={company.token} type="button" onClick={() => { setCompanyToken(company.token); setSearchInput(''); setSearch(''); }}>{company.name}</button>
                   ))}
                 </div>
               )}
@@ -523,15 +528,6 @@ export default function ReportsInstitucion({ onClose }) {
             <div className="reports-detail-section-subtitle">Ranking por frecuencia dentro del rango</div>
           </div>
           {renderMetricList(salonRank)}
-        </section>
-
-        {/* ── Platillos ── */}
-        <section className="reports-detail-section" id="institutionSectionDishes">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Platillos y servicios más pedidos</div>
-            <div className="reports-detail-section-subtitle">Consolidado de cotizaciones por cantidad</div>
-          </div>
-          {renderMetricList(dishRank, 'Sin platillos o servicios cotizados en el rango.')}
         </section>
 
         {/* ── Subcategorías ── */}

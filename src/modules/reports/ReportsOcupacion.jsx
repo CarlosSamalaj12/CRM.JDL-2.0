@@ -1,13 +1,9 @@
-import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import * as XLSX from 'xlsx';
+import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useState, useMemo, useRef, useLayoutEffect, useEffect } from 'react';
 import { STATUS_META } from '../calendar/constants';
-import { generateQuotePrintDocument, buildMenuMontajeReportHtml } from '../../utils/printUtils';
-import { emitOpenEventChecklist } from '../../utils/appEvents';
-import SettingsChecklist from '../settings/SettingsChecklist';
-import { toast } from '../../utils/toast';
-import { loadState } from '../../services/stateService';
 import ReportInfo from './components/ReportInfo';
+import MultiSelect from './components/MultiSelect';
+import { getEventSeries } from './components/eventSeriesUtils';
 
 const getMonday = (dateStr) => {
   const d = new Date(dateStr + 'T00:00:00');
@@ -25,51 +21,15 @@ const getLocalDateString = (d) => {
 };
 
 const STATUS = { PRERESERVA: 'Pre reserva', CONFIRMADO: 'Confirmado' };
-const ALLOWED_STATUSES = new Set([STATUS.PRERESERVA, STATUS.CONFIRMADO]);
-
-function getAllChkItems(chk) {
-  if (!chk) return [];
-  if (Array.isArray(chk.items)) return chk.items;
-  const all = [];
-  if (chk.operativa?.items) all.push(...chk.operativa.items);
-  if (chk.evaluacion?.items) all.push(...chk.evaluacion.items);
-  return all;
-}
+const ALL_STATUSES = [
+  'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
+  'Lista de Espera', 'Confirmado', 'Cancelado', 'Perdido'
+];
 
 export default function ReportsOcupacion({ onClose }) {
   const { events, users } = useOutletContext();
+  const navigate = useNavigate();
   
-  const [companies, setCompanies] = useState([]);
-  const [eventChecklists, setEventChecklists] = useState({});
-  const [checklistFilter, setChecklistFilter] = useState('');
-
-  const formatTimestamp = (ts) => {
-    if (!ts) return '-';
-    const d = new Date(ts);
-    if (Number.isNaN(d.getTime())) return ts;
-    return d.toLocaleString('es-GT', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hour12: true
-    });
-  };
-
-  const loadStateData = async () => {
-    try {
-      const stateData = await loadState();
-      setCompanies(stateData?.companies || []);
-      setEventChecklists(stateData?.eventChecklists || {});
-    } catch (err) {
-      console.error("Error loading companies/checklists:", err);
-    }
-  };
-
-  useEffect(() => {
-    loadStateData();
-    const handleStateUpdate = () => { loadStateData(); };
-    window.addEventListener('stateUpdated', handleStateUpdate);
-    return () => window.removeEventListener('stateUpdated', handleStateUpdate);
-  }, []);
-
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date();
     const day = today.getDay();
@@ -77,6 +37,10 @@ export default function ReportsOcupacion({ onClose }) {
     const monday = new Date(today.setDate(diff));
     return getLocalDateString(monday);
   });
+
+  // Filtro de estado: multi-selección. Vacío = sin filtro (mostrar todos).
+  // Default igual al comportamiento previo: solo Pre reserva + Confirmado.
+  const [statusFilter, setStatusFilter] = useState(new Set([STATUS.PRERESERVA, STATUS.CONFIRMADO]));
 
   const weekDays = useMemo(() => {
     const start = new Date(currentWeekStart + 'T00:00:00');
@@ -107,11 +71,13 @@ export default function ReportsOcupacion({ onClose }) {
     let result = events
       .filter(ev => {
         const d = String(ev.date || '');
-        return d && d >= fromIso && d <= toIso && ALLOWED_STATUSES.has(String(ev.status || ''));
+        if (!d || d < fromIso || d > toIso) return false;
+        // Si statusFilter está vacío = "Todos" (sin filtro)
+        if (statusFilter.size === 0) return true;
+        return statusFilter.has(String(ev.status || ''));
       })
       .map(ev => {
         const user = users?.find(u => String(u.id) === String(ev.userId));
-        const checklist = eventChecklists[ev.id] || ev.checklist;
         return {
           eventId: String(ev.id||''), status: String(ev.status||''),
           statusColor: STATUS_META[ev.status]?.color||'#2563eb',
@@ -120,7 +86,7 @@ export default function ReportsOcupacion({ onClose }) {
           salon: String(ev.salon||''), company: ev.quote?.companyName||'',
           seller: String(user?.fullName||user?.name||''),
           pax: Number(ev.pax||ev.quote?.people||0), total: Number(ev.quote?.total||0),
-          rawEvent: { ...ev, checklist }
+          rawEvent: ev
         };
       })
       .sort((a, b) => {
@@ -130,56 +96,77 @@ export default function ReportsOcupacion({ onClose }) {
         return t || a.salon.localeCompare(b.salon);
       });
 
-    // Apply checklist status filter
-    if (checklistFilter) {
-      result = result.filter(r => {
-        const chk = r.rawEvent.checklist;
-        const chkItems = getAllChkItems(chk);
-        if (checklistFilter === 'pendiente') return !chkItems.length;
-        if (checklistFilter === 'en_proceso') return chkItems.length > 0 && !chkItems.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
-        if (checklistFilter === 'completo') return chkItems.length > 0 && chkItems.every(i => i.status === 'cumplido' || i.status === 'no_aplica');
-        return true;
-      });
-    }
-
     return result;
-  }, [events, users, weekDays, eventChecklists, checklistFilter]);
+  }, [events, users, weekDays, statusFilter]);
+
+  // Deduplicar rows por reserva (groupId | id) para evitar sumar totales
+  // duplicados cuando un evento es multi-día. Se queda con la fila del
+  // primer día de la serie (la que tiene el evento principal).
+  const uniqueReservationRows = useMemo(() => {
+    if (!events) return [];
+    const seen = new Set();
+    const out = [];
+    // Ordenar rows por fecha para que el primero sea el día de inicio
+    const sorted = [...rows].sort((a, b) => String(a.eventDate).localeCompare(String(b.eventDate)));
+    for (const r of sorted) {
+      const key = r.rawEvent?.groupId || r.eventId;
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+    return out;
+  }, [rows, events]);
 
   const summary = useMemo(() => {
+    // totalEvents: cuenta slots (se ven en la week strip, un slot por día por reserva)
     const totalEvents = rows.length;
     const confirmed = rows.filter(r => r.status === STATUS.CONFIRMADO).length;
     const pre = rows.filter(r => r.status === STATUS.PRERESERVA).length;
-    const pax = rows.reduce((a, r) => a + Math.max(0, r.pax), 0);
-    const totalRevenue = rows.reduce((a, r) => a + r.total, 0);
+    // pax: deduplicado por reserva (no se duplica entre slots del mismo evento)
+    const pax = uniqueReservationRows.reduce((a, r) => a + Math.max(0, r.pax), 0);
+    // totalRevenue: deduplicado por reserva
+    const totalRevenue = uniqueReservationRows.reduce((a, r) => a + r.total, 0);
     const activeDays = new Set(rows.map(r => r.eventDate).filter(Boolean)).size;
     return { totalEvents, confirmed, pre, pax, totalRevenue, activeDays, confirmedPct: totalEvents ? Math.round((confirmed / totalEvents) * 100) : 0 };
-  }, [rows]);
+  }, [rows, uniqueReservationRows]);
 
-  const selectedDayData = useMemo(() => {
-    const dayRows = rows.filter(r => r.eventDate === selectedDay);
-    const dateObj = new Date(selectedDay + 'T00:00:00');
-    return {
-      date: selectedDay,
-      formattedDate: dateObj.toLocaleDateString('es-GT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-      eventsCount: dayRows.length, confirmed: dayRows.filter(r => r.status === STATUS.CONFIRMADO).length,
-      pre: dayRows.filter(r => r.status === STATUS.PRERESERVA).length,
-      pax: dayRows.reduce((s, r) => s + Math.max(0, r.pax), 0),
-      total: dayRows.reduce((s, r) => s + r.total, 0)
-    };
-  }, [rows, selectedDay]);
+  // Mapa: reservationKey -> fecha del día de inicio de la serie.
+  // Se usa para mostrar el total cotizado SOLO en el día principal
+  // (los demás días del multi-día no muestran monto para evitar duplicados).
+  const seriesStartDate = useMemo(() => {
+    const map = new Map();
+    for (const r of uniqueReservationRows) {
+      const key = r.rawEvent?.groupId || r.eventId;
+      if (key && !map.has(key)) {
+        map.set(key, r.eventDate);
+      }
+    }
+    return map;
+  }, [uniqueReservationRows]);
 
-  const dayCards = useMemo(() => weekDays.map(d => {
-    const dayRows = rows.filter(r => r.eventDate === d);
-    const dateObj = new Date(d + 'T00:00:00');
-    return {
-      date: d,
-      dayName: ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'][dateObj.getDay()],
-      dayNumber: dateObj.getDate(), monthLabel: dateObj.toLocaleDateString('es-GT', { month: 'short' }).toUpperCase(),
-      count: dayRows.length, confirmedCount: dayRows.filter(r => r.status === STATUS.CONFIRMADO).length,
-      preCount: dayRows.filter(r => r.status === STATUS.PRERESERVA).length,
-      revenue: dayRows.reduce((a,r) => a+r.total, 0), rows: dayRows,
-    };
-  }), [weekDays, rows, currentWeekStart]);
+  const dayCards = useMemo(() => {
+    return weekDays.map(d => {
+      const dayRows = rows.filter(r => r.eventDate === d);
+      // Revenue del día: solo contar el total si el día es el día de inicio de esa serie
+      const dayRevenue = dayRows.reduce((acc, r) => {
+        const key = r.rawEvent?.groupId || r.eventId;
+        if (seriesStartDate.get(key) === d && r.total > 0) {
+          return acc + r.total;
+        }
+        return acc;
+      }, 0);
+      const dateObj = new Date(d + 'T00:00:00');
+      return {
+        date: d,
+        dayName: ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'][dateObj.getDay()],
+        dayNumber: dateObj.getDate(), monthLabel: dateObj.toLocaleDateString('es-GT', { month: 'short' }).toUpperCase(),
+        count: dayRows.length, confirmedCount: dayRows.filter(r => r.status === STATUS.CONFIRMADO).length,
+        preCount: dayRows.filter(r => r.status === STATUS.PRERESERVA).length,
+        revenue: dayRevenue, rows: dayRows,
+      };
+    });
+  }, [weekDays, rows, uniqueReservationRows, seriesStartDate, currentWeekStart]);
 
   const formatMoneyGT = (v) => 'Q ' + Number(v||0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -202,104 +189,13 @@ export default function ReportsOcupacion({ onClose }) {
     setCurrentWeekStart(getLocalDateString(new Date(t.setDate(diff))));
   };
 
-  const handleExportExcel = () => {
-    if (!rows.length) { toast('No hay datos para exportar.'); return; }
-    try {
-      const now = new Date();
-      const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
-      const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-      const fmtMon = (n) => new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
-
-      const rowsHtml = rows.map((r, i) => {
-        const ev = r.rawEvent;
-        const encargado = ev.quote?.contact || ev.quote?.managerName || ev.quote?.companyName || ev.clientPhone || ev.quote?.phone || '-';
-        const ultCot = ev.quote ? `V${ev.quote.version || 1} - ${ev.quote.quotedAt ? new Date(ev.quote.quotedAt).toISOString().split('T')[0] : ''}` : '-';
-        const ultInf = ev.quote?.menuMontajeVersion ? `V${ev.quote.menuMontajeVersion}` : '-';
-        const check = ev.checklist ? 'Sí' : 'No';
-        const um = ev.updatedAt || ev.createdAt || ev.quote?.quotedAt;
-        const umStr = um ? new Date(um).toLocaleDateString('es-GT') + ' ' + new Date(um).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' }) : '-';
-        return `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#0f172a">${encargado}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#334155">${r.seller}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#475569">${ultCot}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;text-align:center;color:#475569">${ultInf}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:center;color:${check === 'Sí' ? '#059669' : '#94a3b8'};font-weight:${check === 'Sí' ? '700' : '400'}">${check}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#0f172a">Q ${fmtMon(r.total)}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#64748b">${umStr}</td>
-      </tr>`;
-      }).join('');
-
-      const totalAmount = rows.reduce((s, r) => s + (r.total || 0), 0);
-
-      const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="ProgId" content="Excel.Sheet">
-<style>table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;width:100%}
-th{background:#0f172a;color:#fff;padding:8px 10px;border:1px solid #0f172a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}
-th.right{text-align:right}</style></head><body>
-<table>
-  <tr><td colspan="7" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
-  <tr><td colspan="7" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Reporte de Ocupación Semanal</td></tr>
-  <tr><td colspan="7" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Semana: ${weekDays[0]} → ${weekDays[6]} - Generado: ${dateStr} - ${timeStr}</td></tr>
-  <tr>
-    <th>Encargado</th><th>Vendedor</th><th>Ult. Cotización</th><th>M&amp;M</th><th>Check</th><th class="right">Total</th><th>Ult. Mod.</th>
-  </tr>
-  ${rowsHtml || '<tr><td colspan="7" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
-  <tr>
-    <td colspan="5" style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9;text-align:right">TOTAL - ${rows.length} evento(s)</td>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#0f172a;background:#f1f5f9">Q ${fmtMon(totalAmount)}</td>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
-  </tr>
-  <tr><td colspan="7" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago - EMS Reservas - Reporte generado el ${dateStr}</td></tr>
-</table></body></html>`;
-
-      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `Ocupacion_Semanal_${weekDays[0]}_a_${weekDays[6]}.xls`;
-      link.click();
-      toast('Reporte exportado exitosamente');
-    } catch (err) { toast('Error al exportar a Excel'); }
-  };
-
-  const handleQuoteClick = async (r) => {
-    const ev = r.rawEvent;
-    if (!ev?.quote) { toast("Este evento no tiene cotización."); return; }
-    try {
-      const user = users?.find(u => String(u.id) === String(ev.userId));
-      if (await generateQuotePrintDocument(ev.quote, user, "standard", ev) !== false) toast("Generando vista previa de cotización...");
-    } catch { toast("Error al abrir la cotización."); }
-  };
-
-  const handleMenuClick = (r) => {
-    const ev = r.rawEvent;
-    if (!ev?.quote) { toast("Este evento no tiene cotización."); return; }
-    const html = buildMenuMontajeReportHtml(ev, ev.quote, "full", { companies, users });
-    if (!html) { toast("No hay datos de menú/montaje para imprimir."); return; }
-    const w = window.open("about:blank", "_blank");
-    if (!w) { toast("Habilita ventanas emergentes."); return; }
-    w.document.open(); w.document.write(html); w.document.close(); w.focus();
-  };
-
-  const handleChecklistClick = (r) => {
-    if (!r?.eventId) { toast("No se encontro el evento."); return; }
-    emitOpenEventChecklist(r.eventId);
-  };
-
   // ── Bento KPI data ──
   const kpiCards = [
     { label: 'Eventos', value: summary.totalEvents, accent: '#2563eb', meta: `${summary.activeDays} día(s) activo(s)` },
     { label: 'Confirmados', value: summary.confirmed, accent: '#16a34a', meta: `${summary.confirmedPct}% del total` },
     { label: 'Pre Reserva', value: summary.pre, accent: '#d97706', meta: `${100 - summary.confirmedPct}% pendiente` },
     { label: 'PAX Totales', value: summary.pax.toLocaleString(), accent: '#7c3aed', meta: 'personas' },
-    { label: 'Facturación', value: formatMoneyGT(summary.totalRevenue), accent: '#0d9488', meta: 'valor cotizado' },
-  ];
-
-  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  const NAV_SECTIONS = [
-    ['occupancyWeekStrip', '📅 Distribución'],
-    ['occupancyDayDetail', '📊 Detalle del día'],
-    ['occupancyTable', '📋 Resultados'],
+    { label: 'Total Venta', value: formatMoneyGT(summary.totalRevenue), accent: '#0d9488', meta: 'valor cotizado' },
   ];
 
   // Restore occupancyDaysStrip scroll position after re-renders (useLayoutEffect for no visual flash)
@@ -358,33 +254,22 @@ th.right{text-align:right}</style></head><body>
               <span>Semana (desde lunes)</span>
               <input type="date" value={currentWeekStart} onChange={e => setCurrentWeekStart(getMonday(e.target.value))} />
             </label>
+            <div className="field">
+              <MultiSelect
+                selected={statusFilter}
+                onChange={setStatusFilter}
+                options={ALL_STATUSES.map(s => ({ value: s, label: s, color: STATUS_META[s]?.color || '#64748b' }))}
+                placeholder="Estado"
+                emptyLabel="Todos los estados"
+              />
+            </div>
             <div className="reports-actions">
               <button type="button" onClick={handlePrevWeek}>‹ Anterior</button>
               <button type="button" onClick={handleNextWeek}>Siguiente ›</button>
               <button type="button" onClick={handleGoToday}>Hoy</button>
-              <button className="btnPrimary" type="button" onClick={handleExportExcel}>Exportar Excel</button>
             </div>
           </div>
         </section>
-
-        {/* ── Storytelling ── */}
-        <div className="reports-storytelling-card">
-          <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Narración de Ocupación</span>
-          <p className="reports-story-text">
-            Para la semana analizada (del Lunes <strong className="highlight-slate">{weekDays[0]}</strong> al Domingo <strong className="highlight-slate">{weekDays[6]}</strong>), se registra un total de <strong className="highlight-blue">{summary.totalEvents}</strong> eventos distribuidos en <strong className="highlight-slate">{summary.activeDays}</strong> días con actividad operativa. Este movimiento representa una capacidad total de <strong className="highlight-accent">{summary.pax.toLocaleString()}</strong> PAX movilizados, generando un valor cotizado total de <strong className="highlight-green">{formatMoneyGT(summary.totalRevenue)}</strong>. De los eventos programados, un <strong className="highlight-green">{summary.confirmedPct}%</strong> ya están en estado <strong className="highlight-green">Confirmado</strong> ({summary.confirmed} eventos), mientras que el restante <strong className="highlight-orange">{100 - summary.confirmedPct}%</strong> ({summary.pre} eventos) permanece en <strong className="highlight-orange">Pre reserva</strong>.
-          </p>
-        </div>
-
-        {/* ── Navigation Tabs ── */}
-        <div className="reports-nav-tabs">
-          {NAV_SECTIONS.map(([id, label]) => (
-            <button key={id} className="reports-nav-tab-btn" type="button" onClick={() => scrollTo(id)}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Week Strip ── */}
         <section id="occupancyWeekStrip" className="reports-hero-panel" style={{ gap: '8px' }}>
           <div className="reports-section-intro">
             <div>
@@ -434,26 +319,41 @@ th.right{text-align:right}</style></head><body>
 
                 {/* Events */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', flex: 1 }}>
-                  {d.rows.length ? d.rows.map(r => (
-                    <div key={r.eventId}
-                      onClick={() => setSelectedDay(d.date)}
-                      style={{
-                        padding: '8px', borderRadius: '10px', border: '1px solid #e2e8f0',
-                        borderLeft: `4px solid ${r.statusColor}`,
-                        background: '#ffffff', cursor: 'pointer',
-                        display: 'flex', flexDirection: 'column', gap: '3px',
-                        transition: 'all 0.15s ease',
-                      }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#94a3b8' }}>
-                        <span style={{ fontWeight: 700 }}>{r.startTime}</span>
-                        <span style={{ fontWeight: 800, fontSize: '8px', textTransform: 'uppercase', color: r.statusColor }}>
-                          {r.status === 'Confirmado' ? 'CONF' : 'PRE'}
-                        </span>
+                  {d.rows.length ? d.rows.map(r => {
+                    // Mostrar el total SOLO en el día de inicio de la serie
+                    // (para no duplicar el monto en cada día de un evento multi-día)
+                    const seriesKey = r.rawEvent?.groupId || r.eventId;
+                    const isSeriesStart = seriesStartDate.get(seriesKey) === d.date;
+                    return (
+                      <div key={r.eventId}
+                        onClick={() => navigate(`/reserva/${r.eventId}`)}
+                        title="Click para abrir el editor de reserva"
+                        style={{
+                          padding: '8px', borderRadius: '10px', border: '1px solid #e2e8f0',
+                          borderLeft: `4px solid ${r.statusColor}`,
+                          background: '#ffffff', cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', gap: '3px',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#94a3b8' }}>
+                          <span style={{ fontWeight: 700 }}>{r.startTime}</span>
+                          <span style={{ fontWeight: 800, fontSize: '8px', textTransform: 'uppercase', color: r.statusColor }}>
+                            {r.status === 'Confirmado' ? 'CONF' : 'PRE'}
+                          </span>
+                        </div>
+                        <strong style={{ fontSize: '11px', color: '#0f172a', lineHeight: '1.2' }}>{r.eventName}</strong>
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>{r.salon}</span>
+                        {isSeriesStart && r.total > 0 && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: '#059669', marginTop: '2px' }}>
+                            {formatMoneyGT(r.total)}
+                          </span>
+                        )}
                       </div>
-                      <strong style={{ fontSize: '11px', color: '#0f172a', lineHeight: '1.2' }}>{r.eventName}</strong>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>{r.salon}</span>
-                    </div>
-                  )) : (
+                    );
+                  }) : (
                     <div style={{ fontSize: '10px', color: '#cbd5e1', textAlign: 'center', padding: '16px 0' }}>Sin eventos</div>
                   )}
                 </div>
@@ -461,139 +361,7 @@ th.right{text-align:right}</style></head><body>
             ))}
           </div>
         </section>
-
-        {/* ── Day Detail ── */}
-        <section id="occupancyDayDetail" className="reports-hero-panel" style={{ gap: '10px' }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Foco del día</span>
-              <h3 className="reports-section-title">Detalle interpretativo — {selectedDayData.date}</h3>
-            </div>
-          </div>
-
-          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-            {[
-              { label: 'Eventos', value: selectedDayData.eventsCount, accent: '#2563eb' },
-              { label: 'Confirmados', value: selectedDayData.confirmed, accent: '#16a34a' },
-              { label: 'Pre Reserva', value: selectedDayData.pre, accent: '#d97706' },
-              { label: 'PAX', value: selectedDayData.pax, accent: '#7c3aed' },
-              { label: 'Total Cotizado', value: formatMoneyGT(selectedDayData.total), accent: '#0d9488' },
-            ].map((k, i) => (
-              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${k.accent}` }}>
-                <span className="reports-eyebrow">{k.label}</span>
-                <strong style={{ fontSize: k.label === 'Total Cotizado' ? '1.2rem' : '2rem' }}>{k.value}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
-
-
-
-        {/* ── Events Table ── */}
-        <section id="occupancyTable" className="reports-hero-panel" style={{ gap: '8px' }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Operación Detallada</span>
-              <h3 className="reports-section-title">Tabla de eventos y resultados</h3>
-              <p className="reports-section-text">Estado, salón, vendedor, cotización, checklist y montos</p>
-            </div>
-            <div className="reports-actions" style={{ gap: '8px', flexWrap: 'nowrap' }}>
-              <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: '6px', margin: 0 }}>
-                <span style={{ fontSize: '11px', whiteSpace: 'nowrap', fontWeight: 700, color: '#64748b' }}>Check List:</span>
-                <select value={checklistFilter} onChange={e => setChecklistFilter(e.target.value)}
-                  style={{
-                    height: '32px', padding: '0 8px', borderRadius: '6px',
-                    border: '1px solid #d1d9e6', fontSize: '12px', fontWeight: 600,
-                    background: checklistFilter ? '#eff4ff' : '#ffffff',
-                    color: '#0f172a', cursor: 'pointer',
-                  }}>
-                  <option value="">Todos</option>
-                  <option value="pendiente">⏳ Pendiente</option>
-                  <option value="en_proceso">🔄 En proceso</option>
-                  <option value="completo">✅ Completo</option>
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div className="reports-table-wrap" style={{ minHeight: '300px' }}>
-            <table className="reports-table" style={{ minWidth: '800px' }}>
-              <thead>
-                <tr>
-                  <th>Encargado</th>
-                  <th>Vendedor</th>
-                  <th>Última Cotización</th>
-                  <th>Menú/Montaje</th>
-                  <th>Check List</th>
-                  <th style={{ textAlign: 'right' }}>Total Evento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length ? rows.map((r, i) => {
-                  const ev = r.rawEvent;
-                  const hasQuote = !!ev.quote;
-                  const formatQuoteDate = (q) => {
-                    if (!q) return '';
-                    const d = new Date(q);
-                    return Number.isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                  };
-                  const quoteLabel = hasQuote ? `V${ev.quote.version || 1} - ${formatQuoteDate(ev.quote.quotedAt)}` : '-';
-                  const hasMenu = !!(ev.quote?.menuMontajeEntries?.length || ev.quote?.menuMontajeVersion);
-                  const menuLabel = hasMenu ? `V${ev.quote?.menuMontajeVersion || 1}` : '-';
-                  const chkItems = getAllChkItems(ev.checklist);
-                  const hasChecklist = chkItems.length > 0;
-                  const completed = hasChecklist && chkItems.every(item => item.status === 'cumplido' || item.status === 'no_aplica');
-                  const checklistLabel = completed ? "Completo" : (hasChecklist ? "En proceso" : "Iniciar");
-
-                  return (
-                    <tr key={r.eventId}>
-                      <td style={{ fontWeight: 700 }}>{ev.quote?.contact || ev.quote?.managerName || ev.quote?.companyName || ev.clientPhone || ev.quote?.phone || '-'}</td>
-                      <td>{r.seller || '-'}</td>
-                      <td>
-                        {hasQuote ? (
-                          <button type="button" onClick={() => handleQuoteClick(r)}
-                            style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px', border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', color: '#1e293b' }}>
-                            {quoteLabel}
-                          </button>
-                        ) : <span style={{ color: '#94a3b8' }}>-</span>}
-                      </td>
-                      <td>
-                        {hasMenu ? (
-                          <button type="button" onClick={() => handleMenuClick(r)}
-                            style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px', border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', color: '#1e293b' }}>
-                            {menuLabel}
-                          </button>
-                        ) : <span style={{ color: '#94a3b8' }}>-</span>}
-                      </td>
-                      <td>
-                        <button type="button" onClick={() => handleChecklistClick(r)}
-                          style={{
-                            padding: '4px 12px', fontSize: '11px', fontWeight: 700, borderRadius: '6px',
-                            border: `1px solid ${completed ? '#86efac' : hasChecklist ? '#fde68a' : '#e2e8f0'}`,
-                            background: completed ? '#f0fdf4' : hasChecklist ? '#fffbeb' : '#f8fafc',
-                            color: completed ? '#15803d' : hasChecklist ? '#b45309' : '#475569',
-                            cursor: 'pointer',
-                          }}>
-                          {checklistLabel}
-                        </button>
-                      </td>
-                      <td style={{ fontWeight: 700, textAlign: 'right', color: '#0f172a' }}>{formatMoneyGT(r.total)}</td>
-                    </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                      Sin eventos Confirmados/Pre reserva para esta semana.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
       </div>
-      
-      <SettingsChecklist />
     </div>
   );
 }

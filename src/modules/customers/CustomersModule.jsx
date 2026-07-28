@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
+import MultiSelect from '../reports/components/MultiSelect';
 import '../../styles/tooltips.css';
 
 const PIPELINE_STAGES = [
@@ -21,7 +22,7 @@ export default function CustomersModule() {
   const users = outlet?.users || [];
 
   const [search, setSearch] = useState('');
-  const [userFilter, setUserFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
 
   const pipelineData = useMemo(() => {
     if (!events || events.length === 0) return [];
@@ -49,7 +50,7 @@ export default function CustomersModule() {
   }, [events, users]);
 
   const filteredPipeline = useMemo(() => {
-    if (!search && userFilter === 'all') return pipelineData;
+    if (!search && userFilter.size === 0) return pipelineData;
 
     const result = {};
     for (const stage of PIPELINE_STAGES) {
@@ -62,8 +63,8 @@ export default function CustomersModule() {
           l.salon?.toLowerCase().includes(term)
         );
       }
-      if (userFilter !== 'all') {
-        items = items.filter(l => l.userId === userFilter);
+      if (userFilter.size > 0) {
+        items = items.filter(l => userFilter.has(l.userId));
       }
       result[stage.key] = items;
     }
@@ -96,8 +97,8 @@ export default function CustomersModule() {
         ev.salon?.toLowerCase().includes(t)
       );
     }
-    if (userFilter !== 'all') {
-      lostFiltered = lostFiltered.filter(ev => ev.userId === userFilter);
+    if (userFilter.size > 0) {
+      lostFiltered = lostFiltered.filter(ev => userFilter.has(ev.userId));
     }
     let lostPax = 0, lostIncome = 0;
     for (const ev of lostFiltered) {
@@ -114,7 +115,7 @@ export default function CustomersModule() {
 
   const clearFilters = () => {
     setSearch('');
-    setUserFilter('all');
+    setUserFilter(new Set());
   };
 
   return (
@@ -157,11 +158,16 @@ export default function CustomersModule() {
             <input type="text" placeholder="Buscar por nombre, cliente, salón..."
               value={search} onChange={e => setSearch(e.target.value)}
               style={{ flex: '2 1 240px', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '13px', height: '38px', boxSizing: 'border-box', background: '#fff', color: '#1e293b' }} />
-            <select value={userFilter} onChange={e => setUserFilter(e.target.value)}
-              style={{ flex: '0 1 180px', padding: '9px 10px', borderRadius: '8px', border: '2px solid #e2e8f0', fontWeight: '600', fontSize: '13px', height: '38px', boxSizing: 'border-box', background: '#fff', color: '#1e293b' }}>
-              <option value="all">Todos los vendedores</option>
-              {users?.map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
-            </select>
+            <div style={{ flex: '0 1 220px' }}>
+              <MultiSelect
+                selected={userFilter}
+                onChange={setUserFilter}
+                options={(users || []).map(u => ({ value: u.id, label: u.fullName || u.name }))}
+                placeholder="Vendedor"
+                emptyLabel="Todos los vendedores"
+                searchable
+              />
+            </div>
             <button onClick={clearFilters} style={{
               background: '#f1f5f9', border: 'none', padding: '10px 16px', borderRadius: '8px',
               fontWeight: '700', cursor: 'pointer', color: '#0351beff', fontSize: '12px', height: '38px',
@@ -272,13 +278,13 @@ export default function CustomersModule() {
           {/* Lost column */}
           {(() => {
             const lostItems = events?.filter(ev => ev.status === 'Cancelado' || ev.status === 'Perdido') || [];
-            const lostFiltered = !search && userFilter === 'all' ? lostItems
+            const lostFiltered = !search && userFilter.size === 0 ? lostItems
               : lostItems.filter(ev => {
                   if (search) {
                     const t = search.toLowerCase();
                     if (!ev.name?.toLowerCase().includes(t) && !ev.clientName?.toLowerCase().includes(t) && !ev.salon?.toLowerCase().includes(t)) return false;
                   }
-                  if (userFilter !== 'all' && ev.userId !== userFilter) return false;
+                  if (userFilter.size > 0 && !userFilter.has(ev.userId)) return false;
                   return true;
                 });
             return (

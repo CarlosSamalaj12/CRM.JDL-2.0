@@ -42,3 +42,20 @@ Cómo forzar actualización de clientes desde el server:
 - Bug: `e.Idocupacion.split('_')[0]` da `"evt"` para todos los `evt_xxx`, fusionándolos si `PaxCompartido=1`.
 - Fix: regex `/_s\d+_\d{6,}$/` para obtener el groupId real, + solo agrupa si count > 1.
 - **Causa raíz pendiente**: `PaxCompartido` se setea a 1 por default en creación de eventos (mal).
+- **Resuelto 2026-07-25**: default ahora es `null` con validación obligatoria en `ReservationForm.jsx:818`.
+
+### Race condition en `push_subscriptions` (2026-07-25)
+- Bug: `ER_DUP_ENTRY` en `uq_push_endpoint` cuando 2 requests `POST /api/push/subscribe` llegaban concurrentemente.
+- Causa: el endpoint hacía `DELETE` + `INSERT` no atómicos.
+- Fix: `INSERT ... ON DUPLICATE KEY UPDATE` en `server.cjs:5001-5030`. Ahora es atómico.
+
+### Reporte de Ventas: `r.eventDate` con epoch 0 (2026-07-25)
+- Bug: fechas salían como `01-01-70` cuando el campo `date` del evento estaba corrupto.
+- Causa: el reporte usaba `financialMeta.startDate` (primera fecha de la serie) en vez del slot primario.
+- Fix: usar `primaryEvent.eventDateStart` / `primaryEvent.eventDateEnd` (lo que el usuario edita en el formulario).
+- Además: `formatDateShort` filtra años <= 1970 para no mostrar 01-01-70.
+
+### MultiSelect reutilizable (2026-07-25)
+- Componente: `src/modules/reports/components/MultiSelect.jsx`.
+- Migrado en: `ReportsVentas`, `ReportsComisiones`, `ReportsEficenciaConfirmacion`, `ReportsEficenciaEventos`, `ReportsProyeccionMetas`, `ReportsContabilidad`, `SearchModule`, `CustomersModule`.
+- SearchModule: `readSetFromSession`/`writeSetToSession` para compat con filtros legacy (`'all'` / string simple).

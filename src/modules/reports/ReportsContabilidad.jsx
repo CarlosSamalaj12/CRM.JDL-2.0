@@ -8,6 +8,7 @@ import authService from '../../services/authService';
 import { STATUS_META } from '../calendar/constants';
 import ReportInfo from './components/ReportInfo';
 import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+import MultiSelect from './components/MultiSelect';
 
 export default function ReportsContabilidad({ onClose }) {
   const { events, users, handleAddEvent } = useOutletContext();
@@ -17,10 +18,10 @@ export default function ReportsContabilidad({ onClose }) {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [userFilter, setUserFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [salonFilter, setSalonFilter] = useState('all');
-  const [companyFilter, setCompanyFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
+  const [statusFilter, setStatusFilter] = useState(new Set()); // Set vacío = "Todos"
+  const [salonFilter, setSalonFilter] = useState(new Set()); // Set vacío = "Todos"
+  const [companyFilter, setCompanyFilter] = useState(new Set()); // Set vacío = "Todos"
   
   const [expandedAccounts, setExpandedAccounts] = useState(new Set());
   const [activeStatementCompanyId, setActiveStatementCompanyId] = useState(null);
@@ -206,10 +207,10 @@ export default function ReportsContabilidad({ onClose }) {
     }
     if (dateFrom) filtered = filtered.filter(r => r.eventDate >= dateFrom);
     if (dateTo) filtered = filtered.filter(r => r.eventDate <= dateTo);
-    if (userFilter !== 'all') filtered = filtered.filter(r => String(r.userId || '') === String(userFilter));
-    if (statusFilter !== 'all') filtered = filtered.filter(r => r.status === statusFilter);
-    if (salonFilter !== 'all') filtered = filtered.filter(r => r.salon === salonFilter || r.salones?.includes(salonFilter));
-    if (companyFilter !== 'all') filtered = filtered.filter(r => String(r.companyId || '') === String(companyFilter));
+    if (userFilter.size > 0) filtered = filtered.filter(r => userFilter.has(String(r.userId || '')));
+    if (statusFilter.size > 0) filtered = filtered.filter(r => statusFilter.has(r.status));
+    if (salonFilter.size > 0) filtered = filtered.filter(r => salonFilter.has(r.salon) || (Array.isArray(r.salones) && r.salones.some(s => salonFilter.has(s))));
+    if (companyFilter.size > 0) filtered = filtered.filter(r => companyFilter.has(String(r.companyId || '')));
     return filtered;
   }, [reportData, search, dateFrom, dateTo, userFilter, statusFilter, salonFilter, companyFilter]);
 
@@ -643,8 +644,8 @@ th.right{text-align:right}</style></head><body>
   };
 
   const clearFilters = () => {
-    setSearch(''); setDateFrom(''); setDateTo(''); setUserFilter('all');
-    setStatusFilter('all'); setSalonFilter('all'); setCompanyFilter('all');
+    setSearch(''); setDateFrom(''); setDateTo(''); setUserFilter(new Set());
+    setStatusFilter(new Set()); setSalonFilter(new Set()); setCompanyFilter(new Set());
   };
 
   const allSalones = useMemo(() => {
@@ -653,7 +654,7 @@ th.right{text-align:right}</style></head><body>
   }, [events]);
 
   const allStatuses = ['Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
-    'Lista de Espera', 'Confirmado', 'Cancelado', 'Mantenimiento', 'Perdido', 'Realizado'];
+    'Lista de Espera', 'Confirmado', 'Cancelado', 'Perdido'];
 
   // ── Bento KPI data ──
   const kpiSummary = [
@@ -696,7 +697,9 @@ th.right{text-align:right}</style></head><body>
               <p className="reports-section-text">Ideal para cobrar por institución, identificar vencimientos, abrir el detalle por evento y aplicar pagos sin perder trazabilidad.</p>
             </div>
             <span className="reports-filter-meta">
-              {users?.find(u => u.id === userFilter)?.fullName || 'Todos los vendedores'}
+              {userFilter.size > 0
+                ? `${userFilter.size} vendedor(es)`
+                : 'Todos los vendedores'}
             </span>
           </div>
 
@@ -746,34 +749,45 @@ th.right{text-align:right}</style></head><body>
             <span>Hasta</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
           </label>
-          <label className="field">
-            <span>Vendedor</span>
-            <select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
-              <option value="all">Todos vendedores</option>
-              {users?.filter(u => u.active !== false).map(u => <option key={u.id} value={u.id}>{u.fullName || u.name}</option>)}
-            </select>
-          </label>
-          <label className="field">
-            <span>Estado</span>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-              <option value="all">Todos estados</option>
-              {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label className="field">
-            <span>Salón</span>
-            <select value={salonFilter} onChange={e => setSalonFilter(e.target.value)}>
-              <option value="all">Todos salones</option>
-              {allSalones.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label className="field">
-            <span>Institución</span>
-            <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
-              <option value="all">Todas instituciones</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
+          <div className="field">
+            <MultiSelect
+              selected={userFilter}
+              onChange={setUserFilter}
+              options={(users || []).filter(u => u.active !== false).map(u => ({ value: String(u.id), label: u.fullName || u.name }))}
+              placeholder="Vendedor"
+              emptyLabel="Todos vendedores"
+              searchable
+            />
+          </div>
+          <div className="field">
+            <MultiSelect
+              selected={statusFilter}
+              onChange={setStatusFilter}
+              options={allStatuses.map(s => ({ value: s, label: s, color: STATUS_META[s]?.color || '#64748b' }))}
+              placeholder="Estado"
+              emptyLabel="Todos estados"
+            />
+          </div>
+          <div className="field">
+            <MultiSelect
+              selected={salonFilter}
+              onChange={setSalonFilter}
+              options={allSalones.map(s => ({ value: s, label: s }))}
+              placeholder="Salón"
+              emptyLabel="Todos salones"
+              searchable
+            />
+          </div>
+          <div className="field">
+            <MultiSelect
+              selected={companyFilter}
+              onChange={setCompanyFilter}
+              options={companies.map(c => ({ value: String(c.id), label: c.name }))}
+              placeholder="Institución"
+              emptyLabel="Todas instituciones"
+              searchable
+            />
+          </div>
           <div className="reports-actions">
             <button type="button" onClick={clearFilters}>Limpiar filtros</button>
             <button className="btnPrimary" type="button" onClick={handleExportExcel}>Exportar Excel</button>

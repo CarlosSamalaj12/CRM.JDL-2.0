@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import ReportInfo from './components/ReportInfo';
+import MultiSelect from './components/MultiSelect';
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -27,9 +28,7 @@ const STATUS_META = [
   { key: 'Confirmado', label: 'Confirmado', color: '#00CC66' },
   { key: 'Cancelado', label: 'Cancelado', color: '#FF3333' },
   { key: 'Perdido', label: 'Perdido', color: '#FF9A9E' },
-  { key: 'Mantenimiento', label: 'Mantenimiento', color: '#8A2BE2' },
   { key: 'Mantenimiento Realizado', label: 'Mant. Realizado', color: '#94a3b8' },
-  { key: 'Realizado', label: 'Realizado', color: '#22c55e' },
 ];
 
 export default function ReportsEficenciaEventos({ onClose }) {
@@ -44,26 +43,6 @@ export default function ReportsEficenciaEventos({ onClose }) {
   const [hoveredSegment, setHoveredSegment] = useState(null); // { monthIdx, segIdx }
   const [hoveredSegPos, setHoveredSegPos] = useState(null);
   const [enabledStatuses, setEnabledStatuses] = useState(() => new Set(STATUS_META.map(s => s.key)));
-  const [statusDropOpen, setStatusDropOpen] = useState(false);
-  const statusDropRef = useRef(null);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (statusDropRef.current && !statusDropRef.current.contains(e.target)) {
-        setStatusDropOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const toggleStatus = (key) => {
-    setEnabledStatuses(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
 
   // ── Generate months ──
   const monthList = useMemo(() => {
@@ -347,114 +326,14 @@ export default function ReportsEficenciaEventos({ onClose }) {
               <p className="reports-section-text">Pasa el mouse sobre cada segmento para ver el estado, cantidad y porcentaje</p>
             </div>
             {/* Status dropdown */}
-            <div style={{ position: 'relative' }} ref={statusDropRef}>
-              <button
-                type="button"
-                onClick={() => setStatusDropOpen(o => !o)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '6px 12px',
-                  border: `1px solid ${statusDropOpen ? '#2563eb' : '#e2e8f0'}`,
-                  borderRadius: '20px', background: '#ffffff',
-                  boxShadow: statusDropOpen ? '0 0 0 2px #2563eb30' : '0 1px 3px #00000008',
-                  transition: 'box-shadow 0.15s, border-color 0.15s',
-                  cursor: 'pointer', outline: 'none',
-                }}
-              >
-                <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>FILTRO:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden' }}>
-                  {[...enabledStatuses].map(k => {
-                    const s = STATUS_META.find(m => m.key === k);
-                    return s ? (
-                      <span key={k} title={s.label} style={{
-                        width: 10, height: 10, borderRadius: '50%', background: s.color,
-                        flexShrink: 0, boxShadow: `0 0 0 2px ${s.color}25`,
-                      }} />
-                    ) : null;
-                  })}
-                  {enabledStatuses.size === 0 && (
-                    <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 400 }}>Ninguno</span>
-                  )}
-                </div>
-                <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" style={{ flexShrink: 0, transform: statusDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-                  <path d="M2 4l4 4 4-4" />
-                </svg>
-              </button>
-              {statusDropOpen && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                  background: '#ffffff', borderRadius: '16px',
-                  boxShadow: '0 8px 32px #00000020', zIndex: 999,
-                  overflow: 'hidden', padding: '6px', minWidth: 240,
-                }}>
-                  {STATUS_META.map(s => {
-                    const active = enabledStatuses.has(s.key);
-                    return (
-                      <label key={s.key} style={{
-                        display: 'flex', alignItems: 'center', gap: '10px',
-                        padding: '8px 10px', cursor: 'pointer',
-                        borderRadius: '10px', marginBottom: '2px',
-                        transition: 'background 0.1s',
-                      }}
-                        onMouseEnter={e => { e.currentTarget.style.background = active ? `${s.color}12` : '#f1f5f9'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        <div style={{
-                          width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
-                          background: active ? '#2563eb' : '#f1f5f9',
-                          border: active ? 'none' : '1.5px solid #cbd5e1',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.15s',
-                        }}>
-                          {active && (
-                            <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M2 6l3 3 5-5" />
-                            </svg>
-                          )}
-                        </div>
-                        <input type="checkbox" checked={active} onChange={() => toggleStatus(s.key)} style={{ display: 'none' }} />
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569', flex: 1 }}>{s.label}</span>
-                      </label>
-                    );
-                  })}
-                  {enabledStatuses.size < STATUS_META.length && (
-                    <div style={{ padding: '4px 10px 2px', borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
-                      <button
-                        type="button"
-                        onClick={() => { setEnabledStatuses(new Set(STATUS_META.map(m => m.key))); setStatusDropOpen(false); }}
-                        style={{
-                          width: '100%', padding: '6px', borderRadius: '10px',
-                          background: '#f1f5f9', color: '#2563eb',
-                          border: 'none', fontSize: '12px', fontWeight: 700,
-                          cursor: 'pointer', transition: 'background 0.15s',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; }}
-                      >
-                        Restaurar todos
-                      </button>
-                    </div>
-                  )}
-                  <div style={{ padding: '6px 10px 4px', borderTop: enabledStatuses.size < STATUS_META.length ? 'none' : '1px solid #f1f5f9', marginTop: enabledStatuses.size < STATUS_META.length ? '0' : '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setStatusDropOpen(false)}
-                      style={{
-                        width: '100%', padding: '8px', borderRadius: '14px',
-                        background: '#2563eb', color: '#ffffff',
-                        border: 'none', fontSize: '13px', fontWeight: 700,
-                        cursor: 'pointer', boxShadow: '0 2px 8px #2563eb40',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
-                    >
-                      Listo
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="field" style={{ minWidth: 220 }}>
+              <MultiSelect
+                selected={enabledStatuses}
+                onChange={setEnabledStatuses}
+                options={STATUS_META.map(s => ({ value: s.key, label: s.label, color: s.color }))}
+                placeholder="Filtro de estado"
+                emptyLabel="Todos los estados"
+              />
             </div>
           </div>
 
