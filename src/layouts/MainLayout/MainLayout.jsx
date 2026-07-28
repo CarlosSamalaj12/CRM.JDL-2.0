@@ -7,7 +7,6 @@ import Legend from './components/Legend';
 import eventService from '../../services/eventService';
 import salonService from '../../services/salonService';
 import { useVersionCheck } from '../../hooks/useVersionCheck';
-import ForceUpdateModal from '../../components/ForceUpdateModal';
 import VersionFooter from '../../components/VersionFooter';
 import authService from '../../services/authService';
 import socketService from '../../services/socketService';
@@ -448,16 +447,6 @@ export default function MainLayout() {
 
       {/* Footer con versión actual + server (control de versiones) */}
       <VersionFooter style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 1000 }} />
-
-      {/* Modal obligatorio si hay una versión más reciente en el server */}
-      <ForceUpdateModal
-        open={!!updateState}
-        serverVersion={updateState?.serverVersion || serverVersion}
-        currentVersion={currentVersion}
-        message={updateState?.message}
-        reason={updateState?.reason}
-        onUpdate={reload}
-      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useVersionCheck } from '../hooks/useVersionCheck';
 
 // Escuchar mensajes del Service Worker (NAVIGATE_TO, SW_ACTIVATED)
 function useSWMessage(handler) {
@@ -62,6 +63,10 @@ export default function UpdateBanner() {
   const [closeHovered, setCloseHovered] = useState(false);
   const autoDismissRef = useRef(null);
 
+  const { updateState, reload } = useVersionCheck({
+    intervalMs: 15 * 60 * 1000 // Polling cada 15 minutos en background
+  });
+
   // Escuchar el evento sw-update-ready (desde main.jsx cuando el SW se instala)
   useEffect(() => {
     const handler = (event) => {
@@ -106,11 +111,27 @@ export default function UpdateBanner() {
     }, 15000);
   }
 
+  // Mostrar el banner cuando el version checker detecte actualización
+  useEffect(() => {
+    if (updateState) {
+      showBanner();
+    }
+  }, [updateState]);
+
   const handleUpdate = useCallback(async () => {
     // Si hay un worker esperando (flow tradicional: updatefound), enviar SKIP_WAITING
     if (waitingWorker) {
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      return;
     }
+    
+    // Si la discrepancia es detectada por el API, usar el reload de useVersionCheck
+    if (reload) {
+      await reload();
+      return;
+    }
+
+    // Fallback absoluto por seguridad
     try {
       if ('caches' in window) {
         const keys = await caches.keys();
@@ -125,11 +146,10 @@ export default function UpdateBanner() {
     } catch (e) {
       console.warn('[UpdateBanner] Error al purgar cachés en actualización:', e);
     }
-    // Redirigir con timestamp para saltar el cache HTTP del navegador
     const url = new URL(window.location.href);
     url.searchParams.set('_u', String(Date.now()));
     window.location.replace(url.toString());
-  }, [waitingWorker]);
+  }, [waitingWorker, reload]);
 
   const handleDismiss = useCallback(() => {
     setVisible(false);
@@ -233,7 +253,7 @@ export default function UpdateBanner() {
             ⚡ ¡Nueva versión disponible!
           </strong>
           <span style={{ color: '#fde68a', fontWeight: 400, marginLeft: '6px' }}>
-            Hay cambios nuevos en el sistema. Actualiza para recibirlos.
+            {updateState?.message || 'Hay cambios nuevos en el sistema. Actualiza para recibirlos.'}
           </span>
         </div>
 

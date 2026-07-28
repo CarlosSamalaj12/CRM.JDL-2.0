@@ -6,6 +6,7 @@ import { useDataSync } from '../../hooks/useDataSync.js';
 export default function SettingsEquipos() {
   const [equipos, setEquipos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [nombre, setNombre] = useState('');
@@ -37,6 +38,7 @@ export default function SettingsEquipos() {
     setEditId(null);
     setNombre('');
     setDescripcion('');
+    setExpanded(true);
     setShowForm(true);
   };
 
@@ -44,6 +46,7 @@ export default function SettingsEquipos() {
     setEditId(eq.id);
     setNombre(eq.nombre);
     setDescripcion(eq.descripcion || '');
+    setExpanded(true);
     setShowForm(true);
   };
 
@@ -92,8 +95,13 @@ export default function SettingsEquipos() {
     <div className="settings-equipos">
       <style>{`
         .settings-equipos { padding: 0; }
-        .settings-equipos-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .settings-equipos-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; cursor: pointer; user-select: none; }
         .settings-equipos-header h4 { margin: 0; font-size: 14px; color: #0f172a; }
+        .settings-equipos-toggle { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+        .settings-equipos-toggle-icon { display: flex; align-items: center; color: #64748b; transition: transform 0.2s; }
+        .settings-equipos-toggle-icon.open { transform: rotate(180deg); }
+        .settings-equipos-body { margin-top: 12px; animation: fadeSlideIn 0.18s ease; }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
         .equipos-grid { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
         .equipo-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; transition: all 0.15s; }
         .equipo-card:hover { border-color: #cbd5e1; }
@@ -135,68 +143,87 @@ export default function SettingsEquipos() {
         }
       `}</style>
 
-      <div className="settings-equipos-header">
-        <h4>Equipos de Trabajo</h4>
-        <button onClick={openNew} style={{ height: '32px', padding: '0 14px', borderRadius: '6px', border: 'none', background: '#6366f1', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+      <div className="settings-equipos-header" onClick={() => setExpanded(v => !v)} role="button" aria-expanded={expanded}>
+        <div className="settings-equipos-toggle">
+          <span className={`settings-equipos-toggle-icon${expanded ? ' open' : ''}`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+          <h4>Equipos de Trabajo</h4>
+          {!expanded && equipos.length > 0 && (
+            <span style={{ fontSize: '11px', background: '#eef2ff', color: '#4f46e5', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', marginLeft: '4px' }}>
+              {equipos.length} equipo{equipos.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); openNew(); }}
+          style={{ height: '32px', padding: '0 14px', borderRadius: '6px', border: 'none', background: '#6366f1', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+        >
           + Nuevo Equipo
         </button>
       </div>
 
-      {showForm && (
-        <form className="equipo-form" onSubmit={handleSave}>
-          <div className="equipo-form-row">
-            <input
-              type="text" placeholder="Nombre del equipo" value={nombre}
-              onChange={e => setNombre(e.target.value)} required autoFocus
-            />
-            <textarea
-              placeholder="Descripción (opcional)" value={descripcion}
-              onChange={e => setDescripcion(e.target.value)} rows={2}
-            />
-          </div>
-          <div className="equipo-form-actions">
-            <button type="submit" className="btn-save" disabled={saving || !nombre.trim()}>
-              {saving ? '...' : editId ? 'Guardar' : 'Crear'}
-            </button>
-            <button type="button" className="btn-cancel" onClick={() => { setShowForm(false); setEditId(null); setNombre(''); setDescripcion(''); }}>
-              Cancelar
-            </button>
-          </div>
-        </form>
-      )}
+      {expanded && (
+        <div className="settings-equipos-body">
+          {showForm && (
+            <form className="equipo-form" onSubmit={handleSave}>
+              <div className="equipo-form-row">
+                <input
+                  type="text" placeholder="Nombre del equipo" value={nombre}
+                  onChange={e => setNombre(e.target.value)} required autoFocus
+                />
+                <textarea
+                  placeholder="Descripción (opcional)" value={descripcion}
+                  onChange={e => setDescripcion(e.target.value)} rows={2}
+                />
+              </div>
+              <div className="equipo-form-actions">
+                <button type="submit" className="btn-save" disabled={saving || !nombre.trim()}>
+                  {saving ? '...' : editId ? 'Guardar' : 'Crear'}
+                </button>
+                <button type="button" className="btn-cancel" onClick={() => { setShowForm(false); setEditId(null); setNombre(''); setDescripcion(''); }}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
 
-      {loading ? (
-        <div className="equipos-empty">Cargando equipos...</div>
-      ) : equipos.length === 0 ? (
-        <div className="equipos-empty">Sin equipos de trabajo aún. Crea el primer equipo.</div>
-      ) : (
-        <div className="equipos-grid">
-          {equipos.map(eq => (
-            <div key={eq.id} className="equipo-card">
-              <div className="equipo-info">
-                <div className="equipo-nombre">{eq.nombre}</div>
-                {eq.descripcion && <div className="equipo-desc">{eq.descripcion}</div>}
-              </div>
-              <span className="equipo-miembros">{eq.miembros || 0} miembro{(eq.miembros || 0) !== 1 ? 's' : ''}</span>
-              <div className="equipo-actions">
-                <button className="settings-usr-icon-btn btn-edit-usuario" onClick={() => openEdit(eq)} title="Editar equipo">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                    <path d="m15 5 4 4"/>
-                  </svg>
-                </button>
-                <button className="settings-usr-icon-btn btn-delete-usuario" onClick={() => handleDelete(eq)} title="Eliminar equipo">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 6h18"/>
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                    <line x1="10" y1="11" x2="10" y2="17"/>
-                    <line x1="14" y1="11" x2="14" y2="17"/>
-                  </svg>
-                </button>
-              </div>
+          {loading ? (
+            <div className="equipos-empty">Cargando equipos...</div>
+          ) : equipos.length === 0 ? (
+            <div className="equipos-empty">Sin equipos de trabajo aún. Crea el primer equipo.</div>
+          ) : (
+            <div className="equipos-grid">
+              {equipos.map(eq => (
+                <div key={eq.id} className="equipo-card">
+                  <div className="equipo-info">
+                    <div className="equipo-nombre">{eq.nombre}</div>
+                    {eq.descripcion && <div className="equipo-desc">{eq.descripcion}</div>}
+                  </div>
+                  <span className="equipo-miembros">{eq.miembros || 0} miembro{(eq.miembros || 0) !== 1 ? 's' : ''}</span>
+                  <div className="equipo-actions">
+                    <button className="settings-usr-icon-btn btn-edit-usuario" onClick={() => openEdit(eq)} title="Editar equipo">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                        <path d="m15 5 4 4"/>
+                      </svg>
+                    </button>
+                    <button className="settings-usr-icon-btn btn-delete-usuario" onClick={() => handleDelete(eq)} title="Eliminar equipo">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18"/>
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                        <line x1="10" y1="11" x2="10" y2="17"/>
+                        <line x1="14" y1="11" x2="14" y2="17"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

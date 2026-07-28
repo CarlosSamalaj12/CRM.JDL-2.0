@@ -7,7 +7,6 @@ import NotificationBell from './NotificationBell.jsx';
 import SearchBar from './SearchBar.jsx';
 import PwaInstallBanner from './PwaInstallBanner.jsx';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
-import ForceUpdateModal from '../../../components/ForceUpdateModal';
 import VersionFooter from '../../../components/VersionFooter';
 import {
   IconGrid,
@@ -387,16 +386,6 @@ export default function ReportsLayout() {
 
       {/* Footer con versión (esquina inferior derecha) */}
       <VersionFooter style={{ position: 'fixed', bottom: 8, right: 12, zIndex: 1000 }} />
-
-      {/* Modal obligatorio si el server tiene una versión más reciente */}
-      <ForceUpdateModal
-        open={!!updateState}
-        serverVersion={updateState?.serverVersion || serverVersion}
-        currentVersion={currentVersion}
-        message={updateState?.message}
-        reason={updateState?.reason}
-        onUpdate={reload}
-      />
 
       <style>{`
         @media screen {

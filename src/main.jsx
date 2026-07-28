@@ -6,6 +6,8 @@ import './styles/global-scoped.css';
 import './styles/design-system-scoped.css';
 import './styles/responsive-mobile.css';
 
+import { CURRENT_VERSION } from './services/versionService';
+
 // ═══════════════════════════════════════════════════════════════
 //  SERVICE WORKER — Único punto de registro y detección de
 //  actualizaciones. NO registramos en /login para evitar que
@@ -13,12 +15,21 @@ import './styles/responsive-mobile.css';
 //  (index.html ya limpia SWs viejos y cachés al entrar a /login)
 // ═══════════════════════════════════════════════════════════════
 if ('serviceWorker' in navigator && window.location.pathname !== '/login') {
+  // Reload page when new service worker takes over control (skipWaiting completed)
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then((registration) => {
-      // Periodic update check every 5 minutes in the background
+    navigator.serviceWorker.register(`/sw.js?v=${CURRENT_VERSION}`, { updateViaCache: 'none' }).then((registration) => {
+      // Periodic update check every 15 minutes in the background
       setInterval(() => {
         registration.update().catch(() => {});
-      }, 1000 * 60 * 5);
+      }, 1000 * 60 * 15);
 
       // Detectar cuando hay una nueva versión del SW (nuevo deploy)
       registration.addEventListener('updatefound', () => {

@@ -725,11 +725,11 @@ export default function SettingsMain() {
                 </div>
 
                 <div className="settings-section-card">
-                  <SettingsEquipos />
+                  <SettingsUsers />
                 </div>
 
                 <div className="settings-section-card" style={{ marginTop: '16px' }}>
-                  <SettingsUsers />
+                  <SettingsEquipos />
                 </div>
               </>
             )}

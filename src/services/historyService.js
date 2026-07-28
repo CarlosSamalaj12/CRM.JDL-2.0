@@ -49,7 +49,7 @@ export const historyService = {
 
   async addDetailed(eventId, oldSnapshot, newSnapshot) {
     const changes = [];
-    const ignoredFields = new Set(['slots', 'id', 'groupId']);
+    const ignoredFields = new Set(['slots', 'id', 'groupId', 'quote']);
     
     Object.keys(newSnapshot).forEach(key => {
       if (ignoredFields.has(key)) return;

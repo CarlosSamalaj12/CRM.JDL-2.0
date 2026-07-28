@@ -57,6 +57,84 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
     textAlign: 'center'
   };
 
+  const renderChangeText = (changeText) => {
+    if (typeof changeText !== 'string') return changeText;
+    
+    if (changeText.startsWith('Cambios:')) {
+      const parts = changeText.replace('Cambios:', '').split(', •');
+      return (
+        <div>
+          <div style={{ fontWeight: '700', color: '#1e293b', marginBottom: '6px', fontSize: '13px' }}>Cambios realizados:</div>
+          <ul style={{ margin: 0, paddingLeft: '16px', listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {parts.map((part, index) => {
+              const cleanPart = part.trim().replace(/^•\s*/, '');
+              if (!cleanPart) return null;
+              
+              const subparts = cleanPart.split('→');
+              if (subparts.length === 2) {
+                return (
+                  <li key={index} style={{ fontSize: '13px', color: '#334155', lineHeight: '1.4' }}>
+                    <span style={{ fontWeight: '600', color: '#475569' }}>{subparts[0].trim()}</span>
+                    <span style={{ color: '#94a3b8', margin: '0 6px' }}>→</span>
+                    <span style={{ color: '#16a34a', fontWeight: '600', background: '#f0fdf4', padding: '1px 6px', borderRadius: '4px' }}>
+                      {subparts[1].trim()}
+                    </span>
+                  </li>
+                );
+              }
+              
+              return (
+                <li key={index} style={{ fontSize: '13px', color: '#334155', lineHeight: '1.4' }}>
+                  {cleanPart}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      );
+    }
+    
+    let color = '#0f172a';
+    let icon = '📝';
+    let bg = '#f8fafc';
+    let border = '#e2e8f0';
+    
+    if (changeText.includes('creada')) {
+      color = '#0284c7';
+      icon = '✨';
+      bg = '#f0f9ff';
+      border = '#e0f2fe';
+    } else if (changeText.includes('actualizada') || changeText.includes('guardada')) {
+      color = '#4f46e5';
+      icon = '📄';
+      bg = '#f5f3ff';
+      border = '#ede9fe';
+    } else if (changeText.includes('Mantenimiento')) {
+      color = '#d97706';
+      icon = '🛠️';
+      bg = '#fffbeb';
+      border = '#fef3c7';
+    }
+    
+    return (
+      <div style={{
+        color,
+        fontWeight: '700',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '6px 12px',
+        borderRadius: '8px',
+        background: bg,
+        border: `1px solid ${border}`,
+        fontSize: '13px'
+      }}>
+        <span>{icon}</span>
+        <span>{changeText}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="hist-modal-container" style={{
       width: '520px',
@@ -145,7 +223,7 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
       {/* Header */}
       <div className="hist-modal-header" style={headerStyle}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>📋 Historial de Cambios</h2>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#ffffff' }}>📋 Historial de Cambios</h2>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>{eventName}</p>
         </div>
         <button onClick={onClose} className="btn-exit-modal">
@@ -206,8 +284,8 @@ export default function HistoryPanel({ eventId, eventName, onClose }) {
                       {formatTimestamp(entry.at || entry.timestamp)}
                     </span>
                   </div>
-                  <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600', lineHeight: '1.5' }}>
-                    {entry.change}
+                  <div style={{ fontSize: '14px', color: '#0f172a', lineHeight: '1.5' }}>
+                    {renderChangeText(entry.change)}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', position: 'relative' }}>
                     <div

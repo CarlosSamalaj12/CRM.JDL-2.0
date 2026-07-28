@@ -166,11 +166,15 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SET_ACTIVE_USER') {
-    activeUserId = event.data.userId;
-    console.log('[SW] Usuario activo registrado en SW:', activeUserId);
+  if (event.data) {
+    if (event.data.type === 'SET_ACTIVE_USER') {
+      activeUserId = event.data.userId;
+      console.log('[SW] Usuario activo registrado en SW:', activeUserId);
+    }
+    if (event.data.type === 'SKIP_WAITING') {
+      self.skipWaiting();
+    }
   }
-  // skipWaiting() ya se ejecuta en install, por eso no hay handler SKIP_WAITING aquí
 });
 
 // Evento push: Recibir mensaje del backend y mostrar notificación flotante

@@ -1072,6 +1072,25 @@ export default function ReservationForm() {
         status: updatedEvent.status
       }));
 
+      if (quoteChanged) {
+        const symbol = quoteData?.currency === 'USD' ? '$' : 'Q';
+        const formattedTotal = `${symbol} ${Number(quoteData?.total || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        let logMsg = '';
+        if (!previousQuote) {
+          logMsg = `Cotización creada (Versión ${quoteData?.version || 1}) • Total: ${formattedTotal}`;
+        } else {
+          logMsg = `Cotización actualizada (Versión ${quoteData?.version || 1}) • Total: ${formattedTotal}`;
+        }
+
+        if (shouldFollowUp) {
+          logMsg += ' • Estado cambiado a "Seguimiento"';
+        } else if (currentEvent?.status === 'Reserva sin Cotizacion') {
+          logMsg += ' • Estado cambiado a "1er Cotizacion"';
+        }
+
+        await historyService.add(id, logMsg);
+      }
+
       setSaving(false);
       showNotification(shouldFollowUp ? 'Cotizacion actualizada. Estado a Seguimiento.' : 'Cotizacion guardada');
       if (!options?.keepOpen) setShowQuoteModal(false);

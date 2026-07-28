@@ -3,6 +3,7 @@ import { loadState as loadCrmState, saveState as saveCrmState } from '../../serv
 import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import { useDataSync } from '../../hooks/useDataSync.js';
+import { getEquipos } from '../../services/api.js';
 
 const ROLE_LABELS = {
   admin: 'Administrador',
@@ -22,25 +23,31 @@ const ROLE_COLORS = {
 
 export default function SettingsUsers() {
   const [users, setUsers] = useState([]);
+  const [equipos, setEquipos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchUsers = async () => {
+  const fetchUsersAndTeams = async () => {
     setLoading(true);
     try {
-      const state = await loadCrmState();
+      const [state, teamsData] = await Promise.all([
+        loadCrmState(),
+        getEquipos()
+      ]);
       setUsers(state?.users || []);
+      setEquipos(teamsData || []);
     } catch (e) {
-      console.error('Error cargando usuarios:', e);
+      console.error('Error cargando usuarios o equipos:', e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsersAndTeams();
 
     const handleSync = () => {
-      fetchUsers();
+      fetchUsersAndTeams();
     };
 
     window.addEventListener('usersUpdated', handleSync);
@@ -49,7 +56,8 @@ export default function SettingsUsers() {
     };
   }, []);
 
-  useDataSync('usuario', () => fetchUsers());
+  useDataSync('usuario', () => fetchUsersAndTeams());
+  useDataSync('equipo_trabajo', () => fetchUsersAndTeams());
 
   const saveState = async (updatedUsers) => {
     const currentState = await loadCrmState();
@@ -99,6 +107,29 @@ export default function SettingsUsers() {
   const avatarFor = (u) => u.avatarDataUrl ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || u.name || '?')}&background=0ea5e9&color=fff&size=80`;
 
+  const sortedUsers = [...users].sort((a, b) => {
+    const teamA = equipos.find(eq => eq.id === a.teamId)?.nombre || 'Z_Sin equipo';
+    const teamB = equipos.find(eq => eq.id === b.teamId)?.nombre || 'Z_Sin equipo';
+    const compTeam = teamA.localeCompare(teamB, 'es', { sensitivity: 'base' });
+    if (compTeam !== 0) return compTeam;
+    const nameA = a.fullName || a.name || '';
+    const nameB = b.fullName || b.name || '';
+    return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+  });
+
+  const filteredUsers = sortedUsers.filter(u => {
+    const term = searchTerm.toLowerCase();
+    const teamName = equipos.find(eq => eq.id === u.teamId)?.nombre || 'Sin equipo';
+    const roleLabel = ROLE_LABELS[u.role] || 'Vendedor';
+    return (
+      (u.fullName || u.name || '').toLowerCase().includes(term) ||
+      (u.email || '').toLowerCase().includes(term) ||
+      (u.phone || '').toLowerCase().includes(term) ||
+      teamName.toLowerCase().includes(term) ||
+      roleLabel.toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div style={{ marginBottom: '32px' }}>
       <style>{`
@@ -140,12 +171,59 @@ export default function SettingsUsers() {
         </button>
       </div>
 
+      {/* Buscador */}
+      <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', maxWidth: '360px', width: '100%' }}>
+        <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center' }}>
+          <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', color: '#94a3b8', fontSize: '18px' }}>search</span>
+          <input
+            type="text"
+            placeholder="Buscar por nombre, correo, equipo o rol..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 12px 8px 36px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              fontSize: '13px',
+              outline: 'none',
+              transition: 'border-color 0.15s',
+              background: '#fff',
+              color: '#0f172a',
+              boxSizing: 'border-box'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+            onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              style={{
+                position: 'absolute',
+                right: '10px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#94a3b8',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 0
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Table */}
       <div className="usr-table-wrapper" style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
         {loading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>Cargando usuarios...</div>
         ) : users.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>No hay usuarios registrados aún.</div>
+        ) : filteredUsers.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>Sin resultados para "{searchTerm}"</div>
         ) : (
           <table className="usr-table">
             <thead>
@@ -153,14 +231,16 @@ export default function SettingsUsers() {
                 <th>Usuario</th>
                 <th>Correo</th>
                 <th className="usr-hide-phone">Teléfono</th>
+                <th>Equipo</th>
                 <th>Rol</th>
                 <th style={{ textAlign: 'center' }}>Activo</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {users.map(u => {
+              {filteredUsers.map(u => {
                 const roleStyle = ROLE_COLORS[u.role] || ROLE_COLORS.vendedor;
+                const teamName = equipos.find(eq => eq.id === u.teamId)?.nombre || null;
                 return (
                   <tr key={u.id}>
                     {/* Avatar + Name */}
@@ -182,6 +262,17 @@ export default function SettingsUsers() {
                     {/* Phone */}
                     <td className="usr-hide-phone">
                       <span style={{ fontSize: '13px', color: '#334155' }}>{u.phone || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>—</span>}</span>
+                    </td>
+
+                    {/* Team */}
+                    <td>
+                      {teamName ? (
+                        <span style={{ fontSize: '13px', color: '#4f46e5', fontWeight: '600' }}>
+                          {teamName}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Sin equipo</span>
+                      )}
                     </td>
 
                     {/* Role */}
