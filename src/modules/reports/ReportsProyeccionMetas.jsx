@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+﻿import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
+import { getEquipos } from '../../services/api.js';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 
@@ -23,6 +24,11 @@ const ALL_STATUSES = [
   'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
   'Lista de Espera', 'Confirmado', 'Cancelado', 'Perdido'
 ];
+
+// Estados que cuentan como "potencial a cerrar" (lo que se podría sumar a la venta confirmada
+// si se logra convertir el evento). La venta confirmada viene solo de "Confirmado".
+const POTENTIAL_STATUSES = ['Pre reserva', '1er Cotizacion', 'Seguimiento', 'Lista de Espera'];
+const CONFIRMED_STATUS = 'Confirmado';
 
 const STATUS_COLORS = {
   'Pre reserva': { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
@@ -58,6 +64,10 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const reportRef = useRef(null);
 
   // ── Compute days elapsed and remaining ──
+  // Los rangos de fechas son INCLUSIVOS en ambos extremos (e.g. 1-31 de julio = 31 días).
+  // El cálculo (end - start) en ms da 30 días para ese rango, así que se suma +1.
+  // Usamos Math.floor + 1 para no pasarnos cuando hay horas/minutos en "now"
+  // (e.g. now=29jul 15:39 → elapsedMs=28.65 días → floor=28 → +1=29, no 30).
   const periodInfo = useMemo(() => {
     const start = new Date(fromDate + 'T00:00:00');
     const end = new Date(toDate + 'T00:00:00');
@@ -65,11 +75,57 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const clamp = (d) => d < start ? start : (d > end ? end : d);
     const elapsedMs = clamp(now).getTime() - start.getTime();
     const totalMs = end.getTime() - start.getTime();
-    const elapsedDays = Math.max(1, Math.ceil(elapsedMs / 86400000));
-    const totalDays = Math.max(1, Math.ceil(totalMs / 86400000));
+    // +1 para incluir ambos extremos (Jul 1 → Jul 31 = 31 días, no 30)
+    const elapsedDays = Math.max(1, Math.floor(elapsedMs / 86400000) + 1);
+    const totalDays = Math.max(1, Math.floor(totalMs / 86400000) + 1);
     const remainingDays = Math.max(0, totalDays - elapsedDays);
     return { elapsedDays, totalDays, remainingDays };
   }, [fromDate, toDate]);
+
+  // Clave del mes actual (YYYY-MM) para resaltar en gráficos
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+  // ── Equipos de trabajo ──
+  const [equipos, setEquipos] = useState([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getEquipos();
+        setEquipos(Array.isArray(data) ? data : (data?.equipos || []));
+      } catch (err) {
+        console.warn('No se pudieron cargar los equipos:', err);
+        setEquipos([]);
+      }
+    })();
+  }, []);
+
+  // Mapeo teamId â†’ info del equipo
+  const equipoById = useMemo(() => {
+    const map = new Map();
+    for (const eq of equipos) {
+      const id = String(eq.id ?? eq.equipo_id ?? '').trim();
+      if (id) {
+        map.set(id, {
+          id,
+          nombre: eq.nombre || eq.name || 'Sin nombre',
+          descripcion: eq.descripcion || eq.description || ''
+        });
+      }
+    }
+    return map;
+  }, [equipos]);
+
+  // Colores/íconos para los equipos (rotan si hay más de los definidos)
+  const TEAM_THEMES = [
+    { color: '#10b981', bg: '#dcfce7', textColor: '#065f46', icon: '💼' },  // verde
+    { color: '#3b82f6', bg: '#dbeafe', textColor: '#1e40af', icon: '📞' },  // azul
+    { color: '#8b5cf6', bg: '#ede9fe', textColor: '#5b21b6', icon: '👑' },  // violeta
+    { color: '#f59e0b', bg: '#fef3c7', textColor: '#92400e', icon: '⭐' },  // ámbar
+    { color: '#ec4899', bg: '#fce7f3', textColor: '#9d174d', icon: '🌟' },  // rosa
+    { color: '#06b6d4', bg: '#cffafe', textColor: '#155e75', icon: '🔷' },  // cyan
+    { color: '#ef4444', bg: '#fee2e2', textColor: '#991b1b', icon: '🔥' },  // rojo
+    { color: '#84cc16', bg: '#ecfccb', textColor: '#3f6212', icon: '🌿' },  // lima
+  ];
 
   // ── Generate months ──
   const monthList = useMemo(() => {
@@ -99,24 +155,38 @@ export default function ReportsProyeccionMetas({ onClose }) {
     // Aggregate sales by userId (deduplicando por groupId igual que Comisiones)
     const salesByUser = {};
     const eventsByUser = {};
+    // Potencial por vendedor: dinero en pendiente (los 4 estados pre-cierre),
+    // NO se filtra por statusFilter (siempre se muestra el pendiente completo).
+    const potentialByUser = {};
     const seenReservations = new Set();
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < fromDate || d > toDate) continue;
       const status = String(ev.status || '').trim();
-      if (!statusFilter.has(status)) continue;
       const amount = Math.max(0, Number(ev.quote?.total || 0));
       if (amount <= 0) continue;
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
-      const groupKey = ev.groupId || ev.id;
-      if (seenReservations.has(groupKey)) continue;
-      seenReservations.add(groupKey);
+      // Venta confirmada (respeta statusFilter)
+      if (statusFilter.has(status)) {
+        const groupKey = ev.groupId || ev.id;
+        if (!seenReservations.has(groupKey)) {
+          seenReservations.add(groupKey);
+          salesByUser[userId] = (salesByUser[userId] || 0) + amount;
+          eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
+        }
+      }
 
-      salesByUser[userId] = (salesByUser[userId] || 0) + amount;
-      eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
+      // Potencial a cerrar (4 estados pre-cierre, dedupe por groupId)
+      if (POTENTIAL_STATUSES.includes(status)) {
+        const pGroupKey = `p_${ev.groupId || ev.id}`;
+        if (!seenReservations.has(pGroupKey)) {
+          seenReservations.add(pGroupKey);
+          potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
+        }
+      }
     }
 
     const rows = [];
@@ -174,6 +244,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
         pctToNext,
         gapStatus: neededForNext === 0 ? 'complete' : (dailyNeeded <= dailyAvg ? 'on_track' : 'needs_boost'),
         potentialCommissionNext,
+        potential: potentialByUser[userId] || 0,  // dinero en pendiente (4 estados)
       });
     }
 
@@ -197,8 +268,102 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const usersNeedBoost = useMemo(() => userRows.filter(r => r.hasTiers && r.gapStatus === 'needs_boost').length, [userRows]);
   const usersComplete = useMemo(() => userRows.filter(r => r.hasTiers && r.gapStatus === 'complete').length, [userRows]);
 
-  const maxSales = useMemo(() => userRows.length > 0 ? Math.max(...userRows.map(r => Math.max(r.currentSales, r.neededForNext > 0 ? r.currentSales + r.neededForNext : 0))) : 0, [userRows]);
-  const maxBarAmount = maxSales > 0 ? maxSales * 1.1 : 1;
+  // Max bar amount: cubre las 3 series (sales, sales+gap, potencial)
+  // así el chart no se recorta si algún vendedor tiene un potencial grande.
+  const maxSales = useMemo(() => {
+    if (userRows.length === 0) return 0;
+    return Math.max(...userRows.map(r => Math.max(
+      r.currentSales,
+      r.neededForNext > 0 ? r.currentSales + r.neededForNext : 0,
+      r.potential
+    )));
+  }, [userRows]);
+
+  // Tiers únicos (deduplicados por nombre+monto) de todos los vendedores,
+  // para dibujar líneas de referencia en el chart.
+  const allTiers = useMemo(() => {
+    const map = new Map();
+    for (const u of (users || [])) {
+      const tiers = Array.isArray(u.goalTiers) ? u.goalTiers : [];
+      for (const t of tiers) {
+        if (t && t.amount > 0) {
+          const key = `${t.name || 'Tier'}_${t.amount}`;
+          if (!map.has(key)) {
+            map.set(key, { name: t.name || 'Tier', amount: Number(t.amount) || 0 });
+          }
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.amount - b.amount);
+  }, [users]);
+
+  // Ajusta maxBarAmount para incluir también el tier más alto
+  const maxBarAmount = useMemo(() => {
+    const maxRow = maxSales;
+    const maxTier = allTiers.length > 0 ? Math.max(...allTiers.map(t => t.amount)) : 0;
+    return Math.max(maxRow, maxTier) * 1.1 || 1;
+  }, [maxSales, allTiers]);
+
+  // ── Potencial de venta: dinero en pendiente (estados pre-cierre) por mes ──
+  // Compara la venta confirmada (Confirmado) con el potencial a cerrar
+  // (Pre reserva + 1er Cotizacion + Seguimiento + Lista de Espera).
+  // Ignora el statusFilter del reporte principal — el potencial siempre muestra el pendiente completo.
+  const potentialData = useMemo(() => {
+    if (!events || !monthList.length) {
+      return { months: [], totalActual: 0, totalPotential: 0, coveragePct: 0, crecimientoPct: 0 };
+    }
+
+    const monthActual = {};
+    const monthPotential = {};
+    const monthCounts = { actual: 0, potential: 0 };
+    for (const m of monthList) {
+      monthActual[m.key] = 0;
+      monthPotential[m.key] = 0;
+    }
+
+    for (const ev of events) {
+      const d = String(ev.date || '');
+      if (!d || d < fromDate || d > toDate) continue;
+
+      const userId = String(ev.userId || '').trim();
+      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+
+      const amount = Math.max(0, Number(ev.quote?.total || 0));
+      if (amount <= 0) continue;
+
+      const status = String(ev.status || '').trim();
+      const monthKey = d.substring(0, 7);
+      if (monthActual[monthKey] === undefined) continue;
+
+      if (status === CONFIRMED_STATUS) {
+        monthActual[monthKey] += amount;
+        monthCounts.actual += 1;
+      } else if (POTENTIAL_STATUSES.includes(status)) {
+        monthPotential[monthKey] += amount;
+        monthCounts.potential += 1;
+      }
+    }
+
+    const months = monthList.map(m => {
+      const actual = monthActual[m.key] || 0;
+      const potential = monthPotential[m.key] || 0;
+      return {
+        ...m,
+        actual,
+        potential,
+        total: actual + potential,
+        ratio: actual + potential > 0 ? (actual / (actual + potential)) * 100 : 0,
+      };
+    });
+
+    const totalActual = months.reduce((s, m) => s + m.actual, 0);
+    const totalPotential = months.reduce((s, m) => s + m.potential, 0);
+    const grandTotal = totalActual + totalPotential;
+    const coveragePct = grandTotal > 0 ? (totalPotential / grandTotal) * 100 : 0;
+    const crecimientoPct = totalActual > 0 ? (totalPotential / totalActual) * 100 : 0;
+
+    return { months, totalActual, totalPotential, coveragePct, crecimientoPct, monthCounts };
+  }, [events, monthList, userFilter, fromDate, toDate]);
 
   // ── Tooltip data ──
   const hoveredRow = useMemo(
@@ -258,6 +423,223 @@ export default function ReportsProyeccionMetas({ onClose }) {
     setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth(), 1)));
     setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
   };
+
+  // ── Helper: calcula los datos de proyección para un grupo de usuarios (un equipo) ──
+  const computeTeamData = useCallback((teamUsers) => {
+    const emptyPotential = { months: [], totalActual: 0, totalPotential: 0, coveragePct: 0, crecimientoPct: 0, monthCounts: { actual: 0, potential: 0 } };
+    if (!events || !monthList.length || !teamUsers || teamUsers.length === 0) {
+      return { userRows: [], potentialData: emptyPotential, allTiers: [], maxBarAmount: 1 };
+    }
+
+    // Aggregate sales + potential by user
+    const salesByUser = {};
+    const eventsByUser = {};
+    const potentialByUser = {};
+    const seenReservations = new Set();
+    for (const ev of events) {
+      const d = String(ev.date || '');
+      if (!d || d < fromDate || d > toDate) continue;
+      const status = String(ev.status || '').trim();
+      const amount = Math.max(0, Number(ev.quote?.total || 0));
+      if (amount <= 0) continue;
+      const userId = String(ev.userId || '').trim();
+      if (!userId) continue;
+      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+
+      if (statusFilter.has(status)) {
+        const groupKey = ev.groupId || ev.id;
+        if (!seenReservations.has(groupKey)) {
+          seenReservations.add(groupKey);
+          salesByUser[userId] = (salesByUser[userId] || 0) + amount;
+          eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
+        }
+      }
+      if (POTENTIAL_STATUSES.includes(status)) {
+        const pGroupKey = `p_${ev.groupId || ev.id}`;
+        if (!seenReservations.has(pGroupKey)) {
+          seenReservations.add(pGroupKey);
+          potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
+        }
+      }
+    }
+
+    // Build user rows
+    const rows = [];
+    for (const user of teamUsers) {
+      const userId = String(user.id).trim();
+      if (!userId) continue;
+      const currentSales = salesByUser[userId] || 0;
+      const eventCount = eventsByUser[userId] || 0;
+      const tiers = Array.isArray(user.goalTiers) ? [...user.goalTiers].filter(t => t.amount > 0).sort((a, b) => a.amount - b.amount) : [];
+      const hasTiers = tiers.length > 0;
+
+      let reachedTier = null;
+      let nextTier = null;
+      let currentTierIdx = -1;
+      if (hasTiers) {
+        for (let i = 0; i < tiers.length; i++) {
+          if (currentSales >= tiers[i].amount) {
+            reachedTier = tiers[i];
+            currentTierIdx = i;
+          }
+        }
+        nextTier = tiers[currentTierIdx + 1] || null;
+      }
+      const neededForNext = nextTier ? Math.max(0, nextTier.amount - currentSales) : 0;
+      const dailyAvg = periodInfo.elapsedDays > 0 ? currentSales / periodInfo.elapsedDays : 0;
+      const projectedTotal = dailyAvg * periodInfo.totalDays;
+      const projectedCommission = reachedTier ? (projectedTotal * reachedTier.percentage) / 100 : 0;
+      const potentialCommissionNext = nextTier ? (projectedTotal * nextTier.percentage) / 100 : 0;
+      const dailyNeeded = periodInfo.remainingDays > 0 ? neededForNext / periodInfo.remainingDays : 0;
+      const canReachNext = projectedTotal >= (nextTier?.amount || Infinity);
+      const pctToNext = nextTier && currentSales > 0
+        ? Math.min(100, Math.max(0, ((currentSales - (reachedTier?.amount || 0)) / (nextTier.amount - (reachedTier?.amount || 0))) * 100))
+        : 0;
+
+      rows.push({
+        userId, name: user.fullName || user.name || userId,
+        currentSales, eventCount,
+        eventAvg: eventCount > 0 ? currentSales / eventCount : 0,
+        dailyAvg, projectedTotal, projectedCommission,
+        hasTiers, tiers, reachedTier, nextTier,
+        neededForNext, dailyNeeded, canReachNext, pctToNext,
+        gapStatus: neededForNext === 0 ? 'complete' : (dailyNeeded <= dailyAvg ? 'on_track' : 'needs_boost'),
+        potentialCommissionNext,
+        potential: potentialByUser[userId] || 0,
+      });
+    }
+    rows.sort((a, b) => {
+      if (a.hasTiers && !b.hasTiers) return -1;
+      if (!a.hasTiers && b.hasTiers) return 1;
+      return b.currentSales - a.currentSales;
+    });
+
+    // Tiers únicos del equipo
+    const tierMap = new Map();
+    for (const u of teamUsers) {
+      const tiers = Array.isArray(u.goalTiers) ? u.goalTiers : [];
+      for (const t of tiers) {
+        if (t && t.amount > 0) {
+          const key = `${t.name || 'Tier'}_${t.amount}`;
+          if (!tierMap.has(key)) {
+            tierMap.set(key, { name: t.name || 'Tier', amount: Number(t.amount) || 0 });
+          }
+        }
+      }
+    }
+    const allTiers = Array.from(tierMap.values()).sort((a, b) => a.amount - b.amount);
+
+    // Max bar amount del equipo
+    const maxSalesTeam = rows.length > 0 ? Math.max(...rows.map(r => Math.max(
+      r.currentSales,
+      r.neededForNext > 0 ? r.currentSales + r.neededForNext : 0,
+      r.potential
+    ))) : 0;
+    const maxTier = allTiers.length > 0 ? Math.max(...allTiers.map(t => t.amount)) : 0;
+    const maxBarAmount = Math.max(maxSalesTeam, maxTier) * 1.1 || 1;
+
+    // Potencial por mes del equipo
+    const monthActual = {};
+    const monthPotential = {};
+    const monthCounts = { actual: 0, potential: 0 };
+    for (const m of monthList) {
+      monthActual[m.key] = 0;
+      monthPotential[m.key] = 0;
+    }
+    for (const ev of events) {
+      const d = String(ev.date || '');
+      if (!d || d < fromDate || d > toDate) continue;
+      const userId = String(ev.userId || '').trim();
+      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+      const amount = Math.max(0, Number(ev.quote?.total || 0));
+      if (amount <= 0) continue;
+      const status = String(ev.status || '').trim();
+      const monthKey = d.substring(0, 7);
+      if (monthActual[monthKey] === undefined) continue;
+      if (status === CONFIRMED_STATUS) {
+        monthActual[monthKey] += amount;
+        monthCounts.actual += 1;
+      } else if (POTENTIAL_STATUSES.includes(status)) {
+        monthPotential[monthKey] += amount;
+        monthCounts.potential += 1;
+      }
+    }
+    const months = monthList.map(m => {
+      const actual = monthActual[m.key] || 0;
+      const potential = monthPotential[m.key] || 0;
+      return { ...m, actual, potential, total: actual + potential, ratio: actual + potential > 0 ? (actual / (actual + potential)) * 100 : 0 };
+    });
+    const totalActual = months.reduce((s, m) => s + m.actual, 0);
+    const totalPotential = months.reduce((s, m) => s + m.potential, 0);
+    const grandTotal = totalActual + totalPotential;
+    const coveragePct = grandTotal > 0 ? (totalPotential / grandTotal) * 100 : 0;
+    const crecimientoPct = totalActual > 0 ? (totalPotential / totalActual) * 100 : 0;
+    const potentialData = { months, totalActual, totalPotential, coveragePct, crecimientoPct, monthCounts };
+
+    return { userRows: rows, potentialData, allTiers, maxBarAmount };
+  }, [events, monthList, fromDate, toDate, userFilter, statusFilter, periodInfo]);
+
+  // ── Agrupa usuarios por equipo y calcula proyección por equipo ──
+  const teamProjections = useMemo(() => {
+    if (!users || users.length === 0) return [];
+
+    // Agrupa usuarios por teamId (todos son vendedores, pero la meta difiere por equipo)
+    const groupsMap = new Map();
+    for (const u of users) {
+      const role = String(u.role || '').toLowerCase();
+      if (role !== 'vendedor' && role !== 'admin' && role !== '') continue;
+      const tid = u.teamId != null ? String(u.teamId) : '__no_team__';
+      if (!groupsMap.has(tid)) groupsMap.set(tid, []);
+      groupsMap.get(tid).push(u);
+    }
+
+    // Construye la lista de equipos a mostrar
+    const teamList = [];
+    // Primero los equipos conocidos (en el orden del fetch)
+    for (const eq of equipos) {
+      const tid = String(eq.id);
+      const members = groupsMap.get(tid) || [];
+      if (members.length === 0) continue;
+      const theme = TEAM_THEMES[teamList.length % TEAM_THEMES.length];
+      teamList.push({
+        id: tid,
+        name: eq.nombre,
+        descripcion: eq.descripcion,
+        members,
+        theme,
+        ...computeTeamData(members)
+      });
+      groupsMap.delete(tid);
+    }
+    // Luego usuarios sin equipo
+    if (groupsMap.has('__no_team__')) {
+      const members = groupsMap.get('__no_team__');
+      const theme = TEAM_THEMES[teamList.length % TEAM_THEMES.length];
+      teamList.push({
+        id: '__no_team__',
+        name: 'Sin equipo asignado',
+        descripcion: 'Vendedores sin equipo configurado',
+        members,
+        theme,
+        ...computeTeamData(members)
+      });
+      groupsMap.delete('__no_team__');
+    }
+    // Cualquier teamId restante que no esté en la lista de equipos
+    for (const [tid, members] of groupsMap.entries()) {
+      const theme = TEAM_THEMES[teamList.length % TEAM_THEMES.length];
+      teamList.push({
+        id: tid,
+        name: `Equipo #${tid}`,
+        descripcion: '',
+        members,
+        theme,
+        ...computeTeamData(members)
+      });
+    }
+    // Solo devolver equipos con al menos un miembro con metas (tiers) configuradas
+    return teamList.filter(t => t.allTiers.length > 0);
+  }, [users, equipos, computeTeamData]);
 
   const handleExportPDF = async () => {
     setPdfLoading(true);
@@ -323,7 +705,7 @@ th.right{text-align:right}</style></head><body>
 <table>
   <tr><td colspan="11" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
   <tr><td colspan="11" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Proyección de Metas</td></tr>
-  <tr><td colspan="11" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} → ${toDate} - Generado: ${dateStr} - ${timeStr}</td></tr>
+  <tr><td colspan="11" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} â†’ ${toDate} - Generado: ${dateStr} - ${timeStr}</td></tr>
   <tr>
     <th>Vendedor</th><th class="right">Ventas</th><th>Evs</th><th class="right">Prom./Ev</th><th>Tier</th><th>Siguiente</th>
     <th class="right">Necesita</th><th class="right">Diario Nec.</th><th class="right">Prom. Diario</th><th class="right">Proyectado</th><th>Estado</th>
@@ -511,268 +893,264 @@ th.right{text-align:right}</style></head><body>
           </div>
         </section>
 
-        {/* ── Bar Chart: Ventas actuales vs Gap hacia siguiente meta ── */}
-        <section className="reports-hero-panel" style={{ gap: '12px', ...sectionStyle(200) }}>
+        {/* --- Charts por equipo --- */}
+        {teamProjections.length === 0 ? (
+          <section className="reports-hero-panel" style={{ padding: 60, textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>
+              No hay equipos con vendedores configurados en este período
+            </div>
+          </section>
+        ) : (
+          teamProjections.map((tp, i) => (
+            <TeamChartSection key={tp.id} tp={tp} index={i} />
+          ))
+        )}
+
+        {/* ── Bar Chart: Potencial de cierre (venta confirmada vs pendiente) ── */}
+        <section className="reports-hero-panel" style={{ gap: '12px', ...sectionStyle(300) }}>
           <div className="reports-section-intro">
             <div>
-              <span className="reports-eyebrow">Gráfico de barras</span>
-              <h3 className="reports-section-title">Ventas actuales vs Siguiente meta</h3>
-              <p className="reports-section-text">Barra verde = ventas acumuladas · Barra ámbar = gap hasta el siguiente nivel · Pasa el mouse para detalles</p>
+              <span className="reports-eyebrow">Oportunidad de cierre</span>
+              <h3 className="reports-section-title">Venta confirmada vs Potencial a cerrar (por mes)</h3>
+              <p className="reports-section-text">
+                Cuánto dinero está confirmado y cuánto hay en pendiente (Pre reserva · 1er Cotización · Seguimiento · Lista de Espera).
+                Si cierras todo el potencial, este es el crecimiento sobre la venta actual.
+              </p>
             </div>
             {/* Legend */}
             <div style={{ display: 'flex', gap: '14px', fontSize: '10px', fontWeight: 700, color: '#64748b', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} /> Ventas actuales
+                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} /> Venta confirmada
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#f59e0b', display: 'inline-block' }} /> Gap necesario
+                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#8b5cf6', display: 'inline-block' }} /> Potencial a cerrar
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} /> ✓ Meta alcanzada
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#7c3aed' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#ede9fe', border: '1px solid #8b5cf6', display: 'inline-block' }} /> % Cobertura
               </span>
+            </div>
+          </div>
+
+          {/* KPI strip */}
+          <div style={{
+            display: 'flex', gap: '12px', padding: '14px 20px',
+            background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+            borderRadius: '12px', flexWrap: 'wrap', alignItems: 'center',
+            border: '1px solid #c4b5fd',
+          }}>
+            <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+              <div>
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  💰 Venta confirmada
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: '#10b981' }}>
+                  {formatMoney(potentialData.totalActual)}
+                </div>
+                <div style={{ fontSize: '9px', color: '#64748b' }}>
+                  {potentialData.monthCounts.actual} evento(s) Confirmado(s)
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  🎯 Potencial a cerrar
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: '#8b5cf6' }}>
+                  {formatMoney(potentialData.totalPotential)}
+                </div>
+                <div style={{ fontSize: '9px', color: '#64748b' }}>
+                  {potentialData.monthCounts.potential} evento(s) en pendiente
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  📊 Cobertura (pendiente)
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: '#7c3aed' }}>
+                  {potentialData.coveragePct.toFixed(1)}%
+                </div>
+                <div style={{ fontSize: '9px', color: '#64748b' }}>
+                  del total del rango
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  🚀 Crecimiento si cierras todo
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: '#db2777' }}>
+                  {potentialData.crecimientoPct > 0 ? `+${potentialData.crecimientoPct.toFixed(0)}%` : '—'}
+                </div>
+                <div style={{ fontSize: '9px', color: '#64748b' }}>
+                  sobre venta actual
+                </div>
+              </div>
             </div>
           </div>
 
           {/* ── Chart container ── */}
-          <div style={{
-            background: '#ffffff', borderRadius: '14px', padding: '24px 20px 20px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
-            border: '1px solid #f1f5f9',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
-              {/* Y-axis */}
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '80px', flexShrink: 0, paddingBottom: '28px' }}>
-                {[100, 80, 60, 40, 20, 0].map(pct => (
-                  <span key={pct} style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', lineHeight: '12px' }}>
-                    {formatMoney(maxBarAmount * pct / 100)}
-                  </span>
-                ))}
-              </div>
-
-              {/* Bars area */}
-              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '8px', position: 'relative', minHeight: '280px' }}>
-                {[20, 40, 60, 80].map(pct => (
-                  <div key={pct} style={{
-                    position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
-                    height: '1px', background: '#f1f5f9', pointerEvents: 'none',
-                    borderTop: '1px dashed #e2e8f0',
-                  }} />
-                ))}
-
-                {userRows.filter(r => r.hasTiers).length === 0 ? (
-                  <div style={{
-                    position: 'absolute', inset: 0, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: '13px', fontWeight: 700, color: '#94a3b8',
-                    flexDirection: 'column', gap: '8px',
-                  }}>
-                    <span style={{ fontSize: '32px' }}>📭</span>
-                    <span>No hay vendedores con metas configuradas en este período</span>
-                  </div>
-                ) : (
-                  userRows.filter(r => r.hasTiers).map((r, i) => {
-                    const isHovered = hoveredBar === i;
-                    const totalBarAmount = r.currentSales + r.neededForNext;
-                    const salesPct = maxBarAmount > 0 ? (r.currentSales / maxBarAmount) * 100 : 0;
-                    const gapPct = maxBarAmount > 0 && r.neededForNext > 0 ? (r.neededForNext / maxBarAmount) * 100 : 0;
-                    const hasSales = r.currentSales > 0;
-                    const isComplete = r.gapStatus === 'complete';
-
-                    return (
-                      <div
-                        key={r.userId}
-                        style={{
-                          flex: '1 1 0',
-                          minWidth: '70px',
-                          maxWidth: '130px',
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'flex-end',
-                          alignItems: 'center',
-                          position: 'relative',
-                          cursor: 'pointer',
-                          gap: '1px',
-                        }}
-                        onMouseEnter={(e) => {
-                          setHoveredBar(i);
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredBarPos({ x: rect.left + rect.width / 2, y: rect.top });
-                        }}
-                        onMouseLeave={() => { setHoveredBar(null); setHoveredBarPos(null); }}
-                      >
-                        {/* Gap bar (amber) — behind sales bar, only shown when there's a gap */}
-                        {r.neededForNext > 0 && (
-                          <div style={{
-                            width: '45%',
-                            height: `${Math.max(Math.max(salesPct + gapPct, 3))}%`,
-                            background: isHovered
-                              ? 'linear-gradient(180deg, #d97706, #f59e0b)'
-                              : 'linear-gradient(180deg, #f59e0b, #fbbf24)',
-                            borderRadius: '3px 3px 0 0',
-                            transition: 'opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease',
-                            opacity: i < visibleBars ? 0.35 : 0,
-                            position: 'absolute',
-                            bottom: 0,
-                            boxShadow: isHovered ? '0 0 10px rgba(245,158,11,0.3)' : 'none',
-                          }} />
-                        )}
-
-                        {/* Sales bar (green) */}
-                        <div style={{
-                          width: '45%',
-                          height: `${Math.max(salesPct > 0 ? Math.max(4, salesPct) : 0, 0)}%`,
-                          background: isComplete
-                            ? (isHovered ? 'linear-gradient(180deg, #059669, #10b981)' : 'linear-gradient(180deg, #10b981, #34d399)')
-                            : (isHovered ? 'linear-gradient(180deg, #059669, #10b981)' : 'linear-gradient(180deg, #10b981, #34d399)'),
-                          borderRadius: '3px 3px 0 0',
-                          transition: 'opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease',
-                          opacity: i < visibleBars ? 1 : (animationPhase === 'initial' ? 0 : 1),
-                          position: 'relative',
-                          zIndex: 2,
-                          boxShadow: isHovered && hasSales ? '0 0 10px rgba(16,185,129,0.4)' : 'none',
-                          minHeight: hasSales ? '4px' : '2px',
-                        }}>
-                          {/* Checkmark icon for completed */}
-                          {isComplete && (
-                            <div style={{
-                              position: 'absolute', top: '-4px', right: '-4px',
-                              fontSize: '12px', lineHeight: 1,
-                            }}>
-                              ✅
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Tier badge (if next tier exists) */}
-                        {r.nextTier && (
-                          <div style={{
-                            position: 'absolute', top: '2px', left: '50%', transform: 'translateX(-50%)',
-                            fontSize: '8px', fontWeight: 900, color: '#f59e0b',
-                            textShadow: '0 1px 2px rgba(0,0,0,0.15)',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {r.nextTier.name}
-                          </div>
-                        )}
-
-                        {/* Name at bottom */}
-                        <div style={{
-                          fontSize: '9px', fontWeight: 700,
-                          color: isHovered ? '#0f172a' : '#64748b',
-                          position: 'absolute', bottom: '-20px', left: 0, right: 0,
-                          textAlign: 'center', lineHeight: 1.1,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          transition: 'color 0.15s ease',
-                        }}>
-                          {r.name.split(' ').slice(0, 2).join(' ')}
-                        </div>
-
-                        {/* Sales amount below name */}
-                        {hasSales && (
-                          <div style={{
-                            fontSize: '7px', fontWeight: 600, color: '#059669',
-                            position: 'absolute', bottom: '-32px', left: 0, right: 0,
-                            textAlign: 'center',
-                          }}>
-                            {formatMoney(r.currentSales)}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Premium Tooltip ── */}
-        {hoveredRow && hoveredBarPos && (() => {
-          const r = hoveredRow;
-          return (
-            <div style={{
-              position: 'fixed',
-              left: `${Math.min(hoveredBarPos.x, window.innerWidth - 300)}px`,
-              top: `${Math.max(10, hoveredBarPos.y - 10)}px`,
-              transform: 'translate(-50%, -100%)',
-              zIndex: 99999,
-              pointerEvents: 'none',
-            }}>
+          {(() => {
+            const maxMonthTotal = potentialData.months.reduce((m, x) => Math.max(m, x.total), 0);
+            const chartMax = maxMonthTotal > 0 ? maxMonthTotal * 1.1 : 1;
+            return (
               <div style={{
-                background: '#0f172a', color: '#fff',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                fontSize: '11px', fontWeight: 600,
-                boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
-                minWidth: '260px',
-                maxWidth: '340px',
-                animation: 'tooltipFadeIn 0.15s ease-out both',
+                background: '#ffffff', borderRadius: '14px', padding: '24px 20px 20px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
+                border: '1px solid #f1f5f9',
               }}>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 900, marginBottom: '6px', letterSpacing: '-0.01em' }}>
-                    {r.name}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px', color: '#cbd5e1' }}>
-                    <span style={{ color: '#94a3b8' }}>💰 Ventas</span>
-                    <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(r.currentSales)}</span>
-                    {r.reachedTier ? (
-                      <>
-                        <span style={{ color: '#94a3b8' }}>🎯 Tier alcanzado</span>
-                        <span style={{ fontWeight: 700, color: '#f59e0b' }}>
-                          {r.reachedTier.name} ({r.reachedTier.percentage}%)
-                        </span>
-                      </>
-                    ) : null}
-                    {r.nextTier ? (
-                      <>
-                        <span style={{ color: '#94a3b8' }}>📊 Siguiente meta</span>
-                        <span style={{ fontWeight: 700, color: '#60a5fa' }}>
-                          {r.nextTier.name} (Q {r.nextTier.amount.toLocaleString()})
-                        </span>
-                        <span style={{ color: '#94a3b8' }}>📈 Gap necesario</span>
-                        <span style={{ fontWeight: 800, color: '#f59e0b' }}>{formatMoney(r.neededForNext)}</span>
-                        <span style={{ color: '#94a3b8' }}>📅 Prom. diario</span>
-                        <span style={{ fontWeight: 700, color: '#cbd5e1' }}>{formatMoney(r.dailyAvg)} / día</span>
-                        <span style={{ color: '#94a3b8' }}>🎯 Proyectado</span>
-                        <span style={{ fontWeight: 800, color: '#60a5fa' }}>{formatMoney(r.projectedTotal)}</span>
-                        <span style={{ color: '#94a3b8' }}>📊 Progreso</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <div style={{
-                            width: '60px', height: '6px', borderRadius: '999px',
-                            background: '#334155', overflow: 'hidden',
-                          }}>
-                            <div style={{
-                              width: `${Math.round(Math.min(100, r.pctToNext))}%`, height: '100%',
-                              borderRadius: '999px',
-                              background: r.gapStatus === 'complete' ? '#10b981' : r.gapStatus === 'on_track' ? '#3b82f6' : '#f59e0b',
-                              transition: 'width 0.3s ease',
-                            }} />
-                          </div>
-                          <span style={{ fontWeight: 800, color: '#f59e0b', fontSize: '10px' }}>
-                            {Math.round(r.pctToNext)}%
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <span style={{ color: '#94a3b8', gridColumn: '1 / -1', fontStyle: 'italic' }}>
-                        🏆 Meta máxima alcanzada
+                <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
+                  {/* Y-axis (en Q) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '80px', flexShrink: 0, paddingBottom: '28px' }}>
+                    {[100, 80, 60, 40, 20, 0].map(pct => (
+                      <span key={pct} style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', lineHeight: '12px' }}>
+                        {formatMoney(chartMax * pct / 100)}
                       </span>
+                    ))}
+                  </div>
+
+                  {/* Bars area: 2 barras por mes (Confirmado verde + Potencial púrpura) */}
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '14px', position: 'relative', minHeight: '280px' }}>
+                    {/* Grid lines */}
+                    {[20, 40, 60, 80].map(pct => (
+                      <div key={pct} style={{
+                        position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
+                        height: '1px', background: '#f1f5f9', pointerEvents: 'none',
+                        borderTop: '1px dashed #e2e8f0',
+                      }} />
+                    ))}
+
+                    {potentialData.months.length === 0 ? (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#94a3b8' }}>
+                        Sin meses en el rango
+                      </div>
+                    ) : potentialData.months.every(m => m.total === 0) ? (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px', color: '#94a3b8' }}>
+                        <span style={{ fontSize: '32px' }}>📭</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700 }}>No hay eventos con venta asociada en este período</span>
+                      </div>
+                    ) : (
+                      potentialData.months.map((m) => {
+                        const actualPct = chartMax > 0 ? (m.actual / chartMax) * 100 : 0;
+                        const potentialPct = chartMax > 0 ? (m.potential / chartMax) * 100 : 0;
+                        const isCurrentMonth = m.key === currentMonthKey;
+                        return (
+                          <div key={m.key} style={{
+                            flex: '1 1 0', minWidth: '40px', maxWidth: '80px', height: '100%',
+                            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                            position: 'relative', gap: '3px',
+                          }}>
+                            {/* Barra de potencial (atrás, púrpura) */}
+                            <div style={{
+                              flex: 1, height: `${Math.max(potentialPct > 0 ? 2 : 0, potentialPct)}%`,
+                              background: m.potential > 0
+                                ? 'linear-gradient(180deg, #a78bfa, #8b5cf6)'
+                                : 'transparent',
+                              borderRadius: '4px 4px 0 0',
+                              transition: 'height 0.4s ease',
+                              minHeight: m.potential > 0 ? '2px' : 0,
+                            }} title={`Potencial: ${formatMoney(m.potential)}`} />
+                            {/* Barra de venta actual (frente, verde) */}
+                            <div style={{
+                              flex: 1, height: `${Math.max(actualPct > 0 ? 2 : 0, actualPct)}%`,
+                              background: m.actual > 0
+                                ? 'linear-gradient(180deg, #34d399, #10b981)'
+                                : 'transparent',
+                              borderRadius: '4px 4px 0 0',
+                              transition: 'height 0.4s ease',
+                              minHeight: m.actual > 0 ? '2px' : 0,
+                            }} title={`Confirmado: ${formatMoney(m.actual)}`} />
+                            {/* Etiqueta del mes */}
+                            <div style={{
+                              position: 'absolute', bottom: '-18px', left: 0, right: 0,
+                              fontSize: isCurrentMonth ? '10px' : '9px',
+                              fontWeight: isCurrentMonth ? 900 : 600,
+                              color: isCurrentMonth ? '#7c3aed' : '#94a3b8',
+                              textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap',
+                            }}>
+                              {m.monthShort}
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
-                <div style={{
-                  position: 'absolute', top: '100%', left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 0, height: 0,
-                  borderLeft: '6px solid transparent',
-                  borderRight: '6px solid transparent',
-                  borderTop: '6px solid #0f172a',
-                }} />
+
+                {/* X-axis labels */}
+                <div style={{ display: 'flex', marginTop: '28px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', paddingLeft: '88px' }}>
+                  {potentialData.months.length > 0 && (
+                    <span>{potentialData.months[0].monthName} {potentialData.months[0].year}</span>
+                  )}
+                  {potentialData.months.length > 6 && (
+                    <span style={{ marginLeft: 'auto' }}>
+                      {potentialData.months[potentialData.months.length - 1].monthName} {potentialData.months[potentialData.months.length - 1].year}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
+
+          {/* ── Tabla resumen por mes ── */}
+          <div className="reports-table-wrap" style={{ maxHeight: '340px' }}>
+            <table className="reports-table" style={{ minWidth: '600px' }}>
+              <thead>
+                <tr>
+                  <th>Mes</th>
+                  <th style={{ textAlign: 'right' }}>Venta confirmada</th>
+                  <th style={{ textAlign: 'right' }}>Potencial a cerrar</th>
+                  <th style={{ textAlign: 'right' }}>Total posible</th>
+                  <th style={{ textAlign: 'center' }}>% Cobertura</th>
+                </tr>
+              </thead>
+              <tbody>
+                {potentialData.months.length === 0 ? (
+                  <tr><td colSpan="5" style={{ textAlign: 'center', padding: '16px', color: '#94a3b8' }}>Sin datos</td></tr>
+                ) : potentialData.months.map(m => {
+                  const isCurrentMonth = m.key === currentMonthKey;
+                  return (
+                    <tr key={m.key} style={{ background: isCurrentMonth ? '#f5f3ff' : 'transparent' }}>
+                      <td style={{ fontWeight: 700 }}>{m.monthName} {m.year}</td>
+                      <td style={{ textAlign: 'right', color: '#10b981', fontWeight: 800 }}>{formatMoney(m.actual)}</td>
+                      <td style={{ textAlign: 'right', color: '#8b5cf6', fontWeight: 800 }}>{formatMoney(m.potential)}</td>
+                      <td style={{ textAlign: 'right', color: '#0f172a', fontWeight: 900 }}>{formatMoney(m.total)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <div style={{
+                            width: '60px', height: '6px', borderRadius: '999px',
+                            background: '#f1f5f9', overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              width: `${Math.min(100, m.ratio)}%`, height: '100%',
+                              background: 'linear-gradient(90deg, #10b981, #34d399)',
+                              borderRadius: '999px',
+                            }} />
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed' }}>
+                            {m.total > 0 ? `${m.ratio.toFixed(0)}% conf.` : '—'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Fila total */}
+                {potentialData.months.length > 0 && (
+                  <tr style={{ background: '#f5f3ff', fontWeight: 900 }}>
+                    <td style={{ fontWeight: 900, color: '#6b21a8' }}>TOTAL</td>
+                    <td style={{ textAlign: 'right', color: '#10b981' }}>{formatMoney(potentialData.totalActual)}</td>
+                    <td style={{ textAlign: 'right', color: '#8b5cf6' }}>{formatMoney(potentialData.totalPotential)}</td>
+                    <td style={{ textAlign: 'right', color: '#0f172a' }}>{formatMoney(potentialData.totalActual + potentialData.totalPotential)}</td>
+                    <td style={{ textAlign: 'center', color: '#7c3aed' }}>
+                      {potentialData.totalActual + potentialData.totalPotential > 0
+                        ? `${((potentialData.totalActual / (potentialData.totalActual + potentialData.totalPotential)) * 100).toFixed(0)}% conf.`
+                        : '—'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         {/* ── Detail table ── */}
         <section className="reports-hero-panel" style={{ gap: '8px', ...sectionStyle(350) }}>
@@ -941,5 +1319,349 @@ th.right{text-align:right}</style></head><body>
         </section>
       </div>
     </div>
+  );
+}
+
+
+// ── Componente: Chart de proyección para un equipo ──
+function TeamChartSection({ tp, index = 0 }) {
+  const { userRows, allTiers, maxBarAmount, theme, name, members } = tp;
+  const [hoveredBar, setHoveredBar] = useState(null);
+  const [hoveredBarPos, setHoveredBarPos] = useState(null);
+  const [animationPhase, setAnimationPhase] = useState('complete');
+  const [visibleBars, setVisibleBars] = useState(9999);
+  const animationKeyRef = useRef(0);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (userRows.length > 0) {
+      if (isFirstRender.current) {
+        isFirstRender.current = false;
+        setAnimationPhase('complete');
+        setVisibleBars(userRows.length);
+        return;
+      }
+      animationKeyRef.current += 1;
+      const currentKey = animationKeyRef.current;
+      setAnimationPhase('initial');
+      setVisibleBars(0);
+      let interval;
+      const timer = setTimeout(() => {
+        if (currentKey !== animationKeyRef.current) return;
+        setAnimationPhase('animating');
+        let i = 0;
+        interval = setInterval(() => {
+          i++;
+          if (currentKey !== animationKeyRef.current) { clearInterval(interval); return; }
+          setVisibleBars(i);
+          if (i >= userRows.length) {
+            clearInterval(interval);
+            setAnimationPhase('complete');
+          }
+        }, 25);
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        if (interval) clearInterval(interval);
+      };
+    }
+  }, [userRows]);
+
+  const sectionStyle = (delay) => ({
+    opacity: animationPhase === 'initial' ? 0 : 1,
+    transform: animationPhase === 'initial' ? 'translateY(20px)' : 'translateY(0)',
+    transition: `opacity 0.5s ease ${delay}ms, transform 0.5s ease ${delay}ms`,
+  });
+
+  const hoveredRow = (hoveredBar !== null && userRows[hoveredBar]) ? userRows[hoveredBar] : null;
+  const teamSales = userRows.reduce((s, r) => s + r.currentSales, 0);
+  const teamPotential = userRows.reduce((s, r) => s + r.potential, 0);
+  const teamGap = userRows.reduce((s, r) => s + r.neededForNext, 0);
+  const teamComplete = userRows.filter(r => r.hasTiers && r.gapStatus === 'complete').length;
+  const teamOnTrack = userRows.filter(r => r.hasTiers && r.gapStatus === 'on_track').length;
+  const teamNeedBoost = userRows.filter(r => r.hasTiers && r.gapStatus === 'needs_boost').length;
+  const teamWithTiers = userRows.filter(r => r.hasTiers).length;
+
+  return (
+    <section
+      className="reports-hero-panel"
+      style={{ gap: '12px', borderTop: `4px solid ${theme.color}`, ...sectionStyle(200) }}
+    >
+      <div style={{
+        background: `linear-gradient(135deg, ${theme.bg}, #ffffff)`,
+        borderRadius: '12px', padding: '14px 20px',
+        display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap',
+      }}>
+        <div style={{
+          width: '44px', height: '44px', background: theme.color, borderRadius: '12px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '22px', boxShadow: `0 4px 10px ${theme.color}40`,
+        }}>
+          {theme.icon}
+        </div>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <div style={{ fontSize: '9px', fontWeight: 800, color: theme.textColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Equipo
+          </div>
+          <h3 className="reports-section-title" style={{ margin: 0, color: theme.textColor }}>
+            {name}
+          </h3>
+          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+            {members.length} miembro{members.length !== 1 ? 's' : ''} · {teamWithTiers} con metas configuradas · {allTiers.length} niveles de meta
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ textAlign: 'center', minWidth: '90px' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>💰 Ventas</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#10b981' }}>{formatMoney(teamSales)}</div>
+          </div>
+          <div style={{ textAlign: 'center', minWidth: '90px' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>🎯 Pendiente</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#8b5cf6' }}>{formatMoney(teamPotential)}</div>
+          </div>
+          <div style={{ textAlign: 'center', minWidth: '90px' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>📊 Gap total</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#f59e0b' }}>{formatMoney(teamGap)}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {teamComplete > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#d1fae5', color: '#065f46' }}>✅ {teamComplete}</span>}
+          {teamOnTrack > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#dbeafe', color: '#1e40af' }}>📊 {teamOnTrack}</span>}
+          {teamNeedBoost > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#fef3c7', color: '#92400e' }}>⚡ {teamNeedBoost}</span>}
+        </div>
+      </div>
+
+      <div style={{
+        background: '#ffffff', borderRadius: '14px', padding: '24px 20px 20px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
+        border: '1px solid #f1f5f9',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '80px', flexShrink: 0, paddingBottom: '28px' }}>
+            {[100, 80, 60, 40, 20, 0].map(pct => (
+              <span key={pct} style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', lineHeight: '12px' }}>
+                {formatMoney(maxBarAmount * pct / 100)}
+              </span>
+            ))}
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '8px', position: 'relative', minHeight: '280px' }}>
+            {[20, 40, 60, 80].map(pct => (
+              <div key={pct} style={{
+                position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
+                height: '1px', background: '#f1f5f9', pointerEvents: 'none',
+                borderTop: '1px dashed #e2e8f0',
+              }} />
+            ))}
+            {allTiers.map((tier, tIdx) => {
+              const tierPct = maxBarAmount > 0 ? (tier.amount / maxBarAmount) * 100 : 0;
+              if (tierPct <= 0 || tierPct >= 100) return null;
+              return (
+                <div key={`tier_${tier.name}_${tier.amount}`} style={{
+                  position: 'absolute', left: 0, right: 0, bottom: `${tierPct}%`,
+                  height: '1.5px',
+                  background: tIdx === allTiers.length - 1 ? theme.color : theme.color + '99',
+                  borderTop: tIdx === allTiers.length - 1 ? `1.5px solid ${theme.color}` : `1.5px dashed ${theme.color}`,
+                  pointerEvents: 'none', zIndex: 1,
+                  boxShadow: `0 0 4px ${theme.color}40`,
+                }}>
+                  <span style={{
+                    position: 'absolute', right: '6px', top: '-10px',
+                    fontSize: '8px', fontWeight: 800, color: theme.textColor,
+                    background: '#fff', padding: '2px 7px', borderRadius: '6px',
+                    border: `1px solid ${theme.color}`, whiteSpace: 'nowrap',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                  }}>
+                    {tier.name} · {formatMoney(tier.amount)}
+                  </span>
+                </div>
+              );
+            })}
+            {userRows.filter(r => r.hasTiers).length === 0 ? (
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                fontSize: '13px', fontWeight: 700, color: '#94a3b8',
+                flexDirection: 'column', gap: '8px',
+              }}>
+                <span style={{ fontSize: '32px' }}>📭</span>
+                <span>Este equipo no tiene vendedores con metas configuradas</span>
+              </div>
+            ) : (
+              userRows.filter(r => r.hasTiers).map((r, i) => {
+                const isHovered = hoveredBar === i;
+                const salesPct = maxBarAmount > 0 ? (r.currentSales / maxBarAmount) * 100 : 0;
+                const gapPct = maxBarAmount > 0 && r.neededForNext > 0 ? (r.neededForNext / maxBarAmount) * 100 : 0;
+                const potentialPct = maxBarAmount > 0 ? (r.potential / maxBarAmount) * 100 : 0;
+                const hasSales = r.currentSales > 0;
+                const hasPotential = r.potential > 0;
+                const isComplete = r.gapStatus === 'complete';
+                return (
+                  <div
+                    key={r.userId}
+                    style={{
+                      flex: '1 1 0', minWidth: '90px', maxWidth: '150px', height: '100%',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                      alignItems: 'center', position: 'relative', cursor: 'pointer', gap: '1px',
+                    }}
+                    onMouseEnter={(e) => {
+                      setHoveredBar(i);
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoveredBarPos({ x: rect.left + rect.width / 2, y: rect.top });
+                    }}
+                    onMouseLeave={() => { setHoveredBar(null); setHoveredBarPos(null); }}
+                  >
+                    <div style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0, height: '100%',
+                      display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '3px',
+                    }}>
+                      {r.neededForNext > 0 && (
+                        <div title={`Gap: ${formatMoney(r.neededForNext)}`} style={{
+                          position: 'relative', flex: 1, maxWidth: '22%',
+                          height: `${Math.max(gapPct, 2)}%`,
+                          background: isHovered ? 'linear-gradient(180deg, #d97706, #f59e0b)' : 'linear-gradient(180deg, #fbbf24, #fcd34d)',
+                          borderRadius: '3px 3px 0 0', border: '1px dashed #d97706',
+                          opacity: i < visibleBars ? 0.55 : 0,
+                          transition: 'opacity 0.35s ease, height 0.35s ease',
+                          boxShadow: isHovered ? '0 0 6px rgba(245,158,11,0.4)' : 'none', minHeight: '3px',
+                        }}>
+                          <div style={{
+                            position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)',
+                            fontSize: '7px', fontWeight: 900, color: '#92400e',
+                            background: '#fff', padding: '1px 3px', borderRadius: '3px', border: '1px solid #fcd34d',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {formatMoney(r.neededForNext)}
+                          </div>
+                        </div>
+                      )}
+                      <div title={`Ventas: ${formatMoney(r.currentSales)}`} style={{
+                        position: 'relative', flex: 1, maxWidth: '30%',
+                        height: `${Math.max(hasSales ? Math.max(4, salesPct) : 2, 0)}%`,
+                        background: isHovered ? 'linear-gradient(180deg, #059669, #10b981)' : 'linear-gradient(180deg, #10b981, #34d399)',
+                        borderRadius: '3px 3px 0 0',
+                        opacity: i < visibleBars ? 1 : (animationPhase === 'initial' ? 0 : 1),
+                        transition: 'opacity 0.35s ease, height 0.35s ease',
+                        boxShadow: isHovered && hasSales ? '0 0 8px rgba(16,185,129,0.4)' : 'none',
+                        minHeight: hasSales ? '4px' : '2px',
+                        outline: isComplete ? '1.5px solid #059669' : 'none',
+                        outlineOffset: isComplete ? '-1px' : 0,
+                      }}>
+                        {isComplete ? (
+                          <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', fontSize: '10px', lineHeight: 1 }}>✅</div>
+                        ) : hasSales && (
+                          <div style={{
+                            position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)',
+                            fontSize: '7px', fontWeight: 900, color: '#047857',
+                            background: '#fff', padding: '1px 3px', borderRadius: '3px', border: '1px solid #6ee7b7',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {formatMoney(r.currentSales)}
+                          </div>
+                        )}
+                      </div>
+                      {hasPotential && (
+                        <div title={`Pendiente: ${formatMoney(r.potential)}`} style={{
+                          position: 'relative', flex: 1, maxWidth: '30%',
+                          height: `${Math.max(Math.max(4, potentialPct), 2)}%`,
+                          background: isHovered ? 'linear-gradient(180deg, #7c3aed, #8b5cf6)' : 'linear-gradient(180deg, #a78bfa, #c4b5fd)',
+                          borderRadius: '3px 3px 0 0',
+                          opacity: i < visibleBars ? 0.85 : 0,
+                          transition: 'opacity 0.35s ease, height 0.35s ease',
+                          boxShadow: isHovered ? '0 0 8px rgba(139,92,246,0.4)' : 'none',
+                          minHeight: '4px', border: '1px solid #8b5cf6',
+                        }}>
+                          <div style={{
+                            position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)',
+                            fontSize: '7px', fontWeight: 900, color: '#7c3aed',
+                            background: '#fff', padding: '1px 3px', borderRadius: '3px', border: '1px solid #c4b5fd',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {formatMoney(r.potential)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {r.nextTier && (
+                      <div style={{
+                        position: 'absolute', top: '2px', left: '50%', transform: 'translateX(-50%)',
+                        fontSize: '8px', fontWeight: 900, color: '#f59e0b',
+                        textShadow: '0 1px 2px rgba(0,0,0,0.15)', whiteSpace: 'nowrap',
+                      }}>
+                        {r.nextTier.name}
+                      </div>
+                    )}
+                    <div style={{
+                      fontSize: '9px', fontWeight: 700,
+                      color: isHovered ? '#0f172a' : '#64748b',
+                      position: 'absolute', bottom: '-20px', left: 0, right: 0,
+                      textAlign: 'center', lineHeight: 1.1,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {r.name.split(' ').slice(0, 2).join(' ')}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', marginTop: '28px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', paddingLeft: '88px' }}>
+          <span>Equipo {name} · {userRows.filter(r => r.hasTiers).length} vendedores</span>
+        </div>
+      </div>
+
+      {hoveredRow && hoveredBarPos && (
+        <div style={{
+          position: 'fixed',
+          left: `${Math.min(hoveredBarPos.x, window.innerWidth - 300)}px`,
+          top: `${Math.max(10, hoveredBarPos.y - 10)}px`,
+          transform: 'translate(-50%, -100%)',
+          zIndex: 99999, pointerEvents: 'none',
+        }}>
+          <div style={{
+            background: '#0f172a', color: '#fff', padding: '12px 16px',
+            borderRadius: '12px', fontSize: '11px', fontWeight: 600,
+            boxShadow: '0 12px 32px rgba(0,0,0,0.35)', minWidth: '260px', maxWidth: '340px',
+            animation: 'tooltipFadeIn 0.15s ease-out both',
+          }}>
+            <div style={{ fontSize: '14px', fontWeight: 900, marginBottom: '6px' }}>
+              {hoveredRow.name}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px' }}>
+              <span style={{ color: '#94a3b8' }}>💰 Ventas</span>
+              <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(hoveredRow.currentSales)}</span>
+              {hoveredRow.potential > 0 && (
+                <>
+                  <span style={{ color: '#94a3b8' }}>🎯 Pendiente</span>
+                  <span style={{ fontWeight: 800, color: '#a78bfa' }}>{formatMoney(hoveredRow.potential)}</span>
+                  <span style={{ color: '#94a3b8' }}>📈 Si cierra todo</span>
+                  <span style={{ fontWeight: 800, color: '#c4b5fd' }}>{formatMoney(hoveredRow.currentSales + hoveredRow.potential)}</span>
+                </>
+              )}
+              {hoveredRow.reachedTier && (
+                <>
+                  <span style={{ color: '#94a3b8' }}>🏆 Tier</span>
+                  <span style={{ fontWeight: 700, color: '#f59e0b' }}>{hoveredRow.reachedTier.name} ({hoveredRow.reachedTier.percentage}%)</span>
+                </>
+              )}
+              {hoveredRow.nextTier ? (
+                <>
+                  <span style={{ color: '#94a3b8' }}>📊 Siguiente</span>
+                  <span style={{ fontWeight: 700, color: '#60a5fa' }}>{hoveredRow.nextTier.name} (Q {hoveredRow.nextTier.amount.toLocaleString()})</span>
+                  <span style={{ color: '#94a3b8' }}>📈 Gap</span>
+                  <span style={{ fontWeight: 800, color: '#f59e0b' }}>{formatMoney(hoveredRow.neededForNext)}</span>
+                  <span style={{ color: '#94a3b8' }}>📅 Prom./día</span>
+                  <span style={{ fontWeight: 700, color: '#cbd5e1' }}>{formatMoney(hoveredRow.dailyAvg)}</span>
+                  <span style={{ color: '#94a3b8' }}>🎯 Proyectado</span>
+                  <span style={{ fontWeight: 800, color: '#60a5fa' }}>{formatMoney(hoveredRow.projectedTotal)}</span>
+                </>
+              ) : (
+                <span style={{ gridColumn: '1 / -1', color: '#94a3b8', fontStyle: 'italic' }}>🏆 Meta máxima alcanzada</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

@@ -214,6 +214,69 @@ export default function SettingsSalones({ inline, onBack }) {
     }
   };
 
+  // ── Hard delete: quita el salón de TODAS las listas y guarda ──
+  // A diferencia de "Inhabilitar" (soft delete), esto borra el salón por completo
+  // de: salones, disabledSalones, salonCapacities, salonOccupancyEnabled, salonConflictDisabled.
+  // El backend reescribe la tabla `salones` (DELETE + INSERT) y la cache `app_state_kv`.
+  const handleDelete = async (name) => {
+    if (!name) return;
+
+    // Aviso si el salón influye en el cálculo de ocupación o tiene capacidad
+    const capacity = salonCapacities[name];
+    const influencesOccupancy = salonOccupancyEnabled.includes(name);
+    let warningExtra = '';
+    if (capacity) warningExtra += `\n\nCapacidad registrada: ${capacity} PAX.`;
+    if (influencesOccupancy) warningExtra += `\nEste salón SUMA al total del diagrama de ocupación — al eliminarlo, el cálculo bajará.`;
+
+    const isConfirmed = await modernConfirm({
+      title: 'Eliminar Salón',
+      message: `¿Eliminar el salón "${name}"? Esta acción NO se puede deshacer.${warningExtra}`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      danger: true
+    });
+
+    if (!isConfirmed) return;
+
+    setSaving(true);
+    try {
+      const nextSalones = salones.filter(s => s !== name);
+      const nextDisabled = disabledSalones.filter(s => s !== name);
+      const nextOccupancy = salonOccupancyEnabled.filter(s => s !== name);
+      const nextNoConflict = salonConflictDisabled.filter(s => s !== name);
+      const nextCapacities = { ...salonCapacities };
+      delete nextCapacities[name];
+
+      const currentState = await loadCrmState();
+      await saveCrmState({
+        ...currentState,
+        salones: nextSalones,
+        disabledSalones: nextDisabled,
+        salonCapacities: nextCapacities,
+        salonOccupancyEnabled: nextOccupancy,
+        salonConflictDisabled: nextNoConflict
+      });
+
+      setSalones(nextSalones);
+      setDisabledSalones(nextDisabled);
+      setSalonCapacities(nextCapacities);
+      setSalonOccupancyEnabled(nextOccupancy);
+      setSalonConflictDisabled(nextNoConflict);
+
+      // Si el salón eliminado estaba seleccionado en el form, resetear
+      if (selectedSalon === name) {
+        resetForm();
+      }
+
+      toast('Salón eliminado');
+    } catch (err) {
+      console.error('Error al eliminar salón:', err);
+      toast('Error al eliminar el salón');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const content = (
     <>
       {/* Header */}
@@ -362,6 +425,14 @@ export default function SettingsSalones({ inline, onBack }) {
                           <button type="button" title="Editar" onClick={() => loadSalonForEdit(s)}>✎</button>
                           <button type="button" title={isDisabled ? 'Reactivar' : 'Inhabilitar'} onClick={() => handleToggleActive(s)}>
                             {isDisabled ? '↻' : '🚫'}
+                          </button>
+                          <button
+                            type="button"
+                            title="Eliminar (hard delete)"
+                            onClick={() => handleDelete(s)}
+                            style={{ color: '#dc2626' }}
+                          >
+                            🗑
                           </button>
                         </div>
                       </td>

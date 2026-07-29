@@ -112,7 +112,19 @@ export async function saveState(state) {
   cachedState = nextState;
   stateEtag = null;
 
-  return api.put('/api/state', { state: nextState });
+  const result = await api.put('/api/state', { state: nextState });
+
+  // Notificar a los componentes (charts, settings, etc.) que el state cambió,
+  // así pueden re-leer y mostrar datos frescos (e.g. metas actualizadas de un usuario).
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('entity:changed', {
+        detail: { entity: 'state', action: 'updated', data: { keys: Object.keys(nextState) } }
+      }));
+    }
+  } catch (_) { /* noop */ }
+
+  return result;
 }
 
 export async function updateState(updater, options = {}) {

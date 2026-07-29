@@ -140,6 +140,18 @@ export default function MainLayout() {
 
     loadInitialData(true);
 
+    // Re-cargar el state cuando saveState() emite el evento entity:changed.
+    // Así los charts y selectors (e.g. Proyección de Metas, listado de usuarios)
+    // reflejan inmediatamente los cambios hechos en otro modal (e.g. editar meta de un usuario).
+    const handleStateChanged = (e) => {
+      if (e?.detail?.entity === 'state') {
+        memoryCache = null; // forzar re-fetch
+        loadInitialData(false);
+      }
+    };
+    window.addEventListener('entity:changed', handleStateChanged);
+    return () => window.removeEventListener('entity:changed', handleStateChanged);
+
     const unsubscribeState = socketService.on('state-updated', () => {
       loadInitialData(true);
     });
