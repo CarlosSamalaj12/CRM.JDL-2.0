@@ -9,7 +9,7 @@ const apiUrl = import.meta.env.VITE_API_URL || '';
  * En dev es "0.0.0-dev".
  */
 export const CURRENT_VERSION =
-  (typeof globalThis !== 'undefined' && globalThis.__APP_VERSION__) || '0.0.0-dev';
+  typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0-dev';
 
 /**
  * Compara dos versiones con formato YYYY-MM-DD-NN.
