@@ -71,8 +71,8 @@ export async function enviarNotificacionWebPush(usuarioId, titulo, cuerpo, data 
       try {
         await webpush.sendNotification(subscription, payload);
       } catch (err) {
-        // Si el código de estado es 404, 410, 400 o 401, la suscripción expiró o es inválida
-        if (err.statusCode === 404 || err.statusCode === 410 || err.statusCode === 400 || err.statusCode === 401) {
+        // Si el código de estado es 404, 410, 400, 401 o 403, la suscripción expiró o es inválida
+        if (err.statusCode === 404 || err.statusCode === 410 || err.statusCode === 400 || err.statusCode === 401 || err.statusCode === 403) {
           console.log(`[WebPush Helper] Suscripción obsoleta (${err.statusCode}). Eliminando de la BD: ${sub.endpoint?.slice(0, 50)}...`);
           try {
             await conn.query(

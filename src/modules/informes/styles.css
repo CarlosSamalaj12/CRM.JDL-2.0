@@ -3212,16 +3212,22 @@ button[data-tooltip-bottom]::after {
 .colab-comment-form {
   border-top: 1px solid var(--border);
   padding-top: 0.75rem;
+  position: relative; /* Contexto de posicionamiento para las menciones */
 }
 
 .colab-mention-list {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   margin-bottom: 0.5rem;
-  max-height: 150px;
+  max-height: 180px;
   overflow-y: auto;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
 }
 
 .colab-mention-item {

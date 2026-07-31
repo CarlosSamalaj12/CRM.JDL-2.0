@@ -7,7 +7,6 @@ import Legend from './components/Legend';
 import eventService from '../../services/eventService';
 import salonService from '../../services/salonService';
 import { useVersionCheck } from '../../hooks/useVersionCheck';
-import VersionFooter from '../../components/VersionFooter';
 import authService from '../../services/authService';
 import socketService from '../../services/socketService';
 import { loadState, saveState } from '../../services/stateService';
@@ -457,8 +456,6 @@ export default function MainLayout() {
       
       <div className="toast" id="toast" aria-live="polite"></div>
 
-      {/* Footer con versión actual + server (control de versiones) */}
-      <VersionFooter style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 1000 }} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import authService from '../../../services/authService';
 import reminderService from '../../../services/reminderService';
 import { loadState } from '../../../services/stateService';
 import { STATUS_META } from '../../../modules/calendar/constants';
+import VersionFooter from '../../../components/VersionFooter';
 
 const NOTIF_API = import.meta.env.VITE_API_URL || '';
 
@@ -509,15 +510,18 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                 </div>
               </div>
             )}
-            <div className="mobile-drawer-footer">
-              <button className="drawer-footer-btn" onClick={() => setIsSupportOpen(true)}>
-                <span className="material-symbols-outlined">support_agent</span>
-                <span>Soporte</span>
-              </button>
-              <button className="drawer-footer-btn danger" onClick={handleLogout}>
-                <span className="material-symbols-outlined">logout</span>
-                <span>Cerrar sesión</span>
-              </button>
+            <div className="mobile-drawer-footer" style={{ flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <button className="drawer-footer-btn" onClick={() => setIsSupportOpen(true)}>
+                  <span className="material-symbols-outlined">support_agent</span>
+                  <span>Soporte</span>
+                </button>
+                <button className="drawer-footer-btn danger" onClick={handleLogout}>
+                  <span className="material-symbols-outlined">logout</span>
+                  <span>Cerrar sesión</span>
+                </button>
+              </div>
+              <VersionFooter variant="dark" style={{ padding: '2px 0', marginTop: '4px' }} />
             </div>
           </div>
         </div>
@@ -1546,6 +1550,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
             <span className="material-symbols-outlined">logout</span>
             <span>Cerrar sesión</span>
           </button>
+          <VersionFooter variant="dark" style={{ marginTop: '10px', width: '100%', padding: '4px 0' }} />
       </div>
     </aside>
     </>

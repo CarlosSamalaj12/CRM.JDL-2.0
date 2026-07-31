@@ -19,6 +19,7 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
   const [lecturas, setLecturas] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [usuariosError, setUsuariosError] = useState(null);
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [menciones, setMenciones] = useState([]);
   const [showMenciones, setShowMenciones] = useState(false);
@@ -74,42 +75,53 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
   ];
 
   const loadAll = useCallback(async () => {
-    try {
-      const [cmts, lect, hist, users] = await Promise.all([
-        getComentarios(informeId),
-        getLecturas(informeId),
-        getHistorial(informeId),
-        getUsuarios(),
-      ]);
-      setComentarios(cmts);
-      setLecturas(lect);
-      setHistorial(hist);
-      setUsuarios(users);
-
-      // Scroll al comentario resaltado (solo en la primera carga)
-      scrollToHighlightedComment(highlightComentarioId);
-
-      // Hacer scroll al final después de actualizar
-      setTimeout(() => {
-        if (commentListRef.current) {
-          commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
-        }
-      }, 100);
-
-      // Check if current user has already marked as read
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          if (payload?.id) {
-            setUserLeido(lect.some((l) => l.usuario_id === payload.id));
+    // 1. Cargar comentarios
+    getComentarios(informeId)
+      .then((cmts) => {
+        setComentarios(cmts);
+        // Scroll al comentario resaltado (solo en la primera carga)
+        scrollToHighlightedComment(highlightComentarioId);
+        // Hacer scroll al final después de actualizar
+        setTimeout(() => {
+          if (commentListRef.current) {
+            commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
           }
-        } catch { /* ignore */ }
-      }
-    } catch (err) { 
-      console.error('[ColaboracionPanel] Error en loadAll:', err);
-    }
-  }, [informeId]);
+        }, 100);
+      })
+      .catch((err) => console.error('[ColaboracionPanel] Error comentarios:', err));
+
+    // 2. Cargar lecturas
+    getLecturas(informeId)
+      .then((lect) => {
+        setLecturas(lect);
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload?.id) {
+              setUserLeido(lect.some((l) => l.usuario_id === payload.id));
+            }
+          } catch { /* ignore */ }
+        }
+      })
+      .catch((err) => console.error('[ColaboracionPanel] Error lecturas:', err));
+
+    // 3. Cargar historial
+    getHistorial(informeId)
+      .then(setHistorial)
+      .catch((err) => console.error('[ColaboracionPanel] Error historial:', err));
+
+    // 4. Cargar usuarios
+    getUsuarios()
+      .then((users) => {
+        setUsuarios(users);
+        setUsuariosError(null);
+      })
+      .catch((err) => {
+        console.error('[ColaboracionPanel] Error usuarios:', err);
+        setUsuariosError(err.message || 'Error al cargar usuarios');
+      });
+  }, [informeId, highlightComentarioId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -547,7 +559,11 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
             <div className="colab-comment-form">
               {showMenciones && (
                 <div className="colab-mention-list" style={{ position: 'relative', zIndex: 1000 }}>
-                  {usuariosFiltrados.length === 0 ? (
+                  {usuariosError ? (
+                    <div className="colab-mention-item" style={{ cursor: 'default', opacity: 0.8, color: '#ef4444' }}>
+                      <span>❌ {usuariosError}</span>
+                    </div>
+                  ) : usuariosFiltrados.length === 0 ? (
                     <div className="colab-mention-item" style={{ cursor: 'default', opacity: 0.6 }}>
                       <span><em>{usuarios.length === 0 ? 'Cargando usuarios...' : 'Sin resultados'}</em></span>
                     </div>

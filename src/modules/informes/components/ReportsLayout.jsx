@@ -7,7 +7,6 @@ import NotificationBell from './NotificationBell.jsx';
 import SearchBar from './SearchBar.jsx';
 import PwaInstallBanner from './PwaInstallBanner.jsx';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
-import VersionFooter from '../../../components/VersionFooter';
 import {
   IconGrid,
   IconHome,
@@ -384,8 +383,8 @@ export default function ReportsLayout() {
         </ErrorBoundary>
       </main>
 
+
       {/* Footer con versión (esquina inferior derecha) */}
-      <VersionFooter style={{ position: 'fixed', bottom: 8, right: 12, zIndex: 1000 }} />
 
       <style>{`
         @media screen {
