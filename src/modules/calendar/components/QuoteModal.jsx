@@ -4718,7 +4718,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             >
               Imprimir
             </button>
-            <button className="qp-btn-primary" type="button" onClick={handleSaveQuote} style={{ boxShadow: '0 8px 18px rgba(15,23,42,.18)' }}>Guardar cotización</button>
+            <button 
+              className="qp-btn-primary" 
+              type="button" 
+              onClick={handleSaveQuote} 
+              disabled={!hasUnsavedQuoteChanges || saving}
+              style={{ 
+                boxShadow: '0 8px 18px rgba(15,23,42,.18)',
+                opacity: (!hasUnsavedQuoteChanges || saving) ? 0.5 : 1,
+                cursor: (!hasUnsavedQuoteChanges || saving) ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {saving ? 'Guardando...' : 'Guardar cotización'}
+            </button>
           </div>
         </div>
 

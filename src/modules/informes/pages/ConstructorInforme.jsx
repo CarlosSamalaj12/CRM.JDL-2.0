@@ -222,6 +222,19 @@ export default function ConstructorInforme() {
   const [activeDay, setActiveDay] = useState(0);
   const [categoriaActiva, setCategoriaActiva] = useState('menus');
 
+  const initialDiasSnapshotRef = useRef('');
+
+  useEffect(() => {
+    if (!loading && dias) {
+      initialDiasSnapshotRef.current = JSON.stringify(dias);
+    }
+  }, [loading]);
+
+  const hasChanges = useMemo(() => {
+    if (loading || !dias) return false;
+    return JSON.stringify(dias) !== initialDiasSnapshotRef.current;
+  }, [dias, loading]);
+
   // Catálogos
   const [platillos, setPlatillos] = useState([]);
   const [ingredientes, setIngredientes] = useState([]);
@@ -1787,7 +1800,16 @@ export default function ConstructorInforme() {
         }}>
           <IconHistory size={15} /> Historial
         </button>
-        <button className="pos-bottom-btn pos-bottom-btn-primary" onClick={handleSaveFullInforme} disabled={loading}>
+        <button 
+          className="pos-bottom-btn pos-bottom-btn-primary" 
+          onClick={handleSaveFullInforme} 
+          disabled={loading || !hasChanges}
+          style={{
+            opacity: (loading || !hasChanges) ? 0.55 : 1,
+            cursor: (loading || !hasChanges) ? 'not-allowed' : 'pointer',
+            boxShadow: (loading || !hasChanges) ? 'none' : undefined
+          }}
+        >
           <IconFileText size={15} /> {loading ? 'Guardando...' : (informeId ? 'Guardar' : 'Crear Informe')}
         </button>
       </div>

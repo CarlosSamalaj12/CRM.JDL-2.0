@@ -703,16 +703,19 @@ export default function WeeklyTasks({
             );
           })()}
         </div>
-        <button type="submit" disabled={adding || !user}
+        <button type="submit" disabled={adding || !user || !newContenido.trim()}
           style={{
             width: isMobile ? '100%' : 'auto',
             height: isMobile ? '44px' : '36px', padding: isMobile ? '0 12px' : '0 16px', borderRadius: '8px', border: 'none',
-            background: !user ? 'var(--border-light)' : '#6366f1', color: '#ffffff', cursor: !user ? 'not-allowed' : 'pointer',
+            background: (!user || !newContenido.trim()) ? 'var(--border-light)' : '#6366f1', 
+            color: (!user || !newContenido.trim()) ? 'var(--text-muted)' : '#ffffff', 
+            cursor: (!user || !newContenido.trim()) ? 'not-allowed' : 'pointer',
+            opacity: (!user || !newContenido.trim()) ? 0.65 : 1,
             fontSize: isMobile ? '14px' : '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
             transition: 'background 0.15s',
           }}
-          onMouseEnter={e => { if (user) e.currentTarget.style.background = '#4f46e5'; }}
-          onMouseLeave={e => { if (user) e.currentTarget.style.background = '#6366f1'; }}
+          onMouseEnter={e => { if (user && newContenido.trim()) e.currentTarget.style.background = '#4f46e5'; }}
+          onMouseLeave={e => { if (user && newContenido.trim()) e.currentTarget.style.background = '#6366f1'; }}
         >
           + Agregar
         </button>
@@ -851,10 +854,31 @@ export default function WeeklyTasks({
                                 ));
                               })()}
                             </select>
-                            <button onClick={() => handleSaveEdit(t)}
-                              style={{ padding: '2px 8px', borderRadius: '4px', border: 'none', background: '#6366f1', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
-                              OK
-                            </button>
+                            {(() => {
+                              const isEditValidAndChanged = editText.trim() !== '' && (
+                                editText.trim() !== String(t.contenido || '').trim() ||
+                                String(editIdOcupacion) !== String(t.id_ocupacion || '')
+                              );
+                              return (
+                                <button 
+                                  onClick={() => { if (isEditValidAndChanged) handleSaveEdit(t); }}
+                                  disabled={!isEditValidAndChanged}
+                                  style={{ 
+                                    padding: '2px 8px', 
+                                    borderRadius: '4px', 
+                                    border: 'none', 
+                                    background: isEditValidAndChanged ? '#6366f1' : 'var(--border-light)', 
+                                    color: isEditValidAndChanged ? '#fff' : 'var(--text-muted)', 
+                                    fontSize: '11px', 
+                                    fontWeight: 700, 
+                                    cursor: isEditValidAndChanged ? 'pointer' : 'not-allowed',
+                                    opacity: isEditValidAndChanged ? 1 : 0.65
+                                  }}
+                                >
+                                  OK
+                                </button>
+                              );
+                            })()}
                             <button onClick={() => setEditingId(null)}
                               style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                               Cancelar

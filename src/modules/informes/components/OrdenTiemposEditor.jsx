@@ -5,6 +5,7 @@ import { TIEMPOS_COMIDA } from '../constants/tiemposComida.js';
 
 export default function OrdenTiemposEditor({ onSaved, inline = false, onClose }) {
   const [order, setOrder] = useState(() => TIEMPOS_COMIDA.map(t => t.id));
+  const [initialOrder, setInitialOrder] = useState(null);
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -13,17 +14,22 @@ export default function OrdenTiemposEditor({ onSaved, inline = false, onClose })
     try {
       const state = await loadState();
       const saved = state?.informe_tiempos_orden;
+      let loadedOrder = [];
       if (Array.isArray(saved) && saved.length > 0) {
         // Asegurar que todos los tiempos existentes estén presentes
         const existing = new Set(saved);
         const missing = TIEMPOS_COMIDA.map(t => t.id).filter(id => !existing.has(id));
-        setOrder([...saved, ...missing]);
+        loadedOrder = [...saved, ...missing];
       } else {
-        setOrder(TIEMPOS_COMIDA.map(t => t.id));
+        loadedOrder = TIEMPOS_COMIDA.map(t => t.id);
       }
+      setOrder(loadedOrder);
+      setInitialOrder(loadedOrder);
     } catch (err) {
       console.error('Error cargando orden de tiempos:', err);
-      setOrder(TIEMPOS_COMIDA.map(t => t.id));
+      const def = TIEMPOS_COMIDA.map(t => t.id);
+      setOrder(def);
+      setInitialOrder(def);
     }
   }, []);
 
@@ -124,23 +130,28 @@ export default function OrdenTiemposEditor({ onSaved, inline = false, onClose })
       </div>
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '8px',
-            border: 'none',
-            background: '#2563eb',
-            color: '#fff',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: saving ? 'not-allowed' : 'pointer',
-            opacity: saving ? 0.7 : 1,
-          }}
-        >
-          {saving ? '💾 Guardando...' : '💾 Guardar orden'}
-        </button>
+        {(() => {
+          const hasChanges = initialOrder !== null && JSON.stringify(order) !== JSON.stringify(initialOrder);
+          return (
+            <button
+              onClick={handleSave}
+              disabled={saving || !hasChanges}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: (saving || !hasChanges) ? 'var(--border-light)' : '#2563eb',
+                color: (saving || !hasChanges) ? 'var(--text-muted)' : '#fff',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: (saving || !hasChanges) ? 'not-allowed' : 'pointer',
+                opacity: (saving || !hasChanges) ? 0.65 : 1,
+              }}
+            >
+              {saving ? '💾 Guardando...' : '💾 Guardar orden'}
+            </button>
+          );
+        })()}
         <button
           onClick={handleReset}
           disabled={saving}

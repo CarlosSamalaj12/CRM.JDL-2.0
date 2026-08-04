@@ -157,7 +157,7 @@ function buildQuoteRowsHtml(items, docCurrency = 'GTQ') {
         `);
       });
 
-      if (showDayHeader && dayItems.length > 1) {
+      if (showDayHeader && (dayItems.length > 1 || keys.length > 1)) {
         rows.push(`
           <tr class="daySubtotalRow">
             <td colspan="2">Subtotal ${escapeHtml(dateKey)}</td>
@@ -922,8 +922,10 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             .sumLabel{ text-align:right; font-weight:700; color:var(--title); background:#edf0f4; }
             .sumValue{ text-align:right; font-weight:800; color:var(--title); background:#edf0f4; font-size:13px; }
             .sumTotal .sumLabel,.sumTotal .sumValue{ 
-              background:linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); 
-              color:#fff; 
+              background:linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%) !important; 
+              color:#fff !important; 
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
               font-size:13px;
               font-weight:800;
               letter-spacing:0.3px;
@@ -1086,6 +1088,14 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               .actions{ display:none !important; }
               .page-break{ break-before:page; page-break-before:always; }
               .doc{ box-shadow:none; margin:0; padding:0; background:transparent; }
+              
+              /* Salvaguarda de impresión para el Total si el navegador bloquea los gráficos de fondo */
+              .sumTotal .sumLabel, .sumTotal .sumValue {
+                color: #0f172a !important;
+                background: #f1f5f9 !important;
+                border-top: 2.5px double #0f172a !important;
+                border-bottom: 2.5px double #0f172a !important;
+              }
               
               .quoteContractHeader img {
                 max-height: 75px !important;

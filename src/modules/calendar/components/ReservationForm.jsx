@@ -564,7 +564,7 @@ export default function ReservationForm() {
   }, [events, id]);
 
   useEffect(() => {
-    if (salones?.length > 0 && !formData.salon && slots[0].salon === '') {
+    if (salones?.length > 0 && !formData.salon && slots?.[0]?.salon === '') {
       const newSlots = slots.map((s, i) => i === 0 ? { ...s, salon: salones[0] } : s);
       setSlots(newSlots);
       setFormData(prev => ({ ...prev, salon: salones[0] }));
@@ -579,7 +579,12 @@ export default function ReservationForm() {
   }, [slots, events, id, comparableEvents, salonConflictDisabled]);
 
 
+  const initialSnapshotRef = useRef('');
+
   useEffect(() => {
+    let initialFData = {};
+    let initialSData = [];
+
     if (id && events) {
       const existingEvent = events.find(ev => String(ev.id) === String(id));
       if (existingEvent) {
@@ -598,7 +603,8 @@ export default function ReservationForm() {
         const totalPaxFromSlots = isShared
           ? (seriesSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
           : seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
-        setFormData({
+
+        initialFData = {
           name: existingEvent.name || '',
           salon: firstSlot.salon || existingEvent.salon || '',
           status: existingEvent.status || 'Reserva sin Cotizacion',
@@ -610,13 +616,15 @@ export default function ReservationForm() {
           paxCompartido: isShared,
           notes: existingEvent.notes || '',
           userId: existingEvent.userId || '',
-          quote: existingEvent.quote || null
-        });
+          quote: existingEvent.quote || null,
+          clientName: existingEvent.clientName || '',
+          clientPhone: existingEvent.clientPhone || ''
+        };
 
         if (seriesSlots.length > 0) {
-          setSlots(seriesSlots);
+          initialSData = seriesSlots;
         } else {
-          setSlots([{
+          initialSData = [{
             salon: existingEvent.salon || (salones?.length > 0 ? salones[0] : ''),
             pax: existingEvent.pax || '',
             dateStart: existingEvent.date || getDefaultDate(),
@@ -624,11 +632,11 @@ export default function ReservationForm() {
             startTime: existingEvent.startTime || '10:00',
             endTime: existingEvent.endTime || '12:00',
             status: existingEvent.status || 'Reserva sin Cotizacion'
-          }]);
+          }];
         }
       }
     } else {
-      setFormData({
+      initialFData = {
         name: '',
         salon: salones?.length > 0 ? salones[0] : '',
         status: 'Reserva sin Cotizacion',
@@ -640,9 +648,11 @@ export default function ReservationForm() {
         paxCompartido: null,
         notes: '',
         userId: getCurrentUserId(),
-        quote: null
-      });
-      setSlots([{
+        quote: null,
+        clientName: '',
+        clientPhone: ''
+      };
+      initialSData = [{
         salon: salones?.length > 0 ? salones[0] : '',
         pax: '',
         dateStart: getDefaultDate(),
@@ -650,9 +660,18 @@ export default function ReservationForm() {
         startTime: urlStart || '10:00',
         endTime: urlEnd || '12:00',
         status: 'Reserva sin Cotizacion'
-      }]);
+      }];
     }
+
+    setFormData(initialFData);
+    setSlots(initialSData);
+    initialSnapshotRef.current = JSON.stringify({ formData: initialFData, slots: initialSData });
   }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate]);
+
+  const hasChanges = useMemo(() => {
+    const current = JSON.stringify({ formData, slots });
+    return current !== initialSnapshotRef.current;
+  }, [formData, slots]);
 
   useEffect(() => {
     if (urlOpenAdvances && id) {
@@ -1711,7 +1730,16 @@ export default function ReservationForm() {
           </button>
         )}
         
-        <button onClick={handleSave} disabled={saving} className="btn-guardar" style={{ marginLeft: 'auto' }}>
+        <button 
+          onClick={handleSave} 
+          disabled={saving || !hasChanges} 
+          className="btn-guardar" 
+          style={{ 
+            marginLeft: 'auto',
+            opacity: (saving || !hasChanges) ? 0.55 : 1,
+            cursor: (saving || !hasChanges) ? 'not-allowed' : 'pointer'
+          }}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
             <polyline points="20 6 9 17 4 12" />
           </svg>
