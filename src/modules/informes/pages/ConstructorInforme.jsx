@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   createInforme, createInformeDia, saveDiaMenuDetalle,
   getPlatillos, getPlatilloDetalle, fetchEventById,
-  getIngredientes, getMenus, getOpcionesIngrediente, getCategorias,
+  getIngredientes, getMenus, getOpcionesIngrediente, getAllOpcionesIngredientes, getCategorias,
   createIngrediente,
   getHistorial,
   getInformesByOcupacion, getInformeById,
@@ -11,6 +11,7 @@ import {
   getEquipos, getSillas, getMesas,
   saveMetadatosEvento
 } from '../services/api.js';
+
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -288,27 +289,15 @@ export default function ConstructorInforme() {
   const [showOrdenModal, setShowOrdenModal] = useState(false);
   const [openTcPopover, setOpenTcPopover] = useState(null);
 
-  // Cargar orden personalizado de tiempos
+  // Cargar en UN SOLO efecto tanto el orden de tiempos como los tipos de montaje.
+  // Antes eran 2 useEffect separados que llamaban loadCrmState() dos veces al montar.
   useEffect(() => {
-    const loadOrder = async () => {
-      try {
-        const state = await loadCrmState();
-        setCustomTiempoComidaOrder(state?.informe_tiempos_orden || null);
-      } catch (err) {
-        console.error('Error cargando orden de tiempos:', err);
-      }
-    };
-    loadOrder();
-    const handleStateUpdate = () => loadOrder();
-    window.addEventListener('stateUpdated', handleStateUpdate);
-    return () => window.removeEventListener('stateUpdated', handleStateUpdate);
-  }, []);
-
-  // Cargar tipos de montaje personalizados
-  useEffect(() => {
-    const loadTipos = async (opts = {}) => {
+    const loadConfig = async (opts = {}) => {
       try {
         const state = await loadCrmState(opts);
+        // Orden de tiempos de comida
+        setCustomTiempoComidaOrder(state?.informe_tiempos_orden || null);
+        // Tipos de montaje
         const saved = state?.informe_tipos_montaje;
         if (Array.isArray(saved) && saved.length > 0) {
           setConfigTiposMontaje(saved.filter(t => t.activo !== 0));
@@ -316,17 +305,16 @@ export default function ConstructorInforme() {
           setConfigTiposMontaje(TIPOS_MONTAJE.map(nombre => ({ id: nombre, nombre, activo: 1 })));
         }
       } catch (err) {
-        console.error('Error cargando tipos de montaje:', err);
+        console.error('Error cargando configuración de informe:', err);
+        setCustomTiempoComidaOrder(null);
         setConfigTiposMontaje(TIPOS_MONTAJE.map(nombre => ({ id: nombre, nombre, activo: 1 })));
       }
     };
-    loadTipos();
-    const handleStateUpdate = () => loadTipos({ cacheBust: true });
+    loadConfig();
+    const handleStateUpdate = () => loadConfig({ cacheBust: true });
     window.addEventListener('stateUpdated', handleStateUpdate);
-    const unsubscribeSocket = onEvent ? onEvent('state-updated', () => loadTipos({ cacheBust: true })) : () => {};
-    const handleVisibility = () => {
-      if (!document.hidden) loadTipos({ cacheBust: true });
-    };
+    const unsubscribeSocket = onEvent ? onEvent('state-updated', () => loadConfig({ cacheBust: true })) : () => {};
+    const handleVisibility = () => { if (!document.hidden) loadConfig({ cacheBust: true }); };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       window.removeEventListener('stateUpdated', handleStateUpdate);
@@ -489,17 +477,9 @@ export default function ConstructorInforme() {
 
       // Cargar datos secundarios en segundo plano (sin bloquear la UI)
       (async () => {
-        // Opciones de ingredientes
+        // Opciones de ingredientes: 1 sola petición en vez de N peticiones en loop
         try {
-          const opsResults = await Promise.all(
-            ingredientesData.map(ing =>
-              getOpcionesIngrediente(ing.id).catch(() => [])
-            )
-          );
-          const opsMap = {};
-          for (let i = 0; i < ingredientesData.length; i++) {
-            opsMap[ingredientesData[i].id] = opsResults[i];
-          }
+          const opsMap = await getAllOpcionesIngredientes();
           setOpcionesIng(opsMap);
         } catch { /* */ }
 
@@ -679,11 +659,9 @@ export default function ConstructorInforme() {
       setInformeId(targetId);
       setVersionActiva(res.version || 1);
 
-      let diasGuardados = 0;
-      for (let i = 0; i < dias.length; i++) {
-        const dia = dias[i];
-        if (!dia.fecha) continue;
-
+      // Guardar todos los días EN PARALELO en vez de secuencialmente
+      const diasValidos = dias.filter(dia => !!dia.fecha);
+      await Promise.all(diasValidos.map(async (dia) => {
         const diaRes = await createInformeDia({
           informe_id: targetId, fecha_evento: dia.fecha,
           menu_id: dia.menuAsignado?.id || null,
@@ -699,7 +677,6 @@ export default function ConstructorInforme() {
           }),
           comentario_menu: dia.comentarioMenu || null,
         });
-        diasGuardados++;
 
         if (dia.selectedItems.length > 0) {
           await saveDiaMenuDetalle(diaRes.id, dia.selectedItems.map(item => ({
@@ -709,36 +686,44 @@ export default function ConstructorInforme() {
             cantidad_total: item.cantidad, notas: item.notas || '',
           })));
         }
-      }
+      }));
 
-      // Actualizar metadata del evento si hay alertas
-      try {
-        const tiene_alertas = dias.some(d => (d.alertas || []).length > 0 || d.alertaCustom?.trim());
-        const allAlertas = new Set();
-        for (const d of dias) {
-          (d.alertas || []).forEach(a => allAlertas.add(a));
-          if (d.alertaCustom?.trim()) allAlertas.add(d.alertaCustom.trim());
-        }
-        const alertas_text = allAlertas.size > 0 ? [...allAlertas].join(', ') : null;
-        await saveMetadatosEvento(id_ocupacion, { tiene_alertas, alertas_text });
-      } catch (err) {
-        console.error('Error al guardar metadatos de alertas:', err);
-        toast.warning('Las alertas se guardaron en el informe pero no se marcaron en la vista general');
-      }
+      const diasGuardados = diasValidos.length;
 
-      // Re-asignar imágenes del informe anterior al nuevo
-      if (oldInformeId && Number(oldInformeId) !== Number(targetId)) {
+      // Actualizar metadata del evento si hay alertas (en paralelo con imágenes)
+      const metadataPromise = (async () => {
         try {
-          const oldImgs = await getImagenes(oldInformeId);
-          if (oldImgs.length > 0) {
-            for (const img of oldImgs) {
-              await createImagen(targetId, { url: img.url, descripcion: img.descripcion || '' });
-            }
+          const tiene_alertas = dias.some(d => (d.alertas || []).length > 0 || d.alertaCustom?.trim());
+          const allAlertas = new Set();
+          for (const d of dias) {
+            (d.alertas || []).forEach(a => allAlertas.add(a));
+            if (d.alertaCustom?.trim()) allAlertas.add(d.alertaCustom.trim());
           }
-        } catch (imgErr) {
-          console.error('Error al copiar imágenes al nuevo informe:', imgErr);
+          const alertas_text = allAlertas.size > 0 ? [...allAlertas].join(', ') : null;
+          await saveMetadatosEvento(id_ocupacion, { tiene_alertas, alertas_text });
+        } catch (err) {
+          console.error('Error al guardar metadatos de alertas:', err);
+          toast.warning('Las alertas se guardaron en el informe pero no se marcaron en la vista general');
         }
-      }
+      })();
+
+      // Re-asignar imágenes del informe anterior al nuevo (en paralelo con metadata)
+      const imagenesPromise = (async () => {
+        if (oldInformeId && Number(oldInformeId) !== Number(targetId)) {
+          try {
+            const oldImgs = await getImagenes(oldInformeId);
+            if (oldImgs.length > 0) {
+              await Promise.all(oldImgs.map(img =>
+                createImagen(targetId, { url: img.url, descripcion: img.descripcion || '' })
+              ));
+            }
+          } catch (imgErr) {
+            console.error('Error al copiar imágenes al nuevo informe:', imgErr);
+          }
+        }
+      })();
+
+      await Promise.all([metadataPromise, imagenesPromise]);
 
       const versionStr = versionActiva ? ` v${versionActiva}` : '';
       toast.success(`¡Informe${versionStr} guardado! (${diasGuardados} día(s))`, {
@@ -752,6 +737,7 @@ export default function ConstructorInforme() {
       setLoading(false);
     }
   };
+
 
   // ─── Agregar ítem al día activo ───
   const agregarItem = (ingrediente, opcionId, metodo, cantidad = 1, notas = '') => {

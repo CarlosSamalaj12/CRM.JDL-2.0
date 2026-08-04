@@ -13,8 +13,47 @@ export const historyService = {
   },
 
   async getByEventId(eventId) {
-    const history = await this.getAll();
-    return history[eventId] || [];
+    try {
+      const state = await loadState({ cacheBust: false });
+      const events = state?.events || [];
+      const targetEvent = events.find(e => String(e.id) === String(eventId));
+      
+      const groupId = targetEvent?.groupId ? String(targetEvent.groupId).trim() : null;
+      const history = state?.changeHistory || {};
+      
+      if (groupId) {
+        // Encontrar todos los IDs de eventos que comparten el mismo groupId o cuyo ID coincide con el groupId
+        const groupEventIds = events
+          .filter(e => String(e.groupId).trim() === groupId || String(e.id).trim() === groupId)
+          .map(e => String(e.id));
+        
+        groupEventIds.push(groupId);
+        
+        const uniqueIds = Array.from(new Set(groupEventIds));
+        const consolidated = [];
+        const seenKeys = new Set();
+        
+        for (const id of uniqueIds) {
+          const list = history[id] || [];
+          for (const entry of list) {
+            const uniqueKey = `${entry.at || entry.timestamp}|${entry.change}|${entry.actorUserId}`;
+            if (!seenKeys.has(uniqueKey)) {
+              seenKeys.add(uniqueKey);
+              consolidated.push(entry);
+            }
+          }
+        }
+        
+        // Ordenar el historial consolidado cronológicamente por marca de tiempo
+        consolidated.sort((a, b) => new Date(a.at || a.timestamp || 0) - new Date(b.at || b.timestamp || 0));
+        return consolidated;
+      }
+      
+      return history[eventId] || [];
+    } catch (err) {
+      console.error('Error al obtener historial consolidado por eventId:', err);
+      return [];
+    }
   },
 
   async add(eventId, changeDescription) {

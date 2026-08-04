@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
-import { fetchEvents, fetchEventById, fetchWeeklyServices } from '../services/api.js';
+import { fetchEvents, fetchEventById, fetchWeeklyServices, getTareasSemanaMerged } from '../services/api.js';
 import EventCard from '../components/EventCard.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 
@@ -86,6 +86,7 @@ export default function Kanban() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [weeklyServices, setWeeklyServices] = useState([]);
+  const [weeklyTasks, setWeeklyTasks] = useState([]);
   const [taskCounts, setTaskCounts] = useState({});
   const [targetEventId, setTargetEventId] = useState(null);
 
@@ -334,7 +335,17 @@ export default function Kanban() {
       .finally(() => setLoading(false));
   }, [selectedDate]);
 
-  useEffect(() => { loadEvents(); }, [loadEvents]);
+  const loadWeeklyTasks = useCallback(() => {
+    const monday = getMonday(selectedDate);
+    getTareasSemanaMerged(monday)
+      .then(setWeeklyTasks)
+      .catch(() => {});
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadEvents();
+    loadWeeklyTasks();
+  }, [loadEvents, loadWeeklyTasks]);
 
   // Cargar servicios semanales con desglose por fecha
   useEffect(() => {
@@ -343,7 +354,24 @@ export default function Kanban() {
       .catch(() => { /* fallback: usar datos de eventos */ });
   }, [selectedDate]);
 
-  useDataSyncMulti(['evento_status', 'evento'], () => loadEvents());
+  useDataSyncMulti(['evento_status', 'evento', 'tarea_semanal', 'tarea_evento'], () => {
+    loadEvents();
+    loadWeeklyTasks();
+  });
+
+  const taskCountsMap = useMemo(() => {
+    const map = {};
+    if (Array.isArray(weeklyTasks)) {
+      weeklyTasks.forEach(t => {
+        if (t.completada) return;
+        const key = String(t.id_ocupacion || '');
+        if (key) {
+          map[key] = (map[key] || 0) + 1;
+        }
+      });
+    }
+    return map;
+  }, [weeklyTasks]);
 
   const selectedDateObj = new Date(selectedDate + 'T12:00:00');
   const fallbackDate = isNaN(selectedDateObj.getTime()) ? new Date() : selectedDateObj;
@@ -822,6 +850,7 @@ export default function Kanban() {
                           setViewMode('tareas');
                         }}
                         highlightNotaId={searchParams.get('notaId')}
+                        tareasCount={taskCountsMap[event.Idocupacion] || 0}
                       />
                   ))
                 )}
@@ -843,6 +872,7 @@ export default function Kanban() {
           setTaskCounts={setTaskCounts}
           targetEventId={targetEventId}
           onTargetEventProcessed={() => setTargetEventId(null)}
+          initialTareas={weeklyTasks.length > 0 ? weeklyTasks : null}
         />
       )}
 

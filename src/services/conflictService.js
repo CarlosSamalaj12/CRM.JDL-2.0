@@ -44,14 +44,19 @@ function isNoConflictSalon(salonName, noConflictSalons) {
 export function findHardBlocks(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
   if (isNoConflictSalon(draft.salon, noConflictSalons)) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
-  const slotDate = draft.date || draft.dateStart;
+  
+  const draftStart = draft.date || draft.dateStart;
+  const draftEnd = draft.endDate || draft.dateEnd || draftStart;
 
   return existingEvents.filter(e => {
     if (isNoConflictSalon(e.salon, noConflictSalons)) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
-    if (e.date !== slotDate) return false;
+    
+    const eDate = e.date || e.fecha_evento;
+    if (!eDate || eDate < draftStart || eDate > draftEnd) return false;
+    
     if (e.status === 'Cancelado') return false;
     if (!HARD_BLOCK_STATUSES.includes(e.status)) return false;
 
@@ -62,14 +67,19 @@ export function findHardBlocks(draft, existingEvents, ignoreIds = null, noConfli
 export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
   if (isNoConflictSalon(draft.salon, noConflictSalons)) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
-  const slotDate = draft.date || draft.dateStart;
+  
+  const draftStart = draft.date || draft.dateStart;
+  const draftEnd = draft.endDate || draft.dateEnd || draftStart;
 
   return existingEvents.filter(e => {
     if (isNoConflictSalon(e.salon, noConflictSalons)) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
-    if (e.date !== slotDate) return false;
+    
+    const eDate = e.date || e.fecha_evento;
+    if (!eDate || eDate < draftStart || eDate > draftEnd) return false;
+    
     if (e.status !== 'Mantenimiento') return false;
 
     return timesOverlap(e.startTime, e.endTime, draft.startTime, draft.endTime);
@@ -79,14 +89,19 @@ export function findMaintenanceDayBlocks(draft, existingEvents, ignoreIds = null
 export function findAllConflicts(draft, existingEvents, ignoreIds = null, noConflictSalons = []) {
   if (isNoConflictSalon(draft.salon, noConflictSalons)) return [];
   const ignoreSet = ignoreIds ? new Set(ignoreIds) : new Set();
-  const slotDate = draft.date || draft.dateStart;
+  
+  const draftStart = draft.date || draft.dateStart;
+  const draftEnd = draft.endDate || draft.dateEnd || draftStart;
 
   return existingEvents.filter(e => {
     if (isNoConflictSalon(e.salon, noConflictSalons)) return false;
     if (ignoreSet.has(String(e.id))) return false;
     if (e.id === draft.id) return false;
     if (e.salon !== draft.salon) return false;
-    if (e.date !== slotDate) return false;
+    
+    const eDate = e.date || e.fecha_evento;
+    if (!eDate || eDate < draftStart || eDate > draftEnd) return false;
+    
     if (e.status === 'Cancelado') return false;
 
     return timesOverlap(e.startTime, e.endTime, draft.startTime, draft.endTime);

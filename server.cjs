@@ -2237,10 +2237,18 @@ async function writeStateToTables(state, oldStateOpt = null) {
     await conn.query("DELETE FROM encargados_empresa");
     await conn.query("DELETE FROM salones");
 
-    for (const roomName of salones) {
-      const nombre = str(roomName).trim();
-      if (!nombre) continue;
-      await conn.query("INSERT INTO salones (nombre) VALUES (?)", [nombre]);
+    if (salones.length > 0) {
+      const salonValues = [];
+      const salonParams = [];
+      for (const roomName of salones) {
+        const nombre = str(roomName).trim();
+        if (!nombre) continue;
+        salonValues.push("(?)");
+        salonParams.push(nombre);
+      }
+      if (salonValues.length > 0) {
+        await conn.query(`INSERT INTO salones (nombre) VALUES ${salonValues.join(",")}`, salonParams);
+      }
     }
 
     // Delete usuarios que ya no están en el state entrante
@@ -2720,17 +2728,35 @@ async function writeStateToTables(state, oldStateOpt = null) {
           ]
         );
 
-        // Borrar items viejos y re-insertar los nuevos
+        // Borrar items viejos y re-insertar los nuevos de forma masiva
         await conn.query("DELETE FROM items_cotizacion_evento WHERE id_evento = ?", [id]);
         const items = Array.isArray(q.items) ? q.items : [];
-        for (let itemIdx = 0; itemIdx < items.length; itemIdx++) {
-          const item = items[itemIdx];
-          const itemId = buildQuoteItemPrimaryKey(id, item, itemIdx);
+        if (items.length > 0) {
+          const itemValues = [];
+          const itemParams = [];
+          for (let itemIdx = 0; itemIdx < items.length; itemIdx++) {
+            const item = items[itemIdx];
+            const itemId = buildQuoteItemPrimaryKey(id, item, itemIdx);
+            itemValues.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            itemParams.push(
+              itemId,
+              id,
+              str(item?.serviceId).trim() || null,
+              asDate(item?.serviceDate),
+              Number(item?.qty || 0),
+              Number(item?.price || 0),
+              Number(item?.unitPrice || item?.price || 0),
+              normalizeQuantityMode(item?.quantityMode),
+              Number(item?.qty || 0) * Number(item?.price || 0),
+              str(item?.name || item?.description).trim() || "(sin descripcion)",
+              str(item?.description).trim() || null
+            );
+          }
           await conn.query(
             `
               INSERT INTO items_cotizacion_evento
                 (id, id_evento, id_servicio, fecha_servicio, cantidad, precio, precio_unitario, modo_cantidad, total_linea, nombre, descripcion)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES ${itemValues.join(",")}
               ON DUPLICATE KEY UPDATE
                 id_evento = VALUES(id_evento),
                 id_servicio = VALUES(id_servicio),
@@ -2743,23 +2769,11 @@ async function writeStateToTables(state, oldStateOpt = null) {
                 nombre = VALUES(nombre),
                 descripcion = VALUES(descripcion)
             `,
-            [
-              itemId,
-              id,
-              str(item?.serviceId).trim() || null,
-              asDate(item?.serviceDate),
-              Number(item?.qty || 0),
-              Number(item?.price || 0),
-              Number(item?.unitPrice || item?.price || 0),
-              normalizeQuantityMode(item?.quantityMode),
-              Number(item?.qty || 0) * Number(item?.price || 0),
-              str(item?.name || item?.description).trim() || "(sin descripcion)",
-              str(item?.description).trim() || null,
-            ]
+            itemParams
           );
         }
 
-        // Versiones: borrar viejas y re-insertar nuevas
+        // Versiones: borrar viejas y re-insertar nuevas de forma masiva
         await conn.query("DELETE FROM cotizacion_versiones_evento WHERE id_evento = ?", [id]);
         await conn.query("DELETE FROM items_cotizacion_version_evento WHERE id_evento = ?", [id]);
         const versionRows = [];
@@ -2781,15 +2795,16 @@ async function writeStateToTables(state, oldStateOpt = null) {
         }
         versionRows.sort((a, b) => Number(a.version) - Number(b.version));
 
-        for (const v of versionRows) {
-          const vTotals = calculateQuoteTotals(v.snapshot);
-          await conn.query(
-            `
-              INSERT INTO cotizacion_versiones_evento
-                (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            [
+        if (versionRows.length > 0) {
+          const versionValues = [];
+          const versionParams = [];
+          const versionItemValues = [];
+          const versionItemParams = [];
+
+          for (const v of versionRows) {
+            const vTotals = calculateQuoteTotals(v.snapshot);
+            versionValues.push("(?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            versionParams.push(
               id,
               Number(v.version),
               Number(vTotals.subtotal || 0),
@@ -2798,20 +2813,14 @@ async function writeStateToTables(state, oldStateOpt = null) {
               Number(vTotals.discountAmount || 0),
               Number(vTotals.total || 0),
               str(v.snapshot?.quotedAt).trim() || null,
-              safeJsonStringify(v.snapshot),
-            ]
-          );
+              safeJsonStringify(v.snapshot)
+            );
 
-          const itemsVersion = Array.isArray(v.snapshot?.items) ? v.snapshot.items : [];
-          for (let idx = 0; idx < itemsVersion.length; idx++) {
-            const item = itemsVersion[idx];
-            await conn.query(
-              `
-                INSERT INTO items_cotizacion_version_evento
-                  (id_evento, version_num, fila_num, id_servicio, fecha_servicio, cantidad, precio, precio_unitario, modo_cantidad, total_linea, nombre, descripcion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `,
-              [
+            const itemsVersion = Array.isArray(v.snapshot?.items) ? v.snapshot.items : [];
+            for (let idx = 0; idx < itemsVersion.length; idx++) {
+              const item = itemsVersion[idx];
+              versionItemValues.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+              versionItemParams.push(
                 id,
                 Number(v.version),
                 idx + 1,
@@ -2823,8 +2832,30 @@ async function writeStateToTables(state, oldStateOpt = null) {
                 normalizeQuantityMode(item?.quantityMode),
                 Number(item?.qty || 0) * Number(item?.price || 0),
                 str(item?.name || item?.description).trim() || "(sin descripcion)",
-                str(item?.description).trim() || null,
-              ]
+                str(item?.description).trim() || null
+              );
+            }
+          }
+
+          if (versionValues.length > 0) {
+            await conn.query(
+              `
+                INSERT INTO cotizacion_versiones_evento
+                  (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
+                VALUES ${versionValues.join(",")}
+              `,
+              versionParams
+            );
+          }
+
+          if (versionItemValues.length > 0) {
+            await conn.query(
+              `
+                INSERT INTO items_cotizacion_version_evento
+                  (id_evento, version_num, fila_num, id_servicio, fecha_servicio, cantidad, precio, precio_unitario, modo_cantidad, total_linea, nombre, descripcion)
+                VALUES ${versionItemValues.join(",")}
+              `,
+              versionItemParams
             );
           }
         }
@@ -2836,27 +2867,38 @@ async function writeStateToTables(state, oldStateOpt = null) {
       }
     }
 
-    // === UPSERT: historial_evento (limpiar y re-insertar para evitar duplicación) ===
+    // === UPSERT: historial_evento (solo insertar registros nuevos incrementalmente para optimizar rendimiento) ===
     if (JSON.stringify(changeHistory) !== JSON.stringify(oldChangeHistory)) {
-      await conn.query("DELETE FROM historial_evento");
       for (const [eventKey, rows] of Object.entries(changeHistory)) {
         if (!Array.isArray(rows)) continue;
+        const oldRows = oldChangeHistory[eventKey] || [];
+        // Crear un conjunto de claves únicas para identificar registros existentes
+        const oldSet = new Set(oldRows.map(o => `${str(o?.at).trim()}|${str(o?.actorUserId).trim()}|${str(o?.actorName).trim()}|${str(o?.change).trim()}`));
+
         for (const row of rows) {
-          await conn.query(
-            `
-              INSERT INTO historial_evento
-                (clave_evento, cambiado_en_iso, cambiado_en, id_usuario_actor, nombre_actor, cambio_texto)
-              VALUES (?, ?, ?, ?, ?, ?)
-            `,
-            [
-              str(eventKey).trim(),
-              str(row?.at).trim() || null,
-              asDateTime(row?.at),
-              str(row?.actorUserId).trim() || null,
-              str(row?.actorName).trim() || null,
-              str(row?.change).trim() || "",
-            ]
-          );
+          const at = str(row?.at).trim();
+          const actorUserId = str(row?.actorUserId).trim();
+          const actorName = str(row?.actorName).trim();
+          const change = str(row?.change).trim();
+          const lookupKey = `${at}|${actorUserId}|${actorName}|${change}`;
+
+          if (!oldSet.has(lookupKey)) {
+            await conn.query(
+              `
+                INSERT INTO historial_evento
+                  (clave_evento, cambiado_en_iso, cambiado_en, id_usuario_actor, nombre_actor, cambio_texto)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `,
+              [
+                str(eventKey).trim(),
+                at || null,
+                asDateTime(at),
+                actorUserId || null,
+                actorName || null,
+                change || "",
+              ]
+            );
+          }
         }
       }
     }
@@ -4146,15 +4188,13 @@ app.put("/api/state", async (req, res) => {
   }
 
   try {
-    // 🛡️ SEGURIDAD: Fusionar state entrante con estado actual de BD
-    // Una sola lectura del estado actual para merge + oldEvents
+    // 🛡️ SEGURIDAD: Una sola lectura del estado actual para merge + writeStateToTables
     let mergedState = { ...nextState };
-    let oldEvents = [];
+    let currentResult = null;
     try {
-      const currentResult = await readStateFromTables();
+      currentResult = await readStateFromTables();
       if (currentResult && currentResult.state) {
         const current = currentResult.state;
-        oldEvents = current.events || [];
         for (const [key, value] of Object.entries(current)) {
           if (!(key in nextState)) {
             mergedState[key] = value;
@@ -4166,7 +4206,8 @@ app.put("/api/state", async (req, res) => {
       console.warn("⚠️ No se pudo leer estado actual para merge, usando solo request:", err.message);
     }
 
-    await writeStateToTables(mergedState, oldEvents);
+    // Pasar currentResult directamente a writeStateToTables para evitar doble consulta a la BD
+    await writeStateToTables(mergedState, currentResult);
     console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! BD actualizada (${(mergedState.events?.length || nextState.events?.length || 0)} eventos).`);
 
     // Emitir actualización vía Socket.io en tiempo real a todos los clientes
@@ -4174,8 +4215,6 @@ app.put("/api/state", async (req, res) => {
       io.emit("state-updated", { timestamp: Date.now() });
       console.log(`[${new Date().toLocaleTimeString()}] 📡 Evento 'state-updated' emitido vía Socket.io a los clientes.`);
     }
-
-    // Google Calendar sync desactivado del calendario general.
 
     return res.json({ ok: true });
   } catch (error) {

@@ -109,22 +109,31 @@ export async function saveState(state) {
     await Promise.all(promises);
   }
 
+  // Actualizar caché local inmediatamente (antes del PUT)
+  // para que el próximo loadState() use los datos frescos sin ir al servidor
   cachedState = nextState;
+  // Invalidar ETag para que el servidor confirme el nuevo estado en la siguiente lectura
   stateEtag = null;
 
-  const result = await api.put('/api/state', { state: nextState });
-
-  // Notificar a los componentes (charts, settings, etc.) que el state cambió,
-  // así pueden re-leer y mostrar datos frescos (e.g. metas actualizadas de un usuario).
   try {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('entity:changed', {
-        detail: { entity: 'state', action: 'updated', data: { keys: Object.keys(nextState) } }
-      }));
-    }
-  } catch (_) { /* noop */ }
+    const result = await api.put('/api/state', { state: nextState });
 
-  return result;
+    // Notificar a los componentes que el state cambió
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('entity:changed', {
+          detail: { entity: 'state', action: 'updated', data: { keys: Object.keys(nextState) } }
+        }));
+      }
+    } catch (_) { /* noop */ }
+
+    return result;
+  } catch (err) {
+    // En caso de error, limpiar caché para forzar re-lectura limpia
+    cachedState = null;
+    stateEtag = null;
+    throw err;
+  }
 }
 
 export async function updateState(updater, options = {}) {

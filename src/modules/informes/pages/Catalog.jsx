@@ -161,17 +161,30 @@ export default function Catalog() {
   }, []);
 
   useEffect(() => {
-    loadIngredientes();
-    loadPlatillos();
-    loadMenus();
-    loadCategorias();
+    // Carga inicial: todas las peticiones en paralelo (Promise.all) en vez de secuencial
+    const loadAll = async () => {
+      setLoading(true);
+      try {
+        const [ings, plats, menus, cats] = await Promise.all([
+          getIngredientes().catch(err => { toast.error('Error al cargar ingredientes: ' + err.message); return []; }),
+          getPlatillos().catch(err => { toast.error('Error al cargar platillos: ' + err.message); return []; }),
+          getMenus().catch(err => { toast.error('Error al cargar menús: ' + err.message); return []; }),
+          getCategorias().catch(err => { toast.error('Error al cargar categorías: ' + err.message); return []; }),
+        ]);
+        setIngredientes(ings);
+        setPlatillos(plats);
+        setMenus(menus);
+        setCategorias(cats);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAll();
   }, []);
 
   const loadIngredientes = async () => {
-    setLoading(true);
     try { setIngredientes(await getIngredientes()); }
     catch (err) { toast.error('Error al cargar ingredientes: ' + err.message); }
-    finally { setLoading(false); }
   };
 
   const loadPlatillos = async () => {

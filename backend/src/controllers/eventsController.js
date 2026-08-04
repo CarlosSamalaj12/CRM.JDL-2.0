@@ -43,14 +43,7 @@ export async function getWeeklyServices(req, res, next) {
         END AS TipoServicio,
         SUM(
           CASE
-            WHEN ice.id_evento = (
-              SELECT MIN(ice2.id_evento)
-              FROM items_cotizacion_evento ice2
-              LEFT JOIN tbl_seguimientocotizaciones e2 ON ice2.id_evento = e2.Idocupacion
-              WHERE REGEXP_REPLACE(ice2.id_evento, '_s[0-9]+_[0-9]{6,}$', '')
-                  = REGEXP_REPLACE(ice.id_evento, '_s[0-9]+_[0-9]{6,}$', '')
-                AND COALESCE(ice2.fecha_servicio, e2.FechaEvento) = COALESCE(ice.fecha_servicio, e.FechaEvento)
-            ) THEN ice.cantidad
+            WHEN ice.id_evento = SUBSTRING_INDEX(ice.id_evento, '_s', 1) THEN ice.cantidad
             ELSE 0
           END
         ) AS cantidad
@@ -94,6 +87,7 @@ export async function getEvents(req, res, next) {
         e.TipoEvento,
         e.Telefono,
         e.Salon,
+        (SELECT COUNT(*) FROM event_notas n WHERE n.idocupacion = e.Idocupacion) AS cant_notas,
         CASE
           WHEN COALESCE(m.tiene_alertas, 0) = 1 THEN 1
           WHEN EXISTS (
@@ -109,112 +103,47 @@ export async function getEvents(req, res, next) {
         END AS tiene_alertas,
         EXISTS (
           SELECT 1 FROM informes_eventos ie
-          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
         ) AS tiene_informe,
         m.alertas_text,
         (SELECT COALESCE(SUM(ice.cantidad), 0)
          FROM items_cotizacion_evento ice
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE REGEXP_REPLACE(ice.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-           AND ice.id_evento = (
-             SELECT MIN(ice2.id_evento)
-             FROM items_cotizacion_evento ice2
-             WHERE REGEXP_REPLACE(ice2.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND DATE(COALESCE(ice2.fecha_servicio, e.FechaEvento)) = DATE(e.FechaEvento)
-           )
-           AND e.Idocupacion = (
-             SELECT MIN(e2.Idocupacion)
-             FROM tbl_seguimientocotizaciones e2
-             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND e2.FechaEvento = e.FechaEvento
-           )
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
+         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
            AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%desayuno%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%desayuno%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
         ) AS cant_desayunos,
         (SELECT COALESCE(SUM(ice.cantidad), 0)
          FROM items_cotizacion_evento ice
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE REGEXP_REPLACE(ice.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-           AND ice.id_evento = (
-             SELECT MIN(ice2.id_evento)
-             FROM items_cotizacion_evento ice2
-             WHERE REGEXP_REPLACE(ice2.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND DATE(COALESCE(ice2.fecha_servicio, e.FechaEvento)) = DATE(e.FechaEvento)
-           )
-           AND e.Idocupacion = (
-             SELECT MIN(e2.Idocupacion)
-             FROM tbl_seguimientocotizaciones e2
-             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND e2.FechaEvento = e.FechaEvento
-           )
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
+         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
            AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%a.m.%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refacci%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%a.m.%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%refa%am%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
         ) AS cant_refacciones_am,
         (SELECT COALESCE(SUM(ice.cantidad), 0)
          FROM items_cotizacion_evento ice
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE REGEXP_REPLACE(ice.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-           AND ice.id_evento = (
-             SELECT MIN(ice2.id_evento)
-             FROM items_cotizacion_evento ice2
-             WHERE REGEXP_REPLACE(ice2.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND DATE(COALESCE(ice2.fecha_servicio, e.FechaEvento)) = DATE(e.FechaEvento)
-           )
-           AND e.Idocupacion = (
-             SELECT MIN(e2.Idocupacion)
-             FROM tbl_seguimientocotizaciones e2
-             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND e2.FechaEvento = e.FechaEvento
-           )
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
+         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
            AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%almuerzo%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%desayuno%'))
         ) AS cant_almuerzos,
         (SELECT COALESCE(SUM(ice.cantidad), 0)
          FROM items_cotizacion_evento ice
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE REGEXP_REPLACE(ice.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-           AND ice.id_evento = (
-             SELECT MIN(ice2.id_evento)
-             FROM items_cotizacion_evento ice2
-             WHERE REGEXP_REPLACE(ice2.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND DATE(COALESCE(ice2.fecha_servicio, e.FechaEvento)) = DATE(e.FechaEvento)
-           )
-           AND e.Idocupacion = (
-             SELECT MIN(e2.Idocupacion)
-             FROM tbl_seguimientocotizaciones e2
-             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND e2.FechaEvento = e.FechaEvento
-           )
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
+         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
            AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%p.m.%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refacci%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%p.m.%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%refa%pm%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
         ) AS cant_refacciones_pm,
         (SELECT COALESCE(SUM(ice.cantidad), 0)
          FROM items_cotizacion_evento ice
          LEFT JOIN servicios s ON ice.id_servicio = s.id
          LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE REGEXP_REPLACE(ice.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-           AND ice.id_evento = (
-             SELECT MIN(ice2.id_evento)
-             FROM items_cotizacion_evento ice2
-             WHERE REGEXP_REPLACE(ice2.id_evento, '_s[0-9]+_[0-9]{6,}$', '') = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND DATE(COALESCE(ice2.fecha_servicio, e.FechaEvento)) = DATE(e.FechaEvento)
-           )
-           AND e.Idocupacion = (
-             SELECT MIN(e2.Idocupacion)
-             FROM tbl_seguimientocotizaciones e2
-             WHERE REGEXP_REPLACE(e2.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-                 = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
-               AND e2.FechaEvento = e.FechaEvento
-           )
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion NOT LIKE '%_%'))
+         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
            AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%cena%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%cena%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%desayuno%'))
         ) AS cant_cenas
       FROM tbl_seguimientocotizaciones e
@@ -266,7 +195,7 @@ export async function getEventById(req, res, next) {
         COALESCE(m.tiene_alertas, 0) AS tiene_alertas,
         EXISTS (
           SELECT 1 FROM informes_eventos ie
-          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = REGEXP_REPLACE(e.Idocupacion, '_s[0-9]+_[0-9]{6,}$', '')
+          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
         ) AS tiene_informe,
         m.alertas_text
       FROM tbl_seguimientocotizaciones e

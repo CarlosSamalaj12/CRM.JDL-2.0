@@ -22,7 +22,7 @@ function getMencionFilter(text) {
   return after;
 }
 
-export default function EventCard({ event, dragHandleProps, highlighted = false, onNavigateToTareas, highlightNotaId }) {
+export default function EventCard({ event, dragHandleProps, highlighted = false, onNavigateToTareas, highlightNotaId, tareasCount = 0 }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -38,7 +38,6 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   const [reactingTo, setReactingTo] = useState(null);
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
   const [hoverAlertBadge, setHoverAlertBadge] = useState(false);
-  const [tareasCount, setTareasCount] = useState(0);
   const notaInputRef = useRef(null);
   const cardRef = useRef(null);
   const userMap = useMemo(() => {
@@ -50,20 +49,6 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     try { const t = localStorage.getItem('token'); if (!t) return user?.id || null; return JSON.parse(atob(t.split('.')[1])).id || user?.id || null; } catch { return user?.id || null; }
   })();
   const currentUserEmail = user?.email || '';
-
-  const loadTareasCount = useCallback(() => {
-    if (!currentUserId || !event.Idocupacion) return;
-    const params = {};
-    if (user?.teamId) params.equipo_id = user.teamId;
-    Promise.all([
-      getTareasUsuario(event.Idocupacion, currentUserId).catch(() => []),
-      getTareasSemanaByOcupacion(event.Idocupacion, params).catch(() => []),
-    ]).then(([personales, semanales]) => {
-      const pendingPersonales = personales.filter(t => !t.completada).length;
-      const pendingSemanales = semanales.filter(t => !t.completada).length;
-      setTareasCount(pendingPersonales + pendingSemanales);
-    });
-  }, [currentUserId, event.Idocupacion, user?.teamId]);
   const currentUserName = user?.nombre || user?.name || '';
   const REACCIONES = [
     { emoji: '❤️', label: 'Me encanta' },
@@ -79,25 +64,6 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   useEffect(() => {
     getUsuariosCached().then(setUsuarios).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    loadTareasCount();
-  }, [loadTareasCount]);
-
-  // Escuchar cambios en tiempo real via socket (entity:changed -> tarea_semanal / tarea_evento)
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.detail?.entity === 'tarea_semanal' || e.detail?.entity === 'tarea_evento') {
-        loadTareasCount();
-      }
-    };
-    window.addEventListener('entity:changed', handler);
-    return () => window.removeEventListener('entity:changed', handler);
-  }, [loadTareasCount]);
-
-  useEffect(() => {
-    getNotas(event.Idocupacion).then(setNotas).catch(() => {});
-  }, [event.Idocupacion]);
 
   const lastHighlightRef = useRef(null);
   useEffect(() => {
@@ -224,6 +190,8 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     return n.menciones.some(m => String(m.id) === String(currentUserId));
   });
 
+  const displayNotasCount = notasOpen ? notasFiltradas.length : Number(event.cant_notas || 0);
+
   return (
     <article 
       ref={cardRef}
@@ -342,9 +310,9 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
           <IconCheckSquare size={13} />
           {tareasCount > 0 && <span className="tareas-badge">{tareasCount}</span>}
         </button>
-        <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${notasFiltradas.length > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={notasFiltradas.length > 0 ? `${notasFiltradas.length} nota(s)` : 'Agregar nota'} style={{background:'var(--primary-bg)',color:'var(--primary)',borderColor:notasOpen ? 'var(--primary)' : 'transparent'}}>
+        <button type="button" className={`notas-btn ${notasOpen ? 'active' : ''} ${displayNotasCount > 0 ? 'has-notas' : ''}`} onClick={() => setNotasOpen(!notasOpen)} data-tooltip={displayNotasCount > 0 ? `${displayNotasCount} nota(s)` : 'Agregar nota'} style={{background:'var(--primary-bg)',color:'var(--primary)',borderColor:notasOpen ? 'var(--primary)' : 'transparent'}}>
           <IconMessageCircle size={13} />
-          {notasFiltradas.length > 0 && <span className="notas-badge">{notasFiltradas.length}</span>}
+          {displayNotasCount > 0 && <span className="notas-badge">{displayNotasCount}</span>}
         </button>
       </div>
 

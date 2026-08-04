@@ -70,13 +70,14 @@ export default function WeeklyTasks({
   setMobileDayIndex: parentSetMobileDayIndex,
   setTaskCounts,
   targetEventId,
-  onTargetEventProcessed
+  onTargetEventProcessed,
+  initialTareas = null,
 }) {
   const user = getCurrentUser();
   const semana_lunes = getMonday(selectedDate);
 
-  const [tareas, setTareas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tareas, setTareas] = useState(() => Array.isArray(initialTareas) ? initialTareas : []);
+  const [loading, setLoading] = useState(!Array.isArray(initialTareas));
   const [showHistorial, setShowHistorial] = useState(false);
   const showHistorialRef = useRef(false);
   const [historial, setHistorial] = useState([]);
@@ -203,8 +204,15 @@ export default function WeeklyTasks({
     }
   }, [semana_lunes, user?.teamId, user?.id, user?._id]);
 
+  // Si no se pre-cargaron las tareas desde el padre, cargarlas al montar.
+  // Si sí se pre-cargaron (initialTareas), solo refrescar sin spinner para mantener sincronía.
   useEffect(() => {
-    loadTareas(true);
+    if (Array.isArray(initialTareas)) {
+      // Ya tenemos datos: refrescar silenciosamente en background
+      loadTareas(false);
+    } else {
+      loadTareas(true);
+    }
   }, [loadTareas]);
 
   // Escuchar cambios en tiempo real via socket (entity:changed → tarea_semanal)

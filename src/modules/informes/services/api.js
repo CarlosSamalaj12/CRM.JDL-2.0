@@ -128,6 +128,26 @@ export async function getOpcionesIngrediente(ingrediente_id) {
   return response.json();
 }
 
+/**
+ * Obtiene TODAS las opciones de ingredientes en una sola petición HTTP.
+ * Retorna un objeto indexado por ingrediente_id: { [ingrediente_id]: [...opciones] }
+ * Usa esto en vez de llamar getOpcionesIngrediente() N veces en loop.
+ */
+export async function getAllOpcionesIngredientes() {
+  const response = await fetch(`${apiUrl}/api/catalog/opciones`);
+  if (!response.ok) throw new Error('Error al cargar opciones de ingredientes');
+  const rows = await response.json();
+  // Agrupar por ingrediente_id
+  const map = {};
+  for (const row of rows) {
+    const key = String(row.ingrediente_id);
+    if (!map[key]) map[key] = [];
+    map[key].push(row);
+  }
+  return map;
+}
+
+
 export async function updateOpcionIngrediente(id, data) {
   const response = await fetch(`${apiUrl}/api/catalog/opciones/${id}`, {
     method: 'PUT',

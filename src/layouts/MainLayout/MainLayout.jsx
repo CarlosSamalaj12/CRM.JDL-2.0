@@ -149,7 +149,6 @@ export default function MainLayout() {
       }
     };
     window.addEventListener('entity:changed', handleStateChanged);
-    return () => window.removeEventListener('entity:changed', handleStateChanged);
 
     const unsubscribeState = socketService.on('state-updated', () => {
       loadInitialData(true);
@@ -226,6 +225,7 @@ export default function MainLayout() {
     });
 
     return () => {
+      window.removeEventListener('entity:changed', handleStateChanged);
       unsubscribeState();
       unsubscribeEntity();
       unsubDiscountAuth();
@@ -270,8 +270,24 @@ export default function MainLayout() {
         savedEvent = await eventService.create(eventData);
       }
 
-      // Forzar recarga completa del servidor para actualizar la caché en memoria
-      await loadInitialData(false);
+      // Actualizar memoria local inmediatamente (optimistic)
+      // para que el calendario refleje el cambio sin esperar al servidor
+      if (savedEvent) {
+        setEvents(prev => {
+          if (isEditing) {
+            // Reemplazar todos los eventos del mismo groupId (multi-slot)
+            const gid = savedEvent.groupId || savedEvent.id;
+            const filtered = prev.filter(e => String(e.id) !== String(eventData.id) && (!gid || String(e.groupId || '') !== gid));
+            const expandedFromSaved = Array.isArray(savedEvent._allExpanded) ? savedEvent._allExpanded : [savedEvent];
+            return [...filtered, ...expandedFromSaved];
+          } else {
+            return [...prev, savedEvent];
+          }
+        });
+      }
+
+      // Recarga completa en background (sin bloquear UI) para sincronizar
+      loadInitialDataFromServer(true);
       
       return savedEvent;
     } catch (err) {
@@ -283,23 +299,34 @@ export default function MainLayout() {
 
   const handleDeleteEvent = async (eventId) => {
     try {
+      // Optimistic: quitar del estado local inmediatamente
+      setEvents(prev => prev.filter(e => String(e.id) !== String(eventId)));
       await eventService.delete(eventId);
-      // Forzar recarga completa del servidor para actualizar la caché en memoria
-      await loadInitialData(false);
+      // Sincronizar en background
+      loadInitialDataFromServer(true);
     } catch (err) {
       console.error('Error eliminando evento:', err);
       toast('Error al eliminar el evento');
+      // Revertir en caso de error
+      loadInitialDataFromServer(false);
     }
   };
 
   const handleUpdateEventStatus = async (eventId, status) => {
     try {
-      await eventService.updateStatus(eventId, status);
-      // Forzar recarga completa del servidor para actualizar la caché en memoria
-      await loadInitialData(false);
+      // Optimistic: actualizar estado en memoria inmediatamente
+      setEvents(prev => prev.map(e =>
+        String(e.id) === String(eventId) ? { ...e, status } : e
+      ));
+      // Usar el endpoint PATCH dedicado (mucho más liviano que reescribir todo el estado)
+      await api.patch(`/api/events/${eventId}/status`, { status });
+      // Sync en background
+      loadInitialDataFromServer(true);
     } catch (err) {
       console.error('Error actualizando estado:', err);
       toast('Error al actualizar el estado');
+      // Revertir en caso de error
+      loadInitialDataFromServer(false);
     }
   };
 
