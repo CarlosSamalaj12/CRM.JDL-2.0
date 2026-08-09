@@ -143,7 +143,14 @@ export default function ReportsDashboard({ onClose }) {
     return { total, confirmed, pct: total ? (confirmed/total)*100 : 0, seg: meta.map(m => ({...m, count: cnt[m.k]||0, pct: total ? ((cnt[m.k]||0)/total)*100 : 0})) };
   }, [filteredRows]);
 
-  const usersWithGoal = useMemo(() => new Set((users||[]).filter(u => u.salesTargetEnabled).map(u => u.id)), [users]);
+  const usersWithGoal = useMemo(() => new Set(
+    (users || [])
+      .filter(u => {
+        const role = String(u.role || '').toLowerCase();
+        return (role === 'vendedor' || role === 'admin') && u.salesTargetEnabled;
+      })
+      .map(u => u.id)
+  ), [users]);
   const rowsWithGoal = useMemo(() => filteredRows.filter(r => usersWithGoal.has(r.userId)), [filteredRows, usersWithGoal]);
   const globalAchieved = useMemo(() => rowsWithGoal.filter(r => isGoalStatus(r.status)).reduce((a,r) => a+r.total, 0), [rowsWithGoal]);
   const focusedUser = scope === 'seller' && selectedSellerId ? users?.find(u => u.id === selectedSellerId) : null;
@@ -981,7 +988,7 @@ export default function ReportsDashboard({ onClose }) {
                           // Posición del label (radio = 52, en el medio del segmento)
                           const lx = cx + 52 * Math.cos(toRad(midAngle));
                           const ly = cy + 52 * Math.sin(toRad(midAngle));
-                          const showLabel = pct >= 8; // solo si el segmento es grande
+                          const showLabel = pct >= 4; // mínimo 4% para mostrar el label dentro del slice
                           return (
                             <g key={i}>
                               <path
@@ -1043,17 +1050,20 @@ export default function ReportsDashboard({ onClose }) {
                       }}>eventos</span>
                     </div>
                   </div>
-                  {/* Leyenda: solo color + nombre (sin %) */}
+                  {/* Leyenda: color + nombre + porcentaje */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: '#64748b', flex: 1, minWidth: 0 }}>
-                    {salonData.o.map((it,i) => (
+                    {salonData.o.map((it,i) => {
+                      const pct = ((it.n / salonData.tot) * 100).toFixed(0);
+                      return (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', borderRadius: '8px', background: '#f8fafc', transition: 'background 0.15s' }}
                         onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
                         onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
                       >
                         <span style={{ width: '10px', height: '10px', borderRadius: '4px', background: `linear-gradient(135deg, ${it.c}, ${it.c}aa)`, display: 'inline-block', flexShrink: 0 }} />
-                        <strong style={{ color: '#1e293b', fontWeight: 700, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.l.substring(0,22)}</strong>
+                        <strong style={{ color: '#1e293b', fontWeight: 700, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{it.l.substring(0,20)}</strong>
+                        <span style={{ color: '#64748b', fontWeight: 600, fontSize: '11px', flexShrink: 0 }}>{pct}%</span>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               ) : (

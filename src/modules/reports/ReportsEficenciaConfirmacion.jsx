@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
+import { getEquipos } from '../../services/api.js';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 
@@ -9,6 +10,16 @@ const PENDING_STATUSES = [
   'Lista de Espera', 'Pre reserva'
 ];
 const PENDING_STATUS_SET = new Set(PENDING_STATUSES);
+
+// Temas de color para equipos
+const TEAM_THEMES = [
+  { color: '#10b981', bg: '#dcfce7', textColor: '#065f46', icon: '💼' },
+  { color: '#3b82f6', bg: '#dbeafe', textColor: '#1e40af', icon: '📞' },
+  { color: '#8b5cf6', bg: '#ede9fe', textColor: '#5b21b6', icon: '👑' },
+  { color: '#f59e0b', bg: '#fef3c7', textColor: '#92400e', icon: '⭐' },
+  { color: '#ec4899', bg: '#fce7f3', textColor: '#9d174d', icon: '🌟' },
+  { color: '#06b6d4', bg: '#cffafe', textColor: '#155e75', icon: '💎' },
+];
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -38,10 +49,22 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
 
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
-  const [hoveredBar, setHoveredBar] = useState(null);
-  const [hoveredBarPos, setHoveredBarPos] = useState(null);
   const [sortBy, setSortBy] = useState('name');
-  const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
+  const [userFilter, setUserFilter] = useState(new Set());
+  const [equipos, setEquipos] = useState([]);
+
+  // Cargar equipos
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getEquipos();
+        setEquipos(Array.isArray(data) ? data : (data?.equipos || []));
+      } catch (err) {
+        console.warn('No se pudieron cargar los equipos:', err);
+        setEquipos([]);
+      }
+    })();
+  }, []);
 
   // ── Generate months ──
   const monthList = useMemo(() => {
@@ -65,12 +88,13 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     return months;
   }, [fromDate, toDate]);
 
-  // ── Aggregate confirmed + pending events by user ──
-  const userData = useMemo(() => {
+  // ── Helper: calcula datos para un grupo de usuarios (un equipo) ──
+  const computeTeamUserData = useCallback((teamUsers, filterSet) => {
     if (!events || !monthList.length) return [];
 
     const from = monthList[0].key + '-01';
     const to = monthList[monthList.length - 1].key + '-' + String(monthList[monthList.length - 1].daysInMonth).padStart(2, '0');
+    const validUserIds = new Set(teamUsers.map(u => String(u.id)));
 
     const userAgg = {};
     const seenReservations = new Set();
@@ -85,21 +109,17 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
 
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
-      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+      if (!validUserIds.has(userId)) continue;
+      if (filterSet.size > 0 && !filterSet.has(userId)) continue;
 
       const groupKey = ev.groupId || ev.id;
       if (seenReservations.has(groupKey)) continue;
       seenReservations.add(groupKey);
 
-      const monthKey = d.substring(0, 7);
       const amount = Math.max(0, Number(ev.quote?.total || 0));
 
       if (!userAgg[userId]) {
-        userAgg[userId] = {
-          count: 0, totalAmount: 0,
-          pendingCount: 0, pendingAmount: 0,
-          monthBreakdown: {}
-        };
+        userAgg[userId] = { count: 0, totalAmount: 0, pendingCount: 0, pendingAmount: 0 };
       }
       if (isConfirmed) {
         userAgg[userId].count += 1;
@@ -108,29 +128,13 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
         userAgg[userId].pendingCount += 1;
         userAgg[userId].pendingAmount += amount;
       }
-
-      if (!userAgg[userId].monthBreakdown[monthKey]) {
-        userAgg[userId].monthBreakdown[monthKey] = {
-          count: 0, amount: 0,
-          pendingCount: 0, pendingAmount: 0,
-        };
-      }
-      if (isConfirmed) {
-        userAgg[userId].monthBreakdown[monthKey].count += 1;
-        userAgg[userId].monthBreakdown[monthKey].amount += amount;
-      } else if (isPending) {
-        userAgg[userId].monthBreakdown[monthKey].pendingCount += 1;
-        userAgg[userId].monthBreakdown[monthKey].pendingAmount += amount;
-      }
     }
 
-    const userIds = Object.keys(userAgg);
-    if (userIds.length === 0) return [];
+    const teamUserIds = Object.keys(userAgg);
+    const totalAmountAll = teamUserIds.reduce((sum, id) => sum + userAgg[id].totalAmount, 0);
 
-    const totalAmountAll = userIds.reduce((sum, id) => sum + userAgg[id].totalAmount, 0);
-
-    const result = userIds.map(userId => {
-      const user = (users || []).find(u => String(u.id) === userId);
+    const result = teamUserIds.map(userId => {
+      const user = teamUsers.find(u => String(u.id) === userId);
       const name = user?.fullName || user?.name || userId;
       const agg = userAgg[userId];
       return {
@@ -142,7 +146,6 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
         pendingAmount: agg.pendingAmount,
         pct: totalAmountAll > 0 ? (agg.totalAmount / totalAmountAll) * 100 : 0,
         avgAmount: agg.count > 0 ? agg.totalAmount / agg.count : 0,
-        monthBreakdown: agg.monthBreakdown,
       };
     });
 
@@ -153,107 +156,108 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     });
 
     return result;
-  }, [events, monthList, users, sortBy, userFilter]);
+  }, [events, monthList, sortBy]);
 
-  // ── Monthly breakdown (for table) ──
-  const monthlyData = useMemo(() => {
-    if (!userData.length) return [];
+  // ── Equipos agrupados con sus datos ──
+  const teamData = useMemo(() => {
+    if (!users || users.length === 0) return [];
 
-    return monthList.map(m => {
-      let monthCount = 0;
-      let monthAmount = 0;
-      let monthPendingCount = 0;
-      let monthPendingAmount = 0;
-      for (const u of userData) {
-        const b = u.monthBreakdown[m.key];
-        if (b) {
-          monthCount += b.count;
-          monthAmount += b.amount;
-          monthPendingCount += b.pendingCount || 0;
-          monthPendingAmount += b.pendingAmount || 0;
-        }
+    // Map de equipos
+    const equipoById = new Map();
+    for (const eq of equipos) {
+      const id = String(eq.id ?? eq.equipo_id ?? '').trim();
+      if (id) {
+        equipoById.set(id, {
+          id,
+          nombre: eq.nombre || eq.name || 'Sin nombre',
+          descripcion: eq.descripcion || eq.description || ''
+        });
       }
-      return {
-        monthKey: m.key,
-        monthName: m.monthName,
-        monthShort: m.monthShort,
-        year: m.year,
-        count: monthCount,
-        totalAmount: monthAmount,
-        pendingCount: monthPendingCount,
-        pendingAmount: monthPendingAmount,
-        userRows: userData.map(u => ({
-          userId: u.userId,
-          name: u.name,
-          count: u.monthBreakdown[m.key]?.count || 0,
-          amount: u.monthBreakdown[m.key]?.amount || 0,
-          pendingCount: u.monthBreakdown[m.key]?.pendingCount || 0,
-          pendingAmount: u.monthBreakdown[m.key]?.pendingAmount || 0,
-        })).filter(r => r.count > 0 || r.pendingCount > 0),
-      };
-    });
-  }, [userData, monthList]);
-
-  // ── Aggregated KPIs ──
-  const totalConfirmedEvents = useMemo(() => userData.reduce((s, u) => s + u.count, 0), [userData]);
-  const totalAmount = useMemo(() => userData.reduce((s, u) => s + u.totalAmount, 0), [userData]);
-  const totalPendingEvents = useMemo(() => userData.reduce((s, u) => s + u.pendingCount, 0), [userData]);
-  const totalPendingAmount = useMemo(() => userData.reduce((s, u) => s + u.pendingAmount, 0), [userData]);
-  const totalUsers = userData.length;
-  const maxAmount = useMemo(() => userData.length > 0 ? Math.max(...userData.map(u => u.totalAmount + u.pendingAmount)) : 0, [userData]);
-
-  // Top seller
-  const topSeller = useMemo(() => {
-    if (!userData.length) return null;
-    return userData.reduce((best, u) => u.totalAmount > best.totalAmount ? u : best, userData[0]);
-  }, [userData]);
-
-  // ── Tooltip data ──
-  const hoveredUser = useMemo(
-    () => (hoveredBar !== null && userData[hoveredBar]) ? userData[hoveredBar] : null,
-    [hoveredBar, userData]
-  );
-
-  // ── Animation state ──
-  const [animationPhase, setAnimationPhase] = useState('complete');
-  const [visibleBars, setVisibleBars] = useState(9999);
-  const animationKeyRef = useRef(0);
-  const isFirstRender = useRef(true);
-
-  useEffect(() => {
-    if (userData.length > 0) {
-      if (isFirstRender.current) {
-        isFirstRender.current = false;
-        setAnimationPhase('complete');
-        setVisibleBars(userData.length);
-        return;
-      }
-      animationKeyRef.current += 1;
-      const currentKey = animationKeyRef.current;
-      setAnimationPhase('initial');
-      setVisibleBars(0);
-
-      let interval;
-      const timer = setTimeout(() => {
-        if (currentKey !== animationKeyRef.current) return;
-        setAnimationPhase('animating');
-        let i = 0;
-        interval = setInterval(() => {
-          i++;
-          if (currentKey !== animationKeyRef.current) { clearInterval(interval); return; }
-          setVisibleBars(i);
-          if (i >= userData.length) {
-            clearInterval(interval);
-            setAnimationPhase('complete');
-          }
-        }, 25);
-      }, 100);
-      return () => {
-        clearTimeout(timer);
-        if (interval) clearInterval(interval);
-      };
     }
-  }, [userData]);
+
+    // Agrupa usuarios por teamId
+    const groupsMap = new Map();
+    for (const u of users) {
+      const role = String(u.role || '').toLowerCase();
+      if (role !== 'vendedor' && role !== 'admin' && role !== '') continue;
+      const tid = u.teamId != null ? String(u.teamId) : '__no_team__';
+      if (!groupsMap.has(tid)) groupsMap.set(tid, []);
+      groupsMap.get(tid).push(u);
+    }
+
+    const teamList = [];
+
+    // Equipos conocidos
+    for (const eq of equipos) {
+      const tid = String(eq.id);
+      const members = groupsMap.get(tid) || [];
+      if (members.length === 0) continue;
+      const theme = TEAM_THEMES[teamList.length % TEAM_THEMES.length];
+      const userRows = computeTeamUserData(members, userFilter);
+      const totalConfirmed = userRows.reduce((s, r) => s + r.count, 0);
+      const totalAmount = userRows.reduce((s, r) => s + r.totalAmount, 0);
+      const totalPending = userRows.reduce((s, r) => s + r.pendingCount, 0);
+      const totalPendingAmount = userRows.reduce((s, r) => s + r.pendingAmount, 0);
+      const maxAmount = userRows.length > 0 ? Math.max(...userRows.map(r => r.totalAmount + r.pendingAmount)) : 0;
+
+      if (userRows.length > 0) {
+        teamList.push({
+          id: tid,
+          name: eq.nombre || 'Sin nombre',
+          descripcion: eq.descripcion || '',
+          theme,
+          members,
+          userRows,
+          totalConfirmed,
+          totalAmount,
+          totalPending,
+          totalPendingAmount,
+          maxAmount: Math.max(maxAmount, 1),
+          userCount: members.length,
+        });
+      }
+      groupsMap.delete(tid);
+    }
+
+    // Usuarios sin equipo
+    if (groupsMap.has('__no_team__')) {
+      const members = groupsMap.get('__no_team__');
+      const theme = TEAM_THEMES[teamList.length % TEAM_THEMES.length];
+      const userRows = computeTeamUserData(members, userFilter);
+      const totalConfirmed = userRows.reduce((s, r) => s + r.count, 0);
+      const totalAmount = userRows.reduce((s, r) => s + r.totalAmount, 0);
+      const totalPending = userRows.reduce((s, r) => s + r.pendingCount, 0);
+      const totalPendingAmount = userRows.reduce((s, r) => s + r.pendingAmount, 0);
+      const maxAmount = userRows.length > 0 ? Math.max(...userRows.map(r => r.totalAmount + r.pendingAmount)) : 0;
+
+      if (userRows.length > 0) {
+        teamList.push({
+          id: '__no_team__',
+          name: 'Sin equipo asignado',
+          descripcion: 'Vendedores sin equipo configurado',
+          theme,
+          members,
+          userRows,
+          totalConfirmed,
+          totalAmount,
+          totalPending,
+          totalPendingAmount,
+          maxAmount: Math.max(maxAmount, 1),
+          userCount: members.length,
+        });
+      }
+      groupsMap.delete('__no_team__');
+    }
+
+    return teamList;
+  }, [users, equipos, computeTeamUserData, userFilter]);
+
+  // Totales globales
+  const totalConfirmedEvents = teamData.reduce((s, t) => s + t.totalConfirmed, 0);
+  const totalAmount = teamData.reduce((s, t) => s + t.totalAmount, 0);
+  const totalPendingEvents = teamData.reduce((s, t) => s + t.totalPending, 0);
+  const totalPendingAmount = teamData.reduce((s, t) => s + t.totalPendingAmount, 0);
+  const globalMaxAmount = teamData.length > 0 ? Math.max(...teamData.map(t => t.maxAmount)) : 1;
 
   const handleReset = () => {
     const t = new Date();
@@ -261,92 +265,26 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
   };
 
-  const handleExportExcel = () => {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-    const fmtMon = (n) => new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+  const getBarColor = (pct) => {
+    if (pct >= 40) return '#10b981';
+    if (pct >= 20) return '#3b82f6';
+    if (pct >= 10) return '#60a5fa';
+    return '#a5b4fc';
+  };
 
-    const sumRowsHtml = userData.map((u, i) => `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#0f172a">${u.name}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#0f172a">${u.count}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${fmtMon(u.totalAmount)}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:center;color:#2563eb;font-weight:600">${Math.round(u.pct)}%</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;text-align:right;color:#475569">Q ${fmtMon(u.count > 0 ? u.totalAmount / u.count : 0)}</td>
-      </tr>`).join('');
-
-    const monthRowsHtml = monthlyData.map(m => `${m.userRows.map((row, ri) => `<tr${ri % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;color:#0f172a">${m.monthName} ${m.year}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#334155">${row.name}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:center;color:#0f172a">${row.count}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:600;text-align:right;color:#059669">Q ${fmtMon(row.amount)}</td>
-      </tr>`).join('')}`).join('');
-
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="ProgId" content="Excel.Sheet">
-<style>table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;width:100%}
-th{background:#0f172a;color:#fff;padding:8px 10px;border:1px solid #0f172a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}
-th.right{text-align:right}</style></head><body>
-<table>
-  <tr><td colspan="5" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
-  <tr><td colspan="5" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Eficiencia de Confirmación de Eventos</td></tr>
-  <tr><td colspan="5" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} → ${toDate} - Generado: ${dateStr} - ${timeStr}</td></tr>
-</table>
-<br>
-<table>
-  <tr><td colspan="5" style="padding:6px 10px;font-size:12px;font-weight:800;color:#0f172a;border:none">RESUMEN POR VENDEDOR</td></tr>
-  <tr>
-    <th>Vendedor</th><th>Eventos</th><th class="right">Total (Q)</th><th>%</th><th class="right">Promedio</th>
-  </tr>
-  ${sumRowsHtml || '<tr><td colspan="5" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
-  <tr>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9">TOTAL - ${userData.length} vendedor(es)</td>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:center;color:#0f172a;background:#f1f5f9">${totalConfirmedEvents}</td>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#059669;background:#f1f5f9">Q ${fmtMon(totalAmount)}</td>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:center;color:#2563eb;background:#f1f5f9">100%</td>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#0f172a;background:#f1f5f9">Q ${fmtMon(totalConfirmedEvents > 0 ? totalAmount / totalConfirmedEvents : 0)}</td>
-  </tr>
-</table>
-<br>
-<table>
-  <tr><td colspan="4" style="padding:6px 10px;font-size:12px;font-weight:800;color:#0f172a;border:none">DESGLOSE MENSUAL POR VENDEDOR</td></tr>
-  <tr>
-    <th>Mes</th><th>Vendedor</th><th>Eventos</th><th class="right">Monto (Q)</th>
-  </tr>
-  ${monthRowsHtml || '<tr><td colspan="4" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
-</table>
-<br>
-<table>
-  <tr><td colspan="5" style="padding:12px 10px 4px;font-size:8px;color:#94a3b8;border:none;text-align:center">Jardines del Lago - EMS Reservas - Reporte generado el ${dateStr}</td></tr>
-</table>
-</body></html>`;
-
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Eficiencia_Confirmacion_${fromDate}_a_${toDate}.xls`;
-    link.click();
+  const getBarColorPending = (pct) => {
+    if (pct >= 40) return '#f59e0b';
+    if (pct >= 20) return '#fbbf24';
+    return '#fcd34d';
   };
 
   const sectionStyle = (delay) => ({
-    opacity: animationPhase === 'initial' ? 0 : 1,
-    transform: animationPhase === 'initial' ? 'translateY(20px)' : 'translateY(0)',
-    transition: `opacity 0.5s ease ${delay}ms, transform 0.5s ease ${delay}ms`,
+    opacity: 1,
+    transition: `opacity 0.4s ease ${delay}ms`,
   });
-
-  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-  const getBarColor = (pct, isHovered) => {
-    if (pct >= 40) return isHovered ? '#059669' : '#10b981';
-    if (pct >= 20) return isHovered ? '#0284c7' : '#3b82f6';
-    if (pct >= 10) return isHovered ? '#2563eb' : '#60a5fa';
-    if (pct > 0) return isHovered ? '#7c3aed' : '#a5b4fc';
-    return '#e5e7eb';
-  };
 
   return (
     <div className="reports-page-container">
-      <style>{`@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       {/* Header */}
       <div className="reports-page-header">
         <div className="reports-brand-header">
@@ -367,21 +305,17 @@ th.right{text-align:right}</style></head><body>
       </div>
 
       <div className="reports-page-body">
-        {/* ── Hero ── */}
+        {/* ── Hero KPIs ── */}
         <section className="reports-hero-panel" style={sectionStyle(50)}>
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Confirmación por vendedor</span>
               <h3 className="reports-section-title">Eventos Confirmados × Vendedor</h3>
-              <p className="reports-section-text">
-                Cada barra representa un vendedor. La altura muestra el monto total en Quetzales de eventos en estado <strong>Confirmado</strong>.
-                Pasa el mouse sobre cada barra para ver detalles.
-              </p>
             </div>
           </div>
 
-          {/* ── Toolbar ── */}
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px' }}>
+          {/* Toolbar */}
+          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px', flexWrap: 'wrap' }}>
             <label className="field" style={{ flex: '0 0 148px' }}>
               <span>Desde</span>
               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
@@ -390,11 +324,9 @@ th.right{text-align:right}</style></head><body>
               <span>Hasta</span>
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </label>
-            <div className="reports-actions" style={{ gap: '8px' }}>
+            <div className="reports-actions">
               <button type="button" onClick={handleReset}>Mes Actual</button>
             </div>
-
-            {/* Sort selector */}
             <label className="field" style={{ flex: '0 0 160px' }}>
               <span>Ordenar por</span>
               <select value={sortBy} onChange={e => setSortBy(e.target.value)}
@@ -404,8 +336,6 @@ th.right{text-align:right}</style></head><body>
                 <option value="name">Nombre</option>
               </select>
             </label>
-
-            {/* User filter */}
             <div className="field" style={{ flex: '0 0 240px' }}>
               <MultiSelect
                 selected={userFilter}
@@ -417,381 +347,161 @@ th.right{text-align:right}</style></head><body>
                 width="100%"
               />
             </div>
+          </div>
 
-            {/* Export button */}
-            <button type="button" onClick={handleExportExcel} style={{
-              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-              borderRadius: '8px', border: '1.5px solid #16a34a',
-              background: '#16a34a', color: '#fff', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              transition: 'all 0.15s ease',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.borderColor = '#15803d'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.borderColor = '#16a34a'; }}
-            >
-              <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-                <path d="M5 8l4 4 4-4" />
-                <path d="M9 12V2" />
-              </svg>
-              Exportar CSV
-            </button>
-
-            {/* Mini KPI chips */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                ✅ <strong style={{ color: '#10b981' }}>{totalConfirmedEvents}</strong> confirmados · <strong style={{ color: '#0f172a' }}>{formatMoney(totalAmount)}</strong>
-              </span>
-              {totalPendingEvents > 0 && (
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  ⏳ <strong style={{ color: '#f59e0b' }}>{totalPendingEvents}</strong> pendientes · <strong style={{ color: '#0f172a' }}>{formatMoney(totalPendingAmount)}</strong>
-                </span>
-              )}
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                👤 <strong style={{ color: '#0f172a' }}>{totalUsers}</strong> {totalUsers === 1 ? 'vendedor' : 'vendedores'}
-              </span>
-              {topSeller && (
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  🏆 <strong style={{ color: '#0f172a' }}>{topSeller.name}</strong> {Math.round(topSeller.pct)}%
-                </span>
-              )}
+          {/* KPIs Globales */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', padding: '0 20px 16px' }}>
+            <div style={{ background: '#dcfce7', borderRadius: '12px', padding: '14px 18px', border: '1px solid #bbf7d0' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', marginBottom: '4px' }}>💚 Confirmados</div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#065f46' }}>{totalConfirmedEvents}</div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#059669' }}>{formatMoney(totalAmount)}</div>
+            </div>
+            <div style={{ background: '#fef3c7', borderRadius: '12px', padding: '14px 18px', border: '1px solid #fde68a' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', marginBottom: '4px' }}>🟡 Pendientes</div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#92400e' }}>{totalPendingEvents}</div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#d97706' }}>{formatMoney(totalPendingAmount)}</div>
+            </div>
+            <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px 18px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>👥 Equipos</div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>{teamData.length}</div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>{teamData.reduce((s, t) => s + t.userCount, 0)} vendedores</div>
             </div>
           </div>
         </section>
 
-        {/* ── Storytelling ── */}
-        <div className="reports-storytelling-card" style={sectionStyle(200)}>
-          <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Análisis del período</span>
-          <p className="reports-story-text">
-            En el rango del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> se confirmaron <strong className="highlight-blue">{totalConfirmedEvents}</strong> eventos por un total de <strong className="highlight-green">{formatMoney(totalAmount)}</strong>,
-            distribuidos entre <strong className="highlight-slate">{totalUsers}</strong> {totalUsers === 1 ? 'vendedor' : 'vendedores'}.
-            {topSeller ? <> El vendedor líder es <strong className="highlight-blue">{topSeller.name}</strong> con <strong className="highlight-green">{formatMoney(topSeller.totalAmount)}</strong> ({Math.round(topSeller.pct)}% del total) en <strong className="highlight-slate">{topSeller.count}</strong> {topSeller.count === 1 ? 'evento' : 'eventos'} confirmados.</> : ''}
-            El promedio por evento confirmado es de <strong className="highlight-accent">{formatMoney(totalConfirmedEvents > 0 ? totalAmount / totalConfirmedEvents : 0)}</strong>.
-          </p>
-        </div>
-
-        {/* ── Bar Chart ── */}
-        <section className="reports-hero-panel" style={{ gap: '12px', ...sectionStyle(350) }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Gráfico de barras por vendedor</span>
-              <h3 className="reports-section-title">Montos Confirmados × Vendedor</h3>
-              <p className="reports-section-text">Pasa el mouse sobre cada barra para ver eventos, monto y porcentaje del vendedor</p>
+        {/* ── Secciones por Equipo ── */}
+        {teamData.length === 0 ? (
+          <section className="reports-hero-panel" style={{ padding: 60, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b' }}>
+              No hay datos de confirmación en este período
             </div>
-            {/* Legend */}
-            <div style={{ display: 'flex', gap: '14px', fontSize: '10px', fontWeight: 700, color: '#64748b', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} /> Confirmado
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 3px, #f59e0b99 3px, #f59e0b99 6px)', display: 'inline-block', border: '1px solid #f59e0b' }} /> Pendiente
-              </span>
-              {totalAmount > 0 && (
-                <span style={{ marginLeft: '4px', color: '#94a3b8', fontStyle: 'italic' }}>
-                  Total confirmado: <strong>{formatMoney(totalAmount)}</strong>
-                  {totalPendingAmount > 0 && <> · Pendiente: <strong style={{ color: '#f59e0b' }}>{formatMoney(totalPendingAmount)}</strong></>}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* ── Chart container ── */}
-          <div style={{
-            background: '#ffffff', borderRadius: '14px', padding: '24px 20px 20px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
-            border: '1px solid #f1f5f9',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
-              {/* Y-axis */}
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '80px', flexShrink: 0, paddingBottom: '28px' }}>
-                {[100, 80, 60, 40, 20, 0].map(pct => (
-                  <span key={pct} style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', lineHeight: '12px' }}>
-                    {formatMoney(maxAmount * pct / 100)}
-                  </span>
-                ))}
-              </div>
-
-              {/* Bars area */}
-              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '6px', position: 'relative', minHeight: '280px' }}>
-                {/* Grid lines */}
-                {[20, 40, 60, 80].map(pct => (
-                  <div key={pct} style={{
-                    position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
-                    height: '1px', background: '#f1f5f9', pointerEvents: 'none',
-                    borderTop: '1px dashed #e2e8f0',
-                  }} />
-                ))}
-
-                {userData.length === 0 ? (
-                  <div style={{
-                    position: 'absolute', inset: 0, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: '13px', fontWeight: 700, color: '#94a3b8',
-                    flexDirection: 'column', gap: '8px',
-                  }}>
-                    <span style={{ fontSize: '32px' }}>📭</span>
-                    <span>No hay eventos confirmados en este período</span>
-                  </div>
-                ) : (
-                  userData.map((u, i) => {
-                    const isHovered = hoveredBar === i;
-                    const totalForBar = u.totalAmount + u.pendingAmount;
-                    const pctOfMax = maxAmount > 0 ? (totalForBar / maxAmount) * 100 : 0;
-                    const confirmedPctOfBar = totalForBar > 0 ? (u.totalAmount / totalForBar) * 100 : 0;
-                    const pendingPctOfBar = totalForBar > 0 ? (u.pendingAmount / totalForBar) * 100 : 0;
-                    const barColor = getBarColor(u.pct, isHovered);
-                    const pendingColor = '#f59e0b';
-
-                    return (
-                      <div
-                        key={u.userId}
-                        style={{
-                          flex: '1 1 0',
-                          minWidth: '60px',
-                          maxWidth: '120px',
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'flex-end',
-                          alignItems: 'center',
-                          position: 'relative',
-                          cursor: 'pointer',
-                        }}
-                        onMouseEnter={(e) => {
-                          setHoveredBar(i);
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredBarPos({ x: rect.left + rect.width / 2, y: rect.top });
-                        }}
-                        onMouseLeave={() => { setHoveredBar(null); setHoveredBarPos(null); }}
-                      >
-                        {/* Amount labels above bar: confirmado + pendiente */}
-                        <div style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px',
-                          marginBottom: '3px', minHeight: '24px',
-                        }}>
-                          {u.totalAmount > 0 && (
-                            <div style={{
-                              fontSize: '10px', fontWeight: 900, color: barColor,
-                              lineHeight: 1,
-                              opacity: isHovered || u.pct > 30 ? 1 : 0.85,
-                              transition: 'all 0.15s ease',
-                              transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                            }}>
-                              {formatMoney(u.totalAmount)}
-                            </div>
-                          )}
-                          {u.pendingAmount > 0 && (
-                            <div style={{
-                              fontSize: '9px', fontWeight: 800, color: pendingColor,
-                              lineHeight: 1,
-                              opacity: isHovered ? 1 : 0.75,
-                            }}>
-                              + {formatMoney(u.pendingAmount)} ⏳
-                            </div>
-                          )}
-                        </div>
-
-                        {/* The bar (apilado: confirmado + pendiente) */}
-                        <div style={{
-                          width: '80%',
-                          height: `${Math.max(pctOfMax > 0 ? Math.max(4, pctOfMax) : 0, 0)}%`,
-                          display: 'flex', flexDirection: 'column',
-                          borderRadius: '4px 4px 0 0', overflow: 'hidden',
-                          transition: 'opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, transform 0.15s ease',
-                          opacity: i < visibleBars ? 1 : (animationPhase === 'initial' ? 0 : 1),
-                          boxShadow: totalForBar > 0
-                            ? (isHovered ? `0 0 12px ${barColor}50` : `inset 0 1px 0 rgba(255,255,255,0.3)`)
-                            : 'none',
-                          transform: isHovered && totalForBar > 0 ? 'scaleX(1.1)' : 'scaleX(1)',
-                          minHeight: totalForBar > 0 ? '4px' : '2px',
-                        }}>
-                          {/* Segmento confirmado (abajo) */}
-                          {totalForBar > 0 && (
-                            <div style={{
-                              width: '100%',
-                              height: `${Math.max(confirmedPctOfBar, 0)}%`,
-                              background: u.totalAmount === 0
-                                ? '#f1f5f9'
-                                : `linear-gradient(180deg, ${barColor}, ${barColor}dd)`,
-                              minHeight: u.totalAmount > 0 ? '4px' : '0',
-                            }} />
-                          )}
-                          {/* Segmento pendiente (arriba) */}
-                          {u.pendingAmount > 0 && (
-                            <div style={{
-                              width: '100%',
-                              height: `${pendingPctOfBar}%`,
-                              background: `repeating-linear-gradient(45deg, ${pendingColor}, ${pendingColor} 6px, ${pendingColor}cc 6px, ${pendingColor}cc 12px)`,
-                              borderTop: `1.5px dashed ${pendingColor}`,
-                              minHeight: '4px',
-                            }} />
-                          )}
-                        </div>
-
-                        {/* Name + breakdown at bottom */}
-                        <div style={{
-                          fontSize: '9px',
-                          fontWeight: 700,
-                          color: isHovered ? '#0f172a' : '#64748b',
-                          marginTop: '6px', textAlign: 'center',
-                          lineHeight: 1.1,
-                          position: 'absolute', bottom: '-18px', left: 0, right: 0,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          transition: 'color 0.15s ease',
-                        }}>
-                          {u.name.split(' ').slice(0, 2).join(' ')}
-                        </div>
-                        <div style={{
-                          fontSize: '8px',
-                          fontWeight: 600,
-                          color: '#94a3b8',
-                          position: 'absolute', bottom: '-30px', left: 0, right: 0,
-                          textAlign: 'center',
-                          lineHeight: 1.2,
-                        }}>
-                          <span style={{ color: barColor, fontWeight: 800 }}>{u.count}c</span>
-                          {u.pendingCount > 0 && (
-                            <span style={{ color: pendingColor, fontWeight: 800 }}> · {u.pendingCount}p</span>
-                          )}
-                          {' · '}{Math.round(u.pct)}%
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Premium Tooltip (fixed position, outside overflow containers) ── */}
-        {hoveredUser && hoveredBarPos && (() => {
-          const u = hoveredUser;
-          return (
-            <div style={{
-              position: 'fixed',
-              left: `${Math.min(hoveredBarPos.x, window.innerWidth - 280)}px`,
-              top: `${Math.max(10, hoveredBarPos.y - 10)}px`,
-              transform: 'translate(-50%, -100%)',
-              zIndex: 99999,
-              pointerEvents: 'none',
-            }}>
-              <div style={{
-                background: '#0f172a', color: '#fff',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                fontSize: '11px', fontWeight: 600,
-                boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
-                minWidth: '240px',
-                maxWidth: '320px',
-                animation: 'tooltipFadeIn 0.15s ease-out both',
-              }}>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 900, marginBottom: '6px', letterSpacing: '-0.01em' }}>
-                    {u.name}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px', color: '#cbd5e1' }}>
-                    <span style={{ color: '#10b981' }}>✅ Confirmado</span>
-                    <span style={{ fontWeight: 800, color: '#10b981' }}>{u.count} ev · {formatMoney(u.totalAmount)}</span>
-                    {u.pendingCount > 0 && (
-                      <>
-                        <span style={{ color: '#fbbf24' }}>⏳ Pendiente</span>
-                        <span style={{ fontWeight: 800, color: '#fbbf24' }}>{u.pendingCount} ev · {formatMoney(u.pendingAmount)}</span>
-                      </>
-                    )}
-                    <span style={{ color: '#94a3b8' }}>📊 % del total</span>
-                    <span style={{ fontWeight: 800, color: '#60a5fa' }}>{Math.round(u.pct)}%</span>
-                    <span style={{ color: '#94a3b8' }}>📈 Promedio</span>
-                    <span style={{ fontWeight: 700, color: '#fff' }}>{formatMoney(u.avgAmount)} / evento</span>
-                  </div>
+          </section>
+        ) : (
+          teamData.map((team, teamIdx) => (
+            <section key={team.id} className="reports-hero-panel" style={{ gap: '12px', ...sectionStyle(100 + teamIdx * 50) }}>
+              {/* Header del equipo */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: team.theme.bg, borderRadius: '10px', border: `1px solid ${team.theme.color}30` }}>
+                <span style={{ fontSize: '24px' }}>{team.theme.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: team.theme.textColor }}>{team.name}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: team.theme.color }}>{team.userCount} vendedor(es) · {team.totalConfirmed} confirmados · {team.totalPending} pendientes</div>
                 </div>
-                <div style={{
-                  position: 'absolute', top: '100%', left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 0, height: 0,
-                  borderLeft: '6px solid transparent',
-                  borderRight: '6px solid transparent',
-                  borderTop: '6px solid #0f172a',
-                }} />
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#059669' }}>{formatMoney(team.totalAmount)}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>confirmado</div>
+                </div>
               </div>
-            </div>
-          );
-        })()}
 
-        {/* ── Monthly table ── */}
-        <section className="reports-hero-panel" style={{ gap: '8px', ...sectionStyle(500) }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Tabla mensual detallada</span>
-              <h3 className="reports-section-title">Desglose por mes × vendedor</h3>
-            </div>
-          </div>
-
-          <div className="reports-table-wrap" style={{ maxHeight: '500px' }}>
-            <table className="reports-table" style={{ minWidth: '700px' }}>
-              <thead>
-                <tr>
-                  <th>Mes</th>
-                  <th>Total eventos</th>
-                  <th>Total monto</th>
-                  {userData.map(u => (
-                    <th key={u.userId} style={{ textAlign: 'center', fontSize: '9px', padding: '8px 4px', maxWidth: '100px' }}>
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {u.name.split(' ').slice(0, 2).join(' ')}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyData.map(m => {
-                  const isCurrentMonth = m.monthKey === currentMonthKey;
+              {/* Barras por vendedor */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0 8px' }}>
+                {team.userRows.map((user, idx) => {
+                  const confirmedPct = (user.totalAmount / team.maxAmount) * 100;
+                  const pendingPct = (user.pendingAmount / team.maxAmount) * 100;
+                  const totalPct = confirmedPct + pendingPct;
+                  const userSharePct = team.totalAmount > 0 ? (user.totalAmount / team.totalAmount) * 100 : 0;
+                  // Mostrar decimal si es menor a 1%
+                  const pctLabel = userSharePct < 1 && userSharePct > 0 
+                    ? userSharePct.toFixed(1) + '%' 
+                    : (userSharePct < 5 ? userSharePct.toFixed(1) + '%' : Math.round(userSharePct) + '%');
                   return (
-                    <tr key={m.monthKey} style={{ background: isCurrentMonth ? '#eff6ff' : 'transparent' }}>
-                      <td style={{ fontWeight: 700 }}>{m.monthName} {m.year}</td>
-                      <td style={{ fontWeight: 800, color: '#0f172a' }}>{m.count}</td>
-                      <td style={{ fontWeight: 700, color: '#059669' }}>{m.totalAmount > 0 ? formatMoney(m.totalAmount) : '—'}</td>
-                      {userData.map(u => {
-                        const row = m.userRows.find(r => r.userId === u.userId);
-                        const count = row?.count || 0;
-                        const amount = row?.amount || 0;
-                        return (
-                          <td key={u.userId} style={{ textAlign: 'center', padding: '8px 4px', fontSize: '10px' }}>
-                            {count > 0 ? (
-                              <>
-                                <div style={{ fontWeight: 700, fontSize: '11px', color: '#0f172a' }}>{count}</div>
-                                <div style={{ fontWeight: 600, color: '#059669' }}>{formatMoney(amount)}</div>
-                              </>
-                            ) : (
-                              <span style={{ color: '#e2e8f0' }}>—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
+                    <div key={user.userId} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      {/* Nombre */}
+                      <div style={{ width: '110px', flexShrink: 0 }}>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>{user.count}c · {user.pendingCount}p · {pctLabel}</div>
+                      </div>
+                      {/* Barra */}
+                      <div style={{ flex: 1, position: 'relative', height: '36px', background: '#f1f5f9', borderRadius: '8px', overflow: 'hidden' }}>
+                        {/* Barra pendiente (abajo) */}
+                        {pendingPct > 0 && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            width: `${pendingPct}%`,
+                            height: '40%',
+                            background: 'repeating-linear-gradient(45deg, #fbbf24, #fbbf24 4px, #f59e0b 4px, #f59e0b 8px)',
+                            borderRadius: '0 0 8px 0',
+                            transition: 'width 0.5s ease',
+                          }} />
+                        )}
+                        {/* Barra confirmado (arriba) */}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: pendingPct > 0 ? '40%' : 0,
+                          left: 0,
+                          width: `${confirmedPct}%`,
+                          height: pendingPct > 0 ? '60%' : '100%',
+                          background: `linear-gradient(90deg, ${getBarColor(totalPct)}, ${getBarColor(totalPct)}cc)`,
+                          borderRadius: pendingPct > 0 ? '0' : '8px',
+                          transition: 'width 0.5s ease',
+                          boxShadow: `0 0 8px ${getBarColor(totalPct)}40`,
+                        }} />
+                        {/* Label del % dentro de la barra */}
+                        {confirmedPct > 12 && (
+                          <div style={{
+                            position: 'absolute',
+                            right: '6px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            pointerEvents: 'none',
+                          }}>
+                            {pctLabel}
+                          </div>
+                        )}
+                      </div>
+                      {/* Montos */}
+                      <div style={{ width: '150px', flexShrink: 0, textAlign: 'right' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#059669' }}>{formatMoney(user.totalAmount)}</div>
+                        {user.pendingAmount > 0 && (
+                          <div style={{ fontSize: '10px', fontWeight: 600, color: '#d97706' }}>+{formatMoney(user.pendingAmount)} pend.</div>
+                        )}
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-              {/* Totals row */}
-              {userData.length > 0 && (
-                <tfoot>
-                  <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
-                    <td style={{ fontWeight: 800, color: '#0f172a' }}>Total</td>
-                    <td style={{ fontWeight: 800, color: '#0f172a' }}>{totalConfirmedEvents}</td>
-                    <td style={{ fontWeight: 800, color: '#059669' }}>{formatMoney(totalAmount)}</td>
-                    {userData.map(u => (
-                      <td key={u.userId} style={{ textAlign: 'center', padding: '8px 4px', fontSize: '10px' }}>
-                        <div style={{ fontWeight: 700, fontSize: '11px', color: '#0f172a' }}>{u.count}</div>
-                        <div style={{ fontWeight: 600, color: '#059669' }}>{formatMoney(u.totalAmount)}</div>
-                      </td>
-                    ))}
-                  </tr>
-                </tfoot>
-              )}
-            </table>
+              </div>
+
+              {/* Totales del equipo */}
+              <div style={{ display: 'flex', gap: '12px', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', marginTop: '4px' }}>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Confirmados</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#059669' }}>{team.totalConfirmed}</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Monto Conf.</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#059669' }}>{formatMoney(team.totalAmount)}</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Pendientes</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#d97706' }}>{team.totalPending}</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Monto Pend.</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#d97706' }}>{formatMoney(team.totalPendingAmount)}</div>
+                </div>
+              </div>
+            </section>
+          ))
+        )}
+
+        {/* Leyenda */}
+        <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', padding: '16px', color: '#64748b', fontSize: '11px', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '16px', height: '12px', background: '#10b981', borderRadius: '3px' }} />
+            <span>Confirmado</span>
           </div>
-        </section>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '16px', height: '12px', background: 'repeating-linear-gradient(45deg, #fbbf24, #fbbf24 2px, #f59e0b 2px, #f59e0b 4px)', borderRadius: '3px' }} />
+            <span>Pendiente</span>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+

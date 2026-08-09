@@ -47,7 +47,8 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const { events, users } = useOutletContext();
   const sellerUsers = useMemo(() => (users || []).filter(u => {
     const r = String(u.role || '').toLowerCase();
-    return r === 'vendedor' || r === 'admin';
+    // Solo vendedores con meta habilitada
+    return (r === 'vendedor' || r === 'admin') && u.salesTargetEnabled === true;
   }), [users]);
 
   const today = new Date();
@@ -148,6 +149,18 @@ export default function ReportsProyeccionMetas({ onClose }) {
     return months;
   }, [fromDate, toDate]);
 
+  // ── Set compartido de userIds con meta habilitada (fuente única de verdad) ──
+  const usersWithGoalIds = useMemo(() => {
+    return new Set(
+      (users || [])
+        .filter(u => {
+          const role = String(u.role || '').toLowerCase();
+          return (role === 'vendedor' || role === 'admin') && u.salesTargetEnabled === true;
+        })
+        .map(u => String(u.id))
+    );
+  }, [users]);
+
   // ── Aggregate sales by user ──
   const projectionData = useMemo(() => {
     if (!events || !monthList.length || !users) return { userRows: [] };
@@ -158,6 +171,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     // Potencial por vendedor: dinero en pendiente (los 4 estados pre-cierre),
     // NO se filtra por statusFilter (siempre se muestra el pendiente completo).
     const potentialByUser = {};
+    const potentialEventsByUser = {};
     const seenReservations = new Set();
     for (const ev of events) {
       const d = String(ev.date || '');
@@ -168,6 +182,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       const userId = String(ev.userId || '').trim();
       if (!userId) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+      if (!usersWithGoalIds.has(userId)) continue;
 
       // Venta confirmada (respeta statusFilter)
       if (statusFilter.has(status)) {
@@ -185,12 +200,16 @@ export default function ReportsProyeccionMetas({ onClose }) {
         if (!seenReservations.has(pGroupKey)) {
           seenReservations.add(pGroupKey);
           potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
+          potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
         }
       }
     }
 
     const rows = [];
     for (const user of users) {
+      const role = String(user.role || '').toLowerCase();
+      // Solo procesar usuarios con meta habilitada
+      if ((role !== 'vendedor' && role !== 'admin') || user.salesTargetEnabled !== true) continue;
       const userId = String(user.id).trim();
       if (!userId) continue;
       const currentSales = salesByUser[userId] || 0;
@@ -245,6 +264,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
         gapStatus: neededForNext === 0 ? 'complete' : (dailyNeeded <= dailyAvg ? 'on_track' : 'needs_boost'),
         potentialCommissionNext,
         potential: potentialByUser[userId] || 0,  // dinero en pendiente (4 estados)
+        potentialEventCount: potentialEventsByUser[userId] || 0,
       });
     }
 
@@ -256,7 +276,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     });
 
     return { userRows: rows };
-  }, [events, monthList, users, periodInfo, userFilter, statusFilter]);
+  }, [events, monthList, users, periodInfo, userFilter, statusFilter, usersWithGoalIds]);
 
   const { userRows } = projectionData;
 
@@ -321,11 +341,15 @@ export default function ReportsProyeccionMetas({ onClose }) {
       monthPotential[m.key] = 0;
     }
 
+    // Usar el set compartido de usersWithGoalIds (definido fuera)
+
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < fromDate || d > toDate) continue;
 
       const userId = String(ev.userId || '').trim();
+      // Solo contar eventos de usuarios con meta habilitada
+      if (!usersWithGoalIds.has(userId)) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
       const amount = Math.max(0, Number(ev.quote?.total || 0));
@@ -335,7 +359,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       const monthKey = d.substring(0, 7);
       if (monthActual[monthKey] === undefined) continue;
 
-      if (status === CONFIRMED_STATUS) {
+      if (statusFilter.has(status)) {
         monthActual[monthKey] += amount;
         monthCounts.actual += 1;
       } else if (POTENTIAL_STATUSES.includes(status)) {
@@ -363,7 +387,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const crecimientoPct = totalActual > 0 ? (totalPotential / totalActual) * 100 : 0;
 
     return { months, totalActual, totalPotential, coveragePct, crecimientoPct, monthCounts };
-  }, [events, monthList, userFilter, fromDate, toDate]);
+  }, [events, monthList, userFilter, statusFilter, fromDate, toDate, usersWithGoalIds]);
 
   // ── Tooltip data ──
   const hoveredRow = useMemo(
@@ -425,7 +449,8 @@ export default function ReportsProyeccionMetas({ onClose }) {
   };
 
   // ── Helper: calcula los datos de proyección para un grupo de usuarios (un equipo) ──
-  const computeTeamData = useCallback((teamUsers) => {
+  const computeTeamData = useCallback((teamUsers, goalIdsSet) => {
+    const goalIds = goalIdsSet || usersWithGoalIds;
     const emptyPotential = { months: [], totalActual: 0, totalPotential: 0, coveragePct: 0, crecimientoPct: 0, monthCounts: { actual: 0, potential: 0 } };
     if (!events || !monthList.length || !teamUsers || teamUsers.length === 0) {
       return { userRows: [], potentialData: emptyPotential, allTiers: [], maxBarAmount: 1 };
@@ -435,7 +460,9 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const salesByUser = {};
     const eventsByUser = {};
     const potentialByUser = {};
+    const potentialEventsByUser = {};
     const seenReservations = new Set();
+    
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < fromDate || d > toDate) continue;
@@ -443,6 +470,8 @@ export default function ReportsProyeccionMetas({ onClose }) {
       const amount = Math.max(0, Number(ev.quote?.total || 0));
       if (amount <= 0) continue;
       const userId = String(ev.userId || '').trim();
+      // Solo contar eventos de usuarios con meta habilitada
+      if (!goalIds.has(userId)) continue;
       if (!userId) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
@@ -459,6 +488,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
         if (!seenReservations.has(pGroupKey)) {
           seenReservations.add(pGroupKey);
           potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
+          potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
         }
       }
     }
@@ -506,6 +536,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
         gapStatus: neededForNext === 0 ? 'complete' : (dailyNeeded <= dailyAvg ? 'on_track' : 'needs_boost'),
         potentialCommissionNext,
         potential: potentialByUser[userId] || 0,
+        potentialEventCount: potentialEventsByUser[userId] || 0,
       });
     }
     rows.sort((a, b) => {
@@ -538,7 +569,8 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const maxTier = allTiers.length > 0 ? Math.max(...allTiers.map(t => t.amount)) : 0;
     const maxBarAmount = Math.max(maxSalesTeam, maxTier) * 1.1 || 1;
 
-    // Potencial por mes del equipo
+    // Potencial por mes del equipo (usar el MISMO set de dedup que salesByUser para consistencia)
+    const teamUserIds = new Set(teamUsers.map(u => String(u.id)));
     const monthActual = {};
     const monthPotential = {};
     const monthCounts = { actual: 0, potential: 0 };
@@ -546,22 +578,37 @@ export default function ReportsProyeccionMetas({ onClose }) {
       monthActual[m.key] = 0;
       monthPotential[m.key] = 0;
     }
+    // Re-correr eventos con el MISMO dedup y filtro usado para salesByUser,
+    // pero SÓLO para los miembros de ESTE equipo (no todos los goalIds).
+    const seenForMonths = new Set();
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < fromDate || d > toDate) continue;
       const userId = String(ev.userId || '').trim();
+      if (!teamUserIds.has(userId)) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
       const amount = Math.max(0, Number(ev.quote?.total || 0));
       if (amount <= 0) continue;
       const status = String(ev.status || '').trim();
       const monthKey = d.substring(0, 7);
       if (monthActual[monthKey] === undefined) continue;
-      if (status === CONFIRMED_STATUS) {
-        monthActual[monthKey] += amount;
-        monthCounts.actual += 1;
+      
+      if (statusFilter.has(status)) {
+        const groupKey = ev.groupId || ev.id;
+        const mKey = `a_${groupKey}_${monthKey}`;
+        if (!seenForMonths.has(mKey)) {
+          seenForMonths.add(mKey);
+          monthActual[monthKey] += amount;
+          monthCounts.actual += 1;
+        }
       } else if (POTENTIAL_STATUSES.includes(status)) {
-        monthPotential[monthKey] += amount;
-        monthCounts.potential += 1;
+        const pGroupKey = `p_${ev.groupId || ev.id}`;
+        const mKey = `p_${pGroupKey}_${monthKey}`;
+        if (!seenForMonths.has(mKey)) {
+          seenForMonths.add(mKey);
+          monthPotential[monthKey] += amount;
+          monthCounts.potential += 1;
+        }
       }
     }
     const months = monthList.map(m => {
@@ -577,17 +624,18 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const potentialData = { months, totalActual, totalPotential, coveragePct, crecimientoPct, monthCounts };
 
     return { userRows: rows, potentialData, allTiers, maxBarAmount };
-  }, [events, monthList, fromDate, toDate, userFilter, statusFilter, periodInfo]);
+  }, [events, monthList, fromDate, toDate, userFilter, statusFilter, periodInfo, usersWithGoalIds]);
 
   // ── Agrupa usuarios por equipo y calcula proyección por equipo ──
   const teamProjections = useMemo(() => {
     if (!users || users.length === 0) return [];
 
-    // Agrupa usuarios por teamId (todos son vendedores, pero la meta difiere por equipo)
+    // Agrupa usuarios por teamId (solo vendedores con meta habilitada)
     const groupsMap = new Map();
     for (const u of users) {
       const role = String(u.role || '').toLowerCase();
-      if (role !== 'vendedor' && role !== 'admin' && role !== '') continue;
+      // Solo incluir usuarios con meta habilitada
+      if ((role !== 'vendedor' && role !== 'admin') || u.salesTargetEnabled !== true) continue;
       const tid = u.teamId != null ? String(u.teamId) : '__no_team__';
       if (!groupsMap.has(tid)) groupsMap.set(tid, []);
       groupsMap.get(tid).push(u);
@@ -637,9 +685,67 @@ export default function ReportsProyeccionMetas({ onClose }) {
         ...computeTeamData(members)
       });
     }
-    // Solo devolver equipos con al menos un miembro con metas (tiers) configuradas
-    return teamList.filter(t => t.allTiers.length > 0);
+    // Devolver todos los equipos con usuarios con meta habilitada
+    return teamList;
   }, [users, equipos, computeTeamData]);
+
+  // ── Totales derivados directamente de los equipos para garantizar consistencia ──
+  // Usamos la suma de teamSales (que sale de salesByUser) y teamPotential,
+  // exactamente los mismos números que se muestran en el header de cada equipo.
+  const totalsFromTeams = useMemo(() => {
+    let totalActual = 0;
+    let totalPotential = 0;
+    let totalActualCount = 0;
+    let totalPotentialCount = 0;
+    for (const team of teamProjections) {
+      // Sumar teamSales (que viene de salesByUser - los mismos datos que muestran los equipos)
+      const teamSales = (team.userRows || []).reduce((s, r) => s + (r.currentSales || 0), 0);
+      const teamPotential = (team.userRows || []).reduce((s, r) => s + (r.potential || 0), 0);
+      totalActual += teamSales;
+      totalPotential += teamPotential;
+      // Contar eventos confirmados
+      for (const row of (team.userRows || [])) {
+        if (row.currentSales > 0) totalActualCount += row.eventCount || 0;
+        if (row.potential > 0) totalPotentialCount += row.potentialEventCount || 0;
+      }
+    }
+    return { totalActual, totalPotential, totalActualCount, totalPotentialCount };
+  }, [teamProjections]);
+
+  // Reemplazar potentialData con los totales derivados de los equipos
+  const effectivePotentialData = useMemo(() => {
+    if (teamProjections.length === 0) return potentialData;
+    // Reconstruir la estructura de potentialData pero con los totales de los equipos
+    const totalActual = totalsFromTeams.totalActual;
+    const totalPotential = totalsFromTeams.totalPotential;
+    const grandTotal = totalActual + totalPotential;
+    // Reconstruir months sumando los datos de cada equipo
+    const monthMap = new Map();
+    for (const team of teamProjections) {
+      for (const m of (team.potentialData?.months || [])) {
+        if (!monthMap.has(m.key)) {
+          monthMap.set(m.key, { ...m, actual: 0, potential: 0, total: 0, ratio: 0 });
+        }
+        const acc = monthMap.get(m.key);
+        acc.actual += m.actual || 0;
+        acc.potential += m.potential || 0;
+        acc.total = acc.actual + acc.potential;
+        acc.ratio = acc.total > 0 ? (acc.actual / acc.total) * 100 : 0;
+      }
+    }
+    const months = Array.from(monthMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+    return {
+      months,
+      totalActual,
+      totalPotential,
+      coveragePct: grandTotal > 0 ? (totalPotential / grandTotal) * 100 : 0,
+      crecimientoPct: totalActual > 0 ? (totalPotential / totalActual) * 100 : 0,
+      monthCounts: {
+        actual: totalsFromTeams.totalActualCount,
+        potential: totalsFromTeams.totalPotentialCount,
+      },
+    };
+  }, [potentialData, totalsFromTeams, teamProjections]);
 
   const handleExportPDF = async () => {
     setPdfLoading(true);
@@ -945,10 +1051,10 @@ th.right{text-align:right}</style></head><body>
                   💰 Venta confirmada
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#10b981' }}>
-                  {formatMoney(potentialData.totalActual)}
+                  {formatMoney(effectivePotentialData.totalActual)}
                 </div>
                 <div style={{ fontSize: '9px', color: '#64748b' }}>
-                  {potentialData.monthCounts.actual} evento(s) Confirmado(s)
+                  {effectivePotentialData.monthCounts.actual} evento(s) Confirmado(s)
                 </div>
               </div>
               <div>
@@ -956,10 +1062,10 @@ th.right{text-align:right}</style></head><body>
                   🎯 Potencial a cerrar
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#8b5cf6' }}>
-                  {formatMoney(potentialData.totalPotential)}
+                  {formatMoney(effectivePotentialData.totalPotential)}
                 </div>
                 <div style={{ fontSize: '9px', color: '#64748b' }}>
-                  {potentialData.monthCounts.potential} evento(s) en pendiente
+                  {effectivePotentialData.monthCounts.potential} evento(s) en pendiente
                 </div>
               </div>
               <div>
@@ -967,7 +1073,7 @@ th.right{text-align:right}</style></head><body>
                   📊 Cobertura (pendiente)
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#7c3aed' }}>
-                  {potentialData.coveragePct.toFixed(1)}%
+                  {effectivePotentialData.coveragePct.toFixed(1)}%
                 </div>
                 <div style={{ fontSize: '9px', color: '#64748b' }}>
                   del total del rango
@@ -978,7 +1084,7 @@ th.right{text-align:right}</style></head><body>
                   🚀 Crecimiento si cierras todo
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#db2777' }}>
-                  {potentialData.crecimientoPct > 0 ? `+${potentialData.crecimientoPct.toFixed(0)}%` : '—'}
+                  {effectivePotentialData.crecimientoPct > 0 ? `+${effectivePotentialData.crecimientoPct.toFixed(0)}%` : '—'}
                 </div>
                 <div style={{ fontSize: '9px', color: '#64748b' }}>
                   sobre venta actual
@@ -989,7 +1095,7 @@ th.right{text-align:right}</style></head><body>
 
           {/* ── Chart container ── */}
           {(() => {
-            const maxMonthTotal = potentialData.months.reduce((m, x) => Math.max(m, x.total), 0);
+            const maxMonthTotal = effectivePotentialData.months.reduce((m, x) => Math.max(m, x.total), 0);
             const chartMax = maxMonthTotal > 0 ? maxMonthTotal * 1.1 : 1;
             return (
               <div style={{
@@ -1018,17 +1124,17 @@ th.right{text-align:right}</style></head><body>
                       }} />
                     ))}
 
-                    {potentialData.months.length === 0 ? (
+                    {effectivePotentialData.months.length === 0 ? (
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#94a3b8' }}>
                         Sin meses en el rango
                       </div>
-                    ) : potentialData.months.every(m => m.total === 0) ? (
+                    ) : effectivePotentialData.months.every(m => m.total === 0) ? (
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px', color: '#94a3b8' }}>
                         <span style={{ fontSize: '32px' }}>📭</span>
                         <span style={{ fontSize: '13px', fontWeight: 700 }}>No hay eventos con venta asociada en este período</span>
                       </div>
                     ) : (
-                      potentialData.months.map((m) => {
+                      effectivePotentialData.months.map((m) => {
                         const actualPct = chartMax > 0 ? (m.actual / chartMax) * 100 : 0;
                         const potentialPct = chartMax > 0 ? (m.potential / chartMax) * 100 : 0;
                         const isCurrentMonth = m.key === currentMonthKey;
@@ -1077,12 +1183,12 @@ th.right{text-align:right}</style></head><body>
 
                 {/* X-axis labels */}
                 <div style={{ display: 'flex', marginTop: '28px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', paddingLeft: '88px' }}>
-                  {potentialData.months.length > 0 && (
-                    <span>{potentialData.months[0].monthName} {potentialData.months[0].year}</span>
+                  {effectivePotentialData.months.length > 0 && (
+                    <span>{effectivePotentialData.months[0].monthName} {effectivePotentialData.months[0].year}</span>
                   )}
-                  {potentialData.months.length > 6 && (
+                  {effectivePotentialData.months.length > 6 && (
                     <span style={{ marginLeft: 'auto' }}>
-                      {potentialData.months[potentialData.months.length - 1].monthName} {potentialData.months[potentialData.months.length - 1].year}
+                      {effectivePotentialData.months[effectivePotentialData.months.length - 1].monthName} {effectivePotentialData.months[effectivePotentialData.months.length - 1].year}
                     </span>
                   )}
                 </div>
@@ -1103,9 +1209,9 @@ th.right{text-align:right}</style></head><body>
                 </tr>
               </thead>
               <tbody>
-                {potentialData.months.length === 0 ? (
+                {effectivePotentialData.months.length === 0 ? (
                   <tr><td colSpan="5" style={{ textAlign: 'center', padding: '16px', color: '#94a3b8' }}>Sin datos</td></tr>
-                ) : potentialData.months.map(m => {
+                ) : effectivePotentialData.months.map(m => {
                   const isCurrentMonth = m.key === currentMonthKey;
                   return (
                     <tr key={m.key} style={{ background: isCurrentMonth ? '#f5f3ff' : 'transparent' }}>
@@ -1134,15 +1240,15 @@ th.right{text-align:right}</style></head><body>
                   );
                 })}
                 {/* Fila total */}
-                {potentialData.months.length > 0 && (
+                {effectivePotentialData.months.length > 0 && (
                   <tr style={{ background: '#f5f3ff', fontWeight: 900 }}>
                     <td style={{ fontWeight: 900, color: '#6b21a8' }}>TOTAL</td>
-                    <td style={{ textAlign: 'right', color: '#10b981' }}>{formatMoney(potentialData.totalActual)}</td>
-                    <td style={{ textAlign: 'right', color: '#8b5cf6' }}>{formatMoney(potentialData.totalPotential)}</td>
-                    <td style={{ textAlign: 'right', color: '#0f172a' }}>{formatMoney(potentialData.totalActual + potentialData.totalPotential)}</td>
+                    <td style={{ textAlign: 'right', color: '#10b981' }}>{formatMoney(effectivePotentialData.totalActual)}</td>
+                    <td style={{ textAlign: 'right', color: '#8b5cf6' }}>{formatMoney(effectivePotentialData.totalPotential)}</td>
+                    <td style={{ textAlign: 'right', color: '#0f172a' }}>{formatMoney(effectivePotentialData.totalActual + effectivePotentialData.totalPotential)}</td>
                     <td style={{ textAlign: 'center', color: '#7c3aed' }}>
-                      {potentialData.totalActual + potentialData.totalPotential > 0
-                        ? `${((potentialData.totalActual / (potentialData.totalActual + potentialData.totalPotential)) * 100).toFixed(0)}% conf.`
+                      {effectivePotentialData.totalActual + effectivePotentialData.totalPotential > 0
+                        ? `${((effectivePotentialData.totalActual / (effectivePotentialData.totalActual + effectivePotentialData.totalPotential)) * 100).toFixed(0)}% conf.`
                         : '—'}
                     </td>
                   </tr>

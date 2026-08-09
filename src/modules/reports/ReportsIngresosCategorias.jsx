@@ -25,10 +25,8 @@ const CATEGORIES = [
   { key: 'miscelaneos', label: 'Misceláneos', icon: '📦', color: '#10b981' },
 ];
 
-const ACTIVE_STATUSES = new Set([
-  'Confirmado', 'Pre reserva', 'Realizado', 'Seguimiento',
-  '1er Cotizacion', 'Lista de Espera', 'Reserva sin Cotizacion'
-]);
+// Solo eventos confirmados para reflejar ingresos reales cerrados
+const CONFIRMED_STATUSES = new Set(['Confirmado']);
 
 export default function ReportsIngresosCategorias({ onClose }) {
   const { events } = useOutletContext();
@@ -90,31 +88,48 @@ export default function ReportsIngresosCategorias({ onClose }) {
   const chartData = useMemo(() => {
     if (!events || !monthList.length) return { categoryData: [], monthlyData: [], grandTotal: 0 };
 
-    const from = monthList[0].key + '-01';
-    const to = monthList[monthList.length - 1].key + '-' + String(monthList[monthList.length - 1].daysInMonth).padStart(2, '0');
+    // Usar las fechas directas del estado para filtrar con precisión de día
+    const from = fromDate;
+    const to = toDate;
 
     const catTotals = { alimentosBebidas: 0, hospedajeJdl: 0, hospedajeTerceros: 0, miscelaneos: 0 };
     let grandTotal = 0;
     const monthlyCatTotals = {};
+    const seenReservations = new Set();
 
     for (const ev of events) {
       const d = String(ev.date || '');
       if (!d || d < from || d > to) continue;
-      if (!ACTIVE_STATUSES.has(String(ev.status || '').trim())) continue;
+      if (!CONFIRMED_STATUSES.has(String(ev.status || '').trim())) continue;
+
+      const groupKey = ev.groupId || ev.id;
+      if (seenReservations.has(groupKey)) continue;
+      seenReservations.add(groupKey);
 
       const monthKey = d.substring(0, 7);
       const quoteItems = ev.quote?.items || [];
+      
+      // Usar quote.total para el monto total (igual que Metas)
+      const quoteTotal = Math.max(0, Number(ev.quote?.total || 0));
+      if (quoteTotal <= 0) continue;
+      
+      // Clasificar el evento completo por la categoría dominante de sus items
+      let dominantBucket = 'miscelaneos';
+      let maxItemTotal = 0;
+      for (const item of quoteItems) {
+        const itemTotal = Number(item.qty || 0) * Number(item.price || 0);
+        if (itemTotal > maxItemTotal) {
+          maxItemTotal = itemTotal;
+          dominantBucket = mapCategoryToBucket(item.category || '', item.name);
+        }
+      }
+      
       if (!monthlyCatTotals[monthKey]) {
         monthlyCatTotals[monthKey] = { alimentosBebidas: 0, hospedajeJdl: 0, hospedajeTerceros: 0, miscelaneos: 0 };
       }
-      for (const item of quoteItems) {
-        const itemTotal = Number(item.qty || 0) * Number(item.price || 0);
-        if (itemTotal <= 0) continue;
-        const bucketKey = mapCategoryToBucket(item.category || '', item.name);
-        catTotals[bucketKey] += itemTotal;
-        grandTotal += itemTotal;
-        monthlyCatTotals[monthKey][bucketKey] += itemTotal;
-      }
+      catTotals[dominantBucket] += quoteTotal;
+      grandTotal += quoteTotal;
+      monthlyCatTotals[monthKey][dominantBucket] += quoteTotal;
     }
 
     const categoryData = CATEGORIES.map(cat => ({
@@ -138,7 +153,7 @@ export default function ReportsIngresosCategorias({ onClose }) {
     });
 
     return { categoryData, monthlyData, grandTotal };
-  }, [events, monthList]);
+  }, [events, monthList, fromDate, toDate]);
 
   const { categoryData, grandTotal } = chartData;
 

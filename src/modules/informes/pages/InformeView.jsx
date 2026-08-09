@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useContext } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getInformeById, getImagenes, imagenUrl, marcarInformeLeido, updateDiaMenuItemNotas } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
+import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 import ColaboracionPanel from '../components/ColaboracionPanel.jsx';
 import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle, IconCheckCircle, IconX, IconEdit } from '../components/Icons.jsx';
 import { TIEMPOS_COMIDA, TIEMPO_COMIDA_ORDER } from '../constants/tiemposComida.js';
@@ -38,6 +39,8 @@ export default function InformeView() {
   const savingNotaRef = useRef(false);
   const notaInputRef = useRef(null);
   const docRef = useRef(null);
+  const actionsBarRef = useRef(null);
+  const { setInformeActions } = useContext(InformeActionsContext) || {};
 
   useEffect(() => {
     const loadInforme = async () => {
@@ -145,26 +148,129 @@ export default function InformeView() {
         ]);
       }
 
-      const canvas = await html2canvas(el, { 
-        scale: 2, 
-        backgroundColor: '#ffffff', 
-        logging: false,
-        useCORS: true 
-      });
+      // ── Ocultar elementos que no deben aparecer en el PDF ──
+      // El actions-bar es sibling del docRef y tiene position:sticky.
+      // html2canvas lo renderiza como una banda opaca en medio del documento.
+      // Lo ocultamos directamente en el DOM antes de la captura y lo
+      // restauramos después. También quitamos position:sticky de todo el
+      // árbol por si hay otros elementos con sticky dentro del documento.
+      const previouslyHidden = [];
+      const stickyElements = [];
+      const restoreStyles = () => {
+        previouslyHidden.forEach(({ el, prev }) => { el.style.display = prev; });
+        stickyElements.forEach(({ el, prev }) => {
+          el.style.position = prev.position;
+          el.style.top = prev.top;
+          el.style.zIndex = prev.zIndex;
+          el.style.backdropFilter = prev.backdropFilter;
+        });
+      };
+      try {
+        // 1) Ocultar el actions-bar (el sospechoso principal)
+        if (actionsBarRef.current) {
+          previouslyHidden.push({ el: actionsBarRef.current, prev: actionsBarRef.current.style.display });
+          actionsBarRef.current.style.display = 'none';
+        }
+        // 2) Buscar y ocultar CUALQUIER elemento .no-print que esté dentro
+        //    del documento a capturar (defensa adicional)
+        el.querySelectorAll('.no-print').forEach((n) => {
+          previouslyHidden.push({ el: n, prev: n.style.display });
+          n.style.display = 'none';
+        });
+        // 3) Neutralizar position: sticky/fixed en todo el árbol del documento
+        el.querySelectorAll('*').forEach((n) => {
+          const cs = window.getComputedStyle(n);
+          if (cs.position === 'sticky' || cs.position === 'fixed') {
+            stickyElements.push({
+              el: n,
+              prev: {
+                position: n.style.position,
+                top: n.style.top,
+                zIndex: n.style.zIndex,
+                backdropFilter: n.style.backdropFilter || n.style.webkitBackdropFilter,
+              },
+            });
+            n.style.position = 'static';
+            n.style.top = 'auto';
+            n.style.zIndex = 'auto';
+            // backdrop-filter no es soportado por html2canvas y se renderiza
+            // como un bloque opaco; lo quitamos también.
+            n.style.backdropFilter = 'none';
+            n.style.webkitBackdropFilter = 'none';
+          }
+        });
+      } catch (e) {
+        console.warn('Pre-capture cleanup failed:', e);
+      }
+
+      let canvas;
+      try {
+        canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true,
+          windowWidth: el.scrollWidth,
+          windowHeight: el.scrollHeight,
+          onclone: (clonedDoc) => {
+            try {
+              // Backup en el clon por si algo se nos escapó
+              clonedDoc.querySelectorAll('.no-print').forEach((n) => {
+                n.style.display = 'none';
+              });
+            } catch (e) { /* ignore */ }
+          }
+        });
+      } finally {
+        // Restaurar SIEMPRE, incluso si html2canvas lanza
+        restoreStyles();
+      }
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = (canvas.height * pdfW) / canvas.width;
-      let heightLeft = pdfH;
-      let position = 0;
+      const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
-      pdf.addImage(imgData, 'PNG', 0, position, pdfW, pdfH);
-      heightLeft -= pageH;
-      while (heightLeft > 0) {
-        position -= pageH;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfW, pdfH);
-        heightLeft -= pageH;
+      // Dejar 1.5cm de margen blanco alrededor del contenido, igual que @page
+      const marginMm = 15; // 1.5 cm
+      const usableW = pageW - marginMm * 2;
+      const usableH = pageH - marginMm * 2;
+
+      // Relación mm/px de la imagen cuando se escala al ancho útil
+      const mmPerPx = usableW / canvas.width;
+      // Altura en píxeles del canvas que entra por página (área útil)
+      const pageContentPxH = usableH / mmPerPx;
+
+      // Cortamos el canvas en tajadas (slices) y cada página del PDF
+      // recibe UNA tajada. Así NO se duplica contenido entre páginas.
+      const sliceCanvas = document.createElement('canvas');
+      const sliceHeightPx = Math.ceil(pageContentPxH);
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sliceHeightPx;
+      const sliceCtx = sliceCanvas.getContext('2d');
+
+      let yPx = 0;
+      let pageIndex = 0;
+      while (yPx < canvas.height) {
+        const remainingPx = canvas.height - yPx;
+        const drawHeightPx = Math.min(sliceHeightPx, remainingPx);
+
+        // Limpiar tajada y dibujar la porción correspondiente del canvas original
+        sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+        sliceCtx.drawImage(
+          canvas,
+          0, yPx, canvas.width, drawHeightPx,   // src: rectángulo del canvas original
+          0, 0, canvas.width, drawHeightPx      // dst: rectángulo destino en el slice
+        );
+
+        const sliceImg = sliceCanvas.toDataURL('image/png');
+        // Render height en mm: si la última tajada es más baja, ajustar para
+        // que no quede un hueco blanco extra al final.
+        const sliceRenderH = drawHeightPx * mmPerPx;
+
+        if (pageIndex > 0) pdf.addPage();
+        pdf.addImage(sliceImg, 'PNG', marginMm, marginMm, usableW, sliceRenderH);
+
+        yPx += drawHeightPx;
+        pageIndex += 1;
       }
       // Generar nombre de archivo descriptivo (institución o encargado + no. cotización)
       const cleanString = (str) => {
@@ -184,6 +290,45 @@ export default function InformeView() {
       setPdfLoading(false);
     }
   };
+
+  const handleVolver = () => {
+    navigate(-1);
+  };
+
+  // Botones de acción para el header (segunda línea)
+  const informeActionsEl = (
+    <>
+      <button onClick={handleVolver} className="btn-secondary" data-tooltip="Volver">
+        <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
+      </button>
+      <button onClick={handleExportPDF} className="btn-success" disabled={pdfLoading} data-tooltip="Descargar como PDF">
+        <IconDownload size={16} /> <span className="btn-text">{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
+      </button>
+      <button onClick={handlePrint} className="btn-primary" data-tooltip="Imprimir informe">
+        <IconPrinter size={16} /> <span className="btn-text">Imprimir</span>
+      </button>
+      <button onClick={() => setColabOpen(!colabOpen)}
+        className={`btn-secondary ${colabOpen ? 'colab-toggle-active' : ''}`}
+        data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}>
+        <IconMessageCircle size={16} /> <span className="btn-text">Colaborar</span>
+      </button>
+      {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
+        <button onClick={() => navigate(`/informe/pos/${informe?.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
+          <IconFileText size={16} /> <span className="btn-text">Editar</span>
+        </button>
+      )}
+    </>
+  );
+
+  // Pasar las acciones al header
+  useEffect(() => {
+    if (setInformeActions) {
+      setInformeActions(informeActionsEl);
+    }
+    return () => {
+      if (setInformeActions) setInformeActions(null);
+    };
+  }, [informeActionsEl, setInformeActions]);
 
   if (loading) return <p className="status-message">Cargando informe...</p>;
   if (error) return <p className="status-message status-error">{error}</p>;
@@ -208,10 +353,6 @@ export default function InformeView() {
     });
     
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-  };
-
-  const handleVolver = () => {
-    navigate(-1);
   };
 
   return (
@@ -306,29 +447,6 @@ export default function InformeView() {
         }
       `}</style>
       <div className="informe-print-container">
-        {/* ─── BARRA DE ACCIONES (no se imprime) ─── */}
-        <div className="no-print actions-bar" style={{position:'sticky',top:0,zIndex:50,background:'var(--bg-card)',padding:'0.5rem 0',marginBottom:'0.5rem',backdropFilter:'blur(8px)'}}>
-          <button onClick={handleVolver} className="btn-secondary" data-tooltip="Volver">
-            <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
-          </button>
-          <button onClick={handleExportPDF} className="btn-success" disabled={pdfLoading} data-tooltip="Descargar como PDF">
-            <IconDownload size={16} /> <span className="btn-text">{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
-          </button>
-          <button onClick={handlePrint} className="btn-primary" data-tooltip="Imprimir informe">
-            <IconPrinter size={16} /> <span className="btn-text">Imprimir</span>
-          </button>
-          <button onClick={() => setColabOpen(!colabOpen)}
-            className={`btn-secondary ${colabOpen ? 'colab-toggle-active' : ''}`}
-            data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}>
-            <IconMessageCircle size={16} /> <span className="btn-text">Colaborar</span>
-          </button>
-          {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
-            <button onClick={() => navigate(`/informe/pos/${informe.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
-              <IconFileText size={16} /> <span className="btn-text">Editar</span>
-            </button>
-          )}
-        </div>
-
         {/* ─── DOCUMENTO FORMAL ─── */}
         <div className="iv-documento" ref={docRef}>
           {/* ─── DÍAS (cada uno con encabezado completo) ─── */}

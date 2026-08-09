@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, createContext, useContext } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -19,6 +19,9 @@ import '../styles.scss';
 import '../styles.css';
 import '../mobile-table.css';
 
+// Context para pasar acciones del informe al header
+export const InformeActionsContext = createContext(null);
+
 export default function ReportsLayout() {
   const { user, logout } = useAuth();
   const { pushSupported, pushSubscribed, enablePushNotifications } = useSocket();
@@ -34,6 +37,7 @@ export default function ReportsLayout() {
 
   // Auto-ocultar el botón flotante de menú al scrollear hacia abajo
   const [fabVisible, setFabVisible] = useState(true);
+  const [informeActions, setInformeActions] = useState(null);
   const lastScrollY = useRef(0);
   const hideTimerRef = useRef(null);
 
@@ -110,6 +114,7 @@ export default function ReportsLayout() {
   };
 
   return (
+    <InformeActionsContext.Provider value={{ setInformeActions }}>
     <div className="reports-root app-shell informes-shell">
       {/* Botón de Hamburguesa Flotante en Móvil */}
       <button
@@ -297,6 +302,7 @@ export default function ReportsLayout() {
       )}
 
       <header className="app-header">
+        <div className="header-top-row">
         <div className="header-left">
           <div className="brand-icon">
             <img src="/logo.png" alt="JDL" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '5px' }} />
@@ -375,6 +381,13 @@ export default function ReportsLayout() {
             )}
           </div>
         </div>
+        </div>
+        {/* Segunda línea del header: acciones del informe */}
+        {informeActions && (
+          <div className="informe-actions-bar">
+            {informeActions}
+          </div>
+        )}
       </header>
 
       <main>
@@ -393,7 +406,7 @@ export default function ReportsLayout() {
             display: flex !important;
             position: fixed !important;
             bottom: 16px !important;
-            left: 16px !important;
+            right: 16px !important;
             width: 44px !important;
             height: 44px !important;
             border-radius: 50% !important;
@@ -410,16 +423,13 @@ export default function ReportsLayout() {
           }
           @media (max-width: 767px) {
             .informes-shell .app-header {
-              position: relative !important;
               padding: 0.6rem 0.75rem !important;
               display: grid !important;
               grid-template-columns: 1fr auto !important;
               grid-template-rows: auto auto !important;
               gap: 0.5rem !important;
-              border-radius: var(--radius-lg) !important;
+              border-radius: 0 !important;
               margin-bottom: 0.25rem !important;
-              top: 0 !important;
-              z-index: 1001 !important;
             }
             .informes-shell .header-left {
               grid-column: 1 !important;
@@ -483,6 +493,33 @@ export default function ReportsLayout() {
               display: flex !important;
               align-items: center !important;
               justify-content: center !important;
+            }
+            /* ─── Informe View mobile: header es relative, la barra y el padding deben ajustarse ─── */
+            .informes-shell .actions-bar.no-print {
+              position: relative !important;
+              top: auto !important;
+              left: auto !important;
+              right: auto !important;
+              margin: 0.75rem 0 0.5rem 0 !important;
+              border-radius: var(--radius-md) !important;
+              box-shadow: var(--shadow-sm) !important;
+            }
+            .informes-shell .informe-view-layout,
+            .informes-shell .informe-view-layout.colab-open {
+              flex-direction: column !important;
+            }
+            .informes-shell .informe-view-layout .informe-print-container {
+              padding-top: 0.25rem !important;
+            }
+            .informes-shell .informe-view-layout.colab-open .informe-print-container {
+              max-width: 100% !important;
+            }
+            .informes-shell .colab-sidebar {
+              width: 100% !important;
+              position: relative !important;
+              top: auto !important;
+              max-height: none !important;
+              margin-top: 0.5rem !important;
             }
           }
 
@@ -847,7 +884,81 @@ export default function ReportsLayout() {
             color: #f87171 !important;
           }
         }
+
+        /* Header de dos líneas: menú arriba, botones abajo - STICKY */
+        .app-header {
+          flex-direction: column !important;
+          align-items: stretch !important;
+          padding: 0.75rem 1.5rem !important;
+          position: sticky !important;
+          top: 0 !important;
+          z-index: 1000 !important;
+          background: var(--bg-card) !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+          overflow: visible !important;
+        }
+        /* El main scrollea y deja espacio para el header sticky */
+        .informes-shell > main {
+          padding-top: 0.5rem;
+        }
+        .header-top-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          gap: 1rem;
+        }
+        .informe-actions-bar {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          width: 100%;
+          padding-top: 0.6rem;
+          margin-top: 0.5rem;
+          border-top: 1px solid var(--border);
+        }
+        .informe-actions-bar .btn-secondary,
+        .informe-actions-bar .btn-primary,
+        .informe-actions-bar .btn-success {
+          padding: 0.35rem 0.7rem;
+          font-size: 0.78rem;
+        }
+        /* Ocultar en impresión */
+        @media print {
+          .informe-actions-bar {
+            display: none !important;
+          }
+        }
+        @media (max-width: 768px) {
+          .header-top-row {
+            flex-wrap: wrap;
+          }
+          /* Acciones del informe en móvil: layout más táctil */
+          .informe-actions-bar {
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            gap: 0.4rem;
+            padding-top: 0.5rem;
+          }
+          .informe-actions-bar .btn-secondary,
+          .informe-actions-bar .btn-primary,
+          .informe-actions-bar .btn-success,
+          .informe-actions-bar .btn {
+            padding: 0.5rem 0.8rem;
+            font-size: 0.78rem;
+            min-height: 40px;
+            flex: 1 1 auto;
+            min-width: 80px;
+            justify-content: center;
+          }
+          /* Botón "Imprimir" como acción primaria: más prominence */
+          .informe-actions-bar .btn-primary {
+            flex: 2 1 140px;
+            font-weight: 700;
+          }
+        }
       `}</style>
     </div>
+    </InformeActionsContext.Provider>
   );
 }

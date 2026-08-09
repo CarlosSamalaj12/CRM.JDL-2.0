@@ -3493,23 +3493,6 @@ button[data-tooltip-bottom]::after {
 
 .informe-print-container { padding: 0; }
 
-.no-print {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.actions-bar {
-  position: sticky;
-  top: 7rem;
-  z-index: 95;
-  background: var(--bg-app);
-  padding: 0.75rem 0;
-  margin-top: -0.75rem;
-}
-
 /* ═══════════════════════════════════════════════
    DOCUMENTO FORMAL
    ═══════════════════════════════════════════════ */
@@ -3825,6 +3808,7 @@ button[data-tooltip-bottom]::after {
   font-style: italic;
   margin-top: 0.1rem;
   line-height: 1.4;
+}
 
 .iv-montaje-chips {
   display: flex;
@@ -3845,7 +3829,6 @@ button[data-tooltip-bottom]::after {
   border-radius: var(--radius-full);
   line-height: 1.3;
   white-space: nowrap;
-}
 }
 
 /* ─── ITEMS ─── */
@@ -4113,7 +4096,7 @@ button[data-tooltip-bottom]::after {
 
 @media print {
   @page {
-    margin: 0;
+    margin: 1.5cm;
     size: A4;
   }
 
@@ -4146,7 +4129,9 @@ button[data-tooltip-bottom]::after {
 
   .iv-documento {
     box-shadow: none !important;
-    padding: 1cm 1.5cm !important;
+    /* Padding generoso: actúa como margen de seguridad si el navegador
+       o el usuario configuran márgenes de página en "Ninguno" */
+    padding: 1.5cm 2cm !important;
     width: 100% !important;
     max-width: 100% !important;
     border: none !important;
@@ -4281,11 +4266,24 @@ button[data-tooltip-bottom]::after {
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .app-shell { padding: 0.75rem; }
+  /* En mobile fijamos el header arriba del todo (position: fixed) en vez
+     de sticky, porque algunos navegadores/scroll-containers rompen sticky
+     si un ancestro tiene overflow. Fixed garantiza que NO se mueva. */
   .app-header {
+    position: fixed !important;
+    top: 0.5rem !important;
+    left: 0.5rem !important;
+    right: 0.5rem !important;
     flex-direction: column;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 0.85rem;
+    z-index: 100 !important;
+    width: auto !important;
+    max-width: none !important;
   }
+  /* El padding-top del contenedor se setea dinámicamente desde JS
+     midiendo la altura real del header + actions-bar. NO hardcodear acá
+     para no sumar espacios. */
   .header-left { width: 100%; }
   .app-nav {
     width: auto !important;
@@ -4345,6 +4343,24 @@ button[data-tooltip-bottom]::after {
     flex-wrap: nowrap !important;
     justify-content: space-between !important;
     gap: 0.35rem !important;
+    position: fixed !important;
+    top: 9.5rem !important;        /* ~152px: debajo del app-header en mobile */
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    background: var(--bg-card) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-md) !important;
+    padding: 0.5rem 0.6rem !important;
+    margin: 0 !important;
+    box-shadow: var(--shadow-md, var(--shadow-sm)) !important;
+    z-index: 95 !important;
+  }
+  /* Padding-top del contenedor para que el iv-documento quede 2px debajo
+     de la barra. Bar top (152) + bar height (~56) = 208 + 2px = 210 ≈ 13.1rem */
+  .informe-view-layout .informe-print-container {
+    padding-top: 13.1rem !important;
   }
   .actions-bar.no-print button {
     width: auto !important;
@@ -4472,6 +4488,29 @@ button[data-tooltip-bottom]::after {
     box-sizing: border-box !important;
     overflow-x: hidden !important;
     border-radius: var(--radius-md) !important;
+  }
+  /* Galería de imágenes: en mobile cada imagen ocupa casi todo el ancho
+     y se apilan verticalmente. Antes mantenía width: 250px que no entraba
+     y se cortaban las imágenes a la derecha. */
+  .iv-imagenes {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+  .iv-imagen-item {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .iv-imagen-thumb {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+  .iv-imagen-thumb img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
   }
   .iv-documento table {
     width: 100% !important;
@@ -7174,5 +7213,64 @@ button[data-tooltip-bottom]::after {
 
   .week-filter-container button {
     flex-shrink: 0 !important;
+  }
+}
+
+/* ═══ MÓVIL: Botones de informe más compactos ═══ */
+@media (max-width: 600px) {
+  /* Acciones del informe: iconos + texto en rows */
+  .informe-actions-bar {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 0.4rem !important;
+    padding: 0.5rem !important;
+  }
+  
+  .informe-actions-bar button {
+    flex: 1 1 calc(50% - 0.4rem) !important;
+    min-width: 0 !important;
+    max-width: calc(50% - 0.2rem) !important;
+    padding: 0.5rem 0.4rem !important;
+    font-size: 0.72rem !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.25rem !important;
+  }
+  
+  .informe-actions-bar button .btn-text {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 80px !important;
+  }
+  
+  /* Botón Imprimir: más prominence */
+  .informe-actions-bar .btn-primary {
+    flex: 2 2 100% !important;
+    max-width: 100% !important;
+    font-weight: 700 !important;
+  }
+  
+  .informe-actions-bar .btn-primary .btn-text {
+    max-width: none !important;
+  }
+}
+
+/* Pantallas muy pequeñas: solo iconos */
+@media (max-width: 400px) {
+  .informe-actions-bar button .btn-text {
+    display: none !important;
+  }
+  
+  .informe-actions-bar button {
+    flex: 0 0 auto !important;
+    min-width: 44px !important;
+    max-width: none !important;
+    width: 44px !important;
+    padding: 0 !important;
+    justify-content: center !important;
   }
 }
