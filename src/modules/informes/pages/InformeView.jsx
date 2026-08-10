@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useContext } from 'react';
+import { useEffect, useState, useRef, useContext, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getInformeById, getImagenes, imagenUrl, marcarInformeLeido, updateDiaMenuItemNotas } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -296,29 +296,29 @@ export default function InformeView() {
   };
 
   // Botones de acción para el header (segunda línea)
-  const informeActionsEl = (
-    <>
-      <button onClick={handleVolver} className="btn-secondary" data-tooltip="Volver">
-        <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
-      </button>
-      <button onClick={handleExportPDF} className="btn-success" disabled={pdfLoading} data-tooltip="Descargar como PDF">
-        <IconDownload size={16} /> <span className="btn-text">{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
-      </button>
-      <button onClick={handlePrint} className="btn-primary" data-tooltip="Imprimir informe">
-        <IconPrinter size={16} /> <span className="btn-text">Imprimir</span>
-      </button>
-      <button onClick={() => setColabOpen(!colabOpen)}
-        className={`btn-secondary ${colabOpen ? 'colab-toggle-active' : ''}`}
-        data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}>
-        <IconMessageCircle size={16} /> <span className="btn-text">Colaborar</span>
-      </button>
-      {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
-        <button onClick={() => navigate(`/informe/pos/${informe?.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
-          <IconFileText size={16} /> <span className="btn-text">Editar</span>
-        </button>
-      )}
-    </>
-  );
+   const informeActionsEl = useMemo(() => (
+     <>
+       <button onClick={handleVolver} className="btn-secondary" data-tooltip="Volver">
+         <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
+       </button>
+       <button onClick={handleExportPDF} className="btn-success" disabled={pdfLoading} data-tooltip="Descargar como PDF">
+         <IconDownload size={16} /> <span className="btn-text">{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
+       </button>
+       <button onClick={handlePrint} className="btn-primary" data-tooltip="Imprimir informe">
+         <IconPrinter size={16} /> <span className="btn-text">Imprimir</span>
+       </button>
+       <button onClick={() => setColabOpen(!colabOpen)}
+         className={`btn-secondary ${colabOpen ? 'colab-toggle-active' : ''}`}
+         data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}>
+         <IconMessageCircle size={16} /> <span className="btn-text">Colaborar</span>
+       </button>
+       {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
+         <button onClick={() => navigate(`/informe/pos/${informe?.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
+           <IconFileText size={16} /> <span className="btn-text">Editar</span>
+         </button>
+       )}
+     </>
+   ), [pdfLoading, colabOpen, user, informe?.id_ocupacion, navigate]);
 
   // Pasar las acciones al header
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, createContext, useContext } from 'react';
+import { useEffect, useState, useRef, createContext, useContext, useMemo } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -114,7 +114,7 @@ export default function ReportsLayout() {
   };
 
   return (
-    <InformeActionsContext.Provider value={{ setInformeActions }}>
+    <InformeActionsContext.Provider value={useMemo(() => ({ setInformeActions }), [])}>
     <div className="reports-root app-shell informes-shell">
       {/* Botón de Hamburguesa Flotante en Móvil */}
       <button
