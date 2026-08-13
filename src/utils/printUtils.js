@@ -423,8 +423,50 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           console.warn("No se pudieron cargar menus del POS:", e);
         }
         if (info?.dias?.length) {
+          // Determinar qué días del informe del POS deben aparecer en el PDF.
+          // Prioridad de la fuente de verdad:
+          //   1. `quote.printValidDates` (fechas que el usuario ve en su
+          //      carrito) — si el frontend lo pasó, lo respetamos.
+          //   2. `quote.items` serviceDate — si el frontend no pasó nada,
+          //      usamos los días que tienen items.
+          //   3. Rango [quote.eventDate, quote.endDate] — fallback final.
+          const normDate = (s) => {
+            if (!s) return '';
+            const str = String(s);
+            return str.length >= 10 ? str.slice(0, 10) : str;
+          };
+          const validDays = new Set(
+            (Array.isArray(quote.printValidDates) ? quote.printValidDates : [])
+              .map(d => normDate(d))
+              .filter(Boolean)
+          );
+          const itemsDays = new Set(
+            (Array.isArray(quote.items) ? quote.items : [])
+              .map(it => normDate(it?.serviceDate || it?.date || it?.eventDate))
+              .filter(Boolean)
+          );
+          const rangeStart = normDate(quote.eventDate);
+          const rangeEnd = normDate(quote.endDate || quote.eventDate);
+          const inRange = (dateStr) => {
+            if (!dateStr) return true;
+            const d = normDate(dateStr);
+            if (rangeStart && d < rangeStart) return false;
+            if (rangeEnd && d > rangeEnd) return false;
+            return true;
+          };
+          const allowedDays = validDays.size > 0
+            ? validDays
+            : (itemsDays.size > 0 ? itemsDays : null);
+          const diasFiltrados = (info.dias || []).filter(d => {
+            const dayKey = normDate(d?.fecha_evento);
+            if (!dayKey) return true; // sin fecha → no filtrar
+            if (allowedDays) {
+              return allowedDays.has(dayKey);
+            }
+            return inRange(dayKey);
+          });
           const eventSalon = info.Salon || quote.salon || event?.salon || 'Salón';
-          const entries = info.dias.map(d => {
+          const entries = diasFiltrados.map(d => {
             const itemsList = Array.isArray(d.items) ? d.items : [];
             let itemsTiempoComida = [];
             if (d.descripcion_montaje) {
@@ -540,7 +582,21 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       }
     }
 
-    const items = Array.isArray(quote.items) ? quote.items : [];
+    const itemsRaw = Array.isArray(quote.items) ? quote.items : [];
+    // Capa extra de seguridad: si el frontend pasó `printValidDates`,
+    // filtramos los items que no estén en esas fechas. Así el PDF nunca
+    // puede mostrar items "huérfanos" aunque el llamador no haya filtrado.
+    let items = itemsRaw;
+    if (Array.isArray(quote.printValidDates) && quote.printValidDates.length > 0) {
+      const allowed = new Set(
+        quote.printValidDates.map(d => String(d || '').slice(0, 10)).filter(Boolean)
+      );
+      items = itemsRaw.filter(it => {
+        const sd = String(it?.serviceDate || it?.date || it?.eventDate || '').slice(0, 10);
+        if (sd.length !== 10) return true;
+        return allowed.has(sd);
+      });
+    }
     const subtotalDoc = Number(quote.subtotal || items.reduce((sum, item) => {
       const qty = Number(item?.qty ?? item?.quantity ?? 0);
       const price = Number(item?.price || 0);

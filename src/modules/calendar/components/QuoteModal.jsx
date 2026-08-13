@@ -752,6 +752,29 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
   const removeServiceItem = (rowId) => setQuote(prev => ({ ...prev, items: prev.items.filter(i => i.rowId !== rowId) }));
 
+  // Construye una versión "imprimible" del quote: filtra los items
+  // "huérfanos" (cuyo serviceDate ya no está en las fechas visibles del
+  // carrito) para que el PDF/contrato refleje exactamente lo que el
+  // usuario ve en pantalla. También pasa `printValidDates` para que el
+  // menú del POS se filtre igual.
+  const buildPrintableQuote = useCallback((sourceQuote, totalsObj) => {
+    const allowedDates = new Set(availableServiceDates);
+    const norm = (s) => String(s || '').slice(0, 10);
+    const cleanItems = (Array.isArray(sourceQuote?.items) ? sourceQuote.items : []).filter(it => {
+      const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
+      if (sd.length !== 10) return true; // sin fecha → se queda
+      return allowedDates.has(sd);
+    });
+    return {
+      ...sourceQuote,
+      items: cleanItems,
+      subtotal: totalsObj?.subtotal ?? sourceQuote.subtotal,
+      discountAmount: totalsObj?.discountAmount ?? sourceQuote.discountAmount,
+      total: totalsObj?.total ?? sourceQuote.total,
+      printValidDates: Array.from(allowedDates)
+    };
+  }, [availableServiceDates]);
+
   const handleSelectAllToggle = () => {
     const allSelected = quote.items.length > 0 && quote.items.every(i => selectedItemIds.has(i.rowId));
     setSelectedItemIds(allSelected ? new Set() : new Set(quote.items.map(i => i.rowId)));
@@ -1012,7 +1035,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         
         if (pf) {
           const printWin = window.open("/loading.html", "_blank", "width=1000,height=800,scrollbars=yes");
-          const printUrl = await generateQuotePrintDocument(finalQuote, user, pf, event);
+          const printUrl = await generateQuotePrintDocument(buildPrintableQuote(finalQuote, totals), user, pf, event);
           if (printUrl && printWin) {
             printWin.location.href = printUrl;
           } else {
@@ -1049,7 +1072,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
           if (waResult.isConfirmed) {
             const printWin = window.open("/loading.html", "_blank", "width=1000,height=800,scrollbars=yes");
-            const printUrl = await generateQuotePrintDocument(finalQuote, user, "standard", event);
+            const printUrl = await generateQuotePrintDocument(buildPrintableQuote(finalQuote, totals), user, "standard", event);
             if (printUrl && printWin) {
               printWin.location.href = printUrl;
             } else {
@@ -1496,7 +1519,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const printWin = window.open("/loading.html", "_blank", "width=1000,height=800,scrollbars=yes");
 
     const printUrl = await generateQuotePrintDocument(
-      { ...quote, subtotal: totals.subtotal, discountAmount: totals.discountAmount, total: totals.total },
+      buildPrintableQuote(quote, totals),
       user,
       printOption,
       event
@@ -4106,6 +4129,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             if (val && (p.companyId || p.companyName)) {
                               next.dueDate = calculateDueDate(val);
                             }
+                            // Limpiar items con serviceDate fuera del nuevo rango
+                            const norm = (s) => String(s || '').slice(0, 10);
+                            const newStart = norm(val);
+                            const newEnd = norm(next.endDate || val);
+                            if (newStart && Array.isArray(next.items)) {
+                              next.items = next.items.filter(it => {
+                                const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
+                                if (sd.length !== 10) return true;
+                                if (newStart && sd < newStart) return false;
+                                if (newEnd && sd > newEnd) return false;
+                                return true;
+                              });
+                            }
                             return next;
                           });
                         }}
@@ -4119,7 +4155,26 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         style={fieldInput} 
                         type="date" 
                         value={quote.endDate || ''} 
-                        onChange={e => setQuote(p => ({ ...p, endDate: e.target.value }))}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setQuote(p => {
+                            const next = { ...p, endDate: val };
+                            // Limpiar items con serviceDate fuera del nuevo rango
+                            const norm = (s) => String(s || '').slice(0, 10);
+                            const newStart = norm(next.eventDate);
+                            const newEnd = norm(val || next.eventDate);
+                            if (newEnd && Array.isArray(next.items)) {
+                              next.items = next.items.filter(it => {
+                                const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
+                                if (sd.length !== 10) return true;
+                                if (newStart && sd < newStart) return false;
+                                if (newEnd && sd > newEnd) return false;
+                                return true;
+                              });
+                            }
+                            return next;
+                          });
+                        }}
                       />
                     </div>
                     

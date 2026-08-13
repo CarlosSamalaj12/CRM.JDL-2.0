@@ -205,6 +205,60 @@ export default function InformeView() {
       console.warn('Pre-capture cleanup failed:', e);
     }
 
+    // Dimensiones de la página A4 y margen del PDF (1cm, alineado con el
+    // padding-top del .iv-documento). Se calculan ANTES de la captura
+    // porque el clon necesita el ancho útil de la página.
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const marginMm = 10; // 1 cm
+    const usableW = pageW - marginMm * 2;
+    const usableH = pageH - marginMm * 2;
+
+    // Ancho objetivo del documento en el clon: el ancho útil de la página
+    // A4 expresado en px a 96dpi (190mm ≈ 718px). Con esto el canvas se
+    // captura SIEMPRE a ancho de página y la escala del PDF es 1:1
+    // (1px CSS = 1/96in), sin importar el ancho de la ventana actual.
+    // Antes el documento se estiraba/comprimía según la ventana (en
+    // móvil/ventana angosta el texto salía enorme y estirado; en
+    // escritorio salía ~15% más chico que en pantalla).
+    const targetWidthPx = (usableW / 25.4) * 96;
+
+    // Intervalos de contenido (líneas de texto y elementos no-divisibles)
+    // con los que se calculan cortes de página limpios. Se llenan dentro
+    // de `onclone` (sobre el MISMO clon que captura html2canvas) para que
+    // coincidan 1:1 con el canvas resultante.
+    let safeBreakIntervals = [];
+
+    // El logo del encabezado se muestra con filter: invert(1) porque es el
+    // logo BLANCO de la marca (/logo.png = Oficial_JDL_blanco.png).
+    // html2canvas NO aplica filtros CSS, así que en el PDF el logo saldría
+    // blanco-sobre-blanco (invisible). Generamos la versión ya invertida
+    // con un canvas del documento real (donde la imagen ya está cargada) y
+    // la inyectamos en el clon que se va a capturar.
+    let logoDataUrl = '';
+    try {
+      const headerLogo = el.querySelector('.iv-header-left img');
+      if (headerLogo && headerLogo.naturalWidth > 0) {
+        const logoCanvas = document.createElement('canvas');
+        logoCanvas.width = headerLogo.naturalWidth;
+        logoCanvas.height = headerLogo.naturalHeight;
+        const logoCtx = logoCanvas.getContext('2d');
+        logoCtx.drawImage(headerLogo, 0, 0);
+        const imageData = logoCtx.getImageData(0, 0, logoCanvas.width, logoCanvas.height);
+        const px = imageData.data;
+        for (let i = 0; i < px.length; i += 4) {
+          px[i] = 255 - px[i];
+          px[i + 1] = 255 - px[i + 1];
+          px[i + 2] = 255 - px[i + 2];
+        }
+        logoCtx.putImageData(imageData, 0, 0);
+        logoDataUrl = logoCanvas.toDataURL('image/png');
+      }
+    } catch (e) {
+      console.warn('No se pudo generar la versión invertida del logo:', e);
+    }
+
     let canvas;
     try {
       canvas = await html2canvas(el, {
@@ -212,13 +266,63 @@ export default function InformeView() {
         backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight,
+        // Viewport de escritorio fijo: evita que en el clon apliquen los
+        // media queries de móvil (padding, imágenes apiladas, etc.) y
+        // garantiza que el documento se maquete con los estilos desktop.
+        windowWidth: Math.max(el.scrollWidth, 1024),
+        windowHeight: Math.max(el.scrollHeight, Math.ceil(targetWidthPx * 1.5)),
         onclone: (clonedDoc) => {
           try {
             clonedDoc.querySelectorAll('.no-print').forEach((n) => {
               n.style.display = 'none';
             });
+            // El sidebar de colaboración no debe aparecer en el PDF
+            const colabSidebar = clonedDoc.querySelector('.colab-sidebar');
+            if (colabSidebar) colabSidebar.style.display = 'none';
+            // Ajustar el documento clonado al ancho de página A4 para
+            // que la escala del PDF sea exacta.
+            const docEl = clonedDoc.querySelector('.iv-documento');
+            if (docEl) {
+              docEl.style.width = `${Math.ceil(targetWidthPx)}px`;
+              docEl.style.maxWidth = 'none';
+              docEl.style.margin = '0 auto';
+              docEl.style.boxSizing = 'border-box';
+            }
+            const container = clonedDoc.querySelector('.informe-print-container');
+            if (container) {
+              container.style.width = '100%';
+              container.style.maxWidth = 'none';
+            }
+            // Optimizar el espacio del PDF: compactar la galería de imágenes
+            // a 200px / 3 por fila (como el CSS de impresión) para que las
+            // fotos de referencia no dejen páginas casi vacías. Se inyecta
+            // ANTES de medir los cortes para que la paginación coincida con
+            // el layout que se captura.
+            const imgStyle = clonedDoc.createElement('style');
+            imgStyle.textContent = [
+              '.iv-imagenes { gap: 0.5rem !important; }',
+              '.iv-imagen-item { width: 200px !important; }',
+              '.iv-imagen-thumb { width: 200px !important; height: 200px !important; }',
+              '.iv-imagen-thumb img { max-width: 100% !important; max-height: 100% !important; }',
+            ].join('\n');
+            clonedDoc.head.appendChild(imgStyle);
+            // Reemplazar el logo del encabezado por la versión ya invertida
+            // (html2canvas ignora el filter: invert(1) del original).
+            if (logoDataUrl) {
+              const headerLogo = clonedDoc.querySelector('.iv-header-left img');
+              if (headerLogo) {
+                headerLogo.src = logoDataUrl;
+                headerLogo.removeAttribute('srcset');
+                headerLogo.style.filter = 'none';
+              }
+            }
+            // Medir las líneas de texto y elementos no-divisibles sobre el
+            // clon que se va a capturar (misma maquetación, mismas fuentes),
+            // para que los saltos de página del PDF nunca corten una línea
+            // de texto ni partan un elemento a la mitad.
+            if (docEl) {
+              safeBreakIntervals = measureSafeBreakPositions(docEl, PDF_AVOID_SPLIT_SELECTOR);
+            }
           } catch (e) { /* ignore */ }
         }
       });
@@ -226,45 +330,75 @@ export default function InformeView() {
       restoreStyles();
     }
 
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    // Margen del PDF: 1cm (alineado con el padding-top del .iv-documento).
-    const marginMm = 10; // 1 cm
-    const usableW = pageW - marginMm * 2;
-    const usableH = pageH - marginMm * 2;
-
     const mmPerPx = usableW / canvas.width;
     const pageContentPxH = usableH / mmPerPx;
 
-    const sliceCanvas = document.createElement('canvas');
-    const sliceHeightPx = Math.ceil(pageContentPxH);
-    sliceCanvas.width = canvas.width;
-    sliceCanvas.height = sliceHeightPx;
-    const sliceCtx = sliceCanvas.getContext('2d');
+    // Convertir los intervalos de contenido (px CSS) a px del canvas para
+    // paginar el PDF sin cortar líneas de texto ni elementos.
+    const canvasScale = canvas.width / targetWidthPx;
+    const contentItems = safeBreakIntervals.map(iv => ({
+      t: Math.round(iv.t * canvasScale),
+      b: Math.round(iv.b * canvasScale),
+    }));
 
+    // Calcular los cortes de página: cada página mide pageContentPxH, pero
+    // si ese límite caería DENTRO de una línea de texto o de un elemento
+    // no-divisible, el corte sube al inicio de ese elemento (que pasa
+    // entero a la siguiente página). Si ningún elemento cruza el límite,
+    // se corta en el límite mismo (página llena).
+    const pages = [];
     let yPx = 0;
-    let pageIndex = 0;
+    const minPageH = pageContentPxH * 0.15; // evitar páginas casi vacías
     while (yPx < canvas.height) {
-      const remainingPx = canvas.height - yPx;
-      const drawHeightPx = Math.min(sliceHeightPx, remainingPx);
+      const targetY = yPx + pageContentPxH;
+      if (targetY >= canvas.height) {
+        pages.push({ y: yPx, h: canvas.height - yPx });
+        break;
+      }
+      let cut = targetY;
+      for (const it of contentItems) {
+        if (it.t <= yPx) continue;   // ya quedó en páginas anteriores
+        if (it.t >= targetY) break;  // empieza después del límite → es seguro
+        if (it.b > targetY) {        // se cortaría → moverlo entero
+          cut = it.t;
+          break;
+        }
+      }
+      // Fallback defensivo: si el corte quedaría demasiado cerca del inicio
+      // (elemento más alto que una hoja), cortar en el límite de página.
+      if (cut - yPx < minPageH) cut = targetY;
+      pages.push({ y: yPx, h: cut - yPx });
+      yPx = cut;
+    }
 
-      sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-      sliceCtx.drawImage(
+    pages.forEach((page, pageIndex) => {
+      const drawHeightPx = page.h;
+
+      // Canvas del tamaño EXACTO de la página. Antes se reutilizaba un
+      // canvas de altura de página completa y se insertaba la imagen en
+      // una altura menor (la del contenido real): la imagen PNG (más alta)
+      // quedaba aplastada verticalmente y la página salía borrosa /
+      // pixeleada, como una imagen mal colocada. Con el canvas a la altura
+      // exacta, la proporción del contenido se conserva 1:1 y las páginas
+      // se ven nítidas.
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = drawHeightPx;
+      const pageCtx = pageCanvas.getContext('2d');
+      pageCtx.fillStyle = '#ffffff';
+      pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      pageCtx.drawImage(
         canvas,
-        0, yPx, canvas.width, drawHeightPx,
-        0, 0, canvas.width, drawHeightPx
+        0, page.y, canvas.width, drawHeightPx,
+        0, 0, pageCanvas.width, drawHeightPx
       );
 
-      const sliceImg = sliceCanvas.toDataURL('image/png');
+      const sliceImg = pageCanvas.toDataURL('image/png');
       const sliceRenderH = drawHeightPx * mmPerPx;
 
       if (pageIndex > 0) pdf.addPage();
       pdf.addImage(sliceImg, 'PNG', marginMm, marginMm, usableW, sliceRenderH);
-
-      yPx += drawHeightPx;
-      pageIndex += 1;
-    }
+    });
     return pdf;
   };
 
@@ -932,4 +1066,72 @@ function agruparItemsPorTiempoComida(items, itemsTc) {
     resultado.push({ grupoLabel: 'Sin asignar', grupoColor: '#94a3b8', items: grupos['__sin_asignar'] });
   }
   return resultado;
+}
+
+// ─── Ayudantes de paginación del PDF ───
+
+// Elementos que no deben dividirse entre páginas al generar el PDF
+// (equivalente a los `page-break-inside: avoid` del CSS de impresión).
+const PDF_AVOID_SPLIT_SELECTOR = [
+  '.iv-header',
+  '.iv-header-table',
+  '.iv-info-grid',
+  '.iv-alertas-banner',
+  '.iv-day-header',
+  '.iv-item-row',
+  '.iv-menu-comentario',
+  // Nota: `.iv-montaje-grid` / `.iv-montaje-multi` NO se marcan como
+  // no-divisibles (eran la principal fuente de espacio desperdiciado al
+  // moverse enteros a la siguiente hoja). En su lugar se protegen las
+  // filas internas `.iv-montaje-item`, de modo que el cuadro se corta en
+  // los límites de sus pares etiqueta/valor (nunca a mitad de fila).
+  '.iv-montaje-item',
+  '.iv-montaje-comentario',
+  '.iv-imagen-item',
+].join(',');
+
+// Mide los intervalos verticales de contenido (en px CSS, relativos al
+// inicio de `root`): cada línea de texto (fuera de elementos no-divisibles)
+// y los límites de los elementos que no deben dividirse. El paginador usa
+// estos intervalos para que el corte de página nunca caiga dentro de una
+// línea de texto ni parta un elemento (fila, cuadro de montaje, imagen,
+// etc.) a la mitad.
+function measureSafeBreakPositions(root, avoidSelector) {
+  const doc = root.ownerDocument;
+  const rootTop = root.getBoundingClientRect().top;
+  const intervals = [];
+
+  // Límites (inicio/fin) de los elementos que no deben dividirse
+  root.querySelectorAll(avoidSelector).forEach((n) => {
+    const r = n.getBoundingClientRect();
+    if (r.height <= 0) return;
+    intervals.push({ t: r.top - rootTop, b: r.bottom - rootTop });
+  });
+
+  // Líneas de texto (solo fuera de elementos no-divisibles; dentro de ellos
+  // solo se permite cortar en sus propios límites). Se usa el documento del
+  // clon (root.ownerDocument) porque createRange/createTreeWalker exigen
+  // operar sobre el mismo documento del nodo.
+  const walker = doc.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+  let node;
+  while ((node = walker.nextNode())) {
+    const text = (node.textContent || '').trim();
+    if (!text) continue;
+    let p = node.parentElement;
+    let insideAvoid = false;
+    while (p && p !== root) {
+      if (p.matches(avoidSelector)) { insideAvoid = true; break; }
+      p = p.parentElement;
+    }
+    if (insideAvoid) continue;
+    const range = doc.createRange();
+    range.selectNodeContents(node);
+    const lineRects = range.getClientRects();
+    for (let i = 0; i < lineRects.length; i++) {
+      const r = lineRects[i];
+      if (r.height > 0) intervals.push({ t: r.top - rootTop, b: r.bottom - rootTop });
+    }
+  }
+
+  return intervals.sort((a, b) => a.t - b.t);
 }
