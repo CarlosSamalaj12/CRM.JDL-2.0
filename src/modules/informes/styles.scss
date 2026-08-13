@@ -4304,6 +4304,11 @@ body.informes-theme {
       }
     
       /* ─── IMÁGENES EN PRINT: 3 columnas × 2 filas por hoja ─── */
+      /* IMPORTANTE: el contenedor debe poder fragmentarse (page-break-inside:
+         auto). Los saltos los definen los propios items (:nth-child(6n) /
+         :nth-child(6n+1)). Si el contenedor usa `avoid` y hay más de 6
+         imágenes, Chrome no puede fragmentarlo limpio e inserta banda en
+         blanco al inicio de cada página. */
       .iv-imagenes {
         display: grid !important;
         grid-template-columns: repeat(3, 1fr) !important;
@@ -4312,8 +4317,8 @@ body.informes-theme {
         padding: 0 !important;
         page-break-before: always !important;
         break-before: page !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
       }
     
       .iv-imagen-item {

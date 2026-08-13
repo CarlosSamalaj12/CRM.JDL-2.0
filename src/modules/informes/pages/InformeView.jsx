@@ -118,161 +118,161 @@ export default function InformeView() {
   };
 
   const handlePrint = async () => {
-    // Esperar a que todas las imágenes carguen antes de imprimir
-    const imgs = Array.from(document.images).filter(img => !img.complete);
+    // FIX: en vez de window.print() (que pasa por el motor de impresión de
+    // Chrome y aplica el margen residual del @page), generamos el PDF con
+    // la misma lógica de handleExportPDF y lo abrimos en una nueva ventana.
+    // El usuario imprime desde el visor de PDF del navegador, que respeta
+    // los márgenes exactos del PDF. Así el formato es IDÉNTICO al "Exportar PDF".
+    setPdfLoading(true);
+    try {
+      const pdf = await generarPdfInforme();
+      if (!pdf) return;
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      // Liberar el URL después de un tiempo prudente
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      console.error('Error al generar PDF para imprimir:', err);
+      toast.error('Error al generar el PDF. Intenta usar la opción "Exportar PDF" e imprimir desde ahí.');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  // Genera el jsPDF del informe con html2canvas. Usado por handleExportPDF
+  // (descarga) y handlePrint (abre en nueva ventana). La función hace TODO
+  // el pre-trabajo del DOM (ocultar no-print, neutralizar sticky, etc.) y
+  // pagina el contenido en tajadas. Devuelve la instancia de jsPDF.
+  const generarPdfInforme = async () => {
+    const { default: html2canvas } = await import('html2canvas');
+    const { default: jsPDF } = await import('jspdf');
+    const el = docRef.current;
+    if (!el) return null;
+
+    // Esperar a que se carguen todas las imágenes dentro del documento para
+    // evitar ancho/alto de 0 en el canvas
+    const imgs = Array.from(el.querySelectorAll('img')).filter(img => !img.complete);
     if (imgs.length > 0) {
       await Promise.race([
         Promise.all(imgs.map(img => new Promise(r => { img.onload = r; img.onerror = r; }))),
-        new Promise(r => setTimeout(r, 5000)),
+        new Promise(r => setTimeout(r, 5000)) // timeout de 5 segundos máximo
       ]);
     }
-    await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2000))]);
-    await new Promise(r => setTimeout(r, 500));
-    window.print();
+
+    // Ocultar elementos que no deben aparecer en el PDF (actions-bar,
+    // .no-print, position:sticky/fixed que html2canvas renderiza raro).
+    const previouslyHidden = [];
+    const stickyElements = [];
+    const restoreStyles = () => {
+      previouslyHidden.forEach(({ el, prev }) => { el.style.display = prev; });
+      stickyElements.forEach(({ el, prev }) => {
+        el.style.position = prev.position;
+        el.style.top = prev.top;
+        el.style.zIndex = prev.zIndex;
+        el.style.backdropFilter = prev.backdropFilter;
+      });
+    };
+    try {
+      if (actionsBarRef.current) {
+        previouslyHidden.push({ el: actionsBarRef.current, prev: actionsBarRef.current.style.display });
+        actionsBarRef.current.style.display = 'none';
+      }
+      el.querySelectorAll('.no-print').forEach((n) => {
+        previouslyHidden.push({ el: n, prev: n.style.display });
+        n.style.display = 'none';
+      });
+      el.querySelectorAll('*').forEach((n) => {
+        const cs = window.getComputedStyle(n);
+        if (cs.position === 'sticky' || cs.position === 'fixed') {
+          stickyElements.push({
+            el: n,
+            prev: {
+              position: n.style.position,
+              top: n.style.top,
+              zIndex: n.style.zIndex,
+              backdropFilter: n.style.backdropFilter || n.style.webkitBackdropFilter,
+            },
+          });
+          n.style.position = 'static';
+          n.style.top = 'auto';
+          n.style.zIndex = 'auto';
+          n.style.backdropFilter = 'none';
+          n.style.webkitBackdropFilter = 'none';
+        }
+      });
+    } catch (e) {
+      console.warn('Pre-capture cleanup failed:', e);
+    }
+
+    let canvas;
+    try {
+      canvas = await html2canvas(el, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        onclone: (clonedDoc) => {
+          try {
+            clonedDoc.querySelectorAll('.no-print').forEach((n) => {
+              n.style.display = 'none';
+            });
+          } catch (e) { /* ignore */ }
+        }
+      });
+    } finally {
+      restoreStyles();
+    }
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    // Margen del PDF: 1cm (alineado con el padding-top del .iv-documento).
+    const marginMm = 10; // 1 cm
+    const usableW = pageW - marginMm * 2;
+    const usableH = pageH - marginMm * 2;
+
+    const mmPerPx = usableW / canvas.width;
+    const pageContentPxH = usableH / mmPerPx;
+
+    const sliceCanvas = document.createElement('canvas');
+    const sliceHeightPx = Math.ceil(pageContentPxH);
+    sliceCanvas.width = canvas.width;
+    sliceCanvas.height = sliceHeightPx;
+    const sliceCtx = sliceCanvas.getContext('2d');
+
+    let yPx = 0;
+    let pageIndex = 0;
+    while (yPx < canvas.height) {
+      const remainingPx = canvas.height - yPx;
+      const drawHeightPx = Math.min(sliceHeightPx, remainingPx);
+
+      sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+      sliceCtx.drawImage(
+        canvas,
+        0, yPx, canvas.width, drawHeightPx,
+        0, 0, canvas.width, drawHeightPx
+      );
+
+      const sliceImg = sliceCanvas.toDataURL('image/png');
+      const sliceRenderH = drawHeightPx * mmPerPx;
+
+      if (pageIndex > 0) pdf.addPage();
+      pdf.addImage(sliceImg, 'PNG', marginMm, marginMm, usableW, sliceRenderH);
+
+      yPx += drawHeightPx;
+      pageIndex += 1;
+    }
+    return pdf;
   };
 
   const handleExportPDF = async () => {
     setPdfLoading(true);
     try {
-      const { default: html2canvas } = await import('html2canvas');
-      const { default: jsPDF } = await import('jspdf');
-      const el = docRef.current;
-      if (!el) return;
-
-      // Esperar a que se carguen todas las imágenes dentro del documento para evitar ancho/alto de 0 en el canvas
-      const imgs = Array.from(el.querySelectorAll('img')).filter(img => !img.complete);
-      if (imgs.length > 0) {
-        await Promise.race([
-          Promise.all(imgs.map(img => new Promise(r => { img.onload = r; img.onerror = r; }))),
-          new Promise(r => setTimeout(r, 5000)) // timeout de 5 segundos máximo
-        ]);
-      }
-
-      // ── Ocultar elementos que no deben aparecer en el PDF ──
-      // El actions-bar es sibling del docRef y tiene position:sticky.
-      // html2canvas lo renderiza como una banda opaca en medio del documento.
-      // Lo ocultamos directamente en el DOM antes de la captura y lo
-      // restauramos después. También quitamos position:sticky de todo el
-      // árbol por si hay otros elementos con sticky dentro del documento.
-      const previouslyHidden = [];
-      const stickyElements = [];
-      const restoreStyles = () => {
-        previouslyHidden.forEach(({ el, prev }) => { el.style.display = prev; });
-        stickyElements.forEach(({ el, prev }) => {
-          el.style.position = prev.position;
-          el.style.top = prev.top;
-          el.style.zIndex = prev.zIndex;
-          el.style.backdropFilter = prev.backdropFilter;
-        });
-      };
-      try {
-        // 1) Ocultar el actions-bar (el sospechoso principal)
-        if (actionsBarRef.current) {
-          previouslyHidden.push({ el: actionsBarRef.current, prev: actionsBarRef.current.style.display });
-          actionsBarRef.current.style.display = 'none';
-        }
-        // 2) Buscar y ocultar CUALQUIER elemento .no-print que esté dentro
-        //    del documento a capturar (defensa adicional)
-        el.querySelectorAll('.no-print').forEach((n) => {
-          previouslyHidden.push({ el: n, prev: n.style.display });
-          n.style.display = 'none';
-        });
-        // 3) Neutralizar position: sticky/fixed en todo el árbol del documento
-        el.querySelectorAll('*').forEach((n) => {
-          const cs = window.getComputedStyle(n);
-          if (cs.position === 'sticky' || cs.position === 'fixed') {
-            stickyElements.push({
-              el: n,
-              prev: {
-                position: n.style.position,
-                top: n.style.top,
-                zIndex: n.style.zIndex,
-                backdropFilter: n.style.backdropFilter || n.style.webkitBackdropFilter,
-              },
-            });
-            n.style.position = 'static';
-            n.style.top = 'auto';
-            n.style.zIndex = 'auto';
-            // backdrop-filter no es soportado por html2canvas y se renderiza
-            // como un bloque opaco; lo quitamos también.
-            n.style.backdropFilter = 'none';
-            n.style.webkitBackdropFilter = 'none';
-          }
-        });
-      } catch (e) {
-        console.warn('Pre-capture cleanup failed:', e);
-      }
-
-      let canvas;
-      try {
-        canvas = await html2canvas(el, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          logging: false,
-          useCORS: true,
-          windowWidth: el.scrollWidth,
-          windowHeight: el.scrollHeight,
-          onclone: (clonedDoc) => {
-            try {
-              // Backup en el clon por si algo se nos escapó
-              clonedDoc.querySelectorAll('.no-print').forEach((n) => {
-                n.style.display = 'none';
-              });
-            } catch (e) { /* ignore */ }
-          }
-        });
-      } finally {
-        // Restaurar SIEMPRE, incluso si html2canvas lanza
-        restoreStyles();
-      }
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      // Dejar 1.5cm de margen blanco alrededor del contenido, igual que @page
-      const marginMm = 15; // 1.5 cm
-      const usableW = pageW - marginMm * 2;
-      const usableH = pageH - marginMm * 2;
-
-      // Relación mm/px de la imagen cuando se escala al ancho útil
-      const mmPerPx = usableW / canvas.width;
-      // Altura en píxeles del canvas que entra por página (área útil)
-      const pageContentPxH = usableH / mmPerPx;
-
-      // Cortamos el canvas en tajadas (slices) y cada página del PDF
-      // recibe UNA tajada. Así NO se duplica contenido entre páginas.
-      const sliceCanvas = document.createElement('canvas');
-      const sliceHeightPx = Math.ceil(pageContentPxH);
-      sliceCanvas.width = canvas.width;
-      sliceCanvas.height = sliceHeightPx;
-      const sliceCtx = sliceCanvas.getContext('2d');
-
-      let yPx = 0;
-      let pageIndex = 0;
-      while (yPx < canvas.height) {
-        const remainingPx = canvas.height - yPx;
-        const drawHeightPx = Math.min(sliceHeightPx, remainingPx);
-
-        // Limpiar tajada y dibujar la porción correspondiente del canvas original
-        sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-        sliceCtx.drawImage(
-          canvas,
-          0, yPx, canvas.width, drawHeightPx,   // src: rectángulo del canvas original
-          0, 0, canvas.width, drawHeightPx      // dst: rectángulo destino en el slice
-        );
-
-        const sliceImg = sliceCanvas.toDataURL('image/png');
-        // Render height en mm: si la última tajada es más baja, ajustar para
-        // que no quede un hueco blanco extra al final.
-        const sliceRenderH = drawHeightPx * mmPerPx;
-
-        if (pageIndex > 0) pdf.addPage();
-        pdf.addImage(sliceImg, 'PNG', marginMm, marginMm, usableW, sliceRenderH);
-
-        yPx += drawHeightPx;
-        pageIndex += 1;
-      }
-      // Generar nombre de archivo descriptivo (institución o encargado + no. cotización)
+      const pdf = await generarPdfInforme();
+      if (!pdf) return;
       const cleanString = (str) => {
         return str
           ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9-_]/g, "_")
@@ -281,7 +281,6 @@ export default function InformeView() {
       const namePart = cleanString(informe.Institucion || informe.EncargadoEvento || "");
       const docPart = cleanString(informe.NoDoc || id);
       const filename = `informe_${namePart}_${docPart}.pdf`.replace(/_+/g, "_").replace(/_$/, "").toLowerCase();
-
       pdf.save(filename);
     } catch (err) {
       console.error('Error al exportar PDF:', err);
@@ -358,12 +357,25 @@ export default function InformeView() {
   return (
     <div className={`informe-view-layout ${colabOpen ? 'colab-open' : ''}`}>
       <style media="print">{`
+        /* Reset completo de la cadena de ancestros al imprimir.
+           Importante: este <style> está inline en el DOM, así que su
+           !important pisa a los archivos CSS externos. Si no reseteamos
+           margin/padding aquí, los valores del tema (ej. .app-shell
+           padding: 1rem 1.5rem, body margin: 8px) se mantienen y suman
+           espacio en blanco arriba del logo. */
         html, body, body.informes-theme, #root, .reports-root, .app-shell, .informes-shell, main, .informe-view-layout, .informe-print-container {
+          display: block !important;
           background: #ffffff !important;
           background-color: #ffffff !important;
           background-image: none !important;
-          min-height: 0 !important;
           height: auto !important;
+          min-height: 0 !important;
+          max-height: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: none !important;
+          box-shadow: none !important;
+          overflow: visible !important;
         }
         body > :not(#root),
         #root > :not(.reports-root),
@@ -384,15 +396,34 @@ export default function InformeView() {
         }
         .iv-documento {
           box-shadow: none !important;
-          padding: 0 !important;
-          margin: 0 auto !important;
+          /* FIX CORRECTO: position absolute + top:0 ancla el documento al
+             origen de la página, eliminando el margen residual del navegador
+             (que en Kyocera/Guradar como PDF añade ~7-10cm). Para la
+             paginación multi-página usamos padding-top en el primer
+             .iv-day-block y dejamos que el navegador fluya el resto
+             normalmente. */
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          background: #ffffff !important;
+          background-color: #ffffff !important;
+          padding: 0 1.5cm 1cm 1.5cm !important;
+          margin: 0 !important;
           width: 100% !important;
           max-width: 100% !important;
           height: auto !important;
           min-height: 0 !important;
           border: none !important;
-          background: #ffffff !important;
-          background-color: #ffffff !important;
+          font-family: 'Georgia', 'Times New Roman', serif !important;
+          overflow: visible !important;
+        }
+        /* Padding-top del primer día para que tenga espacio arriba (1cm).
+           El position:absolute del padre ancla la primera página sin
+           margen residual, y este padding-top le da el espacio limpio. */
+        .iv-day-block:first-of-type {
+          padding-top: 1cm !important;
+          margin-top: 0 !important;
         }
         .iv-imagenes {
           display: grid !important;
@@ -400,8 +431,8 @@ export default function InformeView() {
           gap: 0.25in !important;
           page-break-before: always !important;
           break-before: page !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
+          page-break-inside: auto !important;
+          break-inside: auto !important;
         }
         .iv-imagen-item {
           display: flex !important;

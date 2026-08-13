@@ -4096,12 +4096,32 @@ button[data-tooltip-bottom]::after {
 
 @media print {
   @page {
-    margin: 1.5cm;
+    margin: 0;
     size: A4;
   }
 
+  /* Reset completo de la cadena de ancestros. Este CSS es "defensa en
+     profundidad": el <style media="print"> inline en InformeView.jsx ya
+     hace este reset y tiene precedencia, pero lo replicamos acá para
+     cubrir el caso de export PDF (html2canvas clona el DOM y copia este
+     stylesheet, pero el <style> inline queda en el original, no en el
+     clon — así que este reset es el que efectivamente controla el PDF). */
+  html, body, body.informes-theme, #root, .reports-root, .app-shell, .informes-shell, main, .informe-view-layout, .informe-print-container {
+    display: block !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
   body {
-    background: white !important;
     color: black !important;
     font-size: 10pt;
   }
@@ -4115,33 +4135,36 @@ button[data-tooltip-bottom]::after {
     display: none !important;
   }
 
-  .informe-view-layout {
-    display: block !important;
-  }
-
   .informe-view-layout.colab-open .informe-print-container {
     max-width: 100% !important;
   }
 
-  .informe-print-container {
-    padding: 0 !important;
-  }
-
   .iv-documento {
     box-shadow: none !important;
-    /* Padding generoso: actúa como margen de seguridad si el navegador
-       o el usuario configuran márgenes de página en "Ninguno" */
-    padding: 1.5cm 2cm !important;
+    /* FIX CORRECTO: position absolute + top:0 ancla el documento al
+       origen de la página, eliminando el margen residual del navegador.
+       Para la paginación multi-página usamos padding-top en el primer
+       .iv-day-block y dejamos que el navegador fluya el resto. */
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    padding: 0 1.5cm 1cm 1.5cm !important;
+    margin: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
     border: none !important;
     background: white !important;
+    background-color: white !important;
     font-family: 'Georgia', 'Times New Roman', serif !important;
+    overflow: visible !important;
   }
-
-  .app-shell {
-    padding: 0 !important;
-    max-width: none !important;
+  /* Padding-top del primer día para que tenga espacio arriba. */
+  .iv-day-block:first-of-type {
+    padding-top: 1cm !important;
+    margin-top: 0 !important;
   }
 
   .iv-title {
@@ -4200,8 +4223,12 @@ button[data-tooltip-bottom]::after {
   }
 
   .iv-day-block {
-    page-break-inside: avoid;
-    break-inside: avoid;
+    /* IMPORTANTE: NO usar break-inside: avoid aquí. Si un día es más alto
+       que una página, `avoid` impide que Chrome lo fragmente limpio e
+       inserta una banda en blanco al inicio de cada página resultante.
+       SCSS ya lo tenía como `auto`; este override lo revertía a `avoid`. */
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
 
   .iv-day-block + .iv-day-block {
