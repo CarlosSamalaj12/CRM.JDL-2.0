@@ -73,6 +73,21 @@ export async function getWeeklyServices(req, res, next) {
 export async function getEvents(req, res, next) {
   try {
     const { date } = req.query;
+    let currentUserId = req.user?.id;
+    if (!currentUserId && req.headers.authorization) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.decode(token);
+        if (decoded?.id) currentUserId = decoded.id;
+      } catch (_) {}
+    }
+
+    const escapedUserId = currentUserId ? pool.escape(currentUserId) : null;
+    const noteFilterClause = escapedUserId
+      ? `AND (n.mencion_a_id IS NULL OR n.mencion_a_id = '' OR n.usuario_id = ${escapedUserId} OR FIND_IN_SET(${escapedUserId}, n.mencion_a_id))`
+      : '';
+
     let query = `SELECT
         e.Idocupacion,
         e.Institucion,
@@ -87,7 +102,7 @@ export async function getEvents(req, res, next) {
         e.TipoEvento,
         e.Telefono,
         e.Salon,
-        (SELECT COUNT(*) FROM event_notas n WHERE n.idocupacion = e.Idocupacion) AS cant_notas,
+        (SELECT COUNT(*) FROM event_notas n WHERE n.idocupacion = e.Idocupacion ${noteFilterClause}) AS cant_notas,
         CASE
           WHEN COALESCE(m.tiene_alertas, 0) = 1 THEN 1
           WHEN EXISTS (

@@ -122,104 +122,13 @@ function LoadingDots({ color }) {
 
 /* ─── Fallback builder ─── */
 function createFallback() {
-  const dark = isDark();
-  const t = theme(dark);
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '360px',
-        padding: '40px 20px',
-        gap: '28px',
-        background: t.bgApp,
-        transition: 'background 0.3s ease',
-      }}
-    >
-      <style>{SPINNER_KEYFRAMES}</style>
-
-      <div
-        style={{
-          background: t.cardBg,
-          borderRadius: 16,
-          padding: '40px 48px',
-          boxShadow: t.cardShadow,
-          border: `1px solid ${t.cardBorder}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '24px',
-          maxWidth: 400,
-          width: '100%',
-          transition: 'background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
-        }}
-      >
-        {/* Logo / Brand icon */}
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 14,
-            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: 22,
-            fontWeight: 800,
-            letterSpacing: -1,
-            boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)',
-            animation: 'sr-logoPulse 2s ease-in-out infinite',
-          }}
-        >
-          J
-        </div>
-
-        {/* Spinner */}
-        <Spinner trackColor={t.spinnerTrack} />
-
-        {/* Skeleton card preview */}
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <SkeletonBar width="60%" height={14} from={t.shimmerFrom} to={t.shimmerTo} />
-          <SkeletonBar width="90%" height={10} from={t.shimmerFrom} to={t.shimmerTo} />
-          <SkeletonBar width="75%" height={10} from={t.shimmerFrom} to={t.shimmerTo} />
-          <div style={{ height: 1, background: t.divider, margin: '4px 0' }} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <SkeletonBar width={80} height={32} radius={8} from={t.shimmerFrom} to={t.shimmerTo} />
-            <SkeletonBar width={100} height={32} radius={8} from={t.shimmerFrom} to={t.shimmerTo} />
-          </div>
-        </div>
-
-        {/* Loading text with animated dots */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            color: t.textSecondary,
-            fontSize: 13,
-            fontWeight: 500,
-            animation: 'sr-fadeSlide 0.4s ease-out',
-          }}
-        >
-          Cargando<LoadingDots color={t.dotColor} />
-        </div>
-      </div>
-
-      <p style={{ margin: 0, fontSize: 12, color: t.textMuted, fontWeight: 400, textAlign: 'center' }}>
-        Preparando el contenido...
-      </p>
-    </div>
-  );
+  return null;
 }
 
 export default function SafeRoute({ children, fallback }) {
   return (
     <ErrorBoundary>
-      <Suspense fallback={fallback || createFallback()}>
+      <Suspense fallback={fallback || null}>
         {children}
       </Suspense>
     </ErrorBoundary>

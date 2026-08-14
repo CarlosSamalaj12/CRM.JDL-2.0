@@ -55,6 +55,8 @@ const getServiceCounts = (services, idOcupacion, fecha) => {
   return result;
 };
 
+const kanbanMemoryCache = {};
+
 export default function Kanban() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -241,7 +243,16 @@ export default function Kanban() {
   const hasFilter = filterStatus || filterTipo || filterSalon || filterAlertas;
 
   const loadEvents = useCallback(() => {
-    setLoading(true);
+    // Si ya tenemos tarjetas en memoria para esta fecha, NO bloquear con pantalla de carga
+    const cached = kanbanMemoryCache[selectedDate];
+    if (cached && cached.length > 0) {
+      setEvents(cached);
+      setEventsTotal(cached.length);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     fetchEvents(selectedDate)
       .then((eventsData) => {
         // groupId: para eventos multi-slot como "39901" + "39901_s1_20260801" compartimos el base "39901".
@@ -328,6 +339,7 @@ export default function Kanban() {
           };
         });
 
+        kanbanMemoryCache[selectedDate] = mapped;
         setEvents(mapped);
         setEventsTotal(mapped.length);
       })

@@ -365,8 +365,32 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         }
       }
     });
-    return () => { unsub(); };
-  }, [event?.id, event?.code]);
+
+    const unsubState = socketService.on('state-updated', async () => {
+      try {
+        const freshData = await loadCrmState({ cacheBust: true });
+        const currentEvId = String(event?.id || eventData?.id || eventProp?.id || '');
+        if (currentEvId) {
+          const freshEvent = (freshData?.events || []).find(e => String(e.id) === currentEvId || String(e.id_grupo) === currentEvId);
+          if (freshEvent?.quote?.advances) {
+            setQuote(prev => ({
+              ...prev,
+              advances: freshEvent.quote.advances || prev.advances,
+              advanceLogs: freshEvent.quote.advanceLogs || prev.advanceLogs,
+              items: freshEvent.quote.items || prev.items
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('Real-time socket update sync error:', err);
+      }
+    });
+
+    return () => {
+      unsub();
+      if (typeof unsubState === 'function') unsubState();
+    };
+  }, [event?.id, event?.code, eventData?.id, eventProp?.id]);
 
   const availableServiceDates = useMemo(() => {
     const datesSet = new Set();
@@ -667,7 +691,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   }, [quote.menuMontajeEntries, quote.menuMontajeVersion, quote.eventDate]);
 
   const abonosTotal = useMemo(() => quote.advances.reduce((sum, a) => sum + Number(a.amount || 0), 0), [quote.advances]);
-  const saldoPendiente = Math.max(0, totals.total - abonosTotal);
+  const rawSaldo = totals.total - abonosTotal;
+  const saldoPendiente = Math.max(0, rawSaldo);
+  const saldoAFavor = Math.max(0, abonosTotal - totals.total);
   const advanceRows = useMemo(() => (quote.advances || [])
     .map((item, index) => normalizeAdvance(item, index))
     .sort((a, b) => {
@@ -1262,12 +1288,30 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     });
   };
 
-  const handleOpenAdvances = (eventArg) => {
+  const handleOpenAdvances = async (eventArg) => {
     eventArg?.preventDefault?.();
     eventArg?.stopPropagation?.();
     resetAdvanceForm();
     setShowAdvancesModal(true);
     window.setTimeout(() => document.getElementById('quoteAdvanceAmount')?.focus(), 40);
+
+    try {
+      const freshData = await loadCrmState({ cacheBust: true });
+      const currentEvId = String(event?.id || eventData?.id || eventProp?.id || '');
+      if (currentEvId) {
+        const freshEvent = (freshData?.events || []).find(e => String(e.id) === currentEvId || String(e.id_grupo) === currentEvId);
+        if (freshEvent?.quote?.advances) {
+          setQuote(prev => ({
+            ...prev,
+            advances: freshEvent.quote.advances || prev.advances,
+            advanceLogs: freshEvent.quote.advanceLogs || prev.advanceLogs,
+            items: freshEvent.quote.items || prev.items
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn('Error reloading fresh state on open advances:', err);
+    }
   };
 
   const handleStartEditAdvance = (advanceId) => {
@@ -5013,13 +5057,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   <span>Total anticipos</span>
                   <strong>{moneyGT(abonosTotal, quote.currency)}</strong>
                 </div>
-                <div className="quoteAdvanceMetric quoteAdvanceMetric--pending">
+                <div className="quoteAdvanceMetric quoteAdvanceMetric--pending" style={{ background: saldoPendiente > 0 ? '#fef2f2' : '#f8fafc', borderLeft: `4px solid ${saldoPendiente > 0 ? '#dc2626' : '#cbd5e1'}` }}>
                   <span>Saldo pendiente</span>
-                  <strong>{moneyGT(saldoPendiente, quote.currency)}</strong>
+                  <strong style={{ color: saldoPendiente > 0 ? '#dc2626' : '#64748b' }}>{moneyGT(saldoPendiente, quote.currency)}</strong>
                 </div>
-                <div className="quoteAdvanceMetric quoteAdvanceMetric--credit">
+                <div className="quoteAdvanceMetric quoteAdvanceMetric--credit" style={{ background: saldoAFavor > 0 ? '#f0fdf4' : '#f8fafc', borderLeft: `4px solid ${saldoAFavor > 0 ? '#16a34a' : '#cbd5e1'}` }}>
                   <span>Saldo a favor</span>
-                  <strong>{moneyGT(Math.max(0, abonosTotal - totals.total), quote.currency)}</strong>
+                  <strong style={{ color: saldoAFavor > 0 ? '#16a34a' : '#64748b' }}>{moneyGT(saldoAFavor, quote.currency)}</strong>
                 </div>
               </div>
 

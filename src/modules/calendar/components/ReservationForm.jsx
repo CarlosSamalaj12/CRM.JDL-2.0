@@ -471,7 +471,9 @@ export default function ReservationForm() {
     paxCompartido: null,
     notes: '',
     userId: getCurrentUserId(),
-    quote: null
+    quote: null,
+    clientName: '',
+    clientPhone: ''
   });
 
   const [slots, setSlots] = useState([
@@ -582,8 +584,31 @@ export default function ReservationForm() {
   const initialSnapshotRef = useRef('');
 
   useEffect(() => {
-    let initialFData = {};
-    let initialSData = [];
+    let initialFData = {
+      name: '',
+      salon: salones?.length > 0 ? salones[0] : '',
+      status: 'Reserva sin Cotizacion',
+      date: getDefaultDate(),
+      endDate: getDefaultEndDate(),
+      startTime: urlStart || '10:00',
+      endTime: urlEnd || '12:00',
+      pax: '',
+      paxCompartido: null,
+      notes: '',
+      userId: getCurrentUserId(),
+      quote: null,
+      clientName: '',
+      clientPhone: ''
+    };
+    let initialSData = [{
+      salon: salones?.length > 0 ? salones[0] : '',
+      pax: '',
+      dateStart: getDefaultDate(),
+      dateEnd: getDefaultEndDate(),
+      startTime: urlStart || '10:00',
+      endTime: urlEnd || '12:00',
+      status: 'Reserva sin Cotizacion'
+    }];
 
     if (id && events) {
       const existingEvent = events.find(ev => String(ev.id) === String(id));
@@ -634,33 +659,10 @@ export default function ReservationForm() {
             status: existingEvent.status || 'Reserva sin Cotizacion'
           }];
         }
+      } else {
+        // Si el evento aún no se ha cargado en memoria, no hacemos nada para evitar parpadeos
+        return;
       }
-    } else {
-      initialFData = {
-        name: '',
-        salon: salones?.length > 0 ? salones[0] : '',
-        status: 'Reserva sin Cotizacion',
-        date: getDefaultDate(),
-        endDate: getDefaultEndDate(),
-        startTime: urlStart || '10:00',
-        endTime: urlEnd || '12:00',
-        pax: '',
-        paxCompartido: null,
-        notes: '',
-        userId: getCurrentUserId(),
-        quote: null,
-        clientName: '',
-        clientPhone: ''
-      };
-      initialSData = [{
-        salon: salones?.length > 0 ? salones[0] : '',
-        pax: '',
-        dateStart: getDefaultDate(),
-        dateEnd: getDefaultEndDate(),
-        startTime: urlStart || '10:00',
-        endTime: urlEnd || '12:00',
-        status: 'Reserva sin Cotizacion'
-      }];
     }
 
     setFormData(initialFData);
@@ -680,7 +682,6 @@ export default function ReservationForm() {
   }, [urlOpenAdvances, id]);
 
   const showNotification = (message, type = 'success') => {
-    document.activeElement?.blur();
     if (type === 'error') toast.error(message, { duration: 3000 });
     else if (type === 'warning') toast(message, { duration: 3000, icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
     else toast.success(message, { duration: 3000 });
@@ -781,6 +782,7 @@ export default function ReservationForm() {
   };
 
   const applyEventStatus = (statusKey) => {
+    if (formData.status === statusKey) return;
     const nextName = statusKey === 'Mantenimiento'
       ? 'MANTENIMIENTO'
       : statusKey === 'Mantenimiento Realizado' && formData.name === 'MANTENIMIENTO'
@@ -788,7 +790,6 @@ export default function ReservationForm() {
         : formData.name;
     setFormData(prev => ({ ...prev, status: statusKey, name: nextName }));
     setSlots(prev => prev.map(slot => ({ ...slot, status: statusKey })));
-    showNotification(`Estado cambiado a ${statusKey}`, 'info');
   };
 
   const validateReservationRequiredFields = useCallback(() => {

@@ -476,15 +476,54 @@ export default function Calendar() {
     return result;
   }, [events, statusFilter, roomFilter, sellerFilter, searchQuery]);
 
-  const getEventsForDay = (dateStr) => {
-    return filteredEvents.filter(ev => {
-      if (ev.groupId || ev.eventDateStart || ev.eventDateEnd) {
-        return ev.date === dateStr;
+  const seriesBadgesMap = useMemo(() => {
+    const groupMap = new Map();
+    for (const ev of (events || [])) {
+      const gid = String(ev?.groupId || '').trim();
+      if (gid) {
+        if (!groupMap.has(gid)) groupMap.set(gid, []);
+        groupMap.get(gid).push(ev);
       }
-      const start = ev.date;
-      const end = ev.endDate || ev.date;
-      return dateStr >= start && dateStr <= end;
+    }
+
+    const badgeMap = new Map();
+    groupMap.forEach((list) => {
+      if (list.length > 1) {
+        list.sort((a, b) => {
+          const byDate = String(a?.date || '').localeCompare(String(b?.date || ''));
+          if (byDate !== 0) return byDate;
+          const byStart = String(a?.startTime || '').localeCompare(String(b?.startTime || ''));
+          if (byStart !== 0) return byStart;
+          return String(a?.id || '').localeCompare(String(b?.id || ''));
+        });
+        list.forEach((ev, idx) => {
+          badgeMap.set(String(ev.id), `Reserva ${idx + 1}/${list.length}`);
+        });
+      }
     });
+    return badgeMap;
+  }, [events]);
+
+  const getEventSeriesBadge = (ev) => {
+    if (!ev?.id) return '';
+    return seriesBadgesMap.get(String(ev.id)) || '';
+  };
+
+  const eventsByDateMap = useMemo(() => {
+    const map = new Map();
+    for (const ev of filteredEvents) {
+      const dateStr = ev.date;
+      if (!dateStr) continue;
+      if (!map.has(dateStr)) {
+        map.set(dateStr, []);
+      }
+      map.get(dateStr).push(ev);
+    }
+    return map;
+  }, [filteredEvents]);
+
+  const getEventsForDay = (dateStr) => {
+    return eventsByDateMap.get(dateStr) || [];
   };
 
   const hourSlots = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);

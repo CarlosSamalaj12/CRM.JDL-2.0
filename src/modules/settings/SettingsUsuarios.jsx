@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import authService from '../../services/authService';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const ROLE_LABELS = {
@@ -88,6 +89,7 @@ export default function SettingsUsuarios({ inline, onBack }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     if (selectedUserId) {
       const user = users.find(u => u.id === selectedUserId);
       if (user) {
@@ -98,12 +100,29 @@ export default function SettingsUsuarios({ inline, onBack }) {
         setActive(user.active !== false);
         setSalesTargetEnabled(user.salesTargetEnabled === true);
         setGoalTiers(user.goalTiers || []);
-        setAvatarDataUrl(user.avatarDataUrl || '');
-        setSignatureDataUrl(user.signatureDataUrl || '');
+        // Reset local media states while loading
+        setAvatarDataUrl('');
+        setSignatureDataUrl('');
+
+        // Fetch avatar and signature on demand
+        api.get(`/api/usuarios/${selectedUserId}/media`)
+          .then(res => {
+            if (cancelled) return;
+            if (res) {
+              setAvatarDataUrl(res.avatar_data_url || '');
+              setSignatureDataUrl(res.firma_data_url || '');
+            }
+          })
+          .catch(err => {
+            console.error('Error fetching user media:', err);
+          });
       }
     } else {
       resetForm();
     }
+    return () => {
+      cancelled = true;
+    };
   }, [selectedUserId, users]);
 
   const saveState = async (updatedUsers) => {

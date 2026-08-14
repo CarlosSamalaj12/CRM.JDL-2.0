@@ -2,6 +2,7 @@ import { modernAlert } from './toast';
 import { loadState } from '../services/stateService';
 import { numberToWords } from './numberToWords';
 import { TIEMPOS_COMIDA } from '../modules/informes/constants/tiemposComida.js';
+import api from '../services/api';
 
 function escapeHtml(unsafe) {
   return String(unsafe || "")
@@ -40,6 +41,14 @@ function buildTemplatePrintContextFromQuoteData(quote, user) {
     formattedDate = "";
   }
 
+  const docCurrency = quote?.currency || 'GTQ';
+  const totalDoc = Number(quote?.total || 0);
+  const advances = Array.isArray(quote?.advances) ? quote.advances : [];
+  const totalAnticipos = advances.reduce((sum, a) => sum + Number(a?.amount || 0), 0);
+  const rawSaldo = totalDoc - totalAnticipos;
+  const saldoPendiente = Math.max(0, rawSaldo);
+  const saldoAFavor = Math.max(0, totalAnticipos - totalDoc);
+
   return {
     VENDEDOR_NOMBRE: user?.name || "Vendedor",
     CLIENTE_NOMBRE: quote?.contact || "",
@@ -50,7 +59,18 @@ function buildTemplatePrintContextFromQuoteData(quote, user) {
     FECHA: formattedDate,
     DIA: String(d.getDate() || ""),
     MES: monthName,
-    ANIO: String(d.getFullYear() || "")
+    ANIO: String(d.getFullYear() || ""),
+
+    // Tokens de anticipos y saldos para contratos
+    TOTAL_ANTICIPOS: quoteMoney(totalAnticipos, docCurrency),
+    MONTO_ANTICIPADO: quoteMoney(totalAnticipos, docCurrency),
+    SALDO_PENDIENTE: quoteMoney(saldoPendiente, docCurrency),
+    MONTO_PENDIENTE: quoteMoney(saldoPendiente, docCurrency),
+    SALDO_A_FAVOR: quoteMoney(saldoAFavor, docCurrency),
+    MONTO_A_FAVOR: quoteMoney(saldoAFavor, docCurrency),
+    TOTAL_COTIZACION: quoteMoney(totalDoc, docCurrency),
+    VALOR_TOTAL: quoteMoney(totalDoc, docCurrency),
+    SALDO_ESTADO: saldoAFavor > 0 ? `SALDO A FAVOR: ${quoteMoney(saldoAFavor, docCurrency)}` : (saldoPendiente > 0 ? `SALDO PENDIENTE: ${quoteMoney(saldoPendiente, docCurrency)}` : `CANCELADO (${quoteMoney(0, docCurrency)})`)
   };
 }
 
@@ -188,6 +208,24 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     // Use contractTemplates from state if not already on quote
     if (!Array.isArray(quote.contractTemplates) || !quote.contractTemplates.length) {
       quote.contractTemplates = ctplsFromState;
+    }
+
+    let dynamicSignatureUrl = null;
+    const sellerId = quote?.userId || event?.userId || user?.id;
+    const sellerUser = (users || []).find(u => String(u.id) === String(sellerId))
+      || (user?.id ? (users || []).find(u => String(u.id) === String(user.id)) : null)
+      || user
+      || {};
+
+    if (sellerId) {
+      try {
+        const res = await api.get(`/api/usuarios/${sellerId}/media`);
+        if (res && res.firma_data_url) {
+          dynamicSignatureUrl = res.firma_data_url;
+        }
+      } catch (err) {
+        console.warn("Could not fetch seller signature dynamically:", err);
+      }
     }
 
     let htmlContent = "";
@@ -611,6 +649,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     const advances = Array.isArray(quote.advances) ? quote.advances : [];
     const totalAnticiposDoc = advances.reduce((sum, advance) => sum + Number(advance?.amount || 0), 0);
     const saldoDoc = Math.max(0, totalDoc - totalAnticiposDoc);
+    const saldoAFavorDoc = Math.max(0, totalAnticiposDoc - totalDoc);
     const docDate = normalizeDocDate(quote.docDate || quote.quotedAt?.split("T")[0] || new Date().toISOString().slice(0, 10));
     const docHeaderImage = quoteHeaderImage || 'Encabezadojdl.png';
     const quoteHeaderSrc = `/templates/${docHeaderImage}`;
@@ -628,7 +667,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       ? `DESCUENTO (${Number(quote.discountValue).toFixed(2)}%)`
       : "DESCUENTO";
     const itemsRowsHtml = buildQuoteRowsHtml(items, docCurrency);
-    const sellerSignatureUrl = user?.signatureDataUrl || (user?.id ? users.find(u => String(u.id) === String(user.id))?.signatureDataUrl : null) || (user?.email ? users.find(u => String(u.email || '').toLowerCase() === String(user.email).toLowerCase())?.signatureDataUrl : null);
+    const sellerSignatureUrl = dynamicSignatureUrl || user?.signatureDataUrl || (user?.id ? users.find(u => String(u.id) === String(user.id))?.signatureDataUrl : null) || (user?.email ? users.find(u => String(u.email || '').toLowerCase() === String(user.email).toLowerCase())?.signatureDataUrl : null);
     const sellerSignatureHtml = sellerSignatureUrl
       ? `<img class="signatureImage" src="${escapeHtml(sellerSignatureUrl)}" alt="Firma vendedor" />`
       : "";
@@ -1394,12 +1433,18 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                     `}
                     <tr class="cargoEm">
                       <td class="cargoLabel">Total anticipos</td>
-                      <td class="cargoAmount">${totalAnticiposDoc > 0 ? escapeHtml(quoteMoney(totalAnticiposDoc, docCurrency)) : "-"}</td>
+                      <td class="cargoAmount">${totalAnticiposDoc > 0 ? escapeHtml(quoteMoney(totalAnticiposDoc, docCurrency)) : quoteMoney(0, docCurrency)}</td>
                     </tr>
-                    <tr class="cargoEm cargoEmFinal">
-                      <td class="cargoLabel">Saldo</td>
-                      <td class="cargoAmount">${saldoDoc > 0 ? escapeHtml(quoteMoney(saldoDoc, docCurrency)) : "-"}</td>
+                    <tr class="cargoEm ${saldoAFavorDoc <= 0 ? 'cargoEmFinal' : ''}">
+                      <td class="cargoLabel">Saldo pendiente</td>
+                      <td class="cargoAmount">${escapeHtml(quoteMoney(saldoDoc, docCurrency))}</td>
                     </tr>
+                    ${saldoAFavorDoc > 0 ? `
+                    <tr class="cargoEm cargoEmFinal" style="color:#15803d;background:#f0fdf4;">
+                      <td class="cargoLabel" style="color:#15803d;font-weight:bold;">Saldo a favor</td>
+                      <td class="cargoAmount" style="color:#15803d;font-weight:bold;">${escapeHtml(quoteMoney(saldoAFavorDoc, docCurrency))}</td>
+                    </tr>
+                    ` : ""}
                   </tbody>
                 </table>
               </div>
@@ -1411,9 +1456,9 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   <div class="signatureSignArea">${sellerSignatureHtml}</div>
                   <div class="signatureLine"></div>
                   <div class="signatureRole">Firma Vendedor</div>
-                  <div class="signatureData">${escapeHtml(user?.name || "Vendedor")}</div>
-                  <div class="signatureData">${escapeHtml(user?.email || "")}</div>
-                  <div class="signatureData">${escapeHtml(user?.phone || "")}</div>
+                  <div class="signatureData">${escapeHtml(sellerUser?.name || sellerUser?.nombre_completo || sellerUser?.nombre || user?.name || "Vendedor")}</div>
+                  <div class="signatureData">${escapeHtml(sellerUser?.email || sellerUser?.correo || user?.email || "")}</div>
+                  <div class="signatureData">${escapeHtml(sellerUser?.phone || sellerUser?.telefono || user?.phone || "")}</div>
                 </div>
                 <div class="signatureCard">
                   <div class="signatureSignArea"></div>
@@ -1437,9 +1482,9 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                   <div class="signatureSignArea">${sellerSignatureHtml}</div>
                   <div class="signatureLine"></div>
                   <div class="signatureRole">Firma Vendedor</div>
-                  <div class="signatureData">${escapeHtml(user?.name || "Vendedor")}</div>
-                  <div class="signatureData">${escapeHtml(user?.email || "")}</div>
-                  <div class="signatureData">${escapeHtml(user?.phone || "")}</div>
+                  <div class="signatureData">${escapeHtml(sellerUser?.name || sellerUser?.nombre_completo || sellerUser?.nombre || user?.name || "Vendedor")}</div>
+                  <div class="signatureData">${escapeHtml(sellerUser?.email || sellerUser?.correo || user?.email || "")}</div>
+                  <div class="signatureData">${escapeHtml(sellerUser?.phone || sellerUser?.telefono || user?.phone || "")}</div>
                 </div>
                 <div class="signatureCard">
                   <div class="signatureSignArea"></div>

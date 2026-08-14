@@ -836,15 +836,23 @@ export default function ReportsDashboard({ onClose }) {
           if (!dayList.length) return null;
           const dayPax = {};
           const dayEvents = {};
-          const seenEvents = new Set();
+          const seenSharedGroup = new Set();
           for (const ev of events) {
             const d = String(ev.date || '');
             if (!d || d < from || d > to) continue;
             if (String(ev.status || '').trim() !== 'Confirmado') continue;
+            const isShared = ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1;
             const groupKey = ev.groupId || ev.id;
-            const pax = Math.max(0, Number(ev.pax || 0));
-            if (!seenEvents.has(groupKey)) {
-              seenEvents.add(groupKey);
+            const dayGroupKey = `${d}_${groupKey}`;
+            const pax = Math.max(0, Number(ev.slotPax ?? ev.pax ?? 0));
+
+            if (isShared) {
+              if (!seenSharedGroup.has(dayGroupKey)) {
+                seenSharedGroup.add(dayGroupKey);
+                dayEvents[d] = (dayEvents[d] || 0) + 1;
+                dayPax[d] = (dayPax[d] || 0) + pax;
+              }
+            } else {
               dayEvents[d] = (dayEvents[d] || 0) + 1;
               dayPax[d] = (dayPax[d] || 0) + pax;
             }

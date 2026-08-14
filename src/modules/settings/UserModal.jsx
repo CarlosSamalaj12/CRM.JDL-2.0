@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
-import { getEquipos, updateUserEquipo } from '../../services/api.js';
+import { getEquipos, updateUserEquipo, api } from '../../services/api.js';
 import toast from 'react-hot-toast';
 
 const ROLE_LABELS = {
@@ -135,6 +135,7 @@ export default function UserModal({ onClose }) {
 
   // When a user is selected to be edited
   useEffect(() => {
+    let cancelled = false;
     if (selectedUserId) {
       const user = users.find(u => u.id === selectedUserId);
       if (user) {
@@ -146,13 +147,30 @@ export default function UserModal({ onClose }) {
         setSalesTargetEnabled(user.salesTargetEnabled === true);
         setGoalTiers(user.goalTiers || []);
         setCanAuthorizeDiscount(user.canAuthorizeDiscount === true);
-        setAvatarDataUrl(user.avatarDataUrl || '');
-        setSignatureDataUrl(user.signatureDataUrl || '');
+        // Reset local media states while loading
+        setAvatarDataUrl('');
+        setSignatureDataUrl('');
         setTeamId(user.teamId ? String(user.teamId) : '');
+
+        // Fetch avatar and signature on demand
+        api.get(`/api/usuarios/${selectedUserId}/media`)
+          .then(res => {
+            if (cancelled) return;
+            if (res) {
+              setAvatarDataUrl(res.avatar_data_url || '');
+              setSignatureDataUrl(res.firma_data_url || '');
+            }
+          })
+          .catch(err => {
+            console.error('Error fetching user media in UserModal:', err);
+          });
       }
     } else {
       resetForm();
     }
+    return () => {
+      cancelled = true;
+    };
   }, [selectedUserId, users]);
 
   const saveState = async (updatedUsers) => {

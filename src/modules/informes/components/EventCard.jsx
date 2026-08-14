@@ -81,9 +81,10 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   }, [highlightNotaId, notas]);
 
   useEffect(() => {
-    if (!notasOpen) return;
-    getNotas(event.Idocupacion).then(setNotas).catch(() => {});
-  }, [notasOpen, event.Idocupacion]);
+    if (notasOpen || Number(event.cant_notas || 0) > 0) {
+      getNotas(event.Idocupacion).then(setNotas).catch(() => {});
+    }
+  }, [notasOpen, event.Idocupacion, event.cant_notas]);
 
   useEffect(() => {
     if (!socketConnected || !event.Idocupacion) return;
@@ -190,7 +191,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     return n.menciones.some(m => String(m.id) === String(currentUserId));
   });
 
-  const displayNotasCount = notasOpen ? notasFiltradas.length : Number(event.cant_notas || 0);
+  const displayNotasCount = (notas.length > 0 || notasOpen) ? notasFiltradas.length : Number(event.cant_notas || 0);
 
   return (
     <article 

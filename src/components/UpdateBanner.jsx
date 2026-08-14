@@ -59,6 +59,7 @@ export default function UpdateBanner() {
   const [waitingWorker, setWaitingWorker] = useState(null);
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [updateHovered, setUpdateHovered] = useState(false);
   const [closeHovered, setCloseHovered] = useState(false);
   const autoDismissRef = useRef(null);
@@ -78,10 +79,9 @@ export default function UpdateBanner() {
     return () => {
       window.removeEventListener('sw-update-ready', handler);
     };
-  }, []);
+  }, [updateState]);
 
   // Escuchar SW_ACTIVATED directamente desde el Service Worker
-  // (para cuando el SW se activa sin pasar por updatefound/installed)
   const handleSWMessage = useCallback((data) => {
     if (data.type === 'SW_ACTIVATED') {
       showBanner();
@@ -103,12 +103,19 @@ export default function UpdateBanner() {
     // Reproducir sonido
     setTimeout(() => playNotificationSound(), 100);
 
-    // Limpiar timer previo y auto-dismiss después de 15 segundos
+    // Si es una actualización obligatoria, no auto-descartar
+    const isRequired = updateState?.reason === 'below-min';
+    if (isRequired) {
+      if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+      return;
+    }
+
+    // Aumentar auto-dismiss a 45 segundos para dar suficiente tiempo en móviles
     if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
     autoDismissRef.current = setTimeout(() => {
       setVisible(false);
       setDismissed(true);
-    }, 15000);
+    }, 45000);
   }
 
   // Mostrar el banner cuando el version checker detecte actualización
@@ -118,20 +125,15 @@ export default function UpdateBanner() {
     }
   }, [updateState]);
 
+  const targetVersion = updateState?.serverVersion || '';
+
   const handleUpdate = useCallback(async () => {
-    // Si hay un worker esperando (flow tradicional: updatefound), enviar SKIP_WAITING
-    if (waitingWorker) {
-      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
-      return;
-    }
-    
-    // Si la discrepancia es detectada por el API, usar el reload de useVersionCheck
-    if (reload) {
-      await reload();
-      return;
+    setUpdating(true);
+    if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+    if (targetVersion) {
+      try { sessionStorage.setItem('dismissed_version', targetVersion); } catch (_) {}
     }
 
-    // Fallback absoluto por seguridad
     try {
       if ('caches' in window) {
         const keys = await caches.keys();
@@ -144,17 +146,25 @@ export default function UpdateBanner() {
         }
       }
     } catch (e) {
-      console.warn('[UpdateBanner] Error al purgar cachés en actualización:', e);
+      console.warn('[UpdateBanner] Error al purgar cachés:', e);
     }
+
+    if (waitingWorker) {
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    }
+
     const url = new URL(window.location.href);
     url.searchParams.set('_u', String(Date.now()));
     window.location.replace(url.toString());
-  }, [waitingWorker, reload]);
+  }, [waitingWorker, targetVersion]);
 
   const handleDismiss = useCallback(() => {
     setVisible(false);
     setDismissed(true);
-  }, []);
+    if (targetVersion) {
+      try { sessionStorage.setItem('dismissed_version', targetVersion); } catch (_) {}
+    }
+  }, [targetVersion]);
 
   if (!visible || dismissed) return null;
 
@@ -261,60 +271,82 @@ export default function UpdateBanner() {
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             onClick={handleUpdate}
-            onMouseEnter={() => setUpdateHovered(true)}
+            disabled={updating}
+            onMouseEnter={() => !updating && setUpdateHovered(true)}
             onMouseLeave={() => setUpdateHovered(false)}
             style={{
               padding: '8px 20px',
               borderRadius: '8px',
               border: 'none',
-              background: updateHovered
-                ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
-                : 'linear-gradient(135deg, #d97706, #f59e0b)',
-              color: '#7c2d12',
+              background: updating
+                ? '#cbd5e1'
+                : updateHovered
+                  ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+                  : 'linear-gradient(135deg, #d97706, #f59e0b)',
+              color: updating ? '#64748b' : '#7c2d12',
               fontSize: '12px',
               fontWeight: 900,
-              cursor: 'pointer',
+              cursor: updating ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               transition: 'all 0.15s ease',
-              boxShadow: updateHovered
-                ? '0 4px 16px rgba(245, 158, 11, 0.5), inset 0 1px 0 rgba(255,255,255,0.3)'
-                : '0 2px 8px rgba(245, 158, 11, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
-              transform: updateHovered ? 'translateY(-1px) scale(1.02)' : 'translateY(0) scale(1)',
+              boxShadow: updating
+                ? 'none'
+                : updateHovered
+                  ? '0 4px 16px rgba(245, 158, 11, 0.5), inset 0 1px 0 rgba(255,255,255,0.3)'
+                  : '0 2px 8px rgba(245, 158, 11, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
+              transform: !updating && updateHovered ? 'translateY(-1px) scale(1.02)' : 'translateY(0) scale(1)',
+              opacity: updating ? 0.8 : 1,
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 4 23 10 17 10" />
-              <polyline points="1 20 1 14 7 14" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
-            Actualizar ahora
+            {updating ? (
+              <>
+                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: 'shimmer 1.5s linear infinite' }}>
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                </svg>
+                Actualizando...
+              </>
+            ) : (
+              <>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                Actualizar ahora
+              </>
+            )}
           </button>
 
-          <button
-            onClick={handleDismiss}
-            onMouseEnter={() => setCloseHovered(true)}
-            onMouseLeave={() => setCloseHovered(false)}
-            style={{
-              width: '34px',
-              height: '34px',
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.15)',
-              background: closeHovered ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
-              color: closeHovered ? '#fff' : '#fde68a',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.15s ease',
-            }}
-            title="Cerrar"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M18 6 6 18" /><path d="m6 6 12 12" />
-            </svg>
-          </button>
+          {/* Solo mostrar botón Cerrar si no es una actualización requerida obligatoria */}
+          {updateState?.reason !== 'below-min' && (
+            <button
+              onClick={handleDismiss}
+              disabled={updating}
+              onMouseEnter={() => !updating && setCloseHovered(true)}
+              onMouseLeave={() => setCloseHovered(false)}
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: closeHovered ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
+                color: closeHovered ? '#fff' : '#fde68a',
+                cursor: updating ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s ease',
+                opacity: updating ? 0.3 : 1,
+              }}
+              title="Cerrar"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
     </div>

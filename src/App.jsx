@@ -65,14 +65,13 @@ function HomeRedirect() {
 }
 
 function App() {
-  const [maintenance, setMaintenance] = React.useState(null);
+  const [maintenance, setMaintenance] = React.useState(false);
 
   const checkMaintenance = React.useCallback(() => {
-    fetch('/api/state')
+    fetch('/api/maintenance-status')
       .then(r => r.json())
       .then(data => {
-        const s = data && typeof data.state === 'object' ? data.state : data;
-        setMaintenance(s.maintenanceMode === true);
+        setMaintenance(data.maintenanceMode === true);
       })
       .catch(() => setMaintenance(false));
   }, []);
@@ -80,8 +79,19 @@ function App() {
   React.useEffect(() => {
     checkMaintenance();
     window.addEventListener('focus', checkMaintenance);
+
+    // Precargar módulos principales en segundo plano para navegación instantánea (0ms)
+    const preloadTimer = setTimeout(() => {
+      import('./modules/calendar/Calendar');
+      import('./modules/customers/CustomersModule');
+      import('./modules/reports/ReportsModule');
+      import('./modules/search/SearchModule');
+      import('./modules/settings/SettingsMain');
+    }, 300);
+
     return () => {
       window.removeEventListener('focus', checkMaintenance);
+      clearTimeout(preloadTimer);
     };
   }, [checkMaintenance]);
 
@@ -130,14 +140,10 @@ function App() {
       <AuthProvider>
         <ToastProvider>
           <SocketProvider>
-            {maintenance === null ? (
-              <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', background:'#0f172a', color:'#64748b', fontFamily:'system-ui, sans-serif', fontSize:'14px' }}>
-                Verificando...
-              </div>
-            ) : maintenance ? (
+            {maintenance ? (
               <MaintenancePage />
             ) : (
-              <Suspense fallback={<div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', color:'#64748b' }}>Cargando...</div>}>
+              <Suspense fallback={null}>
               <Routes>
                 <Route path="/login" element={<SafeRoute><Login /></SafeRoute>} />
 

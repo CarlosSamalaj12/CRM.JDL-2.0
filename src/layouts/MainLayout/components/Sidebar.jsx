@@ -1135,6 +1135,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
           <button 
             className={`lum-sideItem ${location.pathname === '/customers' ? 'isActive' : ''}`} 
             type="button"
+            onMouseEnter={() => import('../../../modules/customers/CustomersModule')}
             onClick={() => navigate('/customers')}
           >
             <span className="material-symbols-outlined">group</span>
@@ -1146,6 +1147,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
           <button 
             className={`lum-sideItem ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
             type="button" 
+            onMouseEnter={() => import('../../../modules/calendar/Calendar')}
             onClick={() => navigate('/calendar')}
           >
             <span className="material-symbols-outlined">calendar_month</span>
@@ -1157,6 +1159,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
           <button 
             className={`lum-sideItem ${location.pathname === '/search' ? 'isActive' : ''}`} 
             type="button"
+            onMouseEnter={() => import('../../../modules/search/SearchModule')}
             onClick={() => navigate('/search')}
           >
             <span className="material-symbols-outlined">search</span>
@@ -1168,6 +1171,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
           <button 
             className={`lum-sideItem ${location.pathname === '/reports' ? 'isActive' : ''}`} 
             type="button"
+            onMouseEnter={() => import('../../../modules/reports/ReportsModule')}
             onClick={() => navigate('/reports')}
           >
             <span className="material-symbols-outlined">analytics</span>
@@ -1178,6 +1182,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
         <button 
           className={`lum-sideItem ${location.pathname === '/kanban' ? 'isActive' : ''}`} 
           type="button"
+          onMouseEnter={() => import('../../../modules/informes/pages/Kanban')}
           onClick={() => navigate('/kanban')}
         >
           <span className="material-symbols-outlined">grid_view</span>
@@ -1188,6 +1193,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
           <button 
             className={`lum-sideItem ${location.pathname === '/settings' ? 'isActive' : ''}`} 
             type="button"
+            onMouseEnter={() => import('../../../modules/settings/SettingsMain')}
             onClick={() => navigate('/settings')}
           >
             <span className="material-symbols-outlined">settings</span>

@@ -83,6 +83,13 @@ export function evaluateUpdate(serverInfo) {
     return { needsUpdate: false };
   }
 
+  try {
+    const dismissedVersion = sessionStorage.getItem('dismissed_version');
+    if (dismissedVersion && compareVersions(dismissedVersion, serverInfo.version) >= 0) {
+      return { needsUpdate: false };
+    }
+  } catch (_) {}
+
   const cmp = compareVersions(CURRENT_VERSION, serverInfo.version);
   if (cmp < 0) {
     return {

@@ -18,7 +18,18 @@ export default function MaintenancePage() {
     const interval = setInterval(async () => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          window.location.reload();
+          fetch('/api/maintenance-status')
+            .then(r => r.json())
+            .then(data => {
+              if (data.maintenanceMode === false) {
+                window.location.reload();
+              } else {
+                setTimeLeft(30);
+              }
+            })
+            .catch(() => {
+              setTimeLeft(30);
+            });
           return 30;
         }
         return prev - 1;

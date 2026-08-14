@@ -2,34 +2,54 @@ import api from './api';
 
 let stateEtag = null;
 let cachedState = null;
+let activeLoadPromise = null;
 const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 export async function loadState({ cacheBust = false } = {}) {
-  const url = `${API_BASE_URL}/api/state${cacheBust ? `?t=${Date.now()}` : ''}`;
-  const headers = { 'Content-Type': 'application/json' };
-  if (stateEtag && cachedState) headers['If-None-Match'] = stateEtag;
-
-  const token = localStorage.getItem('token');
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  try {
-    const response = await fetch(url, { method: 'GET', headers });
-
-    if (response.status === 304 && cachedState) {
-      return cachedState;
-    }
-
-    const newEtag = response.headers.get('ETag');
-    if (newEtag) stateEtag = newEtag;
-
-    const data = await response.json();
-    const state = data?.state || data || {};
-    cachedState = state;
-    return state;
-  } catch (error) {
-    console.error('loadState error:', error);
-    return cachedState || {};
+  if (cachedState && !cacheBust) {
+    return cachedState;
   }
+  if (activeLoadPromise && !cacheBust) {
+    return activeLoadPromise;
+  }
+
+  const promise = (async () => {
+    const url = `${API_BASE_URL}/api/state${cacheBust ? `?t=${Date.now()}` : ''}`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (stateEtag && cachedState && !cacheBust) headers['If-None-Match'] = stateEtag;
+
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const response = await fetch(url, { method: 'GET', headers });
+
+      if (response.status === 304 && cachedState) {
+        return cachedState;
+      }
+
+      const newEtag = response.headers.get('ETag');
+      if (newEtag && !cacheBust) stateEtag = newEtag;
+
+      const data = await response.json();
+      const state = data?.state || data || {};
+      cachedState = state;
+      return state;
+    } catch (error) {
+      console.error('loadState error:', error);
+      return cachedState || {};
+    } finally {
+      if (activeLoadPromise === promise) {
+        activeLoadPromise = null;
+      }
+    }
+  })();
+
+  if (!cacheBust) {
+    activeLoadPromise = promise;
+  }
+
+  return promise;
 }
 
 function compressBase64Image(dataUrl, type) {

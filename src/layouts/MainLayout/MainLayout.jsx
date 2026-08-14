@@ -84,6 +84,7 @@ export default function MainLayout() {
 
   async function loadInitialDataFromServer(isBackground) {
     try {
+      // Solo mostrar pantalla de carga en la primera carga (no en recargas silenciosas)
       if (!isBackground) {
         setLoading(true);
       }
@@ -124,7 +125,12 @@ export default function MainLayout() {
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
-      setLoading(false);
+      // Solo ocultar el indicador si estabamos en carga foreground
+      if (!isBackground) {
+        setLoading(false);
+      } else {
+        setLoading(false);
+      }
     }
   }
 
@@ -140,22 +146,25 @@ export default function MainLayout() {
     loadInitialData(true);
 
     // Re-cargar el state cuando saveState() emite el evento entity:changed.
-    // Así los charts y selectors (e.g. Proyección de Metas, listado de usuarios)
-    // reflejan inmediatamente los cambios hechos en otro modal (e.g. editar meta de un usuario).
+    // Siempre se hace en background (isBackground=true) para NO mostrar la pantalla de carga
+    // durante navegaciones internas — la UI ya tiene los datos en memoria mientras se actualiza silenciosamente.
     const handleStateChanged = (e) => {
       if (e?.detail?.entity === 'state') {
-        memoryCache = null; // forzar re-fetch
-        loadInitialData(false);
+        // NO limpiar memoryCache aquí — la carga en background actualizará los datos
+        // sin bloquear la UI con la pantalla de "verificando"
+        loadInitialDataFromServer(true);
       }
     };
     window.addEventListener('entity:changed', handleStateChanged);
 
     const unsubscribeState = socketService.on('state-updated', () => {
-      loadInitialData(true);
+      // Siempre background: no mostrar pantalla de carga al recibir actualizaciones en tiempo real
+      loadInitialDataFromServer(true);
     });
 
     const unsubscribeEntity = socketService.on('entity:changed', () => {
-      loadInitialData(true);
+      // Siempre background: actualizar silenciosamente sin bloquear la UI
+      loadInitialDataFromServer(true);
     });
 
     const unsubDiscountAuth = socketService.on('discount-auth-request', (data) => {

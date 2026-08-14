@@ -988,10 +988,10 @@ async function readStateFromTables() {
       dbAnticipos,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
-      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, firma_data_url, avatar_data_url, puede_autorizar_descuento FROM usuarios ORDER BY creado_en, id"),
+      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, NULL AS firma_data_url, NULL AS avatar_data_url, puede_autorizar_descuento FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
-      conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
+      conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos WHERE fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH) ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
       conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','salonConflictDisabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays','informe_tiempos_orden','informe_tipos_montaje','maintenanceMode')"),
@@ -2080,6 +2080,81 @@ async function ensureNotificacionesIndexes() {
   }
 }
 
+async function ensurePerformanceIndexes() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // 1. Index on creado_en for empresas
+    try {
+      await conn.query("CREATE INDEX IF NOT EXISTS idx_empresas_creado_en ON empresas (creado_en)");
+    } catch (_) {
+      const existing = await conn.query(
+        "SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'empresas' AND index_name = 'idx_empresas_creado_en' LIMIT 1",
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query("CREATE INDEX idx_empresas_creado_en ON empresas (creado_en)");
+      }
+    }
+
+    // 2. Index on nit for empresas
+    try {
+      await conn.query("CREATE INDEX IF NOT EXISTS idx_empresas_nit ON empresas (nit)");
+    } catch (_) {
+      const existing = await conn.query(
+        "SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'empresas' AND index_name = 'idx_empresas_nit' LIMIT 1",
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query("CREATE INDEX idx_empresas_nit ON empresas (nit)");
+      }
+    }
+
+    // 3. Index on correo for empresas
+    try {
+      await conn.query("CREATE INDEX IF NOT EXISTS idx_empresas_correo ON empresas (correo)");
+    } catch (_) {
+      const existing = await conn.query(
+        "SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'empresas' AND index_name = 'idx_empresas_correo' LIMIT 1",
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query("CREATE INDEX idx_empresas_correo ON empresas (correo)");
+      }
+    }
+
+    // 4. Index on nombre_usuario for usuarios
+    try {
+      await conn.query("CREATE INDEX IF NOT EXISTS idx_usuarios_nombre_usuario ON usuarios (nombre_usuario)");
+    } catch (_) {
+      const existing = await conn.query(
+        "SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'usuarios' AND index_name = 'idx_usuarios_nombre_usuario' LIMIT 1",
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query("CREATE INDEX idx_usuarios_nombre_usuario ON usuarios (nombre_usuario)");
+      }
+    }
+
+    // 5. Index on correo for usuarios
+    try {
+      await conn.query("CREATE INDEX IF NOT EXISTS idx_usuarios_correo ON usuarios (correo)");
+    } catch (_) {
+      const existing = await conn.query(
+        "SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'usuarios' AND index_name = 'idx_usuarios_correo' LIMIT 1",
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query("CREATE INDEX idx_usuarios_correo ON usuarios (correo)");
+      }
+    }
+
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 /**
  * Asegura que la columna comentario_id exista en la tabla notificaciones.
  * Limpia notificaciones obsoletas de tipo "informe" que ya no se emiten.
@@ -2318,8 +2393,8 @@ async function writeStateToTables(state, oldStateOpt = null) {
             correo = VALUES(correo),
             telefono = VALUES(telefono),
             contrasena = VALUES(contrasena),
-            firma_data_url = VALUES(firma_data_url),
-            avatar_data_url = VALUES(avatar_data_url),
+            firma_data_url = IF(VALUES(firma_data_url) IS NULL OR VALUES(firma_data_url) = '', firma_data_url, VALUES(firma_data_url)),
+            avatar_data_url = IF(VALUES(avatar_data_url) IS NULL OR VALUES(avatar_data_url) = '', avatar_data_url, VALUES(avatar_data_url)),
             activo = VALUES(activo),
             influye_meta_ventas = VALUES(influye_meta_ventas),
             metas_mensuales_json = VALUES(metas_mensuales_json),
@@ -2433,7 +2508,7 @@ async function writeStateToTables(state, oldStateOpt = null) {
       const idPlaceholders = idList.map(() => '?').join(',');
       const groupPlaceholders = groupList.map(() => '?').join(',');
       await conn.query(
-        `DELETE FROM eventos WHERE id_grupo IN (${groupPlaceholders}) AND id NOT IN (${idPlaceholders})`,
+        `DELETE FROM eventos WHERE id_grupo IN (${groupPlaceholders}) AND id NOT IN (${idPlaceholders}) AND fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH)`,
         [...groupList, ...idList]
       );
     }
@@ -3255,6 +3330,27 @@ app.get("/api/health", async (_req, res) => {
     return res.status(500).json({ ok: false, db: "error", message: error.message });
   }
 });
+
+app.get("/api/maintenance-status", async (_req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      "SELECT valor_json FROM app_state_kv WHERE clave = 'maintenanceMode' LIMIT 1"
+    );
+    let maintenanceMode = false;
+    if (rows.length > 0 && rows[0].valor_json) {
+      maintenanceMode = Boolean(JSON.parse(rows[0].valor_json));
+    }
+    return res.json({ maintenanceMode });
+  } catch (error) {
+    console.error("Error checking maintenance status:", error);
+    return res.json({ maintenanceMode: false, error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 
 // ==================== VERSIÓN DE LA APP (control de actualizaciones) ====================
 // El script `npm run build` (vía bump-sw-version.cjs) escribe dist/version.json
@@ -4829,6 +4925,7 @@ const MIGRATIONS = [
   { name: 'WebPushSubscriptionsTable', fn: ensurePushSubscriptionsTable },
   { name: 'PaxCompartido', fn: ensurePaxCompartidoStructure },
   { name: 'SlotPax', fn: ensureSlotPaxStructure },
+  { name: 'PerformanceIndexes', fn: ensurePerformanceIndexes },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -4853,6 +4950,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePushSubscriptionsTable',
   'ensurePaxCompartidoStructure',
   'ensureSlotPaxStructure',
+  'ensurePerformanceIndexes',
 ]);
 
 /**

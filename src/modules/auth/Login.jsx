@@ -33,16 +33,17 @@ export default function Login() {
     let lastRedirect = lastRedirectStr ? Number(lastRedirectStr) : 0;
     let redirectCount = redirectCountStr ? Number(redirectCountStr) : 0;
     
-    if (lastRedirect > 0 && (now - lastRedirect) < 10000) {
+    const diff = now - lastRedirect;
+    if (lastRedirect > 0 && diff > 500 && diff < 10000) {
       redirectCount += 1;
       sessionStorage.setItem('login_redirect_count', String(redirectCount));
-    } else {
+    } else if (lastRedirect === 0 || diff >= 10000) {
       redirectCount = 0;
       sessionStorage.setItem('login_redirect_count', '0');
     }
     sessionStorage.setItem('last_login_redirect_time', String(now));
     
-    if (redirectCount >= 2) {
+    if (redirectCount >= 5) {
       console.warn('[Auto-Limpieza] Detectado bucle de redirección. Limpiando caché...');
       localStorage.clear();
       
@@ -79,9 +80,9 @@ export default function Login() {
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (user) {
-      window.location.href = getHomePath(user);
+      navigate(getHomePath(user), { replace: true });
     }
-  }, [contextUser]);
+  }, [contextUser, navigate]);
 
   // Complete Google redirect login when popup auth is blocked by the browser.
   useEffect(() => {
@@ -100,7 +101,7 @@ export default function Login() {
         toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
         syncSession();
         const homePath = getHomePath(localUser);
-        setTimeout(() => { window.location.href = homePath; }, 500);
+        setTimeout(() => { navigate(homePath, { replace: true }); }, 500);
       } catch (err) {
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
