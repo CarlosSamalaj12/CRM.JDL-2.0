@@ -897,8 +897,8 @@ th.right{text-align:right}</style></head><body>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 📈 Proyectado: <strong style={{ color: '#2563eb', fontSize: '13px' }}>{formatMoney(totalProjected)}</strong>
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                🎯 Gap total: <strong style={{ color: '#f59e0b', fontSize: '13px' }}>{formatMoney(totalGapNeeded)}</strong>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }} title="Monto que falta para alcanzar la siguiente meta del periodo">
+                🎯 Faltante sgte. meta: <strong style={{ color: '#f59e0b', fontSize: '13px' }}>{formatMoney(totalGapNeeded)}</strong>
               </span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 📅 Día {periodInfo.elapsedDays} de {periodInfo.totalDays} · <strong style={{ color: '#f59e0b' }}>{periodInfo.remainingDays} restantes</strong>
@@ -1526,7 +1526,7 @@ function TeamChartSection({ tp, index = 0 }) {
             <div style={{ fontSize: '15px', fontWeight: 900, color: '#8b5cf6' }}>{formatMoney(teamPotential)}</div>
           </div>
           <div style={{ textAlign: 'center', minWidth: '90px' }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>📊 Gap total</div>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }} title="Monto que falta para alcanzar la siguiente meta del equipo">📊 Faltante sgte. meta</div>
             <div style={{ fontSize: '15px', fontWeight: 900, color: '#f59e0b' }}>{formatMoney(teamGap)}</div>
           </div>
         </div>

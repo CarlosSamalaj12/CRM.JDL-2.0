@@ -133,7 +133,14 @@ export default function ReportsDashboard({ onClose }) {
 
   const filteredRows = useMemo(() => dashboardRows.filter(r => { if (scope === 'seller' && selectedSellerId && r.userId !== selectedSellerId) return false; return true; }), [dashboardRows, scope, selectedSellerId]);
 
-  const statusMeta = () => [ { k: STATUS.CONFIRMADO, l: 'Confirmado', c: '#10c972' }, { k: 'Pre reserva', l: 'Pre-reserva', c: '#d07db8' }, { k: 'Seguimiento', l: 'Negociacion', c: '#ff6b3a' }, { k: 'Perdido', l: 'Perdido', c: '#7c5cff' }, { k: 'Cancelado', l: 'Cancelado', c: '#e42a48' }, { k: 'Reserva sin Cotizacion', l: 'Reserva sin cotizacion', c: '#0ea5e9' } ];
+  const statusMeta = () => [
+    { k: STATUS.CONFIRMADO, l: 'Confirmado', s: 'Conf.', c: '#10c972' },
+    { k: 'Pre reserva', l: 'Pre-reserva', s: 'Pre-rsv', c: '#d07db8' },
+    { k: 'Seguimiento', l: 'Negociacion', s: 'Neg.', c: '#ff6b3a' },
+    { k: 'Perdido', l: 'Perdido', s: 'Perd.', c: '#7c5cff' },
+    { k: 'Cancelado', l: 'Cancelado', s: 'Canc.', c: '#e42a48' },
+    { k: 'Reserva sin Cotizacion', l: 'Reserva sin cotizacion', s: 'RSC', c: '#0ea5e9' }
+  ];
 
   const statusSummary = useMemo(() => {
     const meta = statusMeta(); const cnt = {}; meta.forEach(m => cnt[m.k] = 0);
@@ -186,43 +193,124 @@ export default function ReportsDashboard({ onClose }) {
   const settingsGoalAmount = settingsGlobalGoal?.amount || 0;
   const settingsGoalProgress = settingsGoalAmount > 0 ? (globalAchieved / settingsGoalAmount) * 100 : 0;
 
+  // ── PAX del mes + % Ocupación de eventos ──
+  // Misma lógica que "PAX por día" pero sumando todo el rango.
+  // - totalMonthPax: PAX de eventos Confirmados en el rango (con dedup por slot compartido)
+  // - plannedMonthPax: PAX de TODOS los eventos del rango (cualquier status)
+  // - occupancyPct: % de PAX que se confirmó sobre lo planificado
+  const paxMetrics = useMemo(() => {
+    if (!events) return { totalMonthPax: 0, plannedMonthPax: 0, occupancyPct: 0 };
+    const { from, to } = getDateRange();
+    const inRange = events.filter(ev => {
+      const d = String(ev.date || '');
+      return d && d >= from && d <= to;
+    });
+    const seenSharedPlanned = new Set();
+    const seenSharedConfirmed = new Set();
+    let totalMonthPax = 0;     // sólo Confirmados
+    let plannedMonthPax = 0;   // todos los estatus
+    for (const ev of inRange) {
+      const status = String(ev.status || '').trim();
+      const pax = Math.max(0, Number(ev.slotPax ?? ev.pax ?? 0));
+      const groupKey = ev.groupId || ev.id;
+      const isShared = ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1;
+      // Slot compartido: dedupe por (día + groupId) para no duplicar
+      const sharedKey = isShared ? `${ev.date || ''}_${groupKey}` : null;
+      // Planificado: cualquier status
+      if (!isShared || !seenSharedPlanned.has(sharedKey)) {
+        if (isShared) seenSharedPlanned.add(sharedKey);
+        plannedMonthPax += pax;
+      }
+      // Confirmado: dedupe slots compartidos
+      if (status === STATUS.CONFIRMADO) {
+        if (!isShared || !seenSharedConfirmed.has(sharedKey)) {
+          if (isShared) seenSharedConfirmed.add(sharedKey);
+          totalMonthPax += pax;
+        }
+      }
+    }
+    const occupancyPct = plannedMonthPax > 0 ? (totalMonthPax / plannedMonthPax) * 100 : 0;
+    return { totalMonthPax, plannedMonthPax, occupancyPct };
+  }, [events, getDateRange]);
+
   const salonData = useMemo(() => {
+    if (!events) return null;
+    const { from, to } = getDateRange();
     const c = {};
-    filteredRows.forEach(r => { const s = r.salon || '(sin salon)'; c[s] = (c[s]||0)+1; });
-    const p = ['#5b95f0','#facc15','#9b5de5','#e92f55','#10c972'];
-    const o = Object.entries(c).sort((a,b) => b[1]-a[1]).map(([l,n],i) => ({l, n, c: p[i%p.length]})).slice(0,6);
-    const tot = o.reduce((a,b) => a+b.n, 0);
-    if (!tot) return null;
-    let cur = 0; const slices = o.map(it => { const pct = (it.n/tot)*100; const nxt = cur+pct; const s = `${it.c} ${cur.toFixed(0)}% ${nxt.toFixed(0)}%`; cur = nxt; return s; });
-    return { slices, o, tot };
-  }, [filteredRows]);
+    // Cuenta por SLOT (no por evento único): un evento de 3 días = 3.
+    // Igual que el query SQL: GROUP BY Salon sin deduplicar por groupId.
+    events.forEach(ev => {
+      const d = String(ev.date || '');
+      if (!d || d < from || d > to) return;
+      if (String(ev.status || '').trim() !== STATUS.CONFIRMADO) return;
+      const s = String(ev.salon || '').trim() || '(sin salón)';
+      c[s] = (c[s] || 0) + 1;
+    });
+    const grandTotal = Object.values(c).reduce((a,b) => a+b, 0);
+    if (!grandTotal) return null;
+    const sorted = Object.entries(c)
+      .sort((a,b) => b[1]-a[1])
+      .map(([l,n],i) => ({
+        rank: i + 1,
+        label: l,
+        count: n,
+        pct: (n / grandTotal) * 100,
+      }));
+    return { rows: sorted, grandTotal };
+  }, [events, getDateRange]);
 
   const sellerMetrics = useMemo(() => {
+    if (!events) return [];
     const statusList = statusMeta(); // [ {k, l, c}, ... ]
-    return filteredUsers.filter(u => !scope || scope==='all' || u.id === selectedSellerId).map(s => {
-      const sr = filteredRows.filter(r => r.userId === s.id);
-      const cr = sr.filter(r => r.status === STATUS.CONFIRMADO);
-      // Desglose por estado: { statusKey, label, color, count, amount }
-      const breakdown = statusList.map(m => {
-        const statusRows = sr.filter(r => r.status === m.k);
-        return {
-          statusKey: m.k,
-          label: m.l,
-          color: m.c,
-          count: statusRows.length,
-          amount: statusRows.reduce((a, b) => a + b.total, 0),
-        };
-      }).filter(b => b.count > 0);
+    const { from, to } = getDateRange();
+    // Cuenta por SLOT (alineado con SQL y con salonData): 1 evento multi-día = N.
+    // Filtra por fecha aquí directamente para no depender de filteredRows (deduplicado).
+    const dateFiltered = events.filter(ev => {
+      const d = String(ev.date || '');
+      return d && d >= from && d <= to;
+    });
+    const scopeUsers = filteredUsers.filter(u => !scope || scope==='all' || u.id === selectedSellerId);
+    return scopeUsers.map(s => {
+      const userEvents = dateFiltered.filter(r => String(r.userId) === String(s.id));
+      // El dinero NO se infla por multi-slot: solo se cuenta 1 vez por groupId
+      // usando el primaryEvent (mismo cálculo que dashboardRows).
+      const seenGroupsForMoney = new Set();
+      const byStatus = {}; // [statusKey]: { count, amount }
+      userEvents.forEach(ev => {
+        const groupKey = ev.groupId || ev.id;
+        const status = String(ev.status || '').trim() || '(sin status)';
+        if (!byStatus[status]) byStatus[status] = { count: 0, amount: 0 };
+        // Count: por slot (alineado con SQL)
+        byStatus[status].count += 1;
+        // Amount: solo el primer slot del grupo aporta el total
+        if (!seenGroupsForMoney.has(groupKey)) {
+          seenGroupsForMoney.add(groupKey);
+          const financialMeta = getEventSeriesFinancialMeta(ev, events);
+          const primaryEvent = financialMeta.primaryEvent || ev;
+          const quote = primaryEvent?.quote || ev?.quote || {};
+          const total = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+          byStatus[status].amount += total;
+        }
+      });
+      // Desglose por estado: { statusKey, label, shortLabel, color, count, amount }
+      const breakdown = statusList.map(m => ({
+        statusKey: m.k,
+        label: m.l,
+        shortLabel: m.s,
+        color: m.c,
+        count: byStatus[m.k]?.count || 0,
+        amount: byStatus[m.k]?.amount || 0,
+      })).filter(b => b.count > 0);
       return {
         id: s.id,
         name: s.fullName||s.name||getRoleLabel(role),
-        total: sr.length,
-        confirmed: cr.length,
-        amount: cr.reduce((a,b) => a+b.total, 0),
+        total: userEvents.length,
+        confirmed: byStatus[STATUS.CONFIRMADO]?.count || 0,
+        amount: byStatus[STATUS.CONFIRMADO]?.amount || 0,
         breakdown,
       };
     }).sort((a,b) => b.amount - a.amount);
-  }, [filteredUsers, filteredRows, scope, selectedSellerId, role]);
+  }, [events, getDateRange, filteredUsers, scope, selectedSellerId, role]);
   const maxAmt = Math.max(1, ...sellerMetrics.map(s => s.amount));
 
   const eventTypeData = useMemo(() => {
@@ -303,6 +391,15 @@ export default function ReportsDashboard({ onClose }) {
       label: 'Pendiente Global', value: formatMoneyGT(Math.max(0,settingsGoalAmount-globalAchieved)),
       trend: globalAchieved >= settingsGoalAmount ? 'Superada' : '',
       accent: globalAchieved >= settingsGoalAmount ? '#16a34a' : '#e11d48',
+    },
+    {
+      // PAX total del mes (eventos Confirmados) — útil para entender demanda real
+      label: 'PAX del Mes', value: paxMetrics.totalMonthPax.toLocaleString('en-US'),
+      trend: `${paxMetrics.occupancyPct.toFixed(1)}% ocup.`,
+      trendColor: paxMetrics.occupancyPct >= 80 ? '#15803d' : paxMetrics.occupancyPct >= 50 ? '#b45309' : '#1d4ed8',
+      trendBg: paxMetrics.occupancyPct >= 80 ? '#dcfce7' : paxMetrics.occupancyPct >= 50 ? '#fef3c7' : '#eff6ff',
+      accent: paxMetrics.occupancyPct >= 80 ? '#16a34a' : paxMetrics.occupancyPct >= 50 ? '#f59e0b' : '#0ea5e9',
+      subtitle: `de ${paxMetrics.plannedMonthPax.toLocaleString('en-US')} planificados`,
     },
   ];
 
@@ -966,113 +1063,82 @@ export default function ReportsDashboard({ onClose }) {
           <div className="reports-charts-grid">
             {/* Salones chart premium */}
             <div className="reports-chart-card" style={{ border: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)', borderRadius: '14px' }}>
-              <div className="reports-chart-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Áreas más utilizadas</div>
-              <div className="reports-chart-subtitle">Distribución de salones en el periodo</div>
-              {salonData ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', marginTop: '16px' }}>
-                  <div style={{ position: 'relative', width: '180px', height: '180px', flexShrink: 0 }}>
-                    {/* Pie chart con SVG (paths por segmento + labels %) */}
-                    <svg width="180" height="180" viewBox="0 0 180 180" style={{
-                      filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.1))',
-                      overflow: 'visible',
-                    }}>
-                      {(() => {
-                        const cx = 90, cy = 90, r = 84;
-                        let acc = 0;
-                        return salonData.o.map((it, i) => {
-                          const pct = (it.n / salonData.tot) * 100;
-                          const startAngle = (acc / 100) * 360;
-                          acc += pct;
-                          const endAngle = (acc / 100) * 360;
-                          const midAngle = (startAngle + endAngle) / 2;
-                          // Path del segmento
-                          const toRad = (deg) => ((deg - 90) * Math.PI) / 180;
-                          const x1 = cx + r * Math.cos(toRad(startAngle));
-                          const y1 = cy + r * Math.sin(toRad(startAngle));
-                          const x2 = cx + r * Math.cos(toRad(endAngle));
-                          const y2 = cy + r * Math.sin(toRad(endAngle));
-                          const largeArc = pct > 50 ? 1 : 0;
-                          const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                          // Posición del label (radio = 52, en el medio del segmento)
-                          const lx = cx + 52 * Math.cos(toRad(midAngle));
-                          const ly = cy + 52 * Math.sin(toRad(midAngle));
-                          const showLabel = pct >= 4; // mínimo 4% para mostrar el label dentro del slice
-                          return (
-                            <g key={i}>
-                              <path
-                                d={path}
-                                fill={it.c}
-                                stroke="#ffffff"
-                                strokeWidth="2"
-                                style={{ transition: 'opacity 0.2s', cursor: 'pointer' }}
-                                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
-                                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-                              >
-                                <title>{`${it.l}: ${it.n} (${pct.toFixed(1)}%)`}</title>
-                              </path>
-                              {showLabel && (
-                                <text
-                                  x={lx}
-                                  y={ly}
-                                  textAnchor="middle"
-                                  dominantBaseline="middle"
-                                  style={{
-                                    fontSize: '14px',
-                                    fontWeight: 900,
-                                    fill: '#ffffff',
-                                    textShadow: '0 1px 3px rgba(0,0,0,0.5)',
-                                    pointerEvents: 'none',
-                                    fontVariantNumeric: 'tabular-nums',
-                                    letterSpacing: '-0.02em',
-                                  }}
-                                >
-                                  {pct.toFixed(0)}%
-                                </text>
-                              )}
-                            </g>
-                          );
-                        });
-                      })()}
-                    </svg>
-                    {/* Centro blanco tipo donut con el total */}
-                    <div style={{
-                      position: 'absolute', top: '50%', left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: '64px', height: '64px',
-                      background: '#ffffff',
-                      borderRadius: '50%',
-                      display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', justifyContent: 'center',
-                      textAlign: 'center', lineHeight: 1,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5)',
-                    }}>
-                      <strong style={{
-                        fontSize: '18px', fontWeight: 900,
-                        color: '#0f172a', letterSpacing: '-0.03em',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}>{salonData.tot}</strong>
-                      <span style={{
-                        fontSize: '7px', fontWeight: 800,
-                        color: '#94a3b8', textTransform: 'uppercase',
-                        letterSpacing: '0.08em', marginTop: '2px',
-                      }}>eventos</span>
-                    </div>
-                  </div>
-                  {/* Leyenda: color + nombre + porcentaje */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: '#64748b', flex: 1, minWidth: 0 }}>
-                    {salonData.o.map((it,i) => {
-                      const pct = ((it.n / salonData.tot) * 100).toFixed(0);
-                      return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', borderRadius: '8px', background: '#f8fafc', transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <div className="reports-chart-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Áreas más utilizadas</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
+                  <strong style={{ color: '#0f172a', fontSize: '13px' }}>{salonData?.grandTotal || 0}</strong> confirmados
+                </div>
+              </div>
+              <div className="reports-chart-subtitle">Salones en eventos confirmados del periodo</div>
+              {salonData && salonData.rows.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px', maxHeight: '360px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {salonData.rows.map((row) => {
+                    const barColor =
+                      row.rank === 1 ? '#118895' :
+                      row.rank === 2 ? '#0d6b76' :
+                      row.rank === 3 ? '#c9a961' :
+                      row.rank === 4 ? '#5b95f0' :
+                      row.rank === 5 ? '#9b5de5' :
+                      '#94a3b8';
+                    return (
+                      <div
+                        key={row.label}
+                        title={`${row.label}: ${row.count} confirmados (${row.pct.toFixed(1)}%)`}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '24px minmax(110px, 1fr) 60px 56px',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          background: row.rank === 1 ? '#f0fdfa' : '#f8fafc',
+                          border: row.rank === 1 ? '1px solid #11889533' : '1px solid transparent',
+                          transition: 'background 0.15s',
+                          cursor: 'pointer',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = row.rank === 1 ? '#ccfbf1' : '#f1f5f9'}
+                        onMouseLeave={e => e.currentTarget.style.background = row.rank === 1 ? '#f0fdfa' : '#f8fafc'}
                       >
-                        <span style={{ width: '10px', height: '10px', borderRadius: '4px', background: `linear-gradient(135deg, ${it.c}, ${it.c}aa)`, display: 'inline-block', flexShrink: 0 }} />
-                        <strong style={{ color: '#1e293b', fontWeight: 700, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{it.l.substring(0,20)}</strong>
-                        <span style={{ color: '#64748b', fontWeight: 600, fontSize: '11px', flexShrink: 0 }}>{pct}%</span>
+                        <div style={{
+                          fontSize: '11px', fontWeight: 800,
+                          color: row.rank <= 3 ? '#0f172a' : '#94a3b8',
+                          textAlign: 'center',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>#{row.rank}</div>
+                        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{
+                            fontSize: '12px', fontWeight: 700,
+                            color: '#1e293b',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>{row.label}</div>
+                          <div style={{
+                            height: '6px', borderRadius: '999px',
+                            background: '#e2e8f0', overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${row.pct}%`,
+                              background: `linear-gradient(90deg, ${barColor}, ${barColor}cc)`,
+                              borderRadius: '999px',
+                              transition: 'width 0.4s ease',
+                            }} />
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: '12px', fontWeight: 800,
+                          color: '#0f172a',
+                          textAlign: 'right',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>{row.count}</div>
+                        <div style={{
+                          fontSize: '11px', fontWeight: 700,
+                          color: row.rank <= 3 ? barColor : '#64748b',
+                          textAlign: 'right',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>{row.pct.toFixed(1)}%</div>
                       </div>
-                    )})}
-                  </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '32px' }}>Sin salones con actividad</div>
@@ -1162,38 +1228,49 @@ export default function ReportsDashboard({ onClose }) {
                   <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center', fontWeight: 600, marginBottom: '8px' }}>
                     <span style={{ color: '#16a34a', fontWeight: 800 }}>{s.confirmed}</span> de {s.total} confirmados
                   </div>
-                  {/* Desglose por estado en dinero */}
+                  {/* Desglose por estado: count + dinero */}
                   {s.breakdown.length > 0 && (
                     <div style={{
                       width: '100%', paddingTop: '8px', marginTop: '4px',
                       borderTop: '1px solid #f1f5f9',
                       display: 'flex', flexDirection: 'column', gap: '5px',
                     }}>
-                      {s.breakdown.map(b => (
+                      {s.breakdown.map(b => {
+                        const isConfirmado = b.statusKey === STATUS.CONFIRMADO;
+                        return (
                         <div key={b.statusKey} style={{
                           display: 'grid',
-                          gridTemplateColumns: '1fr auto',
+                          gridTemplateColumns: 'auto 1fr auto auto',
                           alignItems: 'center',
                           gap: '6px',
                           fontSize: '10px',
                           fontWeight: 600,
                         }}>
                           <span style={{
-                            display: 'flex', alignItems: 'center', gap: '5px',
+                            width: '7px', height: '7px', borderRadius: '50%',
+                            background: b.color, display: 'inline-block', flexShrink: 0,
+                            boxShadow: `0 0 0 1.5px ${b.color}30`,
+                          }} />
+                          <span style={{
                             color: '#475569',
-                            minWidth: 0, // permite que el ellipsis funcione
-                          }}>
-                            <span style={{
-                              width: '7px', height: '7px', borderRadius: '50%',
-                              background: b.color, display: 'inline-block', flexShrink: 0,
-                              boxShadow: `0 0 0 1.5px ${b.color}30`,
-                            }} />
-                            <span style={{
-                              overflow: 'hidden', textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap', minWidth: 0,
-                            }} title={b.label}>
-                              {b.label}
-                            </span>
+                            overflow: 'hidden', textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap', minWidth: 0,
+                          }} title={b.label}>
+                            {b.shortLabel || b.label}
+                          </span>
+                          <span style={{
+                            background: isConfirmado ? '#dcfce7' : '#f1f5f9',
+                            color: isConfirmado ? '#15803d' : '#0f172a',
+                            fontWeight: 800,
+                            fontSize: '10px',
+                            fontVariantNumeric: 'tabular-nums',
+                            padding: '2px 7px',
+                            borderRadius: '999px',
+                            minWidth: '22px',
+                            textAlign: 'center',
+                            border: isConfirmado ? '1px solid #86efac' : '1px solid transparent',
+                          }} title={`${b.count} evento${b.count !== 1 ? 's' : ''} en estado ${b.label}`}>
+                            {b.count}
                           </span>
                           <span style={{
                             color: '#0f172a', fontWeight: 800,
@@ -1201,11 +1278,12 @@ export default function ReportsDashboard({ onClose }) {
                             fontVariantNumeric: 'tabular-nums',
                             whiteSpace: 'nowrap',
                             textAlign: 'right',
+                            minWidth: '52px',
                           }}>
                             {formatMoneyGT(b.amount)}
                           </span>
                         </div>
-                      ))}
+                      );})}
                     </div>
                   )}
                 </div>

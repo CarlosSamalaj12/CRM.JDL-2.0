@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState, useMemo, useCallback } from 'react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import ReportInfo from './components/ReportInfo';
 
 const PENDING_STATUSES = [
@@ -18,6 +18,7 @@ function getStatusMeta(key) {
 
 export default function ReportsSeguimientosPendientes({ onClose }) {
   const { events, users } = useOutletContext();
+  const navigate = useNavigate();
   const today = new Date();
   const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   const [monthKey, setMonthKey] = useState(defaultMonth);
@@ -131,6 +132,13 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
     const n = new Date();
     setMonthKey(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`);
   };
+
+  // Click en un evento → abre el formulario de edición de reserva
+  const handleEventClick = useCallback((ev) => {
+    if (!ev || !ev.id) return;
+    setHoveredEvent(null);
+    navigate(`/reserva/${ev.id}`);
+  }, [navigate]);
 
   // Tooltip info for current hover
   const tooltipEvent = useMemo(() => {
@@ -492,6 +500,9 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                                 return (
                                   <div
                                     key={`${ev.id}-${ev.date}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    title={`Editar reserva: ${ev.name} (${ev.date})`}
                                     style={{
                                       background: isHovered ? '#f1f5f9' : '#f8fafc',
                                       border: `1px solid ${isHovered ? s.color : '#e2e8f0'}`,
@@ -512,10 +523,13 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                                       setHoveredEvent({ userId: user.userId, statusKey: s.key, evIdx, x: rect.left + rect.width / 2, y: rect.top });
                                     }}
                                     onMouseLeave={() => setHoveredEvent(null)}
+                                    onClick={() => handleEventClick(ev)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEventClick(ev); } }}
                                   >
                                     <span style={{ color: s.color, fontWeight: 700 }}>{ev.date}</span>
                                     <span style={{ color: '#0f172a', fontWeight: 700, maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</span>
                                     <span style={{ color: '#94a3b8', fontWeight: 500 }}>{ev.salon}</span>
+                                    <span style={{ marginLeft: 'auto', color: s.color, fontSize: '12px', opacity: isHovered ? 1 : 0.45, transition: 'opacity 0.12s' }}>✎</span>
                                   </div>
                                 );
                               })}

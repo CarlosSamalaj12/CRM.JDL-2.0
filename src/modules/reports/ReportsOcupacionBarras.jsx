@@ -324,7 +324,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
                 { icon: '📅', label: 'Meses', value: `${monthList.length}`, sub: monthList.length === 1 ? 'mes' : 'meses', color: '#6366f1' },
                 { icon: '🧑', label: 'PAX total', value: totalPax.toLocaleString(), sub: `${activeMonths} activo(s)`, color: '#10b981' },
                 { icon: '📈', label: 'Promedio', value: `${avgMonthly.toFixed(0)}`, sub: 'PAX/mes', color: '#f59e0b' },
-                { icon: '🏭', label: 'Capacidad', value: totalMarkedCapacity.toLocaleString(), sub: `PAX/día · Meta ${Math.round(totalMarkedCapacity * META_PCT)}/día`, color: '#3b82f6' },
+                { icon: '🏭', label: 'Capacidad', value: totalMarkedCapacity.toLocaleString(), sub: `PAX/día · Meta ${(META_PCT * 100).toFixed(0)}% (${Math.round(totalMarkedCapacity * META_PCT)}/día)`, color: '#3b82f6' },
                 { icon: '🎯', label: 'Cumplimiento', value: `${paxUtilPct.toFixed(1)}%`, sub: 'vs meta 11% global', color: '#ec4899' },
               ].map((metric, idx) => (
                 <div key={idx} style={{
@@ -392,7 +392,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
             <div>
               <span className="reports-eyebrow">Gráfico de barras mensual</span>
               <h3 className="reports-section-title">PAX por mes vs Meta del 11%</h3>
-              <p className="reports-section-text">La línea rosa marca la meta mensual (~{avgMonthlyMeta > 0 ? avgMonthlyMeta.toLocaleString('en-US') : '—'} PAX). Barras verdes la alcanzan o superan. Pasa el mouse sobre cada barra para ver el detalle.</p>
+              <p className="reports-section-text">La línea rosa marca la meta mensual ({(META_PCT * 100).toFixed(0)}% de capacidad de los salones marcados). Barras verdes la alcanzan o superan. Pasa el mouse sobre cada barra para ver el detalle.</p>
             </div>
             {/* Legend */}
             <div style={{ display: 'flex', gap: '14px', fontSize: '10px', fontWeight: 700, color: '#64748b', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -413,7 +413,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
               </span>
               {totalMarkedCapacity > 0 ? (
                 <span style={{ marginLeft: '4px', color: '#94a3b8', fontStyle: 'italic' }}>
-                  Capacidad: <strong>{totalMarkedCapacity.toLocaleString()}</strong> PAX/día · Meta diaria: <strong style={{ color: '#ec4899' }}>{Math.round(totalMarkedCapacity * META_PCT).toLocaleString()}</strong> PAX (11%)
+                  Capacidad: <strong>{totalMarkedCapacity.toLocaleString()}</strong> PAX/día · Meta diaria: <strong style={{ color: '#ec4899' }}>{(META_PCT * 100).toFixed(0)}%</strong> ({Math.round(totalMarkedCapacity * META_PCT).toLocaleString()} PAX)
                 </span>
               ) : (
                 <span style={{ marginLeft: '4px', color: '#f59e0b', fontStyle: 'italic', fontWeight: 700 }}>
@@ -430,11 +430,13 @@ export default function ReportsOcupacionBarras({ onClose }) {
             border: '1px solid #f1f5f9',
           }}>
             <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
-              {/* Y-axis (cantidades de PAX; referencia 100% = meta promedio mensual) */}
+              {/* Y-axis (% de capacidad; 100% del chart = META = 11% de capacidad) */}
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '52px', flexShrink: 0, paddingBottom: '28px' }}>
                 {[200, 150, 100, 50, 0].map(frac100 => {
                   const isMeta = frac100 === 100;
-                  const paxValue = Math.round(avgMonthlyMeta * (frac100 / 100));
+                  // frac100 = % del chart vs meta. 100% chart = 11% capacidad.
+                  const pctCapacity = (frac100 / 100) * (META_PCT * 100);
+                  const display = pctCapacity % 1 === 0 ? `${pctCapacity.toFixed(0)}%` : `${pctCapacity.toFixed(1)}%`;
                   return (
                     <span key={frac100} style={{
                       fontSize: '9px', fontWeight: isMeta ? 900 : 700,
@@ -442,7 +444,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
                       textAlign: 'right', lineHeight: '12px',
                       whiteSpace: 'nowrap',
                     }}>
-                      {paxValue.toLocaleString('en-US')}
+                      {display}
                     </span>
                   );
                 })}
@@ -470,7 +472,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
                     background: '#ec4899', padding: '2px 7px', borderRadius: '6px',
                     letterSpacing: '0.05em', whiteSpace: 'nowrap',
                   }}>
-                    META {avgMonthlyMeta > 0 ? `${avgMonthlyMeta.toLocaleString('en-US')} PAX` : '11%'}
+                    META {(META_PCT * 100).toFixed(0)}% capacidad
                   </span>
                 </div>
 
