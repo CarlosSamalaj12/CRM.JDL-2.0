@@ -5274,6 +5274,9 @@ async function start() {
     const reportsRouter = await import("./backend/src/app_routes.js");
     app.use("/api", reportsRouter.default);
 
+    // Pre-cargar el controller de posibles ventas (ESM) para el cron de sincronización de estado.
+    const posiblesVentasModule = await import("./backend/src/controllers/posiblesVentasController.js");
+
     // ─── WEB PUSH: Rutas de suscripción ───
 
     // Middleware inline de autenticación JWT para endpoints push
@@ -5445,6 +5448,36 @@ async function start() {
       console.log(`EMS y Socket.io listo en http://localhost:${APP_PORT}`);
       console.log(`MariaDB -> ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}`);
       console.log("Persistencia activa en tablas relacionales.");
+
+      // ── Cron: sincronizar estado de "Eventos Asignados" ─────────────────────
+      // El estado ahora es derivado del calendario + fecha_evento. Se recalcula:
+      //  - En cada GET (on-read, vía setImmediate en el controller).
+      //  - Aquí, una vez al día, para cubrir leads sin actividad.
+      // La primera corrida se alinea con la medianoche local del servidor.
+      const { syncAllEstados } = posiblesVentasModule;
+
+      function msHastaMedianoche() {
+        const ahora = new Date();
+        const manana = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, 0, 5, 0, 0); // 00:05
+        return Math.max(60 * 1000, manana.getTime() - ahora.getTime());
+      }
+
+      async function correrSyncEstadosDiario() {
+        try {
+          const r = await syncAllEstados();
+          console.log(`[CRON] syncAllEstados: ${r.changed} leads actualizados${r.error ? ` (error: ${r.error})` : ''}`);
+        } catch (err) {
+          console.error('[CRON] syncAllEstados error:', err.message || err);
+        }
+      }
+
+      // Pasada inicial: pequeño delay para no competir con el arranque de la BD.
+      setTimeout(correrSyncEstadosDiario, 30 * 1000);
+      // Programación diaria a las 00:05 local.
+      setTimeout(() => {
+        correrSyncEstadosDiario();
+        setInterval(correrSyncEstadosDiario, 24 * 60 * 60 * 1000);
+      }, msHastaMedianoche());
     });
   } catch (error) {
     console.error("Error al iniciar el servidor:", error.message);

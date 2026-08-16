@@ -76,8 +76,8 @@ function swalConfirmDelete(nombreCliente) {
     ...swalBase,
     icon: 'warning',
     iconColor: '#dc2626',
-    title: '¿Eliminar posible venta?',
-    html: `Vas a eliminar la posible venta de <strong>"${nombreCliente}"</strong>.<br>Esta acción no se puede deshacer.`,
+    title: '¿Eliminar evento asignado?',
+    html: `Vas a eliminar el evento asignado de <strong>"${nombreCliente}"</strong>.<br>Esta acción no se puede deshacer.`,
     showCancelButton: true,
     confirmButtonText: '🗑️ Sí, eliminar',
     cancelButtonText: 'Cancelar',
@@ -100,8 +100,8 @@ function swalConfirmRestore(nombreCliente) {
     ...swalBase,
     icon: 'question',
     iconColor: '#0f766e',
-    title: '¿Restaurar posible venta?',
-    html: `La posible venta de <strong>"${nombreCliente}"</strong> volverá a estar activa y visible en la lista principal.`,
+    title: '¿Restaurar evento asignado?',
+    html: `El evento asignado de <strong>"${nombreCliente}"</strong> volverá a estar activo y visible en la lista principal.`,
     showCancelButton: true,
     confirmButtonText: '↩️ Sí, restaurar',
     cancelButtonText: 'Cancelar',
@@ -119,7 +119,7 @@ const ESTADOS = [
 
 const ESTADO_MAP = Object.fromEntries(ESTADOS.map(e => [e.key, e]));
 
-// Tarjetas de métricas (incluye conversión y sin seguimiento para que sea uniforme)
+// Tarjetas de métricas (incluye conversión, sin seguimiento, eventos asignados y sin asignar)
 const STAT_CARDS = [
   { key: 'total', label: 'Total', color: '#0f172a', bg: '#f8fafc', border: '#e2e8f0', icon: 'clipboard', isTotal: true },
   ...ESTADOS.map(e => ({
@@ -131,6 +131,8 @@ const STAT_CARDS = [
         : 'xCircle',
   })),
   { key: 'conversion', label: 'Conversión', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', icon: 'trendingUp', isRate: true },
+  { key: 'eventos_asignados', label: 'Eventos Asignados', color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', icon: 'handshake' },
+  { key: 'sin_asignar', label: 'Sin asignar', color: '#b45309', bg: '#fffbeb', border: '#fde68a', icon: 'alertTriangle' },
   { key: 'sin_seguimiento', label: 'Sin seguimiento', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: 'alertTriangle' },
 ];
 
@@ -393,26 +395,41 @@ function VendedorCard({ row }) {
   const initial = (row.nombre || '?').trim().charAt(0).toUpperCase();
   const hue = (row.nombre || 'x').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
   const convColor = row.pctConversion >= 50 ? '#059669' : row.pctConversion >= 25 ? '#f59e0b' : '#ef4444';
+  const isSinAsignar = !row.vendedorId;
   return (
     <div style={{
-      background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px',
+      background: '#fff', border: `1px solid ${isSinAsignar ? '#fde68a' : '#e2e8f0'}`, borderRadius: '12px',
       padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px',
     }}>
       <div style={{
         width: '36px', height: '36px', borderRadius: '50%',
-        background: `hsl(${hue}, 65%, 88%)`, color: `hsl(${hue}, 50%, 35%)`,
+        background: isSinAsignar ? '#fef3c7' : `hsl(${hue}, 65%, 88%)`,
+        color: isSinAsignar ? '#b45309' : `hsl(${hue}, 50%, 35%)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontWeight: 800, fontSize: '14px', flexShrink: 0,
-      }}>{initial}</div>
+      }}>
+        {isSinAsignar ? (
+          <Icon name="alertTriangle" size={18} color="#b45309" strokeWidth={2.4} />
+        ) : initial}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {row.nombre}
         </div>
-        <div style={{ display: 'flex', gap: '10px', fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-          <span>{row.total} <span style={{ color: '#94a3b8' }}>asig.</span></span>
-          <span style={{ color: '#d97706' }}>{row.pendiente} pend.</span>
-          <span style={{ color: '#047857' }}>{row.ganada} gan.</span>
-          <span style={{ color: '#b91c1c' }}>{row.perdida} perd.</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            fontSize: '10.5px', fontWeight: 800, color: isSinAsignar ? '#b45309' : '#0f766e',
+            padding: '3px 8px', borderRadius: '999px',
+            background: isSinAsignar ? '#fef3c7' : '#f0fdfa',
+            border: `1px solid ${isSinAsignar ? '#fde68a' : '#99f6e4'}`,
+          }} title="Eventos asignados a este vendedor">
+            <Icon name={isSinAsignar ? 'inbox' : 'handshake'} size={11} color={isSinAsignar ? '#b45309' : '#0f766e'} strokeWidth={2.4} />
+            Eventos Asignados: {row.total}
+          </span>
+          <span style={{ fontSize: '10.5px', color: '#d97706', fontWeight: 700 }}>{row.pendiente} pend.</span>
+          <span style={{ fontSize: '10.5px', color: '#047857', fontWeight: 700 }}>{row.ganada} gan.</span>
+          <span style={{ fontSize: '10.5px', color: '#b91c1c', fontWeight: 700 }}>{row.perdida} perd.</span>
         </div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -420,7 +437,7 @@ function VendedorCard({ row }) {
         <div
           style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}
           title={row.respuestaPromedioMs
-            ? `Promedio de tiempo entre que se creó la posible venta y el primer cambio de estado del vendedor (${row.nConSeguimiento} leads con seguimiento)`
+            ? `Promedio de tiempo entre que se creó el evento asignado y el primer cambio de estado del vendedor (${row.nConSeguimiento} leads con seguimiento)`
             : 'Ningún lead de este vendedor tiene seguimiento todavía'}
         >
           {row.respuestaPromedioMs ? (
@@ -435,7 +452,7 @@ function VendedorCard({ row }) {
   );
 }
 
-function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onEstadoChange, onConvert, onVerReserva }) {
+function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConvert, onVerReserva }) {
   const est = ESTADO_MAP[lead.estado] || ESTADO_MAP.pendiente;
   const servicios = parseServicios(lead.servicios);
   const sinSegDias = diasDesde(lead.creadoEn);
@@ -586,18 +603,20 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onEsta
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <select
-              value={lead.estado}
-              onChange={e => onEstadoChange(lead, e.target.value)}
-              title="Cambiar estado"
+            {/* Estado derivado (automático) — no editable */}
+            <EstadoPill estado={lead.estado} />
+            <span
+              title="El estado se calcula automáticamente desde el calendario y la fecha del evento"
               style={{
-                fontSize: '11.5px', fontWeight: 700, padding: '6px 10px', borderRadius: '8px',
-                border: `1.5px solid ${est.border}`, background: est.softBg, color: est.color,
-                cursor: 'pointer', outline: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                fontSize: '10.5px', fontWeight: 700, color: '#94a3b8',
+                padding: '4px 7px', borderRadius: '6px',
+                background: '#f1f5f9', border: '1px solid #e2e8f0',
               }}
             >
-              {ESTADOS.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
-            </select>
+              <Icon name="lock" size={10} color="#94a3b8" strokeWidth={2.5} />
+              Auto
+            </span>
             {lead.eventoId ? (
               <button onClick={onVerReserva} title="Abrir la reserva vinculada"
                 style={btnAction('#0f766e', '#ccfbf1', '#5eead4')}>
@@ -706,10 +725,10 @@ export default function PosiblesVentasModule() {
   const [loadingEliminadas, setLoadingEliminadas] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
 
-  // Form state
+  // Form state (el estado del lead NO se edita: se calcula del calendario + fecha)
   const [form, setForm] = useState({
     nombreCliente: '', telefono: '', correo: '', fechaEvento: '',
-    pax: '', notas: '', vendedorId: '', estado: 'pendiente',
+    pax: '', notas: '', vendedorId: '',
   });
   const [formSalones, setFormSalones] = useState(new Set());
   const [formServicios, setFormServicios] = useState(new Set());
@@ -753,7 +772,7 @@ export default function PosiblesVentasModule() {
     setRestoringId(lead.id);
     try {
       await api.post(`/api/posibles-ventas/${lead.id}/restore`);
-      toast.success('Posible venta restaurada. Volvió a la lista principal.');
+      toast.success('Evento asignado restaurado. Volvió a la lista principal.');
       setEliminadas(prev => prev.filter(l => l.id !== lead.id));
       loadLeads();
     } catch (err) {
@@ -765,7 +784,7 @@ export default function PosiblesVentasModule() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nombreCliente: '', telefono: '', correo: '', fechaEvento: '', pax: '', notas: '', vendedorId: '', estado: 'pendiente' });
+    setForm({ nombreCliente: '', telefono: '', correo: '', fechaEvento: '', pax: '', notas: '', vendedorId: '' });
     setFormSalones(new Set());
     setFormServicios(new Set());
     setCustomServicio('');
@@ -782,7 +801,6 @@ export default function PosiblesVentasModule() {
       pax: lead.pax ?? '',
       notas: lead.notas || '',
       vendedorId: lead.vendedorId || '',
-      estado: lead.estado || 'pendiente',
     });
     setFormSalones(new Set(Array.isArray(lead.salones) ? lead.salones : []));
     setFormServicios(new Set(parseServicios(lead.servicios).filter(s => SERVICIOS_FIJOS.includes(s))));
@@ -824,20 +842,18 @@ export default function PosiblesVentasModule() {
     setSaving(true);
     try {
       if (editing) {
-        if (userRole === 'vendedor') {
-          await api.patch(`/api/posibles-ventas/${editing.id}`, { estado: form.estado });
-        } else {
-          await api.patch(`/api/posibles-ventas/${editing.id}`, { ...payload, estado: form.estado });
-        }
-        toast.success('Posible venta actualizada correctamente');
+        // El estado ya no se envía (es derivado del calendario). El vendedor no
+        // puede cambiar nada vía este endpoint — solo recepción/admin editan el lead.
+        await api.patch(`/api/posibles-ventas/${editing.id}`, payload);
+        toast.success('Evento asignado actualizado correctamente');
       } else {
         await api.post('/api/posibles-ventas', payload);
-        toast.success('Posible venta registrada. Se notificó al vendedor asignado.');
+        toast.success('Evento asignado registrado. Se notificó al vendedor asignado.');
       }
       setModalOpen(false);
       loadLeads();
     } catch (err) {
-      await swalError('No se pudo guardar', err.message || 'Ocurrió un error inesperado al guardar la posible venta.');
+      await swalError('No se pudo guardar', err.message || 'Ocurrió un error inesperado al guardar el evento asignado.');
     } finally {
       setSaving(false);
     }
@@ -848,25 +864,10 @@ export default function PosiblesVentasModule() {
     if (!result.isConfirmed) return;
     try {
       await api.delete(`/api/posibles-ventas/${lead.id}`);
-      toast.success('Posible venta eliminada');
+      toast.success('Evento asignado eliminado');
       loadLeads();
     } catch (err) {
       await swalError('No se pudo eliminar', err.message || 'Ocurrió un error inesperado al eliminar.');
-    }
-  };
-
-  const handleEstadoChange = async (lead, estado) => {
-    const prevEstado = lead.estado;
-    // Optimistic update: reflejamos el cambio al instante
-    setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, estado } : l)));
-    try {
-      await api.patch(`/api/posibles-ventas/${lead.id}`, { estado });
-      const label = ESTADO_MAP[estado]?.label || estado;
-      toast.success(`Estado actualizado a "${label}"`);
-    } catch (err) {
-      // Revertimos si falla
-      setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, estado: prevEstado } : l)));
-      await swalError('No se pudo actualizar el estado', err.message || 'Ocurrió un error inesperado.');
     }
   };
 
@@ -891,10 +892,15 @@ export default function PosiblesVentasModule() {
     const byEstado = { pendiente: 0, en_proceso: 0, ganada: 0, perdida: 0 };
     const porVendedor = new Map();
     let sinSeguimiento = 0;
+    let eventosAsignados = 0;
+    let sinAsignar = 0;
     for (const l of leads) {
       const estado = ESTADO_MAP[l.estado] ? l.estado : 'pendiente';
       byEstado[estado] += 1;
       if (!l.ultimoSeguimientoEn) sinSeguimiento += 1;
+      const hasVendor = l.vendedorId !== null && l.vendedorId !== undefined && l.vendedorId !== '';
+      if (hasVendor) eventosAsignados += 1;
+      else sinAsignar += 1;
       const vid = l.vendedorId || '__sin_asignar__';
       if (!porVendedor.has(vid)) {
         porVendedor.set(vid, {
@@ -920,6 +926,7 @@ export default function PosiblesVentasModule() {
     const total = leads.length;
     const pctOf = (key) => (total > 0 ? Math.round((byEstado[key] / total) * 100) : 0);
     const conversion = total > 0 ? Math.round((byEstado.ganada / total) * 100) : 0;
+    const pctAsignados = total > 0 ? Math.round((eventosAsignados / total) * 100) : 0;
     const vendedoresRows = [...porVendedor.values()]
       .map(r => ({
         ...r,
@@ -927,7 +934,7 @@ export default function PosiblesVentasModule() {
         respuestaPromedioMs: r.nConSeguimiento > 0 ? Math.round(r.totalRespMs / r.nConSeguimiento) : null,
       }))
       .sort((a, b) => b.total - a.total || b.ganada - a.ganada);
-    return { total, byEstado, pctOf, conversion, sinSeguimiento, vendedoresRows };
+    return { total, byEstado, pctOf, conversion, sinSeguimiento, eventosAsignados, sinAsignar, pctAsignados, vendedoresRows };
   }, [leads]);
 
   const userName = (id) => {
@@ -981,7 +988,7 @@ export default function PosiblesVentasModule() {
               </div>
               <div>
                 <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.15, letterSpacing: '-0.01em' }}>
-                  Posibles Ventas
+                  Eventos Asignados
                 </h1>
                 <p style={{ color: '#64748b', fontSize: '12.5px', margin: '3px 0 0', fontWeight: 600 }}>
                   Pipeline de leads y seguimiento comercial
@@ -1005,7 +1012,7 @@ export default function PosiblesVentasModule() {
                 <span style={{ display: 'inline-flex' }}>
                   <Icon name="plus" size={16} color="#fff" strokeWidth={2.5} />
                 </span>
-                Nueva posible venta
+                Nuevo evento asignado
               </button>
             )}
           </div>
@@ -1056,6 +1063,14 @@ export default function PosiblesVentasModule() {
                 } else if (s.key === 'sin_seguimiento') {
                   value = stats.sinSeguimiento;
                   pct = stats.total > 0 ? Math.round((stats.sinSeguimiento / stats.total) * 100) : null;
+                } else if (s.key === 'eventos_asignados') {
+                  value = stats.eventosAsignados;
+                  pct = stats.pctAsignados;
+                  extra = stats.sinAsignar > 0 ? `${stats.sinAsignar} sin asignar` : null;
+                } else if (s.key === 'sin_asignar') {
+                  value = stats.sinAsignar;
+                  pct = stats.total > 0 ? Math.round((stats.sinAsignar / stats.total) * 100) : null;
+                  extra = stats.eventosAsignados > 0 ? `${stats.eventosAsignados} asignados` : null;
                 } else {
                   value = stats.byEstado[s.key] || 0;
                   pct = stats.pctOf(s.key);
@@ -1113,19 +1128,19 @@ export default function PosiblesVentasModule() {
           )}
         </div>
 
-        {/* ── Vendedores performance (solo en vista activas) ── */}
+        {/* ── Eventos Asignados por vendedor (solo en vista activas) ── */}
         {vista === 'activas' && stats.vendedoresRows.length > 0 && (
           <div style={{ padding: '14px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 width: '26px', height: '26px', borderRadius: '8px',
-                background: '#f1f5f9',
+                background: '#f0fdfa',
               }}>
-                <Icon name="barChart" size={15} color="#475569" strokeWidth={2.3} />
+                <Icon name="handshake" size={15} color="#0f766e" strokeWidth={2.3} />
               </span>
-              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Rendimiento por vendedor</span>
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>· {stats.vendedoresRows.length} {stats.vendedoresRows.length === 1 ? 'vendedor' : 'vendedores'}</span>
+              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Eventos Asignados</span>
+              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>· {stats.eventosAsignados} {stats.eventosAsignados === 1 ? 'evento' : 'eventos'} con vendedor · {stats.sinAsignar > 0 ? `${stats.sinAsignar} sin asignar` : 'todos asignados'}</span>
             </div>
             <div style={{
               display: 'grid',
@@ -1145,7 +1160,7 @@ export default function PosiblesVentasModule() {
                 <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
                   <Icon name="loader" size={32} color="#94a3b8" className="pv-spin" strokeWidth={2} />
                 </div>
-                <div>Cargando posibles ventas...</div>
+                <div>Cargando eventos asignados...</div>
               </div>
             ) : filteredLeads.length === 0 ? (
               <div style={{
@@ -1156,7 +1171,7 @@ export default function PosiblesVentasModule() {
                   <Icon name={canCreate ? 'handshake' : 'inbox'} size={48} strokeWidth={1.5} />
                 </div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#64748b' }}>
-                  {canCreate ? 'Aún no hay posibles ventas registradas' : 'No tienes posibles ventas asignadas'}
+                  {canCreate ? 'Aún no hay eventos asignados registrados' : 'No tienes eventos asignados'}
                 </div>
                 {canCreate && (
                   <div style={{ fontSize: '12.5px', color: '#94a3b8', marginTop: '6px' }}>
@@ -1175,7 +1190,6 @@ export default function PosiblesVentasModule() {
                     canDelete={canDeleteLead(lead)}
                     onEdit={() => openEdit(lead)}
                     onDelete={() => handleDelete(lead)}
-                    onEstadoChange={handleEstadoChange}
                     onConvert={() => navigate(`/nueva-reserva?date=${lead.fechaEvento || ''}&pv=${lead.id}`)}
                     onVerReserva={() => navigate(`/reserva/${lead.eventoId}`)}
                   />
@@ -1200,10 +1214,10 @@ export default function PosiblesVentasModule() {
                   <Icon name="trash" size={48} strokeWidth={1.5} />
                 </div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#64748b' }}>
-                  No hay posibles ventas eliminadas
+                  No hay eventos asignados eliminados
                 </div>
                 <div style={{ fontSize: '12.5px', color: '#94a3b8', marginTop: '6px' }}>
-                  Si eliminas una posible venta, aparecerá acá para poder restaurarla.
+                  Si eliminas un evento asignado, aparecerá acá para poder restaurarlo.
                 </div>
               </div>
             ) : (
@@ -1243,7 +1257,7 @@ export default function PosiblesVentasModule() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div>
                 <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  {editing ? 'Editar posible venta' : 'Nueva posible venta'}
+                  {editing ? 'Editar evento asignado' : 'Nuevo evento asignado'}
                 </h2>
                 <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0', fontWeight: 600 }}>
                   {editing ? 'Modifica los datos del lead' : 'Captura los datos del cliente y asígnale un vendedor'}
@@ -1362,12 +1376,21 @@ export default function PosiblesVentasModule() {
             </label>
 
             {editing && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '14px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Estado</span>
-                <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })} style={inputStyle}>
-                  {ESTADOS.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
-                </select>
-              </label>
+              <div style={{
+                marginTop: '14px', padding: '10px 12px', borderRadius: '10px',
+                background: '#f8fafc', border: '1px solid #e2e8f0',
+                display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+              }}>
+                <Icon name="lock" size={14} color="#94a3b8" strokeWidth={2.5} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569' }}>
+                    Estado: <EstadoPill estado={editing.estado} />
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Se calcula solo: depende del estatus del evento en el calendario y de la fecha.
+                  </span>
+                </div>
+              </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>

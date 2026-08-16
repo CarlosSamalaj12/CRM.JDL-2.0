@@ -324,7 +324,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                     onClick={() => { setIsMobileOpen(false); navigate('/posibles-ventas'); }}
                   >
                     <span className="material-symbols-outlined">handshake</span>
-                    <span>Posibles Ventas</span>
+                    <span>Eventos Asignados</span>
                   </button>
                   <button 
                     className={`drawer-nav-item ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
@@ -1160,7 +1160,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
             onClick={() => navigate('/posibles-ventas')}
           >
             <span className="material-symbols-outlined">handshake</span>
-            <span>Posibles Ventas</span>
+            <span>Eventos Asignados</span>
           </button>
         )}
         

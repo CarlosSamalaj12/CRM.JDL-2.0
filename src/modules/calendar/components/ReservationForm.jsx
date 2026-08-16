@@ -1245,10 +1245,12 @@ export default function ReservationForm() {
         }
       } else {
         await historyService.add(savedEvent.id, 'Reserva creada');
-        // Si la reserva se creó desde una posible venta, marcarla como ganada y enlazarla al evento creado
+        // Si la reserva se creó desde un evento asignado, vincularla al evento creado.
+        // El estado del evento asignado se recalcula automáticamente en el backend
+        // a partir del estatus del calendario (Confirmado=ganada, Pre-reserva=en_proceso).
         if (urlPv) {
-          api.patch(`/api/posibles-ventas/${urlPv}`, { estado: 'ganada', eventoId: savedEvent.id }).catch(err => {
-            console.error('[Reserva] No se pudo marcar la posible venta como ganada:', err);
+          api.patch(`/api/posibles-ventas/${urlPv}`, { eventoId: savedEvent.id }).catch(err => {
+            console.error('[Reserva] No se pudo vincular el evento asignado con la reserva creada:', err);
           });
         }
       }
