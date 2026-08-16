@@ -50,6 +50,13 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: `http://127.0.0.1:${backendPort}`,
           changeOrigin: true
+        },
+        // Socket.IO: necesita ws:true para el handshake WebSocket
+        '/socket.io': {
+          target: `http://127.0.0.1:${backendPort}`,
+          changeOrigin: true,
+          ws: true,
+          rewrite: (path) => path
         }
       }
     },

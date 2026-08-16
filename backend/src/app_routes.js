@@ -16,6 +16,7 @@ import tareasRouter from './routes/tareasRoutes.js';
 import tareasSemanalesRouter from './routes/tareasSemanalesRoutes.js';
 import equiposRouter from './routes/equiposRoutes.js';
 import webPushRouter from './routes/webPushRoutes.js';
+import posiblesVentasRouter from './routes/posiblesVentasRoutes.js';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/tareas', tareasRouter);
 router.use('/tareas-semanales', tareasSemanalesRouter);
 router.use('/equipos', equiposRouter);
 router.use('/webpush', webPushRouter);
+router.use('/posibles-ventas', posiblesVentasRouter);
 
 export default router;

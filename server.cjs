@@ -752,6 +752,157 @@ async function ensureSlotPaxStructure() {
   }
 }
 
+// Tabla de posibles ventas: leads capturados por recepción y asignados a un vendedor.
+async function ensurePosiblesVentasStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS posibles_ventas (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        nombre_cliente VARCHAR(200) NOT NULL,
+        telefono VARCHAR(80) NULL,
+        correo VARCHAR(200) NULL,
+        fecha_evento DATE NULL,
+        salones_json TEXT NULL,
+        pax INT NULL,
+        servicios_json TEXT NULL,
+        notas TEXT NULL,
+        vendedor_id VARCHAR(120) NULL,
+        creado_por_id VARCHAR(120) NULL,
+        estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+        ultimo_seguimiento_en TIMESTAMP NULL DEFAULT NULL,
+        evento_id VARCHAR(120) NULL,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP NULL DEFAULT NULL,
+        deleted_por_id VARCHAR(120) NULL,
+        deleted_por_nombre VARCHAR(200) NULL,
+        PRIMARY KEY (id),
+        KEY idx_posibles_ventas_vendedor (vendedor_id),
+        KEY idx_posibles_ventas_creador (creado_por_id),
+        KEY idx_posibles_ventas_estado (estado),
+        KEY idx_posibles_ventas_deleted_at (deleted_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// Soft delete: agrega columnas de borrado lógico a posibles_ventas en bases existentes
+async function ensurePosiblesVentasSoftDelete() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'posibles_ventas'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("deleted_at")) {
+      await conn.query("ALTER TABLE posibles_ventas ADD COLUMN deleted_at TIMESTAMP NULL DEFAULT NULL");
+    }
+    if (!colSet.has("deleted_por_id")) {
+      await conn.query("ALTER TABLE posibles_ventas ADD COLUMN deleted_por_id VARCHAR(120) NULL");
+    }
+    if (!colSet.has("deleted_por_nombre")) {
+      await conn.query("ALTER TABLE posibles_ventas ADD COLUMN deleted_por_nombre VARCHAR(200) NULL");
+    }
+    // Índice para acelerar filtros por deleted_at
+    const [idxCheck] = await conn.query(
+      `SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'posibles_ventas' AND index_name = 'idx_posibles_ventas_deleted_at' LIMIT 1`,
+      [DB_NAME]
+    );
+    if (!idxCheck) {
+      await conn.query("ALTER TABLE posibles_ventas ADD KEY idx_posibles_ventas_deleted_at (deleted_at)");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// Bitácora de acciones sobre posibles ventas (created, updated, deleted, restored, estado_changed)
+async function ensureHistorialPosiblesVentas() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS historial_posibles_ventas (
+        id VARCHAR(100) NOT NULL,
+        id_posible_venta BIGINT UNSIGNED NOT NULL,
+        accion VARCHAR(40) NOT NULL,
+        id_usuario_actor VARCHAR(120) NULL,
+        nombre_usuario_actor VARCHAR(200) NULL,
+        snapshot_json LONGTEXT NULL,
+        detalle TEXT NULL,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_hist_pv_id (id_posible_venta),
+        KEY idx_hist_pv_accion (accion),
+        KEY idx_hist_pv_fecha (creado_en)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// Agrega la columna de último seguimiento a posibles_ventas en bases existentes
+async function ensurePosiblesVentasSeguimiento() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'posibles_ventas'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("ultimo_seguimiento_en")) {
+      await conn.query("ALTER TABLE posibles_ventas ADD COLUMN ultimo_seguimiento_en TIMESTAMP NULL DEFAULT NULL");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// Agrega la columna evento_id (reserva creada a partir de la posible venta) en bases existentes
+async function ensurePosiblesVentasEventoId() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'posibles_ventas'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("evento_id")) {
+      await conn.query("ALTER TABLE posibles_ventas ADD COLUMN evento_id VARCHAR(120) NULL");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// Captura el momento del PRIMER seguimiento (no se sobreescribe). Se setea una sola vez
+// al primer cambio de estado. Permite medir "tiempo de respuesta" real (creadoEn → primerSeg).
+async function ensurePosiblesVentasPrimerSeguimiento() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'posibles_ventas'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("primer_seguimiento_en")) {
+      await conn.query("ALTER TABLE posibles_ventas ADD COLUMN primer_seguimiento_en TIMESTAMP NULL DEFAULT NULL");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureAdvancesStructure() {
   let conn;
   try {
@@ -4925,6 +5076,12 @@ const MIGRATIONS = [
   { name: 'WebPushSubscriptionsTable', fn: ensurePushSubscriptionsTable },
   { name: 'PaxCompartido', fn: ensurePaxCompartidoStructure },
   { name: 'SlotPax', fn: ensureSlotPaxStructure },
+  { name: 'PosiblesVentas', fn: ensurePosiblesVentasStructure },
+  { name: 'PosiblesVentasSeguimiento', fn: ensurePosiblesVentasSeguimiento },
+  { name: 'PosiblesVentasEventoId', fn: ensurePosiblesVentasEventoId },
+  { name: 'PosiblesVentasSoftDelete', fn: ensurePosiblesVentasSoftDelete },
+  { name: 'PosiblesVentasPrimerSeguimiento', fn: ensurePosiblesVentasPrimerSeguimiento },
+  { name: 'HistorialPosiblesVentas', fn: ensureHistorialPosiblesVentas },
   { name: 'PerformanceIndexes', fn: ensurePerformanceIndexes },
 ];
 
@@ -4950,6 +5107,12 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePushSubscriptionsTable',
   'ensurePaxCompartidoStructure',
   'ensureSlotPaxStructure',
+  'ensurePosiblesVentasStructure',
+  'ensurePosiblesVentasSeguimiento',
+  'ensurePosiblesVentasEventoId',
+  'ensurePosiblesVentasSoftDelete',
+  'ensurePosiblesVentasPrimerSeguimiento',
+  'ensureHistorialPosiblesVentas',
   'ensurePerformanceIndexes',
 ]);
 

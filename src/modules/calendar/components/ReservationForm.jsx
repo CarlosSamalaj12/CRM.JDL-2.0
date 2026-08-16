@@ -5,6 +5,7 @@ import { STATUS_META_LIST, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
 import conflictService from '../../../services/conflictService';
+import api from '../../../services/api';
 import { loadState as loadCrmState } from '../../../services/stateService';
 import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
@@ -450,6 +451,7 @@ export default function ReservationForm() {
   const urlStart = searchParams.get('start');
   const urlEnd = searchParams.get('end');
   const urlOpenAdvances = searchParams.get('openAdvances') === 'true';
+  const urlPv = searchParams.get('pv'); // id de posible venta a convertir en reserva
 
   const getDefaultDate = useCallback(() => urlDate || new Date().toISOString().split('T')[0], [urlDate]);
   const getDefaultEndDate = useCallback(() => urlEndDate || getDefaultDate(), [urlEndDate, getDefaultDate]);
@@ -485,6 +487,19 @@ export default function ReservationForm() {
   const [salonCapacities, setSalonCapacities] = useState({});
   const [pastEventEditGraceDays, setPastEventEditGraceDays] = useState(null);
   const [pastEventCheckDone, setPastEventCheckDone] = useState(false);
+
+  // Datos de la posible venta a convertir (solo para reservas nuevas)
+  const [pvLead, setPvLead] = useState(null);
+  const pvAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (!urlPv || id) return;
+    let active = true;
+    api.get(`/api/posibles-ventas/${urlPv}`)
+      .then((lead) => { if (active) setPvLead(lead || null); })
+      .catch(() => { if (active) setPvLead(null); });
+    return () => { active = false; };
+  }, [urlPv, id]);
 
   const labelStyle = {
     display: 'block',
@@ -584,6 +599,10 @@ export default function ReservationForm() {
   const initialSnapshotRef = useRef('');
 
   useEffect(() => {
+    // Si ya se prellenó desde la posible venta, no volver a tocar el formulario:
+    // evita perder las ediciones del vendedor cuando los eventos se recargan en background
+    if (pvLead && pvAppliedRef.current) return;
+
     let initialFData = {
       name: '',
       salon: salones?.length > 0 ? salones[0] : '',
@@ -663,12 +682,49 @@ export default function ReservationForm() {
         // Si el evento aún no se ha cargado en memoria, no hacemos nada para evitar parpadeos
         return;
       }
+    } else if (pvLead) {
+      // Convertir posible venta: prellenar el formulario con los datos del lead
+      const leadDate = pvLead.fechaEvento || getDefaultDate();
+      const leadSalon = Array.isArray(pvLead.salones) && pvLead.salones.length > 0
+        ? pvLead.salones[0]
+        : (salones?.length > 0 ? salones[0] : '');
+      const serviciosText = Array.isArray(pvLead.servicios) && pvLead.servicios.length > 0
+        ? `Servicios requeridos: ${pvLead.servicios.join(', ')}`
+        : '';
+      const notasTexto = [pvLead.notas || '', serviciosText].filter(Boolean).join('\n');
+
+      initialFData = {
+        name: pvLead.nombreCliente || '',
+        salon: leadSalon,
+        status: 'Reserva sin Cotizacion',
+        date: leadDate,
+        endDate: leadDate,
+        startTime: urlStart || '10:00',
+        endTime: urlEnd || '12:00',
+        pax: pvLead.pax || '',
+        paxCompartido: null,
+        notes: notasTexto,
+        userId: getCurrentUserId(),
+        quote: null,
+        clientName: pvLead.nombreCliente || '',
+        clientPhone: pvLead.telefono || ''
+      };
+      initialSData = [{
+        salon: leadSalon,
+        pax: pvLead.pax || '',
+        dateStart: leadDate,
+        dateEnd: leadDate,
+        startTime: urlStart || '10:00',
+        endTime: urlEnd || '12:00',
+        status: 'Reserva sin Cotizacion'
+      }];
+      pvAppliedRef.current = true;
     }
 
     setFormData(initialFData);
     setSlots(initialSData);
     initialSnapshotRef.current = JSON.stringify({ formData: initialFData, slots: initialSData });
-  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate]);
+  }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate, pvLead]);
 
   const hasChanges = useMemo(() => {
     const current = JSON.stringify({ formData, slots });
@@ -1189,6 +1245,12 @@ export default function ReservationForm() {
         }
       } else {
         await historyService.add(savedEvent.id, 'Reserva creada');
+        // Si la reserva se creó desde una posible venta, marcarla como ganada y enlazarla al evento creado
+        if (urlPv) {
+          api.patch(`/api/posibles-ventas/${urlPv}`, { estado: 'ganada', eventoId: savedEvent.id }).catch(err => {
+            console.error('[Reserva] No se pudo marcar la posible venta como ganada:', err);
+          });
+        }
       }
 
       showNotification(moveToFollowUp ? 'Cambios guardados. Estado a Seguimiento.' : (id ? 'Cambios guardados' : 'Reserva creada'));

@@ -197,6 +197,8 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     } else if (n.tipo === 'tarea_completada') {
       const dateParam = n.idocupacion ? `&date=${n.idocupacion}` : '';
       navigate(`/kanban?viewMode=tareas${dateParam}`);
+    } else if (n.tipo === 'posible_venta') {
+      navigate('/posibles-ventas');
     } else if (n.idocupacion) {
       navigate(`/kanban?highlightEvento=${n.idocupacion}`);
     } else if (n.informe_id) {
@@ -316,6 +318,13 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                   >
                     <span className="material-symbols-outlined">group</span>
                     <span>Clientes potenciales</span>
+                  </button>
+                  <button 
+                    className={`drawer-nav-item ${location.pathname === '/posibles-ventas' ? 'isActive' : ''}`} 
+                    onClick={() => { setIsMobileOpen(false); navigate('/posibles-ventas'); }}
+                  >
+                    <span className="material-symbols-outlined">handshake</span>
+                    <span>Posibles Ventas</span>
                   </button>
                   <button 
                     className={`drawer-nav-item ${location.pathname === '/calendar' ? 'isActive' : ''}`} 
@@ -1140,6 +1149,18 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
           >
             <span className="material-symbols-outlined">group</span>
             <span>Clientes potenciales</span>
+          </button>
+        )}
+
+        {isCrmUser && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/posibles-ventas' ? 'isActive' : ''}`} 
+            type="button"
+            onMouseEnter={() => import('../../../modules/posiblesVentas/PosiblesVentasModule')}
+            onClick={() => navigate('/posibles-ventas')}
+          >
+            <span className="material-symbols-outlined">handshake</span>
+            <span>Posibles Ventas</span>
           </button>
         )}
         

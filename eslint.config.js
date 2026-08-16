@@ -22,7 +22,7 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^React$' }],
+      'no-unused-vars': ['error', { varsIgnorePattern: '^(_|React)$', argsIgnorePattern: '^(_|React)$', caughtErrorsIgnorePattern: '^_' }],
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/preserve-manual-memoization': 'off',
