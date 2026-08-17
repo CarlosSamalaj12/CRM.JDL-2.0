@@ -284,12 +284,9 @@ export async function getPosiblesVentas(req, res, next) {
 
     let where = "WHERE pv.deleted_at IS NULL";
     const params = [];
-    if (rol === 'vendedor') {
-      where += ' AND pv.vendedor_id = ?';
-      params.push(userId);
-    } else if (rol === 'frontoffice' || rol === 'recepcionista') {
-      where += ' AND pv.creado_por_id = ?';
-      params.push(userId);
+    if (rol.includes('coordinad') || rol === 'eventos') {
+      where += ' AND (pv.vendedor_id = ? OR pv.creado_por_id = ?)';
+      params.push(userId, userId);
     }
 
     const [rows] = await pool.query(

@@ -1437,7 +1437,7 @@ export default function PosiblesVentasModule() {
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '14px' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>
-                {isReception || isAdmin ? 'Vendedor asignado' : 'Vendedor'}
+                Vendedor asignado
               </span>
               <select value={form.vendedorId} onChange={e => setForm({ ...form, vendedorId: e.target.value })}
                 disabled={editing && userRole === 'vendedor'} style={inputStyle}>
