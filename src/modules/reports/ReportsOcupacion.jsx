@@ -147,9 +147,34 @@ export default function ReportsOcupacion({ onClose }) {
 
   const dayCards = useMemo(() => {
     return weekDays.map(d => {
-      const dayRows = rows.filter(r => r.eventDate === d);
+      const rawDayRows = rows.filter(r => r.eventDate === d);
+
+      // Agrupar salones del mismo evento/día en una sola línea si no es PAX compartido
+      const groupedDayRows = [];
+      const seenGroupKeys = new Map();
+
+      for (const r of rawDayRows) {
+        const groupKey = r.rawEvent?.groupId || r.eventId;
+        const isShared = !!(r.rawEvent?.paxCompartido || r.rawEvent?.pax_compartido);
+
+        if (!isShared && groupKey && seenGroupKeys.has(groupKey)) {
+          const existing = seenGroupKeys.get(groupKey);
+          if (r.salon && !existing.salon.includes(r.salon)) {
+            existing.salon = `${existing.salon} / ${r.salon}`;
+          }
+          if (r.startTime && r.startTime < existing.startTime) existing.startTime = r.startTime;
+          if (r.endTime && r.endTime > existing.endTime) existing.endTime = r.endTime;
+        } else {
+          const rowCopy = { ...r };
+          groupedDayRows.push(rowCopy);
+          if (!isShared && groupKey) {
+            seenGroupKeys.set(groupKey, rowCopy);
+          }
+        }
+      }
+
       // Revenue del día: solo contar el total si el día es el día de inicio de esa serie
-      const dayRevenue = dayRows.reduce((acc, r) => {
+      const dayRevenue = rawDayRows.reduce((acc, r) => {
         const key = r.rawEvent?.groupId || r.eventId;
         if (seriesStartDate.get(key) === d && r.total > 0) {
           return acc + r.total;
@@ -161,9 +186,9 @@ export default function ReportsOcupacion({ onClose }) {
         date: d,
         dayName: ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'][dateObj.getDay()],
         dayNumber: dateObj.getDate(), monthLabel: dateObj.toLocaleDateString('es-GT', { month: 'short' }).toUpperCase(),
-        count: dayRows.length, confirmedCount: dayRows.filter(r => r.status === STATUS.CONFIRMADO).length,
-        preCount: dayRows.filter(r => r.status === STATUS.PRERESERVA).length,
-        revenue: dayRevenue, rows: dayRows,
+        count: groupedDayRows.length, confirmedCount: groupedDayRows.filter(r => r.status === STATUS.CONFIRMADO).length,
+        preCount: groupedDayRows.filter(r => r.status === STATUS.PRERESERVA).length,
+        revenue: dayRevenue, rows: groupedDayRows,
       };
     });
   }, [weekDays, rows, uniqueReservationRows, seriesStartDate, currentWeekStart]);
