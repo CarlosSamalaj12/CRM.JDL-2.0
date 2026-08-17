@@ -103,19 +103,14 @@ export default function UpdateBanner() {
     // Reproducir sonido
     setTimeout(() => playNotificationSound(), 100);
 
-    // Si es una actualización obligatoria, no auto-descartar
+    // Si es actualización obligatoria (below-min), no auto-descartar
     const isRequired = updateState?.reason === 'below-min';
-    if (isRequired) {
-      if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
-      return;
-    }
-
-    // Aumentar auto-dismiss a 45 segundos para dar suficiente tiempo en móviles
     if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
-    autoDismissRef.current = setTimeout(() => {
-      setVisible(false);
-      setDismissed(true);
-    }, 45000);
+    if (isRequired) return;
+
+    // Para actualizaciones no críticas: el banner permanece hasta que el usuario
+    // decida actualizar o cerrar explícitamente. NO se auto-descarta.
+    // (Se eliminó el auto-dismiss de 45s que causaba activaciones invisibles del SW)
   }
 
   // Mostrar el banner cuando el version checker detecte actualización

@@ -784,22 +784,20 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   // usuario ve en pantalla. También pasa `printValidDates` para que el
   // menú del POS se filtre igual.
   const buildPrintableQuote = useCallback((sourceQuote, totalsObj) => {
-    const allowedDates = new Set(availableServiceDates);
-    const norm = (s) => String(s || '').slice(0, 10);
-    const cleanItems = (Array.isArray(sourceQuote?.items) ? sourceQuote.items : []).filter(it => {
-      const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
-      if (sd.length !== 10) return true; // sin fecha → se queda
-      return allowedDates.has(sd);
-    });
+    // Incluir TODOS los ítems de la cotización en el documento impreso.
+    // El filtro por fecha es solo para la navegación UI (pestañas por día),
+    // no debe aplicarse al PDF — de lo contrario se omiten servicios.
+    const cleanItems = Array.isArray(sourceQuote?.items) ? sourceQuote.items : [];
     return {
       ...sourceQuote,
       items: cleanItems,
       subtotal: totalsObj?.subtotal ?? sourceQuote.subtotal,
       discountAmount: totalsObj?.discountAmount ?? sourceQuote.discountAmount,
       total: totalsObj?.total ?? sourceQuote.total,
-      printValidDates: Array.from(allowedDates)
+      printValidDates: availableServiceDates
     };
   }, [availableServiceDates]);
+
 
   const handleSelectAllToggle = () => {
     const allSelected = quote.items.length > 0 && quote.items.every(i => selectedItemIds.has(i.rowId));
@@ -4755,9 +4753,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   <div style={{ textAlign: 'right', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ color: '#475569' }}>Total: <strong>{moneyGT(totals.total, quote.currency)}</strong></span>
                     <span style={{ color: '#475569' }}>Abonado: <strong>{moneyGT(abonosTotal, quote.currency)}</strong></span>
-                    <span style={{ color: abonosTotal >= totals.total ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                      Saldo: <strong>{moneyGT(saldoPendiente, quote.currency)}</strong>
-                    </span>
+                    {saldoAFavor > 0 ? (
+                      <span style={{ color: '#16a34a', fontWeight: 700 }}>
+                        Saldo a favor: <strong>{moneyGT(saldoAFavor, quote.currency)}</strong>
+                      </span>
+                    ) : saldoPendiente > 0 ? (
+                      <span style={{ color: '#ef4444', fontWeight: 700 }}>
+                        Saldo pendiente: <strong>{moneyGT(saldoPendiente, quote.currency)}</strong>
+                      </span>
+                    ) : (
+                      <span style={{ color: '#10b981', fontWeight: 700 }}>
+                        ✓ Pagado
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -2,11 +2,17 @@ import api from './api';
 
 let stateEtag = null;
 let cachedState = null;
+let cacheTimestamp = 0;       // Unix ms — cuándo se guardó el cachedState
 let activeLoadPromise = null;
+const CACHE_TTL_MS = 90_000;  // 90 segundos máximo de vida del caché en memoria
 const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 export async function loadState({ cacheBust = false } = {}) {
-  if (cachedState && !cacheBust) {
+  const now = Date.now();
+  const cacheExpired = (now - cacheTimestamp) > CACHE_TTL_MS;
+
+  // Servir caché si: existe, no expiró, y no se pidió bust explícito
+  if (cachedState && !cacheBust && !cacheExpired) {
     return cachedState;
   }
   if (activeLoadPromise && !cacheBust) {
@@ -16,7 +22,7 @@ export async function loadState({ cacheBust = false } = {}) {
   const promise = (async () => {
     const url = `${API_BASE_URL}/api/state${cacheBust ? `?t=${Date.now()}` : ''}`;
     const headers = { 'Content-Type': 'application/json' };
-    if (stateEtag && cachedState && !cacheBust) headers['If-None-Match'] = stateEtag;
+    if (stateEtag && cachedState && !cacheBust && !cacheExpired) headers['If-None-Match'] = stateEtag;
 
     const token = localStorage.getItem('token');
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -25,6 +31,9 @@ export async function loadState({ cacheBust = false } = {}) {
       const response = await fetch(url, { method: 'GET', headers });
 
       if (response.status === 304 && cachedState) {
+        // 304 significa que el servidor confirma que no hubo cambios.
+        // Refrescar el timestamp para reiniciar el TTL.
+        cacheTimestamp = Date.now();
         return cachedState;
       }
 
@@ -34,6 +43,7 @@ export async function loadState({ cacheBust = false } = {}) {
       const data = await response.json();
       const state = data?.state || data || {};
       cachedState = state;
+      cacheTimestamp = Date.now();
       return state;
     } catch (error) {
       console.error('loadState error:', error);
@@ -50,6 +60,14 @@ export async function loadState({ cacheBust = false } = {}) {
   }
 
   return promise;
+}
+
+/** Invalida el caché en memoria sin hacer un request.
+ *  Útil cuando el socket notifica un cambio y queremos que
+ *  el próximo loadState() vaya siempre al servidor. */
+export function invalidateStateCache() {
+  cacheTimestamp = 0;
+  stateEtag = null;
 }
 
 function compressBase64Image(dataUrl, type) {

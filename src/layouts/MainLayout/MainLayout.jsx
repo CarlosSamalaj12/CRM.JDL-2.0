@@ -9,7 +9,7 @@ import salonService from '../../services/salonService';
 import { useVersionCheck } from '../../hooks/useVersionCheck';
 import authService from '../../services/authService';
 import socketService from '../../services/socketService';
-import { loadState, saveState } from '../../services/stateService';
+import { loadState, saveState, invalidateStateCache } from '../../services/stateService';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { toast } from '../../utils/toast';
@@ -150,20 +150,22 @@ export default function MainLayout() {
     // durante navegaciones internas — la UI ya tiene los datos en memoria mientras se actualiza silenciosamente.
     const handleStateChanged = (e) => {
       if (e?.detail?.entity === 'state') {
-        // NO limpiar memoryCache aquí — la carga en background actualizará los datos
-        // sin bloquear la UI con la pantalla de "verificando"
+        // Invalidar caché para que la recarga en background traiga datos frescos del servidor
+        invalidateStateCache();
         loadInitialDataFromServer(true);
       }
     };
     window.addEventListener('entity:changed', handleStateChanged);
 
     const unsubscribeState = socketService.on('state-updated', () => {
-      // Siempre background: no mostrar pantalla de carga al recibir actualizaciones en tiempo real
+      // Invalidar caché → la recarga background siempre irá al servidor
+      invalidateStateCache();
       loadInitialDataFromServer(true);
     });
 
     const unsubscribeEntity = socketService.on('entity:changed', () => {
-      // Siempre background: actualizar silenciosamente sin bloquear la UI
+      // Invalidar caché → datos siempre frescos al recibir cambios en tiempo real
+      invalidateStateCache();
       loadInitialDataFromServer(true);
     });
 
