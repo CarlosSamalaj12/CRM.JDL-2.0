@@ -112,6 +112,7 @@ export default function MultiSelect({
                 style={{
                   width: '100%', padding: '6px 10px', borderRadius: '10px',
                   border: '1px solid #e2e8f0', fontSize: '12px', outline: 'none',
+                  background: '#ffffff', color: '#0f172a', boxSizing: 'border-box',
                 }}
                 onClick={(e) => e.stopPropagation()}
               />

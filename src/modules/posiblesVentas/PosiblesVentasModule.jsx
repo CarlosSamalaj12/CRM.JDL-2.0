@@ -589,17 +589,17 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConv
             {lead.ultimoSeguimientoEn ? (
               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <Icon name="refresh" size={12} color="#94a3b8" strokeWidth={2.3} />
-                Seg: {formatFechaCorta(lead.ultimoSeguimientoEn)}
+                Seg: {formatFechaCorta(lead.ultimoSeguimientoEn)} ({formatTiempoTranscurrido(lead.ultimoSeguimientoEn)})
               </span>
             ) : (
               <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <Icon name="alertTriangle" size={12} color="#dc2626" strokeWidth={2.3} />
-                Sin seguimiento{sinSegDias !== null ? ` (${sinSegDias}d)` : ''}
+                Sin seguimiento ({formatTiempoTranscurrido(lead.creadoEn)})
               </span>
             )}
-            <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 600 }}>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
               · {userName(lead.creadoPorId) || lead.creadoPorNombre || '—'} ·
-              {lead.creadoEn ? ` ${new Date(String(lead.creadoEn).replace(' ', 'T')).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}` : ''}
+              {lead.creadoEn ? ` ${new Date(String(lead.creadoEn).replace(' ', 'T')).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} (${formatTiempoTranscurrido(lead.creadoEn)})` : ''}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -687,6 +687,25 @@ function diasDesde(val) {
   return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
 }
 
+function formatTiempoTranscurrido(val) {
+  const d = toDateObj(val);
+  if (!d) return '0m';
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return '0m';
+  const minTotales = Math.floor(diffMs / 60000);
+  const dias = Math.floor(minTotales / (24 * 60));
+  const horas = Math.floor((minTotales % (24 * 60)) / 60);
+  const minutos = minTotales % 60;
+
+  if (dias > 0) {
+    return `${dias}d ${horas}h ${minutos}m`;
+  } else if (horas > 0) {
+    return `${horas}h ${minutos}m`;
+  } else {
+    return `${minutos}m`;
+  }
+}
+
 // ─── Componente principal ─────────────────────────────────
 export default function PosiblesVentasModule() {
   const navigate = useNavigate();
@@ -705,10 +724,16 @@ export default function PosiblesVentasModule() {
   const canCreate = isAdmin || isReception;
 
   const vendedores = useMemo(() => {
-    return (users || []).filter(u => {
-      const r = String(u.role || '').trim().toLowerCase();
-      return r === 'vendedor' || r === 'admin';
-    });
+    return (users || [])
+      .filter(u => {
+        const r = String(u.role || '').trim().toLowerCase();
+        return r === 'vendedor' || r === 'admin';
+      })
+      .sort((a, b) => {
+        const nameA = (a.fullName || a.name || a.nombre || '').trim();
+        const nameB = (b.fullName || b.name || b.nombre || '').trim();
+        return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+      });
   }, [users]);
 
   const [leads, setLeads] = useState([]);
@@ -962,7 +987,11 @@ export default function PosiblesVentasModule() {
         pctConversion: r.total > 0 ? Math.round((r.ganada / r.total) * 100) : 0,
         respuestaPromedioMs: r.nConSeguimiento > 0 ? Math.round(r.totalRespMs / r.nConSeguimiento) : null,
       }))
-      .sort((a, b) => b.total - a.total || b.ganada - a.ganada);
+      .sort((a, b) => {
+        if (!a.vendedorId) return -1;
+        if (!b.vendedorId) return 1;
+        return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+      });
     return { total, byEstado, pctOf, conversion, sinSeguimiento, eventosAsignados, sinAsignar, pctAsignados, vendedoresRows };
   }, [leads]);
 
@@ -1110,51 +1139,51 @@ export default function PosiblesVentasModule() {
           </div>
         )}
 
-        {/* ── Toolbar: toggle de vista + quick filters + search ── */}
-        <div style={{ padding: '14px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+        {/* ── Toolbar: toggle de vista + quick filters + search (en una misma línea) ── */}
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-            {isAdmin ? (
-              <ViewSegmented value={vista} onChange={setVista} adminCount={eliminadas.length} />
-            ) : <div />}
-            <div style={{ display: 'flex', gap: '8px', flex: '1 1 280px', maxWidth: '420px' }}>
-              <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-                <span style={{ position: 'absolute', left: '12px', display: 'inline-flex', pointerEvents: 'none' }}>
-                  <Icon name="search" size={15} color="#94a3b8" strokeWidth={2.3} />
-                </span>
-                <input
-                  type="text"
-                  placeholder={vista === 'activas' ? 'Buscar cliente, teléfono, salón, vendedor...' : 'Buscar en eliminadas...'}
-                  value={search} onChange={e => setSearch(e.target.value)}
-                  style={{
-                    width: '100%', padding: '10px 14px 10px 36px', borderRadius: '10px',
-                    border: '2px solid #e2e8f0', fontSize: '13px', height: '40px',
-                    boxSizing: 'border-box', background: '#fff', color: '#1e293b', outline: 'none',
-                  }}
-                />
-              </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+              {isAdmin && (
+                <ViewSegmented value={vista} onChange={setVista} adminCount={eliminadas.length} />
+              )}
+              {vista === 'activas' && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                  <QuickFilterChip
+                    active={estadoFilter === 'all'}
+                    count={stats.total}
+                    label="Todos"
+                    color="#0f172a"
+                    onClick={() => setEstadoFilter('all')}
+                  />
+                  {ESTADOS.map(e => (
+                    <QuickFilterChip
+                      key={e.key}
+                      active={estadoFilter === e.key}
+                      count={stats.byEstado[e.key] || 0}
+                      label={e.label}
+                      color={e.color}
+                      onClick={() => setEstadoFilter(e.key)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ position: 'relative', flex: '0 1 320px', minWidth: '220px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: '12px', display: 'inline-flex', pointerEvents: 'none' }}>
+                <Icon name="search" size={15} color="#94a3b8" strokeWidth={2.3} />
+              </span>
+              <input
+                type="text"
+                placeholder={vista === 'activas' ? 'Buscar cliente, teléfono, salón, vendedor...' : 'Buscar en eliminadas...'}
+                value={search} onChange={e => setSearch(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 14px 8px 36px', borderRadius: '10px',
+                  border: '2px solid #e2e8f0', fontSize: '12.5px', height: '36px',
+                  boxSizing: 'border-box', background: '#fff', color: '#1e293b', outline: 'none',
+                }}
+              />
             </div>
           </div>
-          {vista === 'activas' && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
-              <QuickFilterChip
-                active={estadoFilter === 'all'}
-                count={stats.total}
-                label="Todos"
-                color="#0f172a"
-                onClick={() => setEstadoFilter('all')}
-              />
-              {ESTADOS.map(e => (
-                <QuickFilterChip
-                  key={e.key}
-                  active={estadoFilter === e.key}
-                  count={stats.byEstado[e.key] || 0}
-                  label={e.label}
-                  color={e.color}
-                  onClick={() => setEstadoFilter(e.key)}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* ── Eventos Asignados por vendedor (solo en vista activas) ── */}
@@ -1292,7 +1321,7 @@ export default function PosiblesVentasModule() {
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)',
           zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
-        }} onClick={() => setModalOpen(false)}>
+        }}>
           <div style={{
             background: '#fff', borderRadius: '20px', width: 'min(640px, 96vw)', maxHeight: '92vh',
             overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.3)', padding: '24px',

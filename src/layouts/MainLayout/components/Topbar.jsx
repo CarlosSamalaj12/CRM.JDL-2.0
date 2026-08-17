@@ -224,15 +224,22 @@ export default function Topbar({
             appearance: 'auto',
           }}
         >
-          <option value="all">Todos los Vendedores</option>
-          {users?.filter(u => {
-            const r = String(u.role || '').trim().toLowerCase();
-            return ['admin','vendedor','recepcionista','frontoffice','front_office'].includes(r);
-          }).map(user => (
-            <option key={user.id} value={user.id}>
-              {user.fullName || user.name || user.nombre}
-            </option>
-          ))}
+          <option value="all" style={{ background: '#ffffff', color: '#0f172a' }}>Todos los Vendedores</option>
+          {(users || [])
+            .filter(u => {
+              const r = String(u.role || '').trim().toLowerCase();
+              return ['admin','vendedor','recepcionista','frontoffice','front_office'].includes(r);
+            })
+            .sort((a, b) => {
+              const nameA = (a.fullName || a.name || a.nombre || '').trim();
+              const nameB = (b.fullName || b.name || b.nombre || '').trim();
+              return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+            })
+            .map(user => (
+              <option key={user.id} value={user.id} style={{ background: '#ffffff', color: '#0f172a' }}>
+                {user.fullName || user.name || user.nombre}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -256,10 +263,12 @@ export default function Topbar({
             appearance: 'auto',
           }}
         >
-          <option value="all">Todos los Salones</option>
-          {salones?.map(room => (
-            <option key={room} value={room}>{room}</option>
-          ))}
+          <option value="all" style={{ background: '#ffffff', color: '#0f172a' }}>Todos los Salones</option>
+          {[...(salones || [])]
+            .sort((a, b) => String(a).localeCompare(String(b), 'es', { sensitivity: 'base' }))
+            .map(room => (
+              <option key={room} value={room} style={{ background: '#ffffff', color: '#0f172a' }}>{room}</option>
+            ))}
         </select>
       </div>
 
