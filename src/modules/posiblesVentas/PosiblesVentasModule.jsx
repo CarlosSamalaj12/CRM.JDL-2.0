@@ -1083,7 +1083,7 @@ export default function PosiblesVentasModule() {
                 <span style={{ display: 'inline-flex' }}>
                   <Icon name="plus" size={16} color="#fff" strokeWidth={2.5} />
                 </span>
-                Nuevo evento asignado
+                Asignar evento
               </button>
             )}
           </div>
