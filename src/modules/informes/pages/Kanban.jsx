@@ -276,6 +276,7 @@ export default function Kanban() {
 
         const groupedEvents = [];
         const sharedGroupsMap = new Map();
+        const nonSharedGroupsMap = new Map();
 
         eventsData.forEach(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
@@ -318,6 +319,29 @@ export default function Kanban() {
               sharedGroupsMap.set(key, groupedEvents.length - 1);
             }
           } else {
+            // Para la ocupación semanal: si un evento no compartido tiene múltiples salones el mismo día,
+            // tomar el salón con el mayor PAX conservando todos los servicios del día
+            const nonSharedKey = `${groupId}_${fecha}`;
+            if (groupId && nonSharedGroupsMap.has(nonSharedKey)) {
+              const existingIdx = nonSharedGroupsMap.get(nonSharedKey);
+              const existing = groupedEvents[existingIdx];
+              const currentPax = Number(e.Pax) || 0;
+              const existingPax = Number(existing.Pax) || 0;
+
+              if (currentPax > existingPax) {
+                existing.Salon = e.Salon;
+                existing.Pax = e.Pax;
+                existing.HoraI = e.HoraI;
+                existing.HoraF = e.HoraF;
+                existing.Idocupacion = e.Idocupacion;
+              }
+              return;
+            }
+
+            if (groupId) {
+              nonSharedGroupsMap.set(nonSharedKey, groupedEvents.length);
+            }
+
             groupedEvents.push({
               ...e,
               displayDate: fecha,

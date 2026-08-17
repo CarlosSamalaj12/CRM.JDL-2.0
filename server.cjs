@@ -1548,7 +1548,7 @@ async function readStateFromTables() {
             pax: e.pax === null || e.pax === undefined ? null : Number(e.pax),
             paxCompartido: e.pax_compartido !== 0,
             slotPax: e.slot_pax === null || e.slot_pax === undefined ? null : Number(e.slot_pax),
-            notes: str(e.notes),
+            notes: str(e.notas || e.notes),
             quote,
           };
         });
