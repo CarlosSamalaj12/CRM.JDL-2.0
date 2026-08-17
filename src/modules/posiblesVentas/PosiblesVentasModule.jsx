@@ -740,6 +740,7 @@ export default function PosiblesVentasModule() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [vendedorFilter, setVendedorFilter] = useState(() => (isAdmin ? 'all' : 'mine'));
   const [estadoFilter, setEstadoFilter] = useState('all');
   const [focusedLeadId, setFocusedLeadId] = useState(() => searchParams.get('focus') || null);
   const focusTimerRef = useRef(null);
@@ -926,8 +927,19 @@ export default function PosiblesVentasModule() {
     }
   };
 
-  const filteredLeads = useMemo(() => {
+  const leadsForVendorFilter = useMemo(() => {
     let items = leads;
+    if (vendedorFilter === 'mine') {
+      const myId = String(currentUser?.id || '');
+      items = items.filter(l => String(l.vendedorId || '') === myId || String(l.creadoPorId || '') === myId);
+    } else if (vendedorFilter !== 'all') {
+      items = items.filter(l => String(l.vendedorId || '') === String(vendedorFilter));
+    }
+    return items;
+  }, [leads, vendedorFilter, currentUser?.id]);
+
+  const filteredLeads = useMemo(() => {
+    let items = leadsForVendorFilter;
     if (estadoFilter !== 'all') {
       items = items.filter(l => l.estado === estadoFilter);
     }
@@ -941,7 +953,7 @@ export default function PosiblesVentasModule() {
       );
     }
     return items;
-  }, [leads, estadoFilter, search]);
+  }, [leadsForVendorFilter, estadoFilter, search]);
 
   const stats = useMemo(() => {
     const byEstado = { pendiente: 0, en_proceso: 0, ganada: 0, perdida: 0 };
@@ -949,7 +961,7 @@ export default function PosiblesVentasModule() {
     let sinSeguimiento = 0;
     let eventosAsignados = 0;
     let sinAsignar = 0;
-    for (const l of leads) {
+    for (const l of leadsForVendorFilter) {
       const estado = ESTADO_MAP[l.estado] ? l.estado : 'pendiente';
       byEstado[estado] += 1;
       if (!l.ultimoSeguimientoEn) sinSeguimiento += 1;
@@ -978,7 +990,7 @@ export default function PosiblesVentasModule() {
         }
       }
     }
-    const total = leads.length;
+    const total = leadsForVendorFilter.length;
     const pctOf = (key) => (total > 0 ? Math.round((byEstado[key] / total) * 100) : 0);
     const conversion = total > 0 ? Math.round((byEstado.ganada / total) * 100) : 0;
     const pctAsignados = total > 0 ? Math.round((eventosAsignados / total) * 100) : 0;
@@ -994,7 +1006,7 @@ export default function PosiblesVentasModule() {
         return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
       });
     return { total, byEstado, pctOf, conversion, sinSeguimiento, eventosAsignados, sinAsignar, pctAsignados, vendedoresRows };
-  }, [leads]);
+  }, [leadsForVendorFilter]);
 
   const userName = (id) => {
     const u = (users || []).find(x => String(x.id) === String(id));
@@ -1169,20 +1181,49 @@ export default function PosiblesVentasModule() {
                 </div>
               )}
             </div>
-            <div style={{ position: 'relative', flex: '0 1 320px', minWidth: '220px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ position: 'absolute', left: '12px', display: 'inline-flex', pointerEvents: 'none' }}>
-                <Icon name="search" size={15} color="#94a3b8" strokeWidth={2.3} />
-              </span>
-              <input
-                type="text"
-                placeholder={vista === 'activas' ? 'Buscar cliente, teléfono, salón, vendedor...' : 'Buscar en eliminadas...'}
-                value={search} onChange={e => setSearch(e.target.value)}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: '0 1 520px', minWidth: '240px' }}>
+              <select
+                value={vendedorFilter}
+                onChange={e => setVendedorFilter(e.target.value)}
                 style={{
-                  width: '100%', padding: '8px 14px 8px 36px', borderRadius: '10px',
-                  border: '2px solid #e2e8f0', fontSize: '12.5px', height: '36px',
-                  boxSizing: 'border-box', background: '#fff', color: '#1e293b', outline: 'none',
+                  height: '36px', padding: '0 10px', borderRadius: '10px',
+                  border: '2px solid',
+                  borderColor: vendedorFilter !== 'all' ? '#14b8a6' : '#e2e8f0',
+                  fontSize: '12px', fontWeight: 700,
+                  background: vendedorFilter !== 'all' ? '#f0fdfa' : '#fff',
+                  color: vendedorFilter !== 'all' ? '#0f766e' : '#1e293b',
+                  outline: 'none', cursor: 'pointer', flexShrink: 0,
+                  maxWidth: '190px',
                 }}
-              />
+                title="Filtrar eventos por vendedor"
+              >
+                <option value="mine" style={{ background: '#fff', color: '#0f172a' }}>👤 Mis asignaciones</option>
+                <option value="all" style={{ background: '#fff', color: '#0f172a' }}>👥 Todos los vendedores</option>
+                {vendedores.length > 0 && (
+                  <optgroup label="Vendedor específico">
+                    {vendedores.map(v => (
+                      <option key={v.id} value={v.id} style={{ background: '#fff', color: '#0f172a' }}>
+                        {v.fullName || v.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                <span style={{ position: 'absolute', left: '12px', display: 'inline-flex', pointerEvents: 'none' }}>
+                  <Icon name="search" size={15} color="#94a3b8" strokeWidth={2.3} />
+                </span>
+                <input
+                  type="text"
+                  placeholder={vista === 'activas' ? 'Buscar cliente, teléfono, salón, vendedor...' : 'Buscar en eliminadas...'}
+                  value={search} onChange={e => setSearch(e.target.value)}
+                  style={{
+                    width: '100%', padding: '8px 14px 8px 36px', borderRadius: '10px',
+                    border: '2px solid #e2e8f0', fontSize: '12.5px', height: '36px',
+                    boxSizing: 'border-box', background: '#fff', color: '#1e293b', outline: 'none',
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
