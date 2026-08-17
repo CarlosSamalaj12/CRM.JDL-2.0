@@ -721,8 +721,8 @@ export default function PosiblesVentasModule() {
   const currentUser = authService.getCurrentUser();
   const userRole = String(currentUser?.role || '').trim().toLowerCase();
   const isAdmin = userRole === 'admin';
-  const isReception = ['recepcionista', 'frontoffice', 'front_office'].includes(userRole);
-  const canCreate = isAdmin || isReception;
+  const isCoordinator = userRole.includes('coordinad') || userRole === 'eventos';
+  const canCreate = !isCoordinator;
 
   const vendedores = useMemo(() => {
     return (users || [])

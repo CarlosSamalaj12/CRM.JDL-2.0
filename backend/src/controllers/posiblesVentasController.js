@@ -377,6 +377,11 @@ export async function createPosibleVenta(req, res, next) {
       return res.status(400).json({ message: 'El nombre del cliente es requerido' });
     }
 
+    const rol = normalizeRole(req.user?.rol);
+    if (rol.includes('coordinad') || rol === 'eventos') {
+      return res.status(403).json({ message: 'Los coordinadores no tienen permiso para registrar eventos asignados' });
+    }
+
     const creadoPorId = String(req.user?.id || '');
 
     const [result] = await pool.query(
