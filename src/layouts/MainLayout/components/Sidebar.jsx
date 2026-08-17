@@ -198,7 +198,10 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
       const dateParam = n.idocupacion ? `&date=${n.idocupacion}` : '';
       navigate(`/kanban?viewMode=tareas${dateParam}`);
     } else if (n.tipo === 'posible_venta') {
-      navigate('/posibles-ventas');
+      // Si la notificación trae el id del evento asignado, lo pasamos como
+      // query para que el módulo pueda resaltarlo al cargar.
+      const focus = n.posibleVentaId ? `?focus=${n.posibleVentaId}` : '';
+      navigate(`/posibles-ventas${focus}`);
     } else if (n.idocupacion) {
       navigate(`/kanban?highlightEvento=${n.idocupacion}`);
     } else if (n.informe_id) {
@@ -406,7 +409,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                         <div key={n.id || i} className="drawer-reminder-card" onClick={() => { setIsMobileOpen(false); handleNotifClick(n); }}>
                           <div className="reminder-card-main">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '16px' }}>{n.tipo === 'mencion' ? '@' : n.tipo === 'respuesta' ? '💬' : n.tipo === 'tarea_completada' ? '✅' : '📌'}</span>
+                              <span style={{ fontSize: '16px' }}>{n.tipo === 'mencion' ? '@' : n.tipo === 'respuesta' ? '💬' : n.tipo === 'tarea_completada' ? '✅' : n.tipo === 'posible_venta' ? '🤝' : '📌'}</span>
                               <strong className="reminder-card-title">{n.titulo || 'Notificación'}</strong>
                             </div>
                           </div>
@@ -1344,7 +1347,7 @@ className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
                       <div key={n.id || i} className="reminder-item" onClick={() => handleNotifClick(n)}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                           <span style={{ fontSize: '16px', flexShrink: 0 }}>
-                            {n.tipo === 'mencion' ? '@' : n.tipo === 'respuesta' ? '💬' : n.tipo === 'tarea_completada' ? '✅' : '📌'}
+                            {n.tipo === 'mencion' ? '@' : n.tipo === 'respuesta' ? '💬' : n.tipo === 'tarea_completada' ? '✅' : n.tipo === 'posible_venta' ? '🤝' : '📌'}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>{n.titulo || 'Notificación'}</strong>

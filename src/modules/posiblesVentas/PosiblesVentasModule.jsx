@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
   Handshake, ClipboardList, Clock, Eye, Trophy, XCircle,
@@ -690,6 +690,7 @@ function diasDesde(val) {
 // ─── Componente principal ─────────────────────────────────
 export default function PosiblesVentasModule() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const outlet = useOutletContext() || {};
   const outletSalones = outlet?.salones;
@@ -714,6 +715,8 @@ export default function PosiblesVentasModule() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [estadoFilter, setEstadoFilter] = useState('all');
+  const [focusedLeadId, setFocusedLeadId] = useState(() => searchParams.get('focus') || null);
+  const focusTimerRef = useRef(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -746,6 +749,32 @@ export default function PosiblesVentasModule() {
   }, []);
 
   useEffect(() => { loadLeads(); }, [loadLeads]);
+
+  // Si la URL trae ?focus=ID, hacer scroll y resaltar el lead correspondiente.
+  // Limpiamos el query param para que no quede "pegado" si el usuario navega dentro del módulo.
+  useEffect(() => {
+    if (!focusedLeadId) return;
+    if (loading) return; // esperar a que carguen los leads
+    const t = setTimeout(() => {
+      const el = document.getElementById(`pv-lead-${focusedLeadId}`);
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      // Quitar el highlight después de 4s
+      focusTimerRef.current = setTimeout(() => {
+        setFocusedLeadId(null);
+        // Limpiar ?focus= de la URL
+        const next = new URLSearchParams(searchParams);
+        next.delete('focus');
+        setSearchParams(next, { replace: true });
+      }, 4000);
+    }, 200);
+    return () => {
+      clearTimeout(t);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedLeadId, loading, leads.length]);
 
   const loadEliminadas = useCallback(async () => {
     setLoadingEliminadas(true);
@@ -1182,17 +1211,31 @@ export default function PosiblesVentasModule() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {filteredLeads.map(lead => (
-                  <LeadCard
+                  <div
                     key={lead.id}
-                    lead={lead}
-                    userName={userName}
-                    canEdit={canEditLead(lead)}
-                    canDelete={canDeleteLead(lead)}
-                    onEdit={() => openEdit(lead)}
-                    onDelete={() => handleDelete(lead)}
-                    onConvert={() => navigate(`/nueva-reserva?date=${lead.fechaEvento || ''}&pv=${lead.id}`)}
-                    onVerReserva={() => navigate(`/reserva/${lead.eventoId}`)}
-                  />
+                    id={`pv-lead-${lead.id}`}
+                    style={{
+                      borderRadius: '14px',
+                      transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+                      boxShadow: focusedLeadId && String(focusedLeadId) === String(lead.id)
+                        ? '0 0 0 3px #14b8a6, 0 8px 24px rgba(20,184,166,0.35)'
+                        : 'none',
+                      transform: focusedLeadId && String(focusedLeadId) === String(lead.id)
+                        ? 'scale(1.02)'
+                        : 'scale(1)',
+                    }}
+                  >
+                    <LeadCard
+                      lead={lead}
+                      userName={userName}
+                      canEdit={canEditLead(lead)}
+                      canDelete={canDeleteLead(lead)}
+                      onEdit={() => openEdit(lead)}
+                      onDelete={() => handleDelete(lead)}
+                      onConvert={() => navigate(`/nueva-reserva?date=${lead.fechaEvento || ''}&pv=${lead.id}`)}
+                      onVerReserva={() => navigate(`/reserva/${lead.eventoId}`)}
+                    />
+                  </div>
                 ))}
               </div>
             )

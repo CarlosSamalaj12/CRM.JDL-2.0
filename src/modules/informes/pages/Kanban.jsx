@@ -349,10 +349,17 @@ export default function Kanban() {
 
   const loadWeeklyTasks = useCallback(() => {
     const monday = getMonday(selectedDate);
-    getTareasSemanaMerged(monday)
+    // Filtrar por usuario/equipo para que el contador del badge en EventCard
+    // muestre solo las tareas que de verdad puede ver el usuario actual
+    // (si no, "tareas pendientes" incluye tareas de otros equipos que no
+    // aparecen al hacer click, causando confusión).
+    const params = {};
+    if (currentUser?.id) params.usuario_id = currentUser.id;
+    if (currentUser?.teamId) params.equipo_id = currentUser.teamId;
+    getTareasSemanaMerged(monday, params)
       .then(setWeeklyTasks)
       .catch(() => {});
-  }, [selectedDate]);
+  }, [selectedDate, currentUser?.id, currentUser?.teamId]);
 
   useEffect(() => {
     loadEvents();

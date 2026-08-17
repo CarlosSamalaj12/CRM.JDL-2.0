@@ -235,8 +235,11 @@ export async function syncAllEstados({ onlyIds = null } = {}) {
 async function notificarVendedor(req, leadId, vendedorId, clienteNombre, detalle) {
   if (!vendedorId) return;
 
-  const titulo = 'Nuevo evento asignado';
-  const mensaje = `${clienteNombre}${detalle ? ` · ${detalle}` : ''} — te fue asignado un nuevo evento.`;
+  const esReasignacion = String(detalle || '').trim().toLowerCase() === 'reasignada';
+  const titulo = esReasignacion ? 'Evento reasignado' : 'Nuevo evento asignado';
+  const mensaje = esReasignacion
+    ? `${clienteNombre} — te fue reasignado.`
+    : `${clienteNombre}${detalle ? ` · ${detalle}` : ''} — te fue asignado un nuevo evento.`;
 
   try {
     const [notifResult] = await pool.query(
@@ -263,7 +266,7 @@ async function notificarVendedor(req, leadId, vendedorId, clienteNombre, detalle
     enviarNotificacionWebPush(
       vendedorId,
       titulo,
-      `${clienteNombre}${detalle ? ` · ${detalle}` : ''} — evento asignado.`,
+      mensaje,
       { url: '/posibles-ventas' }
     ).catch((err) => console.error('[WebPush] Error enviando push posible venta:', err));
   } catch (err) {

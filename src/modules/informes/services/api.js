@@ -975,8 +975,9 @@ export async function deleteTarea(tareaId) {
 
 // --- TAREAS SEMANALES ---
 
-export async function getTareasSemanaMerged(semanaLunes) {
-  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/${semanaLunes}/merged`);
+export async function getTareasSemanaMerged(semanaLunes, params = {}) {
+  const qs = Object.keys(params).length > 0 ? `?${new URLSearchParams(params)}` : '';
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/${semanaLunes}/merged${qs}`);
   if (!response.ok) throw new Error('Error al cargar tareas de la semana');
   return response.json();
 }

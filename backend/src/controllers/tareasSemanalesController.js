@@ -349,8 +349,9 @@ export async function getTareasMerged(req, res, next) {
        JOIN tbl_seguimientocotizaciones ev ON te.id_ocupacion = ev.Idocupacion
        LEFT JOIN eventos e ON te.id_ocupacion = e.id
        WHERE YEARWEEK(ev.FechaEvento, 1) = YEARWEEK(?, 1)
+         ${usuario_id ? 'AND te.usuario_id = ?' : ''}
        ORDER BY ev.FechaEvento ASC, te.id ASC`,
-      [semana_lunes]
+      usuario_id ? [semana_lunes, usuario_id] : [semana_lunes]
     );
 
     const marked = new Set();

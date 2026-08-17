@@ -903,6 +903,32 @@ async function ensurePosiblesVentasPrimerSeguimiento() {
   }
 }
 
+// One-time: renombra notificaciones viejas de "Nueva posible venta asignada"
+// a "Nuevo evento asignado" (consistencia con el rename de UI del 2026-08-16).
+// Idempotente: solo actualiza si encuentra el texto viejo.
+async function ensurePosiblesVentasNotificacionesRenombradas() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    // Primero el caso "nuevo" (que se genera desde 2026-08-16)
+    await conn.query(
+      `UPDATE notificaciones
+          SET titulo = 'Nuevo evento asignado'
+        WHERE tipo = 'posible_venta'
+          AND titulo IN ('Nueva posible venta asignada', 'Nueva posible venta', 'Posible venta asignada')`
+    );
+    // Y el caso "reasignado" (re-asignación por admin/recepción)
+    await conn.query(
+      `UPDATE notificaciones
+          SET titulo = 'Evento reasignado'
+        WHERE tipo = 'posible_venta'
+          AND titulo IN ('Reasignación de posible venta', 'Posible venta reasignada', 'Reasignada')`
+    );
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureAdvancesStructure() {
   let conn;
   try {
@@ -5081,6 +5107,7 @@ const MIGRATIONS = [
   { name: 'PosiblesVentasEventoId', fn: ensurePosiblesVentasEventoId },
   { name: 'PosiblesVentasSoftDelete', fn: ensurePosiblesVentasSoftDelete },
   { name: 'PosiblesVentasPrimerSeguimiento', fn: ensurePosiblesVentasPrimerSeguimiento },
+  { name: 'PosiblesVentasNotificacionesRenombradas', fn: ensurePosiblesVentasNotificacionesRenombradas },
   { name: 'HistorialPosiblesVentas', fn: ensureHistorialPosiblesVentas },
   { name: 'PerformanceIndexes', fn: ensurePerformanceIndexes },
 ];
@@ -5112,6 +5139,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePosiblesVentasEventoId',
   'ensurePosiblesVentasSoftDelete',
   'ensurePosiblesVentasPrimerSeguimiento',
+  'ensurePosiblesVentasNotificacionesRenombradas',
   'ensureHistorialPosiblesVentas',
   'ensurePerformanceIndexes',
 ]);
