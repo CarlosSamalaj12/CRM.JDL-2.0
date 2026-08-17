@@ -143,39 +143,40 @@ function StatCard({ stat, value, pct, extra }) {
     <div style={{
       background: stat.bg,
       border: `1px solid ${stat.border}`,
-      borderRadius: '14px',
-      padding: '14px 16px',
+      borderRadius: '10px',
+      padding: '8px 12px',
       display: 'flex',
       alignItems: 'center',
-      gap: '12px',
+      gap: '10px',
       transition: 'transform 0.15s, box-shadow 0.15s',
     }}
       onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.06)'; }}
       onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
     >
       <div style={{
-        width: '38px', height: '38px', borderRadius: '10px',
+        width: '30px', height: '30px', borderRadius: '8px',
         background: '#fff',
         border: `1px solid ${stat.border}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         flexShrink: 0,
       }}>
-        <Icon name={stat.icon} size={20} color={stat.color} strokeWidth={2.2} />
+        <Icon name={stat.icon} size={15} color={stat.color} strokeWidth={2.2} />
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{
-          fontSize: '10.5px', fontWeight: 700, color: '#64748b',
-          textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px',
+          fontSize: '9.5px', fontWeight: 800, color: '#64748b',
+          textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1px',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>{stat.label}</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '22px', fontWeight: 900, color: stat.color, lineHeight: 1 }}>
-            {value}{stat.isRate && <span style={{ fontSize: '14px', marginLeft: '1px' }}>%</span>}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '17px', fontWeight: 900, color: stat.color, lineHeight: 1 }}>
+            {value}{stat.isRate && <span style={{ fontSize: '12px', marginLeft: '1px' }}>%</span>}
           </span>
           {pct !== null && pct !== undefined && (
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>{pct}%</span>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8' }}>{pct}%</span>
           )}
           {extra && (
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>{extra}</span>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{extra}</span>
           )}
         </div>
       </div>
@@ -1104,11 +1105,11 @@ export default function PosiblesVentasModule() {
 
         {/* ── Stat cards ── */}
         {vista === 'activas' && (
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-            <div style={{
+          <div className="pv-stat-cards-container" style={{ padding: '10px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+            <div className="pv-stat-cards-grid" style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: '10px',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '8px',
             }}>
               {STAT_CARDS.map(s => {
                 let value, pct = null, extra = null;
@@ -1489,7 +1490,12 @@ export default function PosiblesVentasModule() {
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         @media (max-width: 640px) {
-          .pv-module-wrapper { padding: 10px !important; }
+          .pv-module-wrapper { padding: 8px !important; }
+          .pv-stat-cards-container { padding: 8px 10px !important; }
+          .pv-stat-cards-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 6px !important;
+          }
         }
         @keyframes pv-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .pv-spin { animation: pv-spin 1s linear infinite; transform-origin: center; }
