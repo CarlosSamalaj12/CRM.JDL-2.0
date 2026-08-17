@@ -243,8 +243,8 @@ async function notificarVendedor(req, leadId, vendedorId, clienteNombre, detalle
 
   try {
     const [notifResult] = await pool.query(
-      'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje) VALUES (?, ?, ?, ?)',
-      [String(vendedorId), 'posible_venta', titulo, mensaje]
+      'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion) VALUES (?, ?, ?, ?, ?)',
+      [String(vendedorId), 'posible_venta', titulo, mensaje, String(leadId)]
     );
 
     if (req.io) {
@@ -255,7 +255,7 @@ async function notificarVendedor(req, leadId, vendedorId, clienteNombre, detalle
         titulo,
         mensaje,
         informe_id: null,
-        idocupacion: null,
+        idocupacion: String(leadId),
         comentario_id: null,
         posibleVentaId: leadId,
         leido: 0,
@@ -267,7 +267,7 @@ async function notificarVendedor(req, leadId, vendedorId, clienteNombre, detalle
       vendedorId,
       titulo,
       mensaje,
-      { url: '/posibles-ventas' }
+      { url: `/posibles-ventas?focus=${leadId}` }
     ).catch((err) => console.error('[WebPush] Error enviando push posible venta:', err));
   } catch (err) {
     console.error('[PosiblesVentas] Error al notificar vendedor:', err.message || err);

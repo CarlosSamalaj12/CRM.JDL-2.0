@@ -16,6 +16,7 @@ const TYPE_CONFIG = {
   recordatorio: { icon: IconClock,  label: 'Recordatorio', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
   tarea_asignada: { icon: IconCheckCircle, label: 'Tarea asignada', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   tarea_completada: { icon: IconCheckCircle, label: 'Tarea completada', color: '#16a34a', bg: 'rgba(22,163,74,0.1)' },
+  posible_venta: { icon: IconFileText, label: 'Evento asignado', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
 };
 
 const DEFAULT_TYPE = { icon: IconFileText, label: 'Notificación', color: '#64748b', bg: 'rgba(100,116,139,0.1)' };
@@ -110,8 +111,11 @@ export default function NotificationBell() {
       }
     }
     
-    // Si es una mención sin informe_id, viene de una nota de kanban → ir a kanban con la nota
-    if (n.tipo === 'mencion' && !n.informe_id && n.idocupacion) {
+    // Si es una notificación de evento asignado → ir a eventos asignados enfocado
+    if (n.tipo === 'posible_venta') {
+      const targetId = n.idocupacion || n.posibleVentaId;
+      navigate(`/posibles-ventas${targetId ? `?focus=${targetId}` : ''}`);
+    } else if (n.tipo === 'mencion' && !n.informe_id && n.idocupacion) {
       const params = new URLSearchParams({ highlightEvento: n.idocupacion });
       if (n.comentario_id) params.set('notaId', n.comentario_id);
       navigate(`/kanban?${params.toString()}`);
