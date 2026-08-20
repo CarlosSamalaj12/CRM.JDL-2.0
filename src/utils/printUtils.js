@@ -503,8 +503,18 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             }
             return inRange(dayKey);
           });
+          // Las tarjetas de días extendidos de un evento multi-día ("evt_xxx_s2",
+          // "evt_xxx_s3") comparten EL MISMO informe guardado bajo el id base
+          // ("evt_xxx"), cuyo día queda registrado con la fecha del primer día.
+          // Por eso su fecha no coincide con la del carrito y el filtro los
+          // descarta, dejando el contrato sin menú/montaje. Si ninguna fecha del
+          // informe coincide con las fechas visibles, mostramos el menú/montaje
+          // completo del informe en lugar de omitirlo.
+          const diasAUsar = diasFiltrados.length > 0
+            ? diasFiltrados
+            : (info.dias || []);
           const eventSalon = info.Salon || quote.salon || event?.salon || 'Salón';
-          const entries = diasFiltrados.map(d => {
+          const entries = diasAUsar.map(d => {
             const itemsList = Array.isArray(d.items) ? d.items : [];
             let itemsTiempoComida = [];
             if (d.descripcion_montaje) {

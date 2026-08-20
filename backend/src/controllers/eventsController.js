@@ -73,20 +73,9 @@ export async function getWeeklyServices(req, res, next) {
 export async function getEvents(req, res, next) {
   try {
     const { date } = req.query;
-    let currentUserId = req.user?.id;
-    if (!currentUserId && req.headers.authorization) {
-      try {
-        const token = req.headers.authorization.split(' ')[1];
-        const jwt = await import('jsonwebtoken');
-        const decoded = jwt.default.decode(token);
-        if (decoded?.id) currentUserId = decoded.id;
-      } catch (_) {}
-    }
 
-    const escapedUserId = currentUserId ? pool.escape(currentUserId) : null;
-    const noteFilterClause = escapedUserId
-      ? `AND (n.mencion_a_id IS NULL OR n.mencion_a_id = '' OR n.usuario_id = ${escapedUserId} OR FIND_IN_SET(${escapedUserId}, n.mencion_a_id))`
-      : '';
+    // El conteo de notas es el mismo para todos (sin filtro por menciones).
+    const noteFilterClause = '';
 
     let query = `SELECT
         e.Idocupacion,

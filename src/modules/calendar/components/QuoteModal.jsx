@@ -440,6 +440,66 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       setSelectedServiceDate(availableServiceDates[0]);
   }, [availableServiceDates, selectedServiceDate]);
 
+  // Detecta ítems del carrito cuya fecha quedó FUERA del rango de fechas
+  // visibles (porque se movió/quitó una fecha del evento o de la reserva).
+  // Siguen sumando en el total pero ya no se muestran, así que se pregunta
+  // al usuario si quiere eliminarlos para que carrito y total coincidan.
+  const orphanPromptedRef = useRef('');
+  useEffect(() => {
+    if (!quote.templateIds?.length) return;
+    if (!Array.isArray(quote.items) || quote.items.length === 0) return;
+    if (availableServiceDates.length === 0) return;
+    const visible = new Set(availableServiceDates);
+    const norm = (s) => String(s || '').slice(0, 10);
+    const orphans = quote.items.filter(it => {
+      const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
+      return sd.length === 10 && !visible.has(sd);
+    });
+    if (orphans.length === 0) {
+      if (orphanPromptedRef.current) orphanPromptedRef.current = '';
+      return;
+    }
+    const rangeSig = `${availableServiceDates[0]}|${availableServiceDates[availableServiceDates.length - 1]}`;
+    const signature = `${rangeSig}::${orphans.map(o => o.rowId || o.id).sort().join(',')}`;
+    if (orphanPromptedRef.current === signature) return;
+    orphanPromptedRef.current = signature;
+    const rangeLabel = availableServiceDates.length > 1
+      ? `${availableServiceDates[0]} a ${availableServiceDates[availableServiceDates.length - 1]}`
+      : `${availableServiceDates[0]}`;
+    const affectedTotal = orphans.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
+    const listHtml = orphans.map(it => (
+      `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12px;align-items:center;border-bottom:1px solid #f1f5f9;">` +
+      `<span style="color:#334155;flex:1;">${Number(it.qty || 0)} x ${String(it.name || 'Servicio').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</span>` +
+      `<span style="color:#ef4444;font-weight:700;white-space:nowrap;">${String(it.serviceDate || it.date || it.eventDate || '').slice(0, 10)}</span>` +
+      `</div>`
+    )).join('');
+    localSwal({
+      icon: 'warning',
+      title: 'Servicios fuera de las fechas del evento',
+      allowOutsideClick: false,
+      html:
+        `Al cambiar/quitar una fecha, <strong>${orphans.length} servicio(s)</strong> quedó fuera del rango visible (<strong>${rangeLabel}</strong>).<br/>` +
+        `Siguen sumando en el total pero ya no se muestran en el carrito.<br/><br/>` +
+        `<strong>Total afectado:</strong> ${moneyGT(affectedTotal, quote.currency)}<br/><br/>` +
+        listHtml +
+        `<br/><strong>¿Eliminarlos?</strong>`,
+      showDenyButton: true,
+      confirmButtonText: 'Conservar',
+      denyButtonText: `Eliminar (${orphans.length})`,
+      confirmButtonColor: '#64748b',
+      denyButtonColor: '#ef4444',
+      focusDeny: true
+    }).then(result => {
+      if (result.isDenied) {
+        const ids = new Set(orphans.map(o => o.rowId || o.id));
+        setQuote(prev => ({ ...prev, items: prev.items.filter(it => !ids.has(it.rowId || it.id)) }));
+        toast.success(`Se eliminaron ${orphans.length} servicio(s) fuera de las fechas del evento`);
+      } else {
+        orphanPromptedRef.current = '';
+      }
+    });
+  }, [quote.templateIds, quote.items, availableServiceDates, quote.currency]);
+
   const filteredServices = useMemo(() => {
     const term = serviceSearch.trim().toLowerCase();
     if (!term || (selectedCatalogService && selectedCatalogService.name === serviceSearch)) return [];
@@ -4160,59 +4220,85 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     {/* Fecha evento */}
                     <div>
                       <label style={fieldLabel}>Fecha evento</label>
-                      <input 
-                        style={fieldInput} 
-                        type="date" 
-                        value={quote.eventDate || ''} 
+                      <input
+                        style={fieldInput}
+                        type="date"
+                        value={quote.eventDate || ''}
                         onChange={e => {
                           const val = e.target.value;
                           setQuote(p => {
+                            const norm = (s) => String(s || '').slice(0, 10);
+                            const oldStart = norm(p.eventDate);
+                            const newStart = norm(val);
                             const next = { ...p, eventDate: val };
                             if (val && (p.companyId || p.companyName)) {
                               next.dueDate = calculateDueDate(val);
                             }
-                            // Limpiar items con serviceDate fuera del nuevo rango
-                            const norm = (s) => String(s || '').slice(0, 10);
-                            const newStart = norm(val);
-                            const newEnd = norm(next.endDate || val);
-                            if (newStart && Array.isArray(next.items)) {
-                              next.items = next.items.filter(it => {
-                                const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
-                                if (sd.length !== 10) return true;
-                                if (newStart && sd < newStart) return false;
-                                if (newEnd && sd > newEnd) return false;
-                                return true;
-                              });
+                            // Mover los servicios junto con la fecha del evento:
+                            // solo se desplazan los ítems cuya fecha estaba dentro
+                            // del rango ANTERIOR del evento (los que "siguen" al
+                            // evento). Los ítems que ya tenían su propia fecha no
+                            // se tocan, y NUNCA se eliminan ítems al cambiar la
+                            // fecha — el carrito debe conservarse tal cual.
+                            if (Array.isArray(next.items)) {
+                              const oldEnd = norm(p.endDate || p.eventDate) || oldStart;
+                              const safeOldEnd = oldEnd && oldEnd < oldStart ? oldStart : oldEnd;
+                              let dayDiff = 0;
+                              if (oldStart && newStart) {
+                                const diffMs = Date.parse(newStart) - Date.parse(oldStart);
+                                if (!Number.isNaN(diffMs)) dayDiff = Math.round(diffMs / 86_400_000);
+                              }
+                              if (dayDiff !== 0) {
+                                next.items = next.items.map(it => {
+                                  const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
+                                  if (sd.length !== 10) return it;
+                                  if (oldStart && sd < oldStart) return it;
+                                  if (safeOldEnd && sd > safeOldEnd) return it;
+                                  const shifted = new Date(Date.parse(sd) + dayDiff * 86_400_000);
+                                  if (Number.isNaN(shifted.getTime())) return it;
+                                  return { ...it, serviceDate: shifted.toISOString().slice(0, 10) };
+                                });
+                              }
                             }
                             return next;
                           });
                         }}
                       />
                     </div>
-                    
                     {/* Fecha fin */}
                     <div>
                       <label style={fieldLabel}>Fecha fin</label>
-                      <input 
-                        style={fieldInput} 
-                        type="date" 
-                        value={quote.endDate || ''} 
+                      <input
+                        style={fieldInput}
+                        type="date"
+                        value={quote.endDate || ''}
                         onChange={e => {
                           const val = e.target.value;
                           setQuote(p => {
-                            const next = { ...p, endDate: val };
-                            // Limpiar items con serviceDate fuera del nuevo rango
                             const norm = (s) => String(s || '').slice(0, 10);
-                            const newStart = norm(next.eventDate);
-                            const newEnd = norm(val || next.eventDate);
-                            if (newEnd && Array.isArray(next.items)) {
-                              next.items = next.items.filter(it => {
-                                const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
-                                if (sd.length !== 10) return true;
-                                if (newStart && sd < newStart) return false;
-                                if (newEnd && sd > newEnd) return false;
-                                return true;
-                              });
+                            const oldEnd = norm(p.endDate || p.eventDate);
+                            const rawNewEnd = norm(val || p.eventDate);
+                            const next = { ...p, endDate: val };
+                            // Al extender la fecha fin, también desplazamos los
+                            // items que estuvieran justo en el viejo fin para
+                            // que acompañen la nueva extensión. NO se elimina
+                            // ningún ítem al cambiar la fecha.
+                            if (Array.isArray(next.items)) {
+                              let dayDiff = 0;
+                              if (oldEnd && rawNewEnd) {
+                                const diffMs = Date.parse(rawNewEnd) - Date.parse(oldEnd);
+                                if (!Number.isNaN(diffMs)) dayDiff = Math.round(diffMs / 86_400_000);
+                              }
+                              if (dayDiff !== 0) {
+                                next.items = next.items.map(it => {
+                                  const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
+                                  if (sd.length !== 10) return it;
+                                  if (sd !== oldEnd) return it;
+                                  const shifted = new Date(Date.parse(sd) + dayDiff * 86_400_000);
+                                  if (Number.isNaN(shifted.getTime())) return it;
+                                  return { ...it, serviceDate: shifted.toISOString().slice(0, 10) };
+                                });
+                              }
                             }
                             return next;
                           });

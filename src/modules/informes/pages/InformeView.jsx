@@ -7,7 +7,8 @@ import { useSocket } from '../context/SocketContext.jsx';
 import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 import ColaboracionPanel from '../components/ColaboracionPanel.jsx';
 import { IconArrowLeft, IconPrinter, IconDownload, IconFileText, IconMessageCircle, IconCheckCircle, IconX, IconEdit } from '../components/Icons.jsx';
-import { TIEMPOS_COMIDA, TIEMPO_COMIDA_ORDER } from '../constants/tiemposComida.js';
+import { TIEMPOS_COMIDA } from '../constants/tiemposComida.js';
+import { loadState as loadCrmState } from '../../../services/stateService.js';
 
 const ALERTAS_PREDEFINIDAS = [
   { label: 'Sin Gluten', emoji: '🌾' },
@@ -41,6 +42,29 @@ export default function InformeView() {
   const docRef = useRef(null);
   const actionsBarRef = useRef(null);
   const { setInformeActions } = useContext(InformeActionsContext) || {};
+
+  // Orden personalizado de tiempos de comida (informe_tiempos_orden en DB)
+  const [customTiempoComidaOrder, setCustomTiempoComidaOrder] = useState(null);
+
+  useEffect(() => {
+    const loadConfig = async (opts = {}) => {
+      try {
+        const state = await loadCrmState(opts);
+        setCustomTiempoComidaOrder(state?.informe_tiempos_orden || null);
+      } catch {
+        setCustomTiempoComidaOrder(null);
+      }
+    };
+    loadConfig();
+    const handleStateUpdate = () => loadConfig({ cacheBust: true });
+    window.addEventListener('stateUpdated', handleStateUpdate);
+    const handleVisibility = () => { if (!document.hidden) loadConfig({ cacheBust: true }); };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('stateUpdated', handleStateUpdate);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   useEffect(() => {
     const loadInforme = async () => {
@@ -778,7 +802,7 @@ export default function InformeView() {
                           const p = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : (dia.descripcion_montaje || {});
                           if (p && p._v === 2) itemsTc = p.items_tiempo_comida || [];
                         } catch {}
-                        return agruparItemsPorTiempoComida(dia.items, itemsTc).map((grupo, gi) => (
+                        return agruparItemsPorTiempoComida(dia.items, itemsTc, customTiempoComidaOrder).map((grupo, gi) => (
                           <div key={gi} className="iv-grupo">
                             <div className="iv-grupo-label" style={{ '--tc-color': grupo.grupoColor, '--tc-bg': `${grupo.grupoColor}15` }}>{grupo.grupoLabel}</div>
                             <div className="iv-grupo-items">
@@ -1046,16 +1070,23 @@ export default function InformeView() {
 }
 
 // ─── Helper: agrupar items por tiempo de comida ───
-function agruparItemsPorTiempoComida(items, itemsTc) {
+function agruparItemsPorTiempoComida(items, itemsTc, order) {
   const grupos = {};
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const tcId = itemsTc && i < itemsTc.length ? itemsTc[i] : null;
-    const key = tcId && TIEMPO_COMIDA_ORDER[tcId] ? tcId : '__sin_asignar';
+    const key = tcId && TIEMPOS_COMIDA.some(t => t.id === tcId) ? tcId : '__sin_asignar';
     if (!grupos[key]) grupos[key] = [];
     grupos[key].push(item);
   }
   const resultado = [];
+  const orderedIds = Array.isArray(order) && order.length > 0 ? order : TIEMPOS_COMIDA.map(t => t.id);
+  for (const id of orderedIds) {
+    const tc = TIEMPOS_COMIDA.find(t => t.id === id);
+    if (!tc || !grupos[id] || grupos[id].length === 0) continue;
+    resultado.push({ grupoLabel: tc.label, grupoColor: tc.color, items: grupos[id] });
+    delete grupos[id];
+  }
   for (const tc of TIEMPOS_COMIDA) {
     if (grupos[tc.id] && grupos[tc.id].length > 0) {
       resultado.push({ grupoLabel: tc.label, grupoColor: tc.color, items: grupos[tc.id] });

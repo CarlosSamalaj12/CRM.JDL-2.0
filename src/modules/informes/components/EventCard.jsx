@@ -185,11 +185,8 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
       })
     : [];
 
-  const notasFiltradas = notas.filter(n => {
-    if (!n.menciones || n.menciones.length === 0) return true;
-    if (String(n.usuario_id) === String(currentUserId)) return true;
-    return n.menciones.some(m => String(m.id) === String(currentUserId));
-  });
+  // Todas las notas son visibles para todo el equipo, tengan o no menciones.
+  const notasFiltradas = notas;
 
   const displayNotasCount = (notas.length > 0 || notasOpen) ? notasFiltradas.length : Number(event.cant_notas || 0);
 
