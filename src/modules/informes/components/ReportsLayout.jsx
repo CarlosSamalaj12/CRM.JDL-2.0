@@ -423,18 +423,28 @@ export default function ReportsLayout() {
           }
           @media (max-width: 767px) {
             .informes-shell .app-header {
-              padding: 0.6rem 0.75rem !important;
+              padding: 0.55rem 0.7rem 0.65rem !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: stretch !important;
+              gap: 0.45rem !important;
+              border-radius: 0 !important;
+              margin-bottom: 0.15rem !important;
+            }
+            .informes-shell .header-top-row {
               display: grid !important;
               grid-template-columns: 1fr auto !important;
               grid-template-rows: auto auto !important;
-              gap: 0.5rem !important;
-              border-radius: 0 !important;
-              margin-bottom: 0.25rem !important;
+              align-items: center !important;
+              gap: 0.45rem 0.5rem !important;
+              width: 100% !important;
+              flex-wrap: unset !important;
             }
             .informes-shell .header-left {
               grid-column: 1 !important;
               grid-row: 1 !important;
               width: auto !important;
+              min-width: 0 !important;
             }
             .informes-shell .header-controls {
               display: contents !important;
@@ -444,12 +454,19 @@ export default function ReportsLayout() {
               grid-row: 1 !important;
               display: flex !important;
               align-items: center !important;
-              gap: 0.4rem !important;
+              gap: 0.3rem !important;
+              flex-wrap: nowrap !important;
             }
             .informes-shell .header-search-container {
               grid-column: 1 / -1 !important;
               grid-row: 2 !important;
               width: 100% !important;
+            }
+            .informes-shell .informe-actions-bar {
+              width: 100% !important;
+              margin-top: 0.15rem !important;
+              padding-top: 0.45rem !important;
+              padding-bottom: 0 !important;
             }
             .informes-shell .header-search-container > div {
               min-width: 0 !important;
@@ -462,9 +479,10 @@ export default function ReportsLayout() {
               margin-top: 0 !important;
             }
             .informes-shell .kanban-header {
-              top: 0 !important;
-              z-index: 1000 !important;
-              background: var(--bg-app) !important;
+              position: relative !important;
+              top: auto !important;
+              z-index: 1 !important;
+              background: transparent !important;
               margin-top: 0 !important;
             }
             /* Ocultar navegación en móvil — está en el drawer */
@@ -917,6 +935,37 @@ export default function ReportsLayout() {
           margin-top: 0.5rem;
           border-top: 1px solid var(--border);
         }
+        .informe-actions-bar .kanban-filter {
+          width: 100%;
+          overflow: visible;
+        }
+        .informe-actions-bar .kanban-header-meta {
+          display: flex;
+          align-items: baseline;
+          gap: 0.45rem;
+          margin-right: 0.35rem;
+          flex: 0 0 auto;
+          min-width: 0;
+          line-height: 1.15;
+        }
+        .informe-actions-bar .kanban-header-meta-title {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          font-size: 0.88rem;
+          font-weight: 700;
+          color: var(--text-main);
+          white-space: nowrap;
+        }
+        .informe-actions-bar .kanban-header-meta-count {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: var(--text-muted);
+          white-space: nowrap;
+        }
+        .informe-actions-bar .week-filter-container {
+          margin-left: auto;
+        }
         .informe-actions-bar .btn-secondary,
         .informe-actions-bar .btn-primary,
         .informe-actions-bar .btn-success {
@@ -955,6 +1004,50 @@ export default function ReportsLayout() {
           .informe-actions-bar .btn-primary {
             flex: 2 1 140px;
             font-weight: 700;
+          }
+          .informe-actions-bar .kanban-toolbar {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 0.35rem;
+            width: 100%;
+          }
+          .informe-actions-bar .kanban-header-meta {
+            grid-column: 1 / -1;
+            flex: unset;
+            margin-right: 0;
+          }
+          .informe-actions-bar .kanban-header-meta-title {
+            display: none;
+          }
+          .informe-actions-bar .view-toggle {
+            grid-column: 1 / -1;
+            width: 100%;
+          }
+          .informe-actions-bar .view-toggle-btn {
+            flex: 1 1 0;
+            min-width: 0;
+            justify-content: center;
+            min-height: 36px;
+            padding: 0.35rem 0.25rem;
+            font-size: 0.7rem;
+          }
+          .informe-actions-bar .kanban-toolbar > .btn-ghost {
+            min-height: 36px;
+            min-width: 0;
+            justify-content: center;
+            padding: 0.35rem 0.4rem;
+            font-size: 0.72rem;
+          }
+          .informe-actions-bar .week-filter-container {
+            grid-column: 1 / -1;
+            margin-left: 0;
+            margin-top: 0 !important;
+            width: 100% !important;
+            flex-basis: auto !important;
+          }
+          .informe-actions-bar .week-filter-container .btn-ghost {
+            flex: 0 0 auto;
+            min-width: 36px;
           }
         }
       `}</style>

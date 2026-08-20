@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -8,6 +8,7 @@ import { jsPDF } from 'jspdf';
 import { fetchEvents, fetchEventById, fetchWeeklyServices, getTareasSemanaMerged } from '../services/api.js';
 import EventCard from '../components/EventCard.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
+import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 
 import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconAlertCircle, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload, IconClipboardList } from '../components/Icons.jsx';
 import LoadingSpinner from '../../../components/LoadingSpinner';
@@ -59,6 +60,7 @@ const kanbanMemoryCache = {};
 
 export default function Kanban() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { setInformeActions } = useContext(InformeActionsContext) || {};
 
   // Función para obtener la fecha inicial (URL param > localStorage > hoy)
   const getInitialDate = () => {
@@ -741,85 +743,97 @@ export default function Kanban() {
   else if (filterSalon) filterLabel = `Salón: ${filterSalon}`;
   else if (filterAlertas) filterLabel = '⚠️ Alertas';
 
+  const kanbanActionsEl = useMemo(() => (
+    <div className="kanban-filter" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', minWidth: 0, width: '100%' }}>
+      <div className="kanban-header-meta">
+        <span className="kanban-header-meta-title">
+          {viewMode === 'kanban' ? <><IconGrid size={15} /> Ocupación</> : viewMode === 'tabla' ? <><IconFileText size={15} /> Tabla</> : <><IconClipboardList size={15} /> Tareas</>}
+        </span>
+        <span className="kanban-header-meta-count">
+          {totalEvents} eventos{hasFilter ? ' filtrados' : ''}
+        </span>
+      </div>
+      <div className="view-toggle">
+        <button className={`view-toggle-btn${viewMode === 'kanban' ? ' active' : ''}`} onClick={() => setViewMode('kanban')}>
+          <IconGrid size={13} /> Ocupación
+        </button>
+        <button className={`view-toggle-btn${viewMode === 'tabla' ? ' active' : ''}`} onClick={() => setViewMode('tabla')}>
+          <IconFileText size={13} /> Tabla
+        </button>
+        <button className={`view-toggle-btn${viewMode === 'tareas' ? ' active' : ''}`} onClick={() => setViewMode('tareas')}>
+          <IconClipboardList size={13} /> Tareas
+        </button>
+      </div>
+      <button
+        className={`btn-ghost btn-sm ${filterAlertas ? 'active' : ''}`}
+        onClick={() => {
+          const newParams = new URLSearchParams(searchParams);
+          if (filterAlertas) {
+            newParams.delete('alertas');
+          } else {
+            newParams.set('alertas', '1');
+          }
+          setSearchParams(newParams);
+        }}
+        data-tooltip={filterAlertas ? 'Quitar filtro de alertas' : 'Mostrar solo eventos con alertas'}
+        style={filterAlertas ? { background: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.4)', color: '#d97706' } : {}}
+      >
+        Alertas
+      </button>
+      <button className="btn-ghost btn-sm" onClick={exportToExcel} data-tooltip="Exportar a Excel">
+        <IconDownload size={14} /> Excel
+      </button>
+      {viewMode === 'tabla' && (
+        <button className="btn-ghost btn-sm" onClick={exportToPdf} data-tooltip="Exportar PDF sin abrir ventana">
+          <IconFileText size={14} /> PDF
+        </button>
+      )}
+      {viewMode === 'tabla' && (
+        <button className="btn-ghost btn-sm" onClick={handlePrint} data-tooltip="Imprimir / PDF">
+          <IconPrinter size={14} /> Imprimir
+        </button>
+      )}
+      <div className="week-filter-container">
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          onClick={handlePrevWeek}
+          data-tooltip="Semana anterior"
+        >
+          ‹
+        </button>
+        <div className="week-filter-input-wrap">
+          <input
+            id="week-filter"
+            type="date"
+            value={selectedDate ? getMonday(selectedDate.slice(0, 10)) : ''}
+            onChange={(e) => setSelectedDate(getMonday(e.target.value))}
+          />
+        </div>
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          onClick={handleNextWeek}
+          data-tooltip="Semana siguiente"
+        >
+          ›
+        </button>
+      </div>
+    </div>
+  ), [viewMode, filterAlertas, searchParams, setSearchParams, selectedDate, pdfLoading, totalEvents, hasFilter]);
+
+  useEffect(() => {
+    if (setInformeActions) setInformeActions(kanbanActionsEl);
+    return () => {
+      if (setInformeActions) setInformeActions(null);
+    };
+  }, [kanbanActionsEl, setInformeActions]);
+
   return (
     <section className="kanban-shell">
-      <div className="kanban-header">
-        <div className="kanban-title">
-          <h2>{viewMode === 'kanban' ? <><IconGrid size={20} /> Ocupación</> : viewMode === 'tabla' ? <><IconFileText size={20} /> Tabla Semanal</> : <><IconClipboardList size={20} /> Tareas Semanales</>}</h2>
-          <p>{totalEvents} eventos en la semana{hasFilter ? ' (filtrados)' : ''}</p>
-        </div>
-        <div className="kanban-filter" style={{display:'flex',alignItems:'center',gap:'0.35rem',flexWrap:'wrap',minWidth:0,overflow:'hidden'}}>
-          <div className="view-toggle">
-            <button className={`view-toggle-btn${viewMode === 'kanban' ? ' active' : ''}`} onClick={() => setViewMode('kanban')}>
-              <IconGrid size={13} /> Ocupación
-            </button>
-            <button className={`view-toggle-btn${viewMode === 'tabla' ? ' active' : ''}`} onClick={() => setViewMode('tabla')}>
-              <IconFileText size={13} /> Tabla
-            </button>
-            <button className={`view-toggle-btn${viewMode === 'tareas' ? ' active' : ''}`} onClick={() => setViewMode('tareas')}>
-              <IconClipboardList size={13} /> Tareas
-            </button>
-          </div>
-          <button
-            className={`btn-ghost btn-sm ${filterAlertas ? 'active' : ''}`}
-            onClick={() => {
-              const newParams = new URLSearchParams(searchParams);
-              if (filterAlertas) {
-                newParams.delete('alertas');
-              } else {
-                newParams.set('alertas', '1');
-              }
-              setSearchParams(newParams);
-            }}
-            data-tooltip={filterAlertas ? 'Quitar filtro de alertas' : 'Mostrar solo eventos con alertas'}
-            style={filterAlertas ? {background:'rgba(245,158,11,0.15)',borderColor:'rgba(245,158,11,0.4)',color:'#d97706'} : {}}
-          >
-            ⚠️ Alertas
-          </button>
-          <button className="btn-ghost btn-sm" onClick={exportToExcel} data-tooltip="Exportar a Excel">
-            <IconDownload size={14} /> Excel
-          </button>
-          {viewMode === 'tabla' && (
-            <button className="btn-ghost btn-sm" onClick={exportToPdf} data-tooltip="Exportar PDF sin abrir ventana">
-              <IconFileText size={14} /> PDF
-            </button>
-          )}
-          {viewMode === 'tabla' && (
-            <button className="btn-ghost btn-sm" onClick={handlePrint} data-tooltip="Imprimir / PDF">
-              <IconPrinter size={14} /> Imprimir
-            </button>
-          )}
-          <div className="week-filter-container">
-            <button 
-              type="button" 
-              className="btn-ghost btn-sm" 
-              onClick={handlePrevWeek} 
-              data-tooltip="Semana anterior"
-            >
-              ‹
-            </button>
-            <div className="week-filter-input-wrap">
-              <input 
-                id="week-filter" 
-                type="date" 
-                value={selectedDate ? getMonday(selectedDate.slice(0, 10)) : ''} 
-                onChange={(e) => setSelectedDate(getMonday(e.target.value))}
-              />
-            </div>
-            <button 
-              type="button" 
-              className="btn-ghost btn-sm" 
-              onClick={handleNextWeek} 
-              data-tooltip="Semana siguiente"
-            >
-              ›
-            </button>
-          </div>
-        </div>
-        
-        {/* Day selector — visible en mobile (colocado dentro de kanban-header para que sea sticky junto con él) */}
-        {!loading && !error && isMobileView && (viewMode === 'kanban' || viewMode === 'tareas' || viewMode === 'tabla') && (
-          <div className="kanban-day-selector" style={{ marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+      {!loading && !error && isMobileView && (viewMode === 'kanban' || viewMode === 'tareas' || viewMode === 'tabla') && (
+        <div className="kanban-header">
+          <div className="kanban-day-selector">
             <button onClick={handlePrevDay} className="kanban-day-arrow">‹</button>
             <div className="kanban-day-pills-wrap">
               {filteredColumns.map((col, i) => (
@@ -838,8 +852,8 @@ export default function Kanban() {
             </div>
             <button onClick={handleNextDay} className="kanban-day-arrow">›</button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {(hasFilter || filterExiting) && (
         <div className={`kanban-filter-bar ${filterExiting ? 'filter-exit' : ''}`}>

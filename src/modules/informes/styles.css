@@ -887,21 +887,21 @@ button[data-tooltip-bottom]::after {
 .kanban-shell {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
 }
 
 .kanban-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  align-items: center;
+  justify-content: stretch;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  position: sticky;
-  top: 5.5rem;
-  z-index: 90;
-  background: var(--bg-app);
-  padding: 0.75rem 0;
-  margin-top: -0.75rem;
+  position: relative;
+  top: auto;
+  z-index: 1;
+  background: transparent;
+  padding: 0;
+  margin-top: 0;
 }
 
 .kanban-title h2 { margin: 0; display: flex; align-items: center; gap: 0.5rem; }
@@ -7265,6 +7265,42 @@ button[data-tooltip-bottom]::after {
     align-items: center !important;
     justify-content: center !important;
     gap: 0.25rem !important;
+  }
+
+  .informe-actions-bar .kanban-filter {
+    width: 100% !important;
+    gap: 0.4rem !important;
+  }
+
+  .informe-actions-bar .kanban-header-meta {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  .informe-actions-bar .view-toggle {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .informe-actions-bar .view-toggle-btn {
+    flex: 1 1 0 !important;
+    max-width: none !important;
+    min-height: 40px !important;
+  }
+
+  .informe-actions-bar .week-filter-container {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  .informe-actions-bar .week-filter-container button {
+    flex: 0 0 auto !important;
+    max-width: none !important;
+    min-width: 40px !important;
   }
   
   .informe-actions-bar button .btn-text {
