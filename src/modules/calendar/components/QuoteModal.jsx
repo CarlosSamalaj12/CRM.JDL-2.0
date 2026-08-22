@@ -555,7 +555,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       ...prev,
       companyId: company.id || prev.companyId,
       companyName: company.name || prev.companyName,
-      contact: manager?.name || company.owner || '',
+      // Si la empresa tiene manager, usamos su nombre; si no, conservamos lo
+      // que el usuario ya hubiera escrito o usamos el encargado principal.
+      contact: manager?.name || company.owner || prev.contact || '',
       email: manager?.email || company.email || '',
       phone: manager?.phone || company.phone || '',
       nit: company.nit || '',
@@ -963,8 +965,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       return;
     }
     const missing = [];
-    if (!quote.contact) missing.push('Contacto');
-    if (!quote.managerId) missing.push('Encargado de la empresa');
+    if (!quote.contact) missing.push('Contacto (Encargado de la empresa)');
+    // Encargado (managerId) solo es obligatorio si la empresa tiene managers
+    // registrados. Si no los tiene, el usuario captura el nombre directamente
+    // en el campo "Contacto" y basta con eso.
+    const companyHasManagers = Array.isArray(selectedQuoteCompany?.managers) && selectedQuoteCompany.managers.length > 0;
+    if (companyHasManagers && !quote.managerId) missing.push('Encargado de la empresa');
     if (!quote.email) missing.push('Email');
     if (!quote.phone) missing.push('Teléfono');
     if (!quote.nit) missing.push('NIT');
@@ -4120,7 +4126,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       </div>
                     </div>
 
-                    {selectedQuoteCompany && Array.isArray(selectedQuoteCompany.managers) && selectedQuoteCompany.managers.length > 0 && (
+                    {selectedQuoteCompany && Array.isArray(selectedQuoteCompany.managers) && selectedQuoteCompany.managers.length > 0 ? (
                       <div>
                         <label style={fieldLabel}>Encargado de la empresa</label>
                         <select
@@ -4135,7 +4141,61 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           ))}
                         </select>
                       </div>
-                    )}
+                    ) : selectedQuoteCompany ? (
+                      <div style={{
+                        background: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        fontSize: 12,
+                        color: '#92400e',
+                        lineHeight: 1.5,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 8
+                      }}>
+                        <span style={{ fontSize: 14, lineHeight: 1 }}>ℹ️</span>
+                        <div style={{ flex: 1 }}>
+                          Esta empresa no tiene encargados registrados. Escribe el nombre del encargado directamente en el campo <strong>Contacto</strong> debajo.
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCompanyDraftId(selectedQuoteCompany.id || '');
+                              setCompanyDraft({
+                                name: emptyCompanyDraft.name,
+                                owner: emptyCompanyDraft.owner,
+                                email: emptyCompanyDraft.email,
+                                nit: emptyCompanyDraft.nit,
+                                businessName: emptyCompanyDraft.businessName,
+                                eventType: emptyCompanyDraft.eventType,
+                                address: emptyCompanyDraft.address,
+                                phone: emptyCompanyDraft.phone,
+                                notes: emptyCompanyDraft.notes,
+                                ...selectedQuoteCompany
+                              });
+                              setCompanyManagersDraft([]);
+                              setManagerDraft(emptyManagerDraft);
+                              setEditingManagerId('');
+                              setCompanyDraftActive(selectedQuoteCompany.active !== false);
+                              setShowCreateCompanyModal(true);
+                            }}
+                            style={{
+                              marginTop: 6,
+                              background: 'transparent',
+                              border: '1px solid #d97706',
+                              color: '#92400e',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            + Agregar encargado
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
 
                     {[
                       { label: 'Contacto (Encargado de la empresa)', key: 'contact', type: 'text' },
