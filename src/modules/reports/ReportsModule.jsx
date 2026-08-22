@@ -139,9 +139,9 @@ const BOTTOM_NAV = [
   { id: 'more',    label: 'Más',      icon: 'menu' },
 ];
 
-// ─── Iconos SVG inline (estilo Lucide, finos y consistentes) ───
+// ─── Iconos SVG inline (estilo Lucide ultra minimalista) ───
 const Icon = ({ name, size = 22, stroke = 'currentColor' }) => {
-  const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke, strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke, strokeWidth: 1.25, strokeLinecap: 'round', strokeLinejoin: 'round' };
   switch (name) {
     case 'search':
       return <svg {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
@@ -152,25 +152,25 @@ const Icon = ({ name, size = 22, stroke = 'currentColor' }) => {
     case 'chart':
       return <svg {...props}><path d="M3 3v18h18" /><path d="M7 14l4-4 4 4 5-6" /></svg>;
     case 'chart-bar':
-      return <svg {...props}><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" rx="0.5" /><rect x="12" y="8" width="3" height="10" rx="0.5" /><rect x="17" y="5" width="3" height="13" rx="0.5" /></svg>;
+      return <svg {...props}><path d="M3 3v18h18" /><path d="M8 17V11" /><path d="M13 17V7" /><path d="M18 17V13" /></svg>;
     case 'bar-chart':
-      return <svg {...props}><path d="M3 3v18h18" /><path d="M7 16V11" /><path d="M12 16V7" /><path d="M17 16v-5" /></svg>;
+      return <svg {...props}><path d="M3 3v18h18" /><path d="M8 17V12" /><path d="M13 17V8" /><path d="M18 17v-3" /></svg>;
     case 'pie-chart':
-      return <svg {...props}><path d="M21 12A9 9 0 1 1 12 3v9z" /><path d="M21 12A9 9 0 0 0 12 3v9z" transform="rotate(45 12 12)" /></svg>;
+      return <svg {...props}><path d="M21 12A9 9 0 1 1 12 3v9z" /></svg>;
     case 'gauge':
-      return <svg {...props}><path d="M12 14v-4" /><path d="M21 12a9 9 0 1 0-18 0" /><path d="M12 14l4-4" /></svg>;
+      return <svg {...props}><path d="M21 13A9 9 0 1 0 6 5.5" /><path d="M12 14v-4" /><path d="m12 14 4-3.5" /></svg>;
     case 'wallet':
-      return <svg {...props}><path d="M3 7a2 2 0 0 1 2-2h14v4" /><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9H5a2 2 0 0 1-2-2z" /><circle cx="17" cy="13" r="1.2" fill={stroke} /></svg>;
+      return <svg {...props}><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M3 9h18" /><circle cx="17" cy="13" r="0.8" fill={stroke} /></svg>;
     case 'calendar':
       return <svg {...props}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4M16 3v4" /></svg>;
     case 'building':
-      return <svg {...props}><rect x="4" y="3" width="16" height="18" rx="1" /><path d="M9 7h.01M15 7h.01M9 11h.01M15 11h.01M9 15h.01M15 15h.01" /></svg>;
+      return <svg {...props}><rect x="4" y="3" width="16" height="18" rx="1" /><path d="M9 8h.01M15 8h.01M9 12h.01M15 12h.01M9 16h.01M15 16h.01" /></svg>;
     case 'star':
-      return <svg {...props}><polygon points="12 3 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 3" /></svg>;
+      return <svg {...props}><polygon points="12 3 15.1 8.3 21 9.3 16.5 13.6 17.8 19.5 12 16.8 6.2 19.5 7.5 13.6 3 9.3 8.9 8.3 12 3" /></svg>;
     case 'list-checks':
-      return <svg {...props}><path d="m3 6 1 1 3-3" /><path d="m3 13 1 1 3-3" /><path d="m3 20 1 1 3-3" /><path d="M9 6h12" /><path d="M9 13h12" /><path d="M9 20h12" /></svg>;
+      return <svg {...props}><path d="m3 6 1.5 1.5 3-3" /><path d="m3 13 1.5 1.5 3-3" /><path d="m3 20 1.5 1.5 3-3" /><path d="M9 6h12" /><path d="M9 13h12" /><path d="M9 20h12" /></svg>;
     case 'check-circle':
-      return <svg {...props}><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></svg>;
+      return <svg {...props}><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></svg>;
     case 'layers':
       return <svg {...props}><path d="m12 3 9 5-9 5-9-5z" /><path d="m3 13 9 5 9-5" /></svg>;
     case 'award':
@@ -180,7 +180,7 @@ const Icon = ({ name, size = 22, stroke = 'currentColor' }) => {
     case 'grid':
       return <svg {...props}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
     case 'plus':
-      return <svg {...props} strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>;
+      return <svg {...props} strokeWidth={1.8}><path d="M12 5v14M5 12h14" /></svg>;
     case 'menu':
       return <svg {...props}><path d="M3 6h18M3 12h18M3 18h12" /></svg>;
     case 'arrow-right':
@@ -438,41 +438,29 @@ export default function ReportsModule() {
           <ul className="reports-mobile-list">
             {filteredCards.map((card) => {
               return (
-                <li key={card.id}>
+                <li key={card.id} className="reports-tile-item">
                   <button
                     type="button"
-                    className={`reports-mobile-card reports-mobile-card--${card.variant}`}
+                    className={`reports-tile reports-tile--${card.variant}`}
                     onClick={() => setSelectedReport(card.id)}
-                    onMouseEnter={() => {}}
-                    onMouseLeave={() => {}}
                   >
                     <div
-                      className="reports-mobile-card__icon"
-                      style={{ background: ICON_BG[card.variant] || ICON_BG.blue }}
+                      className="reports-tile__icon"
+                      style={{ color: ICON_BG[card.variant] || ICON_BG.blue }}
                     >
-                      <Icon name={card.icon} size={20} stroke="#ffffff" />
+                      <Icon name={card.icon} size={22} stroke="currentColor" />
                     </div>
 
-                    <div className="reports-mobile-card__body">
-                      <div className="reports-mobile-card__title-row">
-                        <span className="reports-mobile-card__title">{card.title}</span>
+                    <div className="reports-tile__body">
+                      <div className="reports-tile__title-row">
+                        <span className="reports-tile__title">{card.title}</span>
                         {card.featured && (
-                          <span className="reports-mobile-card__pin" title="Destacado" aria-label="Destacado">
-                            <Icon name="star" size={13} stroke="currentColor" />
+                          <span className="reports-tile__pin" aria-label="Destacado" title="Destacado">
+                            <Icon name="star" size={12} stroke="currentColor" />
                           </span>
                         )}
                       </div>
-                      <div className="reports-mobile-card__meta">{card.desc}</div>
-                      <div className="reports-mobile-card__foot">
-                        <span className={`reports-mobile-card__badge reports-mobile-card__badge--${card.variant}`}>
-                          {card.category}
-                        </span>
-                        <span className="reports-mobile-card__sub">{card.badge}</span>
-                      </div>
-                    </div>
-
-                    <div className="reports-mobile-card__arrow" aria-hidden="true">
-                      <Icon name="arrow-right" size={18} />
+                      <div className="reports-tile__meta">{card.desc}</div>
                     </div>
                   </button>
                 </li>
