@@ -1594,10 +1594,10 @@ export default function ReservationForm() {
                 )}
 
                 <div style={{ overflowX: 'auto', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
-                  <div style={{ minWidth: '780px' }}>
+                  <div style={{ minWidth: '760px' }}>
                     {/* Encabezado de la tabla */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(34px, 0.3fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px', textAlign: 'center' }}>PRINCIPAL</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(26px, 0.25fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.3px', textAlign: 'center' }}>PRINCIPAL</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
@@ -1616,7 +1616,7 @@ export default function ReservationForm() {
                           key={index}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: 'minmax(34px, 0.3fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)',
+                            gridTemplateColumns: 'minmax(26px, 0.25fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)',
                             gap: '6px',
                             alignItems: 'center',
                             background: isPrincipal ? '#fefce8' : 'white',
@@ -1636,19 +1636,21 @@ export default function ReservationForm() {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              background: isPrincipal ? '#eab308' : 'white',
-                              border: isPrincipal ? '1.5px solid #ca8a04' : '1.5px solid #cbd5e1',
-                              borderRadius: '50%',
-                              width: '28px',
-                              height: '28px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderRadius: '4px',
+                              width: '20px',
+                              height: '20px',
                               padding: 0,
                               margin: '0 auto',
                               cursor: isPrincipal ? 'default' : 'pointer',
-                              boxShadow: isPrincipal ? '0 1px 3px rgba(234,179,8,0.45)' : 'none',
-                              transition: 'all 0.15s'
+                              opacity: isPrincipal ? 1 : 0.45,
+                              transition: 'opacity 0.15s, transform 0.15s'
                             }}
+                            onMouseEnter={(e) => { if (!isPrincipal) e.currentTarget.style.opacity = '0.9'; }}
+                            onMouseLeave={(e) => { if (!isPrincipal) e.currentTarget.style.opacity = '0.45'; }}
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill={isPrincipal ? '#fff' : 'none'} stroke={isPrincipal ? '#fff' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill={isPrincipal ? '#eab308' : 'none'} stroke={isPrincipal ? '#eab308' : '#64748b'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                             </svg>
                           </button>
