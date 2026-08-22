@@ -772,6 +772,66 @@ async function ensureMainSalonStructure() {
   }
 }
 
+// Migracion: para empresas que tienen `encargado_principal` legacy pero NO
+// tienen managers formales en `encargados_empresa`, autogenera un manager
+// copiando el nombre del `encargado_principal` y los datos de contacto
+// (email, telefono, direccion) de la propia empresa.
+// Es idempotente: si la empresa ya tiene managers, no hace nada.
+async function ensureManagersFromOwnerMigration() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const rows = await conn.query(`
+      SELECT e.id, e.nombre, e.encargado_principal, e.correo, e.telefono, e.direccion
+      FROM empresas e
+      LEFT JOIN (
+        SELECT id_empresa, COUNT(*) AS total
+        FROM encargados_empresa
+        GROUP BY id_empresa
+      ) m ON m.id_empresa = e.id
+      WHERE e.encargado_principal IS NOT NULL
+        AND TRIM(e.encargado_principal) <> ''
+        AND (m.total IS NULL OR m.total = 0)
+    `);
+    if (rows.length === 0) {
+      await conn.commit();
+      return;
+    }
+    console.log(`[MIGRACIÓN] Generando manager para ${rows.length} empresa(s) con encargado_principal legacy...`);
+    for (const row of rows) {
+      const companyId = String(row.id || '').trim();
+      if (!companyId) continue;
+      const managerName = String(row.encargado_principal || '').trim();
+      if (!managerName) continue;
+      const managerId = `mgr_mig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await conn.query(
+        `INSERT INTO encargados_empresa
+          (id, id_empresa, nombre, telefono, correo, direccion)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          managerId,
+          companyId,
+          managerName,
+          String(row.telefono || '').trim() || null,
+          String(row.correo || '').trim() || null,
+          String(row.direccion || '').trim() || null,
+        ]
+      );
+      console.log(`[MIGRACIÓN]   - ${row.nombre} -> manager "${managerName}" (${managerId})`);
+    }
+    await conn.commit();
+    console.log(`[MIGRACIÓN] ✅ ${rows.length} manager(s) generado(s) desde encargado_principal`);
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    console.error('[MIGRACIÓN] Error generando managers desde encargado_principal:', err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 // Tabla de posibles ventas: leads capturados por recepción y asignados a un vendedor.
 async function ensurePosiblesVentasStructure() {
   let conn;
@@ -5203,6 +5263,7 @@ const MIGRATIONS = [
   { name: 'PaxCompartido', fn: ensurePaxCompartidoStructure },
   { name: 'SlotPax', fn: ensureSlotPaxStructure },
   { name: 'MainSalon', fn: ensureMainSalonStructure },
+  { name: 'ManagersFromOwner', fn: ensureManagersFromOwnerMigration },
   { name: 'PosiblesVentas', fn: ensurePosiblesVentasStructure },
   { name: 'PosiblesVentasSeguimiento', fn: ensurePosiblesVentasSeguimiento },
   { name: 'PosiblesVentasEventoId', fn: ensurePosiblesVentasEventoId },
@@ -5236,6 +5297,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePaxCompartidoStructure',
   'ensureSlotPaxStructure',
   'ensureMainSalonStructure',
+  'ensureManagersFromOwnerMigration',
   'ensurePosiblesVentasStructure',
   'ensurePosiblesVentasSeguimiento',
   'ensurePosiblesVentasEventoId',
