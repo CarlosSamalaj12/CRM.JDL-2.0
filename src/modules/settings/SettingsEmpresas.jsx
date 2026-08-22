@@ -90,11 +90,14 @@ export default function SettingsEmpresas({ inline, onBack }) {
       email: managerDraft.email.trim(),
       address: managerDraft.address.trim(),
     };
-    if (!clean.name || !clean.phone || !clean.email) {
-      toast('Encargado requiere nombre, telefono y correo.');
+    // Antes pedia nombre + telefono + correo (muy estricto y obligaba a
+    // capturar telefono/correo aunque el usuario no los tuviera). Ahora
+    // solo exigimos el nombre, y si hay email validamos formato.
+    if (!clean.name) {
+      toast('Encargado requiere al menos un nombre.');
       return;
     }
-    if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean.email)) {
+    if (clean.email && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean.email)) {
       toast('Correo de encargado invalido.');
       return;
     }
@@ -132,6 +135,22 @@ export default function SettingsEmpresas({ inline, onBack }) {
     event.preventDefault();
     if (saving) return;
 
+    // Si la empresa no tiene managers pero tiene "Encargado de la Organizacion"
+    // (owner + email), autogeneramos un manager con esos datos para que
+    // el select del modal de cotizacion pueda mostrarlo.
+    const effectiveManagers = (() => {
+      if (managers.length) return managers;
+      const owner = company.owner.trim();
+      if (!owner) return managers;
+      return [{
+        id: uid('mgr'),
+        name: owner,
+        phone: company.phone.trim() || '',
+        email: company.email.trim() || '',
+        address: company.address.trim() || ''
+      }];
+    })();
+
     const payload = normalizeCompanyRecord({
       ...company,
       id: selectedId || uid('cmp'),
@@ -145,7 +164,7 @@ export default function SettingsEmpresas({ inline, onBack }) {
       address: company.address.trim(),
       phone: company.phone.trim(),
       notes: company.notes.trim(),
-      managers,
+      managers: effectiveManagers,
     });
 
     if (!payload.name || !payload.owner || !payload.email || !payload.nit || !payload.businessName || !payload.eventType || !payload.address || !payload.phone) {
@@ -276,6 +295,22 @@ export default function SettingsEmpresas({ inline, onBack }) {
                 <span className="pill">Encargados: {managers.length}</span>
                 <span className="pill">Estado: {companyActive ? 'Activa' : 'Inhabilitada'}</span>
               </div>
+            </div>
+          )}
+
+          {selectedCompany && managers.length === 0 && company.owner.trim() && (
+            <div style={{
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: 12.5,
+              color: '#92400e',
+              marginTop: 10,
+              lineHeight: 1.5
+            }}>
+              💡 <strong>Esta empresa no tiene encargados registrados</strong> (el campo "Encargado de la Organización" dice <strong>{company.owner}</strong>).
+              Al guardar se creará automáticamente un encargado con ese nombre. Si prefieres, agrégalos manualmente abajo.
             </div>
           )}
 
