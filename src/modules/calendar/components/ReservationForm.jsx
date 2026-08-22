@@ -163,6 +163,13 @@ function slotsFromEventSeries(series = [], fallbackEvent = null) {
   if (fallbackEvent?.slots?.length) return fallbackEvent.slots;
   const source = series.length ? series : (fallbackEvent ? [fallbackEvent] : []);
   const grouped = new Map();
+  // Resolver el salon principal designado para esta serie:
+  //   1) explicit mainSalon en cualquier item de la serie
+  //   2) salon del item cuyo salon === mainSalon
+  //   3) primer salon unico
+  const explicitMainSalon = source.map((item) => String(item?.mainSalon || '').trim()).find(Boolean) || '';
+  const allSalones = Array.from(new Set(source.map((ev) => String(ev?.salon || '').trim()).filter(Boolean)));
+  const mainSalon = explicitMainSalon || allSalones[0] || '';
   for (const ev of source) {
     const key = [
       ev.salon || '',
@@ -181,14 +188,28 @@ function slotsFromEventSeries(series = [], fallbackEvent = null) {
         dateEnd: ev.endDate || ev.eventDateEnd || date,
         startTime: ev.startTime || '10:00',
         endTime: ev.endTime || '12:00',
-        status: ev.status || 'Reserva sin Cotizacion'
+        status: ev.status || 'Reserva sin Cotizacion',
+        isPrincipal: String(ev?.salon || '').trim() === mainSalon
       });
     } else {
       if (date && (!existing.dateStart || date < existing.dateStart)) existing.dateStart = date;
       if (date && (!existing.dateEnd || date > existing.dateEnd)) existing.dateEnd = date;
     }
   }
-  return Array.from(grouped.values());
+  const arr = Array.from(grouped.values());
+  // Garantizar que exactamente un slot sea el principal
+  if (!arr.some((s) => s.isPrincipal)) {
+    if (arr.length) arr[0].isPrincipal = true;
+  } else {
+    let kept = false;
+    for (const s of arr) {
+      if (s.isPrincipal) {
+        if (kept) s.isPrincipal = false;
+        else kept = true;
+      }
+    }
+  }
+  return arr;
 }
 
 function normalizeReservationSnapshot({ formData = {}, slots = [] }) {
@@ -199,6 +220,7 @@ function normalizeReservationSnapshot({ formData = {}, slots = [] }) {
     dateEnd: String(slot?.dateEnd || '').trim(),
     startTime: String(slot?.startTime || '').trim(),
     endTime: String(slot?.endTime || '').trim(),
+    isPrincipal: slot?.isPrincipal === true,
   })).sort((a, b) => (
     a.dateStart.localeCompare(b.dateStart)
     || a.salon.localeCompare(b.salon)
@@ -479,7 +501,7 @@ export default function ReservationForm() {
   });
 
   const [slots, setSlots] = useState([
-    { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion' }
+    { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion', isPrincipal: true }
   ]);
 
   const [saving, setSaving] = useState(false);
@@ -626,7 +648,8 @@ export default function ReservationForm() {
       dateEnd: getDefaultEndDate(),
       startTime: urlStart || '10:00',
       endTime: urlEnd || '12:00',
-      status: 'Reserva sin Cotizacion'
+      status: 'Reserva sin Cotizacion',
+      isPrincipal: true
     }];
 
     if (id && events) {
@@ -675,7 +698,8 @@ export default function ReservationForm() {
             dateEnd: existingEvent.endDate || existingEvent.date || getDefaultDate(),
             startTime: existingEvent.startTime || '10:00',
             endTime: existingEvent.endTime || '12:00',
-            status: existingEvent.status || 'Reserva sin Cotizacion'
+            status: existingEvent.status || 'Reserva sin Cotizacion',
+            isPrincipal: true
           }];
         }
       } else {
@@ -716,7 +740,8 @@ export default function ReservationForm() {
         dateEnd: leadDate,
         startTime: urlStart || '10:00',
         endTime: urlEnd || '12:00',
-        status: 'Reserva sin Cotizacion'
+        status: 'Reserva sin Cotizacion',
+        isPrincipal: true
       }];
       pvAppliedRef.current = true;
     }
@@ -770,17 +795,6 @@ export default function ReservationForm() {
     return total;
   }, [slots, formData.paxCompartido, formData.pax]);
 
-  const syncHiddenTimesFromFirstSlot = useCallback(() => {
-    if (slots.length > 0) {
-      setFormData(prev => ({
-        ...prev,
-        startTime: slots[0].startTime || prev.startTime,
-        endTime: slots[0].endTime || prev.endTime,
-        salon: slots[0].salon || prev.salon
-      }));
-    }
-  }, [slots]);
-
   const addSlotRow = () => {
     const newSlot = {
       salon: salones?.length > 0 ? salones[0] : '',
@@ -789,7 +803,8 @@ export default function ReservationForm() {
       dateEnd: formData.endDate,
       startTime: '10:00',
       endTime: '12:00',
-      status: formData.status
+      status: formData.status,
+      isPrincipal: false
     };
     setSlots([...slots, newSlot]);
   };
@@ -799,10 +814,47 @@ export default function ReservationForm() {
       showNotification('Debe existir al menos un bloque', 'error');
       return;
     }
+    const wasPrincipal = slots[index]?.isPrincipal === true;
     const newSlots = slots.filter((_, i) => i !== index);
+    // Si elimino el principal, promuevo el primero de los restantes
+    if (wasPrincipal && newSlots.length) {
+      newSlots[0] = { ...newSlots[0], isPrincipal: true };
+    }
     setSlots(newSlots);
     syncEventPaxFromSlots();
-    syncHiddenTimesFromFirstSlot();
+    syncPrincipalFromSlots(newSlots);
+  };
+
+  /**
+   * Designa el slot en `index` como el salon principal. El resto se desmarca.
+   * Tambien sincroniza formData.salon/date/times con el slot principal para
+   * que el resumen del evento coincida.
+   */
+  const setPrincipalSlot = (index) => {
+    if (index < 0 || index >= slots.length) return;
+    if (slots[index]?.isPrincipal === true) return;
+    const newSlots = slots.map((s, i) => ({ ...s, isPrincipal: i === index }));
+    setSlots(newSlots);
+    syncPrincipalFromSlots(newSlots);
+  };
+
+  /**
+   * Sincroniza formData.salon / date / endDate / startTime / endTime con el slot principal.
+   * Se usa tras addSlotRow, removeSlotRow, setPrincipalSlot o cambios que afecten al principal.
+   * Siempre recibe la lista actualizada como argumento para evitar stale closures.
+   */
+  const syncPrincipalFromSlots = (currentSlots) => {
+    const list = currentSlots || slots;
+    const principal = list.find((s) => s.isPrincipal === true) || list[0];
+    if (!principal) return;
+    setFormData((prev) => ({
+      ...prev,
+      salon: principal.salon || prev.salon,
+      date: principal.dateStart || prev.date,
+      endDate: principal.dateEnd || principal.dateStart || prev.endDate,
+      startTime: principal.startTime || prev.startTime,
+      endTime: principal.endTime || prev.endTime,
+    }));
   };
 
   const handleSlotChange = (index, field, value) => {
@@ -825,13 +877,17 @@ export default function ReservationForm() {
         setFormData(prev => ({ ...prev, pax: total > 0 ? total : '' }));
       }
     }
-    if (field === 'salon' || field === 'startTime' || field === 'endTime') {
-      if (index === 0 && newSlots.length > 0) {
+    if (field === 'salon' || field === 'startTime' || field === 'endTime' || field === 'dateStart' || field === 'dateEnd') {
+      // Sincronizar formData con el slot marcado como principal (no solo con el index 0)
+      const principal = newSlots.find((s) => s.isPrincipal === true) || newSlots[0];
+      if (principal) {
         setFormData(prev => ({
           ...prev,
-          startTime: newSlots[0].startTime || prev.startTime,
-          endTime: newSlots[0].endTime || prev.endTime,
-          salon: newSlots[0].salon || prev.salon
+          startTime: principal.startTime || prev.startTime,
+          endTime: principal.endTime || prev.endTime,
+          salon: principal.salon || prev.salon,
+          date: principal.dateStart || prev.date,
+          endDate: principal.dateEnd || principal.dateStart || prev.endDate,
         }));
       }
     }
@@ -994,7 +1050,8 @@ export default function ReservationForm() {
         groupId: existingEvent?.groupId || undefined,
         pax: null,
         slots: updatedSlots,
-        salon: updatedSlots.map(s => s.salon).join(', '),
+        mainSalon: updatedSlots.find((s) => s.isPrincipal === true)?.salon || updatedSlots[0]?.salon || formData.salon || '',
+        salon: updatedSlots.find((s) => s.isPrincipal === true)?.salon || updatedSlots.map(s => s.salon).join(', '),
         quote: existingEvent?.quote || undefined
       };
 
@@ -1032,7 +1089,8 @@ export default function ReservationForm() {
         groupId: events.find(ev => String(ev.id) === String(id))?.groupId || undefined,
         pax: formData.pax ? parseInt(formData.pax) : null,
         slots: updatedSlots,
-        salon: updatedSlots.map(s => s.salon).join(', '),
+        mainSalon: updatedSlots.find((s) => s.isPrincipal === true)?.salon || updatedSlots[0]?.salon || formData.salon || '',
+        salon: updatedSlots.find((s) => s.isPrincipal === true)?.salon || updatedSlots.map(s => s.salon).join(', '),
         quote: existingEvent?.quote || undefined
       };
 
@@ -1225,14 +1283,31 @@ export default function ReservationForm() {
             : slot.status
         }))
         : slots;
+      // Garantizar que exactamente un slot sea el principal al guardar
+      const cleanedSlots = (() => {
+        const hasPrincipal = finalSlots.some((s) => s.isPrincipal === true);
+        if (hasPrincipal) {
+          let kept = false;
+          return finalSlots.map((s) => {
+            if (s.isPrincipal === true) {
+              if (kept) return { ...s, isPrincipal: false };
+              kept = true;
+            }
+            return s;
+          });
+        }
+        return finalSlots.map((s, i) => i === 0 ? { ...s, isPrincipal: true } : { ...s, isPrincipal: false });
+      })();
+      const principalSlot = cleanedSlots.find((s) => s.isPrincipal === true) || cleanedSlots[0];
       const eventData = {
         ...formData,
         status: finalStatus,
         id: id || undefined,
         groupId: existingEvent?.groupId || undefined,
         pax: formData.pax ? parseInt(formData.pax) : null,
-        slots: finalSlots,
-        salon: finalSlots.map(s => s.salon).join(', '),
+        slots: cleanedSlots,
+        mainSalon: principalSlot?.salon || formData.salon || '',
+        salon: principalSlot?.salon || cleanedSlots.map(s => s.salon).join(', '),
         quote: formData.quote || existingEvent?.quote || undefined
       };
 
@@ -1519,9 +1594,10 @@ export default function ReservationForm() {
                 )}
 
                 <div style={{ overflowX: 'auto', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
-                  <div style={{ minWidth: '720px' }}>
+                  <div style={{ minWidth: '780px' }}>
                     {/* Encabezado de la tabla */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(34px, 0.3fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px', textAlign: 'center' }}>PRINCIPAL</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
@@ -1533,28 +1609,69 @@ export default function ReservationForm() {
 
                     {/* Contenido de la tabla con scroll vertical */}
                     <div style={{ display: 'flex', flexDirection: 'column', padding: '8px 0', gap: '6px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden' }}>
-                      {slots.map((slot, index) => (
-                        <div key={index} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', alignItems: 'center', background: 'white', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      {slots.map((slot, index) => {
+                        const isPrincipal = slot.isPrincipal === true;
+                        return (
+                        <div
+                          key={index}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(34px, 0.3fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)',
+                            gap: '6px',
+                            alignItems: 'center',
+                            background: isPrincipal ? '#fefce8' : 'white',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: isPrincipal ? '2px solid #eab308' : '1px solid #cbd5e1',
+                            transition: 'background 0.15s, border-color 0.15s'
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPrincipalSlot(index)}
+                            disabled={isPrincipal}
+                            title={isPrincipal ? 'Salón principal' : 'Marcar como salón principal'}
+                            aria-label={isPrincipal ? 'Salón principal' : 'Marcar como salón principal'}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: isPrincipal ? '#eab308' : 'white',
+                              border: isPrincipal ? '1.5px solid #ca8a04' : '1.5px solid #cbd5e1',
+                              borderRadius: '50%',
+                              width: '28px',
+                              height: '28px',
+                              padding: 0,
+                              margin: '0 auto',
+                              cursor: isPrincipal ? 'default' : 'pointer',
+                              boxShadow: isPrincipal ? '0 1px 3px rgba(234,179,8,0.45)' : 'none',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill={isPrincipal ? '#fff' : 'none'} stroke={isPrincipal ? '#fff' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                          </button>
                           <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }}>
                             <option value="">Selecciona salon</option>
                             {salones?.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
                             disabled={isMaintenanceStatus(slot.status || formData.status)}
                             value={isMaintenanceStatus(slot.status || formData.status) ? 'N/A' : slot.pax}
-                            onChange={e => handleSlotChange(index, 'pax', e.target.value)} 
-                            placeholder="PAX" 
-                            style={{ 
-                              ...inputStyle, 
+                            onChange={e => handleSlotChange(index, 'pax', e.target.value)}
+                            placeholder="PAX"
+                            style={{
+                              ...inputStyle,
                               padding: '6px 4px',
                               fontSize: '12.5px',
                               background: isMaintenanceStatus(slot.status || formData.status) ? '#f1f5f9' : 'white',
                               color: isMaintenanceStatus(slot.status || formData.status) ? '#94a3b8' : '#000',
                               textAlign: 'center'
-                            }} 
+                            }}
                           />
                           <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
                           <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
@@ -1572,7 +1689,8 @@ export default function ReservationForm() {
                             options={isMaintenanceStatus(formData.status) ? STATUS_META_LIST.filter(s => isMaintenanceStatus(s.key)) : STATUS_META_LIST}
                           />
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

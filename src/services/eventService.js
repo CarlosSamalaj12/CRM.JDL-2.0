@@ -49,6 +49,22 @@ function expandEventSlots(eventData, existingEvent = null) {
     ? slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || slot?.slotPax || 0)), 0)
     : Number(eventData.pax);
   const salones = Array.from(new Set(slots.map((slot) => String(slot?.salon || '').trim()).filter(Boolean)));
+
+  // Resolver el salon principal en orden de prioridad:
+  //   1) eventData.mainSalon (lo que manda el form cuando el usuario lo designa)
+  //   2) el slot marcado con isPrincipal === true
+  //   3) el evento existente (al editar)
+  //   4) primer salon unico encontrado
+  //   5) el slot 0
+  const principalSlot = slots.find((slot) => slot?.isPrincipal === true);
+  const mainSalon = String(
+    eventData?.mainSalon
+      || principalSlot?.salon
+      || existingEvent?.mainSalon
+      || salones[0]
+      || slots[0]?.salon
+      || ''
+  ).trim();
   const expanded = [];
 
   const makeExpandedId = (baseId, slotIdx, date, isFirst) => {
@@ -73,7 +89,7 @@ function expandEventSlots(eventData, existingEvent = null) {
         id: makeExpandedId(baseId, slotIndex, date, isFirst),
         groupId,
         salon: String(slot.salon || '').trim(),
-        mainSalon: salones[0] || String(slot.salon || '').trim(),
+        mainSalon,
         salones,
         date,
         eventDateStart: slotStart || date,

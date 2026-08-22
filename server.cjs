@@ -752,6 +752,26 @@ async function ensureSlotPaxStructure() {
   }
 }
 
+// Salon principal designado por el usuario cuando el evento tiene varios salones.
+// Se persiste por slot-expanded (todos los slots de un mismo id_grupo comparten el mismo salon_principal)
+// porque la tabla eventos tiene una fila por slot expandido.
+async function ensureMainSalonStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'eventos'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("salon_principal")) {
+      await conn.query("ALTER TABLE eventos ADD COLUMN salon_principal VARCHAR(200) NULL AFTER nombre_salon");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 // Tabla de posibles ventas: leads capturados por recepción y asignados a un vendedor.
 async function ensurePosiblesVentasStructure() {
   let conn;
@@ -1168,7 +1188,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, NULL AS firma_data_url, NULL AS avatar_data_url, puede_autorizar_descuento FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
-      conn.query("SELECT id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos WHERE fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH) ORDER BY fecha_evento, hora_inicio, id"),
+      conn.query("SELECT id, id_grupo, nombre, nombre_salon, salon_principal, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos WHERE fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH) ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
       conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','salonConflictDisabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays','informe_tiempos_orden','informe_tipos_montaje','maintenanceMode')"),
@@ -1537,6 +1557,7 @@ async function readStateFromTables() {
             groupId: e.id_grupo ? str(e.id_grupo) : null,
             name: str(e.nombre),
             salon: str(e.nombre_salon),
+            mainSalon: str(e.salon_principal || e.nombre_salon || ''),
             date: toIsoDate(e.fecha_evento),
             eventDateStart: toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
             eventDateEnd: toIsoDate(e.fecha_fin_reserva) || toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento),
@@ -2708,12 +2729,13 @@ async function writeStateToTables(state, oldStateOpt = null) {
       await conn.query(
         `
           INSERT INTO eventos
-            (            id, id_grupo, nombre, nombre_salon, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (            id, id_grupo, nombre, nombre_salon, salon_principal, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             id_grupo = VALUES(id_grupo),
             nombre = VALUES(nombre),
             nombre_salon = VALUES(nombre_salon),
+            salon_principal = VALUES(salon_principal),
             fecha_evento = VALUES(fecha_evento),
             fecha_inicio_reserva = VALUES(fecha_inicio_reserva),
             fecha_fin_reserva = VALUES(fecha_fin_reserva),
@@ -2732,6 +2754,7 @@ async function writeStateToTables(state, oldStateOpt = null) {
           str(e?.groupId).trim() || null,
           str(e?.name).trim() || "(sin nombre)",
           str(e?.salon).trim() || "(sin salon)",
+          str(e?.mainSalon).trim() || str(e?.salon).trim() || null,
           asDate(e?.date) || "1970-01-01",
           asDate(e?.eventDateStart || e?.reservationDateStart || e?.seriesDateStart || e?.date) || "1970-01-01",
           asDate(e?.eventDateEnd || e?.reservationDateEnd || e?.seriesDateEnd || e?.endDate || e?.eventDateStart || e?.reservationDateStart || e?.seriesDateStart || e?.date) || "1970-01-01",
@@ -5150,6 +5173,7 @@ const MIGRATIONS = [
   { name: 'WebPushSubscriptionsTable', fn: ensurePushSubscriptionsTable },
   { name: 'PaxCompartido', fn: ensurePaxCompartidoStructure },
   { name: 'SlotPax', fn: ensureSlotPaxStructure },
+  { name: 'MainSalon', fn: ensureMainSalonStructure },
   { name: 'PosiblesVentas', fn: ensurePosiblesVentasStructure },
   { name: 'PosiblesVentasSeguimiento', fn: ensurePosiblesVentasSeguimiento },
   { name: 'PosiblesVentasEventoId', fn: ensurePosiblesVentasEventoId },
@@ -5182,6 +5206,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePushSubscriptionsTable',
   'ensurePaxCompartidoStructure',
   'ensureSlotPaxStructure',
+  'ensureMainSalonStructure',
   'ensurePosiblesVentasStructure',
   'ensurePosiblesVentasSeguimiento',
   'ensurePosiblesVentasEventoId',
