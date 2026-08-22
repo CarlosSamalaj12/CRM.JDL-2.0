@@ -21,79 +21,79 @@ const BENTO_CARDS = [
     id: 'ventas', title: 'Reporte de Ventas',
     desc: 'Resumen comercial, cotizaciones y montos del pipeline',
     badge: 'Ventas • Cotizaciones • Comisiones',
-    icon: '📊', variant: 'blue', category: 'Ventas', featured: true,
+    icon: 'chart-bar', variant: 'blue', category: 'Ventas', featured: true,
   },
   {
     id: 'contabilidad', title: 'Estado de Cuenta',
     desc: 'Ventas netas, cobros y control financiero por empresa',
     badge: 'Contabilidad • Cartera • Pagos',
-    icon: '💳', variant: 'green', category: 'Finanzas',
+    icon: 'wallet', variant: 'green', category: 'Finanzas',
   },
   {
     id: 'ocupacion', title: 'Ocupación',
     desc: 'Uso de salones, disponibilidad y operación semanal',
     badge: 'Salones • PAX • Ocupación',
-    icon: '📅', variant: 'purple', category: 'Operación',
+    icon: 'calendar', variant: 'purple', category: 'Operación',
   },
   {
     id: 'dashboard', title: 'Dashboard',
     desc: 'KPIs, metas comerciales y rendimiento ejecutivo',
     badge: 'KPIs • Metas • Rendimiento',
-    icon: '📈', variant: 'amber', category: 'KPIs', featured: true,
+    icon: 'gauge', variant: 'amber', category: 'KPIs', featured: true,
   },
   {
     id: 'institucion', title: 'Por Institución',
     desc: 'Dashboard detallado por cliente, consumo e historial',
     badge: 'Clientes • Historial • Análisis',
-    icon: '🏢', variant: 'rose', category: 'Clientes',
+    icon: 'building', variant: 'rose', category: 'Clientes',
   },
   {
     id: 'satisfaccion', title: 'Satisfacción',
     desc: 'Ratings de servicio, evaluación por evento y tendencias',
     badge: 'Calidad • Ratings • Clientes',
-    icon: '⭐', variant: 'teal', category: 'Calidad', featured: true,
+    icon: 'star', variant: 'teal', category: 'Calidad', featured: true,
   },
   {
     id: 'ocupacionBarras', title: 'Porcentaje Ocupación de Eventos',
     desc: 'Gráfico mensual de ocupación PAX vs capacidad de salones',
     badge: 'Barras • % Ocupación • Mensual',
-    icon: '📊', variant: 'indigo', category: 'Operación', featured: true,
+    icon: 'bar-chart', variant: 'indigo', category: 'Operación', featured: true,
   },
   {
     id: 'eficenciaEventos', title: 'Eficiencia por Estado',
     desc: 'Distribución porcentual mensual de eventos por estado',
     badge: 'Estados • % • Apilado',
-    icon: '📈', variant: 'teal', category: 'Operación', featured: true,
+    icon: 'pie-chart', variant: 'teal', category: 'Operación', featured: true,
   },
   {
     id: 'seguimientosPendientes', title: 'Seguimientos Pendientes',
     desc: 'Eventos en pipeline comercial por vendedor · Pre-Reserva · Negociación · 1ra Cotización',
     badge: 'Pipeline • Vendedores • Estados',
-    icon: '📋', variant: 'amber', category: 'Pipeline', featured: true,
+    icon: 'list-checks', variant: 'amber', category: 'Pipeline', featured: true,
   },
   {
     id: 'eficenciaConfirmacion', title: 'Eficiencia de Confirmación',
     desc: 'Eventos confirmados por vendedor · Montos en Quetzales · Porcentajes',
     badge: 'Confirmados • Montos • Vendedores',
-    icon: '✅', variant: 'green', category: 'KPIs', featured: true,
+    icon: 'check-circle', variant: 'green', category: 'KPIs', featured: true,
   },
   {
     id: 'ingresosCategorias', title: 'Ingresos por Categoría',
     desc: 'Montos en Quetzales generados por categoría de servicio · Alimentos & Bebidas · Hospedajes · Misceláneos',
     badge: 'Categorías • Montos • Servicios',
-    icon: '💰', variant: 'indigo', category: 'Finanzas', featured: true,
+    icon: 'layers', variant: 'indigo', category: 'Finanzas', featured: true,
   },
   {
     id: 'comisiones', title: 'Comisiones',
     desc: 'Ventas vs niveles de meta · Cálculo de comisiones · Progreso hacia siguiente nivel',
     badge: 'Comisiones • Metas • %',
-    icon: '🏆', variant: 'purple', category: 'Ventas', featured: true,
+    icon: 'award', variant: 'purple', category: 'Ventas', featured: true,
   },
   {
     id: 'proyeccionMetas', title: 'Proyección de Metas',
     desc: 'Proyección de ventas por vendedor · Cuánto necesita vender para alcanzar el siguiente nivel de meta',
     badge: 'Proyección • Metas • Gaps',
-    icon: '🎯', variant: 'amber', category: 'KPIs', featured: true,
+    icon: 'target', variant: 'amber', category: 'KPIs', featured: true,
   },
 ];
 
@@ -120,14 +120,14 @@ const reports = {
 
 // ─── Chips de filtro ───
 const FILTER_CHIPS = [
-  { id: 'all',       label: 'Todos',     icon: '✦' },
-  { id: 'Ventas',    label: 'Ventas',    icon: '📊' },
-  { id: 'Finanzas',  label: 'Finanzas',  icon: '💳' },
-  { id: 'Operación', label: 'Operación', icon: '📅' },
-  { id: 'KPIs',      label: 'KPIs',      icon: '📈' },
-  { id: 'Clientes',  label: 'Clientes',  icon: '🏢' },
-  { id: 'Calidad',   label: 'Calidad',   icon: '⭐' },
-  { id: 'Pipeline',  label: 'Pipeline',  icon: '📋' },
+  { id: 'all',       label: 'Todos',     icon: 'grid' },
+  { id: 'Ventas',    label: 'Ventas',    icon: 'chart-bar' },
+  { id: 'Finanzas',  label: 'Finanzas',  icon: 'wallet' },
+  { id: 'Operación', label: 'Operación', icon: 'calendar' },
+  { id: 'KPIs',      label: 'KPIs',      icon: 'gauge' },
+  { id: 'Clientes',  label: 'Clientes',  icon: 'building' },
+  { id: 'Calidad',   label: 'Calidad',   icon: 'star' },
+  { id: 'Pipeline',  label: 'Pipeline',  icon: 'list-checks' },
 ];
 
 // ─── Bottom nav (estilo YouTube) ───
@@ -139,9 +139,9 @@ const BOTTOM_NAV = [
   { id: 'more',    label: 'Más',      icon: 'menu' },
 ];
 
-// ─── Iconos SVG inline (estilo YouTube, finos y consistentes) ───
+// ─── Iconos SVG inline (estilo Lucide, finos y consistentes) ───
 const Icon = ({ name, size = 22, stroke = 'currentColor' }) => {
-  const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke, strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' };
   switch (name) {
     case 'search':
       return <svg {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
@@ -151,8 +151,36 @@ const Icon = ({ name, size = 22, stroke = 'currentColor' }) => {
       return <svg {...props}><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10" /></svg>;
     case 'chart':
       return <svg {...props}><path d="M3 3v18h18" /><path d="M7 14l4-4 4 4 5-6" /></svg>;
+    case 'chart-bar':
+      return <svg {...props}><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" rx="0.5" /><rect x="12" y="8" width="3" height="10" rx="0.5" /><rect x="17" y="5" width="3" height="13" rx="0.5" /></svg>;
+    case 'bar-chart':
+      return <svg {...props}><path d="M3 3v18h18" /><path d="M7 16V11" /><path d="M12 16V7" /><path d="M17 16v-5" /></svg>;
+    case 'pie-chart':
+      return <svg {...props}><path d="M21 12A9 9 0 1 1 12 3v9z" /><path d="M21 12A9 9 0 0 0 12 3v9z" transform="rotate(45 12 12)" /></svg>;
+    case 'gauge':
+      return <svg {...props}><path d="M12 14v-4" /><path d="M21 12a9 9 0 1 0-18 0" /><path d="M12 14l4-4" /></svg>;
+    case 'wallet':
+      return <svg {...props}><path d="M3 7a2 2 0 0 1 2-2h14v4" /><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9H5a2 2 0 0 1-2-2z" /><circle cx="17" cy="13" r="1.2" fill={stroke} /></svg>;
+    case 'calendar':
+      return <svg {...props}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4M16 3v4" /></svg>;
+    case 'building':
+      return <svg {...props}><rect x="4" y="3" width="16" height="18" rx="1" /><path d="M9 7h.01M15 7h.01M9 11h.01M15 11h.01M9 15h.01M15 15h.01" /></svg>;
+    case 'star':
+      return <svg {...props}><polygon points="12 3 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 3" /></svg>;
+    case 'list-checks':
+      return <svg {...props}><path d="m3 6 1 1 3-3" /><path d="m3 13 1 1 3-3" /><path d="m3 20 1 1 3-3" /><path d="M9 6h12" /><path d="M9 13h12" /><path d="M9 20h12" /></svg>;
+    case 'check-circle':
+      return <svg {...props}><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></svg>;
+    case 'layers':
+      return <svg {...props}><path d="m12 3 9 5-9 5-9-5z" /><path d="m3 13 9 5 9-5" /></svg>;
+    case 'award':
+      return <svg {...props}><circle cx="12" cy="9" r="6" /><path d="M9 14.5 7.5 21l4.5-3 4.5 3L15 14.5" /></svg>;
+    case 'target':
+      return <svg {...props}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.2" fill={stroke} /></svg>;
+    case 'grid':
+      return <svg {...props}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
     case 'plus':
-      return <svg {...props} strokeWidth={2.2}><path d="M12 5v14M5 12h14" /></svg>;
+      return <svg {...props} strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>;
     case 'menu':
       return <svg {...props}><path d="M3 6h18M3 12h18M3 18h12" /></svg>;
     case 'arrow-right':
@@ -369,7 +397,7 @@ export default function ReportsModule() {
               className={`reports-chip ${activeChip === chip.id ? 'reports-chip--active' : ''}`}
               onClick={() => setActiveChip(chip.id)}
             >
-              <span className="reports-chip__icon">{chip.icon}</span>
+              <Icon name={chip.icon} size={15} stroke="currentColor" />
               <span>{chip.label}</span>
             </button>
           ))}
@@ -393,7 +421,9 @@ export default function ReportsModule() {
 
         {filteredCards.length === 0 ? (
           <div className="reports-empty">
-            <div className="reports-empty__icon">🔍</div>
+            <div className="reports-empty__icon">
+              <Icon name="search" size={22} stroke="currentColor" />
+            </div>
             <div className="reports-empty__title">Sin resultados</div>
             <div className="reports-empty__text">Probá con otro término o cambiá el filtro.</div>
             <button
@@ -420,14 +450,16 @@ export default function ReportsModule() {
                       className="reports-mobile-card__icon"
                       style={{ background: ICON_BG[card.variant] || ICON_BG.blue }}
                     >
-                      {card.icon}
+                      <Icon name={card.icon} size={20} stroke="#ffffff" />
                     </div>
 
                     <div className="reports-mobile-card__body">
                       <div className="reports-mobile-card__title-row">
                         <span className="reports-mobile-card__title">{card.title}</span>
                         {card.featured && (
-                          <span className="reports-mobile-card__pin" title="Destacado">★</span>
+                          <span className="reports-mobile-card__pin" title="Destacado" aria-label="Destacado">
+                            <Icon name="star" size={13} stroke="currentColor" />
+                          </span>
                         )}
                       </div>
                       <div className="reports-mobile-card__meta">{card.desc}</div>
