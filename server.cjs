@@ -2507,7 +2507,10 @@ async function writeStateToTables(state, oldStateOpt = null) {
     }
 
     // === UPSERT: salones, usuarios, empresas ===
-    await conn.query("DELETE FROM encargados_empresa");
+    // NO borramos `encargados_empresa` de forma global: la limpieza es por
+    // empresa (ver bloque "DELETE managers de empresas removidas" mas abajo).
+    // Si hicieramos DELETE global aqui, los managers de empresas que el
+    // cliente no modifico en este save se perderian permanentemente.
     await conn.query("DELETE FROM salones");
 
     if (salones.length > 0) {
@@ -2628,6 +2631,8 @@ async function writeStateToTables(state, oldStateOpt = null) {
 
       const oldCompany = oldCompanies.find(o => String(o.id) === id);
       if (oldCompany && JSON.stringify(c) === JSON.stringify(oldCompany)) {
+        // La empresa no cambio. Aun asi, no tocamos sus managers porque
+        // ya estan correctamente guardados.
         continue;
       }
 
@@ -2661,6 +2666,10 @@ async function writeStateToTables(state, oldStateOpt = null) {
         ]
       );
 
+      // Reemplazar los managers de esta empresa por los del state actual.
+      // Hacerlo por empresa (no global) evita perder managers de empresas
+      // que el cliente no toco en este save.
+      await conn.query('DELETE FROM encargados_empresa WHERE id_empresa = ?', [id]);
       const managers = Array.isArray(c?.managers) ? c.managers : [];
       for (const m of managers) {
         const managerId = str(m?.id).trim();
@@ -2687,6 +2696,26 @@ async function writeStateToTables(state, oldStateOpt = null) {
           ]
         );
       }
+    }
+
+    // === DELETE managers de empresas removidas ===
+    // Si una empresa estaba en el state anterior pero NO en el actual,
+    // tambien hay que eliminar sus managers.
+    const incomingCompanyIds = new Set(companies.map(c => str(c?.id).trim()).filter(Boolean));
+    const removedCompanyIds = oldCompanies
+      .map(o => str(o?.id).trim())
+      .filter(id => id && !incomingCompanyIds.has(id));
+    if (removedCompanyIds.length > 0) {
+      const placeholders = removedCompanyIds.map(() => '?').join(',');
+      await conn.query(
+        `DELETE FROM encargados_empresa WHERE id_empresa IN (${placeholders})`,
+        removedCompanyIds
+      );
+      // Y eliminar las empresas removidas
+      await conn.query(
+        `DELETE FROM empresas WHERE id IN (${placeholders})`,
+        removedCompanyIds
+      );
     }
 
     // Las tablas de servicios y categorias fueron eliminadas y se manejan en el modulo de informes.
