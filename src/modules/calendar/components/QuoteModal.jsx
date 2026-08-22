@@ -261,6 +261,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     advanceLogs: event?.quote?.advanceLogs || []
   });
   const savedQuoteSnapshotRef = useRef(quoteSnapshot(quote));
+  // Mantiene siempre el `quote` mas reciente para que el loadDraft (que programa
+  // un setTimeout en el montaje) lea el state actual y no el del primer render.
+  // Asi no sobrescribe lo que el usuario ya haya seleccionado.
+  const quoteRef = useRef(quote);
+  useEffect(() => { quoteRef.current = quote; }, [quote]);
   // ─── Auto-save draft to localStorage ───
   useAutoSave(event, quote);
 
@@ -327,8 +332,27 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const draft = loadDraft(event);
     if (draft && draft.items && draft.items.length > 0) {
       const timer = setTimeout(() => {
+        // Leer el `quote` ACTUAL (no el del primer render) para no pisar lo que
+        // el usuario haya seleccionado mientras tanto. Tambien descartamos el
+        // draft si el usuario ya empezo a trabajar: solo lo restauramos cuando
+        // el quote actual esta "vacio" (sin empresa, sin items y sin folio).
+        const current = quoteRef.current || {};
+        const currentHasContent =
+          !!current.companyId
+          || !!current.items?.length
+          || !!current.folio
+          || !!current.contact
+          || !!current.email;
+
+        if (currentHasContent) {
+          // El usuario ya empezo: no pisar nada. Solo actualizar el snapshot
+          // para que la deteccion de "cambios sin guardar" no se active.
+          savedQuoteSnapshotRef.current = quoteSnapshot(current);
+          return;
+        }
+
         const restored = {
-          ...quote,
+          ...current,
           ...draft,
           items: draft.items.map(item => ({
             ...item,
@@ -4067,7 +4091,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         {showCompanyResults && companySearchQuery.trim() && (
                           <div className="qp-company-drop">
                             {filteredCompanies.map(c => (
-                              <div key={c.id} onMouseDown={e => { e.preventDefault(); handleCompanySelect(c); }}>
+                              <div
+                                key={c.id}
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={e => { e.stopPropagation(); handleCompanySelect(c); }}
+                                style={{ cursor: 'pointer' }}
+                              >
                                 {c.name}
                               </div>
                             ))}
