@@ -1,0 +1,69 @@
+// Test del endpoint /api/state para verificar si los managers se preservan.
+// Hipotesis: writeStateToTables hace DELETE FROM encargados_empresa al inicio
+// y solo re-inserta managers de empresas que CAMBIARON. Si una empresa no
+// cambia, sus managers se borran.
+
+const mariadb = require('mariadb');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+const API = 'http://127.0.0.1:3000/api/state';
+
+(async () => {
+  // 1) Leer el state actual
+  console.log('1) Leyendo state actual...');
+  const res1 = await fetch(API);
+  const current = await res1.json();
+  const state = current.state;
+  const companies = state.companies || [];
+  console.log(`   Total empresas: ${companies.length}`);
+
+  // 2) Contar managers por empresa
+  const stats = companies.map(c => ({
+    id: c.id,
+    name: c.name,
+    managers: (c.managers || []).length
+  }));
+  console.log('\n2) Estado actual de managers por empresa:');
+  console.table(stats);
+
+  // 3) Hacer un PUT /api/state con el state SIN MODIFICACIONES
+  console.log('\n3) Haciendo PUT /api/state con state SIN cambios...');
+  const putRes = await fetch(API, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state })
+  });
+  const putResult = await putRes.json();
+  console.log(`   Status: ${putRes.status}`);
+  console.log(`   Respuesta: ${JSON.stringify(putResult).slice(0, 200)}`);
+
+  // 4) Releer el state
+  console.log('\n4) Releyendo state despues del PUT...');
+  const res2 = await fetch(API);
+  const after = await res2.json();
+  const stateAfter = after.state;
+  const companiesAfter = stateAfter.companies || [];
+
+  const statsAfter = companiesAfter.map(c => ({
+    id: c.id,
+    name: c.name,
+    managers: (c.managers || []).length
+  }));
+  console.log('\n5) Estado de managers despues del PUT:');
+  console.table(statsAfter);
+
+  // 6) Comparar
+  console.log('\n=== DIAGNOSTICO ===');
+  let lost = 0;
+  for (let i = 0; i < stats.length; i++) {
+    if (stats[i].managers > statsAfter[i].managers) {
+      console.log(`❌ PERDIDOS en "${stats[i].name}": ${stats[i].managers} -> ${statsAfter[i].managers}`);
+      lost += stats[i].managers - statsAfter[i].managers;
+    }
+  }
+  if (lost === 0) {
+    console.log('✅ No se perdieron managers. Hipotesis del bug descartada.');
+  } else {
+    console.log(`\n⚠️  BUG CONFIRMADO: se perdieron ${lost} manager(s) al hacer PUT /api/state sin cambios.`);
+  }
+})().catch(e => { console.error('ERROR:', e.message); process.exit(1); });

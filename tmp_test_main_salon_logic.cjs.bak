@@ -1,0 +1,148 @@
+// Test directo: reimplementar expandEventSlots desde eventService.js y probar la lógica de mainSalon
+// (No carga React, ni el módulo real — es un test de la lógica pura)
+
+const fs = require('fs');
+const path = require('path');
+
+const src = fs.readFileSync(path.join('C:', 'Users', 'samal', 'Desktop', 'CRM', 'CRM.JDL-2.0', 'src', 'services', 'eventService.js'), 'utf8');
+
+// Extraer la funcion expandEventSlots (entre la declaracion y la llave de cierre)
+const startIdx = src.indexOf('function expandEventSlots');
+const endIdx = src.indexOf('\r\n}\r\n\r\nexport const eventService', startIdx);
+if (startIdx < 0 || endIdx < 0) { console.error('No se encontro expandEventSlots (CRLF)'); process.exit(1); }
+const expandFn = src.slice(startIdx, endIdx + 5); // incluye el `}` y los CRLF
+
+// Evaluar la funcion en un sandbox
+const code = `
+const pad2 = (value) => String(value).padStart(2, '0');
+function uid(prefix = 'evt') { return prefix + '_' + Math.random().toString(16).slice(2, 10); }
+function normalizeDateRange(start, end) {
+  const a = String(start || '').trim();
+  const b = String(end || a).trim();
+  if (!a && !b) return [];
+  const min = a && b && a > b ? b : (a || b);
+  const max = a && b && a > b ? a : (b || a);
+  const startDate = new Date(min + 'T12:00:00');
+  const endDate = new Date(max + 'T12:00:00');
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [min].filter(Boolean);
+  const out = [];
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    out.push(d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()));
+  }
+  return out;
+}
+${expandFn}
+module.exports = { expandEventSlots };
+`;
+const tmp = path.join(__dirname, '_test_expand.cjs');
+fs.writeFileSync(tmp, code);
+const { expandEventSlots } = require(tmp);
+
+// ============================================================
+// Tests
+// ============================================================
+let pass = 0, fail = 0;
+function test(name, fn) {
+  try { fn(); console.log(`  ✅ ${name}`); pass++; }
+  catch (e) { console.error(`  ❌ ${name}: ${e.message}`); fail++; }
+}
+function assertEq(actual, expected, msg) {
+  const a = JSON.stringify(actual);
+  const b = JSON.stringify(expected);
+  if (a !== b) throw new Error(`${msg || ''}\n    actual:   ${a}\n    expected: ${b}`);
+}
+
+console.log('\n=== Test: mainSalon se designa correctamente ===\n');
+
+test('Caso 1: un solo salon → es el principal', () => {
+  const result = expandEventSlots({
+    name: 'Ev1',
+    date: '2026-08-22',
+    slots: [
+      { salon: 'Jardin', pax: '50', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00', isPrincipal: true }
+    ]
+  });
+  assertEq(result[0].mainSalon, 'Jardin', 'mainSalon del slot');
+  assertEq(result[0].salon, 'Jardin', 'salon del slot');
+});
+
+test('Caso 2: dos salones, segundo es principal', () => {
+  const result = expandEventSlots({
+    name: 'Ev2',
+    date: '2026-08-22',
+    mainSalon: 'Salon B',
+    slots: [
+      { salon: 'Salon A', pax: '30', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00', isPrincipal: false },
+      { salon: 'Salon B', pax: '20', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00', isPrincipal: true }
+    ]
+  });
+  assertEq(result[0].mainSalon, 'Salon B', 'mainSalon del primer slot (A)');
+  assertEq(result[1].mainSalon, 'Salon B', 'mainSalon del segundo slot (B)');
+  assertEq(result[0].salon, 'Salon A');
+  assertEq(result[1].salon, 'Salon B');
+});
+
+test('Caso 3: dos salones sin mainSalon, primero es principal (legacy)', () => {
+  const result = expandEventSlots({
+    name: 'Ev3',
+    date: '2026-08-22',
+    slots: [
+      { salon: 'Salon A', pax: '30', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00' },
+      { salon: 'Salon B', pax: '20', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00' }
+    ]
+  });
+  // Sin flag isPrincipal ni mainSalon: cae al primer slot unico
+  assertEq(result[0].mainSalon, 'Salon A', 'mainSalon del primer slot');
+  assertEq(result[1].mainSalon, 'Salon A', 'mainSalon del segundo slot (mismo grupo)');
+});
+
+test('Caso 4: isPrincipal=true tiene prioridad sobre mainSalon ausente', () => {
+  const result = expandEventSlots({
+    name: 'Ev4',
+    date: '2026-08-22',
+    slots: [
+      { salon: 'Salon A', pax: '30', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00' },
+      { salon: 'Salon B', pax: '20', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00', isPrincipal: true }
+    ]
+  });
+  assertEq(result[0].mainSalon, 'Salon B');
+  assertEq(result[1].mainSalon, 'Salon B');
+});
+
+test('Caso 5: editar reserva existente, hereda mainSalon del existente', () => {
+  const existing = {
+    id: 'evt_existing',
+    mainSalon: 'Salon C',
+    salon: 'Salon A',
+    slots: []
+  };
+  const result = expandEventSlots({
+    name: 'Ev5',
+    date: '2026-08-22',
+    slots: [
+      { salon: 'Salon A', pax: '30', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00' },
+      { salon: 'Salon B', pax: '20', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00' }
+    ]
+  }, existing);
+  assertEq(result[0].mainSalon, 'Salon C', 'debe heredar mainSalon del existente');
+});
+
+test('Caso 6: un slot con rango multi-día genera varias filas con mismo mainSalon', () => {
+  const result = expandEventSlots({
+    name: 'Ev6',
+    date: '2026-08-22',
+    mainSalon: 'Salon B',
+    slots: [
+      { salon: 'Salon A', pax: '30', dateStart: '2026-08-22', dateEnd: '2026-08-22', startTime: '10:00', endTime: '12:00', isPrincipal: false },
+      { salon: 'Salon B', pax: '20', dateStart: '2026-08-22', dateEnd: '2026-08-23', startTime: '10:00', endTime: '12:00', isPrincipal: true }
+    ]
+  });
+  // Esperamos 3 filas: A dia 22, B dia 22, B dia 23
+  assertEq(result.length, 3, 'cantidad de filas expandidas');
+  for (const r of result) {
+    assertEq(r.mainSalon, 'Salon B', `mainSalon en ${r.id} (${r.date})`);
+  }
+});
+
+console.log(`\n${pass} ✅, ${fail} ❌`);
+process.exit(fail ? 1 : 0);

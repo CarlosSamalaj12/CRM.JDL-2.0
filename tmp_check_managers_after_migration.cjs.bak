@@ -1,0 +1,47 @@
+// Verificar el estado de la BD despues de la migracion
+const mariadb = require('mariadb');
+
+(async () => {
+  const conn = await mariadb.createConnection({
+    host: '127.0.0.1', port: 3306, user: 'root', password: 'Xvfv2du1p5xyZX', database: 'crm_jdl',
+  });
+
+  const total = await conn.query('SELECT COUNT(*) as total FROM encargados_empresa');
+  console.log('Total encargados en BD:', total[0].total);
+
+  if (total[0].total > 0) {
+    const sample = await conn.query(`
+      SELECT ee.id, ee.id_empresa, ee.nombre, e.nombre as empresa, ee.correo, ee.telefono
+      FROM encargados_empresa ee
+      JOIN empresas e ON e.id = ee.id_empresa
+      ORDER BY ee.id
+      LIMIT 10
+    `);
+    console.log('\nMuestra de los primeros 10:');
+    console.table(sample);
+  }
+
+  const conMgr = await conn.query(`
+    SELECT COUNT(DISTINCT id_empresa) as total
+    FROM encargados_empresa
+  `);
+  console.log('\nEmpresas con al menos 1 manager:', conMgr[0].total);
+
+  const sinMgr = await conn.query(`
+    SELECT COUNT(*) as total
+    FROM empresas e
+    WHERE NOT EXISTS (SELECT 1 FROM encargados_empresa ee WHERE ee.id_empresa = e.id)
+  `);
+  console.log('Empresas SIN manager:', sinMgr[0].total);
+
+  // Verificacion de integridad: todos los id_empresa son validos
+  const huerfanos = await conn.query(`
+    SELECT COUNT(*) as total
+    FROM encargados_empresa ee
+    LEFT JOIN empresas e ON e.id = ee.id_empresa
+    WHERE e.id IS NULL
+  `);
+  console.log('Encargados huerfanos (id_empresa no existe):', huerfanos[0].total);
+
+  await conn.end();
+})().catch(e => { console.error('ERROR:', e.message); process.exit(1); });

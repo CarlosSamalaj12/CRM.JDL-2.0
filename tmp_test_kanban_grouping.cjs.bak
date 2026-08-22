@@ -1,0 +1,136 @@
+// Test funcional de la nueva logica de agrupamiento del Kanban
+// (Replico la logica de loadEvents para verificar el comportamiento esperado)
+
+const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+function loadEventsLogic(eventsData) {
+  const getEventGroupId = (idOcupacion) =>
+    String(idOcupacion || '').replace(/_s\d+_\d{6,}$/, '');
+
+  const seen = new Set();
+  const groupedEvents = [];
+  eventsData.forEach(e => {
+    const fecha = String(e.FechaEvento || '').slice(0, 10);
+    const salon = String(e.Salon || '').trim();
+    const groupId = getEventGroupId(e.Idocupacion);
+    const key = `${groupId}_${fecha}_${salon}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    groupedEvents.push({
+      ...e,
+      displayDate: fecha,
+      cant_desayunos: Number(e.cant_desayunos) || 0,
+      cant_refacciones_am: Number(e.cant_refacciones_am) || 0,
+      cant_almuerzos: Number(e.cant_almuerzos) || 0,
+      cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
+      cant_cenas: Number(e.cant_cenas) || 0,
+    });
+  });
+
+  return groupedEvents.map(e => {
+    const d = new Date(e.displayDate + 'T12:00:00');
+    return {
+      ...e,
+      dayIndex: d.getDay(),
+      dayLabel: `${dayNames[d.getDay()]} ${e.displayDate}`,
+    };
+  });
+}
+
+// === Tests ===
+let pass = 0, fail = 0;
+function test(name, fn) {
+  try { fn(); console.log(`  OK ${name}`); pass++; }
+  catch (e) { console.error(`  FAIL ${name}: ${e.message}`); fail++; }
+}
+function assertEq(actual, expected, msg) {
+  const a = JSON.stringify(actual);
+  const b = JSON.stringify(expected);
+  if (a !== b) throw new Error(`${msg || ''}\n    actual:   ${a}\n    expected: ${b}`);
+}
+
+console.log('\n=== Test: nueva logica de agrupamiento del Kanban ===\n');
+
+// Caso 1: 3 salones mismo dia, no compartido -> 3 tarjetas
+test('Caso 1: 3 salones mismo dia, no compartido (PaxCompartido=0)', () => {
+  const backend = [
+    { Idocupacion: 'evt_001', FechaEvento: '2026-09-15', Salon: 'Salon A', Pax: 50, PaxCompartido: 0 },
+    { Idocupacion: 'evt_001_s1_20260915', FechaEvento: '2026-09-15', Salon: 'Salon B', Pax: 30, PaxCompartido: 0 },
+    { Idocupacion: 'evt_001_s2_20260915', FechaEvento: '2026-09-15', Salon: 'Salon C', Pax: 20, PaxCompartido: 0 },
+  ];
+  const result = loadEventsLogic(backend);
+  assertEq(result.length, 3, 'debe haber 3 tarjetas');
+  assertEq(result[0].Salon, 'Salon A');
+  assertEq(result[1].Salon, 'Salon B');
+  assertEq(result[2].Salon, 'Salon C');
+  assertEq(result.map(r => r.displayDate), ['2026-09-15', '2026-09-15', '2026-09-15']);
+});
+
+// Caso 2: 3 salones mismo dia, compartido -> 3 tarjetas (no 1)
+test('Caso 2: 3 salones mismo dia, compartido (PaxCompartido=1)', () => {
+  const backend = [
+    { Idocupacion: 'evt_002', FechaEvento: '2026-09-15', Salon: 'Salon A', Pax: 100, PaxCompartido: 1 },
+    { Idocupacion: 'evt_002_s1_20260915', FechaEvento: '2026-09-15', Salon: 'Salon B', Pax: 100, PaxCompartido: 1 },
+    { Idocupacion: 'evt_002_s2_20260915', FechaEvento: '2026-09-15', Salon: 'Salon C', Pax: 100, PaxCompartido: 1 },
+  ];
+  const result = loadEventsLogic(backend);
+  assertEq(result.length, 3, 'compartido: debe haber 3 tarjetas, no 1 con salones concatenados');
+  assertEq(result.map(r => r.Salon), ['Salon A', 'Salon B', 'Salon C']);
+});
+
+// Caso 3: mismo salon, rango multi-dia -> 1 tarjeta por dia
+test('Caso 3: 1 salon, rango multi-dia (3 dias)', () => {
+  const backend = [
+    { Idocupacion: 'evt_003', FechaEvento: '2026-09-15', Salon: 'Salon X', Pax: 50, PaxCompartido: 0 },
+    { Idocupacion: 'evt_003_s1_20260916', FechaEvento: '2026-09-16', Salon: 'Salon X', Pax: 50, PaxCompartido: 0 },
+    { Idocupacion: 'evt_003_s2_20260917', FechaEvento: '2026-09-17', Salon: 'Salon X', Pax: 50, PaxCompartido: 0 },
+  ];
+  const result = loadEventsLogic(backend);
+  assertEq(result.length, 3, '3 tarjetas (1 por dia)');
+  assertEq(result.map(r => r.displayDate), ['2026-09-15', '2026-09-16', '2026-09-17']);
+  assertEq(result.every(r => r.Salon === 'Salon X'), true);
+});
+
+// Caso 4: distintos salones en distintos dias
+test('Caso 4: distintos salones en distintos dias', () => {
+  const backend = [
+    { Idocupacion: 'evt_004', FechaEvento: '2026-09-15', Salon: 'Salon A', Pax: 50, PaxCompartido: 0 },
+    { Idocupacion: 'evt_004_s1_20260916', FechaEvento: '2026-09-16', Salon: 'Salon B', Pax: 30, PaxCompartido: 0 },
+    { Idocupacion: 'evt_004_s2_20260917', FechaEvento: '2026-09-17', Salon: 'Salon C', Pax: 20, PaxCompartido: 0 },
+  ];
+  const result = loadEventsLogic(backend);
+  assertEq(result.length, 3, '3 tarjetas, una por dia, una por salon');
+  assertEq(result.map(r => `${r.Salon}|${r.displayDate}`), [
+    'Salon A|2026-09-15',
+    'Salon B|2026-09-16',
+    'Salon C|2026-09-17',
+  ]);
+});
+
+// Caso 5: el caso problematico original - 3 salones mismo dia no compartido
+// (antes solo se veia el de mayor PAX; ahora deben verse los 3)
+test('Caso 5: caso problematico original - 3 salones mismo dia (PaxCompartido=0)', () => {
+  const backend = [
+    { Idocupacion: 'evt_005', FechaEvento: '2026-09-20', Salon: 'Jardin', Pax: 100, PaxCompartido: 0 },
+    { Idocupacion: 'evt_005_s1_20260920', FechaEvento: '2026-09-20', Salon: 'San Pedro', Pax: 30, PaxCompartido: 0 },
+    { Idocupacion: 'evt_005_s2_20260920', FechaEvento: '2026-09-20', Salon: 'Arboleda', Pax: 20, PaxCompartido: 0 },
+  ];
+  const result = loadEventsLogic(backend);
+  // ANTES: 1 tarjeta con el de mayor PAX (Jardin)
+  // AHORA: 3 tarjetas
+  assertEq(result.length, 3, 'debe mostrar 3 tarjetas (no 1)');
+  assertEq(result.map(r => r.Salon).sort(), ['Arboleda', 'Jardin', 'San Pedro']);
+});
+
+// Caso 6: deduplicacion - el mismo slot aparece dos veces
+test('Caso 6: deduplicacion por (groupId+fecha+salon)', () => {
+  const backend = [
+    { Idocupacion: 'evt_006', FechaEvento: '2026-09-22', Salon: 'Salon Z', Pax: 50, PaxCompartido: 0 },
+    { Idocupacion: 'evt_006', FechaEvento: '2026-09-22', Salon: 'Salon Z', Pax: 50, PaxCompartido: 0 }, // duplicado exacto
+  ];
+  const result = loadEventsLogic(backend);
+  assertEq(result.length, 1, 'duplicado exacto se descarta');
+});
+
+console.log(`\n${pass} OK, ${fail} FAIL`);
+process.exit(fail ? 1 : 0);

@@ -1,0 +1,68 @@
+// Test: Verificar si los managers se pierden al hacer PUT sin cambios
+const mariadb = require('mariadb');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+const API = 'http://127.0.0.1:3000/api/state';
+
+(async () => {
+  console.log('=== TEST: Persistencia de managers al guardar sin cambios ===\n');
+
+  const conn = await mariadb.createConnection({
+    host: '127.0.0.1', port: 3306, user: 'root', password: 'Xvfv2du1p5xyZX', database: 'crm_jdl'
+  });
+
+  // 1) Crear empresa de prueba con 2 managers directamente en la BD
+  console.log('1) Creando empresa TEST con 2 managers en BD...');
+  const testId = 'test_persist_' + Date.now();
+  const mgr1Id = 'mgr_persist_1_' + Date.now();
+  const mgr2Id = 'mgr_persist_2_' + Date.now();
+  await conn.query(
+    'INSERT INTO empresas (id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [testId, 'TEST PERSIST', 'OWNER', 'a@b.com', '1234', 'TEST SA', 'Social', 'DIR', '1234']
+  );
+  await conn.query(
+    'INSERT INTO encargados_empresa (id, id_empresa, nombre, telefono, correo, direccion) VALUES (?, ?, ?, ?, ?, ?)',
+    [mgr1Id, testId, 'Manager 1', '1111', 'm1@test.com', 'D1']
+  );
+  await conn.query(
+    'INSERT INTO encargados_empresa (id, id_empresa, nombre, telefono, correo, direccion) VALUES (?, ?, ?, ?, ?, ?)',
+    [mgr2Id, testId, 'Manager 2', '2222', 'm2@test.com', 'D2']
+  );
+  console.log('   Empresa y 2 managers creados');
+
+  // 2) Leer el state
+  console.log('\n2) Leyendo state...');
+  let res = await fetch(API);
+  let current = await res.json();
+  const state = current.state;
+  const myCompany = state.companies.find(c => c.id === testId);
+  console.log(`   Empresa en state: ${myCompany ? 'SI' : 'NO'}`);
+  console.log(`   Managers en state: ${myCompany ? myCompany.managers.length : 0}`);
+
+  // 3) Hacer un PUT /api/state SIN MODIFICAR NADA (state identico)
+  console.log('\n3) PUT /api/state SIN cambios (state identico)...');
+  const putRes = await fetch(API, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state })
+  });
+  console.log(`   Status: ${putRes.status}`);
+
+  // 4) Verificar en BD
+  console.log('\n4) Verificando managers en BD despues del PUT...');
+  const managersAfter = await conn.query('SELECT id, nombre FROM encargados_empresa WHERE id_empresa = ?', [testId]);
+  console.log(`   Managers en BD: ${managersAfter.length}`);
+  if (managersAfter.length < 2) {
+    console.log(`   ❌ BUG CONFIRMADO: se perdieron ${2 - managersAfter.length} manager(s)`);
+    console.log('   Managers restantes:', managersAfter);
+  } else {
+    console.log('   ✅ Managers intactos');
+  }
+
+  // 5) Cleanup
+  console.log('\n5) Limpiando...');
+  await conn.query('DELETE FROM empresas WHERE id = ?', [testId]);
+  await conn.end();
+
+  console.log('\n=== FIN DEL TEST ===');
+})().catch(e => { console.error('ERROR:', e.message); process.exit(1); });

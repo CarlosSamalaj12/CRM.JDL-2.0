@@ -1,0 +1,95 @@
+
+const pad2 = (value) => String(value).padStart(2, '0');
+function uid(prefix = 'evt') { return prefix + '_' + Math.random().toString(16).slice(2, 10); }
+function normalizeDateRange(start, end) {
+  const a = String(start || '').trim();
+  const b = String(end || a).trim();
+  if (!a && !b) return [];
+  const min = a && b && a > b ? b : (a || b);
+  const max = a && b && a > b ? a : (b || a);
+  const startDate = new Date(min + 'T12:00:00');
+  const endDate = new Date(max + 'T12:00:00');
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [min].filter(Boolean);
+  const out = [];
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    out.push(d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()));
+  }
+  return out;
+}
+function expandEventSlots(eventData, existingEvent = null) {
+  const slots = Array.isArray(eventData?.slots) ? eventData.slots : [];
+  if (!slots.length) return [{ ...eventData }];
+
+  const rawBaseId = String(eventData.groupId || existingEvent?.groupId || eventData.id || existingEvent?.id || uid('evt'));
+  // Limpiar cualquier sufijo de expansión previo para evitar IDs anidados que exceden VARCHAR(30)
+  const baseId = rawBaseId.replace(/_(s|slot)\d+_\d{6,}$/, '');
+  const groupId = baseId;
+  const eventDateStart = String(eventData.date || eventData.eventDateStart || slots[0]?.dateStart || '').trim();
+  const eventDateEnd = String(eventData.endDate || eventData.eventDateEnd || eventDateStart).trim();
+  const totalPax = eventData.pax === null || eventData.pax === undefined || eventData.pax === ''
+    ? slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || slot?.slotPax || 0)), 0)
+    : Number(eventData.pax);
+  const salones = Array.from(new Set(slots.map((slot) => String(slot?.salon || '').trim()).filter(Boolean)));
+
+  // Resolver el salon principal en orden de prioridad:
+  //   1) eventData.mainSalon (lo que manda el form cuando el usuario lo designa)
+  //   2) el slot marcado con isPrincipal === true
+  //   3) el evento existente (al editar)
+  //   4) primer salon unico encontrado
+  //   5) el slot 0
+  const principalSlot = slots.find((slot) => slot?.isPrincipal === true);
+  const mainSalon = String(
+    eventData?.mainSalon
+      || principalSlot?.salon
+      || existingEvent?.mainSalon
+      || salones[0]
+      || slots[0]?.salon
+      || ''
+  ).trim();
+  const expanded = [];
+
+  const makeExpandedId = (baseId, slotIdx, date, isFirst) => {
+    if (isFirst) return baseId;
+    const cleanDate = date.replace(/-/g, '');
+    const rawId = `${baseId}_s${slotIdx + 1}_${cleanDate}`;
+    return rawId.length <= 70 ? rawId : rawId.slice(0, 65) + '_' + Math.random().toString(16).slice(2, 6);
+  };
+
+  const isSharedPax = eventData.paxCompartido === true;
+  slots.forEach((slot, slotIndex) => {
+    const slotStart = slot.dateStart || eventDateStart;
+    const slotEnd = slot.dateEnd || slot.dateStart || eventDateEnd || eventDateStart;
+    const slotDates = normalizeDateRange(slotStart, slotEnd);
+    slotDates.forEach((date, dateIndex) => {
+      const isFirst = slotIndex === 0 && dateIndex === 0;
+      const slotPaxVal = slot.pax === '' || slot.pax === null || slot.pax === undefined
+        ? null
+        : Math.max(0, Number(slot.pax || 0));
+      expanded.push({
+        ...eventData,
+        id: makeExpandedId(baseId, slotIndex, date, isFirst),
+        groupId,
+        salon: String(slot.salon || '').trim(),
+        mainSalon,
+        salones,
+        date,
+        eventDateStart: slotStart || date,
+        eventDateEnd: slotEnd || date,
+        endDate: slotEnd || date,
+        startTime: slot.startTime || eventData.startTime,
+        endTime: slot.endTime || eventData.endTime,
+        status: slot.status || eventData.status || 'Reserva sin Cotizacion',
+        pax: isSharedPax
+          ? (Number.isFinite(totalPax) && totalPax > 0 ? totalPax : null)
+          : (slotPaxVal ?? (Number.isFinite(totalPax) && totalPax > 0 ? totalPax : null)),
+        slotPax: slotPaxVal,
+        paxCompartido: isSharedPax,
+        slots: undefined,
+      });
+    });
+  });
+
+  return expanded;
+}
+
+module.exports = { expandEventSlots };
