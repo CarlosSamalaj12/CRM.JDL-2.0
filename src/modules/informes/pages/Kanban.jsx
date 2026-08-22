@@ -263,97 +263,31 @@ export default function Kanban() {
         const getEventGroupId = (idOcupacion) =>
           String(idOcupacion || '').replace(/_s\d+_\d{6,}$/, '');
 
-        // Pre-paso: contar cuántos eventos hay por (groupId + fecha) que tengan PaxCompartido=1.
-        // Solo agrupamos si realmente hay MÁS DE 1 evento con el mismo groupId + fecha.
-        // Esto evita fusionar eventos individuales que tengan PaxCompartido=1 mal seteado.
-        const sharedGroupCounts = new Map();
-        eventsData.forEach(e => {
-          const isShared = e.PaxCompartido === 1 || e.PaxCompartido === true;
-          if (!isShared) return;
-          const fecha = String(e.FechaEvento || '').slice(0, 10);
-          const groupId = getEventGroupId(e.Idocupacion);
-          const key = `${groupId}_${fecha}`;
-          sharedGroupCounts.set(key, (sharedGroupCounts.get(key) || 0) + 1);
-        });
-
+        // Cada slot del backend se mantiene como una tarjeta individual en el
+        // Kanban, sin colapsar. Si el evento tiene 3 salones el mismo dia, se
+        // muestran 3 tarjetas (una por salon). Si un salon tiene rango multi-
+        // dia, se muestra una tarjeta por dia. Esto aplica tanto para eventos
+        // compartidos (PaxCompartido=1) como no compartidos.
+        // Si dos slots vienen exactamente con el mismo (groupId+fecha+salon)
+        // (caso raro), conservamos el primero y descartamos el resto.
+        const seen = new Set();
         const groupedEvents = [];
-        const sharedGroupsMap = new Map();
-        const nonSharedGroupsMap = new Map();
-
         eventsData.forEach(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
+          const salon = String(e.Salon || '').trim();
           const groupId = getEventGroupId(e.Idocupacion);
-          const hasSharedFlag = e.PaxCompartido === 1 || e.PaxCompartido === true;
-          // Solo agrupar si el flag está Y hay >1 evento con el mismo groupId+fecha
-          const isShared = hasSharedFlag && (sharedGroupCounts.get(`${groupId}_${fecha}`) || 0) > 1;
-
-          if (isShared) {
-            const key = `${groupId}_${fecha}`;
-            if (sharedGroupsMap.has(key)) {
-              const existingIdx = sharedGroupsMap.get(key);
-              const existing = groupedEvents[existingIdx];
-
-              const salonesList = String(existing.Salon || '').split(', ').map(s => s.trim()).filter(Boolean);
-              const currentSalon = String(e.Salon || '').trim();
-              if (currentSalon && !salonesList.includes(currentSalon)) {
-                salonesList.push(currentSalon);
-                existing.Salon = salonesList.join(', ');
-              }
-
-              if (e.HoraI && e.HoraI < existing.HoraI) existing.HoraI = e.HoraI;
-              if (e.HoraF && e.HoraF > existing.HoraF) existing.HoraF = e.HoraF;
-
-              existing.cant_desayunos = Math.max(existing.cant_desayunos, Number(e.cant_desayunos) || 0);
-              existing.cant_refacciones_am = Math.max(existing.cant_refacciones_am, Number(e.cant_refacciones_am) || 0);
-              existing.cant_almuerzos = Math.max(existing.cant_almuerzos, Number(e.cant_almuerzos) || 0);
-              existing.cant_refacciones_pm = Math.max(existing.cant_refacciones_pm, Number(e.cant_refacciones_pm) || 0);
-              existing.cant_cenas = Math.max(existing.cant_cenas, Number(e.cant_cenas) || 0);
-            } else {
-              groupedEvents.push({
-                ...e,
-                displayDate: fecha,
-                cant_desayunos: Number(e.cant_desayunos) || 0,
-                cant_refacciones_am: Number(e.cant_refacciones_am) || 0,
-                cant_almuerzos: Number(e.cant_almuerzos) || 0,
-                cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
-                cant_cenas: Number(e.cant_cenas) || 0,
-              });
-              sharedGroupsMap.set(key, groupedEvents.length - 1);
-            }
-          } else {
-            // Para la ocupación semanal: si un evento no compartido tiene múltiples salones el mismo día,
-            // tomar el salón con el mayor PAX conservando todos los servicios del día
-            const nonSharedKey = `${groupId}_${fecha}`;
-            if (groupId && nonSharedGroupsMap.has(nonSharedKey)) {
-              const existingIdx = nonSharedGroupsMap.get(nonSharedKey);
-              const existing = groupedEvents[existingIdx];
-              const currentPax = Number(e.Pax) || 0;
-              const existingPax = Number(existing.Pax) || 0;
-
-              if (currentPax > existingPax) {
-                existing.Salon = e.Salon;
-                existing.Pax = e.Pax;
-                existing.HoraI = e.HoraI;
-                existing.HoraF = e.HoraF;
-                existing.Idocupacion = e.Idocupacion;
-              }
-              return;
-            }
-
-            if (groupId) {
-              nonSharedGroupsMap.set(nonSharedKey, groupedEvents.length);
-            }
-
-            groupedEvents.push({
-              ...e,
-              displayDate: fecha,
-              cant_desayunos: Number(e.cant_desayunos) || 0,
-              cant_refacciones_am: Number(e.cant_refacciones_am) || 0,
-              cant_almuerzos: Number(e.cant_almuerzos) || 0,
-              cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
-              cant_cenas: Number(e.cant_cenas) || 0,
-            });
-          }
+          const key = `${groupId}_${fecha}_${salon}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          groupedEvents.push({
+            ...e,
+            displayDate: fecha,
+            cant_desayunos: Number(e.cant_desayunos) || 0,
+            cant_refacciones_am: Number(e.cant_refacciones_am) || 0,
+            cant_almuerzos: Number(e.cant_almuerzos) || 0,
+            cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
+            cant_cenas: Number(e.cant_cenas) || 0,
+          });
         });
 
         const mapped = groupedEvents.map(e => {
