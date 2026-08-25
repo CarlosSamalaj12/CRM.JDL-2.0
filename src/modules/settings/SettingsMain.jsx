@@ -14,6 +14,7 @@ import SettingsExport from './SettingsExport';
 import SettingsImport from './SettingsImport';
 import SettingsUsers from './SettingsUsers';
 import SettingsEquipos from './SettingsEquipos';
+import SettingsUsuariosManager from './SettingsUsuariosManager';
 import SettingsCitas from './SettingsCitas';
 import SettingsMantenimiento from './SettingsMantenimiento';
 import SettingsUpdateCheck from './SettingsUpdateCheck';
@@ -135,25 +136,19 @@ export default function SettingsMain() {
   // ── If an inline view is active, render only that view ──
   if (activeInlineView === 'empresas') {
     return (
-      <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Gestión de empresas y clientes corporativos</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+      <div className="settings-page" style={{ height: '100%', overflow: 'hidden' }}>
+        <div className="settings-page-body" style={{ padding: '16px 28px 20px', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <SettingsEmpresas inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'usuarios') {
+    return (
+      <div className="settings-page" style={{ height: '100%', overflow: 'hidden' }}>
+        <div className="settings-page-body" style={{ padding: '16px 28px 20px', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <SettingsUsuariosManager inline onBack={closeView} />
         </div>
       </div>
     );
@@ -418,7 +413,15 @@ export default function SettingsMain() {
                 key={item.id}
                 type="button"
                 className={`settings-nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'usuarios') {
+                    openView('usuarios');
+                  } else if (item.id === 'empresas') {
+                    openView('empresas');
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
               >
                 {item.icon}
                 {item.label}
@@ -705,33 +708,9 @@ export default function SettingsMain() {
 
             {/* ── TAB: Usuarios y Roles ── */}
             {activeTab === 'usuarios' && (
-              <>
-                <div className="settings-hero-section">
-                  <div className="settings-category-header">
-                    <h2 className="settings-category-title">Usuarios y Roles</h2>
-                    <p className="settings-category-subtitle">
-                      Control de accesos y cuentas del equipo comercial y administrativo
-                    </p>
-                  </div>
-                  <div className="settings-storytelling-card">
-                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Gestión de acceso</span>
-                    <p className="settings-story-text">
-                      Administra las cuentas del equipo. Define <strong className="highlight-blue">roles</strong>
-                      (Vendedor, Recepcionista, Admin), asigna <strong className="highlight-blue">metas comerciales</strong>
-                      y controla el <strong className="highlight-blue">acceso</strong> al sistema.
-                      Los usuarios se autentican con Google Login de forma segura.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="settings-section-card">
-                  <SettingsUsers />
-                </div>
-
-                <div className="settings-section-card" style={{ marginTop: '16px' }}>
-                  <SettingsEquipos />
-                </div>
-              </>
+              <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+                <SettingsUsuariosManager inline={false} />
+              </div>
             )}
             {/* ── TAB: Citas y Alertas ── */}
             {activeTab === 'citas' && (

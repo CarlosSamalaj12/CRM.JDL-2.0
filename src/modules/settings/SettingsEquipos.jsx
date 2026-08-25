@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { getEquipos, createEquipo, updateEquipo, deleteEquipo } from '../../services/api.js';
 import { useDataSync } from '../../hooks/useDataSync.js';
@@ -6,17 +6,17 @@ import { useDataSync } from '../../hooks/useDataSync.js';
 export default function SettingsEquipos() {
   const [equipos, setEquipos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const loadEquipos = useCallback(async () => {
     try {
       const data = await getEquipos();
-      setEquipos(data);
+      setEquipos(Array.isArray(data) ? data : []);
     } catch {
       toast.error('Error al cargar equipos');
     } finally {
@@ -38,7 +38,6 @@ export default function SettingsEquipos() {
     setEditId(null);
     setNombre('');
     setDescripcion('');
-    setExpanded(true);
     setShowForm(true);
   };
 
@@ -46,7 +45,6 @@ export default function SettingsEquipos() {
     setEditId(eq.id);
     setNombre(eq.nombre);
     setDescripcion(eq.descripcion || '');
-    setExpanded(true);
     setShowForm(true);
   };
 
@@ -54,7 +52,6 @@ export default function SettingsEquipos() {
     e.preventDefault();
     const nombreTrim = nombre.trim();
     if (!nombreTrim) return;
-    // Validación local de duplicado (case-insensitive, excluyendo el que se edita)
     if (equipos.some(eq => eq.id !== editId && eq.nombre.toLowerCase() === nombreTrim.toLowerCase())) {
       toast.error(`Ya existe un equipo llamado "${nombreTrim}"`);
       return;
@@ -91,141 +88,126 @@ export default function SettingsEquipos() {
     }
   };
 
+  const filteredEquipos = useMemo(() => {
+    if (!searchTerm.trim()) return equipos;
+    const q = searchTerm.toLowerCase().trim();
+    return equipos.filter(eq =>
+      (eq.nombre || '').toLowerCase().includes(q) ||
+      (eq.descripcion || '').toLowerCase().includes(q)
+    );
+  }, [equipos, searchTerm]);
+
   return (
-    <div className="settings-equipos">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: '10px', width: '100%' }}>
       <style>{`
-        .settings-equipos { padding: 0; }
-        .settings-equipos-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; cursor: pointer; user-select: none; }
-        .settings-equipos-header h4 { margin: 0; font-size: 14px; color: #0f172a; }
-        .settings-equipos-toggle { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-        .settings-equipos-toggle-icon { display: flex; align-items: center; color: #64748b; transition: transform 0.2s; }
-        .settings-equipos-toggle-icon.open { transform: rotate(180deg); }
-        .settings-equipos-body { margin-top: 12px; animation: fadeSlideIn 0.18s ease; }
-        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-        .equipos-grid { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
-        .equipo-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; transition: all 0.15s; }
-        .equipo-card:hover { border-color: #cbd5e1; }
+        .equipo-card { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; transition: all 0.15s; }
+        .equipo-card:hover { border-color: #6366f1; background: #f8fafc; }
         .equipo-info { flex: 1; min-width: 0; }
-        .equipo-nombre { font-size: 13px; font-weight: 600; color: #0f172a; }
-        .equipo-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
-        .equipo-miembros { font-size: 11px; color: #6366f1; font-weight: 600; white-space: nowrap; flex-shrink: 0; background: #eef2ff; padding: 2px 8px; border-radius: 999px; }
-        .equipo-actions { display: flex; gap: 4px; flex-shrink: 0; }
-        .equipo-actions .settings-usr-icon-btn { width: 30px; height: 30px; padding: 0; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; transition: all 0.12s; display: flex; align-items: center; justify-content: center; color: #94a3b8; }
-        .equipo-actions .settings-usr-icon-btn:hover { background: #f1f5f9; }
-        .equipo-actions .btn-edit-usuario:hover { color: #6366f1; border-color: #6366f1; background: #eef2ff; }
+        .equipo-nombre { font-size: 13.5px; font-weight: 700; color: #0f172a; }
+        .equipo-desc { font-size: 11.5px; color: #64748b; margin-top: 2px; }
+        .equipo-miembros { font-size: 11px; color: #0284c7; font-weight: 700; white-space: nowrap; flex-shrink: 0; background: #e0f2fe; padding: 3px 10px; border-radius: 9999px; }
+        .equipo-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .equipo-actions .settings-usr-icon-btn { width: 32px; height: 32px; padding: 0; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; transition: all 0.12s; display: flex; align-items: center; justify-content: center; color: #64748b; }
+        .equipo-actions .btn-edit-usuario:hover { color: #2563eb; border-color: #2563eb; background: #eff6ff; }
         .equipo-actions .btn-delete-usuario:hover { color: #ef4444; border-color: #ef4444; background: #fef2f2; }
-        .equipo-form { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .equipo-form { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
         .equipo-form-row { display: flex; gap: 8px; flex-wrap: wrap; }
-        .equipo-form-row input { flex: 1 1 180px; height: 36px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; outline: none; background: #ffffff !important; color: #0f172a !important; box-sizing: border-box; }
-        .equipo-form-row input:focus { border-color: #6366f1; background: #ffffff !important; }
-        .equipo-form-row textarea { flex: 1 1 200px; min-height: 36px; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; outline: none; background: #ffffff !important; color: #0f172a !important; resize: vertical; font-family: inherit; box-sizing: border-box; }
-        .equipo-form-row textarea:focus { border-color: #6366f1; background: #ffffff !important; }
-        .settings-equipos select { background: #ffffff !important; color: #0f172a !important; }
-        .equipo-form-actions { display: flex; gap: 6px; margin-top: 8px; }
-        .equipo-form-actions button { height: 32px; padding: 0 14px; border-radius: 6px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.12s; }
-        .btn-save { background: #6366f1; color: #fff; }
-        .btn-save:hover { background: #4f46e5; }
-        .btn-cancel { background: #fff; color: #64748b; border: 1px solid #e2e8f0 !important; }
-        .btn-cancel:hover { background: #f1f5f9; }
-        .equipos-empty { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
-        /* Mobile responsive for equipos */
-        @media (max-width: 640px) {
-          .equipo-card { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
-          .equipo-card .equipo-info { flex: 1 1 100%; order: -1; }
-          .equipo-card .equipo-miembros { order: 0; }
-          .equipo-card .equipo-actions { order: 1; width: 100%; justify-content: flex-end; }
-          .equipo-actions .settings-usr-icon-btn { width: 36px; height: 36px; }
-          .equipo-form-row { flex-direction: column; gap: 6px; }
-          .equipo-form-row input,
-          .equipo-form-row textarea { flex: 1 1 auto; width: 100%; }
-          .equipo-form-actions { flex-direction: column; gap: 4px; }
-          .equipo-form-actions button { width: 100%; height: 38px; }
-        }
+        .equipo-form-row input { flex: 1 1 200px; height: 38px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; outline: none; background: #ffffff !important; color: #0f172a !important; box-sizing: border-box; }
+        .equipo-form-row input:focus { border-color: #2563eb; }
+        .equipo-form-row textarea { flex: 1 1 240px; min-height: 38px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; outline: none; background: #ffffff !important; color: #0f172a !important; resize: vertical; font-family: inherit; box-sizing: border-box; }
+        .equipo-form-row textarea:focus { border-color: #2563eb; }
+        .equipo-form-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .equipos-empty { padding: 40px; text-align: center; color: #94a3b8; font-size: 13px; }
       `}</style>
 
-      <div className="settings-equipos-header" onClick={() => setExpanded(v => !v)} role="button" aria-expanded={expanded}>
-        <div className="settings-equipos-toggle">
-          <span className={`settings-equipos-toggle-icon${expanded ? ' open' : ''}`}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </span>
-          <h4>Equipos de Trabajo</h4>
-          {!expanded && equipos.length > 0 && (
-            <span style={{ fontSize: '11px', background: '#eef2ff', color: '#4f46e5', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', marginLeft: '4px' }}>
-              {equipos.length} equipo{equipos.length !== 1 ? 's' : ''}
-            </span>
-          )}
+      {/* Buscador y Acción */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '420px' }}>
+          <input
+            type="text"
+            className="settings-search-bar-input"
+            placeholder="🔍 Buscar por nombre de equipo o descripción..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
+
         <button
-          onClick={e => { e.stopPropagation(); openNew(); }}
-          style={{ height: '32px', padding: '0 14px', borderRadius: '6px', border: 'none', background: '#6366f1', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+          type="button"
+          className="settings-primary-btn"
+          onClick={openNew}
+          style={{ padding: '7px 16px', fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          + Nuevo Equipo
+          <span>➕ Nuevo Equipo</span>
         </button>
       </div>
 
-      {expanded && (
-        <div className="settings-equipos-body">
-          {showForm && (
-            <form className="equipo-form" onSubmit={handleSave}>
-              <div className="equipo-form-row">
-                <input
-                  type="text" placeholder="Nombre del equipo" value={nombre}
-                  onChange={e => setNombre(e.target.value)} required autoFocus
-                />
-                <textarea
-                  placeholder="Descripción (opcional)" value={descripcion}
-                  onChange={e => setDescripcion(e.target.value)} rows={2}
-                />
-              </div>
-              <div className="equipo-form-actions">
-                <button type="submit" className="btn-save" disabled={saving || !nombre.trim()}>
-                  {saving ? '...' : editId ? 'Guardar' : 'Crear'}
-                </button>
-                <button type="button" className="btn-cancel" onClick={() => { setShowForm(false); setEditId(null); setNombre(''); setDescripcion(''); }}>
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          )}
-
-          {loading ? (
-            <div className="equipos-empty">Cargando equipos...</div>
-          ) : equipos.length === 0 ? (
-            <div className="equipos-empty">Sin equipos de trabajo aún. Crea el primer equipo.</div>
-          ) : (
-            <div className="equipos-grid">
-              {equipos.map(eq => (
-                <div key={eq.id} className="equipo-card">
-                  <div className="equipo-info">
-                    <div className="equipo-nombre">{eq.nombre}</div>
-                    {eq.descripcion && <div className="equipo-desc">{eq.descripcion}</div>}
-                  </div>
-                  <span className="equipo-miembros">{eq.miembros || 0} miembro{(eq.miembros || 0) !== 1 ? 's' : ''}</span>
-                  <div className="equipo-actions">
-                    <button className="settings-usr-icon-btn btn-edit-usuario" onClick={() => openEdit(eq)} title="Editar equipo">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                        <path d="m15 5 4 4"/>
-                      </svg>
-                    </button>
-                    <button className="settings-usr-icon-btn btn-delete-usuario" onClick={() => handleDelete(eq)} title="Eliminar equipo">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 6h18"/>
-                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                        <line x1="10" y1="11" x2="10" y2="17"/>
-                        <line x1="14" y1="11" x2="14" y2="17"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Formulario Crear / Editar */}
+      {showForm && (
+        <form className="equipo-form" onSubmit={handleSave}>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>
+            {editId ? '✏️ Editar Equipo' : '➕ Nuevo Equipo de Trabajo'}
+          </div>
+          <div className="equipo-form-row">
+            <input
+              type="text" placeholder="Nombre del equipo (ej: Bodega y Contabilidad)" value={nombre}
+              onChange={e => setNombre(e.target.value)} required autoFocus
+            />
+            <textarea
+              placeholder="Descripción (opcional)" value={descripcion}
+              onChange={e => setDescripcion(e.target.value)} rows={2}
+            />
+          </div>
+          <div className="equipo-form-actions">
+            <button type="submit" className="settings-primary-btn" disabled={saving || !nombre.trim()} style={{ padding: '6px 16px', fontSize: '12px' }}>
+              {saving ? 'Guardando...' : editId ? '💾 Guardar Cambios' : '✓ Crear Equipo'}
+            </button>
+            <button type="button" className="settings-secondary-btn" onClick={() => { setShowForm(false); setEditId(null); setNombre(''); setDescripcion(''); }} style={{ padding: '6px 14px', fontSize: '12px' }}>
+              Cancelar
+            </button>
+          </div>
+        </form>
       )}
+
+      {/* Lista de Equipos con Scroll Interno */}
+      <div style={{ flex: '1 1 auto', minHeight: 0, maxHeight: 'calc(100vh - 190px)', overflowY: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '12px' }}>
+        {loading ? (
+          <div className="equipos-empty">Cargando equipos...</div>
+        ) : filteredEquipos.length === 0 ? (
+          <div className="equipos-empty">
+            {searchTerm ? `Sin equipos coincidentes con "${searchTerm}"` : 'Sin equipos de trabajo aún. Registra el primero arriba.'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {filteredEquipos.map(eq => (
+              <div key={eq.id} className="equipo-card">
+                <div className="equipo-info">
+                  <div className="equipo-nombre">{eq.nombre}</div>
+                  {eq.descripcion && <div className="equipo-desc">{eq.descripcion}</div>}
+                </div>
+                <span className="equipo-miembros">👥 {eq.miembros || 0} miembro{(eq.miembros || 0) !== 1 ? 's' : ''}</span>
+                <div className="equipo-actions">
+                  <button className="settings-usr-icon-btn btn-edit-usuario" onClick={() => openEdit(eq)} title="Editar equipo">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                      <path d="m15 5 4 4"/>
+                    </svg>
+                  </button>
+                  <button className="settings-usr-icon-btn btn-delete-usuario" onClick={() => handleDelete(eq)} title="Eliminar equipo">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18"/>
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                      <line x1="10" y1="11" x2="10" y2="17"/>
+                      <line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

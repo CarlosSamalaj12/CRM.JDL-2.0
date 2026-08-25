@@ -96,11 +96,11 @@ export default function CompanyModal({ onClose }) {
       email: managerDraft.email.trim(),
       address: managerDraft.address.trim(),
     };
-    if (!clean.name || !clean.phone || !clean.email) {
-      toast('Encargado requiere nombre, telefono y correo.');
+    if (!clean.name) {
+      toast('Encargado requiere al menos un nombre.');
       return;
     }
-    if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean.email)) {
+    if (clean.email && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean.email)) {
       toast('Correo de encargado invalido.');
       return;
     }
@@ -141,6 +141,19 @@ export default function CompanyModal({ onClose }) {
     event.preventDefault();
     if (saving) return;
 
+    const effectiveManagers = (() => {
+      if (managers.length) return managers;
+      const owner = company.owner.trim();
+      if (!owner) return managers;
+      return [{
+        id: uid('mgr'),
+        name: owner,
+        phone: company.phone.trim() || '',
+        email: company.email.trim() || '',
+        address: company.address.trim() || ''
+      }];
+    })();
+
     const payload = normalizeCompanyRecord({
       ...company,
       id: selectedId || uid('cmp'),
@@ -154,7 +167,7 @@ export default function CompanyModal({ onClose }) {
       address: company.address.trim(),
       phone: company.phone.trim(),
       notes: company.notes.trim(),
-      managers,
+      managers: effectiveManagers,
     });
 
     if (!payload.name || !payload.owner || !payload.email || !payload.nit || !payload.businessName || !payload.eventType || !payload.address || !payload.phone) {
@@ -163,10 +176,6 @@ export default function CompanyModal({ onClose }) {
     }
     if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(payload.email)) {
       toast('Correo de empresa invalido.');
-      return;
-    }
-    if (!payload.managers.length) {
-      toast('Agrega al menos un encargado para la empresa.');
       return;
     }
 

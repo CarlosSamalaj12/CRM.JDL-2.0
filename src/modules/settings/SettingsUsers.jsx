@@ -140,84 +140,45 @@ export default function SettingsUsers() {
         .usr-table tr:hover td { background: #f8fafc; }
         .role-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; border: 1px solid; }
         .usr-icon-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; transition: background 0.15s; }
-        .usr-icon-btn:hover { background: #f1f5f9; }
         .usr-switch { position: relative; display: inline-block; width: 38px; height: 22px; }
         .usr-switch input { opacity: 0; width: 0; height: 0; }
         .usr-slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 22px; transition: 0.25s; }
         .usr-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.25s; }
         input:checked + .usr-slider { background: #10b981; }
         input:checked + .usr-slider:before { transform: translateX(16px); }
+        .usr-hide-phone { }
         @media (max-width: 640px) { .usr-hide-phone { display: none; } }
-        .usr-table { min-width: 600px; }
-        .usr-table-wrapper { max-height: 400px; overflow-y: auto; }
+        .usr-table { min-width: 600px; width: 100%; border-collapse: separate; border-spacing: 0; }
+        .usr-table-wrapper { flex: 1; min-height: 0; overflow-y: auto; }
       `}</style>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
-        <div>
-          <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>👥 Gestión de Usuarios</div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Administra cuentas, roles y acceso al sistema</div>
+      {/* Buscador + Acción */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '420px' }}>
+          <input
+            type="text"
+            className="settings-search-bar-input"
+            placeholder="🔍 Buscar por nombre, correo, equipo o rol..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
+
         <button
           id="btnSettingsAddUser"
           type="button"
+          className="settings-primary-btn"
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openAddUser'));
           }}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#0b1c30', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+          style={{ padding: '7px 16px', fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>person_add</span>
-          Nuevo usuario
+          <span>➕ Nuevo Usuario</span>
         </button>
       </div>
 
-      {/* Buscador */}
-      <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', maxWidth: '360px', width: '100%' }}>
-        <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center' }}>
-          <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', color: '#94a3b8', fontSize: '18px' }}>search</span>
-          <input
-            type="text"
-            placeholder="Buscar por nombre, correo, equipo o rol..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px 8px 36px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              fontSize: '13px',
-              outline: 'none',
-              transition: 'border-color 0.15s',
-              background: '#fff',
-              color: '#0f172a',
-              boxSizing: 'border-box'
-            }}
-            onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-            onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              style={{
-                position: 'absolute',
-                right: '10px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#94a3b8',
-                display: 'flex',
-                alignItems: 'center',
-                padding: 0
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Table */}
-      <div className="usr-table-wrapper" style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+      <div className="usr-table-wrapper" style={{ flex: '1 1 auto', minHeight: 0, maxHeight: 'calc(100vh - 190px)', overflowY: 'auto', background: 'white', border: '1px solid #cbd5e1', borderRadius: '12px' }}>
         {loading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>Cargando usuarios...</div>
         ) : users.length === 0 ? (
@@ -228,13 +189,13 @@ export default function SettingsUsers() {
           <table className="usr-table">
             <thead>
               <tr>
-                <th>Usuario</th>
-                <th>Correo</th>
-                <th className="usr-hide-phone">Teléfono</th>
-                <th>Equipo</th>
-                <th>Rol</th>
-                <th style={{ textAlign: 'center' }}>Activo</th>
-                <th style={{ textAlign: 'center' }}>Acciones</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Usuario</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Correo</th>
+                <th className="usr-hide-phone" style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Teléfono</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Equipo</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Rol</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'center' }}>Activo</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -291,26 +252,29 @@ export default function SettingsUsers() {
                     </td>
 
                     {/* Actions */}
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        className="usr-icon-btn"
-                        title="Editar usuario"
-                        onClick={() => {
-                          window.dispatchEvent(new CustomEvent('editUser', { detail: { userId: u.id } }));
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0ea5e9' }}>edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="usr-icon-btn"
-                        title="Eliminar usuario"
-                        style={{ marginLeft: '4px' }}
-                        onClick={() => handleDeleteUser(u.id, u.fullName || u.name)}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#ef4444' }}>delete</span>
-                      </button>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          className="usr-icon-btn"
+                          title="Editar usuario"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('editUser', { detail: { userId: u.id } }));
+                          }}
+                          style={{ width: '32px', height: '32px', padding: 0, borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#0ea5e9' }}>edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="usr-icon-btn"
+                          title="Eliminar usuario"
+                          onClick={() => handleDeleteUser(u.id, u.fullName || u.name)}
+                          style={{ width: '32px', height: '32px', padding: 0, borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#ef4444' }}>delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

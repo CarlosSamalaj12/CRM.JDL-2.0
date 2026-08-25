@@ -1141,6 +1141,30 @@ input:checked + .settings-usr-slider:before {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+.settings-search-bar-input {
+  width: 100%;
+  padding-left: 12px;
+  height: 38px;
+  font-size: 12.5px;
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  outline: none;
+  font-family: inherit;
+}
+
+.settings-search-bar-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.settings-search-bar-input:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
 /* ---------- 16. Input background safeguard ---------- */
 /* Scoped to settings-page only — does NOT affect calendar/quote modals
    which intentionally use dark glassmorphism inputs from global.css */
