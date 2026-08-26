@@ -5,7 +5,7 @@ import {
   Handshake, ClipboardList, Clock, Eye, Trophy, XCircle,
   TrendingUp, AlertTriangle, Calendar, MapPin, Users, Phone,
   Mail, RefreshCw, Link as LinkIcon, RotateCcw, Trash2, Pencil,
-  Search, Loader2, Inbox, BarChart3, Plus, X, ChevronDown,
+  Search, Loader2, Inbox, BarChart3, Plus, X, ChevronDown, ChevronUp, Lock,
 } from 'lucide-react';
 import api from '../../services/api';
 import authService from '../../services/authService';
@@ -13,7 +13,6 @@ import MultiSelect from '../reports/components/MultiSelect';
 import { useToast } from '../informes/context/ToastContext';
 
 // ─── Wrapper de iconos minimalistas con color ─────────────────
-// Uso: <Icon name="calendar" size={14} color="#475569" />
 const ICONS = {
   handshake: Handshake,
   clipboard: ClipboardList,
@@ -40,6 +39,8 @@ const ICONS = {
   plus: Plus,
   x: X,
   chevronDown: ChevronDown,
+  chevronUp: ChevronUp,
+  lock: Lock,
 };
 
 function Icon({ name, size = 16, color, strokeWidth = 2, style, className }) {
@@ -119,64 +120,47 @@ const ESTADOS = [
 
 const ESTADO_MAP = Object.fromEntries(ESTADOS.map(e => [e.key, e]));
 
-// Tarjetas de métricas (incluye conversión, sin seguimiento, eventos asignados y sin asignar)
-const STAT_CARDS = [
-  { key: 'total', label: 'Total', color: '#0f172a', bg: '#f8fafc', border: '#e2e8f0', icon: 'clipboard', isTotal: true },
-  ...ESTADOS.map(e => ({
-    ...e,
-    label: e.label,
-    icon: e.key === 'pendiente' ? 'clock'
-        : e.key === 'en_proceso' ? 'eye'
-        : e.key === 'ganada' ? 'trophy'
-        : 'xCircle',
-  })),
-  { key: 'conversion', label: 'Conversión', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', icon: 'trendingUp', isRate: true },
-  { key: 'eventos_asignados', label: 'Eventos Asignados', color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', icon: 'handshake' },
-  { key: 'sin_asignar', label: 'Sin asignar', color: '#b45309', bg: '#fffbeb', border: '#fde68a', icon: 'alertTriangle' },
-  { key: 'sin_seguimiento', label: 'Sin seguimiento', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: 'alertTriangle' },
-];
-
 // ─── Componentes auxiliares ─────────────────────────────────
 
-function StatCard({ stat, value, pct, extra }) {
+function MetricMiniCard({ icon, label, value, subtitle, color, bg, border, iconBg, iconBorder }) {
   return (
     <div style={{
-      background: stat.bg,
-      border: `1px solid ${stat.border}`,
+      background: bg || '#ffffff',
+      border: `1px solid ${border || '#e2e8f0'}`,
       borderRadius: '10px',
-      padding: '8px 12px',
+      padding: '6px 12px',
       display: 'flex',
       alignItems: 'center',
       gap: '10px',
-      transition: 'transform 0.15s, box-shadow 0.15s',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.06)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
-    >
+      minWidth: '135px',
+      flex: '1 1 auto',
+      boxSizing: 'border-box',
+    }}>
       <div style={{
-        width: '30px', height: '30px', borderRadius: '8px',
-        background: '#fff',
-        border: `1px solid ${stat.border}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: '32px',
+        height: '32px',
+        borderRadius: '8px',
+        background: iconBg || '#f8fafc',
+        border: `1px solid ${iconBorder || border || '#cbd5e1'}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         flexShrink: 0,
       }}>
-        <Icon name={stat.icon} size={15} color={stat.color} strokeWidth={2.2} />
+        <Icon name={icon} size={15} color={color} strokeWidth={2.3} />
       </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{
-          fontSize: '9.5px', fontWeight: 800, color: '#64748b',
-          textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1px',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>{stat.label}</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '17px', fontWeight: 900, color: stat.color, lineHeight: 1 }}>
-            {value}{stat.isRate && <span style={{ fontSize: '12px', marginLeft: '1px' }}>%</span>}
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.15 }}>
+        <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {label}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '2px' }}>
+          <span style={{ fontSize: '15px', fontWeight: 900, color: color || '#0f172a' }}>
+            {value}
           </span>
-          {pct !== null && pct !== undefined && (
-            <span style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8' }}>{pct}%</span>
-          )}
-          {extra && (
-            <span style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{extra}</span>
+          {subtitle && (
+            <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              {subtitle}
+            </span>
           )}
         </div>
       </div>
@@ -186,11 +170,11 @@ function StatCard({ stat, value, pct, extra }) {
 
 function EstadoPill({ estado, size = 'md' }) {
   const est = ESTADO_MAP[estado] || ESTADO_MAP.pendiente;
-  const padding = size === 'lg' ? '5px 12px' : '3px 10px';
-  const fontSize = size === 'lg' ? '11.5px' : '10px';
+  const padding = size === 'lg' ? '4px 12px' : '2px 8px';
+  const fontSize = size === 'lg' ? '11.5px' : '10.5px';
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '5px',
+      display: 'inline-flex', alignItems: 'center', gap: '4px',
       fontSize, fontWeight: 800, color: est.color,
       padding, borderRadius: '999px',
       background: est.softBg,
@@ -208,23 +192,21 @@ function QuickFilterChip({ active, count, label, color, onClick }) {
     <button
       onClick={onClick}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: '8px',
-        padding: '8px 14px', borderRadius: '999px',
-        border: active ? `1.5px solid ${color}` : '1.5px solid #e2e8f0',
-        background: active ? `${color}10` : '#fff',
+        display: 'inline-flex', alignItems: 'center', gap: '6px',
+        padding: '5px 12px', borderRadius: '999px',
+        border: active ? `1.5px solid ${color}` : '1px solid #cbd5e1',
+        background: active ? `${color}15` : '#ffffff',
         color: active ? color : '#475569',
-        fontSize: '12.5px', fontWeight: 700, cursor: 'pointer',
+        fontSize: '12px', fontWeight: 700, cursor: 'pointer',
         transition: 'all 0.12s',
       }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.borderColor = '#cbd5e1'; }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.borderColor = '#e2e8f0'; }}
     >
       {label}
       <span style={{
         background: active ? color : '#f1f5f9',
-        color: active ? '#fff' : '#64748b',
-        padding: '1px 7px', borderRadius: '999px',
-        fontSize: '10.5px', fontWeight: 800, minWidth: '20px', textAlign: 'center',
+        color: active ? '#ffffff' : '#64748b',
+        padding: '1px 6px', borderRadius: '999px',
+        fontSize: '10.5px', fontWeight: 800, minWidth: '18px', textAlign: 'center',
       }}>{count}</span>
     </button>
   );
@@ -234,43 +216,43 @@ function ViewSegmented({ value, onChange, adminCount }) {
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center',
-      background: '#f1f5f9', borderRadius: '12px', padding: '4px',
-      border: '1px solid #e2e8f0',
+      background: '#f1f5f9', borderRadius: '10px', padding: '3px',
+      border: '1px solid #cbd5e1',
     }}>
       <button
         onClick={() => onChange('activas')}
         style={{
-          padding: '7px 16px', borderRadius: '8px', border: 'none',
-          background: value === 'activas' ? '#fff' : 'transparent',
+          padding: '5px 14px', borderRadius: '7px', border: 'none',
+          background: value === 'activas' ? '#ffffff' : 'transparent',
           color: value === 'activas' ? '#0f172a' : '#64748b',
           fontWeight: value === 'activas' ? 800 : 600,
-          fontSize: '12.5px', cursor: 'pointer',
+          fontSize: '12px', cursor: 'pointer',
           boxShadow: value === 'activas' ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
           transition: 'all 0.12s',
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          display: 'inline-flex', alignItems: 'center', gap: '5px',
         }}
       >
-        <Icon name="clipboard" size={14} color={value === 'activas' ? '#0f172a' : '#64748b'} strokeWidth={2.3} />
+        <Icon name="clipboard" size={13} color={value === 'activas' ? '#0f172a' : '#64748b'} strokeWidth={2.3} />
         Activas
       </button>
       <button
         onClick={() => onChange('eliminadas')}
         style={{
-          padding: '7px 16px', borderRadius: '8px', border: 'none',
-          background: value === 'eliminadas' ? '#fff' : 'transparent',
+          padding: '5px 14px', borderRadius: '7px', border: 'none',
+          background: value === 'eliminadas' ? '#ffffff' : 'transparent',
           color: value === 'eliminadas' ? '#dc2626' : '#64748b',
           fontWeight: value === 'eliminadas' ? 800 : 600,
-          fontSize: '12.5px', cursor: 'pointer',
+          fontSize: '12px', cursor: 'pointer',
           boxShadow: value === 'eliminadas' ? '0 1px 3px rgba(220,38,38,0.15)' : 'none',
           transition: 'all 0.12s',
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          display: 'inline-flex', alignItems: 'center', gap: '5px',
         }}
       >
-        <Icon name="trash" size={14} color={value === 'eliminadas' ? '#dc2626' : '#64748b'} strokeWidth={2.3} />
+        <Icon name="trash" size={13} color={value === 'eliminadas' ? '#dc2626' : '#64748b'} strokeWidth={2.3} />
         Eliminadas
         {adminCount > 0 && (
           <span style={{
-            background: '#dc2626', color: '#fff',
+            background: '#dc2626', color: '#ffffff',
             padding: '1px 6px', borderRadius: '999px',
             fontSize: '10px', fontWeight: 800, minWidth: '18px', textAlign: 'center',
           }}>{adminCount}</span>
@@ -283,46 +265,46 @@ function ViewSegmented({ value, onChange, adminCount }) {
 function DeletedLeadCard({ lead, restoring, onRestore }) {
   return (
     <div style={{
-      display: 'flex', background: '#fff',
-      border: '1px solid #fecaca', borderRadius: '14px',
+      display: 'flex', background: '#ffffff',
+      border: '1px solid #fecaca', borderRadius: '12px',
       overflow: 'hidden', opacity: 0.95,
     }}>
-      <div style={{ width: '5px', background: '#dc2626', flexShrink: 0 }} />
-      <div style={{ flex: 1, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
+      <div style={{ width: '4px', background: '#dc2626', flexShrink: 0 }} />
+      <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <div style={{
-            width: '36px', height: '36px', borderRadius: '50%',
+            width: '34px', height: '34px', borderRadius: '50%',
             background: '#fef2f2', color: '#dc2626',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: '14px', flexShrink: 0,
+            fontWeight: 800, fontSize: '13px', flexShrink: 0,
           }}>
             {(lead.nombreCliente || '?').trim().charAt(0).toUpperCase()}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15.5px', fontWeight: 800, color: '#0f172a' }}>{lead.nombreCliente}</span>
+              <span style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a' }}>{lead.nombreCliente}</span>
               <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
                 fontSize: '10.5px', fontWeight: 800, color: '#dc2626',
-                padding: '3px 10px', borderRadius: '999px',
+                padding: '2px 8px', borderRadius: '999px',
                 background: '#fef2f2', border: '1px solid #fecaca',
               }}>
-                <Icon name="trash" size={12} color="#dc2626" strokeWidth={2.5} />
+                <Icon name="trash" size={11} color="#dc2626" strokeWidth={2.5} />
                 Eliminada
               </span>
               {lead.estado && (
                 <EstadoPill estado={lead.estado} />
               )}
             </div>
-            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               {lead.vendedorNombre ? (
                 <>
-                  <Icon name="users" size={13} color="#94a3b8" strokeWidth={2.2} />
+                  <Icon name="users" size={12} color="#94a3b8" strokeWidth={2.2} />
                   {lead.vendedorNombre}
                 </>
               ) : (
                 <>
-                  <Icon name="alertTriangle" size={13} color="#d97706" strokeWidth={2.3} />
+                  <Icon name="alertTriangle" size={12} color="#d97706" strokeWidth={2.3} />
                   Sin vendedor asignado
                 </>
               )}
@@ -331,22 +313,22 @@ function DeletedLeadCard({ lead, restoring, onRestore }) {
         </div>
 
         {(lead.fechaEvento || (lead.salones || []).length > 0 || lead.pax) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: '12px', color: '#334155', fontWeight: 600 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', fontSize: '11.5px', color: '#334155', fontWeight: 600 }}>
             {lead.fechaEvento && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="calendar" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="calendar" size={13} color="#94a3b8" strokeWidth={2.2} />
                 {lead.fechaEvento}
               </span>
             )}
             {(lead.salones || []).length > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="mapPin" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="mapPin" size={13} color="#94a3b8" strokeWidth={2.2} />
                 {(lead.salones || []).join(', ')}
               </span>
             )}
             {lead.pax ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="users" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="users" size={13} color="#94a3b8" strokeWidth={2.2} />
                 {lead.pax} pax
               </span>
             ) : null}
@@ -355,11 +337,11 @@ function DeletedLeadCard({ lead, restoring, onRestore }) {
 
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexWrap: 'wrap', gap: '10px', paddingTop: '4px',
+          flexWrap: 'wrap', gap: '8px', paddingTop: '4px',
           borderTop: '1px dashed #fecaca',
         }}>
-          <div style={{ fontSize: '11px', color: '#7f1d1d', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <Icon name="trash" size={13} color="#7f1d1d" strokeWidth={2.3} />
+          <div style={{ fontSize: '11px', color: '#7f1d1d', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <Icon name="trash" size={12} color="#7f1d1d" strokeWidth={2.3} />
             Eliminada {lead.deletedAt ? `el ${new Date(String(lead.deletedAt).replace(' ', 'T')).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
             {lead.deletedPorNombre ? ` por ${lead.deletedPorNombre}` : ''}
           </div>
@@ -367,21 +349,21 @@ function DeletedLeadCard({ lead, restoring, onRestore }) {
             onClick={onRestore}
             disabled={restoring}
             style={{
-              fontSize: '12px', fontWeight: 800, padding: '8px 14px', borderRadius: '8px',
+              fontSize: '11.5px', fontWeight: 800, padding: '6px 12px', borderRadius: '7px',
               border: '1.5px solid #0f766e', background: restoring ? '#a7f3d0' : '#ccfbf1',
               color: '#0f766e', cursor: restoring ? 'default' : 'pointer',
               whiteSpace: 'nowrap', opacity: restoring ? 0.7 : 1,
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
             }}
           >
             {restoring ? (
               <>
-                <Icon name="loader" size={13} color="#0f766e" className="pv-spin" strokeWidth={2.3} />
+                <Icon name="loader" size={12} color="#0f766e" className="pv-spin" strokeWidth={2.3} />
                 Restaurando...
               </>
             ) : (
               <>
-                <Icon name="rotateCcw" size={13} color="#0f766e" strokeWidth={2.3} />
+                <Icon name="rotateCcw" size={12} color="#0f766e" strokeWidth={2.3} />
                 Restaurar
               </>
             )}
@@ -399,34 +381,34 @@ function VendedorCard({ row }) {
   const isSinAsignar = !row.vendedorId;
   return (
     <div style={{
-      background: '#fff', border: `1px solid ${isSinAsignar ? '#fde68a' : '#e2e8f0'}`, borderRadius: '12px',
-      padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px',
+      background: '#ffffff', border: `1px solid ${isSinAsignar ? '#fde68a' : '#cbd5e1'}`, borderRadius: '10px',
+      padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '10px',
     }}>
       <div style={{
-        width: '36px', height: '36px', borderRadius: '50%',
+        width: '32px', height: '32px', borderRadius: '50%',
         background: isSinAsignar ? '#fef3c7' : `hsl(${hue}, 65%, 88%)`,
         color: isSinAsignar ? '#b45309' : `hsl(${hue}, 50%, 35%)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 800, fontSize: '14px', flexShrink: 0,
+        fontWeight: 800, fontSize: '13px', flexShrink: 0,
       }}>
         {isSinAsignar ? (
-          <Icon name="alertTriangle" size={18} color="#b45309" strokeWidth={2.4} />
+          <Icon name="alertTriangle" size={16} color="#b45309" strokeWidth={2.4} />
         ) : initial}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#0f172a', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {row.nombre}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10.5px', fontWeight: 800, color: isSinAsignar ? '#b45309' : '#0f766e',
-            padding: '3px 8px', borderRadius: '999px',
+            padding: '2px 7px', borderRadius: '999px',
             background: isSinAsignar ? '#fef3c7' : '#f0fdfa',
             border: `1px solid ${isSinAsignar ? '#fde68a' : '#99f6e4'}`,
-          }} title="Eventos asignados a este vendedor">
-            <Icon name={isSinAsignar ? 'inbox' : 'handshake'} size={11} color={isSinAsignar ? '#b45309' : '#0f766e'} strokeWidth={2.4} />
-            Eventos Asignados: {row.total}
+          }}>
+            <Icon name={isSinAsignar ? 'inbox' : 'handshake'} size={10} color={isSinAsignar ? '#b45309' : '#0f766e'} strokeWidth={2.4} />
+            Asignados: {row.total}
           </span>
           <span style={{ fontSize: '10.5px', color: '#d97706', fontWeight: 700 }}>{row.pendiente} pend.</span>
           <span style={{ fontSize: '10.5px', color: '#047857', fontWeight: 700 }}>{row.ganada} gan.</span>
@@ -434,12 +416,9 @@ function VendedorCard({ row }) {
         </div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontSize: '14px', fontWeight: 900, color: convColor }}>{row.pctConversion}%</div>
+        <div style={{ fontSize: '13px', fontWeight: 900, color: convColor }}>{row.pctConversion}%</div>
         <div
           style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-          title={row.respuestaPromedioMs
-            ? `Promedio de tiempo entre que se creó el evento asignado y el primer cambio de estado del vendedor (${row.nConSeguimiento} leads con seguimiento)`
-            : 'Ningún lead de este vendedor tiene seguimiento todavía'}
         >
           {row.respuestaPromedioMs ? (
             <>
@@ -456,57 +435,56 @@ function VendedorCard({ row }) {
 function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConvert, onVerReserva }) {
   const est = ESTADO_MAP[lead.estado] || ESTADO_MAP.pendiente;
   const servicios = parseServicios(lead.servicios);
-  const sinSegDias = diasDesde(lead.creadoEn);
   return (
     <div style={{
       display: 'flex',
-      background: '#fff',
-      border: '1px solid #e2e8f0',
-      borderRadius: '14px',
+      background: '#ffffff',
+      border: '1px solid #cbd5e1',
+      borderRadius: '12px',
       overflow: 'hidden',
-      transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s',
+      transition: 'border-color 0.15s, box-shadow 0.15s',
     }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(15,23,42,0.06)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = 'none'; }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = '#94a3b8'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(15,23,42,0.06)'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.boxShadow = 'none'; }}
     >
       {/* Barra lateral con color del estado */}
-      <div style={{ width: '5px', background: est.color, flexShrink: 0 }} />
+      <div style={{ width: '4px', background: est.color, flexShrink: 0 }} />
 
-      <div style={{ flex: 1, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
-        {/* Cabecera: nombre + estado + vendedor asignado */}
+      <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+        {/* Cabecera: avatar + cliente + estado + vendedor */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <div style={{
-            width: '36px', height: '36px', borderRadius: '50%',
+            width: '34px', height: '34px', borderRadius: '50%',
             background: `${est.color}15`, color: est.color,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: '14px', flexShrink: 0,
+            fontWeight: 800, fontSize: '13.5px', flexShrink: 0,
           }}>
             {(lead.nombreCliente || '?').trim().charAt(0).toUpperCase()}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15.5px', fontWeight: 800, color: '#0f172a' }}>{lead.nombreCliente}</span>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{lead.nombreCliente}</span>
               <EstadoPill estado={lead.estado} />
               {lead.eventoId && (
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: '4px',
                   fontSize: '10.5px', fontWeight: 700, color: '#0f766e',
-                  padding: '3px 9px', borderRadius: '999px',
+                  padding: '2px 8px', borderRadius: '999px',
                   background: '#ccfbf1', border: '1px solid #5eead4',
                 }}>
-                  <Icon name="link" size={12} color="#0f766e" strokeWidth={2.5} />
+                  <Icon name="link" size={11} color="#0f766e" strokeWidth={2.5} />
                   Vinculada
                 </span>
               )}
             </div>
             {lead.vendedorNombre ? (
-              <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="users" size={13} color="#94a3b8" strokeWidth={2.2} />
-                {lead.vendedorNombre}
+              <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="users" size={12} color="#64748b" strokeWidth={2.2} />
+                Vendedor: <strong>{lead.vendedorNombre}</strong>
               </div>
             ) : (
-              <div style={{ fontSize: '11.5px', color: '#d97706', marginTop: '3px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="alertTriangle" size={13} color="#d97706" strokeWidth={2.3} />
+              <div style={{ fontSize: '11px', color: '#d97706', marginTop: '2px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="alertTriangle" size={12} color="#d97706" strokeWidth={2.3} />
                 Sin vendedor asignado
               </div>
             )}
@@ -514,44 +492,35 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConv
         </div>
 
         {/* Info del evento */}
-        {(lead.fechaEvento || (lead.salones || []).length > 0 || lead.pax) && (
-          <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: '6px 14px',
-            fontSize: '12px', color: '#334155', fontWeight: 600,
-          }}>
+        {(lead.fechaEvento || (lead.salones || []).length > 0 || lead.pax || lead.telefono || lead.correo) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: '11.5px', color: '#334155', fontWeight: 600 }}>
             {lead.fechaEvento && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="calendar" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="calendar" size={13} color="#64748b" strokeWidth={2.2} />
                 {lead.fechaEvento}
               </span>
             )}
             {(lead.salones || []).length > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="mapPin" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="mapPin" size={13} color="#64748b" strokeWidth={2.2} />
                 {(lead.salones || []).join(', ')}
               </span>
             )}
             {lead.pax ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="users" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="users" size={13} color="#64748b" strokeWidth={2.2} />
                 {lead.pax} pax
               </span>
             ) : null}
-          </div>
-        )}
-
-        {/* Contacto */}
-        {(lead.telefono || lead.correo) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: '12px', color: '#475569', fontWeight: 600 }}>
             {lead.telefono && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="phone" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="phone" size={13} color="#64748b" strokeWidth={2.2} />
                 {lead.telefono}
               </span>
             )}
             {lead.correo && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                <Icon name="mail" size={14} color="#94a3b8" strokeWidth={2.2} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="mail" size={13} color="#64748b" strokeWidth={2.2} />
                 {lead.correo}
               </span>
             )}
@@ -560,11 +529,11 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConv
 
         {/* Servicios */}
         {servicios.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {servicios.map((s, i) => (
               <span key={i} style={{
-                fontSize: '10.5px', fontWeight: 700, color: '#0c4a6e',
-                padding: '3px 10px', borderRadius: '999px',
+                fontSize: '10px', fontWeight: 700, color: '#0c4a6e',
+                padding: '2px 8px', borderRadius: '999px',
                 background: '#f0f9ff', border: '1px solid #bae6fd',
               }}>{s}</span>
             ))}
@@ -574,22 +543,22 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConv
         {/* Notas */}
         {lead.notas && (
           <div style={{
-            fontSize: '12px', color: '#475569', lineHeight: 1.5,
-            background: '#f8fafc', borderRadius: '8px',
-            padding: '8px 12px', borderLeft: `3px solid ${est.color}`,
+            fontSize: '11.5px', color: '#475569', lineHeight: 1.4,
+            background: '#f8fafc', borderRadius: '6px',
+            padding: '6px 10px', borderLeft: `3px solid ${est.color}`,
           }}>{lead.notas}</div>
         )}
 
-        {/* Footer: seguimiento + meta + acciones */}
+        {/* Footer: seguimiento + acciones */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexWrap: 'wrap', gap: '10px', paddingTop: '4px',
-          borderTop: '1px dashed #f1f5f9',
+          flexWrap: 'wrap', gap: '8px', paddingTop: '4px',
+          borderTop: '1px dashed #e2e8f0',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {lead.ultimoSeguimientoEn ? (
-              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="refresh" size={12} color="#94a3b8" strokeWidth={2.3} />
+              <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="refresh" size={12} color="#64748b" strokeWidth={2.3} />
                 Seg: {formatFechaCorta(lead.ultimoSeguimientoEn)} ({formatTiempoTranscurrido(lead.ultimoSeguimientoEn)})
               </span>
             ) : (
@@ -599,48 +568,29 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConv
               </span>
             )}
             <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-              · {userName(lead.creadoPorId) || lead.creadoPorNombre || '—'} ·
-              {lead.creadoEn ? ` ${new Date(String(lead.creadoEn).replace(' ', 'T')).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} (${formatTiempoTranscurrido(lead.creadoEn)})` : ''}
+              · {userName(lead.creadoPorId) || lead.creadoPorNombre || '—'}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            {/* Estado derivado (automático) — no editable */}
-            <EstadoPill estado={lead.estado} />
-            <span
-              title="El estado se calcula automáticamente desde el calendario y la fecha del evento"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '3px',
-                fontSize: '10.5px', fontWeight: 700, color: '#94a3b8',
-                padding: '4px 7px', borderRadius: '6px',
-                background: '#f1f5f9', border: '1px solid #e2e8f0',
-              }}
-            >
-              <Icon name="lock" size={10} color="#94a3b8" strokeWidth={2.5} />
-              Auto
-            </span>
             {lead.eventoId ? (
-              <button onClick={onVerReserva} title="Abrir la reserva vinculada"
-                style={btnAction('#0f766e', '#ccfbf1', '#5eead4')}>
-                <Icon name="link" size={13} color="#0f766e" strokeWidth={2.3} />
+              <button onClick={onVerReserva} title="Abrir la reserva vinculada" style={btnAction('#0f766e', '#ccfbf1', '#5eead4')}>
+                <Icon name="link" size={12} color="#0f766e" strokeWidth={2.3} />
                 Ver reserva
               </button>
             ) : (
-              <button onClick={onConvert} title="Convertir en reserva del calendario"
-                style={btnAction('#0f766e', '#ccfbf1', '#5eead4')}>
-                <Icon name="calendar" size={13} color="#0f766e" strokeWidth={2.3} />
+              <button onClick={onConvert} title="Convertir en reserva del calendario" style={btnAction('#0f766e', '#ccfbf1', '#5eead4')}>
+                <Icon name="calendar" size={12} color="#0f766e" strokeWidth={2.3} />
                 Convertir
               </button>
             )}
             {canEdit && (
-              <button onClick={onEdit} title="Editar"
-                style={{ ...btnAction('#475569', '#fff', '#e2e8f0'), padding: '6px 9px' }}>
-                <Icon name="pencil" size={13} color="#475569" strokeWidth={2.3} />
+              <button onClick={onEdit} title="Editar" style={{ ...btnAction('#475569', '#ffffff', '#cbd5e1'), width: '30px', padding: 0 }}>
+                <Icon name="pencil" size={12} color="#475569" strokeWidth={2.3} />
               </button>
             )}
             {canDelete && (
-              <button onClick={onDelete} title="Eliminar"
-                style={{ ...btnAction('#ef4444', '#fff', '#fecaca'), padding: '6px 9px' }}>
-                <Icon name="trash" size={13} color="#ef4444" strokeWidth={2.3} />
+              <button onClick={onDelete} title="Eliminar" style={{ ...btnAction('#ef4444', '#ffffff', '#fecaca'), width: '30px', padding: 0 }}>
+                <Icon name="trash" size={12} color="#ef4444" strokeWidth={2.3} />
               </button>
             )}
           </div>
@@ -652,9 +602,10 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConv
 
 function btnAction(color, bg, border) {
   return {
-    fontSize: '12px', fontWeight: 700, padding: '6px 12px', borderRadius: '8px',
+    fontSize: '11.5px', fontWeight: 700, height: '30px', padding: '0 10px', borderRadius: '8px',
     border: `1.5px solid ${border}`, background: bg, color, cursor: 'pointer',
-    whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '5px',
+    whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+    boxSizing: 'border-box',
   };
 }
 
@@ -742,6 +693,7 @@ export default function PosiblesVentasModule() {
   const [search, setSearch] = useState('');
   const [vendedorFilter, setVendedorFilter] = useState(() => (isAdmin ? 'all' : 'mine'));
   const [estadoFilter, setEstadoFilter] = useState('all');
+  const [showVendorSummary, setShowVendorSummary] = useState(false);
   const [focusedLeadId, setFocusedLeadId] = useState(() => searchParams.get('focus') || null);
   const focusTimerRef = useRef(null);
 
@@ -755,7 +707,7 @@ export default function PosiblesVentasModule() {
   const [loadingEliminadas, setLoadingEliminadas] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
 
-  // Form state (el estado del lead NO se edita: se calcula del calendario + fecha)
+  // Form state
   const [form, setForm] = useState({
     nombreCliente: '', telefono: '', correo: '', fechaEvento: '',
     pax: '', notas: '', vendedorId: '',
@@ -765,43 +717,38 @@ export default function PosiblesVentasModule() {
   const [customServicio, setCustomServicio] = useState('');
 
   const loadLeads = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await api.get('/api/posibles-ventas');
       setLeads(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error cargando posibles ventas:', err);
+      toast.error('No se pudieron cargar las posibles ventas');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadLeads(); }, [loadLeads]);
-
-  // Si la URL trae ?focus=ID, hacer scroll y resaltar el lead correspondiente.
-  // Limpiamos el query param para que no quede "pegado" si el usuario navega dentro del módulo.
   useEffect(() => {
-    if (!focusedLeadId) return;
-    if (loading) return; // esperar a que carguen los leads
+    loadLeads();
+  }, [loadLeads]);
+
+  useEffect(() => {
+    if (!focusedLeadId || loading || leads.length === 0) return;
+    const el = document.getElementById(`pv-lead-${focusedLeadId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     const t = setTimeout(() => {
-      const el = document.getElementById(`pv-lead-${focusedLeadId}`);
-      if (el && typeof el.scrollIntoView === 'function') {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      // Quitar el highlight después de 4s
-      focusTimerRef.current = setTimeout(() => {
-        setFocusedLeadId(null);
-        // Limpiar ?focus= de la URL
-        const next = new URLSearchParams(searchParams);
+      setFocusedLeadId(null);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
         next.delete('focus');
-        setSearchParams(next, { replace: true });
-      }, 4000);
-    }, 200);
-    return () => {
-      clearTimeout(t);
-      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedLeadId, loading, leads.length]);
+        return next;
+      }, { replace: true });
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [focusedLeadId, loading, leads.length, setSearchParams]);
 
   const loadEliminadas = useCallback(async () => {
     setLoadingEliminadas(true);
@@ -898,8 +845,6 @@ export default function PosiblesVentasModule() {
     setSaving(true);
     try {
       if (editing) {
-        // El estado ya no se envía (es derivado del calendario). El vendedor no
-        // puede cambiar nada vía este endpoint — solo recepción/admin editan el lead.
         await api.patch(`/api/posibles-ventas/${editing.id}`, payload);
         toast.success('Evento asignado actualizado correctamente');
       } else {
@@ -980,7 +925,6 @@ export default function PosiblesVentasModule() {
       const row = porVendedor.get(vid);
       row.total += 1;
       row[estado] += 1;
-      // Tiempo al PRIMER seguimiento: creadoEn → primer cambio de estado del vendedor
       if (l.primerSeguimientoEn && l.creadoEn) {
         const t = new Date(String(l.primerSeguimientoEn).replace(' ', 'T')).getTime()
           - new Date(String(l.creadoEn).replace(' ', 'T')).getTime();
@@ -1025,75 +969,74 @@ export default function PosiblesVentasModule() {
   };
 
   const inputStyle = {
-    padding: '10px 12px', borderRadius: '8px', border: '2px solid #e2e8f0',
-    fontSize: '13px', background: '#fff', color: '#1e293b', outline: 'none',
+    padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1',
+    fontSize: '13px', background: '#ffffff', color: '#0f172a', outline: 'none',
     boxSizing: 'border-box', width: '100%',
   };
 
   return (
-    <div className="pv-module-wrapper" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div className="pv-module-wrapper" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
       <div style={{
         display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxWidth: '1600px',
-        margin: '0 auto', background: '#fff', borderRadius: '20px',
-        border: '1px solid #d3e4fe', overflow: 'hidden',
-        boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
+        margin: '0 auto', background: '#ffffff', borderRadius: '16px',
+        border: '1px solid #cbd5e1', overflow: 'hidden',
+        boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
       }}>
 
-        {/* ── Hero header ── */}
+        {/* ── 1. COMPACT HERO HEADER + PIPELINE ── */}
         <div style={{
-          padding: '20px 24px',
+          padding: '14px 20px',
           background: 'linear-gradient(135deg, #f0fdfa 0%, #ffffff 60%, #f8fafc 100%)',
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1px solid #cbd5e1',
           flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{
-                width: '48px', height: '48px', borderRadius: '14px',
+                width: '40px', height: '40px', borderRadius: '10px',
                 background: 'linear-gradient(135deg, #14b8a6, #0f766e)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 14px rgba(20,184,166,0.35)',
-                color: '#fff',
+                boxShadow: '0 3px 10px rgba(20,184,166,0.3)',
+                color: '#ffffff',
               }}>
-                <Icon name="handshake" size={26} color="#fff" strokeWidth={2.2} />
+                <Icon name="handshake" size={22} color="#ffffff" strokeWidth={2.2} />
               </div>
               <div>
-                <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.15, letterSpacing: '-0.01em' }}>
+                <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.15, letterSpacing: '-0.01em' }}>
                   Eventos Asignados
                 </h1>
-                <p style={{ color: '#64748b', fontSize: '12.5px', margin: '3px 0 0', fontWeight: 600 }}>
+                <p style={{ color: '#64748b', fontSize: '11.5px', margin: '2px 0 0', fontWeight: 600 }}>
                   Pipeline de leads y seguimiento comercial
                 </p>
               </div>
             </div>
-            {canCreate && (
-              <button
-                onClick={openCreate}
-                style={{
-                  background: 'linear-gradient(135deg, #14b8a6, #0f766e)',
-                  color: '#fff', border: 'none', padding: '11px 20px', borderRadius: '12px',
-                  fontWeight: 800, fontSize: '13px', cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(20,184,166,0.4)',
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  transition: 'transform 0.12s, box-shadow 0.12s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(20,184,166,0.5)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 14px rgba(20,184,166,0.4)'; }}
-              >
-                <span style={{ display: 'inline-flex' }}>
-                  <Icon name="plus" size={16} color="#fff" strokeWidth={2.5} />
-                </span>
-                Asignar evento
-              </button>
-            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {canCreate && (
+                <button
+                  onClick={openCreate}
+                  style={{
+                    background: 'linear-gradient(135deg, #14b8a6, #0f766e)',
+                    color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '8px',
+                    fontWeight: 800, fontSize: '12.5px', cursor: 'pointer',
+                    boxShadow: '0 3px 10px rgba(20,184,166,0.35)',
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    transition: 'transform 0.12s, box-shadow 0.12s',
+                  }}
+                >
+                  <Icon name="plus" size={15} color="#ffffff" strokeWidth={2.5} />
+                  Asignar evento
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Pipeline mini-chart */}
+          {/* Progress mini bar */}
           {stats.total > 0 && (
-            <div style={{ marginTop: '16px' }}>
+            <div style={{ marginTop: '10px' }}>
               <div style={{
-                display: 'flex', height: '10px', borderRadius: '999px', overflow: 'hidden',
-                background: '#f1f5f9', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)',
+                display: 'flex', height: '6px', borderRadius: '999px', overflow: 'hidden',
+                background: '#e2e8f0',
               }}>
                 {ESTADOS.map(e => stats.byEstado[e.key] > 0 && (
                   <div key={e.key}
@@ -1102,60 +1045,122 @@ export default function PosiblesVentasModule() {
                   />
                 ))}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', marginTop: '8px' }}>
-                {ESTADOS.map(e => (
-                  <span key={e.key} style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: e.color }} />
-                    {e.label}
-                    <span style={{ color: '#94a3b8', fontWeight: 800 }}>{stats.byEstado[e.key]} · {stats.pctOf(e.key)}%</span>
-                  </span>
-                ))}
-              </div>
             </div>
           )}
         </div>
 
-        {/* ── Stat cards ── */}
+        {/* ── 2. UNIFIED METRICS STRIP (Mini Tarjetas KPIs en 1 sola fila) ── */}
         {vista === 'activas' && (
-          <div className="pv-stat-cards-container" style={{ padding: '10px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-            <div className="pv-stat-cards-grid" style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-              gap: '8px',
-            }}>
-              {STAT_CARDS.map(s => {
-                let value, pct = null, extra = null;
-                if (s.isTotal) {
-                  value = stats.total;
-                  extra = stats.sinSeguimiento > 0 ? `${stats.sinSeguimiento} sin seg.` : null;
-                } else if (s.isRate) {
-                  value = stats.conversion;
-                  extra = `${stats.byEstado.ganada} ganadas`;
-                } else if (s.key === 'sin_seguimiento') {
-                  value = stats.sinSeguimiento;
-                  pct = stats.total > 0 ? Math.round((stats.sinSeguimiento / stats.total) * 100) : null;
-                } else if (s.key === 'eventos_asignados') {
-                  value = stats.eventosAsignados;
-                  pct = stats.pctAsignados;
-                  extra = stats.sinAsignar > 0 ? `${stats.sinAsignar} sin asignar` : null;
-                } else if (s.key === 'sin_asignar') {
-                  value = stats.sinAsignar;
-                  pct = stats.total > 0 ? Math.round((stats.sinAsignar / stats.total) * 100) : null;
-                  extra = stats.eventosAsignados > 0 ? `${stats.eventosAsignados} asignados` : null;
-                } else {
-                  value = stats.byEstado[s.key] || 0;
-                  pct = stats.pctOf(s.key);
-                }
-                return <StatCard key={s.key} stat={s} value={value} pct={pct} extra={extra} />;
-              })}
-            </div>
+          <div style={{
+            padding: '10px 20px',
+            borderBottom: '1px solid #cbd5e1',
+            background: '#f8fafc',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            overflowX: 'auto',
+          }}>
+            <MetricMiniCard
+              icon="clipboard"
+              label="TOTAL"
+              value={stats.total}
+              subtitle={`${stats.sinSeguimiento} sin seg.`}
+              color="#0f172a"
+              bg="#ffffff"
+              border="#e2e8f0"
+              iconBg="#f8fafc"
+            />
+            <MetricMiniCard
+              icon="clock"
+              label="PENDIENTE"
+              value={stats.byEstado.pendiente}
+              subtitle={`${stats.pctOf('pendiente')}%`}
+              color="#d97706"
+              bg="#ffffff"
+              border="#fde68a"
+              iconBg="#fffbeb"
+            />
+            <MetricMiniCard
+              icon="eye"
+              label="EN PROCESO"
+              value={stats.byEstado.en_proceso}
+              subtitle={`${stats.pctOf('en_proceso')}%`}
+              color="#2563eb"
+              bg="#ffffff"
+              border="#bfdbfe"
+              iconBg="#eff6ff"
+            />
+            <MetricMiniCard
+              icon="trophy"
+              label="GANADA"
+              value={stats.byEstado.ganada}
+              subtitle={`${stats.pctOf('ganada')}%`}
+              color="#059669"
+              bg="#ffffff"
+              border="#a7f3d0"
+              iconBg="#ecfdf5"
+            />
+            <MetricMiniCard
+              icon="x"
+              label="PERDIDA"
+              value={stats.byEstado.perdida}
+              subtitle={`${stats.pctOf('perdida')}%`}
+              color="#dc2626"
+              bg="#ffffff"
+              border="#fecaca"
+              iconBg="#fef2f2"
+            />
+            <MetricMiniCard
+              icon="trendingUp"
+              label="CONVERSIÓN"
+              value={`${stats.conversion}%`}
+              subtitle={`${stats.byEstado.ganada} ganadas`}
+              color="#7c3aed"
+              bg="#ffffff"
+              border="#ddd6fe"
+              iconBg="#f5f3ff"
+            />
+            <MetricMiniCard
+              icon="handshake"
+              label="EVENTOS ASIGNADOS"
+              value={stats.eventosAsignados}
+              subtitle={`${stats.pctAsignados}%`}
+              color="#0f766e"
+              bg="#ffffff"
+              border="#99f6e4"
+              iconBg="#f0fdfa"
+            />
+            <MetricMiniCard
+              icon="alertTriangle"
+              label="SIN ASIGNAR"
+              value={stats.sinAsignar}
+              subtitle={`${stats.total > 0 ? Math.round((stats.sinAsignar / stats.total) * 100) : 0}%`}
+              color="#ca8a04"
+              bg="#ffffff"
+              border="#fef08a"
+              iconBg="#fefce8"
+            />
+            {stats.sinSeguimiento > 0 && (
+              <MetricMiniCard
+                icon="alertTriangle"
+                label="SIN SEGUIMIENTO"
+                value={stats.sinSeguimiento}
+                subtitle={`${stats.total > 0 ? Math.round((stats.sinSeguimiento / stats.total) * 100) : 0}%`}
+                color="#dc2626"
+                bg="#ffffff"
+                border="#fecaca"
+                iconBg="#fef2f2"
+              />
+            )}
           </div>
         )}
 
-        {/* ── Toolbar: toggle de vista + quick filters + search (en una misma línea) ── */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+        {/* ── 3. CLEAN TOOLBAR ── */}
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#ffffff' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Filtros izquierdos */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
               {isAdmin && (
                 <ViewSegmented value={vista} onChange={setVista} adminCount={eliminadas.length} />
               )}
@@ -1181,46 +1186,70 @@ export default function PosiblesVentasModule() {
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: '0 1 520px', minWidth: '240px' }}>
+
+            {/* Vendedor + Buscador + Toggle Resumen Vendedor */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {vista === 'activas' && stats.vendedoresRows.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowVendorSummary(v => !v)}
+                  style={{
+                    height: '34px', padding: '0 12px', borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    background: showVendorSummary ? '#e0f2fe' : '#ffffff',
+                    color: showVendorSummary ? '#0284c7' : '#475569',
+                    fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    transition: 'all 0.12s'
+                  }}
+                  title="Ver u ocultar resumen de eventos asignados por vendedor"
+                >
+                  <Icon name="users" size={14} color={showVendorSummary ? '#0284c7' : '#475569'} strokeWidth={2.3} />
+                  <span>Vendedores ({stats.vendedoresRows.length})</span>
+                  <Icon name={showVendorSummary ? 'chevronUp' : 'chevronDown'} size={14} color="#64748b" strokeWidth={2.3} />
+                </button>
+              )}
+
               <select
                 value={vendedorFilter}
                 onChange={e => setVendedorFilter(e.target.value)}
                 style={{
-                  height: '36px', padding: '0 10px', borderRadius: '10px',
-                  border: '2px solid',
-                  borderColor: vendedorFilter !== 'all' ? '#14b8a6' : '#e2e8f0',
+                  height: '34px', padding: '0 10px', borderRadius: '8px',
+                  border: '1.5px solid',
+                  borderColor: vendedorFilter !== 'all' ? '#14b8a6' : '#cbd5e1',
                   fontSize: '12px', fontWeight: 700,
-                  background: vendedorFilter !== 'all' ? '#f0fdfa' : '#fff',
+                  background: vendedorFilter !== 'all' ? '#f0fdfa' : '#ffffff',
                   color: vendedorFilter !== 'all' ? '#0f766e' : '#1e293b',
                   outline: 'none', cursor: 'pointer', flexShrink: 0,
-                  maxWidth: '190px',
+                  maxWidth: '180px',
                 }}
                 title="Filtrar eventos por vendedor"
               >
-                <option value="mine" style={{ background: '#fff', color: '#0f172a' }}>👤 Mis asignaciones</option>
-                <option value="all" style={{ background: '#fff', color: '#0f172a' }}>👥 Todos los vendedores</option>
+                <option value="mine" style={{ background: '#ffffff', color: '#0f172a' }}>👤 Mis asignaciones</option>
+                <option value="all" style={{ background: '#ffffff', color: '#0f172a' }}>👥 Todos los vendedores</option>
                 {vendedores.length > 0 && (
                   <optgroup label="Vendedor específico">
                     {vendedores.map(v => (
-                      <option key={v.id} value={v.id} style={{ background: '#fff', color: '#0f172a' }}>
+                      <option key={v.id} value={v.id} style={{ background: '#ffffff', color: '#0f172a' }}>
                         {v.fullName || v.name}
                       </option>
                     ))}
                   </optgroup>
                 )}
               </select>
-              <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-                <span style={{ position: 'absolute', left: '12px', display: 'inline-flex', pointerEvents: 'none' }}>
-                  <Icon name="search" size={15} color="#94a3b8" strokeWidth={2.3} />
+
+              <div style={{ position: 'relative', minWidth: '220px', flex: 1, display: 'flex', alignItems: 'center' }}>
+                <span style={{ position: 'absolute', left: '10px', display: 'inline-flex', pointerEvents: 'none' }}>
+                  <Icon name="search" size={14} color="#94a3b8" strokeWidth={2.3} />
                 </span>
                 <input
                   type="text"
-                  placeholder={vista === 'activas' ? 'Buscar cliente, teléfono, salón, vendedor...' : 'Buscar en eliminadas...'}
+                  placeholder={vista === 'activas' ? 'Buscar cliente, teléfono, salón...' : 'Buscar en eliminadas...'}
                   value={search} onChange={e => setSearch(e.target.value)}
                   style={{
-                    width: '100%', padding: '8px 14px 8px 36px', borderRadius: '10px',
-                    border: '2px solid #e2e8f0', fontSize: '12.5px', height: '36px',
-                    boxSizing: 'border-box', background: '#fff', color: '#1e293b', outline: 'none',
+                    width: '100%', padding: '6px 12px 6px 32px', borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1', fontSize: '12px', height: '34px',
+                    boxSizing: 'border-box', background: '#ffffff', color: '#1e293b', outline: 'none',
                   }}
                 />
               </div>
@@ -1228,32 +1257,29 @@ export default function PosiblesVentasModule() {
           </div>
         </div>
 
-        {/* ── Eventos Asignados por vendedor (solo en vista activas) ── */}
-        {vista === 'activas' && stats.vendedoresRows.length > 0 && (
-          <div style={{ padding: '14px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '26px', height: '26px', borderRadius: '8px',
-                background: '#f0fdfa',
-              }}>
-                <Icon name="handshake" size={15} color="#0f766e" strokeWidth={2.3} />
-              </span>
-              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Eventos Asignados</span>
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>· {stats.eventosAsignados} {stats.eventosAsignados === 1 ? 'evento' : 'eventos'} con vendedor · {stats.sinAsignar > 0 ? `${stats.sinAsignar} sin asignar` : 'todos asignados'}</span>
+        {/* ── 4. RESUMEN POR VENDEDOR (Plegable / Opcional) ── */}
+        {vista === 'activas' && showVendorSummary && stats.vendedoresRows.length > 0 && (
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid #cbd5e1', background: '#f8fafc', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <Icon name="handshake" size={14} color="#0f766e" strokeWidth={2.3} />
+              <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#0f172a' }}>Resumen por Vendedor</span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>· {stats.eventosAsignados} eventos con vendedor</span>
             </div>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
               gap: '8px',
+              maxHeight: '136px',
+              overflowY: 'auto',
+              paddingRight: '4px',
             }}>
               {stats.vendedoresRows.map(r => <VendedorCard key={r.vendedorId || '__sin_asignar__'} row={r} />)}
             </div>
           </div>
         )}
 
-        {/* ── Lista: activas o eliminadas ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px 24px' }}>
+        {/* ── 5. LISTA PRINCIPAL DE TARJETAS DE EVENTOS ASIGNADOS (Con Scroll Directo) ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 24px', background: '#f8fafc' }}>
           {vista === 'activas' ? (
             loading ? (
               <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
@@ -1264,18 +1290,18 @@ export default function PosiblesVentasModule() {
               </div>
             ) : filteredLeads.length === 0 ? (
               <div style={{
-                textAlign: 'center', color: '#94a3b8', padding: '60px 20px',
-                border: '2px dashed #e2e8f0', borderRadius: '16px',
+                textAlign: 'center', color: '#94a3b8', padding: '50px 20px',
+                border: '2px dashed #cbd5e1', borderRadius: '14px', background: '#ffffff',
               }}>
                 <div style={{ display: 'inline-flex', marginBottom: '10px', color: '#cbd5e1' }}>
-                  <Icon name={canCreate ? 'handshake' : 'inbox'} size={48} strokeWidth={1.5} />
+                  <Icon name={canCreate ? 'handshake' : 'inbox'} size={44} strokeWidth={1.5} />
                 </div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#64748b' }}>
-                  {canCreate ? 'Aún no hay eventos asignados registrados' : 'No tienes eventos asignados'}
+                <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#64748b' }}>
+                  {canCreate ? 'No hay eventos asignados coincidentes' : 'No tienes eventos asignados'}
                 </div>
                 {canCreate && (
-                  <div style={{ fontSize: '12.5px', color: '#94a3b8', marginTop: '6px' }}>
-                    Captura los datos del cliente y asigna un vendedor
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                    Ajusta los filtros o presiona "+ Asignar evento" para agregar uno nuevo
                   </div>
                 )}
               </div>
@@ -1286,13 +1312,13 @@ export default function PosiblesVentasModule() {
                     key={lead.id}
                     id={`pv-lead-${lead.id}`}
                     style={{
-                      borderRadius: '14px',
+                      borderRadius: '12px',
                       transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                       boxShadow: focusedLeadId && String(focusedLeadId) === String(lead.id)
                         ? '0 0 0 3px #14b8a6, 0 8px 24px rgba(20,184,166,0.35)'
                         : 'none',
                       transform: focusedLeadId && String(focusedLeadId) === String(lead.id)
-                        ? 'scale(1.02)'
+                        ? 'scale(1.01)'
                         : 'scale(1)',
                     }}
                   >
@@ -1303,46 +1329,57 @@ export default function PosiblesVentasModule() {
                       canDelete={canDeleteLead(lead)}
                       onEdit={() => openEdit(lead)}
                       onDelete={() => handleDelete(lead)}
-                      onConvert={() => navigate(`/nueva-reserva?date=${lead.fechaEvento || ''}&pv=${lead.id}`)}
-                      onVerReserva={() => navigate(`/reserva/${lead.eventoId}`)}
+                      onConvert={() => {
+                        const params = new URLSearchParams();
+                        params.set('pv', String(lead.id));
+                        if (lead.fechaEvento) params.set('date', lead.fechaEvento);
+                        navigate(`/nueva-reserva?${params.toString()}`);
+                      }}
+                      onVerReserva={() => {
+                        if (!lead.eventoId) return;
+                        navigate(`/reserva/${lead.eventoId}`);
+                      }}
                     />
                   </div>
                 ))}
               </div>
             )
           ) : (
-            // Vista: eliminadas
+            /* Vista eliminadas */
             loadingEliminadas ? (
               <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
                 <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
                   <Icon name="loader" size={32} color="#94a3b8" className="pv-spin" strokeWidth={2} />
                 </div>
-                <div>Cargando eliminadas...</div>
+                <div>Cargando eventos eliminados...</div>
               </div>
             ) : eliminadas.length === 0 ? (
               <div style={{
-                textAlign: 'center', color: '#94a3b8', padding: '60px 20px',
-                border: '2px dashed #fecaca', borderRadius: '16px', background: '#fef2f20d',
+                textAlign: 'center', color: '#94a3b8', padding: '50px 20px',
+                border: '2px dashed #fecaca', borderRadius: '14px', background: '#ffffff',
               }}>
-                <div style={{ display: 'inline-flex', marginBottom: '10px', color: '#fca5a5' }}>
-                  <Icon name="trash" size={48} strokeWidth={1.5} />
+                <div style={{ display: 'inline-flex', marginBottom: '10px', color: '#fecaca' }}>
+                  <Icon name="trash" size={44} strokeWidth={1.5} />
                 </div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#64748b' }}>
+                <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#991b1b' }}>
                   No hay eventos asignados eliminados
                 </div>
-                <div style={{ fontSize: '12.5px', color: '#94a3b8', marginTop: '6px' }}>
-                  Si eliminas un evento asignado, aparecerá acá para poder restaurarlo.
+                <div style={{ fontSize: '12px', color: '#b91c1c', marginTop: '4px' }}>
+                  Los eventos asignados que eliminen los administradores o creadores aparecerán aquí para ser restaurados.
                 </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {eliminadas
-                  .filter(lead => {
+                  .filter(l => {
                     if (!search) return true;
                     const term = search.toLowerCase();
-                    return (lead.nombreCliente || '').toLowerCase().includes(term) ||
-                      (lead.vendedorNombre || '').toLowerCase().includes(term) ||
-                      (lead.deletedPorNombre || '').toLowerCase().includes(term);
+                    return (
+                      (l.nombreCliente || '').toLowerCase().includes(term) ||
+                      (l.telefono || '').toLowerCase().includes(term) ||
+                      (l.vendedorNombre || '').toLowerCase().includes(term) ||
+                      (l.salones || []).some(s => String(s).toLowerCase().includes(term))
+                    );
                   })
                   .map(lead => (
                     <DeletedLeadCard
@@ -1358,168 +1395,197 @@ export default function PosiblesVentasModule() {
         </div>
       </div>
 
-      {/* ── Modal crear/editar ── */}
+      {/* ── MODAL NUEVO / EDITAR LEAD ── */}
       {modalOpen && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)',
-          zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
-        }}>
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
+          backdropFilter: 'blur(3px)', zIndex: 999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '16px',
+        }} onClick={() => setModalOpen(false)}>
           <div style={{
-            background: '#fff', borderRadius: '20px', width: 'min(640px, 96vw)', maxHeight: '92vh',
-            overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.3)', padding: '24px',
+            background: '#ffffff', borderRadius: '16px', border: '1px solid #cbd5e1',
+            maxWidth: '560px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
+            padding: '24px', boxShadow: '0 20px 40px rgba(15,23,42,0.2)',
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  {editing ? 'Editar evento asignado' : 'Nuevo evento asignado'}
-                </h2>
-                <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0', fontWeight: 600 }}>
-                  {editing ? 'Modifica los datos del lead' : 'Captura los datos del cliente y asígnale un vendedor'}
-                </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  background: '#f0fdfa', color: '#0f766e',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name={editing ? 'pencil' : 'plus'} size={20} color="#0f766e" strokeWidth={2.3} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                    {editing ? 'Editar evento asignado' : 'Asignar nuevo evento'}
+                  </h3>
+                  <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0' }}>
+                    {editing ? 'Modifica los datos y asignación del lead' : 'Ingresa la información básica para notificar al vendedor'}
+                  </p>
+                </div>
               </div>
               <button onClick={() => setModalOpen(false)}
-                style={{ background: '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="x" size={18} color="#64748b" strokeWidth={2.3} />
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px', borderRadius: '6px' }}>
+                <Icon name="x" size={20} color="#94a3b8" strokeWidth={2.3} />
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Nombre del cliente *</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Nombre del cliente / Empresa *</span>
                 <input value={form.nombreCliente} onChange={e => setForm({ ...form, nombreCliente: e.target.value })}
                   disabled={editing && userRole === 'vendedor'}
-                  style={inputStyle} placeholder="Nombre del cliente" />
+                  style={inputStyle} placeholder="Ej. Juan Pérez / Banco Industrial" autoFocus />
               </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Teléfono</span>
-                <input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })}
-                  disabled={editing && userRole === 'vendedor'} style={inputStyle} placeholder="Teléfono de contacto" />
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Correo</span>
-                <input type="email" value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })}
-                  disabled={editing && userRole === 'vendedor'} style={inputStyle} placeholder="correo@ejemplo.com" />
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Fecha del evento</span>
-                <input type="date" value={form.fechaEvento} onChange={e => setForm({ ...form, fechaEvento: e.target.value })}
-                  disabled={editing && userRole === 'vendedor'} style={inputStyle} />
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Nº de personas (pax)</span>
-                <input type="number" min="0" value={form.pax} onChange={e => setForm({ ...form, pax: e.target.value })}
-                  disabled={editing && userRole === 'vendedor'} style={inputStyle} placeholder="0" />
-              </label>
-            </div>
 
-            <div style={{ marginTop: '14px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>Salones</span>
-              <MultiSelect
-                selected={formSalones}
-                onChange={setFormSalones}
-                options={(salones || []).map(s => ({ value: s, label: s }))}
-                placeholder="Salones"
-                emptyLabel="Sin salón seleccionado"
-                searchable
-                width={280}
-              />
-            </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Teléfono</span>
+                  <input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })}
+                    disabled={editing && userRole === 'vendedor'}
+                    style={inputStyle} placeholder="55554444" />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Correo electrónico</span>
+                  <input type="email" value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })}
+                    disabled={editing && userRole === 'vendedor'}
+                    style={inputStyle} placeholder="cliente@correo.com" />
+                </label>
+              </div>
 
-            <div style={{ marginTop: '14px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>Tipos de servicios requeridos</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-                {SERVICIOS_FIJOS.map(sv => {
-                  const active = formServicios.has(sv);
-                  return (
-                    <button key={sv} type="button" onClick={() => {
-                      setFormServicios(prev => {
-                        const next = new Set(prev);
-                        if (next.has(sv)) next.delete(sv); else next.add(sv);
-                        return next;
-                      });
-                    }}
-                      style={{
-                        padding: '6px 12px', borderRadius: '999px', border: active ? '1px solid #0f766e' : '1px solid #e2e8f0',
-                        background: active ? '#ccfbf1' : '#fff', color: active ? '#0f766e' : '#475569',
-                        fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                      }}>
-                      {sv}
-                    </button>
-                  );
-                })}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Fecha tentativa del evento</span>
+                  <input type="date" value={form.fechaEvento} onChange={e => setForm({ ...form, fechaEvento: e.target.value })}
+                    disabled={editing && userRole === 'vendedor'}
+                    style={inputStyle} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Cantidad de personas (PAX)</span>
+                  <input type="number" value={form.pax} onChange={e => setForm({ ...form, pax: e.target.value })}
+                    disabled={editing && userRole === 'vendedor'}
+                    style={inputStyle} placeholder="Ej. 150" min="1" />
+                </label>
               </div>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <input value={customServicio}
-                  onChange={e => setCustomServicio(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomServicio(); } }}
-                  style={{ ...inputStyle, flex: 1 }} placeholder="Otros servicios (Enter para agregar)" />
-                <button type="button" onClick={addCustomServicio}
-                  style={{ padding: '0 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontWeight: 700, color: '#475569', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="plus" size={14} color="#475569" strokeWidth={2.5} />
-                </button>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Salones requeridos</span>
+                <MultiSelect
+                  options={salones.map(s => {
+                    const name = typeof s === 'string' ? s : (s?.name || s?.nombre || String(s));
+                    return { value: name, label: name };
+                  })}
+                  selected={formSalones}
+                  onChange={vals => setFormSalones(new Set(vals))}
+                  placeholder="Seleccionar salones..."
+                  emptyLabel="Seleccionar salones..."
+                  disabled={editing && userRole === 'vendedor'}
+                  width="100%"
+                />
               </div>
-              {[...formServicios].filter(s => !SERVICIOS_FIJOS.includes(s)).length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '8px' }}>
-                  {[...formServicios].filter(s => !SERVICIOS_FIJOS.includes(s)).map((s, i) => (
-                    <span key={i} style={{ fontSize: '10px', fontWeight: 700, color: '#0369a1', padding: '2px 9px', borderRadius: '999px', background: '#e0f2fe', border: '1px solid #bae6fd' }}>
-                      {s}
-                    </span>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Servicios requeridos</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {SERVICIOS_FIJOS.map(s => {
+                    const sel = formServicios.has(s);
+                    return (
+                      <button key={s} type="button"
+                        disabled={editing && userRole === 'vendedor'}
+                        onClick={() => {
+                          setFormServicios(prev => {
+                            const next = new Set(prev);
+                            if (next.has(s)) next.delete(s); else next.add(s);
+                            return next;
+                          });
+                        }}
+                        style={{
+                          padding: '5px 12px', borderRadius: '999px', fontSize: '11.5px', fontWeight: 700,
+                          border: sel ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                          background: sel ? '#e0f2fe' : '#ffffff',
+                          color: sel ? '#0369a1' : '#475569',
+                          cursor: 'pointer', transition: 'all 0.12s',
+                        }}>
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                  <input value={customServicio}
+                    onChange={e => setCustomServicio(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomServicio(); } }}
+                    style={{ ...inputStyle, flex: 1 }} placeholder="Otros servicios (Enter para agregar)" />
+                  <button type="button" onClick={addCustomServicio}
+                    style={{ padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', fontWeight: 700, color: '#475569', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="plus" size={14} color="#475569" strokeWidth={2.5} />
+                  </button>
+                </div>
+                {[...formServicios].filter(s => !SERVICIOS_FIJOS.includes(s)).length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '6px' }}>
+                    {[...formServicios].filter(s => !SERVICIOS_FIJOS.includes(s)).map((s, i) => (
+                      <span key={i} style={{ fontSize: '10.5px', fontWeight: 700, color: '#0369a1', padding: '2px 8px', borderRadius: '999px', background: '#e0f2fe', border: '1px solid #bae6fd' }}>
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Notas</span>
+                <textarea value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })}
+                  disabled={editing && userRole === 'vendedor'}
+                  rows={2} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Detalles adicionales del requerimiento" />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>
+                  Vendedor asignado
+                </span>
+                <select value={form.vendedorId} onChange={e => setForm({ ...form, vendedorId: e.target.value })}
+                  disabled={editing && userRole === 'vendedor'} style={inputStyle}>
+                  <option value="">— Sin asignar —</option>
+                  {vendedores.map(v => (
+                    <option key={v.id} value={v.id}>{v.fullName || v.name}</option>
                   ))}
+                </select>
+              </label>
+
+              {editing && (
+                <div style={{
+                  padding: '8px 12px', borderRadius: '8px',
+                  background: '#f8fafc', border: '1px solid #cbd5e1',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                }}>
+                  <Icon name="lock" size={14} color="#64748b" strokeWidth={2.5} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', flex: 1 }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#475569' }}>
+                      Estado: <EstadoPill estado={editing.estado} />
+                    </span>
+                    <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                      Se calcula automáticamente del calendario y fecha.
+                    </span>
+                  </div>
                 </div>
               )}
-            </div>
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '14px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Notas</span>
-              <textarea value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })}
-                disabled={editing && userRole === 'vendedor'}
-                rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Detalles adicionales del requerimiento" />
-            </label>
-
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '14px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>
-                Vendedor asignado
-              </span>
-              <select value={form.vendedorId} onChange={e => setForm({ ...form, vendedorId: e.target.value })}
-                disabled={editing && userRole === 'vendedor'} style={inputStyle}>
-                <option value="">— Sin asignar —</option>
-                {vendedores.map(v => (
-                  <option key={v.id} value={v.id}>{v.fullName || v.name}</option>
-                ))}
-              </select>
-            </label>
-
-            {editing && (
-              <div style={{
-                marginTop: '14px', padding: '10px 12px', borderRadius: '10px',
-                background: '#f8fafc', border: '1px solid #e2e8f0',
-                display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
-              }}>
-                <Icon name="lock" size={14} color="#94a3b8" strokeWidth={2.5} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569' }}>
-                    Estado: <EstadoPill estado={editing.estado} />
-                  </span>
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                    Se calcula solo: depende del estatus del evento en el calendario y de la fecha.
-                  </span>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                <button onClick={() => setModalOpen(false)}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontSize: '12.5px' }}>
+                  Cancelar
+                </button>
+                <button onClick={handleSave} disabled={saving}
+                  style={{
+                    padding: '8px 20px', borderRadius: '8px', border: 'none',
+                    background: 'linear-gradient(135deg, #14b8a6, #0f766e)', color: '#ffffff',
+                    fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1, fontSize: '12.5px',
+                  }}>
+                  {saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Registrar y notificar'}
+                </button>
               </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-              <button onClick={() => setModalOpen(false)}
-                style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 700, cursor: 'pointer' }}>
-                Cancelar
-              </button>
-              <button onClick={handleSave} disabled={saving}
-                style={{
-                  padding: '10px 22px', borderRadius: '10px', border: 'none',
-                  background: 'linear-gradient(135deg, #14b8a6, #0f766e)', color: '#fff',
-                  fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1,
-                }}>
-                {saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Registrar y notificar'}
-              </button>
             </div>
           </div>
         </div>
@@ -1532,53 +1598,37 @@ export default function PosiblesVentasModule() {
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         @media (max-width: 640px) {
           .pv-module-wrapper { padding: 8px !important; }
-          .pv-stat-cards-container { padding: 8px 10px !important; }
-          .pv-stat-cards-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 6px !important;
-          }
         }
         @keyframes pv-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .pv-spin { animation: pv-spin 1s linear infinite; transform-origin: center; }
-        /* SweetAlert2 — estilos personalizados para el módulo */
         .pv-swal-title {
-          font-size: 20px !important;
+          font-size: 19px !important;
           font-weight: 800 !important;
           color: #0f172a !important;
         }
         .pv-swal-html {
-          font-size: 14px !important;
+          font-size: 13.5px !important;
           color: #475569 !important;
           line-height: 1.5 !important;
           margin-top: 4px !important;
         }
         .pv-swal-confirm, .pv-swal-cancel {
-          font-size: 13px !important;
+          font-size: 12.5px !important;
           font-weight: 700 !important;
-          padding: 10px 18px !important;
-          border-radius: 10px !important;
+          padding: 8px 16px !important;
+          border-radius: 8px !important;
           border: none !important;
           cursor: pointer !important;
-          margin: 0 6px !important;
-          transition: transform 0.12s, box-shadow 0.12s !important;
+          margin: 0 4px !important;
         }
         .pv-swal-confirm {
           background: linear-gradient(135deg, #14b8a6, #0f766e) !important;
           color: #fff !important;
-          box-shadow: 0 3px 10px rgba(20,184,166,0.35) !important;
-        }
-        .pv-swal-confirm:hover {
-          transform: translateY(-1px) !important;
-          box-shadow: 0 5px 14px rgba(20,184,166,0.45) !important;
         }
         .pv-swal-cancel {
           background: #fff !important;
           color: #475569 !important;
-          border: 1.5px solid #e2e8f0 !important;
-        }
-        .pv-swal-cancel:hover {
-          background: #f8fafc !important;
-          border-color: #cbd5e1 !important;
+          border: 1.5px solid #cbd5e1 !important;
         }
       `}</style>
     </div>

@@ -9,8 +9,9 @@ import { useEffect, useRef, useState } from 'react';
  */
 export default function MultiSelect({
   selected,
+  value,
   onChange,
-  options,
+  options = [],
   placeholder = 'Seleccionar...',
   emptyLabel = 'Todos',
   searchable = false,
@@ -19,6 +20,9 @@ export default function MultiSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
+
+  const rawSel = selected !== undefined ? selected : value;
+  const selSet = rawSel instanceof Set ? rawSel : new Set(Array.isArray(rawSel) ? rawSel : []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -29,21 +33,24 @@ export default function MultiSelect({
   }, []);
 
   const toggle = (val) => {
-    const next = new Set(selected);
+    const next = new Set(selSet);
     if (next.has(val)) next.delete(val);
     else next.add(val);
-    onChange(next);
+    if (onChange) onChange(next);
   };
 
-  const clearAll = () => onChange(new Set());
+  const clearAll = () => {
+    if (onChange) onChange(new Set());
+  };
 
   const q = query.trim().toLowerCase();
+  const safeOptions = Array.isArray(options) ? options : [];
   const filteredOptions = searchable && q
-    ? options.filter(o => String(o.label || '').toLowerCase().includes(q))
-    : options;
+    ? safeOptions.filter(o => String(o.label || '').toLowerCase().includes(q))
+    : safeOptions;
 
-  const count = selected.size;
-  const previewList = options.filter(o => selected.has(o.value));
+  const count = selSet.size;
+  const previewList = safeOptions.filter(o => selSet.has(o.value));
 
   return (
     <div ref={ref} style={{ minWidth: 240, position: 'relative', width }}>
@@ -124,7 +131,7 @@ export default function MultiSelect({
                 Sin resultados
               </div>
             ) : filteredOptions.map(o => {
-              const active = selected.has(o.value);
+              const active = selSet.has(o.value);
               const color = o.color || '#2563eb';
               return (
                 <label key={o.value} style={{

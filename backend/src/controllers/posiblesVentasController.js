@@ -50,30 +50,66 @@ function esFechaPasada(fecha) {
 function computeEstado(lead, linkedEvent) {
   const eventoId = String(lead?.evento_id || '').trim();
   if (eventoId) {
-    if (linkedEvent) {
-      const status = Number(linkedEvent.Estatuscotizacion);
-      if (status === ESTATUS_CONFIRMADO) return 'ganada';
-      if (status === ESTATUS_PRE_RESERVA) return 'en_proceso';
-      if (status === ESTATUS_MANTENIMIENTO) return 'en_proceso';
+    if (linkedEvent && linkedEvent.linked_estatus !== null && linkedEvent.linked_estatus !== undefined) {
+      const rawStatus = String(linkedEvent.linked_estatus).trim().toLowerCase();
+      const numStatus = Number(linkedEvent.linked_estatus);
+
+      // Cancelado / Perdido (por texto o código 0)
+      if (
+        rawStatus.includes('cancel') ||
+        rawStatus.includes('perdid') ||
+        rawStatus === '0'
+      ) {
+        return 'perdida';
+      }
+
+      // Confirmado (4) -> ganada
+      if (numStatus === ESTATUS_CONFIRMADO || rawStatus.includes('confirm')) {
+        return 'ganada';
+      }
+
+      // Pre-reserva (7), Mantenimiento (8), o flujo activo -> en_proceso
+      if (
+        numStatus === ESTATUS_PRE_RESERVA ||
+        numStatus === ESTATUS_MANTENIMIENTO ||
+        rawStatus.includes('pre') ||
+        rawStatus.includes('manten') ||
+        rawStatus.includes('cotiz') ||
+        rawStatus.includes('reserva') ||
+        rawStatus.includes('seguim') ||
+        rawStatus.includes('espera')
+      ) {
+        return 'en_proceso';
+      }
+
+      // Si la fecha del evento ya pasó
+      if (esFechaPasada(lead?.fecha_evento || linkedEvent?.linked_fecha)) {
+        return 'perdida';
+      }
+
       return 'en_proceso';
+    } else {
+      // Si evento_id está seteado pero el evento fue cancelado o no existe en eventos/tbl_seguimientocotizaciones -> 'perdida'
+      return 'perdida';
     }
-    // evento_id seteado pero el evento fue borrado del calendario
-    return 'ganada';
   }
   return esFechaPasada(lead?.fecha_evento) ? 'perdida' : 'pendiente';
 }
 
 /** Construye la subconsulta que trae el evento ligado (con matching robusto por baseId). */
 const LINKED_EVENT_SELECT = `
-  ev.Estatuscotizacion AS linked_estatus,
-  ev.FechaEvento       AS linked_fecha
+  COALESCE(e_direct.estado, ev.Estatuscotizacion) AS linked_estatus,
+  COALESCE(e_direct.fecha_evento, ev.FechaEvento) AS linked_fecha
 `;
 
-/** Para el listado principal: une con el evento ligado si existe. */
+/** Para el listado principal: une con la tabla eventos y tbl_seguimientocotizaciones si existe. */
 const LINKED_EVENT_JOIN = `
+  LEFT JOIN eventos e_direct
+    ON e_direct.id = pv.evento_id
+    OR e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
   LEFT JOIN tbl_seguimientocotizaciones ev
     ON ev.Idocupacion = pv.evento_id
-    OR ev.Idocupacion = CONCAT(SUBSTRING_INDEX(pv.evento_id, '_s', 1), '')
+    OR ev.Idocupacion = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
 `;
 
 // Inserta una entrada en la bitácora de posibles ventas (no falla la operación principal si el log falla)
@@ -137,7 +173,7 @@ function buildLead(row) {
   const derived = row.linked_estatus !== undefined
     ? computeEstado(
         { fecha_evento: row.fecha_evento, evento_id: row.evento_id },
-        row.linked_estatus === null ? null : { Estatuscotizacion: row.linked_estatus }
+        row.linked_estatus === null ? null : { linked_estatus: row.linked_estatus, linked_fecha: row.linked_fecha }
       )
     : (row.estado || 'pendiente');
 
@@ -186,45 +222,37 @@ export async function syncAllEstados({ onlyIds = null } = {}) {
 
     const [rows] = await pool.query(
       `SELECT pv.id, pv.fecha_evento, pv.evento_id, pv.estado,
-              ev.Estatuscotizacion AS linked_estatus
+              COALESCE(e_direct.estado, ev.Estatuscotizacion) AS linked_estatus,
+              COALESCE(e_direct.fecha_evento, ev.FechaEvento) AS linked_fecha
          FROM posibles_ventas pv
+         LEFT JOIN eventos e_direct
+           ON e_direct.id = pv.evento_id
+           OR e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
          LEFT JOIN tbl_seguimientocotizaciones ev
            ON ev.Idocupacion = pv.evento_id
-           OR ev.Idocupacion = CONCAT(SUBSTRING_INDEX(pv.evento_id, '_s', 1), '')
+           OR ev.Idocupacion = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
          ${where}`,
       onlyIds && onlyIds.length ? onlyIds : []
     );
 
     const updates = [];
-    const params = [];
     for (const row of rows) {
       const derived = computeEstado(
         { fecha_evento: row.fecha_evento, evento_id: row.evento_id },
         row.linked_estatus === null || row.linked_estatus === undefined
           ? null
-          : { Estatuscotizacion: row.linked_estatus }
+          : { linked_estatus: row.linked_estatus, linked_fecha: row.linked_fecha }
       );
       if (derived !== row.estado) {
-        updates.push('WHEN ? THEN ?');
-        params.push(row.id, derived);
+        updates.push({ id: row.id, estado: derived });
       }
     }
     if (updates.length === 0) return { changed: 0 };
 
-    // CASE WHEN sobre una lista de IDs.
-    const ids = [];
-    for (let i = 0; i < updates.length; i += 2) {
-      // extraemos el id de params (posiciones pares antes del THEN)
-      ids.push(params[i]);
+    for (const u of updates) {
+      await pool.query('UPDATE posibles_ventas SET estado = ? WHERE id = ?', [u.estado, u.id]);
     }
-    const caseExpr = updates.join(' ');
-    await pool.query(
-      `UPDATE posibles_ventas
-          SET estado = CASE id ${caseExpr} END
-        WHERE id IN (${ids.map(() => '?').join(',')})`,
-      [...params, ...ids]
-    );
-    return { changed: updates.length / 2 };
+    return { changed: updates.length };
   } catch (err) {
     console.error('[PosiblesVentas] syncAllEstados error:', err.message || err);
     return { changed: 0, error: err.message || String(err) };

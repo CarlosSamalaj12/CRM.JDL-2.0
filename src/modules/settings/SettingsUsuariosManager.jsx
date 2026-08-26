@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SettingsUsers from './SettingsUsers';
 import SettingsEquipos from './SettingsEquipos';
+import UserModal from './UserModal';
 
 export default function SettingsUsuariosManager({ inline, onBack }) {
   const [activeTab, setActiveTab] = useState('usuarios'); // 'usuarios' | 'equipos'
@@ -32,7 +33,7 @@ export default function SettingsUsuariosManager({ inline, onBack }) {
               </button>
             )}
             <h2 style={{ fontSize: '19px', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              👥 Gestión de Accesos, Usuarios y Equipos
+              Gestión de Accesos, Usuarios y Equipos
             </h2>
           </div>
 
@@ -102,6 +103,8 @@ export default function SettingsUsuariosManager({ inline, onBack }) {
           <SettingsEquipos />
         )}
       </div>
+
+      <UserModal />
     </div>
   );
 }
