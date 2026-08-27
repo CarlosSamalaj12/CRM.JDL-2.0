@@ -699,6 +699,9 @@ export async function updatePosibleVenta(req, res, next) {
       const evId = String(body.eventoId || '').trim() || null;
       updates.push('evento_id = ?');
       params.push(evId);
+      if (evId) {
+        await pool.query("UPDATE notificaciones SET leido = 1 WHERE tipo = 'posible_venta' AND idocupacion = ?", [id]);
+      }
     }
 
     // Rechazo explícito de override manual (acordado 2026-08-16: estado 100% derivado).

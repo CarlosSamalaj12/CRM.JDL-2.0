@@ -1323,10 +1323,13 @@ export default function ReservationForm() {
         // Si la reserva se creó desde un evento asignado, vincularla al evento creado.
         // El estado del evento asignado se recalcula automáticamente en el backend
         // a partir del estatus del calendario (Confirmado=ganada, Pre-reserva=en_proceso).
-        if (urlPv) {
-          api.patch(`/api/posibles-ventas/${urlPv}`, { eventoId: savedEvent.id }).catch(err => {
+        const leadToLink = urlPv || pvLead?.id;
+        if (leadToLink) {
+          try {
+            await api.patch(`/api/posibles-ventas/${leadToLink}`, { eventoId: savedEvent.id });
+          } catch (err) {
             console.error('[Reserva] No se pudo vincular el evento asignado con la reserva creada:', err);
-          });
+          }
         }
       }
 

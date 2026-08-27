@@ -83,7 +83,7 @@ export async function getNotificaciones(req, res, next) {
     const usuario_id = req.user?.id;
     const { solo_no_leidas } = req.query;
 
-    const whereLeido = solo_no_leidas === 'true' ? 'AND (n.leido = 0 OR n.tipo = \'posible_venta\')' : '';
+    const whereLeido = solo_no_leidas === 'true' ? 'AND n.leido = 0' : '';
 
     const query = `
       SELECT n.* ${POSIBLE_VENTA_ENRICH_COLUMNS}
@@ -108,7 +108,7 @@ export async function getNoLeidasCount(req, res, next) {
         FROM notificaciones n
         ${POSIBLE_VENTA_ENRICH}
        WHERE (n.usuario_id = ? OR n.usuario_id IS NULL)
-         AND (n.leido = 0 OR n.tipo = 'posible_venta')
+         AND n.leido = 0
          AND ${seguimientoExcludeClause()}
     `;
     const [rows] = await pool.query(query, [usuario_id]);
