@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { enviarNotificacionWebPush } from '../helpers/webPushHelper.js';
+import { emitChange } from '../helpers/socketEvents.js';
 
 // ─── Estado derivado (NO manual) ────────────────────────────────────────────
 // El campo `estado` de posibles_ventas se calcula a partir del calendario.
@@ -599,6 +600,9 @@ export async function createPosibleVenta(req, res, next) {
       await notificarVendedor(req, leadId, vendedorId, nombre, detalle);
     }
 
+    emitChange(req, 'posible_venta', 'created', { id: leadId });
+    if (req.io) req.io.emit('notificacion:updated');
+
     res.status(201).json({ id: leadId, ok: true });
   } catch (error) {
     next(error);
@@ -727,6 +731,9 @@ export async function updatePosibleVenta(req, res, next) {
       }
     }
 
+    emitChange(req, 'posible_venta', 'updated', { id: Number(id) });
+    if (req.io) req.io.emit('notificacion:updated');
+
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -772,6 +779,9 @@ export async function deletePosibleVenta(req, res, next) {
       snapshot: lead,
       detalle: `Eliminado por ${actorNombre || actorId}`,
     });
+
+    emitChange(req, 'posible_venta', 'deleted', { id: Number(id) });
+    if (req.io) req.io.emit('notificacion:updated');
 
     res.json({ ok: true });
   } catch (error) {

@@ -35,42 +35,42 @@ const POSIBLE_VENTA_ENRICH_COLUMNS = `
 `;
 
 /**
- * Predicado SQL para excluir las notifs `posible_venta` cuya reserva ligada
- * ya está en Seguimiento. Aplica el mismo matching con sufijo.
+ * Predicado SQL para excluir las notifs `posible_venta`.
+ * ÚNICAMENTE se excluyen/ocultan cuando el vendedor asignado crea la reserva
+ * en el calendario (pv.evento_id IS NOT NULL o existe el evento ligado).
  */
 function seguimientoExcludeClause() {
   return `
     NOT (
       n.tipo = 'posible_venta'
-      AND pv.evento_id IS NOT NULL
       AND (
-        SELECT e.estado
-          FROM eventos e
-         WHERE e.id = pv.evento_id
-            OR e.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
-         LIMIT 1
-      ) = 'Seguimiento'
+        pv.id IS NULL
+        OR pv.evento_id IS NOT NULL
+        OR (
+          SELECT e.id
+            FROM eventos e
+           WHERE e.id = pv.evento_id
+              OR e.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+           LIMIT 1
+        ) IS NOT NULL
+      )
     )
   `;
 }
 
 /**
  * Limpia las filas traídas por la query enriquecida antes de devolver al
- * cliente: omite las que ya están en Seguimiento y reasigna los nombres
- * de campo a camelCase para el frontend.
+ * cliente: omite las de posible_venta únicamente si ya tienen reserva en el calendario.
  */
 function annotateAndFilterNotifs(rows) {
   const out = [];
   for (const r of rows) {
-    if (r.tipo === 'posible_venta' && r.evento_estado === 'Seguimiento') {
-      // Ya tiene seguimiento: la notif ya cumplió su propósito y la
-      // ocultamos del listado (y del contador).
+    if (r.tipo === 'posible_venta' && r.evento_id_lookup) {
+      // Ya se creó la reserva en el calendario: la notificación desaparece.
       continue;
     }
     out.push({
       ...r,
-      // Solo exponer el alias enriquecido a las notifs de posible_venta;
-      // para el resto los campos quedan en null.
       eventoId: r.tipo === 'posible_venta' ? (r.evento_id_lookup || null) : null,
       eventoEstado: r.tipo === 'posible_venta' ? (r.evento_estado || null) : null,
     });
@@ -83,11 +83,8 @@ export async function getNotificaciones(req, res, next) {
     const usuario_id = req.user?.id;
     const { solo_no_leidas } = req.query;
 
-    const whereLeido = solo_no_leidas === 'true' ? 'AND n.leido = 0' : '';
+    const whereLeido = solo_no_leidas === 'true' ? 'AND (n.leido = 0 OR n.tipo = \'posible_venta\')' : '';
 
-    // El filtrado de Seguimiento se hace en SQL (no en JS) para garantizar
-    // que el `LIMIT 20` traiga SIEMPRE hasta 20 notifs VISIBLES, no 20
-    // brutas con algunas filtradas después.
     const query = `
       SELECT n.* ${POSIBLE_VENTA_ENRICH_COLUMNS}
         FROM notificaciones n
@@ -111,7 +108,7 @@ export async function getNoLeidasCount(req, res, next) {
         FROM notificaciones n
         ${POSIBLE_VENTA_ENRICH}
        WHERE (n.usuario_id = ? OR n.usuario_id IS NULL)
-         AND n.leido = 0
+         AND (n.leido = 0 OR n.tipo = 'posible_venta')
          AND ${seguimientoExcludeClause()}
     `;
     const [rows] = await pool.query(query, [usuario_id]);

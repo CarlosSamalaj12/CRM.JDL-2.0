@@ -741,7 +741,23 @@ export default function PosiblesVentasModule() {
 
   useEffect(() => {
     loadLeads();
-  }, [loadLeads]);
+
+    const handleEntityChange = (e) => {
+      const detail = e.detail || {};
+      const entity = detail.entity || detail.table;
+      if (!entity || entity === 'posible_venta' || entity === 'evento' || entity === 'evento_status') {
+        loadLeads();
+        if (vista === 'eliminadas' && isAdmin) {
+          loadEliminadas();
+        }
+      }
+    };
+
+    window.addEventListener('entity:changed', handleEntityChange);
+    return () => {
+      window.removeEventListener('entity:changed', handleEntityChange);
+    };
+  }, [loadLeads, loadEliminadas, vista, isAdmin]);
 
   useEffect(() => {
     if (!focusedLeadId || loading || leads.length === 0) return;

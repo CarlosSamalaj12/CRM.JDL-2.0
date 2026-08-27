@@ -1551,18 +1551,15 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
 
     if (hasUnsavedQuoteChanges) {
-      const { isConfirmed, isDenied } = await localSwal({
+      const { isConfirmed } = await localSwal({
         icon: 'warning',
-        title: 'Cambios sin guardar',
-        text: 'Tu cotización tiene cambios que no han sido guardados. Si imprimes y cierras, perderás esta información.\n\n¿Qué deseas hacer?',
+        title: 'Guardar cotización primero',
+        text: 'La cotización contiene cambios que no han sido guardados en la base de datos. Para poder generar el PDF, imprimir o compartir, es necesario guardarla previamente.\n\n¿Deseas guardarla ahora en la base de datos?',
         showConfirmButton: true,
-        showDenyButton: true,
         showCancelButton: true,
         confirmButtonText: '💾 Guardar e imprimir',
-        denyButtonText: '🖨️ Imprimir sin guardar',
         cancelButtonText: '❌ Cancelar',
         confirmButtonColor: '#3085d6',
-        denyButtonColor: '#f59e0b',
         cancelButtonColor: '#6e7881'
       });
 
@@ -1572,7 +1569,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         if (savedQuoteSnapshotRef.current === snapshotBefore) return;
         return;
       }
-      if (!isDenied) return;
+      return;
     }
 
     const user = authService.getCurrentUser();

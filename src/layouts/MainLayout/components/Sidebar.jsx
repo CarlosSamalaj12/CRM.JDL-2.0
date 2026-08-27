@@ -140,25 +140,19 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
     if (!socketConnected) return;
     const unsubscribeNotif = onEvent('notificacion:created', () => {
       fetchNotifCount();
-      if (isNotifOpen) {
-        fetchNotifs();
-      }
+      if (isNotifOpen) fetchNotifs();
     });
-    // Cuando una reserva ligada a un "Evento asignado" pasa a Seguimiento,
-    // el backend borra la notificación y emite este evento. Refrescamos
-    // para que el drawer móvil refleje el cambio.
-    const unsubscribeStatus = onEvent('entity:changed', (payload) => {
-      if (!payload) return;
-      const data = payload.data || payload;
-      if (String(data.estado || '').trim() === 'Seguimiento') {
-        fetchNotifCount();
-        if (isNotifOpen) {
-          fetchNotifs();
-        }
-      }
+    const unsubscribeNotifUpdated = onEvent('notificacion:updated', () => {
+      fetchNotifCount();
+      if (isNotifOpen) fetchNotifs();
+    });
+    const unsubscribeStatus = onEvent('entity:changed', () => {
+      fetchNotifCount();
+      if (isNotifOpen) fetchNotifs();
     });
     return () => {
       if (unsubscribeNotif) unsubscribeNotif();
+      if (unsubscribeNotifUpdated) unsubscribeNotifUpdated();
       if (unsubscribeStatus) unsubscribeStatus();
     };
   }, [socketConnected, onEvent, isNotifOpen, fetchNotifCount, fetchNotifs]);
@@ -177,9 +171,6 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
 
   const handleNotifClick = async (n) => {
     setIsNotifOpen(false);
-    // Notificaciones de "Evento asignado" (posible_venta) NO se marcan como
-    // leídas con el click: persisten hasta que la reserva ligada tenga
-    // Seguimiento. Sólo navegamos.
     const esPosibleVenta = n.tipo === 'posible_venta';
     if (!esPosibleVenta) {
       try {
