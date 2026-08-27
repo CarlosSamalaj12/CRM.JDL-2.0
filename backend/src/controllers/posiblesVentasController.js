@@ -302,6 +302,164 @@ async function notificarVendedor(req, leadId, vendedorId, clienteNombre, detalle
   }
 }
 
+// Envía un mensaje recordatorio (BD + socket + web push) al vendedor.
+// A diferencia de `notificarVendedor`, este tipo NO se borra al pasar a
+// Seguimiento — el vendedor lo lee y desaparece (marcar como leído).
+async function notificarVendedorMensaje(req, leadId, vendedorId, clienteNombre, mensajeCustom) {
+  if (!vendedorId) return null;
+  const titulo = 'Recordatorio de seguimiento';
+  const mensaje = `${clienteNombre} — ${mensajeCustom}`;
+
+  try {
+    const [notifResult] = await pool.query(
+      'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, idocupacion) VALUES (?, ?, ?, ?, ?)',
+      [String(vendedorId), 'recordatorio_seguimiento', titulo, mensaje, String(leadId)]
+    );
+
+    if (req.io) {
+      req.io.to(`usuario:${vendedorId}`).emit('notificacion:created', {
+        id: notifResult.insertId,
+        usuario_id: vendedorId,
+        tipo: 'recordatorio_seguimiento',
+        titulo,
+        mensaje,
+        informe_id: null,
+        idocupacion: String(leadId),
+        comentario_id: null,
+        posibleVentaId: leadId,
+        leido: 0,
+        fecha_creacion: new Date(),
+      });
+    }
+
+    enviarNotificacionWebPush(
+      vendedorId,
+      titulo,
+      mensaje,
+      { url: `/posibles-ventas?focus=${leadId}` }
+    ).catch((err) => console.error('[WebPush] Error enviando push recordatorio seguimiento:', err));
+
+    return notifResult.insertId;
+  } catch (err) {
+    console.error('[PosiblesVentas] Error al notificar vendedor (recordatorio):', err.message || err);
+    return null;
+  }
+}
+
+// Registra una entrada en `historial_posibles_ventas` cuando se envía un
+// mensaje manual al vendedor (auditoría).
+async function logMensajeVendedor({ idPosibleVenta, actor, mensaje }) {
+  try {
+    const id = `hpv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await pool.query(
+      `INSERT INTO historial_posibles_ventas
+         (id, id_posible_venta, accion, id_usuario_actor, nombre_usuario_actor, detalle)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        String(idPosibleVenta),
+        'mensaje_vendedor',
+        String(actor?.id || ''),
+        String(actor?.nombre || ''),
+        `Mensaje enviado al vendedor: ${String(mensaje).slice(0, 240)}`,
+      ]
+    );
+  } catch (err) {
+    console.error('[PosiblesVentas] No se pudo registrar historial de mensaje:', err.message || err);
+  }
+}
+
+// ─── POST /api/posibles-ventas/:id/mensaje-vendedor ───
+// Admin o recepcionista (creador del lead) envía un mensaje recordatorio
+// al vendedor asignado. Se persiste como notificación tipo
+// `recordatorio_seguimiento` y se emite por socket/web push.
+export async function enviarMensajeVendedor(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { mensaje } = req.body || {};
+    const userId = String(req.user?.id || '');
+    const userName = String(req.user?.nombre || req.user?.fullName || req.user?.name || '');
+    const rol = normalizeRole(req.user?.rol);
+
+    // Coordinadores NO tienen permiso (consistente con createPosibleVenta).
+    if (rol.includes('coordinad') || rol === 'eventos') {
+      return res.status(403).json({
+        message: 'Los coordinadores no tienen permiso para enviar mensajes al vendedor',
+      });
+    }
+
+    const isAdmin = rol === 'admin';
+    const isReception = rol === 'frontoffice' || rol === 'recepcionista';
+
+    if (!isAdmin && !isReception) {
+      return res.status(403).json({
+        message: 'Solo administradores o recepcionistas pueden enviar mensajes al vendedor',
+      });
+    }
+
+    // Validar mensaje.
+    const mensajeTrim = String(mensaje || '').trim();
+    if (!mensajeTrim) {
+      return res.status(400).json({ message: 'El mensaje no puede estar vacío' });
+    }
+    if (mensajeTrim.length > 500) {
+      return res.status(400).json({
+        message: 'El mensaje no puede exceder 500 caracteres',
+      });
+    }
+
+    // Cargar el lead.
+    const [rows] = await pool.query(
+      'SELECT * FROM posibles_ventas WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Evento asignado no encontrado' });
+    }
+    const lead = rows[0];
+
+    // Recepcionista sólo puede actuar sobre leads que él creó.
+    if (!isAdmin) {
+      if (String(lead.creado_por_id || '') !== userId) {
+        return res.status(403).json({
+          message: 'Solo puedes enviar mensajes a leads que tú creaste',
+        });
+      }
+    }
+
+    const vendedorId = String(lead.vendedor_id || '').trim();
+    if (!vendedorId) {
+      return res.status(400).json({
+        message: 'El lead no tiene vendedor asignado, no se puede enviar mensaje',
+      });
+    }
+
+    // Insertar notificación + emitir socket + web push.
+    const notifId = await notificarVendedorMensaje(
+      req,
+      lead.id,
+      vendedorId,
+      lead.nombre_cliente,
+      mensajeTrim
+    );
+
+    // Auditoría: registrar en historial_posibles_ventas.
+    await logMensajeVendedor({
+      idPosibleVenta: lead.id,
+      actor: { id: userId, nombre: userName },
+      mensaje: mensajeTrim,
+    });
+
+    if (!notifId) {
+      return res.status(500).json({ message: 'No se pudo registrar la notificación' });
+    }
+
+    return res.status(201).json({ id: notifId, ok: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // ─── GET /api/posibles-ventas ───
 // Admin ve todas; recepcionista ve las que registró; vendedor ve las asignadas a él.
 // El `estado` de cada lead se calcula derivado del calendario + fecha_evento.

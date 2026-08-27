@@ -1331,7 +1331,17 @@ export default function ReservationForm() {
       }
 
       showNotification(moveToFollowUp ? 'Cambios guardados. Estado a Seguimiento.' : (id ? 'Cambios guardados' : 'Reserva creada'));
-      setTimeout(handleBack, 1000);
+
+      if (!id && savedEvent?.id) {
+        // Reserva NUEVA: quedarse en la pantalla y pasar el id recién creado
+        // a la URL para que se habiliten los botones (Cotizar, Cita, Historial, etc.)
+        // sin necesidad de volver a abrir la reserva.
+        navigate(`/reserva/${savedEvent.id}`, { replace: true });
+        setSaving(false);
+      } else {
+        // Edición: comportamiento previo (cerrar y volver al calendario).
+        setTimeout(handleBack, 1000);
+      }
     } catch {
       showNotification('Error al guardar', 'error');
       setSaving(false);

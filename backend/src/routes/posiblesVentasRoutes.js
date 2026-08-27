@@ -8,6 +8,7 @@ import {
   deletePosibleVenta,
   getEliminadas,
   restorePosibleVenta,
+  enviarMensajeVendedor,
 } from '../controllers/posiblesVentasController.js';
 
 const router = Router();
@@ -19,5 +20,6 @@ router.post('/', authenticate, createPosibleVenta);
 router.patch('/:id', authenticate, updatePosibleVenta);
 router.delete('/:id', authenticate, deletePosibleVenta);
 router.post('/:id/restore', authenticate, restorePosibleVenta);
+router.post('/:id/mensaje-vendedor', authenticate, enviarMensajeVendedor);
 
 export default router;

@@ -1950,6 +1950,98 @@ async function emitServerChange(entity, action, data) {
   }
 }
 
+/**
+ * Detecta eventos que pasaron a `estado = 'Seguimiento'` entre el estado previo
+ * y el nuevo, y limpia las notificaciones de tipo `posible_venta` ligadas a
+ * esos eventos. Emite un evento de socket por cada limpieza.
+ *
+ * Implementa la lógica de "persistencia hasta Seguimiento" del plan: la notif
+ * permanece visible hasta que la reserva tenga Seguimiento, y desaparece en
+ * cuanto eso ocurre.
+ *
+ * Idempotente: si no hay nada que limpiar, no hace nada.
+ */
+async function cleanupNotificacionesPorSeguimiento(oldState, newState) {
+  if (!oldState || !newState) return;
+  const oldEvents = Array.isArray(oldState.events) ? oldState.events : [];
+  const newEvents = Array.isArray(newState.events) ? newState.events : [];
+
+  // Indexar por id para O(1) lookup.
+  const oldById = new Map();
+  for (const e of oldEvents) {
+    if (e && e.id != null) oldById.set(String(e.id), e);
+  }
+
+  // Recoger eventos que pasaron a Seguimiento en este guardado.
+  // Cada "reserva" puede tener varios slots; los ids de los slots comparten
+  // `groupId`. La notificación de posible_venta apunta al base id del grupo
+  // (posibles_ventas.evento_id), así que deduplicamos por base id.
+  const baseIdsToSeg = new Set();
+  const sampleSlotIdByBaseId = new Map();
+  for (const e of newEvents) {
+    if (!e || e.id == null) continue;
+    if (String(e.status || '').trim() !== 'Seguimiento') continue;
+    const oldE = oldById.get(String(e.id));
+    if (oldE && String(oldE.status || '').trim() === 'Seguimiento') continue; // ya estaba en Seguimiento
+    const rawId = String(e.id);
+    const baseId = rawId.replace(/_(s|slot)\d+_\d{6,}$/, '') || rawId;
+    baseIdsToSeg.add(baseId);
+    if (!sampleSlotIdByBaseId.has(baseId)) sampleSlotIdByBaseId.set(baseId, rawId);
+  }
+
+  if (baseIdsToSeg.size === 0) return;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    let totalDeleted = 0;
+    for (const baseId of baseIdsToSeg) {
+      // Borrar las notifs de posible_venta cuyo idocupacion apunte a un
+      // posible_venta cuyo evento_id matchee el id (o el base id) de este
+      // grupo de slots. El OR cubre los formatos: el lead guarda el id
+      // base o el id de un slot concreto; los eventos tienen ids con sufijo.
+      const [result] = await conn.query(
+        `DELETE n
+           FROM notificaciones n
+           INNER JOIN posibles_ventas pv ON pv.id = n.idocupacion
+          WHERE n.tipo = 'posible_venta'
+            AND pv.evento_id IS NOT NULL
+            AND (
+              pv.evento_id = ?
+              OR pv.evento_id = SUBSTRING_INDEX(?, '_s', 1)
+              OR SUBSTRING_INDEX(pv.evento_id, '_s', 1) = ?
+              OR SUBSTRING_INDEX(pv.evento_id, '_s', 1) = SUBSTRING_INDEX(?, '_s', 1)
+            )`,
+        [baseId, baseId, baseId, baseId]
+      );
+      if (result.affectedRows > 0) {
+        totalDeleted += result.affectedRows;
+        if (io) {
+          // Notificar a los clientes para que refresquen su campana/drawer.
+          // entity === 'evento_status' para que el frontend (NotificationBell
+          // y Sidebar) pueda recargar la lista de notificaciones.
+          const slotId = sampleSlotIdByBaseId.get(baseId) || baseId;
+          io.emit('entity:changed', {
+            entity: 'evento_status',
+            action: 'updated',
+            data: { id: slotId, estado: 'Seguimiento' },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    }
+    if (totalDeleted > 0) {
+      console.log(`[${new Date().toLocaleTimeString()}] 🧹 ${totalDeleted} notificación(es) de "posible_venta" eliminada(s) por paso a Seguimiento.`);
+    }
+  } catch (err) {
+    // No fallamos la operación principal por esta limpieza; el filtro del
+    // GET de notificaciones las ocultará igual en la próxima recarga.
+    console.warn('⚠️ No se pudo limpiar notificaciones de posible_venta por Seguimiento:', err.message || err);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function createCategoriaServicioInTable(nombre) {
   let conn;
   try {
@@ -4642,6 +4734,18 @@ app.put("/api/state", async (req, res) => {
     // Pasar currentResult directamente a writeStateToTables para evitar doble consulta a la BD
     await writeStateToTables(mergedState, currentResult);
     console.log(`[${new Date().toLocaleTimeString()}] ✅ ¡Éxito! BD actualizada (${(mergedState.events?.length || nextState.events?.length || 0)} eventos).`);
+
+    // Limpieza de notificaciones de "posible_venta" ligadas a reservas que
+    // pasaron a Seguimiento (persistencia hasta Seguimiento, ver plan).
+    // Best-effort: si falla, el filtro del GET las oculta igual.
+    const prevState = currentResult && currentResult.state ? currentResult.state : null;
+    if (prevState) {
+      try {
+        await cleanupNotificacionesPorSeguimiento(prevState, mergedState);
+      } catch (err) {
+        console.warn('⚠️ cleanupNotificacionesPorSeguimiento falló:', err.message || err);
+      }
+    }
 
     // Emitir actualización vía Socket.io en tiempo real a todos los clientes
     if (io) {

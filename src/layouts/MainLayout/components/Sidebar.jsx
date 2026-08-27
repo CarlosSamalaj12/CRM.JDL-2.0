@@ -144,8 +144,22 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
         fetchNotifs();
       }
     });
+    // Cuando una reserva ligada a un "Evento asignado" pasa a Seguimiento,
+    // el backend borra la notificación y emite este evento. Refrescamos
+    // para que el drawer móvil refleje el cambio.
+    const unsubscribeStatus = onEvent('entity:changed', (payload) => {
+      if (!payload) return;
+      const data = payload.data || payload;
+      if (String(data.estado || '').trim() === 'Seguimiento') {
+        fetchNotifCount();
+        if (isNotifOpen) {
+          fetchNotifs();
+        }
+      }
+    });
     return () => {
       if (unsubscribeNotif) unsubscribeNotif();
+      if (unsubscribeStatus) unsubscribeStatus();
     };
   }, [socketConnected, onEvent, isNotifOpen, fetchNotifCount, fetchNotifs]);
 
@@ -163,12 +177,18 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
 
   const handleNotifClick = async (n) => {
     setIsNotifOpen(false);
-    try {
-      await fetch(`${NOTIF_API}/api/notificaciones/${n.id}/leer`, { method: 'PATCH', headers: getAuthHeaders() });
-      setNotifCount(prev => Math.max(0, prev - 1));
-      setNotifs(prev => prev.filter(x => x.id !== n.id));
-    } catch {}
-    
+    // Notificaciones de "Evento asignado" (posible_venta) NO se marcan como
+    // leídas con el click: persisten hasta que la reserva ligada tenga
+    // Seguimiento. Sólo navegamos.
+    const esPosibleVenta = n.tipo === 'posible_venta';
+    if (!esPosibleVenta) {
+      try {
+        await fetch(`${NOTIF_API}/api/notificaciones/${n.id}/leer`, { method: 'PATCH', headers: getAuthHeaders() });
+        setNotifCount(prev => Math.max(0, prev - 1));
+        setNotifs(prev => prev.filter(x => x.id !== n.id));
+      } catch {}
+    }
+
     // Si es una mención sin informe_id, viene de una nota de kanban → ir a kanban con la nota
     if (n.tipo === 'mencion' && !n.informe_id && n.idocupacion) {
       const params = new URLSearchParams({ highlightEvento: n.idocupacion });
@@ -198,10 +218,26 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
       const dateParam = n.idocupacion ? `&date=${n.idocupacion}` : '';
       navigate(`/kanban?viewMode=tareas${dateParam}`);
     } else if (n.tipo === 'posible_venta') {
-      // Si la notificación trae el id del evento asignado, lo pasamos como
-      // query para que el módulo pueda resaltarlo al cargar.
-      const focus = n.posibleVentaId ? `?focus=${n.posibleVentaId}` : '';
-      navigate(`/posibles-ventas${focus}`);
+      // Si la reserva ligada ya existe, ir directo; si no, al listado
+      // de Posibles Ventas con la card resaltada.
+      const leadId = n.idocupacion || n.posibleVentaId;
+      if (n.eventoId) {
+        navigate(`/reserva/${n.eventoId}`);
+      } else if (leadId) {
+        navigate(`/posibles-ventas?focus=${leadId}`);
+      } else {
+        navigate('/posibles-ventas');
+      }
+    } else if (n.tipo === 'recordatorio_seguimiento') {
+      // Mensaje recordatorio del admin/recepción: lleva al lead.
+      // Al hacer click se marca como leído (rama `!esPosibleVenta` arriba)
+      // y la notif desaparece de la lista de no-leídas.
+      const leadId = n.idocupacion || n.posibleVentaId;
+      if (leadId) {
+        navigate(`/posibles-ventas?focus=${leadId}`);
+      } else {
+        navigate('/posibles-ventas');
+      }
     } else if (n.idocupacion) {
       navigate(`/kanban?highlightEvento=${n.idocupacion}`);
     } else if (n.informe_id) {

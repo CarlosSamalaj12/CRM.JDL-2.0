@@ -59,9 +59,10 @@ function Icon({ name, size = 16, color, strokeWidth = 2, style, className }) {
 
 // ─── Helpers de SweetAlert2 con el estilo del módulo ──────────
 const swalBase = {
-  background: '#f8fbff',
+  background: '#ffffff',
   color: '#0f172a',
   customClass: {
+    popup: 'pv-swal-popup',
     title: 'pv-swal-title',
     htmlContainer: 'pv-swal-html',
     confirmButton: 'pv-swal-confirm',
@@ -432,7 +433,7 @@ function VendedorCard({ row }) {
   );
 }
 
-function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConvert, onVerReserva }) {
+function LeadCard({ lead, userName, canEdit, canDelete, canSendMessage, onEdit, onDelete, onConvert, onVerReserva, onSendMessage }) {
   const est = ESTADO_MAP[lead.estado] || ESTADO_MAP.pendiente;
   const servicios = parseServicios(lead.servicios);
   return (
@@ -583,6 +584,16 @@ function LeadCard({ lead, userName, canEdit, canDelete, onEdit, onDelete, onConv
                 Convertir
               </button>
             )}
+            {canSendMessage && (
+              <button
+                onClick={onSendMessage}
+                title="Enviar mensaje recordatorio al vendedor"
+                style={btnAction('#7c3aed', '#ede9fe', '#c4b5fd')}
+              >
+                <Icon name="mail" size={12} color="#7c3aed" strokeWidth={2.3} />
+                Mensaje
+              </button>
+            )}
             {canEdit && (
               <button onClick={onEdit} title="Editar" style={{ ...btnAction('#475569', '#ffffff', '#cbd5e1'), width: '30px', padding: 0 }}>
                 <Icon name="pencil" size={12} color="#475569" strokeWidth={2.3} />
@@ -714,7 +725,6 @@ export default function PosiblesVentasModule() {
   });
   const [formSalones, setFormSalones] = useState(new Set());
   const [formServicios, setFormServicios] = useState(new Set());
-  const [customServicio, setCustomServicio] = useState('');
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -790,7 +800,6 @@ export default function PosiblesVentasModule() {
     setForm({ nombreCliente: '', telefono: '', correo: '', fechaEvento: '', pax: '', notas: '', vendedorId: '' });
     setFormSalones(new Set());
     setFormServicios(new Set());
-    setCustomServicio('');
     setModalOpen(true);
   };
 
@@ -806,23 +815,8 @@ export default function PosiblesVentasModule() {
       vendedorId: lead.vendedorId || '',
     });
     setFormSalones(new Set(Array.isArray(lead.salones) ? lead.salones : []));
-    setFormServicios(new Set(parseServicios(lead.servicios).filter(s => SERVICIOS_FIJOS.includes(s))));
-    setCustomServicio(parseServicios(lead.servicios).filter(s => !SERVICIOS_FIJOS.includes(s)).join(', '));
+    setFormServicios(new Set(parseServicios(lead.servicios)));
     setModalOpen(true);
-  };
-
-  const addCustomServicio = () => {
-    const val = customServicio.trim();
-    if (!val) return;
-    const parts = val.split(',').map(s => s.trim()).filter(Boolean);
-    if (parts.length) {
-      setFormServicios(prev => {
-        const next = new Set(prev);
-        parts.forEach(p => next.add(p));
-        return next;
-      });
-    }
-    setCustomServicio('');
   };
 
   const handleSave = async () => {
@@ -966,6 +960,103 @@ export default function PosiblesVentasModule() {
   const canDeleteLead = (lead) => {
     if (isAdmin) return true;
     return String(lead.creadoPorId || '') === String(currentUser?.id || '');
+  };
+
+  /**
+   * Determina si el usuario actual puede enviar un mensaje recordatorio
+   * al vendedor de este lead. Reglas:
+   *  - El lead debe tener vendedor asignado.
+   *  - El estado derivado no debe ser "ganada" (ya cerrado) ni "perdida" (cancelado).
+   *  - Admin: puede siempre.
+   *  - Recepcionista/frontoffice: sólo si él creó el lead.
+   *  - Vendedor y coordinador: nunca.
+   * Definición de "sin seguimiento" operativa (alineada con
+   * `cleanupNotificacionesPorSeguimiento` y el filtro del GET del feature
+   * anterior): no hay reserva ligada, o la reserva ligada NO está en
+   * estado 'Seguimiento'. El estado derivado "pendiente" o "en_proceso"
+   * implica sin seguimiento.
+   */
+  const canSendMessage = (lead) => {
+    if (!lead || !lead.vendedorId) return false;
+    if (lead.estado === 'ganada' || lead.estado === 'perdida') return false;
+    if (isAdmin) return true;
+    if (userRole === 'frontoffice' || userRole === 'recepcionista') {
+      return String(lead.creadoPorId || '') === String(currentUser?.id || '');
+    }
+    return false;
+  };
+
+  /**
+   * Abre el modal SweetAlert2 para escribir el mensaje al vendedor.
+   * Al confirmar, hace POST y muestra toast. Loading state nativo via
+   * `showLoaderOnConfirm` + `preConfirm` (mantiene el modal abierto
+   * durante el envío y muestra el spinner en el botón).
+   */
+  const openSendMessage = async (lead) => {
+    if (!lead) return;
+    const vendedorNombre = lead.vendedorNombre || 'el vendedor';
+    const safeVendedorNombre = String(vendedorNombre).replace(/[<>]/g, '');
+
+    const result = await Swal.fire({
+      ...swalBase,
+      title: 'Enviar mensaje al vendedor',
+      html: `
+        <div class="pv-swal-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+            <path d="m22 7-10 5L2 7"></path>
+          </svg>
+          Para: <strong>${safeVendedorNombre}</strong>
+        </div>
+        <div class="pv-swal-counter">0 / 500</div>
+      `,
+      input: 'textarea',
+      inputPlaceholder: 'Escribe un recordatorio breve para el vendedor...',
+      inputAttributes: {
+        'aria-label': 'Mensaje para el vendedor',
+        maxlength: '500',
+        style: 'min-height: 96px; font-size: 13.5px;',
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Enviar mensaje',
+      cancelButtonText: 'Cancelar',
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      inputValidator: (value) => {
+        const v = String(value || '').trim();
+        if (!v) return 'El mensaje no puede estar vacío';
+        if (v.length > 500) return 'El mensaje no puede exceder 500 caracteres';
+        return null;
+      },
+      preConfirm: async (mensaje) => {
+        const mensajeTrim = String(mensaje || '').trim();
+        try {
+          await api.post(`/api/posibles-ventas/${lead.id}/mensaje-vendedor`, { mensaje: mensajeTrim });
+          return mensajeTrim;
+        } catch (err) {
+          const msg = err?.responseBody?.message || err?.message || 'No se pudo enviar el mensaje';
+          Swal.showValidationMessage(msg);
+          return false; // mantiene el modal abierto
+        }
+      },
+      didOpen: () => {
+        // Foco automático en el textarea + wiring del contador en vivo
+        const ta = document.querySelector('.swal2-textarea');
+        const counter = document.querySelector('.pv-swal-counter');
+        if (ta) {
+          ta.focus();
+          if (counter) {
+            const update = () => { counter.textContent = `${ta.value.length} / 500`; };
+            ta.addEventListener('input', update);
+            update();
+          }
+        }
+      },
+    });
+
+    if (result.isConfirmed && result.value) {
+      toast.success('Mensaje enviado al vendedor');
+    }
   };
 
   const inputStyle = {
@@ -1327,8 +1418,10 @@ export default function PosiblesVentasModule() {
                       userName={userName}
                       canEdit={canEditLead(lead)}
                       canDelete={canDeleteLead(lead)}
+                      canSendMessage={canSendMessage(lead)}
                       onEdit={() => openEdit(lead)}
                       onDelete={() => handleDelete(lead)}
+                      onSendMessage={() => openSendMessage(lead)}
                       onConvert={() => {
                         const params = new URLSearchParams();
                         params.set('pv', String(lead.id));
@@ -1513,16 +1606,6 @@ export default function PosiblesVentasModule() {
                     );
                   })}
                 </div>
-                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                  <input value={customServicio}
-                    onChange={e => setCustomServicio(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomServicio(); } }}
-                    style={{ ...inputStyle, flex: 1 }} placeholder="Otros servicios (Enter para agregar)" />
-                  <button type="button" onClick={addCustomServicio}
-                    style={{ padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', fontWeight: 700, color: '#475569', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name="plus" size={14} color="#475569" strokeWidth={2.5} />
-                  </button>
-                </div>
                 {[...formServicios].filter(s => !SERVICIOS_FIJOS.includes(s)).length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '6px' }}>
                     {[...formServicios].filter(s => !SERVICIOS_FIJOS.includes(s)).map((s, i) => (
@@ -1535,10 +1618,10 @@ export default function PosiblesVentasModule() {
               </div>
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Notas</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Requisitos del cliente</span>
                 <textarea value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })}
                   disabled={editing && userRole === 'vendedor'}
-                  rows={2} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Detalles adicionales del requerimiento" />
+                  rows={2} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Ej. tipo de cocina, restricciones o preferencias del cliente" />
               </label>
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1629,6 +1712,59 @@ export default function PosiblesVentasModule() {
           background: #fff !important;
           color: #475569 !important;
           border: 1.5px solid #cbd5e1 !important;
+        }
+        .pv-swal-popup {
+          border-radius: 14px !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: 0 12px 36px rgba(15, 23, 42, 0.12) !important;
+          padding: 28px 24px 20px !important;
+        }
+        .pv-swal-popup .swal2-title {
+          padding-top: 0 !important;
+        }
+        .pv-swal-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 12px;
+          background: #f1f5f9;
+          border-radius: 999px;
+          font-size: 11.5px;
+          color: #475569;
+          margin-bottom: 12px;
+          font-weight: 500;
+          line-height: 1.2;
+        }
+        .pv-swal-pill strong {
+          color: #0f172a;
+          font-weight: 700;
+        }
+        .pv-swal-pill svg {
+          flex-shrink: 0;
+          color: #7c3aed;
+        }
+        .pv-swal-counter {
+          font-size: 10.5px;
+          color: #94a3b8;
+          text-align: right;
+          margin-top: 6px;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+        }
+        .swal2-textarea {
+          border: 1.5px solid #cbd5e1 !important;
+          border-radius: 10px !important;
+          padding: 12px !important;
+          transition: border-color 0.15s, box-shadow 0.15s !important;
+          margin: 0 !important;
+        }
+        .swal2-textarea:focus {
+          border-color: #14b8a6 !important;
+          box-shadow: 0 0 0 3px rgba(20,184,166,0.15) !important;
+          outline: none !important;
+        }
+        .swal2-loader {
+          border-color: #14b8a6 transparent #14b8a6 transparent !important;
         }
       `}</style>
     </div>

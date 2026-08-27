@@ -17,6 +17,7 @@ const TYPE_CONFIG = {
   tarea_asignada: { icon: IconCheckCircle, label: 'Tarea asignada', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   tarea_completada: { icon: IconCheckCircle, label: 'Tarea completada', color: '#16a34a', bg: 'rgba(22,163,74,0.1)' },
   posible_venta: { icon: IconFileText, label: 'Evento asignado', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
+  recordatorio_seguimiento: { icon: IconMessageCircle, label: 'Recordatorio', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
 };
 
 const DEFAULT_TYPE = { icon: IconFileText, label: 'Notificación', color: '#64748b', bg: 'rgba(100,116,139,0.1)' };
@@ -52,13 +53,28 @@ export default function NotificationBell() {
   // Escuchar eventos de socket para actualizar notificaciones en tiempo real
   useEffect(() => {
     if (!socketConnected) return;
-    
+
     const handleNuevaNotificacion = () => {
       load();
     };
-    
-    const cleanup = onEvent('notificacion:created', handleNuevaNotificacion);
-    return cleanup;
+
+    // Cuando una reserva ligada pasa a "Seguimiento", el backend borra la
+    // notificación de "posible_venta" correspondiente y emite este evento.
+    // Refrescamos para que la campana y el contador se actualicen.
+    const handleEventoStatusChanged = (payload) => {
+      if (!payload) return;
+      const data = payload.data || payload;
+      if (String(data.estado || '').trim() === 'Seguimiento') {
+        load();
+      }
+    };
+
+    const cleanup1 = onEvent('notificacion:created', handleNuevaNotificacion);
+    const cleanup2 = onEvent('entity:changed', handleEventoStatusChanged);
+    return () => {
+      if (typeof cleanup1 === 'function') cleanup1();
+      if (typeof cleanup2 === 'function') cleanup2();
+    };
   }, [socketConnected, load, onEvent]);
 
   useEffect(() => {
@@ -97,11 +113,18 @@ export default function NotificationBell() {
   };
 
   const handleNotifClick = async (n) => {
-    if (!n.leido) {
-      // Optimistic update: marcar como leída de inmediato
+    // Notificaciones de "Evento asignado" (posible_venta) tienen un comportamiento
+    // especial: NO se marcan como leídas con el click (persisten hasta que la
+    // reserva ligada tenga Seguimiento). Sólo navegan a la reserva si está
+    // enlazada, o al listado de Posibles Ventas si aún no lo está.
+    const esPosibleVenta = n.tipo === 'posible_venta';
+
+    if (!esPosibleVenta && !n.leido) {
+      // Optimistic update: marcar como leída de inmediato (sólo para los
+      // tipos cuyo click sí representa "lectura").
       setNoLeidas((prev) => Math.max(0, prev - 1));
       setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, leido: 1 } : x));
-      
+
       try {
         await marcarLeida(n.id);
       } catch {
@@ -110,11 +133,29 @@ export default function NotificationBell() {
         setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, leido: 0 } : x));
       }
     }
-    
-    // Si es una notificación de evento asignado → ir a eventos asignados enfocado
-    if (n.tipo === 'posible_venta') {
-      const targetId = n.idocupacion || n.posibleVentaId;
-      navigate(`/posibles-ventas${targetId ? `?focus=${targetId}` : ''}`);
+
+    // Si es una notificación de evento asignado → ir directo a la reserva
+    // si ya está enlazada; si no, al listado de Posibles Ventas.
+    if (esPosibleVenta) {
+      const leadId = n.idocupacion || n.posibleVentaId;
+      const eventoId = n.eventoId;
+      if (eventoId) {
+        navigate(`/reserva/${eventoId}`);
+      } else if (leadId) {
+        navigate(`/posibles-ventas?focus=${leadId}`);
+      } else {
+        navigate('/posibles-ventas');
+      }
+    } else if (n.tipo === 'recordatorio_seguimiento') {
+      // Mensaje recordatorio del admin/recepción: lleva al lead asignado.
+      // Al hacer click se marca como leído (rama `!esPosibleVenta` arriba)
+      // y la notif desaparece de la lista de no-leídas.
+      const leadId = n.idocupacion || n.posibleVentaId;
+      if (leadId) {
+        navigate(`/posibles-ventas?focus=${leadId}`);
+      } else {
+        navigate('/posibles-ventas');
+      }
     } else if (n.tipo === 'mencion' && !n.informe_id && n.idocupacion) {
       const params = new URLSearchParams({ highlightEvento: n.idocupacion });
       if (n.comentario_id) params.set('notaId', n.comentario_id);
@@ -255,6 +296,15 @@ export default function NotificationBell() {
                           </span>
                         </div>
                         <div className="notif-item-msg">{n.mensaje}</div>
+                        {n.tipo === 'posible_venta' && (
+                          <div
+                            className="notif-item-hint"
+                            title="Esta notificación se quita automáticamente cuando la reserva pasa a Seguimiento."
+                            style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px', fontStyle: 'italic' }}
+                          >
+                            Visible hasta que la reserva tenga Seguimiento
+                          </div>
+                        )}
                         <div className="notif-item-footer">
                           <span className="notif-item-time">{formatTime(n.fecha_creacion)}</span>
                           {!n.leido && (
