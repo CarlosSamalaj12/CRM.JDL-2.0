@@ -1380,7 +1380,11 @@ export default function ReservationForm() {
       if (newId) {
         initializedIdRef.current = newId;
         setCreatedEventId(newId);
-        window.history.replaceState(null, '', `/reserva/${newId}`);
+        try {
+          window.history.replaceState(null, '', `/reserva/${newId}`);
+        } catch (navErr) {
+          console.warn('[Reserva] Navegación silenciada (bloqueo por extensión de navegador):', navErr);
+        }
       }
 
       const nextFormData = { ...formData, ...eventData, id: newId };
