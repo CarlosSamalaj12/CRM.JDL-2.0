@@ -975,31 +975,47 @@ export default function ReportsLayout() {
           display: inline-block;
           vertical-align: middle;
         }
-        @media (max-width: 1200px) {
+        @media (max-width: 1350px) {
           .header-username {
-            max-width: 90px;
+            display: none !important;
+          }
+          .pwa-push-active .pwa-btn-text,
+          .pwa-enable-push .pwa-btn-text {
+            display: none !important;
           }
           .header-search-container {
-            max-width: 160px;
+            max-width: 150px;
           }
         }
-        @media (max-width: 1024px) {
-          .header-username {
-            display: none !important;
-          }
+        @media (max-width: 1200px) {
           .brand-sub {
             display: none !important;
+          }
+          .app-nav .nav-link {
+            padding: 0.45rem 0.65rem;
+            font-size: 0.8rem;
           }
           .header-search-container {
             max-width: 130px;
           }
         }
-        @media (max-width: 860px) {
+        @media (max-width: 1050px) {
           .app-nav .nav-text {
-            display: none;
+            display: none !important;
           }
           .app-nav .nav-link {
             padding: 0.45rem 0.55rem;
+          }
+          .header-search-container {
+            max-width: 110px;
+          }
+        }
+        @media (max-width: 880px) {
+          .brand {
+            font-size: 0.95rem !important;
+          }
+          .header-search-container {
+            max-width: 90px;
           }
         }
         .informe-actions-bar {
