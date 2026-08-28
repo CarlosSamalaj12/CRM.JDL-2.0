@@ -27,12 +27,23 @@ const path = require('path');
 const SRC_PATH = path.join(__dirname, '..', 'public', 'sw.js');
 const OUT_PATH = path.join(__dirname, '..', 'dist', 'sw.js');
 
-// ── Buscar la versión actual: prioridad a public/version.json (nuestro store de version persistente) ──
+// ── Buscar la versión actual: prioridad a public/version.json, luego package.json ──
 const versionRegex = /^(const\s+VERSION\s*=\s*')([^']+)(';?.*)$/m;
 const PUB_VERSION_PATH = path.join(__dirname, '..', 'public', 'version.json');
+const PKG_JSON_PATH = path.join(__dirname, '..', 'package.json');
 
-let oldVersion = '2.0.0';
+let oldVersion = '2.1.38';
 let content;
+
+// Leemos package.json como base sólida
+if (fs.existsSync(PKG_JSON_PATH)) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(PKG_JSON_PATH, 'utf8'));
+    if (pkg && pkg.version && pkg.version !== '0.0.0') {
+      oldVersion = pkg.version;
+    }
+  } catch {}
+}
 
 // Siempre leemos public/sw.js como el template de código base
 try {
@@ -55,18 +66,13 @@ if (fs.existsSync(PUB_VERSION_PATH)) {
   try {
     const distContent = fs.readFileSync(OUT_PATH, 'utf8');
     const distMatch = distContent.match(versionRegex);
-    if (distMatch && distMatch[2]) {
+    if (distMatch && distMatch[2] && distMatch[2].startsWith('2.')) {
       oldVersion = distMatch[2];
       console.log(`[bump-sw-version] Leyendo versión base desde dist/sw.js: ${oldVersion}`);
     }
   } catch {}
 } else {
-  // Como fallback del fallback, buscamos lo que esté escrito en public/sw.js
-  const match = content.match(versionRegex);
-  if (match && match[2]) {
-    oldVersion = match[2];
-    console.log(`[bump-sw-version] Leyendo versión base desde public/sw.js: ${oldVersion}`);
-  }
+  console.log(`[bump-sw-version] Usando versión base desde package.json: ${oldVersion}`);
 }
 
 // ── Buscar la línea de VERSION en el template para reemplazar ──
