@@ -2299,6 +2299,71 @@
 .reports-hub-card--purple .reports-hub-card-arrow { color: #9333ea; }
 .reports-hub-card--purple .reports-hub-card-star { color: #9333ea; }
 
+/* ============================================================
+   Mobile Responsive Overflows Fix for Reports & Charts
+   ============================================================ */
+.reports-page-container,
+.reports-page-header,
+.reports-page-body,
+.reports-chart-card,
+.reports-bento {
+  max-width: 100vw;
+  box-sizing: border-box;
+}
+
+.reports-chart-scroll-wrap,
+.reports-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .reports-page-container {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+
+  .reports-page-header {
+    padding: 12px 14px !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  .reports-page-body {
+    padding: 12px 12px 24px !important;
+    gap: 16px !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  .reports-bento {
+    grid-template-columns: 1fr !important;
+  }
+
+  .reports-bento__featured,
+  .reports-bento__full {
+    grid-column: span 1 !important;
+  }
+
+  .bento-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .bento-tile.large {
+    grid-column: span 1 !important;
+  }
+
+  .reports-chart-card,
+  .reports-hero-panel > div {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+
 
 
 

@@ -1,4 +1,5 @@
 import { loadState, saveState } from './stateService';
+import conflictService from './conflictService';
 
 export const EVENT_STATUS = {
   PRE_RESERVA: 'Pre reserva',
@@ -143,7 +144,19 @@ async getAll() {
     try {
       const currentState = await loadState();
       const events = currentState.events || [];
+      const salonConflictDisabled = currentState.salonConflictDisabled || [];
       const expandedEvents = expandEventSlots(newEvent);
+
+      // Verificación en tiempo real contra los eventos más recientes de la BD
+      const slotsToCheck = Array.isArray(newEvent.slots) && newEvent.slots.length > 0
+        ? newEvent.slots
+        : expandedEvents;
+      const conflicts = conflictService.checkAllSlots(slotsToCheck, events, newEvent.id, salonConflictDisabled);
+      const hardConflicts = conflicts.filter(c => c.type === 'conflict' && !c.ok);
+      if (hardConflicts.length > 0) {
+        throw new Error(`Conflicto en tiempo real: ${hardConflicts[0].message}`);
+      }
+
       const updatedState = { ...currentState, events: [...events, ...expandedEvents] };
       await saveState(updatedState);
       return expandedEvents[0] || newEvent;
@@ -157,6 +170,7 @@ async getAll() {
     try {
       const currentState = await loadState();
       const events = currentState.events || [];
+      const salonConflictDisabled = currentState.salonConflictDisabled || [];
       const existingEvent = events.find(e => String(e.id) === String(id));
       const hasSlots = Array.isArray(eventData?.slots) && eventData.slots.length > 0;
       let updatedEvents;
@@ -165,6 +179,15 @@ async getAll() {
       if (hasSlots) {
         const groupId = String(eventData.groupId || existingEvent?.groupId || id);
         const expandedEvents = expandEventSlots({ ...existingEvent, ...eventData, id, groupId, updatedAt: new Date().toISOString() }, existingEvent);
+
+        // Verificación en tiempo real contra los eventos más recientes de la BD
+        const comparableEvents = events.filter(e => String(e.id) !== String(id) && String(e.groupId || '') !== groupId);
+        const conflicts = conflictService.checkAllSlots(eventData.slots, comparableEvents, id, salonConflictDisabled);
+        const hardConflicts = conflicts.filter(c => c.type === 'conflict' && !c.ok);
+        if (hardConflicts.length > 0) {
+          throw new Error(`Conflicto en tiempo real: ${hardConflicts[0].message}`);
+        }
+
         updatedEvents = events
           .filter(e => String(e.id) !== String(id) && String(e.groupId || '') !== groupId)
           .concat(expandedEvents);

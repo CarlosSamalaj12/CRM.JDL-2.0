@@ -46,11 +46,19 @@ function seguimientoExcludeClause() {
       AND (
         pv.id IS NULL
         OR pv.evento_id IS NOT NULL
+        OR n.leido = 1
         OR (
           SELECT e.id
             FROM eventos e
            WHERE e.id = pv.evento_id
               OR e.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+              OR (
+                n.usuario_id IS NOT NULL 
+                AND e.id_usuario = n.usuario_id 
+                AND pv.nombre_cliente IS NOT NULL 
+                AND CHAR_LENGTH(TRIM(pv.nombre_cliente)) >= 3
+                AND LOWER(TRIM(e.nombre)) = LOWER(TRIM(pv.nombre_cliente))
+              )
            LIMIT 1
         ) IS NOT NULL
       )
@@ -60,13 +68,13 @@ function seguimientoExcludeClause() {
 
 /**
  * Limpia las filas traídas por la query enriquecida antes de devolver al
- * cliente: omite las de posible_venta únicamente si ya tienen reserva en el calendario.
+ * cliente: omite las de posible_venta si ya tienen reserva en el calendario o leídas.
  */
 function annotateAndFilterNotifs(rows) {
   const out = [];
   for (const r of rows) {
-    if (r.tipo === 'posible_venta' && r.evento_id_lookup) {
-      // Ya se creó la reserva en el calendario: la notificación desaparece.
+    if (r.tipo === 'posible_venta' && (r.leido === 1 || r.evento_id_lookup)) {
+      // Ya se creó la reserva en el calendario o fue leída: se oculta.
       continue;
     }
     out.push({

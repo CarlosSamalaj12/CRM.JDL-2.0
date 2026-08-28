@@ -81,8 +81,8 @@ export const historyService = {
       await saveState({ ...currentState, changeHistory: updatedHistory });
       return newEntry;
     } catch (err) {
-      console.error('Error agregando entrada de historial:', err);
-      throw err;
+      console.warn('Advertencia al registrar entrada de historial:', err);
+      return newEntry;
     }
   },
 

@@ -760,11 +760,24 @@ export default function PosiblesVentasModule() {
   }, [loadLeads, loadEliminadas, vista, isAdmin]);
 
   useEffect(() => {
-    if (!focusedLeadId || loading || leads.length === 0) return;
-    const el = document.getElementById(`pv-lead-${focusedLeadId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const focusId = searchParams.get('focus');
+    if (focusId) {
+      setFocusedLeadId(focusId);
+      setVendedorFilter('all');
+      setEstadoFilter('all');
+      setVista('activas');
     }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!focusedLeadId || loading || leads.length === 0) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`pv-lead-${focusedLeadId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+
     const t = setTimeout(() => {
       setFocusedLeadId(null);
       setSearchParams(prev => {
@@ -772,8 +785,11 @@ export default function PosiblesVentasModule() {
         next.delete('focus');
         return next;
       }, { replace: true });
-    }, 4000);
-    return () => clearTimeout(t);
+    }, 5000);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(t);
+    };
   }, [focusedLeadId, loading, leads.length, setSearchParams]);
 
   const loadEliminadas = useCallback(async () => {
@@ -968,12 +984,14 @@ export default function PosiblesVentasModule() {
   };
 
   const canEditLead = (lead) => {
+    if (lead?.estado !== 'pendiente') return false;
     if (isAdmin) return true;
     if (userRole === 'vendedor') return String(lead.vendedorId || '') === String(currentUser?.id || '');
     return String(lead.creadoPorId || '') === String(currentUser?.id || '');
   };
 
   const canDeleteLead = (lead) => {
+    if (lead?.estado !== 'pendiente') return false;
     if (isAdmin) return true;
     return String(lead.creadoPorId || '') === String(currentUser?.id || '');
   };

@@ -2892,13 +2892,40 @@ async function writeStateToTables(state, oldStateOpt = null) {
       );
     }
 
+function isEventUnchanged(e, oldEvent) {
+  if (!e || !oldEvent) return false;
+  if (String(e.id || '') !== String(oldEvent.id || '')) return false;
+  if (String(e.name || '').trim() !== String(oldEvent.name || '').trim()) return false;
+  if (String(e.salon || '').trim() !== String(oldEvent.salon || '').trim()) return false;
+  if (String(e.date || '').slice(0, 10) !== String(oldEvent.date || '').slice(0, 10)) return false;
+  if (String(e.status || '').trim() !== String(oldEvent.status || '').trim()) return false;
+  if (String(e.userId || '').trim() !== String(oldEvent.userId || '').trim()) return false;
+  if (Number(e.pax || 0) !== Number(oldEvent.pax || 0)) return false;
+  if (String(e.startTime || '').trim() !== String(oldEvent.startTime || '').trim()) return false;
+  if (String(e.endTime || '').trim() !== String(oldEvent.endTime || '').trim()) return false;
+  if (String(e.notes || '').trim() !== String(oldEvent.notes || '').trim()) return false;
+  if (String(e.groupId || '').trim() !== String(oldEvent.groupId || '').trim()) return false;
+
+  const qA = e.quote;
+  const qB = oldEvent.quote;
+  if (!qA && !qB) return true;
+  if (!qA || !qB) return false;
+  if (String(qA.code || '').trim() !== String(qB.code || '').trim()) return false;
+  if (Number(qA.total || 0) !== Number(qB.total || 0)) return false;
+  if (Number(qA.version || 1) !== Number(qB.version || 1)) return false;
+  if ((qA.items?.length || 0) !== (qB.items?.length || 0)) return false;
+  if ((qA.advances?.length || 0) !== (qB.advances?.length || 0)) return false;
+
+  return true;
+}
+
     // === UPSERT: eventos ===
     for (const e of events) {
       const id = str(e?.id).trim();
       if (!id) continue;
 
       const oldEvent = oldEvents.find(o => String(o.id) === id);
-      if (oldEvent && JSON.stringify(e) === JSON.stringify(oldEvent)) {
+      if (oldEvent && (isEventUnchanged(e, oldEvent) || JSON.stringify(e) === JSON.stringify(oldEvent))) {
         if (e?.quote?.code) {
           const codeNum = parseQuoteCodeNumber(e.quote.code);
           const desiredCode = codeNum > 0 ? formatQuoteCode(codeNum) : "";
@@ -3085,8 +3112,8 @@ async function writeStateToTables(state, oldStateOpt = null) {
         await conn.query("DELETE FROM anticipos_evento WHERE id_evento = ?", [id]);
       }
 
-      // === UPSERT: cotizaciones (borrar y re-insertar items de la cotizacion) ===
-      if (e?.quote && typeof e.quote === "object") {
+      // === UPSERT: cotizaciones (solo para el ID base principal del evento, no para slots secundarios) ===
+      if (id === baseId && e?.quote && typeof e.quote === "object") {
         const q = e.quote;
         const desiredCodeNum = parseQuoteCodeNumber(q.code);
         const desiredCode = desiredCodeNum > 0 ? formatQuoteCode(desiredCodeNum) : "";
@@ -5522,6 +5549,7 @@ async function start() {
           CASE WHEN c.tipo_evento IN ('Social','Corporativo','Individual') THEN c.tipo_evento ELSE 'Social' END AS TipoEvento,
           c.telefono AS Telefono,
           e.nombre_salon AS Salon,
+          e.salon_principal AS SalonPrincipal,
           c.nombre_encargado AS EncargadoEvento,
           c.codigo AS NoDoc
         FROM eventos e

@@ -555,8 +555,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       ...prev,
       companyId: company.id || prev.companyId,
       companyName: company.name || prev.companyName,
-      // Si la empresa tiene manager, usamos su nombre; si no, conservamos lo
-      // que el usuario ya hubiera escrito o usamos el encargado principal.
       contact: manager?.name || company.owner || prev.contact || '',
       email: manager?.email || company.email || '',
       phone: manager?.phone || company.phone || '',

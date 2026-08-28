@@ -424,12 +424,13 @@ export default function ReportsOcupacionBarras({ onClose }) {
           </div>
 
           {/* ── Chart container ── */}
-          <div style={{
+          <div className="reports-chart-scroll-wrap" style={{
             background: '#ffffff', borderRadius: '14px', padding: '24px 20px 20px',
             boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
             border: '1px solid #f1f5f9',
+            overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%',
           }}>
-            <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px', minWidth: '480px' }}>
               {/* Y-axis (% de capacidad; 100% del chart = META = 11% de capacidad) */}
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '52px', flexShrink: 0, paddingBottom: '28px' }}>
                 {[200, 150, 100, 50, 0].map(frac100 => {

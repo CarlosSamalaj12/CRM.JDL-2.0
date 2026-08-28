@@ -91,6 +91,7 @@ export async function getEvents(req, res, next) {
         e.TipoEvento,
         e.Telefono,
         e.Salon,
+        e.SalonPrincipal,
         (SELECT COUNT(*) FROM event_notas n WHERE n.idocupacion = e.Idocupacion ${noteFilterClause}) AS cant_notas,
         CASE
           WHEN COALESCE(m.tiene_alertas, 0) = 1 THEN 1
@@ -110,46 +111,66 @@ export async function getEvents(req, res, next) {
           WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
         ) AS tiene_informe,
         m.alertas_text,
-        (SELECT COALESCE(SUM(ice.cantidad), 0)
-         FROM items_cotizacion_evento ice
-         LEFT JOIN servicios s ON ice.id_servicio = s.id
-         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
-           AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%desayuno%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%desayuno%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
-        ) AS cant_desayunos,
-        (SELECT COALESCE(SUM(ice.cantidad), 0)
-         FROM items_cotizacion_evento ice
-         LEFT JOIN servicios s ON ice.id_servicio = s.id
-         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
-           AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%a.m.%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refacci%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%a.m.%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%refa%am%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
-        ) AS cant_refacciones_am,
-        (SELECT COALESCE(SUM(ice.cantidad), 0)
-         FROM items_cotizacion_evento ice
-         LEFT JOIN servicios s ON ice.id_servicio = s.id
-         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
-           AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%almuerzo%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%desayuno%'))
-        ) AS cant_almuerzos,
-        (SELECT COALESCE(SUM(ice.cantidad), 0)
-         FROM items_cotizacion_evento ice
-         LEFT JOIN servicios s ON ice.id_servicio = s.id
-         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
-           AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%p.m.%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refacci%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%p.m.%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%refa%pm%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
-        ) AS cant_refacciones_pm,
-        (SELECT COALESCE(SUM(ice.cantidad), 0)
-         FROM items_cotizacion_evento ice
-         LEFT JOIN servicios s ON ice.id_servicio = s.id
-         LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
-         WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-           AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
-           AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%cena%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%cena%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%desayuno%'))
-        ) AS cant_cenas
+        CASE
+          WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) THEN
+            (SELECT COALESCE(SUM(ice.cantidad), 0)
+             FROM items_cotizacion_evento ice
+             LEFT JOIN servicios s ON ice.id_servicio = s.id
+             LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+             WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+               AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
+               AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%desayuno%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%desayuno%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
+            )
+          ELSE 0
+        END AS cant_desayunos,
+        CASE
+          WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) THEN
+            (SELECT COALESCE(SUM(ice.cantidad), 0)
+             FROM items_cotizacion_evento ice
+             LEFT JOIN servicios s ON ice.id_servicio = s.id
+             LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+             WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+               AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
+               AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%a.m.%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refacci%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%am%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%a.m.%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%refa%am%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
+            )
+          ELSE 0
+        END AS cant_refacciones_am,
+        CASE
+          WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) THEN
+            (SELECT COALESCE(SUM(ice.cantidad), 0)
+             FROM items_cotizacion_evento ice
+             LEFT JOIN servicios s ON ice.id_servicio = s.id
+             LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+             WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+               AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
+               AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%almuerzo%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%desayuno%'))
+            )
+          ELSE 0
+        END AS cant_almuerzos,
+        CASE
+          WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) THEN
+            (SELECT COALESCE(SUM(ice.cantidad), 0)
+             FROM items_cotizacion_evento ice
+             LEFT JOIN servicios s ON ice.id_servicio = s.id
+             LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+             WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+               AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
+               AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refa%p.m.%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%refacci%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%pm%' OR LOWER(COALESCE(ice.nombre, '')) LIKE '%coffee%break%p.m.%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%refa%pm%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%cena%'))
+            )
+          ELSE 0
+        END AS cant_refacciones_pm,
+        CASE
+          WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) THEN
+            (SELECT COALESCE(SUM(ice.cantidad), 0)
+             FROM items_cotizacion_evento ice
+             LEFT JOIN servicios s ON ice.id_servicio = s.id
+             LEFT JOIN subcategorias_servicio sc ON s.id_subcategoria = sc.id
+             WHERE ice.id_evento = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+               AND (DATE(ice.fecha_servicio) = DATE(e.FechaEvento) OR (ice.fecha_servicio IS NULL AND e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)))
+               AND (LOWER(COALESCE(ice.nombre, '')) LIKE '%cena%' OR (LOWER(COALESCE(sc.nombre, '')) LIKE '%cena%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%almuerzo%' AND LOWER(COALESCE(ice.nombre, '')) NOT LIKE '%desayuno%'))
+            )
+          ELSE 0
+        END AS cant_cenas
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion
       ${EVENTO_USER_JOIN}

@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import { getEquipos } from '../../services/api.js';
@@ -1098,12 +1098,13 @@ th.right{text-align:right}</style></head><body>
             const maxMonthTotal = effectivePotentialData.months.reduce((m, x) => Math.max(m, x.total), 0);
             const chartMax = maxMonthTotal > 0 ? maxMonthTotal * 1.1 : 1;
             return (
-              <div style={{
+              <div className="reports-chart-scroll-wrap" style={{
                 background: '#ffffff', borderRadius: '14px', padding: '24px 20px 20px',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
                 border: '1px solid #f1f5f9',
+                overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%',
               }}>
-                <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
+                <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px', minWidth: '480px' }}>
                   {/* Y-axis (en Q) */}
                   <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '80px', flexShrink: 0, paddingBottom: '28px' }}>
                     {[100, 80, 60, 40, 20, 0].map(pct => (
@@ -1537,12 +1538,13 @@ function TeamChartSection({ tp, index = 0 }) {
         </div>
       </div>
 
-      <div style={{
+      <div className="reports-chart-scroll-wrap" style={{
         background: '#ffffff', borderRadius: '14px', padding: '24px 20px 20px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
         border: '1px solid #f1f5f9',
+        overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%',
       }}>
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px' }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: '320px', minWidth: '480px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '80px', flexShrink: 0, paddingBottom: '28px' }}>
             {[100, 80, 60, 40, 20, 0].map(pct => (
               <span key={pct} style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', lineHeight: '12px' }}>
@@ -1754,7 +1756,7 @@ function TeamChartSection({ tp, index = 0 }) {
                 <>
                   <span style={{ color: '#94a3b8' }}>📊 Siguiente</span>
                   <span style={{ fontWeight: 700, color: '#60a5fa' }}>{hoveredRow.nextTier.name} (Q {hoveredRow.nextTier.amount.toLocaleString()})</span>
-                  <span style={{ color: '#94a3b8' }}>📈 Gap</span>
+                  <span style={{ color: '#94a3b8' }}>📈 Fata meta</span>
                   <span style={{ fontWeight: 800, color: '#f59e0b' }}>{formatMoney(hoveredRow.neededForNext)}</span>
                   <span style={{ color: '#94a3b8' }}>📅 Prom./día</span>
                   <span style={{ fontWeight: 700, color: '#cbd5e1' }}>{formatMoney(hoveredRow.dailyAvg)}</span>

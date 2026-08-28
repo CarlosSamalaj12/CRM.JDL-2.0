@@ -965,11 +965,12 @@ export default function ReportsDashboard({ onClose }) {
                   <p className="reports-section-text"><strong>{totalPax.toLocaleString()}</strong> PAX totales en el periodo</p>
                 </div>
               </div>
-              <div style={{
+              <div className="reports-chart-scroll-wrap" style={{
                 background: '#ffffff', borderRadius: '14px', padding: '20px 24px',
                 border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%',
               }}>
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '6px', minWidth: '520px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '32px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '20px' }}>
                     <span>{maxDayPax}</span>
                     <span>{Math.round(maxDayPax * 0.75)}</span>

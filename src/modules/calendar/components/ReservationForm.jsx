@@ -220,6 +220,7 @@ function normalizeReservationSnapshot({ formData = {}, slots = [] }) {
     dateEnd: String(slot?.dateEnd || '').trim(),
     startTime: String(slot?.startTime || '').trim(),
     endTime: String(slot?.endTime || '').trim(),
+    status: String(slot?.status || '').trim(),
     isPrincipal: slot?.isPrincipal === true,
   })).sort((a, b) => (
     a.dateStart.localeCompare(b.dateStart)
@@ -230,11 +231,18 @@ function normalizeReservationSnapshot({ formData = {}, slots = [] }) {
 
   return JSON.stringify({
     name: String(formData?.name || '').trim(),
+    salon: String(formData?.salon || '').trim(),
+    status: String(formData?.status || '').trim(),
     date: String(formData?.date || '').trim(),
     endDate: String(formData?.endDate || '').trim(),
+    startTime: String(formData?.startTime || '').trim(),
+    endTime: String(formData?.endTime || '').trim(),
     pax: String(formData?.pax || '').trim(),
+    paxCompartido: formData?.paxCompartido === true ? true : (formData?.paxCompartido === false ? false : null),
     notes: String(formData?.notes || '').trim(),
     userId: String(formData?.userId || '').trim(),
+    clientName: String(formData?.clientName || '').trim(),
+    clientPhone: String(formData?.clientPhone || '').trim(),
     slots: cleanedSlots,
   });
 }
@@ -451,7 +459,9 @@ export default function ReservationForm() {
   const { events, salones, users, handleAddEvent, refreshData, salonConflictDisabled } = useOutletContext();
   const navigate = useNavigate();
   const location = useLocation();
-  const { id } = useParams();
+  const { id: paramId } = useParams();
+  const [createdEventId, setCreatedEventId] = useState(null);
+  const id = paramId || createdEventId;
   const [searchParams] = useSearchParams();
 
   const handleBack = useCallback(() => {
@@ -483,26 +493,48 @@ export default function ReservationForm() {
     return currentUser?.id || '';
   };
 
-  const [formData, setFormData] = useState({
-    name: '',
-    salon: '',
-    status: 'Reserva sin Cotizacion',
-    date: getDefaultDate(),
-    endDate: getDefaultEndDate(),
-    startTime: urlStart || '10:00',
-    endTime: urlEnd || '12:00',
-    pax: '',
-    paxCompartido: null,
-    notes: '',
-    userId: getCurrentUserId(),
-    quote: null,
-    clientName: '',
-    clientPhone: ''
+  const [formData, setFormData] = useState(() => {
+    if (id) {
+      try {
+        const raw = sessionStorage.getItem('created_reserva_' + id);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.formData) return parsed.formData;
+        }
+      } catch {}
+    }
+    return {
+      name: '',
+      salon: '',
+      status: 'Reserva sin Cotizacion',
+      date: getDefaultDate(),
+      endDate: getDefaultEndDate(),
+      startTime: urlStart || '10:00',
+      endTime: urlEnd || '12:00',
+      pax: '',
+      paxCompartido: null,
+      notes: '',
+      userId: getCurrentUserId(),
+      quote: null,
+      clientName: '',
+      clientPhone: ''
+    };
   });
 
-  const [slots, setSlots] = useState([
-    { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion', isPrincipal: true }
-  ]);
+  const [slots, setSlots] = useState(() => {
+    if (id) {
+      try {
+        const raw = sessionStorage.getItem('created_reserva_' + id);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed?.slots) && parsed.slots.length > 0) return parsed.slots;
+        }
+      } catch {}
+    }
+    return [
+      { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion', isPrincipal: true }
+    ];
+  });
 
   const [saving, setSaving] = useState(false);
 
@@ -619,42 +651,97 @@ export default function ReservationForm() {
 
 
   const initialSnapshotRef = useRef('');
+  const initializedIdRef = useRef(null);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
     // Si ya se prellenó desde la posible venta, no volver a tocar el formulario:
-    // evita perder las ediciones del vendedor cuando los eventos se recargan en background
     if (pvLead && pvAppliedRef.current) return;
 
-    let initialFData = {
-      name: '',
-      salon: salones?.length > 0 ? salones[0] : '',
-      status: 'Reserva sin Cotizacion',
-      date: getDefaultDate(),
-      endDate: getDefaultEndDate(),
-      startTime: urlStart || '10:00',
-      endTime: urlEnd || '12:00',
-      pax: '',
-      paxCompartido: null,
-      notes: '',
-      userId: getCurrentUserId(),
-      quote: null,
-      clientName: '',
-      clientPhone: ''
-    };
-    let initialSData = [{
-      salon: salones?.length > 0 ? salones[0] : '',
-      pax: '',
-      dateStart: getDefaultDate(),
-      dateEnd: getDefaultEndDate(),
-      startTime: urlStart || '10:00',
-      endTime: urlEnd || '12:00',
-      status: 'Reserva sin Cotizacion',
-      isPrincipal: true
-    }];
+    // Si es una reserva nueva (!id): solo inicializar UNA VEZ al montar el componente.
+    // Nunca sobrescribir lo que el usuario está escribiendo cuando 'events' se recarga en background.
+    if (!id) {
+      if (isInitializedRef.current) return;
+      isInitializedRef.current = true;
+      let initialFData = {
+        name: '',
+        salon: salones?.length > 0 ? salones[0] : '',
+        status: 'Reserva sin Cotizacion',
+        date: getDefaultDate(),
+        endDate: getDefaultEndDate(),
+        startTime: urlStart || '10:00',
+        endTime: urlEnd || '12:00',
+        pax: '',
+        paxCompartido: null,
+        notes: '',
+        userId: getCurrentUserId(),
+        quote: null,
+        clientName: '',
+        clientPhone: ''
+      };
+      let initialSData = [{
+        salon: salones?.length > 0 ? salones[0] : '',
+        pax: '',
+        dateStart: getDefaultDate(),
+        dateEnd: getDefaultEndDate(),
+        startTime: urlStart || '10:00',
+        endTime: urlEnd || '12:00',
+        status: 'Reserva sin Cotizacion',
+        isPrincipal: true
+      }];
 
-    if (id && events) {
+      if (pvLead) {
+        const leadDate = pvLead.fechaEvento || getDefaultDate();
+        const leadSalon = Array.isArray(pvLead.salones) && pvLead.salones.length > 0
+          ? pvLead.salones[0]
+          : (salones?.length > 0 ? salones[0] : '');
+        const serviciosText = Array.isArray(pvLead.servicios) && pvLead.servicios.length > 0
+          ? `Servicios requeridos: ${pvLead.servicios.join(', ')}`
+          : '';
+        const notasTexto = [pvLead.notas || '', serviciosText].filter(Boolean).join('\n');
+
+        initialFData = {
+          name: pvLead.nombreCliente || '',
+          salon: leadSalon,
+          status: 'Reserva sin Cotizacion',
+          date: leadDate,
+          endDate: leadDate,
+          startTime: urlStart || '10:00',
+          endTime: urlEnd || '12:00',
+          pax: pvLead.pax || '',
+          paxCompartido: null,
+          notes: notasTexto,
+          userId: getCurrentUserId(),
+          quote: null,
+          clientName: pvLead.nombreCliente || '',
+          clientPhone: pvLead.telefono || ''
+        };
+        initialSData = [{
+          salon: leadSalon,
+          pax: pvLead.pax || '',
+          dateStart: leadDate,
+          dateEnd: leadDate,
+          startTime: urlStart || '10:00',
+          endTime: urlEnd || '12:00',
+          status: 'Reserva sin Cotizacion',
+          isPrincipal: true
+        }];
+        pvAppliedRef.current = true;
+      }
+
+      setFormData(initialFData);
+      setSlots(initialSData);
+      initialSnapshotRef.current = normalizeReservationSnapshot({ formData: initialFData, slots: initialSData });
+      return;
+    }
+
+    // Si ya inicializamos este evento 'id', no volver a sobrescribir los datos
+    if (initializedIdRef.current === id) return;
+
+    if (events && events.length > 0) {
       const existingEvent = events.find(ev => String(ev.id) === String(id));
       if (existingEvent) {
+        initializedIdRef.current = id;
         const series = getSeriesForEvent(events, id);
         const seriesSlots = slotsFromEventSeries(series, existingEvent);
         const firstSlot = seriesSlots[0] || {};
@@ -671,7 +758,7 @@ export default function ReservationForm() {
           ? (seriesSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
           : seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
 
-        initialFData = {
+        const loadedFData = {
           name: existingEvent.name || '',
           salon: firstSlot.salon || existingEvent.salon || '',
           status: existingEvent.status || 'Reserva sin Cotizacion',
@@ -688,10 +775,9 @@ export default function ReservationForm() {
           clientPhone: existingEvent.clientPhone || ''
         };
 
-        if (seriesSlots.length > 0) {
-          initialSData = seriesSlots;
-        } else {
-          initialSData = [{
+        const loadedSData = seriesSlots.length > 0
+          ? seriesSlots
+          : [{
             salon: existingEvent.salon || (salones?.length > 0 ? salones[0] : ''),
             pax: existingEvent.pax || '',
             dateStart: existingEvent.date || getDefaultDate(),
@@ -701,58 +787,32 @@ export default function ReservationForm() {
             status: existingEvent.status || 'Reserva sin Cotizacion',
             isPrincipal: true
           }];
-        }
-      } else {
-        // Si el evento aún no se ha cargado en memoria, no hacemos nada para evitar parpadeos
+
+        setFormData(loadedFData);
+        setSlots(loadedSData);
+        initialSnapshotRef.current = normalizeReservationSnapshot({ formData: loadedFData, slots: loadedSData });
         return;
       }
-    } else if (pvLead) {
-      // Convertir posible venta: prellenar el formulario con los datos del lead
-      const leadDate = pvLead.fechaEvento || getDefaultDate();
-      const leadSalon = Array.isArray(pvLead.salones) && pvLead.salones.length > 0
-        ? pvLead.salones[0]
-        : (salones?.length > 0 ? salones[0] : '');
-      const serviciosText = Array.isArray(pvLead.servicios) && pvLead.servicios.length > 0
-        ? `Servicios requeridos: ${pvLead.servicios.join(', ')}`
-        : '';
-      const notasTexto = [pvLead.notas || '', serviciosText].filter(Boolean).join('\n');
-
-      initialFData = {
-        name: pvLead.nombreCliente || '',
-        salon: leadSalon,
-        status: 'Reserva sin Cotizacion',
-        date: leadDate,
-        endDate: leadDate,
-        startTime: urlStart || '10:00',
-        endTime: urlEnd || '12:00',
-        pax: pvLead.pax || '',
-        paxCompartido: null,
-        notes: notasTexto,
-        userId: getCurrentUserId(),
-        quote: null,
-        clientName: pvLead.nombreCliente || '',
-        clientPhone: pvLead.telefono || ''
-      };
-      initialSData = [{
-        salon: leadSalon,
-        pax: pvLead.pax || '',
-        dateStart: leadDate,
-        dateEnd: leadDate,
-        startTime: urlStart || '10:00',
-        endTime: urlEnd || '12:00',
-        status: 'Reserva sin Cotizacion',
-        isPrincipal: true
-      }];
-      pvAppliedRef.current = true;
     }
 
-    setFormData(initialFData);
-    setSlots(initialSData);
-    initialSnapshotRef.current = JSON.stringify({ formData: initialFData, slots: initialSData });
+    // Si aún no está en events, buscar en sessionStorage
+    try {
+      const raw = sessionStorage.getItem('created_reserva_' + id);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.formData) {
+          initializedIdRef.current = id;
+          setFormData(parsed.formData);
+          if (parsed.slots) setSlots(parsed.slots);
+          initialSnapshotRef.current = normalizeReservationSnapshot({ formData: parsed.formData, slots: parsed.slots });
+          return;
+        }
+      }
+    } catch {}
   }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate, pvLead]);
 
   const hasChanges = useMemo(() => {
-    const current = JSON.stringify({ formData, slots });
+    const current = normalizeReservationSnapshot({ formData, slots });
     return current !== initialSnapshotRef.current;
   }, [formData, slots]);
 
@@ -1270,6 +1330,8 @@ export default function ReservationForm() {
     }
 
     setSaving(true);
+    const isNew = !id;
+
     try {
       const existingEvent = id ? events.find(ev => String(ev.id) === String(id)) : null;
       const existingSeries = id ? getSeriesForEvent(events, id) : [];
@@ -1312,41 +1374,45 @@ export default function ReservationForm() {
       };
 
       const savedEvent = await handleAddEvent(eventData);
+      const newId = savedEvent?.id || id;
 
-      if (id) {
-        const existingEvent = events.find(ev => String(ev.id) === String(id));
-        if (existingEvent) {
-          await historyService.addDetailed(id, existingEvent, eventData);
-        }
-      } else {
-        await historyService.add(savedEvent.id, 'Reserva creada');
-        // Si la reserva se creó desde un evento asignado, vincularla al evento creado.
-        // El estado del evento asignado se recalcula automáticamente en el backend
-        // a partir del estatus del calendario (Confirmado=ganada, Pre-reserva=en_proceso).
-        const leadToLink = urlPv || pvLead?.id;
-        if (leadToLink) {
-          try {
-            await api.patch(`/api/posibles-ventas/${leadToLink}`, { eventoId: savedEvent.id });
-          } catch (err) {
-            console.error('[Reserva] No se pudo vincular el evento asignado con la reserva creada:', err);
+      // Actualizar estado local del formulario de inmediato
+      if (newId) {
+        initializedIdRef.current = newId;
+        setCreatedEventId(newId);
+        window.history.replaceState(null, '', `/reserva/${newId}`);
+      }
+
+      const nextFormData = { ...formData, ...eventData, id: newId };
+      initialSnapshotRef.current = normalizeReservationSnapshot({ formData: nextFormData, slots: cleanedSlots });
+      setFormData(nextFormData);
+      setSlots(cleanedSlots);
+      setSaving(false);
+
+      // Notificación de éxito asegurada
+      showNotification(moveToFollowUp ? 'Cambios guardados. Estado a Seguimiento.' : (isNew ? 'Reserva creada' : 'Cambios guardados'), 'success');
+
+      // Tareas secundarias en segundo plano (completamente aisladas)
+      try {
+        if (id) {
+          const prevEvent = events.find(ev => String(ev.id) === String(id));
+          if (prevEvent) historyService.addDetailed(id, prevEvent, eventData).catch(() => {});
+        } else if (newId) {
+          historyService.add(newId, 'Reserva creada').catch(() => {});
+          const leadToLink = urlPv || pvLead?.id;
+          if (leadToLink) {
+            api.patch(`/api/posibles-ventas/${leadToLink}`, { eventoId: newId }).catch(() => {});
           }
         }
-      }
+      } catch {}
 
-      showNotification(moveToFollowUp ? 'Cambios guardados. Estado a Seguimiento.' : (id ? 'Cambios guardados' : 'Reserva creada'));
+      try {
+        sessionStorage.setItem('created_reserva_' + newId, JSON.stringify({ formData: nextFormData, slots: cleanedSlots }));
+      } catch {}
 
-      if (!id && savedEvent?.id) {
-        // Reserva NUEVA: quedarse en la pantalla y pasar el id recién creado
-        // a la URL para que se habiliten los botones (Cotizar, Cita, Historial, etc.)
-        // sin necesidad de volver a abrir la reserva.
-        navigate(`/reserva/${savedEvent.id}`, { replace: true });
-        setSaving(false);
-      } else {
-        // Edición: comportamiento previo (cerrar y volver al calendario).
-        setTimeout(handleBack, 1000);
-      }
-    } catch {
-      showNotification('Error al guardar', 'error');
+    } catch (err) {
+      console.error('[handleSave] Error crítico al guardar:', err);
+      showNotification(`Error al guardar: ${err?.message || 'Error del servidor'}`, 'error');
       setSaving(false);
     }
   };
@@ -1371,7 +1437,7 @@ export default function ReservationForm() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
-      {saving && <LoadingSpinner mensaje="Guardando cambios..." />}
+      {saving && <LoadingSpinner mensaje={!id && !createdEventId ? "Creando reserva..." : "Guardando cambios..."} />}
       {/* Header bar with title and Cerrar button */}
       <div style={{
         display: 'flex',

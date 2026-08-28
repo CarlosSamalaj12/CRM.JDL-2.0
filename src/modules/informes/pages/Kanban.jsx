@@ -263,23 +263,36 @@ export default function Kanban() {
         const getEventGroupId = (idOcupacion) =>
           String(idOcupacion || '').replace(/_s\d+_\d{6,}$/, '');
 
-        // Cada slot del backend se mantiene como una tarjeta individual en el
-        // Kanban, sin colapsar. Si el evento tiene 3 salones el mismo dia, se
-        // muestran 3 tarjetas (una por salon). Si un salon tiene rango multi-
-        // dia, se muestra una tarjeta por dia. Esto aplica tanto para eventos
-        // compartidos (PaxCompartido=1) como no compartidos.
-        // Si dos slots vienen exactamente con el mismo (groupId+fecha+salon)
-        // (caso raro), conservamos el primero y descartamos el resto.
-        const seen = new Set();
-        const groupedEvents = [];
+        // Si un evento tiene múltiples salones el MISMO DÍA, se muestra únicamente
+        // UNA sola fila/tarjeta representada por su Salón Principal (designado con ⭐).
+        // Si el evento tiene salones en días distintos (multi-día), se muestra su respectivo salón por día.
+        const eventsByGroupDate = new Map();
         eventsData.forEach(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
-          const salon = String(e.Salon || '').trim();
           const groupId = getEventGroupId(e.Idocupacion);
-          const key = `${groupId}_${fecha}_${salon}`;
-          if (seen.has(key)) return;
-          seen.add(key);
-          groupedEvents.push({
+          const key = `${groupId}_${fecha}`;
+          const isMain = (e.SalonPrincipal && String(e.Salon || '').trim() === String(e.SalonPrincipal || '').trim()) ||
+                         (e.Idocupacion === groupId) ||
+                         (!String(e.Idocupacion || '').includes('_s'));
+
+          if (!eventsByGroupDate.has(key)) {
+            eventsByGroupDate.set(key, { ...e, _isMain: isMain });
+          } else if (isMain) {
+            // Reemplazar slot secundario previo por el Salón Principal del grupo
+            const prev = eventsByGroupDate.get(key);
+            eventsByGroupDate.set(key, {
+              ...e,
+              _isMain: true,
+              // Conservar notas o alertas si el secundario las tenía
+              cant_notas: Math.max(Number(e.cant_notas) || 0, Number(prev?.cant_notas) || 0),
+              tiene_alertas: (e.tiene_alertas == 1 || prev?.tiene_alertas == 1) ? 1 : 0,
+            });
+          }
+        });
+
+        const groupedEvents = Array.from(eventsByGroupDate.values()).map(e => {
+          const fecha = String(e.FechaEvento || '').slice(0, 10);
+          return {
             ...e,
             displayDate: fecha,
             cant_desayunos: Number(e.cant_desayunos) || 0,
@@ -287,7 +300,7 @@ export default function Kanban() {
             cant_almuerzos: Number(e.cant_almuerzos) || 0,
             cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
             cant_cenas: Number(e.cant_cenas) || 0,
-          });
+          };
         });
 
         const mapped = groupedEvents.map(e => {
@@ -460,9 +473,7 @@ export default function Kanban() {
       hour: '2-digit', minute: '2-digit',
     });
 
-    let tableRows = '';
-    let weeklyTotalsPrint = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
-    const weekDays = dayNames.map((_, i) => {
+    const weekDays = Array.from({ length: 7 }, (_, i) => {
       const currentDay = new Date(monday);
       currentDay.setDate(monday.getDate() + i);
       const isoDate = currentDay.toISOString().slice(0, 10);
@@ -472,6 +483,8 @@ export default function Kanban() {
       return { isoDate, label, events: dayEvents };
     });
 
+    let tableRows = '';
+    const weeklyTotalsPrint = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
     for (const day of weekDays) {
       const hasEvents = day.events.length > 0;
       tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="13" style="background:#f0f4ff;font-weight:700;padding:8px 12px;font-size:13px;border-bottom:1px solid #d1d9e6;">${day.label}</td></tr>`;

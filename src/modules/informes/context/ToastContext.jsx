@@ -12,7 +12,21 @@ export function ToastProvider({ children }) {
   return (
     <>
       {children}
-      <Toaster position="top-right" toastOptions={{ style: { borderRadius: '10px', fontWeight: '600', fontSize: '14px', padding: '12px 16px' }, duration: 4000 }} />
+      <Toaster 
+        position="top-right" 
+        containerStyle={{ zIndex: 99999999 }}
+        toastOptions={{ 
+          style: { 
+            zIndex: 99999999, 
+            borderRadius: '10px', 
+            fontWeight: '600', 
+            fontSize: '14px', 
+            padding: '12px 16px',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)'
+          }, 
+          duration: 4000 
+        }} 
+      />
     </>
   );
 }

@@ -292,7 +292,8 @@ export default function MainLayout() {
             const expandedFromSaved = Array.isArray(savedEvent._allExpanded) ? savedEvent._allExpanded : [savedEvent];
             return [...filtered, ...expandedFromSaved];
           } else {
-            return [...prev, savedEvent];
+            const expandedFromSaved = Array.isArray(savedEvent._allExpanded) ? savedEvent._allExpanded : [savedEvent];
+            return [...prev, ...expandedFromSaved];
           }
         });
       }

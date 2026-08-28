@@ -650,6 +650,13 @@ export async function updatePosibleVenta(req, res, next) {
     const params = [];
     let vendedorIdAnterior = String(lead.vendedor_id || '');
 
+    // No permitir editar ni reasignar si ya no está en estado 'pendiente' (a menos que se esté asociando un eventoId)
+    if (lead.estado !== 'pendiente' && body.eventoId === undefined) {
+      return res.status(400).json({
+        message: 'No se puede editar ni reasignar un evento al que ya se le está dando seguimiento o ya está confirmado. Solo se permite editar o reasignar eventos en estado pendiente.',
+      });
+    }
+
     // El vendedor solo puede registrar seguimiento (sin tocar otros campos);
     // pero como el estado ahora es derivado, este endpoint ya no hace nada para vendedor.
     if (!isVendedor) {
@@ -760,6 +767,12 @@ export async function deletePosibleVenta(req, res, next) {
     const isOwner = String(lead.creado_por_id || '') === userId;
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ message: 'No tienes permiso para eliminar este evento asignado' });
+    }
+
+    if (lead.estado !== 'pendiente') {
+      return res.status(400).json({
+        message: 'No se puede eliminar un evento al que ya se le está dando seguimiento o ya está confirmado. Solo se permite eliminar eventos en estado pendiente.',
+      });
     }
 
     const actor = { id: req.user?.id, nombre: req.user?.nombre || req.user?.fullName || req.user?.name };
