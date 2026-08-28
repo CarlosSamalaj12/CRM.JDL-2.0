@@ -344,12 +344,12 @@ export default function ReportsLayout() {
             </>
           )}
         </nav>
-        <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="header-controls">
           <div className="header-search-container">
             <SearchBar />
           </div>
-          <div className="header-actions-container" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span className="header-username" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+          <div className="header-actions-container">
+            <span className="header-username" title={user?.nombre || user?.email || ''}>
               {user?.nombre || user?.email}
             </span>
             <button
@@ -904,27 +904,103 @@ export default function ReportsLayout() {
         }
 
         /* Header de dos líneas: menú arriba, botones abajo - STICKY */
-        .app-header {
+        .informes-shell .app-header {
           flex-direction: column !important;
           align-items: stretch !important;
-          padding: 0.75rem 1.5rem !important;
+          padding: 0.75rem 1.25rem !important;
           position: sticky !important;
           top: 0 !important;
           z-index: 1000 !important;
           background: var(--bg-card) !important;
           box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+          border-radius: var(--radius-xl) !important;
+          box-sizing: border-box !important;
+          max-width: 100% !important;
+          width: 100% !important;
           overflow: visible !important;
         }
         /* El main scrollea y deja espacio para el header sticky */
         .informes-shell > main {
           padding-top: 0.5rem;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         .header-top-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
           width: 100%;
-          gap: 1rem;
+          gap: 0.75rem;
+          box-sizing: border-box;
+        }
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-shrink: 0;
+        }
+        .app-nav {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          flex-shrink: 0;
+        }
+        .header-controls {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-left: auto;
+          flex-shrink: 1;
+          min-width: 0;
+        }
+        .header-search-container {
+          flex: 1 1 auto;
+          min-width: 110px;
+          max-width: 220px;
+        }
+        .header-actions-container {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          flex-shrink: 0;
+        }
+        .header-username {
+          font-size: 0.82rem;
+          color: var(--text-muted);
+          font-weight: 500;
+          max-width: 140px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          display: inline-block;
+          vertical-align: middle;
+        }
+        @media (max-width: 1200px) {
+          .header-username {
+            max-width: 90px;
+          }
+          .header-search-container {
+            max-width: 160px;
+          }
+        }
+        @media (max-width: 1024px) {
+          .header-username {
+            display: none !important;
+          }
+          .brand-sub {
+            display: none !important;
+          }
+          .header-search-container {
+            max-width: 130px;
+          }
+        }
+        @media (max-width: 860px) {
+          .app-nav .nav-text {
+            display: none;
+          }
+          .app-nav .nav-link {
+            padding: 0.45rem 0.55rem;
+          }
         }
         .informe-actions-bar {
           display: flex;
@@ -934,6 +1010,7 @@ export default function ReportsLayout() {
           padding-top: 0.6rem;
           margin-top: 0.5rem;
           border-top: 1px solid var(--border);
+          box-sizing: border-box;
         }
         .informe-actions-bar .kanban-filter {
           width: 100%;

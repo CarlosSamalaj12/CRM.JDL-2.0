@@ -46,7 +46,7 @@ export default function SearchBar() {
   const showResults = focused && query.length >= 2;
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', minWidth: '200px' }}>
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%', minWidth: '110px' }}>
       <div style={{
         display: 'flex',
         alignItems: 'center',
