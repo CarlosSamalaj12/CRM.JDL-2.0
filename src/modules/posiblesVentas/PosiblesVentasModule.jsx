@@ -739,6 +739,19 @@ export default function PosiblesVentasModule() {
     }
   }, []);
 
+  const loadEliminadas = useCallback(async () => {
+    setLoadingEliminadas(true);
+    try {
+      const data = await api.get('/api/posibles-ventas/eliminadas');
+      setEliminadas(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error cargando posibles ventas eliminadas:', err);
+      await swalError('No se pudieron cargar las eliminadas', err.message || 'Error inesperado.');
+    } finally {
+      setLoadingEliminadas(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadLeads();
 
@@ -791,19 +804,6 @@ export default function PosiblesVentasModule() {
       clearTimeout(t);
     };
   }, [focusedLeadId, loading, leads.length, setSearchParams]);
-
-  const loadEliminadas = useCallback(async () => {
-    setLoadingEliminadas(true);
-    try {
-      const data = await api.get('/api/posibles-ventas/eliminadas');
-      setEliminadas(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Error cargando posibles ventas eliminadas:', err);
-      await swalError('No se pudieron cargar las eliminadas', err.message || 'Error inesperado.');
-    } finally {
-      setLoadingEliminadas(false);
-    }
-  }, []);
 
   useEffect(() => {
     if (vista === 'eliminadas' && isAdmin && eliminadas.length === 0) {
