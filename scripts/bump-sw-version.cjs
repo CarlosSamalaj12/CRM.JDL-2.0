@@ -119,7 +119,28 @@ try {
   const versionJsonPath = path.join(distDir, 'version.json');
   fs.writeFileSync(versionJsonPath, JSON.stringify(versionInfo, null, 2), 'utf8');
   console.log(`[bump-sw-version] ✅ version.json escrito en dist: ${JSON.stringify(versionInfo)}`);
-  console.log(`[bump-sw-version] 💡 NOTA: public/ no fue modificado — sin conflictos git en futuros pull.`);
+
+  // ── Escribir también public/version.json (fuente de verdad) ──
+  // Si NO lo hacemos, vite build (que corre después) copia public/ → dist/
+  // y pisa el dist/version.json con la versión vieja.
+  // El sw.js de public/ se mantiene intacto a propósito (para no chocar con git);
+  // pero version.json es solo metadata numérica y debe quedar sincronizada.
+  if (fs.existsSync(PUB_VERSION_PATH)) {
+    try {
+      fs.writeFileSync(PUB_VERSION_PATH, JSON.stringify(versionInfo, null, 2), 'utf8');
+      console.log(`[bump-sw-version] ✅ public/version.json actualizado: ${newVersion}`);
+    } catch (err) {
+      console.warn(`[bump-sw-version] ⚠️ No se pudo actualizar public/version.json: ${err.message}`);
+    }
+  } else {
+    // Si no existía, lo creamos para que el siguiente build tenga la base
+    try {
+      fs.writeFileSync(PUB_VERSION_PATH, JSON.stringify(versionInfo, null, 2), 'utf8');
+      console.log(`[bump-sw-version] ✅ public/version.json creado: ${newVersion}`);
+    } catch (err) {
+      console.warn(`[bump-sw-version] ⚠️ No se pudo crear public/version.json: ${err.message}`);
+    }
+  }
 } catch (err) {
   console.error(`[bump-sw-version] Error escribiendo ${OUT_PATH}: ${err.message}`);
   process.exit(1);
