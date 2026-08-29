@@ -740,13 +740,13 @@ export default function SettingsChecklist() {
   const [showHistory, setShowHistory] = useState(false);
 
   // Operativa checklist
-  const [opTplId, setOpTplId] = useState('');
+  const [opTplIds, setOpTplIds] = useState([]); // array de ids; soporta múltiples plantillas
   const [opNotes, setOpNotes] = useState('');
   const [opItems, setOpItems] = useState([]);
   const [opHistory, setOpHistory] = useState([]);
 
   // Evaluacion checklist
-  const [evTplId, setEvTplId] = useState('');
+  const [evTplIds, setEvTplIds] = useState([]); // array de ids; soporta múltiples plantillas
   const [evNotes, setEvNotes] = useState('');
   const [evItems, setEvItems] = useState([]);
   const [evHistory, setEvHistory] = useState([]);
@@ -783,9 +783,14 @@ export default function SettingsChecklist() {
   const isOpLocked = isEventPast && opItems.length > 0;
   const isOpReadOnly = isReadOnly || isOpLocked;
 
-  // Helper para el read-only de los controles compartidos (plantilla, notas, comentario)
-  // según la pestaña activa.
+  // Helper para el read-only de los items (rating, status, comentario) según la pestaña activa.
+  // El lock de Evaluación (isEvLocked) sí bloquea la edición de items ya calificados,
+  // pero NO bloquea la gestión de plantillas (agregar/quitar), para que el usuario pueda
+  // cargar más check lists en un evento cuya primera plantilla ya fue completada.
   const activeReadOnly = activeTab === TAB_EVALUACION ? isEvReadOnly : isOpReadOnly;
+  // Para la UI de plantillas (chips, dropdown, "Quitar todas"): el lock de Evaluación
+  // NO aplica, solo el rol de Coordinador y el lock de Operativa por evento pasado.
+  const activeTplsReadOnly = isReadOnly || (activeTab === TAB_OPERATIVA ? isOpLocked : false);
 
   const s = {
     label: { fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' },
@@ -825,74 +830,117 @@ export default function SettingsChecklist() {
         const tpls = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
         const op = raw?.[TAB_OPERATIVA] || {};
         const evTabData = raw?.[TAB_EVALUACION] || {};
-        const opTpl = String(op.templateId || '');
-        const evTpl = String(evTabData.templateId || '');
-        setOpTplId(opTpl);
+        // Lectura con fallback legacy: templateIds (array) tiene prioridad;
+        // si no existe, se usa templateId (string) convertido a array.
+        const opTplIds = Array.isArray(op.templateIds) ? op.templateIds.map(String)
+                       : op.templateId ? [String(op.templateId)] : [];
+        const evTplIds = Array.isArray(evTabData.templateIds) ? evTabData.templateIds.map(String)
+                       : evTabData.templateId ? [String(evTabData.templateId)] : [];
+        setOpTplIds(opTplIds);
         setOpNotes(op.notes || '');
 
-        // Merge saved items with current template:
-        // 1) patch types on existing items from template data
+        // Merge saved items with current templates (multi):
+        // 1) patch type/templateId/templateName on already-saved items
         // 2) append any NEW template items not yet saved in the event checklist
-        const mergeWithTemplate = (savedItems, templateId, sectionTypeFilter) => {
-          const tpl = tpls.find(t => String(t.id) === String(templateId));
-          if (!tpl) return savedItems;
-          const allTplItems = tpl.sections.flatMap(s =>
-            (s.items || []).map(item => ({
-              id: item.id, text: item.text,
-              sectionName: s.name, sectionType: s.type || TAB_OPERATIVA,
-              type: item.type || undefined,
-              status: 'pendiente', rating: null, comment: ''
-            }))
-          );
+        // 3) filtra por sectionType para que Operativa y Evaluación no se mezclen
+        // 4) deduplica items por id entre las distintas plantillas
+        const mergeWithMultipleTemplates = (savedItems, templateIds, sectionTypeFilter) => {
+          if (!Array.isArray(templateIds) || templateIds.length === 0) return savedItems;
+          const allTplItems = [];
+          for (const tId of templateIds) {
+            const tpl = tpls.find(t => String(t.id) === String(tId));
+            if (!tpl) continue;
+            const sectionsForType = (tpl.sections || []).filter(
+              s => (s.type || TAB_OPERATIVA) === sectionTypeFilter
+            );
+            for (const sec of sectionsForType) {
+              for (const item of (sec.items || [])) {
+                allTplItems.push({
+                  id: item.id,
+                  text: item.text,
+                  sectionName: sec.name,
+                  sectionType: sec.type || TAB_OPERATIVA,
+                  templateId: Number(tId),
+                  templateName: tpl.name,
+                  type: item.type || undefined,
+                  status: 'pendiente',
+                  rating: null,
+                  comment: '',
+                });
+              }
+            }
+          }
           const savedIds = new Set(savedItems.map(i => i.id));
-          // patch types on already-saved items
+          // patch type y templateId/templateName en items guardados
           const patched = savedItems.map(item => {
             const match = allTplItems.find(x => x.id === item.id);
-            return match && match.type ? { ...item, type: match.type } : item;
+            if (!match) return item;
+            return {
+              ...item,
+              templateId: match.templateId,
+              templateName: match.templateName,
+              type: match.type || item.type,
+            };
           });
-          // append items that are in the template but not yet in saved data
+          // items nuevos del template que aún no estaban guardados
           const newItems = allTplItems.filter(i => !savedIds.has(i.id));
           return [...patched, ...newItems];
         };
 
-        const resolvedOpItems = opTpl && (op.items || []).length
-          ? mergeWithTemplate(op.items || [], opTpl)
+        const resolvedOpItems = opTplIds.length
+          ? mergeWithMultipleTemplates(op.items || [], opTplIds, TAB_OPERATIVA)
           : (op.items || []);
-        const resolvedEvItems = evTpl && (evTabData.items || []).length
-          ? mergeWithTemplate(evTabData.items || [], evTpl)
+        const resolvedEvItems = evTplIds.length
+          ? mergeWithMultipleTemplates(evTabData.items || [], evTplIds, TAB_EVALUACION)
           : (evTabData.items || []);
 
         setOpItems(resolvedOpItems);
         setOpHistory(op.history || []);
-        setEvTplId(evTpl);
+        setEvTplIds(evTplIds);
         setEvNotes(evTabData.notes || '');
         setEvItems(resolvedEvItems);
         setEvHistory(evTabData.history || []);
-        if (!opTpl && !resolvedOpItems.length && tpls.length > 0) {
-          const first = tpls[0];
-          setOpTplId(String(first.id));
-          const items = first.sections.flatMap(s =>
-            (s.items || []).map(item => ({
-              id: item.id, text: item.text, sectionName: s.name,
-              sectionType: s.type || TAB_OPERATIVA,
-              type: item.type || undefined,
-              status: 'pendiente', rating: null, comment: ''
-            }))
+        // Defaults: si el tab no tiene plantilla y no hay items, sugerir la primera
+        // plantilla que tenga sections del tipo correspondiente.
+        if (opTplIds.length === 0 && !resolvedOpItems.length && tpls.length > 0) {
+          const firstWithOp = tpls.find(t =>
+            (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA)
           );
-          setOpItems(items);
+          if (firstWithOp) {
+            const tid = String(firstWithOp.id);
+            setOpTplIds([tid]);
+            const opSections = (firstWithOp.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA);
+            const items = opSections.flatMap(s =>
+              (s.items || []).map(item => ({
+                id: item.id, text: item.text, sectionName: s.name,
+                sectionType: s.type || TAB_OPERATIVA,
+                templateId: Number(tid), templateName: firstWithOp.name,
+                type: item.type || undefined,
+                status: 'pendiente', rating: null, comment: ''
+              }))
+            );
+            setOpItems(items);
+          }
         }
-        if (!evTpl && !resolvedEvItems.length && tpls.length > 0) {
-          const first = tpls[0];
-          setEvTplId(String(first.id));
-          const items = first.sections.flatMap(s =>
-            (s.items || []).map(item => ({
-              id: item.id, text: item.text, sectionName: s.name,
-              sectionType: s.type || TAB_OPERATIVA,
-              type: item.type || undefined,
-              status: 'pendiente', rating: null, comment: ''
-            }))
+        if (evTplIds.length === 0 && !resolvedEvItems.length && tpls.length > 0) {
+          const firstWithEv = tpls.find(t =>
+            (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION)
           );
-          setEvItems(items);
+          if (firstWithEv) {
+            const tid = String(firstWithEv.id);
+            setEvTplIds([tid]);
+            const evSections = (firstWithEv.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION);
+            const items = evSections.flatMap(s =>
+              (s.items || []).map(item => ({
+                id: item.id, text: item.text, sectionName: s.name,
+                sectionType: s.type || TAB_OPERATIVA,
+                templateId: Number(tid), templateName: firstWithEv.name,
+                type: item.type || undefined,
+                status: 'pendiente', rating: null, comment: ''
+              }))
+            );
+            setEvItems(items);
+          }
         }
         setActiveTab(TAB_OPERATIVA);
 
@@ -954,36 +1002,170 @@ export default function SettingsChecklist() {
     }
   };
 
-  const handleTpl = (tab) => (e) => {
-    const tid = e.target.value;
-    const prevId = tab === TAB_OPERATIVA ? opTplId : evTplId;
-    const currentItems = tab === TAB_OPERATIVA ? opItems : evItems;
-    if (currentItems.length > 0 && tid !== prevId && !window.confirm('¿Cambiar plantilla? Los items actuales se reemplazarán.')) {
-      if (tab === TAB_OPERATIVA) setOpTplId(prevId);
-      else setEvTplId(prevId);
-      return;
-    }
-    if (tab === TAB_OPERATIVA) setOpTplId(tid);
-    else setEvTplId(tid);
-    if (!tid) {
+  // Estado del confirm dialog para cambio de plantilla
+  const [tplConfirm, setTplConfirm] = useState(null); // { tab, tid, prevId, currentItems }
+  // Ejecuta el cambio real de plantilla
+  // Reemplaza completamente la lista de plantillas del tab y re-mergea items
+  const applyTplChange = (tab, newTplIds) => {
+    const ids = Array.isArray(newTplIds) ? newTplIds.filter(Boolean).map(String) : [];
+    if (tab === TAB_OPERATIVA) setOpTplIds(ids);
+    else setEvTplIds(ids);
+    if (ids.length === 0) {
       if (tab === TAB_OPERATIVA) setOpItems([]);
       else setEvItems([]);
       return;
     }
-    const tpl = templates.find(t => t.id === Number(tid));
-    if (!tpl) return;
-    const items = tpl.sections.flatMap(s =>
-      (s.items || []).map(item => ({
-        id: item.id, text: item.text, sectionName: s.name,
-        sectionType: s.type || TAB_OPERATIVA,
-        type: item.type || undefined,
-        status: 'pendiente',
-        rating: null,
-        comment: ''
-      }))
-    );
-    if (tab === TAB_OPERATIVA) setOpItems(items);
-    else setEvItems(items);
+    const targetType = tab === TAB_OPERATIVA ? TAB_OPERATIVA : TAB_EVALUACION;
+    const allItems = [];
+    for (const tId of ids) {
+      const tpl = templates.find(t => String(t.id) === String(tId));
+      if (!tpl) continue;
+      const sections = (tpl.sections || []).filter(s => (s.type || TAB_OPERATIVA) === targetType);
+      for (const sec of sections) {
+        for (const item of (sec.items || [])) {
+          allItems.push({
+            id: item.id, text: item.text, sectionName: sec.name,
+            sectionType: sec.type || TAB_OPERATIVA,
+            templateId: Number(tId), templateName: tpl.name,
+            type: item.type || undefined,
+            status: 'pendiente', rating: null, comment: ''
+          });
+        }
+      }
+    }
+    if (tab === TAB_OPERATIVA) setOpItems(allItems);
+    else setEvItems(allItems);
+  };
+
+  // Agrega una plantilla al tab (concatena items al estado actual)
+  const addTplToTab = (tab, tplId) => {
+    const tid = String(tplId);
+    const currentIds = tab === TAB_OPERATIVA ? opTplIds : evTplIds;
+    if (currentIds.includes(tid)) return; // ya está
+    const currentItems = tab === TAB_OPERATIVA ? opItems : evItems;
+    const newIds = [...currentIds, tid];
+    if (currentItems.length === 0) {
+      // No hay items, no hace falta confirm
+      applyTplChange(tab, newIds);
+      return;
+    }
+    setTplConfirm({ mode: 'add', tab, newIds, currentItems });
+  };
+
+  // Quita una plantilla del tab y re-mergea con las restantes (conserva items guardados)
+  const removeTplFromTab = (tab, tplId) => {
+    const tid = String(tplId);
+    const currentIds = tab === TAB_OPERATIVA ? opTplIds : evTplIds;
+    const newIds = currentIds.filter(id => id !== tid);
+    // Re-merge: los items que NO están en las plantillas restantes se quitan
+    const targetType = tab === TAB_OPERATIVA ? TAB_OPERATIVA : TAB_EVALUACION;
+    const remainingItems = [];
+    for (const tId of newIds) {
+      const tpl = templates.find(t => String(t.id) === String(tId));
+      if (!tpl) continue;
+      const sections = (tpl.sections || []).filter(s => (s.type || TAB_OPERATIVA) === targetType);
+      for (const sec of sections) {
+        for (const item of (sec.items || [])) {
+          remainingItems.push({ id: item.id, text: item.text, sectionName: sec.name, sectionType: sec.type || TAB_OPERATIVA, templateId: Number(tId), templateName: tpl.name, type: item.type || undefined });
+        }
+      }
+    }
+    const remainingIds = new Set(remainingItems.map(i => i.id));
+    const currentItems = tab === TAB_OPERATIVA ? opItems : evItems;
+    // Conserva items guardados (con datos) aunque la plantilla se haya quitado
+    const keptItems = currentItems.filter(i => remainingIds.has(i.id) || !i.templateId);
+    // Para los ids restantes, regenera la info del template
+    const finalItems = keptItems.map(i => {
+      const fromTpl = remainingItems.find(r => r.id === i.id);
+      return fromTpl ? { ...i, templateId: fromTpl.templateId, templateName: fromTpl.templateName, sectionName: fromTpl.sectionName, type: fromTpl.type || i.type } : i;
+    });
+    if (tab === TAB_OPERATIVA) {
+      setOpTplIds(newIds);
+      setOpItems(finalItems);
+    } else {
+      setEvTplIds(newIds);
+      setEvItems(finalItems);
+    }
+  };
+
+  const clearTplFromTab = (tab) => {
+    if (tab === TAB_OPERATIVA) {
+      setOpTplIds([]);
+      setOpItems([]);
+    } else {
+      setEvTplIds([]);
+      setEvItems([]);
+    }
+  };
+
+  const handleTpl = (tab) => (e) => {
+    // Select del dropdown: el value es un id de plantilla a AGREGAR.
+    const tid = e.target.value;
+    if (!tid) return; // opción vacía, no hacer nada
+    e.target.value = ''; // reset visual del select
+    addTplToTab(tab, tid);
+  };
+  const confirmTplChange = () => {
+    if (!tplConfirm) return;
+    // Si es 'add' (agregar plantilla), preservamos los items actuales y hacemos
+    // el merge con las plantillas acumuladas (currentIds + newId).
+    if (tplConfirm.mode === 'add') {
+      const tab = tplConfirm.tab;
+      const newIds = tplConfirm.newIds;
+      // Construir el set completo de items: items actuales (con sus datos guardados)
+      // + items nuevos que no estén ya en los actuales.
+      const currentItems = tab === TAB_OPERATIVA ? opItems : evItems;
+      const targetType = tab === TAB_OPERATIVA ? TAB_OPERATIVA : TAB_EVALUACION;
+      const tplItems = [];
+      for (const tId of newIds) {
+        const tpl = templates.find(t => String(t.id) === String(tId));
+        if (!tpl) continue;
+        const sections = (tpl.sections || []).filter(s => (s.type || TAB_OPERATIVA) === targetType);
+        for (const sec of sections) {
+          for (const item of (sec.items || [])) {
+            tplItems.push({
+              id: item.id, text: item.text, sectionName: sec.name,
+              sectionType: sec.type || TAB_OPERATIVA,
+              templateId: Number(tId), templateName: tpl.name,
+              type: item.type || undefined, status: 'pendiente', rating: null, comment: ''
+            });
+          }
+        }
+      }
+      const existingIds = new Set(currentItems.map(i => i.id));
+      const merged = [...currentItems];
+      for (const it of tplItems) {
+        if (!existingIds.has(it.id)) merged.push(it);
+        else {
+          // Actualizar info de plantilla en items que ya existían
+          const idx2 = merged.findIndex(m => m.id === it.id);
+          if (idx2 >= 0) merged[idx2] = { ...merged[idx2], templateId: it.templateId, templateName: it.templateName, sectionName: it.sectionName };
+        }
+      }
+      if (tab === TAB_OPERATIVA) {
+        setOpTplIds(newIds);
+        setOpItems(merged);
+      } else {
+        setEvTplIds(newIds);
+        setEvItems(merged);
+      }
+    } else {
+      // Modo legacy: reemplazar completamente
+      applyTplChange(tplConfirm.tab, tplConfirm.tid);
+    }
+    setTplConfirm(null);
+  };
+  const cancelTplChange = () => {
+    if (!tplConfirm) return;
+    // En modo 'add', no hay que revertir nada (todavía no se aplicó el cambio)
+    if (tplConfirm.mode === 'add') {
+      setTplConfirm(null);
+      return;
+    }
+    // Modo legacy: revertir el select al valor anterior
+    if (tplConfirm.tab === TAB_OPERATIVA) setOpTplIds(tplConfirm.prevIds);
+    else setEvTplIds(tplConfirm.prevIds);
+    setTplConfirm(null);
   };
 
   const setRating = (tab) => (id, rating) => {
@@ -1026,8 +1208,8 @@ export default function SettingsChecklist() {
       const existing = cur[evtId] || {};
       const entry = buildHistoryEntry(currentUser);
       const tabData = tab === TAB_OPERATIVA
-        ? { templateId: opTplId ? Number(opTplId) : null, notes: opNotes, items: opItems, history: [...opHistory, entry] }
-        : { templateId: evTplId ? Number(evTplId) : null, notes: evNotes, items: evItems, history: [...evHistory, entry] };
+        ? { templateIds: opTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: opTplIds[0] ? Number(opTplIds[0]) : null, notes: opNotes, items: opItems, history: [...opHistory, entry] }
+        : { templateIds: evTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: evTplIds[0] ? Number(evTplIds[0]) : null, notes: evNotes, items: evItems, history: [...evHistory, entry] };
       await saveCrmState({
         ...state,
         eventChecklists: { ...cur, [evtId]: { ...existing, [tab]: tabData } }
@@ -1046,7 +1228,7 @@ export default function SettingsChecklist() {
 
   // Computed for active tab
   const activeItems = activeTab === TAB_OPERATIVA ? opItems : evItems;
-  const activeTplId = activeTab === TAB_OPERATIVA ? opTplId : evTplId;
+  const activeTplIds = activeTab === TAB_OPERATIVA ? opTplIds : evTplIds;
   const activeNotes = activeTab === TAB_OPERATIVA ? opNotes : evNotes;
   const activeHistory = activeTab === TAB_OPERATIVA ? opHistory : evHistory;
   const activeSaving = activeTab === TAB_OPERATIVA ? savingOp : savingEv;
@@ -1163,12 +1345,85 @@ export default function SettingsChecklist() {
             {/* Template selector */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={s.label}>Plantilla</span>
-              <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={activeReadOnly}>
-                <option value="">-- Seleccionar --</option>
-                {templates.filter(t => t.active !== false).map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              {(() => {
+                const tplOptions = (templates || []).filter(t => t.active !== false && !activeTplIds.includes(String(t.id)));
+                return (
+                  <>
+                    {/* Chips de plantillas aplicadas */}
+                    {activeTplIds.length === 0 ? (
+                      <div style={{
+                        fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic',
+                        padding: '8px 10px', border: '1.5px dashed #cbd5e1', borderRadius: '8px',
+                        background: '#f8fafc', textAlign: 'center',
+                      }}>
+                        Sin plantillas. Elegí una para empezar.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
+                        {activeTplIds.map(tid => {
+                          const tpl = (templates || []).find(t => String(t.id) === tid);
+                          const name = tpl?.name || `Plantilla #${tid}`;
+                          return (
+                            <span key={tid} style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '6px',
+                              padding: '4px 10px 4px 12px', borderRadius: '999px',
+                              background: '#eef2ff', border: '1px solid #c7d2fe',
+                              color: '#3730a3', fontSize: '0.78rem', fontWeight: 700,
+                            }}>
+                              {name}
+                              <button
+                                type="button"
+                                onClick={() => removeTplFromTab(activeTab, tid)}
+                                disabled={activeTplsReadOnly}
+                                aria-label={`Quitar ${name}`}
+                                style={{
+                                  background: 'transparent', border: 'none', padding: 0,
+                                  color: '#6366f1', cursor: activeTplsReadOnly ? 'not-allowed' : 'pointer',
+                                  fontSize: '1rem', lineHeight: 1, fontWeight: 800,
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: '18px', height: '18px', borderRadius: '50%',
+                                }}
+                                onMouseEnter={e => { if (!activeTplsReadOnly) e.currentTarget.style.color = '#dc2626'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = '#6366f1'; }}
+                              >×</button>
+                            </span>
+                          );
+                        })}
+                        {activeTplIds.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => clearTplFromTab(activeTab)}
+                            disabled={activeTplsReadOnly}
+                            style={{
+                              padding: '4px 10px', borderRadius: '999px',
+                              border: '1px solid #fecaca', background: '#fef2f2',
+                              color: '#dc2626', fontSize: '0.72rem', fontWeight: 700,
+                              cursor: activeTplsReadOnly ? 'not-allowed' : 'pointer',
+                            }}
+                          >Quitar todas</button>
+                        )}
+                      </div>
+                    )}
+                    {/* Dropdown para agregar plantilla */}
+                    <select
+                      value=""
+                      onChange={handleTpl(activeTab)}
+                      style={s.select}
+                      disabled={activeTplsReadOnly || tplOptions.length === 0}
+                    >
+                      <option value="">{tplOptions.length === 0 ? 'No hay más plantillas disponibles' : '+ Agregar plantilla'}</option>
+                      {tplOptions.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    {activeTplIds.length > 0 && (
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>
+                        Podés agregar varias plantillas al mismo check list.
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Notes */}
@@ -1370,8 +1625,8 @@ export default function SettingsChecklist() {
                                   <select
                                     className="checklist-rating-combobox"
                                     value={item.rating || ''}
-                                    onChange={e => !isEvReadOnly && setRating(activeTab)(item.id, e.target.value || null)}
-                                    disabled={isEvReadOnly}
+                                    onChange={e => !(isReadOnly || (isEvLocked && !!item.rating)) && setRating(activeTab)(item.id, e.target.value || null)}
+                                    disabled={isReadOnly || (isEvLocked && !!item.rating)}
                                     style={{
                                       padding: '3px 16px 3px 15px', borderRadius: '5px',
                                       border: `1.5px solid ${hasRating ? curDot : '#cbd5e1'}`,
@@ -1461,9 +1716,9 @@ export default function SettingsChecklist() {
                           )}
                         </td>
                         <td style={{ padding: '6px 4px', width: '105px' }}>
-                          <input type="text" value={item.comment || ''} onChange={e => !activeReadOnly && setCm(activeTab)(item.id, e.target.value)}
-                            placeholder="..." readOnly={activeReadOnly}
-                            style={{ width: '100%', padding: '3px 6px', borderRadius: '5px', border: '1.5px solid #e2e8f0', fontSize: '0.68rem', outline: 'none', background: activeReadOnly ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box', minHeight: '30px' }} />
+                          <input type="text" value={item.comment || ''} onChange={e => !(activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly) && setCm(activeTab)(item.id, e.target.value)}
+                            placeholder="..." readOnly={activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly}
+                            style={{ width: '100%', padding: '3px 6px', borderRadius: '5px', border: '1.5px solid #e2e8f0', fontSize: '0.68rem', outline: 'none', background: (activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly) ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box', minHeight: '30px' }} />
                         </td>
                       </tr>
                       );
@@ -1657,10 +1912,92 @@ export default function SettingsChecklist() {
     </div>
   ) : null;
 
+  // ── Confirm dialog estilado para cambio de plantilla ──
+  const tplConfirmDialogContent = tplConfirm ? (
+    <div
+      onClick={cancelTplChange}
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000001,
+        background: 'rgba(15,23,42,0.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#ffffff', borderRadius: '14px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 20px 50px rgba(15,23,42,0.30)',
+          width: '100%', maxWidth: '440px',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+          fontFamily: 'inherit',
+        }}
+      >
+        <div style={{ padding: '20px 20px 0 20px', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+          <div style={{
+            width: '40px', height: '40px', flexShrink: 0,
+            borderRadius: '50%', background: '#fef3c7',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, paddingTop: '2px' }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>{tplConfirm?.mode === 'add' ? 'Agregar plantilla' : 'Cambiar plantilla'}</div>
+            <div style={{ fontSize: '0.85rem', color: '#475569', marginTop: '4px', lineHeight: 1.45 }}>
+              {tplConfirm?.mode === 'add'
+              ? 'Se sumarán los items de esta plantilla a los items actuales del check list.'
+              : 'Los items actuales del check list se reemplazarán por los de la nueva plantilla. Se perderán las calificaciones, estados y comentarios ya cargados.'}
+            </div>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end', gap: '10px',
+          padding: '20px', marginTop: '12px',
+          background: '#f8fafc', borderTop: '1px solid #e2e8f0',
+        }}>
+          <button
+            type="button"
+            onClick={cancelTplChange}
+            style={{
+              padding: '10px 18px', borderRadius: '8px',
+              border: '1.5px solid #cbd5e1', background: '#ffffff',
+              color: '#475569', fontSize: '0.85rem', fontWeight: 700,
+              cursor: 'pointer', transition: 'all 0.15s ease',
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={confirmTplChange}
+            autoFocus
+            style={{
+              padding: '10px 18px', borderRadius: '8px',
+              border: '1.5px solid #6366f1', background: '#6366f1',
+              color: '#ffffff', fontSize: '0.85rem', fontWeight: 700,
+              cursor: 'pointer', transition: 'all 0.15s ease',
+            }}
+          >
+            {tplConfirm?.mode === 'add' ? 'Sí, agregar' : 'Sí, cambiar plantilla'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <>
       {ReactDOM.createPortal(modalContent, document.body)}
       {ReactDOM.createPortal(pinDialogContent, document.body)}
+      {ReactDOM.createPortal(tplConfirmDialogContent, document.body)}
     </>
   );
 }

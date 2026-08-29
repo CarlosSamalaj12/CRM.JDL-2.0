@@ -64,6 +64,18 @@ async function downloadEventDetailPdf(ev, isOperativa) {
     if (ev.client) meta.push(`Cliente: ${ev.client}`);
     doc.text(meta.join('  ·  '), margin, y);
     y += 6;
+    if (ev.templateNames && ev.templateNames.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(99, 102, 241);
+      doc.text('Check lists aplicados: ', margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(15, 23, 42);
+      doc.text(ev.templateNames.join(', '), margin + 38, y);
+      y += 5;
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+    }
 
     // Resumen (caja)
     doc.setDrawColor(226, 232, 240);
@@ -291,8 +303,12 @@ export default function ReportsSatisfaccion({ onClose }) {
   const [quickDate, setQuickDate] = useState('');
   const [quickText, setQuickText] = useState('');
 
+  // Filtro de check list aplicada al evento
+  const [selectedTplId, setSelectedTplId] = useState('');
+
   // ── Load satisfaction data ──
   const [checklists, setChecklists] = useState({});
+  const [templates, setTemplates] = useState([]); // catálogo global de plantillas
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -300,6 +316,7 @@ export default function ReportsSatisfaccion({ onClose }) {
       try {
         const state = await loadState({ cacheBust: true });
         setChecklists((state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {});
+        setTemplates(Array.isArray(state.checklistTemplates) ? state.checklistTemplates : []);
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     })();
@@ -315,6 +332,7 @@ export default function ReportsSatisfaccion({ onClose }) {
       if (!ev) continue;
       const date = ev.date || ev.eventDate || '';
       if (date < fromDate || date > toDate) continue;
+      if (selectedTplId && !evTplIds.includes(selectedTplId)) continue;
 
       const items = Array.isArray(chk?.evaluacion?.items)
         ? chk.evaluacion.items
@@ -331,6 +349,13 @@ export default function ReportsSatisfaccion({ onClose }) {
       const dist = { malo: 0, regular: 0, bueno: 0, excelente: 0 };
       ratedItems.forEach(i => { if (dist[i.rating] !== undefined) dist[i.rating]++; });
 
+      const evTplIds = (Array.isArray(chk?.evaluacion?.templateIds) ? chk.evaluacion.templateIds
+        : (chk?.evaluacion?.templateId ? [chk.evaluacion.templateId] : [])
+      ).map(id => String(id));
+      const evTplNames = evTplIds.map(id => {
+        const t = (templates || []).find(t => String(t.id) === id);
+        return t ? t.name : `Plantilla #${id}`;
+      });
       results.push({
         eventId: evtId,
         eventName: ev.eventName || ev.client || ev.name || 'Evento',
@@ -342,19 +367,23 @@ export default function ReportsSatisfaccion({ onClose }) {
         notApplicableCount,
         unratedCount,
         distribution: dist,
+        templateIds: evTplIds,
+        templateNames: evTplNames,
         items: ratedItems.map(i => ({
           text: i.text,
           sectionName: i.sectionName,
           rating: i.rating,
           score: RATING_LEVELS.find(r => r.value === i.rating)?.score || 0,
           comment: i.comment || i.comentario || '',
+          templateId: i.templateId,
+          templateName: i.templateName,
         })),
       });
     }
 
     results.sort((a, b) => b.date.localeCompare(a.date));
     return results;
-  }, [checklists, events, fromDate, toDate, loading]);
+  }, [checklists, events, templates, fromDate, toDate, loading, selectedTplId]);
 
   // ── Operativa data (status de cada item por evento) ──
   const operativaData = useMemo(() => {
@@ -365,12 +394,20 @@ export default function ReportsSatisfaccion({ onClose }) {
       if (!ev) continue;
       const date = ev.date || ev.eventDate || '';
       if (date < fromDate || date > toDate) continue;
+      if (selectedTplId && !opTplIds.includes(selectedTplId)) continue;
       const items = Array.isArray(chk?.operativa?.items) ? chk.operativa.items : [];
       if (items.length === 0) continue;
       const dist = { pendiente: 0, en_proceso: 0, cumplido: 0, no_aplica: 0 };
       items.forEach(i => { if (dist[i.status] !== undefined) dist[i.status]++; });
       const completed = dist.cumplido + dist.no_aplica;
       const completionPct = items.length > 0 ? (completed / items.length) * 100 : 0;
+      const opTplIds = (Array.isArray(chk?.operativa?.templateIds) ? chk.operativa.templateIds
+        : (chk?.operativa?.templateId ? [chk.operativa.templateId] : [])
+      ).map(id => String(id));
+      const opTplNames = opTplIds.map(id => {
+        const t = (templates || []).find(t => String(t.id) === id);
+        return t ? t.name : `Plantilla #${id}`;
+      });
       results.push({
         eventId: evtId,
         eventName: ev.eventName || ev.client || ev.name || 'Evento',
@@ -381,17 +418,21 @@ export default function ReportsSatisfaccion({ onClose }) {
         completed,
         completionPct,
         distribution: dist,
+        templateIds: opTplIds,
+        templateNames: opTplNames,
         items: items.map(i => ({
           text: i.text,
           sectionName: i.sectionName,
           status: i.status || 'pendiente',
           comment: i.comment || i.comentario || '',
+          templateId: i.templateId,
+          templateName: i.templateName,
         })),
       });
     }
     results.sort((a, b) => b.date.localeCompare(a.date));
     return results;
-  }, [checklists, events, fromDate, toDate, loading]);
+  }, [checklists, events, templates, fromDate, toDate, loading, selectedTplId]);
 
   // ── Operativa metrics ──
   const operativaMetrics = useMemo(() => {
@@ -487,6 +528,13 @@ export default function ReportsSatisfaccion({ onClose }) {
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [searchableEvents]);
+
+  // ── Lookup de nombres de plantillas por id (para mostrar en el reporte y en el PDF) ──
+  const templateNameById = useMemo(() => {
+    const map = {};
+    (templates || []).forEach(t => { map[String(t.id)] = t.name; });
+    return map;
+  }, [templates]);
 
   // ── Resultados del buscador: filtra por fechas + empresa + texto (incluye items) ──
   const eventSearchResults = useMemo(() => {
@@ -814,6 +862,19 @@ export default function ReportsSatisfaccion({ onClose }) {
               <span>Hasta</span>
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </label>
+            <label className="field" style={{ flex: '0 0 200px', maxWidth: '220px' }}>
+              <span>Check list</span>
+              <select
+                value={selectedTplId}
+                onChange={e => setSelectedTplId(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', fontSize: '13px', color: '#0f172a' }}
+              >
+                <option value="">Todas</option>
+                {(templates || []).filter(t => t.active !== false).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
             <div className="reports-actions" style={{ marginLeft: '0', display: 'flex', gap: '8px' }}>
               <button
                 type="button"
@@ -976,12 +1037,13 @@ export default function ReportsSatisfaccion({ onClose }) {
                 </div>
               </div>
               <div className="reports-table-wrap">
-                <table className="reports-table" style={{ minWidth: '900px' }}>
+                <table className="reports-table" style={{ minWidth: '1050px' }}>
                   <thead>
                     <tr>
                       <th style={{ width: '36px' }}>#</th>
                       <th>Evento</th>
                       <th>Salón</th>
+                      <th style={{ minWidth: '140px' }}>Check list</th>
                       <th style={{ textAlign: 'center' }}>Promedio</th>
                       <th style={{ textAlign: 'center' }}>Calificación</th>
                       <th style={{ textAlign: 'center', width: '180px' }}>Distribución</th>
@@ -991,6 +1053,7 @@ export default function ReportsSatisfaccion({ onClose }) {
                   <tbody>
                     {satisfactionData.map((ev, idx) => {
                       const commentsList = (ev.items || []).filter(i => i.comment).map(i => i.comment);
+                      const tplNames = ev.templateNames || [];
                       return (
                         <tr key={ev.eventId} onClick={() => setSelectedEventId(ev.eventId)} style={{ cursor: 'pointer' }}>
                           <td style={{ color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
@@ -999,6 +1062,27 @@ export default function ReportsSatisfaccion({ onClose }) {
                             <div style={{ fontSize: '10px', color: '#94a3b8' }}>{ev.date} {ev.salon ? `· ${ev.salon}` : ''}</div>
                           </td>
                           <td style={{ color: '#475569' }}>{ev.salon || '—'}</td>
+                          <td>
+                            {tplNames.length === 0 ? (
+                              <span style={{ color: '#cbd5e1', fontSize: '11px' }}>—</span>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {tplNames.slice(0, 2).map((n, i) => (
+                                  <span key={i} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                    padding: '2px 8px', borderRadius: '999px',
+                                    background: '#eef2ff', border: '1px solid #c7d2fe',
+                                    color: '#3730a3', fontSize: '10px', fontWeight: 700,
+                                  }}>{n}</span>
+                                ))}
+                                {tplNames.length > 2 ? (
+                                  <span style={{ color: '#6366f1', fontSize: '10px', fontWeight: 700 }}>
+                                    + {tplNames.length - 2} más
+                                  </span>
+                                ) : null}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ textAlign: 'center' }}>
                             <span style={{ fontSize: '16px', fontWeight: 800, color: getRatingColor(ev.avg) }}>
                               {ev.avg.toFixed(1)}
@@ -1204,6 +1288,7 @@ export default function ReportsSatisfaccion({ onClose }) {
                       <tr>
                         <th>Evento</th>
                         <th>Salón</th>
+                        <th style={{ minWidth: '140px' }}>Check list</th>
                         <th style={{ textAlign: 'center' }}>Items</th>
                         <th style={{ textAlign: 'center' }}>Avance</th>
                         <th style={{ textAlign: 'center' }}>Distribución</th>
@@ -1221,6 +1306,27 @@ export default function ReportsSatisfaccion({ onClose }) {
                             <div style={{ fontSize: '10px', color: '#94a3b8' }}>{ev.date} {ev.salon ? `· ${ev.salon}` : ''}</div>
                           </td>
                           <td style={{ color: '#475569' }}>{ev.salon || '—'}</td>
+                          <td>
+                            {(ev.templateNames || []).length === 0 ? (
+                              <span style={{ color: '#cbd5e1', fontSize: '11px' }}>—</span>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {(ev.templateNames || []).slice(0, 2).map((n, i) => (
+                                  <span key={i} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                    padding: '2px 8px', borderRadius: '999px',
+                                    background: '#fef3c7', border: '1px solid #fde68a',
+                                    color: '#92400e', fontSize: '10px', fontWeight: 700,
+                                  }}>{n}</span>
+                                ))}
+                                {(ev.templateNames || []).length > 2 ? (
+                                  <span style={{ color: '#d97706', fontSize: '10px', fontWeight: 700 }}>
+                                    + {(ev.templateNames || []).length - 2} más
+                                  </span>
+                                ) : null}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ textAlign: 'center' }}>{ev.total}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
@@ -1289,6 +1395,7 @@ function SingleEventDetail({ eventData, onBack }) {
   }
   const ev = eventData;
   const color = getRatingColor(ev.avg);
+  const tplNames = ev.templateNames || [];
   return (
     <>
       <section className="reports-hero-panel" style={{ gap: '12px' }}>
@@ -1299,6 +1406,21 @@ function SingleEventDetail({ eventData, onBack }) {
             <p style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
               {ev.date}{ev.salon ? ` · ${ev.salon}` : ''}
             </p>
+            {tplNames.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                {tplNames.map((n, i) => (
+                  <span key={i} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    padding: '2px 10px', borderRadius: '999px',
+                    background: '#eef2ff', border: '1px solid #c7d2fe',
+                    color: '#3730a3', fontSize: '11px', fontWeight: 700,
+                  }}>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#6366f1' }} />
+                    {n}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button type="button" onClick={onBack} style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#475569', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
@@ -1457,6 +1579,7 @@ function OperativaEventDetail({ eventData, onBack }) {
     );
   }
   const ev = eventData;
+  const tplNames = ev.templateNames || [];
   return (
     <>
       <section className="reports-hero-panel" style={{ gap: '12px' }}>
@@ -1467,6 +1590,21 @@ function OperativaEventDetail({ eventData, onBack }) {
             <p style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
               {ev.date}{ev.salon ? ` · ${ev.salon}` : ''}
             </p>
+            {tplNames.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                {tplNames.map((n, i) => (
+                  <span key={i} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    padding: '2px 10px', borderRadius: '999px',
+                    background: '#fef3c7', border: '1px solid #fde68a',
+                    color: '#92400e', fontSize: '11px', fontWeight: 700,
+                  }}>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#d97706' }} />
+                    {n}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <button type="button" onClick={onBack} style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#475569', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
             ← Volver al listado
