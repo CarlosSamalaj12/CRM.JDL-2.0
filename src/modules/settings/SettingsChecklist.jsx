@@ -757,6 +757,7 @@ export default function SettingsChecklist() {
   const [isEvLocked, setIsEvLocked] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [pinInput, setPinInput] = useState('');
+  const [pinDisplay, setPinDisplay] = useState('');
   const [pinError, setPinError] = useState('');
   // ID del item al que se le hace focus (flash) cuando falla la validación al guardar
   const [flashItemId, setFlashItemId] = useState(null);
@@ -765,6 +766,26 @@ export default function SettingsChecklist() {
   // Combinar el read-only del rol con el lock post-guardado
   const isEvReadOnly = isReadOnly || isEvLocked;
   const canUnlockEv = currentUser?.rol === 'Admin' && isEvLocked && !isReadOnly;
+
+  // Lock de Operativa: si el evento es de un día anterior, el check list queda
+  // BLOQUEADO PERMANENTEMENTE (no se puede desbloquear, ni siquiera con PIN).
+  // Esto preserva la inmutabilidad de los check lists de eventos ya pasados.
+  const eventDateStr = evtData?.date || evtData?.eventDate;
+  const isEventPast = (() => {
+    if (!eventDateStr) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const eventDay = new Date(eventDateStr);
+    if (isNaN(eventDay.getTime())) return false;
+    eventDay.setHours(0, 0, 0, 0);
+    return eventDay < today;
+  })();
+  const isOpLocked = isEventPast && opItems.length > 0;
+  const isOpReadOnly = isReadOnly || isOpLocked;
+
+  // Helper para el read-only de los controles compartidos (plantilla, notas, comentario)
+  // según la pestaña activa.
+  const activeReadOnly = activeTab === TAB_EVALUACION ? isEvReadOnly : isOpReadOnly;
 
   const s = {
     label: { fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' },
@@ -896,12 +917,23 @@ export default function SettingsChecklist() {
     setIsEvLocked(false);
     setShowPinDialog(false);
     setPinInput('');
+    setPinDisplay('');
     setPinError('');
     setFlashItemId(null);
     if (flashTimerRef.current) {
       clearTimeout(flashTimerRef.current);
       flashTimerRef.current = null;
     }
+  };
+
+  // Handler del input del PIN: enmascara el valor con puntos (•) en la UI
+  // para que el PIN nunca se vea, ni siquiera en iOS Safari.
+  const handlePinChange = (e) => {
+    const raw = e.target.value || '';
+    const digits = raw.replace(/\D/g, ''); // solo dígitos
+    setPinInput(digits);
+    setPinDisplay('\u2022'.repeat(digits.length));
+    setPinError('');
   };
 
   // Submit del PIN de Admin
@@ -914,6 +946,7 @@ export default function SettingsChecklist() {
       setIsEvLocked(false);
       setShowPinDialog(false);
       setPinInput('');
+      setPinDisplay('');
       setPinError('');
       toast.success('Evaluación desbloqueada para edición.');
     } else {
@@ -1130,7 +1163,7 @@ export default function SettingsChecklist() {
             {/* Template selector */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={s.label}>Plantilla</span>
-              <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={isReadOnly || (activeTab === TAB_EVALUACION && isEvLocked)}>
+              <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={activeReadOnly}>
                 <option value="">-- Seleccionar --</option>
                 {templates.filter(t => t.active !== false).map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -1148,7 +1181,7 @@ export default function SettingsChecklist() {
               }}
                 rows={2} placeholder="Observaciones generales..."
                 style={{ ...s.input, resize: 'vertical', minHeight: '50px' }}
-                readOnly={isReadOnly || (activeTab === TAB_EVALUACION && isEvLocked)} />
+                readOnly={activeReadOnly} />
             </div>
 
 
@@ -1398,16 +1431,16 @@ export default function SettingsChecklist() {
                                   <select
                                     className="checklist-status-combobox"
                                     value={item.status || ''}
-                                    onChange={e => !isReadOnly && setSt(activeTab)(item.id, e.target.value)}
-                                    disabled={isReadOnly}
+                                    onChange={e => !isOpReadOnly && setSt(activeTab)(item.id, e.target.value)}
+                                    disabled={isOpReadOnly}
                                     style={{
                                       padding: '3px 16px 3px 15px', borderRadius: '5px',
                                       border: `1.5px solid ${hasStatus ? curDot : '#cbd5e1'}`,
                                       fontSize: '0.68rem', fontWeight: 600,
-                                      cursor: isReadOnly ? 'default' : 'pointer',
+                                      cursor: isOpReadOnly ? 'default' : 'pointer',
                                       backgroundColor: '#ffffff',
                                       color: hasStatus ? curColor : '#64748b',
-                                      opacity: isReadOnly ? 0.75 : 1, width: '100%',
+                                      opacity: isOpReadOnly ? 0.75 : 1, width: '100%',
                                       appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
                                       backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><path d='M1 1l2.5 2.5L6 1' stroke='%2394a3b8' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>")`,
                                       backgroundRepeat: 'no-repeat',
@@ -1428,9 +1461,9 @@ export default function SettingsChecklist() {
                           )}
                         </td>
                         <td style={{ padding: '6px 4px', width: '105px' }}>
-                          <input type="text" value={item.comment || ''} onChange={e => !isEvReadOnly && setCm(activeTab)(item.id, e.target.value)}
-                            placeholder="..." readOnly={isEvReadOnly}
-                            style={{ width: '100%', padding: '3px 6px', borderRadius: '5px', border: '1.5px solid #e2e8f0', fontSize: '0.68rem', outline: 'none', background: isEvReadOnly ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box', minHeight: '30px' }} />
+                          <input type="text" value={item.comment || ''} onChange={e => !activeReadOnly && setCm(activeTab)(item.id, e.target.value)}
+                            placeholder="..." readOnly={activeReadOnly}
+                            style={{ width: '100%', padding: '3px 6px', borderRadius: '5px', border: '1.5px solid #e2e8f0', fontSize: '0.68rem', outline: 'none', background: activeReadOnly ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box', minHeight: '30px' }} />
                         </td>
                       </tr>
                       );
@@ -1493,110 +1526,141 @@ export default function SettingsChecklist() {
                   🔒 Bloqueada
                 </span>
               )}
+              {activeTab === TAB_OPERATIVA && isOpLocked && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#991b1b', background: '#fee2e2', padding: '2px 8px', borderRadius: '999px' }}>
+                  🔒 Bloqueado — evento pasado
+                </span>
+              )}
               <HistoryBadge history={activeHistory} />
             </div>
             <div className="checklist-footer-buttons" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button className="btn-exit" type="button" onClick={closeEvent}>Cerrar</button>
-              {canUnlockEv && (
-                <button type="button" onClick={() => { setShowPinDialog(true); setPinInput(''); setPinError(''); }}
+              {canUnlockEv && activeTab === TAB_EVALUACION && (
+                <button type="button" onClick={() => { setShowPinDialog(true); setPinInput(''); setPinDisplay(''); setPinError(''); }}
                   style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #6366f1', background: '#eef2ff', color: '#4f46e5', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer' }}>
                   Desbloquear
                 </button>
               )}
-              {!isReadOnly && !isEvLocked && (
-                <button type="button" onClick={handleSave(activeTab)} disabled={activeSaving}
-                  style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: activeSaving ? 0.6 : 1 }}>
-                  {activeSaving ? 'Guardando...' : `Guardar ${activeTab === TAB_OPERATIVA ? 'Operativa' : 'Evaluaci\u00f3n'}`}
+              {!isReadOnly && activeTab === TAB_EVALUACION && !isEvLocked && (
+                <button type="button" onClick={handleSave(TAB_EVALUACION)} disabled={savingEv}
+                  style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: savingEv ? 0.6 : 1 }}>
+                  {savingEv ? 'Guardando...' : 'Guardar Evaluación'}
+                </button>
+              )}
+              {!isReadOnly && activeTab === TAB_OPERATIVA && !isOpLocked && (
+                <button type="button" onClick={handleSave(TAB_OPERATIVA)} disabled={savingOp}
+                  style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: savingOp ? 0.6 : 1 }}>
+                  {savingOp ? 'Guardando...' : 'Guardar Operativa'}
                 </button>
               )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Diálogo de PIN para desbloquear la Evaluación */}
-      {showPinDialog && (
-        <div
-          onClick={() => { setShowPinDialog(false); setPinError(''); setPinInput(''); }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 4000,
-            background: 'rgba(15,23,42,0.55)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '20px',
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            role="dialog"
-            style={{
-              background: '#ffffff', borderRadius: '12px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 12px 32px rgba(15,23,42,0.18)',
-              width: '100%', maxWidth: '360px',
-              padding: '22px 22px 18px 22px',
-            }}
-          >
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-              🔒 Autorizar edición
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '16px' }}>
-              Ingresa el PIN de Admin para desbloquear esta evaluación y poder editarla.
-            </div>
-            {currentUser?.rol !== 'Admin' && (
-              <div style={{ fontSize: '0.75rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px 10px', marginBottom: '12px' }}>
-                Solo usuarios con rol <strong>Admin</strong> pueden desbloquear la evaluación.
-              </div>
-            )}
-            <input
-              type="password"
-              inputMode="numeric"
-              autoFocus
-              value={pinInput}
-              onChange={e => { setPinInput(e.target.value); setPinError(''); }}
-              onKeyDown={e => { if (e.key === 'Enter') handlePinSubmit(); }}
-              placeholder="PIN"
-              disabled={currentUser?.rol !== 'Admin'}
-              style={{
-                width: '100%', padding: '10px 12px', borderRadius: '8px',
-                border: `1.5px solid ${pinError ? '#dc2626' : '#cbd5e1'}`,
-                fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
-                background: currentUser?.rol !== 'Admin' ? '#f8fafc' : '#ffffff',
-                color: '#0f172a', fontFamily: 'inherit',
-                letterSpacing: '0.2em', textAlign: 'center', fontWeight: 700,
-              }}
-            />
-            {pinError && (
-              <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '6px' }}>
-                {pinError}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => { setShowPinDialog(false); setPinError(''); setPinInput(''); }}
-                style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#475569', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer' }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handlePinSubmit}
-                disabled={currentUser?.rol !== 'Admin' || pinInput.length === 0}
-                style={{
-                  padding: '8px 16px', borderRadius: '8px', border: 'none',
-                  background: (currentUser?.rol !== 'Admin' || pinInput.length === 0) ? '#cbd5e1' : '#4f46e5',
-                  color: '#ffffff', fontSize: '0.83rem', fontWeight: 700,
-                  cursor: (currentUser?.rol !== 'Admin' || pinInput.length === 0) ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Autorizar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 
-  return ReactDOM.createPortal(modalContent, document.body);
+  // Diálogo de PIN para desbloquear la Evaluación — se renderiza en un portal
+  // SEPARADO con z-index mayor al del modal del Check List (999999), para que
+  // el cuadro de PIN quede visible POR ENCIMA del modal principal.
+  const pinDialogContent = showPinDialog ? (
+    <div
+      onClick={() => { setShowPinDialog(false); setPinError(''); setPinInput(''); setPinDisplay(''); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000001,
+        background: 'rgba(15,23,42,0.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        style={{
+          background: '#ffffff', borderRadius: '12px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 16px 40px rgba(15,23,42,0.25)',
+          width: '100%', maxWidth: '360px',
+          padding: '22px 22px 18px 22px',
+        }}
+      >
+        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+          🔒 Autorizar edición
+        </div>
+        <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '16px' }}>
+          Ingresa el PIN de Admin para desbloquear esta evaluación y poder editarla.
+        </div>
+        {currentUser?.rol !== 'Admin' && (
+          <div style={{ fontSize: '0.75rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px 10px', marginBottom: '12px' }}>
+            Solo usuarios con rol <strong>Admin</strong> pueden desbloquear la evaluación.
+          </div>
+        )}
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+          autoFocus
+          value={pinInput}
+          onChange={e => {
+            const digits = e.target.value.replace(/\D/g, '');
+            setPinInput(digits);
+            setPinError('');
+          }}
+          onKeyDown={e => { if (e.key === 'Enter') handlePinSubmit(); }}
+          placeholder="PIN"
+          disabled={currentUser?.rol !== 'Admin'}
+          style={{
+            width: '100%', padding: '10px 12px', borderRadius: '8px',
+            border: `1.5px solid ${pinError ? '#dc2626' : '#cbd5e1'}`,
+            fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
+            background: currentUser?.rol !== 'Admin' ? '#f8fafc' : '#ffffff',
+            color: '#0f172a', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            letterSpacing: '0.3em', textAlign: 'center', fontWeight: 700,
+            // Enmascara visualmente los caracteres en navegadores WebKit/Blink
+            // (iOS Safari, Chrome). En navegadores que no lo soporten, el campo
+            // mostrará el PIN real — aceptable como degradación.
+            WebkitTextSecurity: 'disc',
+            textSecurity: 'disc',
+          }}
+        />
+        {pinError && (
+          <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '6px' }}>
+            {pinError}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => { setShowPinDialog(false); setPinError(''); setPinInput(''); setPinDisplay(''); }}
+            style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#475569', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handlePinSubmit}
+            disabled={currentUser?.rol !== 'Admin' || pinInput.length === 0}
+            style={{
+              padding: '8px 16px', borderRadius: '8px', border: 'none',
+              background: (currentUser?.rol !== 'Admin' || pinInput.length === 0) ? '#cbd5e1' : '#4f46e5',
+              color: '#ffffff', fontSize: '0.83rem', fontWeight: 700,
+              cursor: (currentUser?.rol !== 'Admin' || pinInput.length === 0) ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Autorizar
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      {ReactDOM.createPortal(modalContent, document.body)}
+      {ReactDOM.createPortal(pinDialogContent, document.body)}
+    </>
+  );
 }
