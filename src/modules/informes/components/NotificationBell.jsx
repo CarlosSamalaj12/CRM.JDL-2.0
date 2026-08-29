@@ -58,19 +58,35 @@ export default function NotificationBell() {
       load();
     };
 
-    // Cuando una reserva ligada pasa a "Seguimiento", el backend borra la
-    // notificación de "posible_venta" correspondiente y emite este evento.
-    // Refrescamos para que la campana y el contador se actualicen.
-    const handleEventoStatusChanged = (payload) => {
+    // Cuando una reserva ligada pasa a "Seguimiento" o cuando se elimina
+    // un "evento asignado" (lead en Posibles Ventas), el backend borra
+    // la notificación de "posible_venta" correspondiente y emite un evento
+    // `entity:changed`. Refrescamos para que la campana y el contador
+    // se actualicen al instante sin recargar.
+    const handleEntityChanged = (payload) => {
       if (!payload) return;
       const data = payload.data || payload;
+
+      // Caso 1: una reserva ligada pasa a Seguimiento
+      //   (cleanupNotificacionesPorSeguimiento en server.cjs:1995)
       if (String(data.estado || '').trim() === 'Seguimiento') {
         load();
+        return;
+      }
+
+      // Caso 2: se elimina un "evento asignado" / lead de Posibles Ventas
+      //   (deletePosibleVenta en posiblesVentasController.js:766).
+      //   El backend emite `entity:changed { entity: 'posible_venta', action: 'deleted' }`
+      //   y borra las notifs de `posible_venta` / `recordatorio_seguimiento`
+      //   asociadas. Refrescamos para que la campana se sincronice.
+      if (payload.entity === 'posible_venta' && payload.action === 'deleted') {
+        load();
+        return;
       }
     };
 
     const cleanup1 = onEvent('notificacion:created', handleNuevaNotificacion);
-    const cleanup2 = onEvent('entity:changed', handleEventoStatusChanged);
+    const cleanup2 = onEvent('entity:changed', handleEntityChanged);
     return () => {
       if (typeof cleanup1 === 'function') cleanup1();
       if (typeof cleanup2 === 'function') cleanup2();

@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import ReportsVentas from './ReportsVentas';
 import ReportsContabilidad from './ReportsContabilidad';
@@ -14,6 +13,7 @@ import ReportsIngresosCategorias from './ReportsIngresosCategorias';
 import ReportsSeguimientosPendientes from './ReportsSeguimientosPendientes';
 import ReportsComisiones from './ReportsComisiones';
 import ReportsProyeccionMetas from './ReportsProyeccionMetas';
+import ReportsEventosAsignados from './ReportsEventosAsignados';
 import './reports.css';
 
 const BENTO_CARDS = [
@@ -95,6 +95,12 @@ const BENTO_CARDS = [
     badge: 'Proyección • Metas • Gaps',
     materialIcon: 'ads_click', variant: 'amber', category: 'KPIs', featured: true,
   },
+  {
+    id: 'eventosAsignados', title: 'Eventos Asignados',
+    desc: 'Fechas de asignación, tiempo de respuesta, embudo de conversión y distribución por vendedor de los leads del pipeline comercial.',
+    badge: 'Asignaciones • Respuesta • Vendedores',
+    materialIcon: 'handshake', variant: 'teal', category: 'Pipeline', featured: true,
+  },
 ];
 
 const reports = {
@@ -111,6 +117,7 @@ const reports = {
   seguimientosPendientes: (handleClose) => <ReportsSeguimientosPendientes onClose={handleClose} />,
   comisiones: (handleClose) => <ReportsComisiones onClose={handleClose} />,
   proyeccionMetas: (handleClose) => <ReportsProyeccionMetas onClose={handleClose} />,
+  eventosAsignados: (handleClose) => <ReportsEventosAsignados onClose={handleClose} />,
 };
 
 // ─── Chips de filtro ───
@@ -126,7 +133,6 @@ const FILTER_CHIPS = [
 ];
 
 export default function ReportsModule() {
-  const navigate = useNavigate();
   const [selectedReport, setSelectedReport] = useState(null);
   const [activeChip, setActiveChip] = useState('all');
   const chipsRef = useRef(null);

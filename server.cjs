@@ -983,6 +983,37 @@ async function ensurePosiblesVentasPrimerSeguimiento() {
   }
 }
 
+// Captura el momento de la ASIGNACIÓN (cuando el lead recibió un vendedor por primera vez
+// o cuando se reasignó). Se usa para calcular "tiempo de respuesta" real
+// (asignadoEn → primer_seguimiento_en). NULL en leads históricos; el reporte usa
+// creado_en como fallback en esos casos.
+async function ensurePosiblesVentasAsignadoEn() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'posibles_ventas'`,
+      [DB_NAME]
+    );
+    const colSet = new Set(cols.map((r) => String(r.column_name || "").toLowerCase()));
+    if (!colSet.has("asignado_en")) {
+      await conn.query("ALTER TABLE posibles_ventas ADD COLUMN asignado_en TIMESTAMP NULL DEFAULT NULL");
+    }
+    // Índice para acelerar filtros por fecha de asignación
+    const [idxCheck] = await conn.query(
+      `SELECT 1 FROM information_schema.statistics
+        WHERE table_schema = ? AND table_name = 'posibles_ventas'
+          AND index_name = 'idx_posibles_ventas_asignado_en' LIMIT 1`,
+      [DB_NAME]
+    );
+    if (!idxCheck) {
+      await conn.query("ALTER TABLE posibles_ventas ADD KEY idx_posibles_ventas_asignado_en (asignado_en)");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 // One-time: renombra notificaciones viejas de "Nueva posible venta asignada"
 // a "Nuevo evento asignado" (consistencia con el rename de UI del 2026-08-16).
 // Idempotente: solo actualiza si encuentra el texto viejo.
@@ -5400,6 +5431,7 @@ const MIGRATIONS = [
   { name: 'PosiblesVentasEventoId', fn: ensurePosiblesVentasEventoId },
   { name: 'PosiblesVentasSoftDelete', fn: ensurePosiblesVentasSoftDelete },
   { name: 'PosiblesVentasPrimerSeguimiento', fn: ensurePosiblesVentasPrimerSeguimiento },
+  { name: 'PosiblesVentasAsignadoEn', fn: ensurePosiblesVentasAsignadoEn },
   { name: 'PosiblesVentasNotificacionesRenombradas', fn: ensurePosiblesVentasNotificacionesRenombradas },
   { name: 'HistorialPosiblesVentas', fn: ensureHistorialPosiblesVentas },
   { name: 'PerformanceIndexes', fn: ensurePerformanceIndexes },
@@ -5434,6 +5466,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePosiblesVentasEventoId',
   'ensurePosiblesVentasSoftDelete',
   'ensurePosiblesVentasPrimerSeguimiento',
+  'ensurePosiblesVentasAsignadoEn',
   'ensurePosiblesVentasNotificacionesRenombradas',
   'ensureHistorialPosiblesVentas',
   'ensurePerformanceIndexes',

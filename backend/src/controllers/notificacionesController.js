@@ -21,9 +21,11 @@ import pool from '../config/db.js';
 const POSIBLE_VENTA_ENRICH = `
   LEFT JOIN posibles_ventas pv
     ON pv.id = n.idocupacion
+   AND pv.deleted_at IS NULL
    AND n.tipo = 'posible_venta'
 `;
 const POSIBLE_VENTA_ENRICH_COLUMNS = `
+  , pv.id AS pv_id_lookup
   , IF(pv.evento_id IS NOT NULL, pv.evento_id, NULL) AS evento_id_lookup
   , IF(pv.evento_id IS NOT NULL, (
       SELECT e.estado
@@ -68,14 +70,23 @@ function seguimientoExcludeClause() {
 
 /**
  * Limpia las filas traídas por la query enriquecida antes de devolver al
- * cliente: omite las de posible_venta si ya tienen reserva en el calendario o leídas.
+ * cliente: omite las de posible_venta si ya tienen reserva en el calendario,
+ * fueron leídas, o el lead fue soft-deleted (pv_id_lookup IS NULL).
+ *
+ * `pv_id_lookup` se popula con `pv.id` en POSIBLE_VENTA_ENRICH_COLUMNS, pero
+ * el LEFT JOIN filtra `pv.deleted_at IS NULL`, así que cuando el lead fue
+ * eliminado, `pv` es NULL y `pv_id_lookup` también.
  */
 function annotateAndFilterNotifs(rows) {
   const out = [];
   for (const r of rows) {
-    if (r.tipo === 'posible_venta' && (r.leido === 1 || r.evento_id_lookup)) {
-      // Ya se creó la reserva en el calendario o fue leída: se oculta.
-      continue;
+    if (r.tipo === 'posible_venta') {
+      // Defensa en profundidad: el SQL ya excluye estas via
+      // seguimientoExcludeClause, pero si llegasen (por ej. cambios futuros
+      // en el predicado), las filtramos acá también.
+      if (r.leido === 1) continue;
+      if (r.evento_id_lookup) continue;     // ya tiene reserva ligada
+      if (!r.pv_id_lookup) continue;         // lead soft-deleted o no existe
     }
     out.push({
       ...r,

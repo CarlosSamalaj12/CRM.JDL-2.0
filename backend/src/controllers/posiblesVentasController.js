@@ -198,6 +198,10 @@ function buildLead(row) {
     primerSeguimientoEn: row.primer_seguimiento_en || null,
     eventoId: row.evento_id || null,
     creadoEn: row.creado_en,
+    actualizadoEn: row.actualizado_en || null,
+    // Fecha en que el lead recibió un vendedor por primera vez (o reasignación).
+    // NULL en leads creados antes del 2026-08-28: el reporte usa creadoEn como fallback.
+    asignadoEn: row.asignado_en || null,
     // Solo poblado en /eliminadas
     deletedAt: row.deleted_at || null,
     deletedPorId: row.deleted_por_id || null,
@@ -568,10 +572,13 @@ export async function createPosibleVenta(req, res, next) {
 
     const creadoPorId = String(req.user?.id || '');
 
+    // Si viene con vendedor desde el inicio, se considera "asignado" en el mismo INSERT.
+    const vendedorTrim = String(vendedorId || '').trim() || null;
+
     const [result] = await pool.query(
       `INSERT INTO posibles_ventas
-         (nombre_cliente, telefono, correo, fecha_evento, salones_json, pax, servicios_json, notas, vendedor_id, creado_por_id, estado)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
+         (nombre_cliente, telefono, correo, fecha_evento, salones_json, pax, servicios_json, notas, vendedor_id, creado_por_id, estado, asignado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ${vendedorTrim ? 'NOW()' : 'NULL'})`,
       [
         nombre,
         String(telefono || '').trim() || null,
@@ -581,7 +588,7 @@ export async function createPosibleVenta(req, res, next) {
         pax !== null && pax !== undefined && pax !== '' ? Number(pax) : null,
         JSON.stringify(Array.isArray(servicios) ? servicios : []),
         String(notas || '').trim() || null,
-        String(vendedorId || '').trim() || null,
+        vendedorTrim,
         creadoPorId,
       ]
     );
@@ -698,6 +705,12 @@ export async function updatePosibleVenta(req, res, next) {
         const nuevoVendedor = String(body.vendedorId || '').trim() || null;
         updates.push('vendedor_id = ?');
         params.push(nuevoVendedor);
+        // Si se está pasando de "sin vendedor" a "con vendedor", o reasignando,
+        // actualizamos asignado_en. Si se está pasando de "con vendedor" a "sin vendedor",
+        // mantenemos la fecha original (auditoría: sabemos cuándo se asignó por última vez).
+        if (nuevoVendedor && nuevoVendedor !== vendedorIdAnterior) {
+          updates.push('asignado_en = CURRENT_TIMESTAMP');
+        }
       }
     }
 
@@ -787,6 +800,36 @@ export async function deletePosibleVenta(req, res, next) {
        WHERE id = ?`,
       [actorId, actorNombre, id]
     );
+
+    // Limpiar las notificaciones de la campana asociadas a este lead.
+    // - 'posible_venta'             → "Evento asignado" (campana, label "Evento asignado")
+    // - 'recordatorio_seguimiento'  → "Recordatorio de seguimiento"
+    // Replica el patrón de cleanupNotificacionesPorSeguimiento (server.cjs:1995):
+    // hard-delete (no marcar como leída) porque el lead ya no existe.
+    // `idocupacion` se guarda como string al crear las notifs (ver
+    // notificarVendedor / notificarVendedorMensaje), por eso se coercea a String.
+    try {
+      const [notifResult] = await pool.query(
+        `DELETE FROM notificaciones
+          WHERE idocupacion = ?
+            AND tipo IN ('posible_venta', 'recordatorio_seguimiento')`,
+        [String(id)]
+      );
+      const notifsDeleted = notifResult?.affectedRows || 0;
+      if (notifsDeleted > 0) {
+        console.log(
+          `[PosiblesVentas] 🧹 ${notifsDeleted} notificación(es) eliminada(s) por soft-delete del lead ${id}.`
+        );
+      }
+    } catch (notifErr) {
+      // No fallamos la operación principal: el lead ya está soft-deleted
+      // y el filtro defensivo del GET (notificacionesController.js) ocultará
+      // las notifs restantes. Sólo logueamos para diagnóstico.
+      console.error(
+        `[PosiblesVentas] ⚠️ No se pudieron limpiar notificaciones del lead ${id}:`,
+        notifErr?.message || notifErr
+      );
+    }
 
     await logHistorial({
       idPosibleVenta: id,

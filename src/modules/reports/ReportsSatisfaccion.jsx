@@ -8,6 +8,7 @@ const RATING_LEVELS = [
   { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 7.5, color: '#22c55e', bg: '#f0fdf4' },
   { value: 'regular', label: 'Regular', emoji: '🟡', score: 5, color: '#eab308', bg: '#fffbeb' },
   { value: 'malo', label: 'Malo', emoji: '🔴', score: 2.5, color: '#ef4444', bg: '#fef2f2' },
+  { value: 'no_aplica', label: 'N/A', emoji: '🚫', score: 0, color: '#94a3b8', bg: '#f1f5f9' },
 ];
 
 const MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -75,7 +76,10 @@ export default function ReportsSatisfaccion({ onClose }) {
       const items = Array.isArray(chk?.evaluacion?.items)
         ? chk.evaluacion.items
         : (Array.isArray(chk?.items) ? chk.items.filter(i => i.sectionType === 'evaluacion') : []);
-      const ratedItems = items.filter(i => i.rating !== null && i.rating !== undefined);
+      // N/A (rating === 'no_aplica') se excluye del numerador Y del denominador.
+      const ratedItems = items.filter(i => i.rating !== null && i.rating !== undefined && i.rating !== 'no_aplica');
+      const notApplicableCount = items.filter(i => i.rating === 'no_aplica').length;
+      const unratedCount = items.filter(i => i.rating === null || i.rating === undefined).length;
       if (ratedItems.length === 0) continue;
 
       const totalScore = ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0);
@@ -92,6 +96,8 @@ export default function ReportsSatisfaccion({ onClose }) {
         status: ev.status || '',
         avg,
         total: ratedItems.length,
+        notApplicableCount,
+        unratedCount,
         distribution: dist,
         items: ratedItems.map(i => ({
           text: i.text,

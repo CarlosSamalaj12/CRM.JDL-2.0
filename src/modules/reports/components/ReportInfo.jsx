@@ -79,6 +79,12 @@ const DESCRIPTIONS = {
     calculation: 'Ritmo diario = meta / días del mes. Proyección = (acumulado / días transcurridos) × días totales. Porcentaje = (acumulado / meta) × 100.',
     source: 'Metas mensuales configuradas. Eventos Confirmado + Pre-reserva del mes actual.',
   },
+  eventosAsignados: {
+    title: 'Reporte de Eventos Asignados',
+    desc: 'Análisis de los leads del pipeline comercial con foco en la fecha de asignación, el tiempo de respuesta, el embudo de conversión y la distribución por vendedor y estado.',
+    calculation: 'Fecha de asignación = asignado_en (o creado_en como fallback para leads anteriores al 2026-08-28). Tiempo de respuesta = primer_seguimiento_en − asignado_en. Buckets de color: ≤4h verde, ≤24h verde claro, ≤72h ámbar, ≤7d naranja, >7d rojo. Tasa de cierre = ganada / (ganada + perdida). Velocidad de cierre = mediana de (actualizado_en − asignado_en) para leads cerrados.',
+    source: 'Tabla `posibles_ventas` (endpoint `GET /api/posibles-ventas`). Incluye el estado derivado del calendario, fechas de seguimiento y la nueva columna `asignado_en` poblada al asignar o reasignar un vendedor.',
+  },
   ventasUsuario: {
     title: 'Ventas por Usuario',
     desc: 'Desempeño individual de cada vendedor/recepcionista en el periodo.',

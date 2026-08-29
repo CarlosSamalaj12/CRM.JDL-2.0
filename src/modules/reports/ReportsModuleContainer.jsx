@@ -4,6 +4,7 @@ import ReportsModule from './ReportsModule';
 import ReportsVentas from './ReportsVentas';
 import ReportsContabilidad from './ReportsContabilidad';
 import ReportsInstitucion from './ReportsInstitucion';
+import ReportsEventosAsignados from './ReportsEventosAsignados';
 import './reports.css';
 
 const REPORT_TYPES = {
@@ -22,6 +23,7 @@ const ALL_REPORTS = [
   { id: 'ocupacionBarras',         label: 'Porcentaje Ocupación',        meta: 'Gráfico mensual de ocupación PAX vs capacidad de salones', badge: 'Barras • % Ocupación • Mensual',       icon: '📊', variant: 'indigo', category: 'Operación', featured: true },
   { id: 'eficenciaEventos',        label: 'Eficiencia por Estado',       meta: 'Distribución porcentual mensual de eventos por estado', badge: 'Estados • % • Apilado',                  icon: '📈', variant: 'teal',   category: 'Operación', featured: true },
   { id: 'seguimientosPendientes',  label: 'Seguimientos Pendientes',     meta: 'Eventos en pipeline comercial por vendedor',          badge: 'Pipeline • Vendedores • Estados',          icon: '📋', variant: 'amber',  category: 'Pipeline',  featured: true },
+  { id: 'eventosAsignados',        label: 'Eventos Asignados',           meta: 'Fechas de asignación, tiempo de respuesta y distribución por vendedor', badge: 'Asignaciones • Respuesta • Vendedores', icon: '🤝', variant: 'teal',  category: 'Pipeline',  featured: true },
   { id: 'eficenciaConfirmacion',   label: 'Eficiencia de Confirmación',  meta: 'Eventos confirmados por vendedor · Montos en Quetzales', badge: 'Confirmados • Montos • Vendedores',     icon: '✅', variant: 'green',  category: 'KPIs',      featured: true },
   { id: 'ingresosCategorias',      label: 'Ingresos por Categoría',      meta: 'Montos generados por categoría de servicio',          badge: 'Categorías • Montos • Servicios',          icon: '💰', variant: 'indigo', category: 'Finanzas',  featured: true },
   { id: 'comisiones',              label: 'Comisiones',                  meta: 'Ventas vs niveles de meta · Cálculo de comisiones',    badge: 'Comisiones • Metas • %',                   icon: '🏆', variant: 'purple', category: 'Ventas',    featured: true },
@@ -413,7 +415,8 @@ export default function ReportsModuleContainer() {
         {activeReport === REPORT_TYPES.sales && <ReportsVentas />}
         {activeReport === REPORT_TYPES.accounting && <ReportsContabilidad />}
         {activeReport === REPORT_TYPES.institution && <ReportsInstitucion />}
-        {![REPORT_TYPES.dashboard, REPORT_TYPES.sales, REPORT_TYPES.accounting, REPORT_TYPES.institution].includes(activeReport) && (
+        {activeReport === 'eventosAsignados' && <ReportsEventosAsignados onClose={() => setActiveReport(REPORT_TYPES.hub)} />}
+        {![REPORT_TYPES.dashboard, REPORT_TYPES.sales, REPORT_TYPES.accounting, REPORT_TYPES.institution, 'eventosAsignados'].includes(activeReport) && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px' }}>
             Reporte en construcción…
           </div>

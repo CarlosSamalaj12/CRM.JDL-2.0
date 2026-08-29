@@ -17,11 +17,15 @@ const SECTION_TYPE_OPTIONS = [
 ];
 
 const RATING_LEVELS = [
-  { value: 'malo', label: 'Malo', emoji: '🔴', score: 2.5 },
-  { value: 'regular', label: 'Regular', emoji: '🟡', score: 5 },
-  { value: 'bueno', label: 'Bueno', emoji: '🟢', score: 7.5 },
-  { value: 'excelente', label: 'Excelente', emoji: '💎', score: 10 },
+  { value: 'malo', label: 'Malo', score: 2.5, dot: '#dc2626' },
+  { value: 'regular', label: 'Regular', score: 5, dot: '#d97706' },
+  { value: 'bueno', label: 'Bueno', score: 7.5, dot: '#16a34a' },
+  { value: 'excelente', label: 'Excelente', score: 10, dot: '#7c3aed' },
+  { value: 'no_aplica', label: 'N/A', score: 0, dot: '#94a3b8' },
 ];
+
+// PIN de Admin para autorizar re-edición de la Evaluación después de guardada.
+const EVALUATION_UNLOCK_PIN = '20273131';
 
 /* ══════════════════════════════════════════════
    EDITOR INLINE DE PLANTILLAS (mismo estilo que los demás settings)
@@ -615,11 +619,20 @@ export default function SettingsChecklist() {
             max-height: 100dvh !important;
             margin: 0 auto !important;
           }
-          #eventChecklistBackdrop .checklist-mobile-rating { display: none !important; }
-          #eventChecklistBackdrop .checklist-desktop-rating { display: flex !important; }
+          #eventChecklistBackdrop .checklist-rating-combobox { display: block !important; width: 100% !important; }
+          #eventChecklistBackdrop .checklist-rating-combobox option { font-weight: 600 !important; padding: 4px 8px !important; }
+          #eventChecklistBackdrop .checklist-rating-combobox option[value="malo"]       { color: #dc2626 !important; }
+          #eventChecklistBackdrop .checklist-rating-combobox option[value="regular"]    { color: #d97706 !important; }
+          #eventChecklistBackdrop .checklist-rating-combobox option[value="bueno"]      { color: #16a34a !important; }
+          #eventChecklistBackdrop .checklist-rating-combobox option[value="excelente"]  { color: #7c3aed !important; }
+          #eventChecklistBackdrop .checklist-rating-combobox option[value="no_aplica"]  { color: #94a3b8 !important; }
+          #eventChecklistBackdrop .checklist-status-combobox { display: block !important; width: 100% !important; }
+          #eventChecklistBackdrop .checklist-status-combobox option { font-weight: 600 !important; padding: 4px 8px !important; }
+          #eventChecklistBackdrop .checklist-status-combobox option[value="pendiente"]  { color: #64748b !important; }
+          #eventChecklistBackdrop .checklist-status-combobox option[value="en_proceso"] { color: #d97706 !important; }
+          #eventChecklistBackdrop .checklist-status-combobox option[value="cumplido"]   { color: #16a34a !important; }
+          #eventChecklistBackdrop .checklist-status-combobox option[value="no_aplica"]  { color: #475569 !important; }
           @media (max-width: 900px) {
-            #eventChecklistBackdrop .checklist-mobile-rating { display: block !important; }
-            #eventChecklistBackdrop .checklist-desktop-rating { display: none !important; }
             #eventChecklistBackdrop > [role="dialog"] {
               width: 100vw !important;
               height: 100dvh !important;
@@ -634,6 +647,7 @@ export default function SettingsChecklist() {
             #eventChecklistBackdrop .checklist-body {
               padding: 10px 12px !important;
               padding-bottom: 24px !important;
+              overflow: visible !important;
             }
             #eventChecklistBackdrop .checklist-footer {
               padding: 10px 12px !important;
@@ -650,23 +664,32 @@ export default function SettingsChecklist() {
               font-size: 0.9rem !important;
             }
             #eventChecklistBackdrop .checklist-table {
-              font-size: 0.72rem !important;
-              display: block !important;
-              overflow-x: auto !important;
+              font-size: 0.68rem !important;
+              min-width: 340px !important;
+              width: 100% !important;
+              table-layout: fixed !important;
             }
             #eventChecklistBackdrop .checklist-table th,
             #eventChecklistBackdrop .checklist-table td {
-              padding: 8px 6px !important;
+              padding: 6px 5px !important;
               white-space: normal !important;
             }
             #eventChecklistBackdrop .checklist-table select {
               width: 100% !important;
-              font-size: 0.72rem !important;
-              min-height: 44px !important;
+              font-size: 0.7rem !important;
+              min-height: 32px !important;
+            }
+            #eventChecklistBackdrop .checklist-table input[type="text"] {
+              width: 100% !important;
+              font-size: 0.7rem !important;
+              min-height: 32px !important;
             }
             #eventChecklistBackdrop .checklist-table-wrapper {
               border: none !important;
               border-radius: 0 !important;
+              overflow-x: auto !important;
+              overflow-y: auto !important;
+              -webkit-overflow-scrolling: touch !important;
             }
             #eventChecklistBackdrop .checklist-progress-container {
               border: none !important;
@@ -681,6 +704,11 @@ export default function SettingsChecklist() {
             #eventChecklistBackdrop textarea {
               font-size: 16px !important;
               min-height: 48px !important;
+            }
+            #eventChecklistBackdrop .checklist-table .checklist-rating-combobox,
+            #eventChecklistBackdrop .checklist-table input[type="text"] {
+              font-size: 13px !important;
+              min-height: 32px !important;
             }
           }
         `;
@@ -724,6 +752,19 @@ export default function SettingsChecklist() {
   const [evHistory, setEvHistory] = useState([]);
 
   const isReadOnly = currentUser?.rol === 'Coordinador';
+
+  // Lock + PIN para re-editar la Evaluación después de guardada
+  const [isEvLocked, setIsEvLocked] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  // ID del item al que se le hace focus (flash) cuando falla la validación al guardar
+  const [flashItemId, setFlashItemId] = useState(null);
+  const flashTimerRef = useRef(null);
+
+  // Combinar el read-only del rol con el lock post-guardado
+  const isEvReadOnly = isReadOnly || isEvLocked;
+  const canUnlockEv = currentUser?.rol === 'Admin' && isEvLocked && !isReadOnly;
 
   const s = {
     label: { fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' },
@@ -834,6 +875,15 @@ export default function SettingsChecklist() {
         }
         setActiveTab(TAB_OPERATIVA);
 
+        // Inicializar lock: si la Evaluación ya tiene datos guardados con al menos
+        // un rating, queda bloqueada al abrir. Si está vacía, editable normal.
+        const hasSavedRatings = resolvedEvItems.length > 0
+          && resolvedEvItems.some(it => it.rating !== null && it.rating !== undefined);
+        setIsEvLocked(hasSavedRatings);
+        setShowPinDialog(false);
+        setPinInput('');
+        setPinError('');
+
         setIsOpen(true);
       } catch (err) { console.error(err); toast('Error al abrir checklist'); }
     };
@@ -841,7 +891,35 @@ export default function SettingsChecklist() {
     return () => window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
   }, []);
 
-  const closeEvent = () => { setIsOpen(false); };
+  const closeEvent = () => {
+    setIsOpen(false);
+    setIsEvLocked(false);
+    setShowPinDialog(false);
+    setPinInput('');
+    setPinError('');
+    setFlashItemId(null);
+    if (flashTimerRef.current) {
+      clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = null;
+    }
+  };
+
+  // Submit del PIN de Admin
+  const handlePinSubmit = () => {
+    if (currentUser?.rol !== 'Admin') {
+      setPinError('Solo usuarios con rol Admin pueden desbloquear.');
+      return;
+    }
+    if (pinInput === EVALUATION_UNLOCK_PIN) {
+      setIsEvLocked(false);
+      setShowPinDialog(false);
+      setPinInput('');
+      setPinError('');
+      toast.success('Evaluación desbloqueada para edición.');
+    } else {
+      setPinError('PIN incorrecto. Inténtalo de nuevo.');
+    }
+  };
 
   const handleTpl = (tab) => (e) => {
     const tid = e.target.value;
@@ -892,6 +970,21 @@ export default function SettingsChecklist() {
 
   const handleSave = (tab) => async () => {
     if (!evtId) { toast('No hay evento'); return; }
+
+    // Validación: en Evaluación, todos los puntos deben estar calificados (incluyendo N/A).
+    // Las preguntas abiertas (libre) no bloquean — solo necesitan comentario.
+    if (tab === TAB_EVALUACION) {
+      const unrated = evItems.filter(i =>
+        i.type !== 'libre' && (i.rating === null || i.rating === undefined)
+      );
+      if (unrated.length > 0) {
+        // El `unratedItems` derivado se calcula sobre `evItems` directamente, así
+        // que refleja el estado más reciente. Llamamos focus sobre él.
+        focusFirstUnrated();
+        return;
+      }
+    }
+
     const setSaving = tab === TAB_OPERATIVA ? setSavingOp : setSavingEv;
     setSaving(true);
     try {
@@ -910,6 +1003,8 @@ export default function SettingsChecklist() {
       else setEvHistory(prev => [...prev, entry]);
       toast(`Check list ${tab === TAB_OPERATIVA ? 'Operativa' : 'Evaluación'} guardado ✓`);
       window.dispatchEvent(new Event('stateUpdated'));
+      // Lock: después de guardar, la Evaluación queda bloqueada para edición.
+      if (tab === TAB_EVALUACION) setIsEvLocked(true);
       closeEvent();
     } catch (err) { console.error(err); toast('Error al guardar'); }
     finally { setSaving(false); }
@@ -928,6 +1023,30 @@ export default function SettingsChecklist() {
   const tableItems = activeTab === TAB_EVALUACION ? activeItems.filter(i => !isOpenQuestion(i)) : activeItems;
   const openQuestions = activeTab === TAB_EVALUACION ? activeItems.filter(i => isOpenQuestion(i)) : [];
 
+  // Items sin calificar en Evaluación (para validación y resaltado)
+  const unratedItems = activeTab === TAB_EVALUACION
+    ? tableItems.filter(i => i.rating === null || i.rating === undefined)
+    : [];
+  const unratedIds = new Set(unratedItems.map(i => i.id));
+
+  // Flash effect: cuando el usuario intenta guardar y faltan items, hacemos
+  // scroll + highlight al PRIMER item sin calificar y mostramos un mensaje focalizado.
+  const focusFirstUnrated = () => {
+    if (unratedItems.length === 0) return;
+    const first = unratedItems[0];
+    // Scroll al row correspondiente dentro del wrapper scrollable
+    const el = document.querySelector(`#eventChecklistBackdrop [data-ev-item-id="${first.id}"]`);
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setFlashItemId(first.id);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => setFlashItemId(null), 4000);
+    const truncate = (s, n) => (s && s.length > n ? s.slice(0, n) + '…' : s);
+    const label = `${first.sectionName ? `[${first.sectionName}] ` : ''}${truncate(first.text || '(sin texto)', 60)}`;
+    toast.error(`Falta evaluar este punto: ${label}`, { autoClose: 5000 });
+  };
+
   const total = activeItems.length;
   const done = activeItems.filter(i => i.status === 'cumplido').length;
   const progress = total > 0 ? Math.round(((done + activeItems.filter(i => i.status === 'en_proceso' || i.status === 'no_aplica').length) / total) * 100) : 0;
@@ -935,9 +1054,12 @@ export default function SettingsChecklist() {
     ? Math.round((done / (total - activeItems.filter(i => i.status === 'no_aplica').length)) * 100) : 0;
 
   const evalItems = tableItems;
-  const ratedItems = evalItems.filter(i => i.rating !== null);
-  const satisfactionAvg = ratedItems.length > 0
-    ? (ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0) / ratedItems.length)
+  // N/A (rating === 'no_aplica') se excluye del numerador Y del denominador.
+  const applicableItems = evalItems.filter(i => i.rating !== null && i.rating !== 'no_aplica');
+  const notApplicableCount = evalItems.filter(i => i.rating === 'no_aplica').length;
+  const unratedCount = evalItems.filter(i => i.rating === null).length;
+  const satisfactionAvg = applicableItems.length > 0
+    ? (applicableItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0) / applicableItems.length)
     : 0;
   const satisfactionPct = Math.round((satisfactionAvg / 10) * 100);
 
@@ -1008,7 +1130,7 @@ export default function SettingsChecklist() {
             {/* Template selector */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={s.label}>Plantilla</span>
-              <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={isReadOnly}>
+              <select value={activeTplId} onChange={handleTpl(activeTab)} style={s.select} disabled={isReadOnly || (activeTab === TAB_EVALUACION && isEvLocked)}>
                 <option value="">-- Seleccionar --</option>
                 {templates.filter(t => t.active !== false).map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -1026,7 +1148,7 @@ export default function SettingsChecklist() {
               }}
                 rows={2} placeholder="Observaciones generales..."
                 style={{ ...s.input, resize: 'vertical', minHeight: '50px' }}
-                readOnly={isReadOnly} />
+                readOnly={isReadOnly || (activeTab === TAB_EVALUACION && isEvLocked)} />
             </div>
 
 
@@ -1040,11 +1162,23 @@ export default function SettingsChecklist() {
                 <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
                   <div style={{ height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg,#6366f1,#10b981)', width: `${progress}%`, transition: 'width 0.3s ease' }} />
                 </div>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
-                  <span>{'✅'} {done} cumplido(s)</span>
-                  <span>{'🔄'} {activeItems.filter(i => i.status === 'en_proceso').length} en proceso</span>
-                  <span>{'⏳'} {activeItems.filter(i => i.status === 'pendiente').length} pendiente(s)</span>
-                  <span>{'🚫'} {activeItems.filter(i => i.status === 'no_aplica').length} no aplica</span>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8', flexWrap: 'wrap' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+                    Cumplido: {done}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d97706', display: 'inline-block' }} />
+                    En proceso: {activeItems.filter(i => i.status === 'en_proceso').length}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
+                    Pendiente: {activeItems.filter(i => i.status === 'pendiente').length}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#64748b', display: 'inline-block' }} />
+                    No aplica: {activeItems.filter(i => i.status === 'no_aplica').length}
+                  </span>
                 </div>
               </div>
             )}
@@ -1053,27 +1187,49 @@ export default function SettingsChecklist() {
             {activeTab === TAB_EVALUACION && evalItems.length > 0 && (
               <div className="checklist-progress-container" style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                  <span>⭐ Satisfacción del Cliente</span>
+                  <span>Satisfacción del Cliente</span>
                   <span style={{
                     color: satisfactionAvg >= 7.5 ? '#16a34a' : satisfactionAvg >= 5 ? '#d97706' : '#dc2626',
                     fontSize: '0.9rem',
                   }}>
-                    {ratedItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 10.0 (${satisfactionPct}%)` : '—'}
+                    {applicableItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 10.0 (${satisfactionPct}%)` : '—'}
                   </span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, marginTop: '-2px', marginBottom: '6px' }}>
+                  Escala sobre 10 · Los puntos marcados como N/A no se cuentan en el promedio
                 </div>
                 <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
                   <div style={{ height: '100%', borderRadius: '999px',
                     background: satisfactionAvg >= 7.5 ? '#22c55e' : satisfactionAvg >= 5 ? '#eab308' : '#ef4444',
-                    width: ratedItems.length > 0 ? `${satisfactionPct}%` : '0%',
+                    width: applicableItems.length > 0 ? `${satisfactionPct}%` : '0%',
                     transition: 'width 0.4s ease'
                   }} />
                 </div>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
-                  <span>💎 Excelente: {evalItems.filter(i => i.rating === 'excelente').length}</span>
-                  <span>🟢 Bueno: {evalItems.filter(i => i.rating === 'bueno').length}</span>
-                  <span>🟡 Regular: {evalItems.filter(i => i.rating === 'regular').length}</span>
-                  <span>🔴 Malo: {evalItems.filter(i => i.rating === 'malo').length}</span>
-                  <span>⚪ Sin calificar: {evalItems.filter(i => i.rating === null).length}</span>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8', flexWrap: 'wrap' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c3aed', display: 'inline-block' }} />
+                    Excelente: {evalItems.filter(i => i.rating === 'excelente').length}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+                    Bueno: {evalItems.filter(i => i.rating === 'bueno').length}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d97706', display: 'inline-block' }} />
+                    Regular: {evalItems.filter(i => i.rating === 'regular').length}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
+                    Malo: {evalItems.filter(i => i.rating === 'malo').length}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#cbd5e1', display: 'inline-block' }} />
+                    Sin calificar: {unratedCount}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
+                    N/A: {notApplicableCount}
+                  </span>
                 </div>
               </div>
             )}
@@ -1122,111 +1278,163 @@ export default function SettingsChecklist() {
                   Selecciona una plantilla para cargar los puntos a evaluar
                 </div>
               ) : (
-                <table className="checklist-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <table className="checklist-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.82rem' }}>
                   <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
-                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '36px' }}>#</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase' }}>Punto</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '210px' }}>
+                    <tr>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 6px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '28px', borderBottom: '1px solid #e2e8f0' }}>#</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 6px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Punto</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 4px', textAlign: 'center', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '105px', borderBottom: '1px solid #e2e8f0' }}>
                         {activeTab === TAB_EVALUACION ? 'Calificaci\u00f3n' : 'Estado'}
                       </th>
-                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '180px' }}>Comentario</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 4px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '105px', borderBottom: '1px solid #e2e8f0' }}>Comentario</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tableItems.map((item, idx) => (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: activeTab === TAB_EVALUACION ? '#faf5ff' : 'transparent' }}>
-                        <td style={{ padding: '6px 10px', color: '#94a3b8', fontWeight: 600, fontSize: '0.72rem' }}>{idx + 1}</td>
+                    {tableItems.map((item, idx) => {
+                      const isUnrated = unratedIds.has(item.id);
+                      const isFlashing = flashItemId === item.id;
+                      const rowBg = isFlashing
+                        ? '#fef3c7'
+                        : isUnrated
+                          ? '#fef2f2'
+                          : (activeTab === TAB_EVALUACION ? '#fcfcfd' : 'transparent');
+                      const rowShadow = isFlashing
+                        ? 'inset 0 0 0 2px #f59e0b, 0 0 0 4px rgba(245,158,11,0.25)'
+                        : (isUnrated ? 'inset 3px 0 0 0 #dc2626' : 'none');
+                      return (
+                      <tr key={item.id} data-ev-item-id={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: rowBg, boxShadow: rowShadow, transition: 'box-shadow 0.2s ease, background 0.2s ease' }}>
+                        <td style={{ padding: '6px 6px', color: '#94a3b8', fontWeight: 600, fontSize: '0.72rem', width: '28px', verticalAlign: 'top' }}>{idx + 1}</td>
                         <td style={{ padding: '6px 10px' }}>
                           <span style={{ color: '#6366f1', fontSize: '0.7rem', fontWeight: 600 }}>
                             {item.sectionName ? `[${item.sectionName}] ` : ''}
-                            {activeTab === TAB_EVALUACION && <span style={{ color: '#7c3aed', fontWeight: 700 }}>{'\u2B50'} </span>}
                           </span>
                           <span style={{ color: '#0f172a', fontWeight: 500 }}>{item.text}</span>
-                        </td>
-                        <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                          {activeTab === TAB_EVALUACION ? (
-                            <>
-                              {/* Mobile Rating Dropdown */}
-                              <div className="checklist-mobile-rating">
-                                {(() => {
-                                  const ratingColors = {
-                                    malo: { border: '#ef4444', bg: '#fef2f2', text: '#dc2626' },
-                                    regular: { border: '#eab308', bg: '#fffbeb', text: '#ca8a04' },
-                                    bueno: { border: '#22c55e', bg: '#f0fdf4', text: '#16a34a' },
-                                    excelente: { border: '#a855f7', bg: '#faf5ff', text: '#9333ea' },
-                                  };
-                                  const curColor = ratingColors[item.rating] || { border: '#d1d9e6', bg: '#ffffff', text: '#64748b' };
-                                  return (
-                                    <select
-                                      value={item.rating || ''}
-                                      onChange={e => !isReadOnly && setRating(activeTab)(item.id, e.target.value || null)}
-                                      disabled={isReadOnly}
-                                      style={{
-                                        padding: '4px 8px', borderRadius: '6px',
-                                        border: `1.5px solid ${curColor.border}`,
-                                        fontSize: '0.75rem', fontWeight: 600,
-                                        cursor: isReadOnly ? 'default' : 'pointer',
-                                        background: curColor.bg, color: curColor.text,
-                                        opacity: isReadOnly ? 0.75 : 1, width: '100%'
-                                      }}
-                                    >
-                                      <option value="">-- Calificar --</option>
-                                      {RATING_LEVELS.map(r => (
-                                        <option key={r.value} value={r.value}>{r.emoji} {r.label}</option>
-                                      ))}
-                                    </select>
-                                  );
-                                })()}
-                              </div>
-
-                              {/* Desktop Rating Buttons */}
-                              <div className="checklist-desktop-rating checklist-rating-buttons" style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
-                                {RATING_LEVELS.map(r => {
-                                  const isSelected = item.rating === r.value;
-                                  return (
-                                    <button
-                                      key={r.value}
-                                      type="button"
-                                      className="checklist-rating-btn"
-                                      onClick={() => !isReadOnly && setRating(activeTab)(item.id, isSelected ? null : r.value)}
-                                      title={r.label}
-                                      disabled={isReadOnly}
-                                      style={{
-                                        padding: '4px 7px', borderRadius: '6px',
-                                        border: isSelected ? `2px solid ${r.value === 'malo' ? '#ef4444' : r.value === 'regular' ? '#eab308' : r.value === 'bueno' ? '#22c55e' : '#a855f7'}` : '1.5px solid #e2e8f0',
-                                        background: isSelected ? (r.value === 'malo' ? '#fef2f2' : r.value === 'regular' ? '#fffbeb' : r.value === 'bueno' ? '#f0fdf4' : '#faf5ff') : '#fff',
-                                        fontSize: '0.7rem', fontWeight: 700,
-                                        cursor: isReadOnly ? 'default' : 'pointer',
-                                        opacity: isReadOnly ? 0.85 : (item.rating && !isSelected ? 0.5 : 1),
-                                        color: isSelected ? (r.value === 'malo' ? '#dc2626' : r.value === 'regular' ? '#ca8a04' : r.value === 'bueno' ? '#16a34a' : '#9333ea') : '#94a3b8',
-                                        filter: isReadOnly && !isSelected ? 'grayscale(0.8)' : 'none',
-                                      }}
-                                    >
-                                      {r.emoji} {r.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </>
-                          ) : (
-                            <select value={item.status} onChange={e => !isReadOnly && setSt(activeTab)(item.id, e.target.value)}
-                              disabled={isReadOnly}
-                              style={{ padding: '4px 8px', borderRadius: '6px', border: '1.5px solid #d1d9e6', fontSize: '0.75rem', fontWeight: 600, cursor: isReadOnly ? 'default' : 'pointer', background: item.status === 'cumplido' ? '#f0fdf4' : item.status === 'en_proceso' ? '#fffbeb' : item.status === 'no_aplica' ? '#f0f9ff' : '#ffffff', color: item.status === 'cumplido' ? '#16a34a' : item.status === 'en_proceso' ? '#d97706' : item.status === 'no_aplica' ? '#0ea5e9' : '#64748b', opacity: isReadOnly ? 0.75 : 1, appearance: isReadOnly ? 'none' : 'auto' }}>
-                              <option value="pendiente">Pendiente</option>
-                              <option value="en_proceso">En proceso</option>
-                              <option value="cumplido">Cumplido</option>
-                              <option value="no_aplica">No aplica</option>
-                            </select>
+                          {isFlashing && (
+                            <div style={{ marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', padding: '2px 8px' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#f59e0b', color: '#fff', fontSize: '0.65rem', fontWeight: 800 }}>!</span>
+                              Falta evaluar este punto
+                            </div>
                           )}
                         </td>
-                        <td style={{ padding: '6px 10px' }}>
-                          <input type="text" value={item.comment || ''} onChange={e => !isReadOnly && setCm(activeTab)(item.id, e.target.value)}
-                            placeholder="..." readOnly={isReadOnly}
-                            style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1.5px solid #e2e8f0', fontSize: '0.75rem', outline: 'none', background: isReadOnly ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                        <td style={{ padding: '6px 4px', textAlign: 'center', width: '105px' }}>
+                          {activeTab === TAB_EVALUACION ? (
+                            (() => {
+                              const currentRating = RATING_LEVELS.find(r => r.value === item.rating);
+                              const curDot = currentRating?.dot || '#cbd5e1';
+                              const hasRating = !!currentRating;
+                              return (
+                                <div style={{ position: 'relative', width: '100%' }}>
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      position: 'absolute', left: '6px', top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      width: '5px', height: '5px', borderRadius: '50%',
+                                      background: hasRating ? curDot : '#cbd5e1',
+                                      pointerEvents: 'none',
+                                    }}
+                                  />
+                                  <select
+                                    className="checklist-rating-combobox"
+                                    value={item.rating || ''}
+                                    onChange={e => !isEvReadOnly && setRating(activeTab)(item.id, e.target.value || null)}
+                                    disabled={isEvReadOnly}
+                                    style={{
+                                      padding: '3px 16px 3px 15px', borderRadius: '5px',
+                                      border: `1.5px solid ${hasRating ? curDot : '#cbd5e1'}`,
+                                      fontSize: '0.68rem', fontWeight: 600,
+                                      cursor: isReadOnly ? 'default' : 'pointer',
+                                      backgroundColor: '#ffffff',
+                                      color: hasRating ? curDot : '#64748b',
+                                      opacity: isReadOnly ? 0.75 : 1, width: '100%',
+                                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                                      backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><path d='M1 1l2.5 2.5L6 1' stroke='%2394a3b8' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>")`,
+                                      backgroundRepeat: 'no-repeat',
+                                      backgroundPosition: 'right 5px center',
+                                      backgroundSize: '7px 4px',
+                                      textOverflow: 'ellipsis',
+                                      minHeight: '30px',
+                                    }}
+                                  >
+                                    <option value="" style={{ color: '#64748b' }}>— Calificar —</option>
+                                    {RATING_LEVELS.map(r => (
+                                      <option key={r.value} value={r.value} style={{ color: r.dot, fontWeight: 600, backgroundColor: '#ffffff' }}>
+                                        {r.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            (() => {
+                              const STATUS_DOT = {
+                                pendiente: '#94a3b8',
+                                en_proceso: '#d97706',
+                                cumplido: '#16a34a',
+                                no_aplica: '#64748b',
+                              };
+                              const STATUS_COLOR = {
+                                pendiente: '#64748b',
+                                en_proceso: '#d97706',
+                                cumplido: '#16a34a',
+                                no_aplica: '#475569',
+                              };
+                              const curDot = STATUS_DOT[item.status] || '#cbd5e1';
+                              const curColor = STATUS_COLOR[item.status] || '#64748b';
+                              const hasStatus = !!item.status;
+                              return (
+                                <div style={{ position: 'relative', width: '100%' }}>
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      position: 'absolute', left: '6px', top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      width: '5px', height: '5px', borderRadius: '50%',
+                                      background: hasStatus ? curDot : '#cbd5e1',
+                                      pointerEvents: 'none',
+                                    }}
+                                  />
+                                  <select
+                                    className="checklist-status-combobox"
+                                    value={item.status || ''}
+                                    onChange={e => !isReadOnly && setSt(activeTab)(item.id, e.target.value)}
+                                    disabled={isReadOnly}
+                                    style={{
+                                      padding: '3px 16px 3px 15px', borderRadius: '5px',
+                                      border: `1.5px solid ${hasStatus ? curDot : '#cbd5e1'}`,
+                                      fontSize: '0.68rem', fontWeight: 600,
+                                      cursor: isReadOnly ? 'default' : 'pointer',
+                                      backgroundColor: '#ffffff',
+                                      color: hasStatus ? curColor : '#64748b',
+                                      opacity: isReadOnly ? 0.75 : 1, width: '100%',
+                                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                                      backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><path d='M1 1l2.5 2.5L6 1' stroke='%2394a3b8' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>")`,
+                                      backgroundRepeat: 'no-repeat',
+                                      backgroundPosition: 'right 5px center',
+                                      backgroundSize: '7px 4px',
+                                      textOverflow: 'ellipsis',
+                                      minHeight: '30px',
+                                    }}
+                                  >
+                                    <option value="pendiente" style={{ color: STATUS_COLOR.pendiente, fontWeight: 600, backgroundColor: '#ffffff' }}>Pendiente</option>
+                                    <option value="en_proceso" style={{ color: STATUS_COLOR.en_proceso, fontWeight: 600, backgroundColor: '#ffffff' }}>En proceso</option>
+                                    <option value="cumplido" style={{ color: STATUS_COLOR.cumplido, fontWeight: 600, backgroundColor: '#ffffff' }}>Cumplido</option>
+                                    <option value="no_aplica" style={{ color: STATUS_COLOR.no_aplica, fontWeight: 600, backgroundColor: '#ffffff' }}>No aplica</option>
+                                  </select>
+                                </div>
+                              );
+                            })()
+                          )}
+                        </td>
+                        <td style={{ padding: '6px 4px', width: '105px' }}>
+                          <input type="text" value={item.comment || ''} onChange={e => !isEvReadOnly && setCm(activeTab)(item.id, e.target.value)}
+                            placeholder="..." readOnly={isEvReadOnly}
+                            style={{ width: '100%', padding: '3px 6px', borderRadius: '5px', border: '1.5px solid #e2e8f0', fontSize: '0.68rem', outline: 'none', background: isEvReadOnly ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box', minHeight: '30px' }} />
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -1246,11 +1454,11 @@ export default function SettingsChecklist() {
                     </span>
                     <textarea
                       value={item.comment || ''}
-                      onChange={e => !isReadOnly && setCm(activeTab)(item.id, e.target.value)}
+                      onChange={e => !isEvReadOnly && setCm(activeTab)(item.id, e.target.value)}
                       onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                       maxLength={2000}
                       placeholder="Respuesta..."
-                      readOnly={isReadOnly}
+                      readOnly={isEvReadOnly}
                       rows={1}
                       style={{
                         flex: 1,
@@ -1259,7 +1467,7 @@ export default function SettingsChecklist() {
                         border: '1.5px solid #d1d9e6',
                         fontSize: '0.75rem',
                         outline: 'none',
-                        background: isReadOnly ? '#f8fafc' : '#fff',
+                        background: isEvReadOnly ? '#f8fafc' : '#fff',
                         color: '#0f172a',
                         fontFamily: 'inherit',
                         boxSizing: 'border-box',
@@ -1278,13 +1486,24 @@ export default function SettingsChecklist() {
 
           {/* Footer */}
           <div className="checklist-footer" style={{ flexShrink: 0, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
-            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-              {activeTab === TAB_OPERATIVA ? '\u2699\uFE0F Check List Operativa' : '\u2B50 Check List Evaluaci\u00f3n'}
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span>{activeTab === TAB_OPERATIVA ? '\u2699\uFE0F Check List Operativa' : '\u2B50 Check List Evaluaci\u00f3n'}</span>
+              {activeTab === TAB_EVALUACION && isEvLocked && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: '999px' }}>
+                  🔒 Bloqueada
+                </span>
+              )}
               <HistoryBadge history={activeHistory} />
             </div>
-            <div className="checklist-footer-buttons" style={{ display: 'flex', gap: '8px' }}>
+            <div className="checklist-footer-buttons" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button className="btn-exit" type="button" onClick={closeEvent}>Cerrar</button>
-              {!isReadOnly && (
+              {canUnlockEv && (
+                <button type="button" onClick={() => { setShowPinDialog(true); setPinInput(''); setPinError(''); }}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #6366f1', background: '#eef2ff', color: '#4f46e5', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer' }}>
+                  Desbloquear
+                </button>
+              )}
+              {!isReadOnly && !isEvLocked && (
                 <button type="button" onClick={handleSave(activeTab)} disabled={activeSaving}
                   style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: activeSaving ? 0.6 : 1 }}>
                   {activeSaving ? 'Guardando...' : `Guardar ${activeTab === TAB_OPERATIVA ? 'Operativa' : 'Evaluaci\u00f3n'}`}
@@ -1294,6 +1513,88 @@ export default function SettingsChecklist() {
           </div>
         </div>
       </div>
+
+      {/* Diálogo de PIN para desbloquear la Evaluación */}
+      {showPinDialog && (
+        <div
+          onClick={() => { setShowPinDialog(false); setPinError(''); setPinInput(''); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 4000,
+            background: 'rgba(15,23,42,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            style={{
+              background: '#ffffff', borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 12px 32px rgba(15,23,42,0.18)',
+              width: '100%', maxWidth: '360px',
+              padding: '22px 22px 18px 22px',
+            }}
+          >
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              🔒 Autorizar edición
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '16px' }}>
+              Ingresa el PIN de Admin para desbloquear esta evaluación y poder editarla.
+            </div>
+            {currentUser?.rol !== 'Admin' && (
+              <div style={{ fontSize: '0.75rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px 10px', marginBottom: '12px' }}>
+                Solo usuarios con rol <strong>Admin</strong> pueden desbloquear la evaluación.
+              </div>
+            )}
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              value={pinInput}
+              onChange={e => { setPinInput(e.target.value); setPinError(''); }}
+              onKeyDown={e => { if (e.key === 'Enter') handlePinSubmit(); }}
+              placeholder="PIN"
+              disabled={currentUser?.rol !== 'Admin'}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: '8px',
+                border: `1.5px solid ${pinError ? '#dc2626' : '#cbd5e1'}`,
+                fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
+                background: currentUser?.rol !== 'Admin' ? '#f8fafc' : '#ffffff',
+                color: '#0f172a', fontFamily: 'inherit',
+                letterSpacing: '0.2em', textAlign: 'center', fontWeight: 700,
+              }}
+            />
+            {pinError && (
+              <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '6px' }}>
+                {pinError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => { setShowPinDialog(false); setPinError(''); setPinInput(''); }}
+                style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#475569', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handlePinSubmit}
+                disabled={currentUser?.rol !== 'Admin' || pinInput.length === 0}
+                style={{
+                  padding: '8px 16px', borderRadius: '8px', border: 'none',
+                  background: (currentUser?.rol !== 'Admin' || pinInput.length === 0) ? '#cbd5e1' : '#4f46e5',
+                  color: '#ffffff', fontSize: '0.83rem', fontWeight: 700,
+                  cursor: (currentUser?.rol !== 'Admin' || pinInput.length === 0) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Autorizar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 

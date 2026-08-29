@@ -2364,7 +2364,118 @@
   }
 }
 
+/* ============================================================
+   Reporte: Eventos Asignados
+   ============================================================ */
 
+.reports-ea-heatmap-cell {
+  position: relative;
+  border-radius: 3px;
+  transition: outline 0.1s ease, transform 0.1s ease;
+}
+
+.reports-ea-heatmap-cell:hover {
+  transform: scale(1.12);
+  z-index: 5;
+}
+
+.reports-ea-funnel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reports-ea-funnel-bar {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 10px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  border-radius: 6px;
+  min-width: 40px;
+  transition: filter 0.2s ease;
+}
+
+.reports-ea-funnel-bar:hover {
+  filter: brightness(1.08);
+}
+
+.reports-ea-vendor-bar {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.reports-ea-vendor-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  min-width: 4px;
+  transition: opacity 0.2s ease, outline 0.15s ease;
+}
+
+.reports-ea-vendor-segment:hover {
+  filter: brightness(1.1);
+}
+
+.reports-ea-kpi-card {
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.reports-ea-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+}
+
+.reports-ea-timebar-col {
+  flex: 0 0 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.reports-ea-timebar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: filter 0.15s ease;
+}
+
+.reports-ea-timebar:hover {
+  filter: brightness(1.1);
+}
+
+@media (max-width: 720px) {
+  .reports-ea-kpi-card { min-width: 0; padding: 10px; }
+  .reports-ea-funnel-bar { font-size: 11px; }
+  .reports-ea-vendor-bar { height: 20px; }
+}
+
+@keyframes reports-ea-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.reports-ea-spin {
+  animation: reports-ea-spin 0.8s linear infinite;
+  transform-origin: center;
+}
 
 
 

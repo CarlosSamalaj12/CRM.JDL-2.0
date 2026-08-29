@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Dropdown multi-selección con búsqueda opcional.
@@ -6,6 +7,10 @@ import { useEffect, useRef, useState } from 'react';
  * - options:  Array<{ value, label, color?, sublabel? }>
  * - emptyLabel: texto cuando no hay selección (ej. "Todos los vendedores")
  * - searchable: muestra input de búsqueda si true
+ *
+ * El panel se monta vía portal en `document.body` con `position: fixed`
+ * para escapar el stacking context del padre (fix: dropdown quedaba detrás
+ * de los KPIs cuando se abría dentro de la toolbar del reporte).
  */
 export default function MultiSelect({
   selected,
@@ -19,18 +24,53 @@ export default function MultiSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const ref = useRef(null);
+  const [coords, setCoords] = useState(null);
+  const wrapperRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const rawSel = selected !== undefined ? selected : value;
   const selSet = rawSel instanceof Set ? rawSel : new Set(Array.isArray(rawSel) ? rawSel : []);
 
+  const updateCoords = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setCoords({
+      top: r.bottom + window.scrollY + 6,
+      left: r.left + window.scrollX,
+      width: r.width,
+    });
+  }, []);
+
+  // Recalcular posición cada vez que se abre
+  useLayoutEffect(() => {
+    if (open) updateCoords();
+  }, [open, updateCoords]);
+
+  // Mantener la posición sincronizada al hacer scroll o resize
   useEffect(() => {
+    if (!open) return undefined;
+    const handler = () => updateCoords();
+    window.addEventListener('scroll', handler, true);
+    window.addEventListener('resize', handler);
+    return () => {
+      window.removeEventListener('scroll', handler, true);
+      window.removeEventListener('resize', handler);
+    };
+  }, [open, updateCoords]);
+
+  // Cerrar al hacer click fuera (considera el panel del portal)
+  useEffect(() => {
+    if (!open) return undefined;
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      const t = e.target;
+      if (wrapperRef.current && wrapperRef.current.contains(t)) return;
+      if (t.closest && t.closest('[data-multiselect-portal]')) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open]);
 
   const toggle = (val) => {
     const next = new Set(selSet);
@@ -52,13 +92,142 @@ export default function MultiSelect({
   const count = selSet.size;
   const previewList = safeOptions.filter(o => selSet.has(o.value));
 
+  const handleTriggerClick = (e) => {
+    e.stopPropagation();
+    updateCoords();
+    setOpen(o => !o);
+  };
+
+  const dropdown = open && coords ? (
+    <div
+      data-multiselect-portal
+      style={{
+        position: 'absolute',
+        top: coords.top,
+        left: coords.left,
+        width: coords.width,
+        background: '#ffffff',
+        borderRadius: '16px',
+        boxShadow: '0 12px 36px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06)',
+        zIndex: 100000,
+        overflow: 'hidden',
+        padding: '6px',
+        border: '1px solid #e2e8f0',
+      }}
+    >
+      {searchable && (
+        <div style={{ padding: '4px 4px 8px', borderBottom: '1px solid #f1f5f9', marginBottom: '4px' }}>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar..."
+            autoFocus
+            style={{
+              width: '100%', padding: '6px 10px', borderRadius: '10px',
+              border: '1px solid #e2e8f0', fontSize: '12px', outline: 'none',
+              background: '#ffffff', color: '#0f172a', boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+          />
+        </div>
+      )}
+      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+        {filteredOptions.length === 0 ? (
+          <div style={{ padding: '14px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+            Sin resultados
+          </div>
+        ) : filteredOptions.map(o => {
+          const active = selSet.has(o.value);
+          const color = o.color || '#2563eb';
+          return (
+            <label key={o.value} style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '8px 10px', cursor: 'pointer',
+              borderRadius: '10px', marginBottom: '2px',
+              transition: 'background 0.1s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = active ? `${color}12` : '#f1f5f9'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
+                background: active ? color : '#f1f5f9',
+                border: active ? 'none' : '1.5px solid #cbd5e1',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.15s',
+              }}>
+                {active && (
+                  <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 6l3 3 5-5" />
+                  </svg>
+                )}
+              </div>
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={() => toggle(o.value)}
+                style={{ display: 'none' }}
+              />
+              {o.color && <span style={{ width: 8, height: 8, borderRadius: '50%', background: o.color, flexShrink: 0 }} />}
+              <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {o.label}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <div style={{ padding: '8px 4px 4px', borderTop: '1px solid #f1f5f9', marginTop: '4px', display: 'flex', gap: '6px' }}>
+        <button
+          type="button"
+          onClick={clearAll}
+          disabled={count === 0}
+          title="Deseleccionar todo"
+          style={{
+            flex: '0 0 auto', padding: '8px 10px', borderRadius: '14px',
+            background: count === 0 ? '#f1f5f9' : '#ffffff',
+            color: count === 0 ? '#94a3b8' : '#475569',
+            border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 700,
+            cursor: count === 0 ? 'default' : 'pointer',
+            transition: 'all 0.15s',
+            display: 'inline-flex', alignItems: 'center', gap: '5px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 4h10M6 4V2.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V4M5 4l1 9.5a1 1 0 0 0 1 .9h2a1 1 0 0 0 1-.9L11 4" />
+          </svg>
+          Limpiar
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          style={{
+            flex: 1, padding: '8px', borderRadius: '14px',
+            background: '#2563eb', color: '#ffffff',
+            border: 'none', fontSize: '12px', fontWeight: 700,
+            cursor: 'pointer', boxShadow: '0 2px 8px #2563eb40',
+            transition: 'background 0.15s',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
+        >
+          Listo
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   return (
-    <div ref={ref} style={{ minWidth: 240, position: 'relative', width }}>
+    <div ref={wrapperRef} style={{ minWidth: 240, position: 'relative', width }}>
       <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
         {placeholder}
       </span>
       <div
-        onClick={() => setOpen(o => !o)}
+        ref={triggerRef}
+        onClick={handleTriggerClick}
         style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 10px',
@@ -102,115 +271,7 @@ export default function MultiSelect({
           <path d="M2 4l4 4 4-4" />
         </svg>
       </div>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
-          background: '#ffffff', borderRadius: '16px',
-          boxShadow: '0 8px 32px #00000020', zIndex: 9999,
-          overflow: 'hidden', padding: '6px',
-        }}>
-          {searchable && (
-            <div style={{ padding: '4px 4px 8px', borderBottom: '1px solid #f1f5f9', marginBottom: '4px' }}>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar..."
-                style={{
-                  width: '100%', padding: '6px 10px', borderRadius: '10px',
-                  border: '1px solid #e2e8f0', fontSize: '12px', outline: 'none',
-                  background: '#ffffff', color: '#0f172a', boxSizing: 'border-box',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          )}
-          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-            {filteredOptions.length === 0 ? (
-              <div style={{ padding: '14px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
-                Sin resultados
-              </div>
-            ) : filteredOptions.map(o => {
-              const active = selSet.has(o.value);
-              const color = o.color || '#2563eb';
-              return (
-                <label key={o.value} style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '8px 10px', cursor: 'pointer',
-                  borderRadius: '10px', marginBottom: '2px',
-                  transition: 'background 0.1s',
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.background = active ? `${color}12` : '#f1f5f9'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <div style={{
-                    width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
-                    background: active ? color : '#f1f5f9',
-                    border: active ? 'none' : '1.5px solid #cbd5e1',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.15s',
-                  }}>
-                    {active && (
-                      <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 6l3 3 5-5" />
-                      </svg>
-                    )}
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={active}
-                    onChange={() => toggle(o.value)}
-                    style={{ display: 'none' }}
-                  />
-                  {o.color && <span style={{ width: 8, height: 8, borderRadius: '50%', background: o.color, flexShrink: 0 }} />}
-                  <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {o.label}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-          <div style={{ padding: '8px 4px 4px', borderTop: '1px solid #f1f5f9', marginTop: '4px', display: 'flex', gap: '6px' }}>
-            <button
-              type="button"
-              onClick={clearAll}
-              disabled={count === 0}
-              title="Deseleccionar todo"
-              style={{
-                flex: '0 0 auto', padding: '8px 10px', borderRadius: '14px',
-                background: count === 0 ? '#f1f5f9' : '#ffffff',
-                color: count === 0 ? '#94a3b8' : '#475569',
-                border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 700,
-                cursor: count === 0 ? 'default' : 'pointer',
-                transition: 'all 0.15s',
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 4h10M6 4V2.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V4M5 4l1 9.5a1 1 0 0 0 1 .9h2a1 1 0 0 0 1-.9L11 4" />
-              </svg>
-              Limpiar
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              style={{
-                flex: 1, padding: '8px', borderRadius: '14px',
-                background: '#2563eb', color: '#ffffff',
-                border: 'none', fontSize: '12px', fontWeight: 700,
-                cursor: 'pointer', boxShadow: '0 2px 8px #2563eb40',
-                transition: 'background 0.15s',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
-            >
-              Listo
-            </button>
-          </div>
-        </div>
-      )}
+      {typeof document !== 'undefined' && createPortal(dropdown, document.body)}
     </div>
   );
 }
