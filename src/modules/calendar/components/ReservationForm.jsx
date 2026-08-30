@@ -630,9 +630,15 @@ export default function ReservationForm() {
   const comparableEvents = useMemo(() => {
     if (!id) return events || [];
     const current = events?.find(ev => String(ev.id) === String(id));
-    const groupId = String(current?.groupId || '').trim();
-    return (events || []).filter(ev => String(ev.id) !== String(id) && (!groupId || String(ev.groupId || '').trim() !== groupId));
-  }, [events, id]);
+    const targetGroupId = String(current?.groupId || formData.groupId || id || '').trim();
+    return (events || []).filter(ev => {
+      const evId = String(ev.id || '').trim();
+      const evGroupId = String(ev.groupId || '').trim();
+      if (evId === String(id)) return false;
+      if (targetGroupId && (evGroupId === targetGroupId || evId === targetGroupId)) return false;
+      return true;
+    });
+  }, [events, id, formData.groupId]);
 
   useEffect(() => {
     if (salones?.length > 0 && !formData.salon && slots?.[0]?.salon === '') {

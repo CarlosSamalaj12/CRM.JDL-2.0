@@ -191,7 +191,10 @@ async getAll() {
         updatedEvents = events
           .filter(e => String(e.id) !== String(id) && String(e.groupId || '') !== groupId)
           .concat(expandedEvents);
-        savedEvent = expandedEvents[0];
+        savedEvent = {
+          ...expandedEvents[0],
+          _allExpanded: expandedEvents
+        };
       } else if (existingEvent?.groupId) {
         updatedEvents = events.map(e => {
           if (String(e.groupId || '') !== String(existingEvent.groupId)) return e;

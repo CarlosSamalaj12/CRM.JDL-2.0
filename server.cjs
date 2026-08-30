@@ -2928,7 +2928,10 @@ function isEventUnchanged(e, oldEvent) {
   if (String(e.id || '') !== String(oldEvent.id || '')) return false;
   if (String(e.name || '').trim() !== String(oldEvent.name || '').trim()) return false;
   if (String(e.salon || '').trim() !== String(oldEvent.salon || '').trim()) return false;
+  if (String(e.mainSalon || '').trim() !== String(oldEvent.mainSalon || '').trim()) return false;
   if (String(e.date || '').slice(0, 10) !== String(oldEvent.date || '').slice(0, 10)) return false;
+  if (String(e.eventDateStart || '').slice(0, 10) !== String(oldEvent.eventDateStart || '').slice(0, 10)) return false;
+  if (String(e.eventDateEnd || '').slice(0, 10) !== String(oldEvent.eventDateEnd || '').slice(0, 10)) return false;
   if (String(e.status || '').trim() !== String(oldEvent.status || '').trim()) return false;
   if (String(e.userId || '').trim() !== String(oldEvent.userId || '').trim()) return false;
   if (Number(e.pax || 0) !== Number(oldEvent.pax || 0)) return false;
