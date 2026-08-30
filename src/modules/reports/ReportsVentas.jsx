@@ -59,11 +59,10 @@ export default function ReportsVentas({ onClose }) {
       const quote = primaryEvent?.quote || ev?.quote || {};
       const assignedUser = users?.find(u => u.id === (primaryEvent?.userId || ev?.userId));
 
-      // Fecha I = fecha inicial del slot primario (viene de "FECHA INICIAL" del formulario)
-      // Fecha F = fecha final del slot primario (viene de "FECHA FINAL" del formulario)
-      // Fallback a la serie o al evento si no existen.
-      const slotStartDate = String(primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
-      const slotEndDate = String(primaryEvent?.eventDateEnd || primaryEvent?.endDate || ev?.eventDateEnd || ev?.endDate || slotStartDate).trim();
+      // Fecha I = fecha inicial de la serie de la reserva (viene de "FECHA INICIAL" del formulario)
+      // Fecha F = fecha final de la serie de la reserva (viene de "FECHA FINAL" del formulario)
+      const slotStartDate = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
+      const slotEndDate = String(financialMeta.endDate || primaryEvent?.eventDateEnd || primaryEvent?.endDate || ev?.eventDateEnd || ev?.endDate || slotStartDate).trim();
 
       rows.push({
         id: ev.id,

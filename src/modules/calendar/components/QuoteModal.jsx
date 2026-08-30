@@ -360,7 +360,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           }))
         };
         setQuote(restored);
-        toast.success('🔄 Borrador recuperado: el carrito se restauró desde tu progreso local. Haz clic en "Guardar cotización" para sincronizar con el servidor.');
+        toast.success('Borrador recuperado. Haz clic en "Guardar cotización" para sincronizar con el servidor.');
       }, 100);
       return () => clearTimeout(timer);
     }

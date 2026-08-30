@@ -121,11 +121,11 @@ export default function ReportsDashboard({ onClose }) {
       rows.push({
         userId: String(primaryEvent?.userId || ev?.userId || ''),
         status: primaryEvent?.status || ev?.status || '',
-        eventDate: primaryEvent?.date || ev?.date || '',
+        eventDate: financialMeta.startDate || primaryEvent?.date || ev?.date || '',
         salon: financialMeta.mainSalon || primaryEvent?.salon || ev?.salon || '',
         total,
         type: typeSrc.includes('corporativo') ? 'corp' : typeSrc.includes('social') ? 'social' : 'otro',
-        monthKey: (primaryEvent?.date || ev?.date || '').substring(0, 7)
+        monthKey: (financialMeta.startDate || primaryEvent?.date || ev?.date || '').substring(0, 7)
       });
     }
     return rows;

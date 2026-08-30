@@ -907,11 +907,16 @@ export default function ReservationForm() {
     const list = currentSlots || slots;
     const principal = list.find((s) => s.isPrincipal === true) || list[0];
     if (!principal) return;
+    const allStartDates = list.map(s => String(s.dateStart || '').trim()).filter(Boolean).sort();
+    const allEndDates = list.map(s => String(s.dateEnd || s.dateStart || '').trim()).filter(Boolean).sort();
+    const minStart = allStartDates[0];
+    const maxEnd = allEndDates[allEndDates.length - 1];
+
     setFormData((prev) => ({
       ...prev,
       salon: principal.salon || prev.salon,
-      date: principal.dateStart || prev.date,
-      endDate: principal.dateEnd || principal.dateStart || prev.endDate,
+      date: minStart || prev.date,
+      endDate: maxEnd || minStart || prev.endDate,
       startTime: principal.startTime || prev.startTime,
       endTime: principal.endTime || prev.endTime,
     }));
@@ -1712,28 +1717,27 @@ export default function ReservationForm() {
                           <button
                             type="button"
                             onClick={() => setPrincipalSlot(index)}
-                            disabled={isPrincipal}
-                            title={isPrincipal ? 'Salón principal' : 'Marcar como salón principal'}
+                            title={isPrincipal ? 'Salón principal asignado' : 'Hacer clic para marcar como salón principal'}
                             aria-label={isPrincipal ? 'Salón principal' : 'Marcar como salón principal'}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              background: 'transparent',
-                              border: 'none',
-                              borderRadius: '4px',
-                              width: '20px',
-                              height: '20px',
+                              background: isPrincipal ? '#fef08a' : 'transparent',
+                              border: isPrincipal ? '1.5px solid #facc15' : '1px solid #cbd5e1',
+                              borderRadius: '5px',
+                              width: '24px',
+                              height: '24px',
                               padding: 0,
                               margin: '0 auto',
-                              cursor: isPrincipal ? 'default' : 'pointer',
-                              opacity: isPrincipal ? 1 : 0.45,
-                              transition: 'opacity 0.15s, transform 0.15s'
+                              cursor: 'pointer',
+                              opacity: 1,
+                              transition: 'all 0.15s ease'
                             }}
-                            onMouseEnter={(e) => { if (!isPrincipal) e.currentTarget.style.opacity = '0.9'; }}
-                            onMouseLeave={(e) => { if (!isPrincipal) e.currentTarget.style.opacity = '0.45'; }}
+                            onMouseEnter={(e) => { if (!isPrincipal) { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#94a3b8'; } }}
+                            onMouseLeave={(e) => { if (!isPrincipal) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = '#cbd5e1'; } }}
                           >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill={isPrincipal ? '#eab308' : 'none'} stroke={isPrincipal ? '#eab308' : '#64748b'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill={isPrincipal ? '#eab308' : '#e2e8f0'} stroke={isPrincipal ? '#ca8a04' : '#94a3b8'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                             </svg>
                           </button>
