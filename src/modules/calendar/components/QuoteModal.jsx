@@ -360,8 +360,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           }))
         };
         setQuote(restored);
-        savedQuoteSnapshotRef.current = JSON.stringify(restored);
-        toast.success('🔄 Borrador recuperado: el carrito se restauró desde tu último progreso');
+        toast.success('🔄 Borrador recuperado: el carrito se restauró desde tu progreso local. Haz clic en "Guardar cotización" para sincronizar con el servidor.');
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -4999,11 +4998,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               className="qp-btn-primary" 
               type="button" 
               onClick={handleSaveQuote} 
-              disabled={!hasUnsavedQuoteChanges || saving}
+              disabled={saving}
               style={{ 
                 boxShadow: '0 8px 18px rgba(15,23,42,.18)',
-                opacity: (!hasUnsavedQuoteChanges || saving) ? 0.5 : 1,
-                cursor: (!hasUnsavedQuoteChanges || saving) ? 'not-allowed' : 'pointer'
+                opacity: saving ? 0.5 : 1,
+                cursor: saving ? 'not-allowed' : 'pointer'
               }}
             >
               {saving ? 'Guardando...' : 'Guardar cotización'}
