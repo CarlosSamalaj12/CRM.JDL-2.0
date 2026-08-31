@@ -175,14 +175,15 @@ export async function getInformeById(req, res, next) {
       }
     }
     
-    // If not found by id, try by id_ocupacion (get latest informe for that ocupacion)
+    // If not found by id, try by id_ocupacion (get latest informe for that ocupacion or its group)
     if (!result) {
+      const baseId = String(id).replace(/_(s|slot)\d+_\d{6,}$/, '');
       const [rows] = await pool.query(`
         SELECT id FROM informes_eventos
-        WHERE id_ocupacion = ?
-        ORDER BY fecha_creacion DESC
+        WHERE id_ocupacion = ? OR id_ocupacion = ? OR id_ocupacion LIKE CONCAT(?, '_%')
+        ORDER BY version DESC, fecha_creacion DESC
         LIMIT 1
-      `, [id]);
+      `, [id, baseId, baseId]);
       if (rows.length > 0) {
         result = await fetchInformeWithDias(rows[0].id);
       }

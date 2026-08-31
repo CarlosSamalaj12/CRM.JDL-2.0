@@ -106,10 +106,26 @@ export async function getEvents(req, res, next) {
           ) THEN 1
           ELSE 0
         END AS tiene_alertas,
-        EXISTS (
-          SELECT 1 FROM informes_eventos ie
-          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-        ) AS tiene_informe,
+        CASE
+          WHEN e.SalonPrincipal IS NOT NULL AND TRIM(e.SalonPrincipal) != '' THEN
+            CASE
+              WHEN TRIM(e.Salon) = TRIM(e.SalonPrincipal) AND EXISTS (
+                SELECT 1 FROM informes_eventos ie
+                WHERE ie.id_ocupacion = e.Idocupacion 
+                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+              ) THEN 1
+              ELSE 0
+            END
+          ELSE
+            CASE
+              WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) AND EXISTS (
+                SELECT 1 FROM informes_eventos ie
+                WHERE ie.id_ocupacion = e.Idocupacion 
+                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+              ) THEN 1
+              ELSE 0
+            END
+        END AS tiene_informe,
         m.alertas_text,
         CASE
           WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) THEN
@@ -218,10 +234,26 @@ export async function getEventById(req, res, next) {
         e.EncargadoEvento,
         e.NoDoc,
         COALESCE(m.tiene_alertas, 0) AS tiene_alertas,
-        EXISTS (
-          SELECT 1 FROM informes_eventos ie
-          WHERE ie.id_ocupacion = e.Idocupacion OR ie.id_ocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-        ) AS tiene_informe,
+        CASE
+          WHEN e.SalonPrincipal IS NOT NULL AND TRIM(e.SalonPrincipal) != '' THEN
+            CASE
+              WHEN TRIM(e.Salon) = TRIM(e.SalonPrincipal) AND EXISTS (
+                SELECT 1 FROM informes_eventos ie
+                WHERE ie.id_ocupacion = e.Idocupacion 
+                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+              ) THEN 1
+              ELSE 0
+            END
+          ELSE
+            CASE
+              WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) AND EXISTS (
+                SELECT 1 FROM informes_eventos ie
+                WHERE ie.id_ocupacion = e.Idocupacion 
+                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+              ) THEN 1
+              ELSE 0
+            END
+        END AS tiene_informe,
         m.alertas_text
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion

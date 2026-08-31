@@ -40,11 +40,10 @@ const getEventGroupId = (idOcupacion) =>
 
 // Obtener cantidades de comida por evento+fecha desde weeklyServices
 const getServiceCounts = (services, idOcupacion, fecha) => {
-  const targetGroup = getEventGroupId(idOcupacion);
   const dayServices = services.filter(s => {
     const rawDate = String(s.FechaServicio || '');
     const cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate.slice(0, 10);
-    return cleanDate === fecha && getEventGroupId(s.Idocupacion) === targetGroup;
+    return cleanDate === fecha && String(s.Idocupacion) === String(idOcupacion);
   });
   if (dayServices.length === 0) return null;
   const result = { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
@@ -257,41 +256,9 @@ export default function Kanban() {
 
     fetchEvents(selectedDate)
       .then((eventsData) => {
-        // groupId: para eventos multi-slot como "39901" + "39901_s1_20260801" compartimos el base "39901".
-        // Para IDs con prefijo genérico como "evt_aaa" y "evt_bbb" NO se debe agrupar (son eventos distintos).
-        // La regla: si el Id tiene el sufijo _sN_fecha, lo quitamos para obtener el groupId real.
-        const getEventGroupId = (idOcupacion) =>
-          String(idOcupacion || '').replace(/_s\d+_\d{6,}$/, '');
-
-        // Si un evento tiene múltiples salones el MISMO DÍA, se muestra únicamente
-        // UNA sola fila/tarjeta representada por su Salón Principal (designado con ⭐).
-        // Si el evento tiene salones en días distintos (multi-día), se muestra su respectivo salón por día.
-        const eventsByGroupDate = new Map();
-        eventsData.forEach(e => {
+        const mapped = (eventsData || []).map(e => {
           const fecha = String(e.FechaEvento || '').slice(0, 10);
-          const groupId = getEventGroupId(e.Idocupacion);
-          const key = `${groupId}_${fecha}`;
-          const isMain = (e.SalonPrincipal && String(e.Salon || '').trim() === String(e.SalonPrincipal || '').trim()) ||
-                         (e.Idocupacion === groupId) ||
-                         (!String(e.Idocupacion || '').includes('_s'));
-
-          if (!eventsByGroupDate.has(key)) {
-            eventsByGroupDate.set(key, { ...e, _isMain: isMain });
-          } else if (isMain) {
-            // Reemplazar slot secundario previo por el Salón Principal del grupo
-            const prev = eventsByGroupDate.get(key);
-            eventsByGroupDate.set(key, {
-              ...e,
-              _isMain: true,
-              // Conservar notas o alertas si el secundario las tenía
-              cant_notas: Math.max(Number(e.cant_notas) || 0, Number(prev?.cant_notas) || 0),
-              tiene_alertas: (e.tiene_alertas == 1 || prev?.tiene_alertas == 1) ? 1 : 0,
-            });
-          }
-        });
-
-        const groupedEvents = Array.from(eventsByGroupDate.values()).map(e => {
-          const fecha = String(e.FechaEvento || '').slice(0, 10);
+          const d = new Date(fecha + 'T12:00:00');
           return {
             ...e,
             displayDate: fecha,
@@ -300,15 +267,8 @@ export default function Kanban() {
             cant_almuerzos: Number(e.cant_almuerzos) || 0,
             cant_refacciones_pm: Number(e.cant_refacciones_pm) || 0,
             cant_cenas: Number(e.cant_cenas) || 0,
-          };
-        });
-
-        const mapped = groupedEvents.map(e => {
-          const d = new Date(e.displayDate + 'T12:00:00');
-          return {
-            ...e,
             dayIndex: d.getDay(),
-            dayLabel: `${dayNames[d.getDay()]} ${e.displayDate}`,
+            dayLabel: `${dayNames[d.getDay()]} ${fecha}`,
           };
         });
 
@@ -409,8 +369,87 @@ export default function Kanban() {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
     const realDayIndex = currentDay.getDay();
-    const dayEvents = events.filter((e) => e.dayIndex === realDayIndex);
-    return { isoDate, label, events: dayEvents, shortDate: formatDateShort(isoDate) };
+    const rawDayEvents = events.filter((e) => e.dayIndex === realDayIndex);
+
+    // Para la Tabla Semanal: Si un evento es COMPARTIDO (PaxCompartido === 1 o true),
+    // se consolida en una sola fila pero concatenando todos los salones ocupados separados por coma.
+    // Si NO es compartido (PaxCompartido === 0), cada salón sale por separado.
+    const consolidatedMap = new Map();
+    for (const ev of rawDayEvents) {
+      const isShared = (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
+      const groupId = getEventGroupId(ev.Idocupacion);
+
+      if (!isShared) {
+        // No compartido: cada salón es una fila independiente
+        consolidatedMap.set(ev.Idocupacion, { ...ev });
+      } else {
+        // Compartido: agrupar por reserva (groupId) para ese día
+        const key = `shared_${groupId}_${isoDate}`;
+        const isPrincipal = (ev.SalonPrincipal && String(ev.Salon || '').trim() === String(ev.SalonPrincipal || '').trim())
+          || (ev.Idocupacion === groupId)
+          || (!String(ev.Idocupacion || '').includes('_s'));
+
+        if (!consolidatedMap.has(key)) {
+          consolidatedMap.set(key, {
+            ...ev,
+            _isPrincipal: isPrincipal,
+            _slots: [{ salon: ev.Salon, horaI: ev.HoraI, horaF: ev.HoraF, isPrincipal, idOcupacion: ev.Idocupacion }],
+            cant_desayunos: Number(ev.cant_desayunos) || 0,
+            cant_refacciones_am: Number(ev.cant_refacciones_am) || 0,
+            cant_almuerzos: Number(ev.cant_almuerzos) || 0,
+            cant_refacciones_pm: Number(ev.cant_refacciones_pm) || 0,
+            cant_cenas: Number(ev.cant_cenas) || 0,
+          });
+        } else {
+          const prev = consolidatedMap.get(key);
+          prev._slots.push({ salon: ev.Salon, horaI: ev.HoraI, horaF: ev.HoraF, isPrincipal, idOcupacion: ev.Idocupacion });
+
+          // Ordenar slots cronológicamente por hora de inicio
+          prev._slots.sort((a, b) => String(a.horaI || '').localeCompare(String(b.horaI || '')));
+
+          // Concatenar todos los salones únicos separados por coma
+          const uniqueSalones = Array.from(new Set(prev._slots.map(s => String(s.salon || '').trim()).filter(Boolean)));
+          prev.Salon = uniqueSalones.join(', ');
+
+          // Ajustar horario que cubra el rango completo (desde el inicio más temprano hasta el fin más tardío)
+          const validHorasI = prev._slots.map(s => s.horaI).filter(Boolean).sort();
+          const validHorasF = prev._slots.map(s => s.horaF).filter(Boolean).sort();
+          if (validHorasI.length > 0) prev.HoraI = validHorasI[0];
+          if (validHorasF.length > 0) prev.HoraF = validHorasF[validHorasF.length - 1];
+
+          if (isPrincipal && !prev._isPrincipal) {
+            prev._isPrincipal = true;
+            prev.Idocupacion = ev.Idocupacion;
+            prev.SalonPrincipal = ev.SalonPrincipal;
+          }
+
+          // Sumar servicios de alimentación del día
+          prev.cant_desayunos = (Number(prev.cant_desayunos) || 0) + (Number(ev.cant_desayunos) || 0);
+          prev.cant_refacciones_am = (Number(prev.cant_refacciones_am) || 0) + (Number(ev.cant_refacciones_am) || 0);
+          prev.cant_almuerzos = (Number(prev.cant_almuerzos) || 0) + (Number(ev.cant_almuerzos) || 0);
+          prev.cant_refacciones_pm = (Number(prev.cant_refacciones_pm) || 0) + (Number(ev.cant_refacciones_pm) || 0);
+          prev.cant_cenas = (Number(prev.cant_cenas) || 0) + (Number(ev.cant_cenas) || 0);
+          prev.cant_notas = Math.max(Number(prev.cant_notas) || 0, Number(ev.cant_notas) || 0);
+          if (ev.tiene_alertas == 1) prev.tiene_alertas = 1;
+        }
+      }
+    }
+
+    const tableEvents = Array.from(consolidatedMap.values()).filter((e) => {
+      if (filterStatus && e.Estatuscotizacion !== Number(filterStatus)) return false;
+      if (filterTipo && e.TipoEvento !== filterTipo) return false;
+      if (filterSalon) {
+        if (e._slots?.length) {
+          if (!e._slots.some(s => s.salon === filterSalon)) return false;
+        } else if (e.Salon !== filterSalon) {
+          return false;
+        }
+      }
+      if (filterAlertas && !(e.tiene_alertas == 1 || e.tiene_alertas === true)) return false;
+      return true;
+    });
+
+    return { isoDate, label, events: tableEvents, shortDate: formatDateShort(isoDate) };
   }).filter((d) => d.events.length > 0);
   
   // En mobile vista tabla, filtrar por el día seleccionado en el selector de días
@@ -492,9 +531,20 @@ export default function Kanban() {
         tableRows += `<tr><td colspan="13" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
       } else {
         const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
+        const seenSharedPaxPrint = new Set();
         for (const ev of day.events) {
           const paxVal = Number(ev.Pax) || 0;
-          dayTotals.pax += paxVal;
+          const groupId = getEventGroupId(ev.Idocupacion);
+          const isShared = (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
+          if (isShared) {
+            const key = `${groupId}_${day.isoDate}`;
+            if (!seenSharedPaxPrint.has(key)) {
+              seenSharedPaxPrint.add(key);
+              dayTotals.pax += paxVal;
+            }
+          } else {
+            dayTotals.pax += paxVal;
+          }
           const svcP = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate) : null;
           const evDes = svcP ? svcP.desayunos : (Number(ev.cant_desayunos) || 0);
           const evRefAm = svcP ? svcP.refacciones_am : (Number(ev.cant_refacciones_am) || 0);
@@ -925,9 +975,20 @@ export default function Kanban() {
                     );
                   } else {
                     const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
+                    const seenSharedPaxTable = new Set();
                     day.events.forEach((ev, ei) => {
                       const paxVal = Number(ev.Pax) || 0;
-                      dayTotals.pax += paxVal;
+                      const groupId = getEventGroupId(ev.Idocupacion);
+                      const isShared = (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
+                      if (isShared) {
+                        const key = `${groupId}_${day.isoDate}`;
+                        if (!seenSharedPaxTable.has(key)) {
+                          seenSharedPaxTable.add(key);
+                          dayTotals.pax += paxVal;
+                        }
+                      } else {
+                        dayTotals.pax += paxVal;
+                      }
                       const svc = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate) : null;
                       const evDes = svc ? svc.desayunos : (Number(ev.cant_desayunos) || 0);
                       const evRefAm = svc ? svc.refacciones_am : (Number(ev.cant_refacciones_am) || 0);

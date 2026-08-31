@@ -767,6 +767,29 @@ async function ensureMainSalonStructure() {
     if (!colSet.has("salon_principal")) {
       await conn.query("ALTER TABLE eventos ADD COLUMN salon_principal VARCHAR(200) NULL AFTER nombre_salon");
     }
+
+    // Alinear informes_eventos con el slot correspondiente al salon_principal
+    try {
+      const principalSlots = await conn.query(`
+        SELECT id, id_grupo, nombre_salon, salon_principal
+        FROM eventos
+        WHERE salon_principal IS NOT NULL 
+          AND TRIM(salon_principal) != ''
+          AND TRIM(nombre_salon) = TRIM(salon_principal)
+      `);
+      for (const p of principalSlots) {
+        const baseId = String(p.id_grupo || p.id).replace(/_(s|slot)\d+_\d{6,}$/, '');
+        await conn.query(
+          `UPDATE informes_eventos
+           SET id_ocupacion = ?
+           WHERE (id_ocupacion = ? OR id_ocupacion LIKE CONCAT(?, '_%'))
+             AND id_ocupacion != ?`,
+          [p.id, baseId, baseId, p.id]
+        );
+      }
+    } catch (alignErr) {
+      console.warn('[Migration ensureMainSalonStructure align informes]', alignErr.message);
+    }
   } finally {
     if (conn) conn.release();
   }
@@ -3430,6 +3453,32 @@ function isEventUnchanged(e, oldEvent) {
           [JSON.stringify(Object.assign({}, q, { advances: undefined })), id]
         );
       }
+    }
+
+    // === SYNC: Reasignar informes_eventos al salón principal designado ===
+    try {
+      const groupsWithMain = new Map();
+      for (const e of events) {
+        const gid = str(e?.groupId || e?.id || '').trim();
+        const sPrincipal = str(e?.mainSalon || '').trim();
+        const sName = str(e?.salon || '').trim();
+        if (gid && sPrincipal && sName === sPrincipal) {
+          groupsWithMain.set(gid, str(e.id).trim());
+        }
+      }
+      for (const [gid, principalSlotId] of groupsWithMain) {
+        if (!principalSlotId) continue;
+        const baseId = gid.replace(/_(s|slot)\d+_\d{6,}$/, '');
+        await conn.query(
+          `UPDATE informes_eventos
+           SET id_ocupacion = ?
+           WHERE (id_ocupacion = ? OR id_ocupacion LIKE CONCAT(?, '_%'))
+             AND id_ocupacion != ?`,
+          [principalSlotId, baseId, baseId, principalSlotId]
+        );
+      }
+    } catch (infSyncErr) {
+      console.warn('[Sync informes_eventos main salon]', infSyncErr.message);
     }
 
     // === UPSERT: historial_evento (solo insertar registros nuevos incrementalmente para optimizar rendimiento) ===
