@@ -197,6 +197,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [managerDraft, setManagerDraft] = useState(emptyManagerDraft);
   const [editingManagerId, setEditingManagerId] = useState('');
   const [creatingCompany, setCreatingCompany] = useState(false);
+  const [mobileTab, setMobileTab] = useState('carrito');
   const [serviceDraft, setServiceDraft] = useState(emptyServiceDraft);
 
   const [showAdvancesModal, setShowAdvancesModal] = useState(false);
@@ -3548,44 +3549,113 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         .qp-switch-inline input[type="checkbox"]:checked::after {
           transform: translateX(20px) !important;
         }
+        .qp-mobile-close-btn { display: none !important; }
+        .qp-desktop-close-btn { display: flex !important; }
+        .qp-mobile-tabs { display: none !important; }
         
         @media (max-width: 768px) {
+          .qp-mobile-close-btn { display: flex !important; }
+          .qp-desktop-close-btn { display: none !important; }
+          
           .qp-main-grid {
-            grid-template-columns: 1fr !important;
-            gap: 10px !important;
+            display: block !important;
+          }
+          .qp-mobile-hidden {
+            display: none !important;
           }
           .qp-header {
-            align-items: flex-start !important;
+            align-items: stretch !important;
             padding: 10px 14px !important;
             flex-direction: column !important;
             gap: 10px !important;
           }
-          .qp-header > div:first-child > div:first-child {
-            font-size: 8px !important;
-          }
-          .qp-header img {
-            height: 20px !important;
-          }
-          .qp-header > div:first-child > div:nth-child(2) {
-            font-size: 16px !important;
-          }
-          .qp-header > div:first-child > div:nth-child(3) {
-            font-size: 10px !important;
-            white-space: normal !important;
-            line-height: 1.3 !important;
-          }
-          .qp-header > div:last-child {
+          .qp-header-top-row {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
             width: 100% !important;
-            align-items: flex-start !important;
             gap: 8px !important;
           }
-          .qp-header select {
+          .qp-header-info {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            min-width: 0 !important;
+            flex: 1 !important;
+          }
+          .qp-header-info img {
+            height: 24px !important;
+          }
+          .qp-header-info .qp-badge-crumb {
+            font-size: 8px !important;
+          }
+          .qp-header-info .qp-title {
+            font-size: 16px !important;
+          }
+          .qp-header-info .qp-subtitle {
+            font-size: 11px !important;
+            white-space: normal !important;
+            line-height: 1.2 !important;
+          }
+          .qp-header-controls {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            align-items: flex-end !important;
+            gap: 8px !important;
             width: 100% !important;
+          }
+          .qp-header-controls > div {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+          .qp-header-controls select,
+          .qp-header-controls button {
+            width: 100% !important;
+            min-height: 34px !important;
+          }
+          .qp-mobile-tabs {
+            display: flex !important;
+            background: #e2e8f0 !important;
+            padding: 3px !important;
+            border-radius: 10px !important;
+            margin-bottom: 12px !important;
+            gap: 4px !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 30 !important;
+          }
+          .qp-mobile-tab-btn {
+            flex: 1 !important;
+            padding: 8px 6px !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 4px !important;
+            transition: all 0.15s ease !important;
+            text-align: center !important;
+          }
+          .qp-mobile-tab-btn.active {
+            background: #2563eb !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 6px rgba(37,99,235,0.3) !important;
+          }
+          .qp-mobile-tab-btn:not(.active) {
+            background: transparent !important;
+            color: #475569 !important;
           }
           #qp-root .qp-sticky-left-panel {
             position: static !important;
             max-height: none !important;
             overflow-y: visible !important;
+            width: 100% !important;
+          }
+          .qp-right-table-panel {
+            width: 100% !important;
           }
           .qp-floating-footer {
             position: sticky !important;
@@ -3595,7 +3665,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             width: 100% !important;
             background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.98)) !important;
             border-top: 1px solid #cbd5e1 !important;
-            padding: 10px 12px !important;
+            padding: 8px 12px !important;
+            padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
             pointer-events: auto !important;
             margin: 0 !important;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.08) !important;
@@ -3610,16 +3681,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           .qp-floating-footer-inner button {
             width: 100% !important;
             justify-content: center !important;
-            min-height: 44px !important;
+            min-height: 40px !important;
             font-size: 12px !important;
             margin: 0 !important;
           }
           .qp-floating-footer-inner button:last-child {
             grid-column: span 2 !important;
-            min-height: 50px !important;
-            font-size: 15px !important;
+            min-height: 48px !important;
+            font-size: 14px !important;
             font-weight: 900 !important;
-            border-radius: 12px !important;
+            border-radius: 10px !important;
             background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
             box-shadow: 0 8px 24px rgba(37,99,235,0.35) !important;
             position: relative !important;
@@ -3643,7 +3714,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             pointer-events: none !important;
           }
           #qp-body {
-            padding-bottom: 80px !important;
+            padding: 10px 10px 90px 10px !important;
           }
 
           /* ─── Agregar servicio: dropdown como bottom sheet ─── */
@@ -3777,27 +3848,36 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 20,
+          gap: 16,
           zIndex: 1000
         }}>
-          {/* Info Evento (Izquierda) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexShrink: 1 }}>
-            <img src="/Oficial_JDL_acua.png" alt="Logo" style={{ height: 28, width: 'auto' }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>
-                EMS / Reservas / Cotización
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', lineHeight: 1.2 }}>
-                Cotizar evento
-              </div>
-              <div style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${event?.name || 'Nuevo Evento'} — ${quote.venue || '(sin salón)'} — ${quote.eventDate || '---'}`}>
-                {event?.name || 'Nuevo Evento'} — {quote.venue || '(sin salón)'} — {quote.eventDate || '---'}{quote.schedule ? ` — ${quote.schedule}` : ''}
+          {/* Info Evento (Fila Superior en Móvil / Izquierda en Desktop) */}
+          <div className="qp-header-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 0, flex: 1, gap: 12 }}>
+            <div className="qp-header-info" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+              <img src="/Oficial_JDL_acua.png" alt="Logo" style={{ height: 28, width: 'auto', flexShrink: 0 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="qp-badge-crumb" style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>
+                  EMS / Reservas / Cotización
+                </div>
+                <div className="qp-title" style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', lineHeight: 1.2 }}>
+                  Cotizar evento
+                </div>
+                <div className="qp-subtitle" style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${event?.name || 'Nuevo Evento'} — ${quote.venue || '(sin salón)'} — ${quote.eventDate || '---'}`}>
+                  {event?.name || 'Nuevo Evento'} — {quote.venue || '(sin salón)'} — {quote.eventDate || '---'}{quote.schedule ? ` — ${quote.schedule}` : ''}
+                </div>
               </div>
             </div>
+
+            {/* Botón cerrar exclusivo para móvil */}
+            <button className="qp-close-btn qp-mobile-close-btn" style={{ padding: 6, flexShrink: 0 }} onClick={handleRequestClose} aria-label="Cerrar">
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="18" height="18">
+                <path d="M4 4l10 10M14 4l-10 10" />
+              </svg>
+            </button>
           </div>
 
-          {/* Controles y Botón de Cerrar (Derecha) */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexShrink: 0 }}>
+          {/* Controles (Versión, Contrato, Moneda, Acciones) */}
+          <div className="qp-header-controls" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexShrink: 0 }}>
             {/* Versión */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap' }}>Versión</div>
@@ -3810,7 +3890,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   fontWeight: 600,
                   color: '#0f172a',
                   background: '#ffffff',
-                  width: 130, 
+                  width: 110, 
                   height: 32,
                   outline: 'none',
                   boxSizing: 'border-box'
@@ -3850,7 +3930,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         templateIds: checked ? [] : [tpl.id]
                       }))}
                       style={{
-                        padding: '0 12px', borderRadius: 6, cursor: 'pointer', userSelect: 'none', height: 32,
+                        padding: '0 10px', borderRadius: 6, cursor: 'pointer', userSelect: 'none', height: 32,
                         border: `1.5px solid ${checked ? '#16a34a' : '#cbd5e1'}`,
                         background: checked ? '#f0fdf4' : '#ffffff',
                         color: checked ? '#166534' : '#334155',
@@ -3880,7 +3960,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   fontWeight: 600,
                   color: '#0f172a',
                   background: '#ffffff',
-                  width: 140, 
+                  width: 120, 
                   height: 32,
                   outline: 'none',
                   boxSizing: 'border-box'
@@ -3939,8 +4019,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               </div>
             </div>
 
-            {/* Botón cerrar */}
-            <button className="qp-close-btn" style={{ marginLeft: 12, padding: 6, alignSelf: 'center' }} onClick={handleRequestClose} aria-label="Cerrar">
+            {/* Botón cerrar exclusivo para desktop */}
+            <button className="qp-close-btn qp-desktop-close-btn" style={{ marginLeft: 8, padding: 6, alignSelf: 'center' }} onClick={handleRequestClose} aria-label="Cerrar">
               <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="18" height="18">
                 <path d="M4 4l10 10M14 4l-10 10" />
               </svg>
@@ -4491,12 +4571,30 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         {/* ── BODY SCROLLABLE ── */}
         <div id="qp-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 32px' }}>
 
+          {/* Selector de pestañas móvil */}
+          <div className="qp-mobile-tabs">
+            <button
+              type="button"
+              className={`qp-mobile-tab-btn ${mobileTab === 'carrito' ? 'active' : ''}`}
+              onClick={() => setMobileTab('carrito')}
+            >
+              🛒 Carrito ({quote.items?.length || 0}) • {moneyGT(totals.total, quote.currency)}
+            </button>
+            <button
+              type="button"
+              className={`qp-mobile-tab-btn ${mobileTab === 'agregar' ? 'active' : ''}`}
+              onClick={() => setMobileTab('agregar')}
+            >
+              ➕ Catálogo / Plantillas
+            </button>
+          </div>
+
           {/* ── Grid principal: izquierda (agregar servicios) + derecha (tabla) ── */}
           <div className="qp-main-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 12, alignItems: 'start' }}>
 
             {/* ════ PANEL IZQUIERDO ════ */}
             <div
-              className="qp-sticky-left-panel"
+              className={`qp-sticky-left-panel ${mobileTab !== 'agregar' ? 'qp-mobile-hidden' : ''}`}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -4724,7 +4822,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             {/* fin panel izquierdo */}
 
             {/* ════ ZONA TABLA ════ */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className={`qp-right-table-panel ${mobileTab !== 'carrito' ? 'qp-mobile-hidden' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
               {/* Tabla de servicios */}
               <div style={card}>
