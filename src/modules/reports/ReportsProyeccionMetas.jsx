@@ -4,6 +4,7 @@ import { formatMoney } from '../../utils/numberToWords';
 import { getEquipos } from '../../services/api.js';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
+import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -174,34 +175,38 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const potentialEventsByUser = {};
     const seenReservations = new Set();
     for (const ev of events) {
-      const d = String(ev.date || '');
+      const reservationKey = ev.groupId || ev.id;
+      if (reservationKey) {
+        if (seenReservations.has(reservationKey)) continue;
+        seenReservations.add(reservationKey);
+      }
+
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
       if (!d || d < fromDate || d > toDate) continue;
-      const status = String(ev.status || '').trim();
-      const amount = Math.max(0, Number(ev.quote?.total || 0));
-      if (amount <= 0) continue;
-      const userId = String(ev.userId || '').trim();
+
+      const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
       if (!userId) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
       if (!usersWithGoalIds.has(userId)) continue;
 
+      const quote = primaryEvent?.quote || ev?.quote;
+      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+      if (amount <= 0) continue;
+
+      const status = String(primaryEvent?.status || ev?.status || '').trim();
+
       // Venta confirmada (respeta statusFilter)
       if (statusFilter.has(status)) {
-        const groupKey = ev.groupId || ev.id;
-        if (!seenReservations.has(groupKey)) {
-          seenReservations.add(groupKey);
-          salesByUser[userId] = (salesByUser[userId] || 0) + amount;
-          eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
-        }
+        salesByUser[userId] = (salesByUser[userId] || 0) + amount;
+        eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
       }
 
-      // Potencial a cerrar (4 estados pre-cierre, dedupe por groupId)
+      // Potencial a cerrar (4 estados pre-cierre)
       if (POTENTIAL_STATUSES.includes(status)) {
-        const pGroupKey = `p_${ev.groupId || ev.id}`;
-        if (!seenReservations.has(pGroupKey)) {
-          seenReservations.add(pGroupKey);
-          potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
-          potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
-        }
+        potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
+        potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
       }
     }
 
@@ -343,19 +348,29 @@ export default function ReportsProyeccionMetas({ onClose }) {
 
     // Usar el set compartido de usersWithGoalIds (definido fuera)
 
+    const seenForMonths = new Set();
     for (const ev of events) {
-      const d = String(ev.date || '');
+      const reservationKey = ev.groupId || ev.id;
+      if (reservationKey) {
+        if (seenForMonths.has(reservationKey)) continue;
+        seenForMonths.add(reservationKey);
+      }
+
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
       if (!d || d < fromDate || d > toDate) continue;
 
-      const userId = String(ev.userId || '').trim();
+      const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
       // Solo contar eventos de usuarios con meta habilitada
       if (!usersWithGoalIds.has(userId)) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
-      const amount = Math.max(0, Number(ev.quote?.total || 0));
+      const quote = primaryEvent?.quote || ev?.quote;
+      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
       if (amount <= 0) continue;
 
-      const status = String(ev.status || '').trim();
+      const status = String(primaryEvent?.status || ev?.status || '').trim();
       const monthKey = d.substring(0, 7);
       if (monthActual[monthKey] === undefined) continue;
 
@@ -464,32 +479,36 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const seenReservations = new Set();
     
     for (const ev of events) {
-      const d = String(ev.date || '');
+      const reservationKey = ev.groupId || ev.id;
+      if (reservationKey) {
+        if (seenReservations.has(reservationKey)) continue;
+        seenReservations.add(reservationKey);
+      }
+
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
       if (!d || d < fromDate || d > toDate) continue;
-      const status = String(ev.status || '').trim();
-      const amount = Math.max(0, Number(ev.quote?.total || 0));
-      if (amount <= 0) continue;
-      const userId = String(ev.userId || '').trim();
+
+      const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
       // Solo contar eventos de usuarios con meta habilitada
       if (!goalIds.has(userId)) continue;
       if (!userId) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
+      const quote = primaryEvent?.quote || ev?.quote;
+      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+      if (amount <= 0) continue;
+
+      const status = String(primaryEvent?.status || ev?.status || '').trim();
+
       if (statusFilter.has(status)) {
-        const groupKey = ev.groupId || ev.id;
-        if (!seenReservations.has(groupKey)) {
-          seenReservations.add(groupKey);
-          salesByUser[userId] = (salesByUser[userId] || 0) + amount;
-          eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
-        }
+        salesByUser[userId] = (salesByUser[userId] || 0) + amount;
+        eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
       }
       if (POTENTIAL_STATUSES.includes(status)) {
-        const pGroupKey = `p_${ev.groupId || ev.id}`;
-        if (!seenReservations.has(pGroupKey)) {
-          seenReservations.add(pGroupKey);
-          potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
-          potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
-        }
+        potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
+        potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
       }
     }
 
@@ -582,33 +601,35 @@ export default function ReportsProyeccionMetas({ onClose }) {
     // pero SÓLO para los miembros de ESTE equipo (no todos los goalIds).
     const seenForMonths = new Set();
     for (const ev of events) {
-      const d = String(ev.date || '');
+      const reservationKey = ev.groupId || ev.id;
+      if (reservationKey) {
+        if (seenForMonths.has(reservationKey)) continue;
+        seenForMonths.add(reservationKey);
+      }
+
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
       if (!d || d < fromDate || d > toDate) continue;
-      const userId = String(ev.userId || '').trim();
+
+      const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
       if (!teamUserIds.has(userId)) continue;
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
-      const amount = Math.max(0, Number(ev.quote?.total || 0));
+
+      const quote = primaryEvent?.quote || ev?.quote;
+      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
       if (amount <= 0) continue;
-      const status = String(ev.status || '').trim();
+
+      const status = String(primaryEvent?.status || ev?.status || '').trim();
       const monthKey = d.substring(0, 7);
       if (monthActual[monthKey] === undefined) continue;
       
       if (statusFilter.has(status)) {
-        const groupKey = ev.groupId || ev.id;
-        const mKey = `a_${groupKey}_${monthKey}`;
-        if (!seenForMonths.has(mKey)) {
-          seenForMonths.add(mKey);
-          monthActual[monthKey] += amount;
-          monthCounts.actual += 1;
-        }
+        monthActual[monthKey] += amount;
+        monthCounts.actual += 1;
       } else if (POTENTIAL_STATUSES.includes(status)) {
-        const pGroupKey = `p_${ev.groupId || ev.id}`;
-        const mKey = `p_${pGroupKey}_${monthKey}`;
-        if (!seenForMonths.has(mKey)) {
-          seenForMonths.add(mKey);
-          monthPotential[monthKey] += amount;
-          monthCounts.potential += 1;
-        }
+        monthPotential[monthKey] += amount;
+        monthCounts.potential += 1;
       }
     }
     const months = monthList.map(m => {

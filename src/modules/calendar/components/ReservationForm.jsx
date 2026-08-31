@@ -493,48 +493,26 @@ export default function ReservationForm() {
     return currentUser?.id || '';
   };
 
-  const [formData, setFormData] = useState(() => {
-    if (id) {
-      try {
-        const raw = sessionStorage.getItem('created_reserva_' + id);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.formData) return parsed.formData;
-        }
-      } catch {}
-    }
-    return {
-      name: '',
-      salon: '',
-      status: 'Reserva sin Cotizacion',
-      date: getDefaultDate(),
-      endDate: getDefaultEndDate(),
-      startTime: urlStart || '10:00',
-      endTime: urlEnd || '12:00',
-      pax: '',
-      paxCompartido: null,
-      notes: '',
-      userId: getCurrentUserId(),
-      quote: null,
-      clientName: '',
-      clientPhone: ''
-    };
-  });
+  const [formData, setFormData] = useState(() => ({
+    name: '',
+    salon: '',
+    status: 'Reserva sin Cotizacion',
+    date: getDefaultDate(),
+    endDate: getDefaultEndDate(),
+    startTime: urlStart || '10:00',
+    endTime: urlEnd || '12:00',
+    pax: '',
+    paxCompartido: null,
+    notes: '',
+    userId: getCurrentUserId(),
+    quote: null,
+    clientName: '',
+    clientPhone: ''
+  }));
 
-  const [slots, setSlots] = useState(() => {
-    if (id) {
-      try {
-        const raw = sessionStorage.getItem('created_reserva_' + id);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed?.slots) && parsed.slots.length > 0) return parsed.slots;
-        }
-      } catch {}
-    }
-    return [
-      { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion', isPrincipal: true }
-    ];
-  });
+  const [slots, setSlots] = useState(() => [
+    { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion', isPrincipal: true }
+  ]);
 
   const [saving, setSaving] = useState(false);
 
@@ -641,12 +619,12 @@ export default function ReservationForm() {
   }, [events, id, formData.groupId]);
 
   useEffect(() => {
-    if (salones?.length > 0 && !formData.salon && slots?.[0]?.salon === '') {
+    if (!id && salones?.length > 0 && !formData.salon && slots?.[0]?.salon === '') {
       const newSlots = slots.map((s, i) => i === 0 ? { ...s, salon: salones[0] } : s);
       setSlots(newSlots);
       setFormData(prev => ({ ...prev, salon: salones[0] }));
     }
-  }, [salones, formData.salon, slots]);
+  }, [id, salones, formData.salon, slots]);
 
   useEffect(() => {
     if (events && slots.length > 0) {
@@ -800,21 +778,6 @@ export default function ReservationForm() {
         return;
       }
     }
-
-    // Si aún no está en events, buscar en sessionStorage
-    try {
-      const raw = sessionStorage.getItem('created_reserva_' + id);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.formData) {
-          initializedIdRef.current = id;
-          setFormData(parsed.formData);
-          if (parsed.slots) setSlots(parsed.slots);
-          initialSnapshotRef.current = normalizeReservationSnapshot({ formData: parsed.formData, slots: parsed.slots });
-          return;
-        }
-      }
-    } catch {}
   }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate, pvLead]);
 
   const hasChanges = useMemo(() => {
@@ -1419,10 +1382,6 @@ export default function ReservationForm() {
             api.patch(`/api/posibles-ventas/${leadToLink}`, { eventoId: newId }).catch(() => {});
           }
         }
-      } catch {}
-
-      try {
-        sessionStorage.setItem('created_reserva_' + newId, JSON.stringify({ formData: nextFormData, slots: cleanedSlots }));
       } catch {}
 
     } catch (err) {
