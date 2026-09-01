@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
+import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -105,23 +106,33 @@ export default function ReportsComisiones({ onClose }) {
     const to = monthList[monthList.length - 1].key + '-' + String(monthList[monthList.length - 1].daysInMonth).padStart(2, '0');
 
     // Aggregate sales by userId (deduplicando por groupId igual que Reporte de Ventas)
+    // IMPORTANTE: dedup PRIMERO, fecha después — si no, una reserva multi-slot que
+    // arranca antes del rango (ej. Jul 30 + Aug 5) pero tiene slots dentro del
+    // rango quedaría doble-contada acá y excluida en Ventas, rompiendo los números.
     const salesByUser = {};
     const seenReservations = new Set();
     for (const ev of events) {
-      const d = String(ev.date || '');
-      if (!d || d < from || d > to) continue;
-      const status = String(ev.status || '').trim();
-      if (!ACTIVE_STATUSES.has(status)) continue;
-      const amount = Math.max(0, Number(ev.quote?.total || 0));
-      if (amount <= 0) continue;
-      const userId = String(ev.userId || '').trim();
-      if (!userId) continue;
-      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
-
-      // Deduplicar por groupId: eventos multi-salón solo cuentan 1 vez
       const groupKey = ev.groupId || ev.id;
+      if (!groupKey) continue;
       if (seenReservations.has(groupKey)) continue;
       seenReservations.add(groupKey);
+
+      // Mismo "primary event" que usa Reporte de Ventas → mismo userId y misma fecha
+      // de referencia (la más temprana de la serie, ordenada por date + startTime + salon).
+      const financialMeta = getEventSeriesFinancialMeta(ev, events);
+      const primaryEvent = financialMeta.primaryEvent || ev;
+      const eventDate = String(financialMeta.startDate || ev.date || '').trim();
+      if (!eventDate || eventDate < from || eventDate > to) continue;
+
+      const status = String(primaryEvent.status || ev.status || '').trim();
+      if (!ACTIVE_STATUSES.has(status)) continue;
+
+      const amount = Math.max(0, Number(primaryEvent.quote?.total || ev.quote?.total || 0));
+      if (amount <= 0) continue;
+
+      const userId = String(primaryEvent.userId || ev.userId || '').trim();
+      if (!userId) continue;
+      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
       salesByUser[userId] = (salesByUser[userId] || 0) + amount;
     }
