@@ -100,7 +100,9 @@ function computeEstado(lead, linkedEvent) {
 /** Construye la subconsulta que trae el evento ligado (con matching robusto por baseId). */
 const LINKED_EVENT_SELECT = `
   COALESCE(e_direct.estado, ev.Estatuscotizacion) AS linked_estatus,
-  COALESCE(e_direct.fecha_evento, ev.FechaEvento) AS linked_fecha
+  COALESCE(e_direct.fecha_evento, ev.FechaEvento) AS linked_fecha,
+  COALESCE(e_direct.id_usuario, u_legacy.id) AS linked_usuario_id,
+  COALESCE(u_direct.nombre, ev.Vendedor) AS atendido_por_nombre
 `;
 
 /** Para el listado principal: une con la tabla eventos y tbl_seguimientocotizaciones si existe. */
@@ -108,9 +110,13 @@ const LINKED_EVENT_JOIN = `
   LEFT JOIN eventos e_direct
     ON e_direct.id = pv.evento_id
     OR e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+  LEFT JOIN usuarios u_direct
+    ON u_direct.id = e_direct.id_usuario
   LEFT JOIN tbl_seguimientocotizaciones ev
     ON ev.Idocupacion = pv.evento_id
     OR ev.Idocupacion = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+  LEFT JOIN usuarios u_legacy
+    ON TRIM(u_legacy.nombre) = TRIM(ev.Vendedor)
 `;
 
 // Inserta una entrada en la bitácora de posibles ventas (no falla la operación principal si el log falla)
@@ -197,6 +203,14 @@ function buildLead(row) {
     ultimoSeguimientoEn: row.ultimo_seguimiento_en || null,
     primerSeguimientoEn: row.primer_seguimiento_en || null,
     eventoId: row.evento_id || null,
+    atendidoPorId: row.linked_usuario_id || null,
+    atendidoPorNombre: row.atendido_por_nombre || null,
+    tomadoPorOtro: Boolean(
+      row.evento_id &&
+      row.vendedor_id &&
+      row.linked_usuario_id &&
+      String(row.vendedor_id).trim() !== String(row.linked_usuario_id).trim()
+    ),
     creadoEn: row.creado_en,
     actualizadoEn: row.actualizado_en || null,
     // Fecha en que el lead recibió un vendedor por primera vez (o reasignación).

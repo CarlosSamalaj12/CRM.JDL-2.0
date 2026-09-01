@@ -297,17 +297,27 @@ function DeletedLeadCard({ lead, restoring, onRestore }) {
                 <EstadoPill estado={lead.estado} />
               )}
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '2px' }}>
               {lead.vendedorNombre ? (
-                <>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <Icon name="users" size={12} color="#94a3b8" strokeWidth={2.2} />
-                  {lead.vendedorNombre}
-                </>
+                  Asignado: {lead.vendedorNombre}
+                </span>
               ) : (
-                <>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#d97706' }}>
                   <Icon name="alertTriangle" size={12} color="#d97706" strokeWidth={2.3} />
                   Sin vendedor asignado
-                </>
+                </span>
+              )}
+              {lead.tomadoPorOtro && lead.atendidoPorNombre && (
+                <span style={{
+                  fontSize: '10.5px', color: '#b45309', fontWeight: 700,
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  background: '#fef3c7', padding: '1px 5px', borderRadius: '4px', border: '1px solid #fde68a', width: 'fit-content'
+                }}>
+                  <Icon name="alertTriangle" size={10} color="#b45309" strokeWidth={2.5} />
+                  Atendido por: {lead.atendidoPorNombre}
+                </span>
               )}
             </div>
           </div>
@@ -479,14 +489,29 @@ function LeadCard({ lead, userName, canEdit, canDelete, canSendMessage, onEdit, 
               )}
             </div>
             {lead.vendedorNombre ? (
-              <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="users" size={12} color="#64748b" strokeWidth={2.2} />
-                Vendedor: <strong>{lead.vendedorNombre}</strong>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
+                <div style={{ fontSize: '11px', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Icon name="users" size={12} color="#64748b" strokeWidth={2.2} />
+                  Asignado a: <strong>{lead.vendedorNombre}</strong>
+                </div>
+                {lead.tomadoPorOtro && lead.atendidoPorNombre && (
+                  <div style={{
+                    fontSize: '11px', color: '#b45309', fontWeight: 700,
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fde68a', width: 'fit-content'
+                  }}>
+                    <Icon name="alertTriangle" size={12} color="#b45309" strokeWidth={2.5} />
+                    Atendido por: <strong>{lead.atendidoPorNombre}</strong>
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ fontSize: '11px', color: '#d97706', marginTop: '2px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <Icon name="alertTriangle" size={12} color="#d97706" strokeWidth={2.3} />
                 Sin vendedor asignado
+                {lead.atendidoPorNombre && (
+                  <span style={{ color: '#0f766e', marginLeft: '4px' }}>· Atendido por: <strong>{lead.atendidoPorNombre}</strong></span>
+                )}
               </div>
             )}
           </div>
@@ -902,9 +927,17 @@ export default function PosiblesVentasModule() {
     let items = leads;
     if (vendedorFilter === 'mine') {
       const myId = String(currentUser?.id || '');
-      items = items.filter(l => String(l.vendedorId || '') === myId || String(l.creadoPorId || '') === myId);
+      items = items.filter(l =>
+        String(l.vendedorId || '') === myId ||
+        String(l.creadoPorId || '') === myId ||
+        String(l.atendidoPorId || '') === myId
+      );
     } else if (vendedorFilter !== 'all') {
-      items = items.filter(l => String(l.vendedorId || '') === String(vendedorFilter));
+      const vId = String(vendedorFilter);
+      items = items.filter(l =>
+        String(l.vendedorId || '') === vId ||
+        String(l.atendidoPorId || '') === vId
+      );
     }
     return items;
   }, [leads, vendedorFilter, currentUser?.id]);
@@ -920,6 +953,7 @@ export default function PosiblesVentasModule() {
         (l.nombreCliente || '').toLowerCase().includes(term) ||
         (l.telefono || '').toLowerCase().includes(term) ||
         (l.vendedorNombre || '').toLowerCase().includes(term) ||
+        (l.atendidoPorNombre || '').toLowerCase().includes(term) ||
         (l.salones || []).some(s => String(s).toLowerCase().includes(term))
       );
     }
@@ -1505,6 +1539,7 @@ export default function PosiblesVentasModule() {
                       (l.nombreCliente || '').toLowerCase().includes(term) ||
                       (l.telefono || '').toLowerCase().includes(term) ||
                       (l.vendedorNombre || '').toLowerCase().includes(term) ||
+                      (l.atendidoPorNombre || '').toLowerCase().includes(term) ||
                       (l.salones || []).some(s => String(s).toLowerCase().includes(term))
                     );
                   })

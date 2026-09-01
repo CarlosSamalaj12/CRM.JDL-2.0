@@ -645,7 +645,12 @@ export default function ReservationForm() {
     // Si es una reserva nueva (!id): solo inicializar UNA VEZ al montar el componente.
     // Nunca sobrescribir lo que el usuario está escribiendo cuando 'events' se recarga en background.
     if (!id) {
-      if (isInitializedRef.current) return;
+      // Si la URL pide convertir una posible venta pero aún no ha respondido la API, esperamos
+      if (urlPv && !pvLead) {
+        return;
+      }
+
+      if (isInitializedRef.current && !urlPv) return;
       isInitializedRef.current = true;
       let initialFData = {
         name: '',
@@ -685,7 +690,7 @@ export default function ReservationForm() {
         const notasTexto = [pvLead.notas || '', serviciosText].filter(Boolean).join('\n');
 
         initialFData = {
-          name: pvLead.nombreCliente || '',
+          name: pvLead.nombreCliente || pvLead.notas || '',
           salon: leadSalon,
           status: 'Reserva sin Cotizacion',
           date: leadDate,
@@ -695,7 +700,7 @@ export default function ReservationForm() {
           pax: pvLead.pax || '',
           paxCompartido: null,
           notes: notasTexto,
-          userId: getCurrentUserId(),
+          userId: pvLead.vendedorId || getCurrentUserId(),
           quote: null,
           clientName: pvLead.nombreCliente || '',
           clientPhone: pvLead.telefono || ''
@@ -1376,10 +1381,13 @@ export default function ReservationForm() {
           const prevEvent = events.find(ev => String(ev.id) === String(id));
           if (prevEvent) historyService.addDetailed(id, prevEvent, eventData).catch(() => {});
         } else if (newId) {
-          historyService.add(newId, 'Reserva creada').catch(() => {});
           const leadToLink = urlPv || pvLead?.id;
           if (leadToLink) {
+            const clienteInfo = pvLead?.nombreCliente ? ` (${pvLead.nombreCliente})` : '';
+            historyService.add(newId, `Reserva creada desde evento asignado #${leadToLink}${clienteInfo}`).catch(() => {});
             api.patch(`/api/posibles-ventas/${leadToLink}`, { eventoId: newId }).catch(() => {});
+          } else {
+            historyService.add(newId, 'Reserva creada directamente desde el calendario').catch(() => {});
           }
         }
       } catch {}
@@ -1649,8 +1657,12 @@ export default function ReservationForm() {
                 <div style={{ overflowX: 'auto', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
                   <div style={{ minWidth: '760px' }}>
                     {/* Encabezado de la tabla */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(26px, 0.25fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1' }}>
-                      <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.3px', textAlign: 'center' }}>PRINCIPAL</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1', alignItems: 'center' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Salón Principal">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="#eab308" stroke="#ca8a04" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
                       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
@@ -1669,7 +1681,7 @@ export default function ReservationForm() {
                           key={index}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: 'minmax(26px, 0.25fr) minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)',
+                            gridTemplateColumns: '28px minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)',
                             gap: '6px',
                             alignItems: 'center',
                             background: isPrincipal ? '#fefce8' : 'white',

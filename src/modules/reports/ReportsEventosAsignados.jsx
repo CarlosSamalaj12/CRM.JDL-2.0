@@ -232,15 +232,21 @@ export default function ReportsEventosAsignados({ onClose }) {
 
   // ── Persistir filtros en query params (deep link) ──────────────────────
   useEffect(() => {
-    const next = new URLSearchParams();
-    if (fromDate) next.set('from', fromDate);
-    if (toDate)   next.set('to', toDate);
-    if (vendorSel.size) next.set('vendor', [...vendorSel].join(','));
-    if (estadoSel.size) next.set('estado', [...estadoSel].join(','));
-    if (staleDays !== STALE_DAYS) next.set('stale', String(staleDays));
-    if (granularity !== 'week') next.set('gran', granularity);
-    setSearchParams(next, { replace: true });
-  }, [fromDate, toDate, vendorSel, estadoSel, staleDays, granularity, setSearchParams]);
+    try {
+      const next = new URLSearchParams();
+      if (fromDate) next.set('from', fromDate);
+      if (toDate)   next.set('to', toDate);
+      if (vendorSel.size) next.set('vendor', [...vendorSel].join(','));
+      if (estadoSel.size) next.set('estado', [...estadoSel].join(','));
+      if (staleDays !== STALE_DAYS) next.set('stale', String(staleDays));
+      if (granularity !== 'week') next.set('gran', granularity);
+      if (next.toString() !== searchParams.toString()) {
+        setSearchParams(next, { replace: true });
+      }
+    } catch {
+      // Ignorar bloqueos de extensiones de navegador que interceptan history.replaceState
+    }
+  }, [fromDate, toDate, vendorSel, estadoSel, staleDays, granularity, searchParams, setSearchParams]);
 
   // ── Opciones de filtros ───────────────────────────────────────────────
   const vendors = useMemo(() => {
@@ -911,7 +917,7 @@ export default function ReportsEventosAsignados({ onClose }) {
           const cells = [
             asignado ? formatDate(asignado) : '-',
             l.nombreCliente || '-',
-            l.vendedorNombre || 'Sin asignar',
+            l.tomadoPorOtro && l.atendidoPorNombre ? `${l.vendedorNombre || 'Sin asignar'} (Atendido: ${l.atendidoPorNombre})` : (l.vendedorNombre || 'Sin asignar'),
             (l.estado || '-').replace('_', ' '),
             bucket.label,
             l.pax ? String(l.pax) : '-',
@@ -1452,7 +1458,16 @@ export default function ReportsEventosAsignados({ onClose }) {
                       <td><strong>{l.nombreCliente || '—'}</strong></td>
                       <td>
                         <div style={{ fontSize: '11.5px', fontWeight: 600 }}>{l.vendedorNombre || <span style={{ color: '#d97706' }}>Sin asignar</span>}</div>
-                        <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>{l.creadoPorNombre ? `por ${l.creadoPorNombre}` : ''}</div>
+                        {l.tomadoPorOtro && l.atendidoPorNombre && (
+                          <div style={{
+                            fontSize: '10px', color: '#b45309', fontWeight: 700,
+                            marginTop: '2px', background: '#fef3c7', padding: '1px 5px',
+                            borderRadius: '4px', border: '1px solid #fde68a', width: 'fit-content'
+                          }}>
+                            Atendido por: {l.atendidoPorNombre}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '9.5px', color: '#94a3b8', marginTop: '1px' }}>{l.creadoPorNombre ? `por ${l.creadoPorNombre}` : ''}</div>
                       </td>
                       <td><EstadoPill estado={l.estado} /></td>
                       <td>
