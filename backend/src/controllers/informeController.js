@@ -24,26 +24,15 @@ async function fetchInformeWithDias(informeId) {
   const currentInf = rows[0];
   const baseId = String(currentInf.id_ocupacion).replace(/_(s|slot)\d+.*$/, '');
 
-  // 1. Días guardados directamente en este informe
+  // 1. Días guardados en este informe
   const [directDetails] = await pool.query(`
     SELECT d.*, m.nombre_menu, c.nombre AS categoria_nombre
     FROM informe_dias_detalle d
     LEFT JOIN cat_menus m ON d.menu_id = m.id
     LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id
     WHERE d.informe_id = ?
-    ORDER BY d.fecha_evento ASC
+    ORDER BY d.fecha_evento ASC, d.id ASC
   `, [currentInf.id]);
-
-  // 2. Días de la misma ocupación o serie de eventos (por si se guardaron en versiones/slots relacionados)
-  const [relatedDetails] = await pool.query(`
-    SELECT d.*, m.nombre_menu, c.nombre AS categoria_nombre
-    FROM informe_dias_detalle d
-    JOIN informes_eventos i ON d.informe_id = i.id
-    LEFT JOIN cat_menus m ON d.menu_id = m.id
-    LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id
-    WHERE (i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%'))
-    ORDER BY d.fecha_evento ASC, i.version DESC, d.id DESC
-  `, [currentInf.id_ocupacion, baseId, baseId]);
 
   const getIsoDateStr = (d) => {
     if (!d) return '';
@@ -58,22 +47,7 @@ async function fetchInformeWithDias(informeId) {
     return isNaN(t) ? 0 : t;
   };
 
-  // Consolidar todos los días únicos por fecha (manteniendo la versión más completa/reciente de cada día)
-  const detailsByDate = new Map();
-  relatedDetails.forEach(d => {
-    const fStr = getIsoDateStr(d.fecha_evento);
-    if (fStr && !detailsByDate.has(fStr)) {
-      detailsByDate.set(fStr, d);
-    }
-  });
-  directDetails.forEach(d => {
-    const fStr = getIsoDateStr(d.fecha_evento);
-    if (fStr) {
-      detailsByDate.set(fStr, d);
-    }
-  });
-
-  const detailsRows = Array.from(detailsByDate.values()).sort((a, b) => {
+  const detailsRows = directDetails.sort((a, b) => {
     return getTime(a.fecha_evento) - getTime(b.fecha_evento);
   });
 
