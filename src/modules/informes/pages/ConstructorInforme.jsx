@@ -382,7 +382,7 @@ export default function ConstructorInforme() {
   useEffect(() => { if (!loadedRef.current) { loadedRef.current = true; if (id_ocupacion) loadAll(); } }, []);
 
   useEffect(() => {
-    if (evento?.FechaEvento && dias.length > 0 && !dias[0].id) {
+    if (evento?.FechaEvento && dias.length === 1 && !dias[0].id && !crmDaysRef.current?.length) {
       const eventDate = String(evento.FechaEvento).slice(0, 10);
       if (eventDate && eventDate !== dias[0].fecha) {
         setDias(prev => {
@@ -472,6 +472,8 @@ export default function ConstructorInforme() {
     return <div className="pos-page"><p className="status-message status-error">Error: No se especificó una ocupación.</p></div>;
   }
 
+  const crmDaysRef = useRef([]);
+
   const loadAll = async () => {
     setLoading(true);
     try {
@@ -484,6 +486,78 @@ export default function ConstructorInforme() {
       setIngredientes(ingredientesData);
       setMenus(menusData);
       setCategorias(categoriasData);
+
+      // Cargar estado del CRM para obtener la serie de eventos completa y sus fechas/slots
+      let crmDays = [];
+      try {
+        const crmState = await loadCrmState();
+        const allEvts = Array.isArray(crmState?.events) ? crmState.events : [];
+        const normId = String(id_ocupacion).trim();
+        const baseId = normId.replace(/_(s|slot)\d+.*$/, '');
+
+        const targetEv = allEvts.find(e => String(e.id || e.Idocupacion) === normId || String(e.groupId) === normId || String(e.id || e.Idocupacion) === baseId || String(e.groupId) === baseId);
+        const gId = targetEv?.groupId || baseId || normId;
+        const series = allEvts.filter(e => {
+          const eId = String(e.id || e.Idocupacion || '');
+          const egId = String(e.groupId || '');
+          return egId === gId || eId === gId || (baseId && eId.startsWith(baseId));
+        });
+
+        const seenDates = new Set();
+        const addDayObj = (f, s, h) => {
+          const cf = String(f || '').trim().slice(0, 10);
+          if (cf && /^\d{4}-\d{2}-\d{2}$/.test(cf) && !seenDates.has(cf)) {
+            seenDates.add(cf);
+            crmDays.push({ fecha: cf, salon: s || '', horario: h || '' });
+          }
+        };
+
+        const sourceEvts = series.length > 0 ? series : (targetEv ? [targetEv] : []);
+        sourceEvts.forEach(ev => {
+          if (Array.isArray(ev.slots) && ev.slots.length > 0) {
+            ev.slots.forEach(sl => {
+              const start = sl.dateStart || sl.date;
+              const end = sl.dateEnd || sl.dateStart || sl.date;
+              const hor = (sl.timeStart && sl.timeEnd) ? `${sl.timeStart} A ${sl.timeEnd}` : (ev.timeStart && ev.timeEnd ? `${ev.timeStart} A ${ev.timeEnd}` : '');
+              if (start && end && start !== end) {
+                const sDate = new Date(start + 'T00:00:00');
+                const eDate = new Date(end + 'T00:00:00');
+                if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
+                  const curr = new Date(sDate);
+                  let cnt = 0;
+                  while (curr <= eDate && cnt < 50) {
+                    addDayObj(curr.toISOString().slice(0, 10), sl.salon || ev.salon || '', hor);
+                    curr.setDate(curr.getDate() + 1);
+                    cnt++;
+                  }
+                }
+              } else {
+                addDayObj(start || end, sl.salon || ev.salon || '', hor);
+              }
+            });
+          } else {
+            const hor = (ev.timeStart && ev.timeEnd) ? `${ev.timeStart} A ${ev.timeEnd}` : (ev.HoraI && ev.HoraF ? `${ev.HoraI} A ${ev.HoraF}` : '');
+            addDayObj(ev.date || ev.FechaEvento || ev.eventDateStart, ev.salon || ev.Salon || '', hor);
+          }
+        });
+
+        crmDays.sort((a, b) => a.fecha.localeCompare(b.fecha));
+      } catch (e) {
+        console.warn('No se pudo cargar slots del CRM:', e);
+      }
+
+      crmDaysRef.current = crmDays;
+
+      // Si no hay versión previa aún, inicializar inmediatamente con todos los días de la reserva
+      if (crmDays.length > 0) {
+        setDias(crmDays.map(cd => ({
+          ...crearDiaVacio(cd.fecha),
+          salon: cd.salon || '',
+          horario: cd.horario || ''
+        })));
+      } else if (eventoData?.FechaEvento) {
+        setDias([crearDiaVacio(String(eventoData.FechaEvento).slice(0, 10))]);
+      }
 
       // Mostrar UI inmediatamente con datos esenciales
       setLoading(false);
@@ -523,7 +597,8 @@ export default function ConstructorInforme() {
               setInformeId(data.id);
               setVersionActiva(data.version || 1);
               if (data.dias && data.dias.length > 0) {
-                setDias(data.dias.map(d => {
+                const loadedDates = new Set(data.dias.map(d => String(d.fecha_evento || '').slice(0, 10)));
+                const mappedDias = data.dias.map(d => {
                   let mont = [], alertas = [], alertaCustom = '', tiempoComida = null, salon = '', horario = '';
                   let parsed = null;
                   try {
@@ -565,7 +640,21 @@ export default function ConstructorInforme() {
                     tiempoComida,
                     salon, horario,
                   };
-                }));
+                });
+
+                // Si la reserva en el calendario tiene días que no estaban en este informe guardado (ej. se guardó solo día 1), incluir los días faltantes automáticamente
+                crmDays.forEach(cd => {
+                  if (!loadedDates.has(cd.fecha)) {
+                    mappedDias.push({
+                      ...crearDiaVacio(cd.fecha),
+                      salon: cd.salon || '',
+                      horario: cd.horario || ''
+                    });
+                  }
+                });
+
+                mappedDias.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+                setDias(mappedDias);
               }
             } catch (err) {
               if (err.status === 404 || err.message?.includes('no encontrado')) {
@@ -914,8 +1003,18 @@ export default function ConstructorInforme() {
 
   // ─── Días ───
   const addDia = () => {
-    const ultimaFecha = dias[dias.length - 1]?.fecha;
-    setDias([...dias, crearDiaVacio(sumarDias(ultimaFecha, 1))]);
+    const currentDates = new Set(dias.map(d => String(d.fecha).slice(0, 10)));
+    const nextCrmDay = (crmDaysRef.current || []).find(cd => !currentDates.has(cd.fecha));
+    if (nextCrmDay) {
+      setDias([...dias, {
+        ...crearDiaVacio(nextCrmDay.fecha),
+        salon: nextCrmDay.salon || '',
+        horario: nextCrmDay.horario || ''
+      }]);
+    } else {
+      const ultimaFecha = dias[dias.length - 1]?.fecha;
+      setDias([...dias, crearDiaVacio(sumarDias(ultimaFecha, 1))]);
+    }
     setActiveDay(dias.length);
   };
   const removeDia = (i) => {

@@ -95,9 +95,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const event = useMemo(() => ({
-    ...(eventData || {}),
     ...(eventProp || {}),
-    slots: eventProp?.slots || slots || eventData?.slots || []
+    ...(eventData || {}),
+    slots: (slots && slots.length > 0) ? slots : (eventData?.slots || eventProp?.slots || [])
   }), [eventProp, eventData, slots]);
   const localSwal = (...args) => {
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
@@ -433,30 +433,33 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       }
     };
 
-    // 1. Add range from quote.eventDate & quote.endDate
-    if (quote.eventDate) {
-      addRange(quote.eventDate, quote.endDate || quote.eventDate);
-    }
-
-    // 2. Add range from event.date & event.endDate
-    if (event?.date) {
-      addRange(event.date, event.endDate || event.date);
-    }
-
-    // 3. Add ranges from event.slots
-    if (Array.isArray(event?.slots)) {
-      event.slots.forEach(slot => {
-        if (slot.dateStart) {
-          addRange(slot.dateStart, slot.dateEnd || slot.dateStart);
-        }
+    // 1. Priorizar slots actuales de la reserva
+    const currentSlots = (slots && slots.length > 0) ? slots : (eventData?.slots || eventProp?.slots || event?.slots || []);
+    if (Array.isArray(currentSlots) && currentSlots.length > 0) {
+      currentSlots.forEach(slot => {
+        const start = slot.dateStart || slot.date;
+        const end = slot.dateEnd || slot.dateStart || slot.date;
+        if (start) addRange(start, end);
       });
+    }
+
+    // 2. Agregar rango de fechas de eventData / eventProp / event
+    const mainDate = eventData?.date || eventProp?.date || event?.date;
+    const mainEndDate = eventData?.endDate || eventProp?.endDate || event?.endDate || mainDate;
+    if (mainDate) {
+      addRange(mainDate, mainEndDate);
+    }
+
+    // 3. Fallback a quote.eventDate SOLO si no hay ninguna fecha de reserva
+    if (datesSet.size === 0 && quote.eventDate) {
+      addRange(quote.eventDate, quote.endDate || quote.eventDate);
     }
 
     // Convert Set to sorted Array
     const sortedDates = Array.from(datesSet).sort((a, b) => a.localeCompare(b));
 
-    return sortedDates.length ? sortedDates : [event?.date || new Date().toISOString().split('T')[0]];
-  }, [quote.eventDate, quote.endDate, event?.date, event?.endDate, event?.slots]);
+    return sortedDates.length ? sortedDates : [mainDate || quote.eventDate || new Date().toISOString().split('T')[0]];
+  }, [eventData?.date, eventData?.endDate, eventData?.slots, eventProp?.date, eventProp?.endDate, eventProp?.slots, event?.date, event?.endDate, event?.slots, slots, quote.eventDate, quote.endDate]);
 
 
   useEffect(() => {
@@ -464,65 +467,17 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       setSelectedServiceDate(availableServiceDates[0]);
   }, [availableServiceDates, selectedServiceDate]);
 
-  // Detecta ítems del carrito cuya fecha quedó FUERA del rango de fechas
-  // visibles (porque se movió/quitó una fecha del evento o de la reserva).
-  // Siguen sumando en el total pero ya no se muestran, así que se pregunta
-  // al usuario si quiere eliminarlos para que carrito y total coincidan.
-  const orphanPromptedRef = useRef('');
-  useEffect(() => {
-    if (!quote.templateIds?.length) return;
-    if (!Array.isArray(quote.items) || quote.items.length === 0) return;
-    if (availableServiceDates.length === 0) return;
-    const visible = new Set(availableServiceDates);
-    const norm = (s) => String(s || '').slice(0, 10);
-    const orphans = quote.items.filter(it => {
-      const sd = norm(it?.serviceDate || it?.date || it?.eventDate);
-      return sd.length === 10 && !visible.has(sd);
+  // Todas las fechas a mostrar en el carrito: las fechas válidas del evento +
+  // cualquier fecha que tengan los ítems agregados (para que NUNCA queden ocultos).
+  const allCartDates = useMemo(() => {
+    const datesSet = new Set(availableServiceDates);
+    const norm = (s) => String(s || '').trim().slice(0, 10);
+    (quote.items || []).forEach(it => {
+      const d = norm(it?.serviceDate || it?.date || it?.eventDate);
+      if (d && d.length === 10) datesSet.add(d);
     });
-    if (orphans.length === 0) {
-      if (orphanPromptedRef.current) orphanPromptedRef.current = '';
-      return;
-    }
-    const rangeSig = `${availableServiceDates[0]}|${availableServiceDates[availableServiceDates.length - 1]}`;
-    const signature = `${rangeSig}::${orphans.map(o => o.rowId || o.id).sort().join(',')}`;
-    if (orphanPromptedRef.current === signature) return;
-    orphanPromptedRef.current = signature;
-    const rangeLabel = availableServiceDates.length > 1
-      ? `${availableServiceDates[0]} a ${availableServiceDates[availableServiceDates.length - 1]}`
-      : `${availableServiceDates[0]}`;
-    const affectedTotal = orphans.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
-    const listHtml = orphans.map(it => (
-      `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12px;align-items:center;border-bottom:1px solid #f1f5f9;">` +
-      `<span style="color:#334155;flex:1;">${Number(it.qty || 0)} x ${String(it.name || 'Servicio').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</span>` +
-      `<span style="color:#ef4444;font-weight:700;white-space:nowrap;">${String(it.serviceDate || it.date || it.eventDate || '').slice(0, 10)}</span>` +
-      `</div>`
-    )).join('');
-    localSwal({
-      icon: 'warning',
-      title: 'Servicios fuera de las fechas del evento',
-      allowOutsideClick: false,
-      html:
-        `Al cambiar/quitar una fecha, <strong>${orphans.length} servicio(s)</strong> quedó fuera del rango visible (<strong>${rangeLabel}</strong>).<br/>` +
-        `Siguen sumando en el total pero ya no se muestran en el carrito.<br/><br/>` +
-        `<strong>Total afectado:</strong> ${moneyGT(affectedTotal, quote.currency)}<br/><br/>` +
-        listHtml +
-        `<br/><strong>¿Eliminarlos?</strong>`,
-      showDenyButton: true,
-      confirmButtonText: 'Conservar',
-      denyButtonText: `Eliminar (${orphans.length})`,
-      confirmButtonColor: '#64748b',
-      denyButtonColor: '#ef4444',
-      focusDeny: true
-    }).then(result => {
-      if (result.isDenied) {
-        const ids = new Set(orphans.map(o => o.rowId || o.id));
-        setQuote(prev => ({ ...prev, items: prev.items.filter(it => !ids.has(it.rowId || it.id)) }));
-        toast.success(`Se eliminaron ${orphans.length} servicio(s) fuera de las fechas del evento`);
-      } else {
-        orphanPromptedRef.current = '';
-      }
-    });
-  }, [quote.templateIds, quote.items, availableServiceDates, quote.currency]);
+    return Array.from(datesSet).sort((a, b) => a.localeCompare(b));
+  }, [availableServiceDates, quote.items]);
 
   const filteredServices = useMemo(() => {
     const term = serviceSearch.trim().toLowerCase();
@@ -889,7 +844,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   };
 
   const handleSelectAllDayToggle = (date) => {
-    const dayItems = quote.items.filter(i => i.serviceDate === date);
+    const norm = (s) => String(s || '').trim().slice(0, 10);
+    const dayItems = quote.items.filter(i => norm(i.serviceDate || i.date || i.eventDate) === date);
     if (dayItems.length === 0) return;
     const allDaySelected = dayItems.every(i => selectedItemIds.has(i.rowId));
     setSelectedItemIds(prev => {
@@ -4876,31 +4832,81 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       <div style={{ fontSize: 11, color: '#cbd5e1' }}>Busca un servicio en el panel izquierdo</div>
                     </div>
                   ) : (
-                    availableServiceDates.map(date => {
-                      const dayItems = quote.items.filter(item => item.serviceDate === date);
+                    allCartDates.map(date => {
+                      const norm = (s) => String(s || '').trim().slice(0, 10);
+                      const dayItems = quote.items.filter(item => norm(item.serviceDate || item.date || item.eventDate) === date);
                       const isAllDaySelected = dayItems.length > 0 && dayItems.every(i => selectedItemIds.has(i.rowId));
                       const daySubtotal = dayItems.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
+                      const isOutOfEvent = !availableServiceDates.includes(date);
 
                       return (
-                        <div key={date} style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }}>
+                        <div key={date} style={{
+                          border: isOutOfEvent ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          background: isOutOfEvent ? '#fffdfa' : '#ffffff',
+                          boxShadow: isOutOfEvent ? '0 2px 8px rgba(245, 158, 11, 0.12)' : 'none'
+                        }}>
                           <div style={{ 
-                            background: '#f8fafc', 
+                            background: isOutOfEvent ? '#fffbeb' : '#f8fafc', 
                             padding: '10px 14px', 
-                            borderBottom: '1px solid #e2e8f0', 
+                            borderBottom: isOutOfEvent ? '1.5px solid #fef08a' : '1px solid #e2e8f0', 
                             display: 'flex', 
                             justifyContent: 'space-between', 
                             alignItems: 'center',
                             flexWrap: 'wrap',
                             gap: 8
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <span style={{ fontSize: 13, fontWeight: 900, color: '#0f172a' }}>📅 {date}</span>
-                              <span style={{ background: '#e2e8f0', color: '#334155', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 900, color: isOutOfEvent ? '#b45309' : '#0f172a' }}>📅 {date}</span>
+                              {isOutOfEvent && (
+                                <span style={{
+                                  background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
+                                  fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
+                                  display: 'inline-flex', alignItems: 'center', gap: 4
+                                }}>
+                                  ⚠️ Fecha fuera del evento actual
+                                </span>
+                              )}
+                              <span style={{ background: isOutOfEvent ? '#fde68a' : '#e2e8f0', color: isOutOfEvent ? '#92400e' : '#334155', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
                                 {dayItems.length} {dayItems.length === 1 ? 'servicio' : 'servicios'}
                               </span>
                             </div>
-                            <div style={{ fontSize: 12, color: '#0f172a', fontWeight: 800 }}>
-                              Subtotal: <span style={{ color: '#0f172a' }}>{moneyGT(daySubtotal, quote.currency)}</span>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                              {isOutOfEvent && dayItems.length > 0 && availableServiceDates.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 11, color: '#92400e', fontWeight: 700 }}>Mover día a:</span>
+                                  <select
+                                    style={{
+                                      fontSize: 11, fontWeight: 800, padding: '4px 8px', borderRadius: 6,
+                                      border: '1.5px solid #d97706', background: '#ffffff', color: '#0f172a',
+                                      cursor: 'pointer', outline: 'none'
+                                    }}
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      const targetDate = e.target.value;
+                                      if (!targetDate) return;
+                                      setQuote(prev => ({
+                                        ...prev,
+                                        items: prev.items.map(it => {
+                                          const itDate = norm(it.serviceDate || it.date || it.eventDate);
+                                          return itDate === date ? { ...it, serviceDate: targetDate } : it;
+                                        })
+                                      }));
+                                      toast.success(`Servicios movidos a ${targetDate}`);
+                                    }}
+                                  >
+                                    <option value="" disabled>Seleccionar fecha...</option>
+                                    {availableServiceDates.map(d => (
+                                      <option key={d} value={d}>📅 {d}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                              <div style={{ fontSize: 12, color: isOutOfEvent ? '#b45309' : '#0f172a', fontWeight: 800 }}>
+                                Subtotal: <span style={{ color: isOutOfEvent ? '#b45309' : '#0f172a' }}>{moneyGT(daySubtotal, quote.currency)}</span>
+                              </div>
                             </div>
                           </div>
                           
@@ -4930,13 +4936,29 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                 <tbody>
                                   {dayItems.map(item => {
                                     const lineTotal = Number(item.qty || 0) * Number(item.price || 0);
+                                    const currentItemDate = norm(item.serviceDate || item.date || item.eventDate || date);
+                                    const itemOutOfEvent = !availableServiceDates.includes(currentItemDate);
                                     return (
-                                      <tr key={item.rowId} className={selectedItemIds.has(item.rowId) ? 'sel' : ''}>
+                                      <tr key={item.rowId} className={selectedItemIds.has(item.rowId) ? 'sel' : ''} style={{ background: itemOutOfEvent ? '#fffbeb20' : undefined }}>
                                         <td style={{ textAlign: 'center' }}>
                                           <input type="checkbox" className="qp-checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
                                         </td>
                                         <td>
-                                          <select value={item.serviceDate} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, serviceDate: e.target.value } : i) }))}>
+                                          <select
+                                            value={currentItemDate}
+                                            onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, serviceDate: e.target.value } : i) }))}
+                                            style={{
+                                              border: itemOutOfEvent ? '1.5px solid #f59e0b' : '1px solid #cbd5e1',
+                                              background: itemOutOfEvent ? '#fef3c7' : '#ffffff',
+                                              color: itemOutOfEvent ? '#92400e' : '#0f172a',
+                                              fontWeight: itemOutOfEvent ? 700 : 500,
+                                              padding: '4px 6px',
+                                              borderRadius: 6
+                                            }}
+                                          >
+                                            {itemOutOfEvent && (
+                                              <option value={currentItemDate}>⚠️ {currentItemDate} (Fuera del evento)</option>
+                                            )}
                                             {availableServiceDates.map(d => <option key={d} value={d}>{d}</option>)}
                                           </select>
                                         </td>

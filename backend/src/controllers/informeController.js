@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 
 const OCCUPACION_JOIN = `
-  i.id_ocupacion = e.Idocupacion
+  (e.Idocupacion = SUBSTRING_INDEX(i.id_ocupacion, '_s', 1) OR e.Idocupacion = i.id_ocupacion)
 `;
 
 async function fetchInformeWithDias(informeId) {
@@ -21,14 +21,61 @@ async function fetchInformeWithDias(informeId) {
 
   if (rows.length === 0) return null;
 
-  const [detailsRows] = await pool.query(`
+  const currentInf = rows[0];
+  const baseId = String(currentInf.id_ocupacion).replace(/_(s|slot)\d+.*$/, '');
+
+  // 1. Días guardados directamente en este informe
+  const [directDetails] = await pool.query(`
     SELECT d.*, m.nombre_menu, c.nombre AS categoria_nombre
     FROM informe_dias_detalle d
     LEFT JOIN cat_menus m ON d.menu_id = m.id
     LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id
     WHERE d.informe_id = ?
     ORDER BY d.fecha_evento ASC
-  `, [rows[0].id]);
+  `, [currentInf.id]);
+
+  // 2. Días de la misma ocupación o serie de eventos (por si se guardaron en versiones/slots relacionados)
+  const [relatedDetails] = await pool.query(`
+    SELECT d.*, m.nombre_menu, c.nombre AS categoria_nombre
+    FROM informe_dias_detalle d
+    JOIN informes_eventos i ON d.informe_id = i.id
+    LEFT JOIN cat_menus m ON d.menu_id = m.id
+    LEFT JOIN cat_categorias_alimento c ON m.categoria_id = c.id
+    WHERE (i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%'))
+    ORDER BY d.fecha_evento ASC, i.version DESC, d.id DESC
+  `, [currentInf.id_ocupacion, baseId, baseId]);
+
+  const getIsoDateStr = (d) => {
+    if (!d) return '';
+    if (d instanceof Date) return d.toISOString().slice(0, 10);
+    return String(d).slice(0, 10);
+  };
+
+  const getTime = (d) => {
+    const s = getIsoDateStr(d);
+    if (!s) return 0;
+    const t = new Date(s + 'T12:00:00').getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  // Consolidar todos los días únicos por fecha (manteniendo la versión más completa/reciente de cada día)
+  const detailsByDate = new Map();
+  relatedDetails.forEach(d => {
+    const fStr = getIsoDateStr(d.fecha_evento);
+    if (fStr && !detailsByDate.has(fStr)) {
+      detailsByDate.set(fStr, d);
+    }
+  });
+  directDetails.forEach(d => {
+    const fStr = getIsoDateStr(d.fecha_evento);
+    if (fStr) {
+      detailsByDate.set(fStr, d);
+    }
+  });
+
+  const detailsRows = Array.from(detailsByDate.values()).sort((a, b) => {
+    return getTime(a.fecha_evento) - getTime(b.fecha_evento);
+  });
 
   const diaIds = detailsRows.map(d => d.id);
   const itemsPorDia = {};
@@ -55,7 +102,7 @@ async function fetchInformeWithDias(informeId) {
     items: itemsPorDia[d.id] || [],
   }));
 
-  return { ...rows[0], dias: diasConItems };
+  return { ...currentInf, dias: diasConItems };
 }
 
 // --- INFORMES (ENCABEZADOS) ---
@@ -67,10 +114,12 @@ export async function createInforme(req, res, next) {
       return res.status(400).json({ message: 'El id_ocupacion es obligatorio' });
     }
 
-    // Calcular siguiente versión para esta ocupación
+    const baseId = String(id_ocupacion).replace(/_(s|slot)\d+.*$/, '');
+
+    // Calcular siguiente versión para esta ocupación o su grupo
     const [existing] = await pool.query(
-      'SELECT COALESCE(MAX(version), 0) AS max_ver FROM informes_eventos WHERE id_ocupacion = ?',
-      [id_ocupacion]
+      'SELECT COALESCE(MAX(version), 0) AS max_ver FROM informes_eventos WHERE id_ocupacion = ? OR id_ocupacion = ? OR id_ocupacion LIKE CONCAT(?, "_%")',
+      [id_ocupacion, baseId, baseId]
     );
     const nextVersion = (existing[0]?.max_ver || 0) + 1;
 
@@ -95,6 +144,7 @@ export async function createInforme(req, res, next) {
 export async function getInformesByOcupacion(req, res, next) {
   try {
     const { id_ocupacion } = req.params;
+    const baseId = String(id_ocupacion).replace(/_(s|slot)\d+.*$/, '');
     const rol = req.user?.rol;
     const puedeVerTodo = rol === 'Admin' || rol === 'Vendedor' || rol === 'FrontOffice';
 
@@ -102,10 +152,10 @@ export async function getInformesByOcupacion(req, res, next) {
       SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion,
              (SELECT COUNT(*) FROM informe_dias_detalle WHERE informe_id = i.id) AS total_dias
       FROM informes_eventos i
-      WHERE i.id_ocupacion = ?
+      WHERE i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%')
       ORDER BY i.version DESC
     `;
-    let params = [id_ocupacion];
+    let params = [id_ocupacion, baseId, baseId];
 
     // Solo Admin y Vendedor ven todas las versiones;
     // los demás roles (Coordinador, FrontOffice) ven solo la última

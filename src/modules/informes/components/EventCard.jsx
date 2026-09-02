@@ -304,24 +304,44 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
             <IconFileText size={13} /> + Informe
           </button>
         )}
-        <button
-          type="button"
-          onClick={handleVerInforme}
-          data-tooltip={event.tiene_informe ? 'Ver informe' : 'No hay informe para este día'}
-          aria-disabled={!event.tiene_informe}
+        <button 
+          type="button" 
+          onClick={() => {
+            if (!event.tiene_informe) return;
+            navigate(`/informe/${event.Idocupacion}?date=${event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : ''}`);
+          }} 
+          data-tooltip={event.tiene_informe ? "Ver informe" : "No hay informe creado"} 
           style={{
             flex: '0 0 30px',
             justifyContent: 'center',
             padding: '0.4rem 0',
             background: 'transparent',
-            color: 'var(--primary)',
+            color: event.tiene_informe ? 'var(--primary)' : 'var(--text-muted)',
             borderColor: 'transparent',
-            opacity: event.tiene_informe ? 1 : 0.25,
+            opacity: event.tiene_informe ? 1 : 0.35,
             cursor: event.tiene_informe ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s ease'
           }}
-        >
-          <IconEye size={13} />
+          onMouseEnter={(e) => {
+            if (!event.tiene_informe) {
+              e.currentTarget.style.color = '#ef4444';
+              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
+              e.currentTarget.style.opacity = '1';
+              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+            } else {
+              e.currentTarget.style.background = 'var(--primary-bg)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!event.tiene_informe) {
+              e.currentTarget.style.color = 'var(--text-muted)';
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.opacity = '0.35';
+              e.currentTarget.style.borderColor = 'transparent';
+            } else {
+              e.currentTarget.style.background = 'transparent';
+            }
+          }}
         </button>
         <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{flex:'0 0 32px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
           <IconClipboardList size={13} />

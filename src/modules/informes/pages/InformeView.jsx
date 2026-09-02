@@ -365,11 +365,23 @@ export default function InformeView() {
       b: Math.round(iv.b * canvasScale),
     }));
 
+    // Identificar inicios de cada día (.iv-day-block) para forzar hoja separada por día
+    const dayBreakTops = [];
+    try {
+      const rootTop = el.getBoundingClientRect().top;
+      el.querySelectorAll('.iv-day-block').forEach((db, idx) => {
+        if (idx > 0) {
+          const r = db.getBoundingClientRect();
+          const dt = Math.round((r.top - rootTop) * canvasScale);
+          if (dt > 0) dayBreakTops.push(dt);
+        }
+      });
+    } catch { /* ignore */ }
+
     // Calcular los cortes de página: cada página mide pageContentPxH, pero
     // si ese límite caería DENTRO de una línea de texto o de un elemento
-    // no-divisible, el corte sube al inicio de ese elemento (que pasa
-    // entero a la siguiente página). Si ningún elemento cruza el límite,
-    // se corta en el límite mismo (página llena).
+    // no-divisible, el corte sube al inicio de ese elemento. Además, cada
+    // día (.iv-day-block) comienza en una hoja nueva separada.
     const pages = [];
     let yPx = 0;
     const minPageH = pageContentPxH * 0.15; // evitar páginas casi vacías
@@ -380,12 +392,17 @@ export default function InformeView() {
         break;
       }
       let cut = targetY;
-      for (const it of contentItems) {
-        if (it.t <= yPx) continue;   // ya quedó en páginas anteriores
-        if (it.t >= targetY) break;  // empieza después del límite → es seguro
-        if (it.b > targetY) {        // se cortaría → moverlo entero
-          cut = it.t;
-          break;
+      const nextDayBreak = dayBreakTops.find(top => top > (yPx + minPageH) && top <= targetY);
+      if (nextDayBreak) {
+        cut = nextDayBreak;
+      } else {
+        for (const it of contentItems) {
+          if (it.t <= yPx) continue;   // ya quedó en páginas anteriores
+          if (it.t >= targetY) break;  // empieza después del límite → es seguro
+          if (it.b > targetY) {        // se cortaría → moverlo entero
+            cut = it.t;
+            break;
+          }
         }
       }
       // Fallback defensivo: si el corte quedaría demasiado cerca del inicio
@@ -575,6 +592,21 @@ export default function InformeView() {
           border: none !important;
           font-family: 'Georgia', 'Times New Roman', serif !important;
           overflow: visible !important;
+        }
+        .iv-day-block {
+          page-break-after: always !important;
+          break-after: page !important;
+          padding-bottom: 1cm !important;
+          margin-bottom: 1.5rem !important;
+        }
+        .iv-day-block:not(:first-of-type) {
+          page-break-before: always !important;
+          break-before: page !important;
+          padding-top: 1cm !important;
+        }
+        .iv-day-block:last-of-type {
+          page-break-after: auto !important;
+          break-after: auto !important;
         }
         /* Padding-top del primer día para que tenga espacio arriba (1cm).
            El position:absolute del padre ancla la primera página sin

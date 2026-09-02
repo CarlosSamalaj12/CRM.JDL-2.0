@@ -24,7 +24,7 @@ export function isEventSeriesInPast(events = [], eventId = '', graceDays = 0) {
   const series = getSeriesForEvent(events, eventId);
   if (!series.length) return false;
   const lastDate = series.reduce((max, ev) => {
-    const d = String(ev.date || ev.eventDateEnd || ev.eventDateStart || '');
+    const d = String(ev.endDate || ev.FechaSalida || ev.date || ev.eventDateEnd || ev.eventDateStart || ev.FechaEvento || '').slice(0, 10);
     return d > max ? d : max;
   }, '');
   if (!lastDate) return false;

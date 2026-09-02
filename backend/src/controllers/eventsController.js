@@ -107,24 +107,13 @@ export async function getEvents(req, res, next) {
           ELSE 0
         END AS tiene_alertas,
         CASE
-          WHEN e.SalonPrincipal IS NOT NULL AND TRIM(e.SalonPrincipal) != '' THEN
-            CASE
-              WHEN TRIM(e.Salon) = TRIM(e.SalonPrincipal) AND EXISTS (
-                SELECT 1 FROM informes_eventos ie
-                WHERE ie.id_ocupacion = e.Idocupacion 
-                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-              ) THEN 1
-              ELSE 0
-            END
-          ELSE
-            CASE
-              WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) AND EXISTS (
-                SELECT 1 FROM informes_eventos ie
-                WHERE ie.id_ocupacion = e.Idocupacion 
-                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-              ) THEN 1
-              ELSE 0
-            END
+          WHEN EXISTS (
+            SELECT 1 FROM informes_eventos ie
+            WHERE ie.id_ocupacion = e.Idocupacion 
+               OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+               OR ie.id_ocupacion LIKE CONCAT(SUBSTRING_INDEX(e.Idocupacion, '_s', 1), '_%')
+          ) THEN 1
+          ELSE 0
         END AS tiene_informe,
         m.alertas_text,
         CASE
@@ -235,24 +224,13 @@ export async function getEventById(req, res, next) {
         e.NoDoc,
         COALESCE(m.tiene_alertas, 0) AS tiene_alertas,
         CASE
-          WHEN e.SalonPrincipal IS NOT NULL AND TRIM(e.SalonPrincipal) != '' THEN
-            CASE
-              WHEN TRIM(e.Salon) = TRIM(e.SalonPrincipal) AND EXISTS (
-                SELECT 1 FROM informes_eventos ie
-                WHERE ie.id_ocupacion = e.Idocupacion 
-                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-              ) THEN 1
-              ELSE 0
-            END
-          ELSE
-            CASE
-              WHEN e.Idocupacion = SUBSTRING_INDEX(e.Idocupacion, '_s', 1) AND EXISTS (
-                SELECT 1 FROM informes_eventos ie
-                WHERE ie.id_ocupacion = e.Idocupacion 
-                   OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-              ) THEN 1
-              ELSE 0
-            END
+          WHEN EXISTS (
+            SELECT 1 FROM informes_eventos ie
+            WHERE ie.id_ocupacion = e.Idocupacion 
+               OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+               OR ie.id_ocupacion LIKE CONCAT(SUBSTRING_INDEX(e.Idocupacion, '_s', 1), '_%')
+          ) THEN 1
+          ELSE 0
         END AS tiene_informe,
         m.alertas_text
       FROM tbl_seguimientocotizaciones e
