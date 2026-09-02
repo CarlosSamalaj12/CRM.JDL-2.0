@@ -773,12 +773,10 @@ export default function SettingsChecklist() {
   const eventDateStr = evtData?.date || evtData?.eventDate;
   const isEventPast = (() => {
     if (!eventDateStr) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const eventDay = new Date(eventDateStr);
-    if (isNaN(eventDay.getTime())) return false;
-    eventDay.setHours(0, 0, 0, 0);
-    return eventDay < today;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const cleanEventDateStr = String(eventDateStr).trim().slice(0, 10);
+    return cleanEventDateStr < todayStr;
   })();
   const isOpLocked = isEventPast && opItems.length > 0;
   const isOpReadOnly = isReadOnly || isOpLocked;
