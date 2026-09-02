@@ -342,6 +342,8 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
               e.currentTarget.style.background = 'transparent';
             }
           }}
+        >
+          <IconEye size={13} />
         </button>
         <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{flex:'0 0 32px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
           <IconClipboardList size={13} />
