@@ -582,10 +582,10 @@ function LeadCard({ lead, userName, canEdit, canDelete, canSendMessage, onEdit, 
           borderTop: '1px dashed #e2e8f0',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {lead.ultimoSeguimientoEn ? (
-              <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="refresh" size={12} color="#64748b" strokeWidth={2.3} />
-                Seg: {formatFechaCorta(lead.ultimoSeguimientoEn)} ({formatTiempoTranscurrido(lead.ultimoSeguimientoEn)})
+            {(lead.ultimoSeguimientoEn || lead.eventoId || lead.estado === 'en_proceso' || lead.estado === 'ganada') ? (
+              <span style={{ fontSize: '11px', color: '#0f766e', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Icon name="refresh" size={12} color="#0f766e" strokeWidth={2.3} />
+                Seg: {formatFechaCorta(lead.ultimoSeguimientoEn || lead.actualizadoEn || lead.creadoEn)} ({formatTiempoTranscurrido(lead.ultimoSeguimientoEn || lead.actualizadoEn || lead.creadoEn)})
               </span>
             ) : (
               <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>

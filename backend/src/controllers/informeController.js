@@ -77,6 +77,29 @@ async function fetchInformeWithDias(informeId) {
     return getTime(a.fecha_evento) - getTime(b.fecha_evento);
   });
 
+  // Si el evento en tbl_seguimientocotizaciones cambió de fecha, re-alinear automáticamente las fechas de los días del informe
+  if (detailsRows.length > 0 && currentInf.FechaEvento) {
+    const eventFirstDateStr = getIsoDateStr(currentInf.FechaEvento);
+    const detailFirstDateStr = getIsoDateStr(detailsRows[0].fecha_evento);
+    if (eventFirstDateStr && detailFirstDateStr && eventFirstDateStr !== detailFirstDateStr) {
+      const diffMs = new Date(eventFirstDateStr + 'T12:00:00').getTime() - new Date(detailFirstDateStr + 'T12:00:00').getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (!isNaN(diffDays) && diffDays !== 0) {
+        for (const d of detailsRows) {
+          const oldStr = getIsoDateStr(d.fecha_evento);
+          if (oldStr) {
+            const oldT = new Date(oldStr + 'T12:00:00');
+            oldT.setDate(oldT.getDate() + diffDays);
+            const newIso = oldT.toISOString().slice(0, 10);
+            d.fecha_evento = newIso;
+            // Actualizar en BD en segundo plano para persistir
+            pool.query('UPDATE informe_dias_detalle SET fecha_evento = ? WHERE id = ?', [newIso, d.id]).catch(() => {});
+          }
+        }
+      }
+    }
+  }
+
   const diaIds = detailsRows.map(d => d.id);
   const itemsPorDia = {};
   if (diaIds.length > 0) {

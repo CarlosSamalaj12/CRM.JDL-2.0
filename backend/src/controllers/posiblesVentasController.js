@@ -199,9 +199,8 @@ function buildLead(row) {
     creadoPorId: row.creado_por_id,
     creadoPorNombre: row.creado_por_nombre || null,
     estado: derived,
-    estadoEsManual: false, // el estado siempre es derivado
-    ultimoSeguimientoEn: row.ultimo_seguimiento_en || null,
-    primerSeguimientoEn: row.primer_seguimiento_en || null,
+    ultimoSeguimientoEn: row.ultimo_seguimiento_en || (row.evento_id ? (row.actualizado_en || row.creado_en) : null),
+    primerSeguimientoEn: row.primer_seguimiento_en || (row.evento_id ? (row.actualizado_en || row.creado_en) : null),
     eventoId: row.evento_id || null,
     atendidoPorId: row.linked_usuario_id || null,
     atendidoPorNombre: row.atendido_por_nombre || null,
@@ -734,6 +733,8 @@ export async function updatePosibleVenta(req, res, next) {
       updates.push('evento_id = ?');
       params.push(evId);
       if (evId) {
+        updates.push('ultimo_seguimiento_en = CURRENT_TIMESTAMP');
+        updates.push('primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP)');
         await pool.query("UPDATE notificaciones SET leido = 1 WHERE tipo = 'posible_venta' AND idocupacion = ?", [id]);
       }
     }

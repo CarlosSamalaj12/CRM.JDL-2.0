@@ -3035,6 +3035,27 @@ function isEventUnchanged(e, oldEvent) {
         ]
       );
 
+      // Si la fecha del evento cambió, sincronizar/desplazar automáticamente las fechas de los informes
+      if (oldEvent && oldEvent.date && e.date && oldEvent.date !== e.date) {
+        try {
+          const oldT = new Date(String(oldEvent.date).slice(0, 10) + 'T12:00:00').getTime();
+          const newT = new Date(String(e.date).slice(0, 10) + 'T12:00:00').getTime();
+          const diffDays = Math.round((newT - oldT) / (1000 * 60 * 60 * 24));
+          if (!isNaN(diffDays) && diffDays !== 0) {
+            const baseEvId = id.replace(/_(s|slot)\d+.*$/, '');
+            await conn.query(
+              `UPDATE informe_dias_detalle idd
+               JOIN informes_eventos ie ON idd.informe_id = ie.id
+               SET idd.fecha_evento = DATE_ADD(idd.fecha_evento, INTERVAL ? DAY)
+               WHERE (ie.id_ocupacion = ? OR ie.id_ocupacion = ? OR ie.id_ocupacion LIKE CONCAT(?, '_%'))`,
+              [diffDays, id, baseEvId, baseEvId]
+            );
+          }
+        } catch (infErr) {
+          console.warn('[syncEventsToDb] No se pudo desplazar fechas de informes:', infErr.message);
+        }
+      }
+
       // === UPSERT: anticipos_evento (normalizar pagos en tabla propia) ===
       const baseId = id.replace(/_(s|slot)\d+_\d{6,}$/, '');
       const existingAdvancesById = new Map();
