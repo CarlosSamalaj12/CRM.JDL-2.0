@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
+import { isEventSeriesInPast } from '../../utils/eventSeriesInPast';
 import authService from '../../services/authService';
 
 const XIcon = () => (
@@ -738,6 +739,12 @@ export default function SettingsChecklist() {
   const [activeTab, setActiveTab] = useState(TAB_OPERATIVA);
   const [currentUser, setCurrentUser] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [pastEventEditGraceDays, setPastEventEditGraceDays] = useState(0);
+  // Snapshot de events cargado al abrir el modal. Lo usamos para que
+  // isEventSeriesInPast vea la serie completa (mismo groupId) en cada render
+  // sin volver a llamar a loadCrmState(). Es estable mientras el modal está
+  // abierto; al reabrir el modal se refresca desde el state.
+  const [events, setEvents] = useState([]);
 
   // Operativa checklist
   const [opTplIds, setOpTplIds] = useState([]); // array de ids; soporta múltiples plantillas
@@ -767,17 +774,16 @@ export default function SettingsChecklist() {
   const isEvReadOnly = isReadOnly || isEvLocked;
   const canUnlockEv = currentUser?.rol === 'Admin' && isEvLocked && !isReadOnly;
 
-  // Lock de Operativa: si el evento es de un día anterior, el check list queda
-  // BLOQUEADO PERMANENTEMENTE (no se puede desbloquear, ni siquiera con PIN).
-  // Esto preserva la inmutabilidad de los check lists de eventos ya pasados.
-  const eventDateStr = evtData?.date || evtData?.eventDate;
-  const isEventPast = (() => {
-    if (!eventDateStr) return false;
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const cleanEventDateStr = String(eventDateStr).trim().slice(0, 10);
-    return cleanEventDateStr < todayStr;
-  })();
+  // Lock de Operativa: si TODA la serie del evento terminó (último día + grace),
+  // el check list queda BLOQUEADO PERMANENTEMENTE (no se puede desbloquear, ni
+  // siquiera con PIN). Esto preserva la inmutabilidad de los check lists de
+  // eventos ya finalizados, mientras permite editar durante el evento.
+  // Se considera la serie completa (mismo groupId), no solo el slot abierto,
+  // para que un evento multi-día no se bloquee apenas arranque el día 2.
+  const isEventPast = useMemo(
+    () => isEventSeriesInPast(events, evtId, pastEventEditGraceDays),
+    [events, evtId, pastEventEditGraceDays]
+  );
   const isOpLocked = isEventPast && opItems.length > 0;
   const isOpReadOnly = isReadOnly || isOpLocked;
 
@@ -806,9 +812,11 @@ export default function SettingsChecklist() {
 
         const state = await loadCrmState();
         setTemplates(Array.isArray(state.checklistTemplates) ? state.checklistTemplates : []);
-        const events = Array.isArray(state.events) ? state.events : [];
+        setPastEventEditGraceDays(Number(state.pastEventEditGraceDays || 0));
+        const eventsList = Array.isArray(state.events) ? state.events : [];
+        setEvents(eventsList);
         const checklists = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
-        const eventFound = events.find(x => x.id === id);
+        const eventFound = eventsList.find(x => x.id === id);
         setEvtId(id);
         setEvtData(eventFound || null);
 
@@ -1305,7 +1313,16 @@ export default function SettingsChecklist() {
                 {isReadOnly && <span style={{ marginLeft: '8px', fontSize: '0.65rem', fontWeight: 600, color: '#f59e0b', background: '#fffbeb', padding: '2px 8px', borderRadius: '999px' }}>Solo lectura</span>}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>
-                {evtData ? `${evtData.eventName || evtData.client || evtData.name || ''} — ${evtData.date || evtData.eventDate || ''}` : ''}
+                {evtData ? (() => {
+                  const name = evtData.eventName || evtData.client || evtData.name || '';
+                  const start = evtData.eventDateStart;
+                  const end = evtData.eventDateEnd;
+                  const isMultiDay = start && end && start !== end;
+                  const dateLabel = isMultiDay
+                    ? `${start} → ${end}`
+                    : (evtData.date || evtData.eventDate || '');
+                  return `${name} — ${dateLabel}`;
+                })() : ''}
               </div>
             </div>
             <button className="btn-exit" type="button" onClick={closeEvent}><XIcon /></button>

@@ -7,6 +7,7 @@ import historyService from '../../../services/historyService';
 import conflictService from '../../../services/conflictService';
 import api from '../../../services/api';
 import { loadState as loadCrmState } from '../../../services/stateService';
+import { reservationKeyFromEvent, isEventSeriesInPast, getSeriesForEvent } from '../../../utils/eventSeriesInPast';
 import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
@@ -17,26 +18,6 @@ import TimeSelect from '../../../components/TimeSelect';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 
 const pastEventEditAuthorizedKeys = new Set();
-
-function reservationKeyFromEvent(ev) {
-  if (!ev) return "";
-  return String(ev.groupId || ev.id || "").trim();
-}
-
-function isEventSeriesInPast(events = [], eventId = '', graceDays = 0) {
-  const series = getSeriesForEvent(events, eventId);
-  if (!series.length) return false;
-  const lastDate = series.reduce((max, ev) => {
-    const d = String(ev.date || ev.eventDateEnd || ev.eventDateStart || '');
-    return d > max ? d : max;
-  }, '');
-  if (!lastDate) return false;
-  const now = new Date();
-  now.setDate(now.getDate() - graceDays);
-  const pad = (n) => String(n).padStart(2, '0');
-  const cutoffIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  return lastDate < cutoffIso;
-}
 
 async function requestPastEventEditAuthorization(ev) {
   const key = reservationKeyFromEvent(ev);
@@ -148,15 +129,6 @@ const MAINTENANCE_STATUSES = ['Mantenimiento', 'Mantenimiento Realizado'];
 
 function isMaintenanceStatus(status) {
   return MAINTENANCE_STATUSES.includes(status);
-}
-
-function getSeriesForEvent(events = [], eventId = '') {
-  const target = events.find(ev => String(ev.id) === String(eventId));
-  if (!target) return [];
-  const groupId = String(target.groupId || '').trim();
-  if (!groupId) return [target];
-  const series = events.filter(ev => String(ev.groupId || '').trim() === groupId);
-  return series.length ? series : [target];
 }
 
 function slotsFromEventSeries(series = [], fallbackEvent = null) {

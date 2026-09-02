@@ -170,6 +170,26 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     }
   };
 
+  // "Ver informe": si este día (slot) no tiene informe propio, NO navegamos
+  // (el backend haría fallback al informe de otro día de la misma serie y el
+  // usuario vería datos incorrectos). Mostramos un toast no nativo.
+  // Nota: useToast() devuelve { success, error, info, warning } — no es
+  // callable directo. Usamos toast.info() porque el mensaje es informativo,
+  // no un error.
+  const handleVerInforme = () => {
+    if (!event.tiene_informe) {
+      const fecha = event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : '';
+      const salon = event.Salon || event.nombre_salon || '';
+      const msg = salon
+        ? `No hay informe creado para este día (${fecha} · ${salon})`
+        : `No hay informe creado para este día (${fecha})`;
+      toast.info(msg, { duration: 3500 });
+      return;
+    }
+    const dateQs = event.FechaEvento ? `?date=${String(event.FechaEvento).slice(0, 10)}` : '';
+    navigate(`/informe/${event.Idocupacion}${dateQs}`);
+  };
+
   const usuariosFiltrados = showMenciones
     ? usuarios.filter(u => {
         const uId = String(u.id || '');
@@ -284,10 +304,11 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
             <IconFileText size={13} /> + Informe
           </button>
         )}
-        <button 
-          type="button" 
-          onClick={() => navigate(`/informe/${event.Idocupacion}?date=${event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : ''}`)} 
-          data-tooltip="Ver informe" 
+        <button
+          type="button"
+          onClick={handleVerInforme}
+          data-tooltip={event.tiene_informe ? 'Ver informe' : 'No hay informe para este día'}
+          aria-disabled={!event.tiene_informe}
           style={{
             flex: '0 0 30px',
             justifyContent: 'center',
@@ -296,6 +317,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
             color: 'var(--primary)',
             borderColor: 'transparent',
             opacity: event.tiene_informe ? 1 : 0.25,
+            cursor: event.tiene_informe ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s ease'
           }}
         >
