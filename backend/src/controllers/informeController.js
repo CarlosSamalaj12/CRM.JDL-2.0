@@ -74,6 +74,28 @@ async function fetchInformeWithDias(informeId) {
     }
   }
 
+  // Obtener slots de la serie del evento para mapear salón, pax y horario específicos de cada fecha
+  try {
+    const [seriesSlots] = await pool.query(`
+      SELECT Idocupacion, FechaEvento, Salon, Pax, HoraI, HoraF, NoDoc
+      FROM tbl_seguimientocotizaciones
+      WHERE Idocupacion = ? OR Idocupacion = ? OR Idocupacion LIKE CONCAT(?, '_%')
+    `, [currentInf.id_ocupacion, baseId, baseId]);
+
+    for (const d of detailsRows) {
+      const dIso = getIsoDateStr(d.fecha_evento);
+      const slot = seriesSlots.find(s => getIsoDateStr(s.FechaEvento) === dIso);
+      if (slot) {
+        d.slot_salon = slot.Salon || null;
+        d.slot_pax = slot.Pax || null;
+        d.slot_horario = (slot.HoraI && slot.HoraF) ? `${slot.HoraI} - ${slot.HoraF}` : (slot.HoraI || null);
+        d.slot_nodoc = slot.NoDoc || null;
+      }
+    }
+  } catch (err) {
+    console.warn('[fetchInformeWithDias] No se pudieron cargar slots de la serie:', err.message);
+  }
+
   const diaIds = detailsRows.map(d => d.id);
   const itemsPorDia = {};
   if (diaIds.length > 0) {

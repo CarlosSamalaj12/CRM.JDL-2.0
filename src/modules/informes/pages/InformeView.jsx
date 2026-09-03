@@ -689,50 +689,102 @@ export default function InformeView() {
                   <div className="iv-divider" />
                 </header>
 
-                {/* ═══ DATOS DEL EVENTO ═══ */}
-                <section className="iv-header-table">
-                  <div className="iv-ht-rows">
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">Encargado Evento</span>
-                      <span className="iv-ht-value">{informe.EncargadoEvento || '-'}</span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">No Cotización</span>
-                      <span className="iv-ht-value">
-                        {informe.NoDoc || '-'}
-                        {informe.fecha_creacion && <span className="iv-ht-sub">{fechaCreacion}</span>}
-                      </span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">Horario</span>
-                      <span className="iv-ht-value">{informe.HoraI || '-'}{informe.HoraF ? ` - ${informe.HoraF}` : ''}</span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">Fecha Evento</span>
-                      <span className="iv-ht-value">{dia.fecha_evento ? formatFechaDia(dia.fecha_evento) : '-'}</span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">Institución</span>
-                      <span className="iv-ht-value">{informe.Institucion}</span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">No Pax</span>
-                      <span className="iv-ht-value">{informe.Pax || '-'}</span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">Salón / Área</span>
-                      <span className="iv-ht-value">{informe.Salon || '-'}</span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">No Folio</span>
-                      <span className="iv-ht-value">{informe.folio || '-'}</span>
-                    </div>
-                    <div className="iv-ht-row">
-                      <span className="iv-ht-label">Vendedor</span>
-                      <span className="iv-ht-value">{informe.Vendedor || '-'}</span>
-                    </div>
-                  </div>
-                </section>
+                {/* ═══ DATOS DEL EVENTO (ESPECÍFICOS DE CADA DÍA) ═══ */}
+                {(() => {
+                  let parsed = null;
+                  let montajesList = [];
+                  if (dia.descripcion_montaje) {
+                    try {
+                      parsed = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : dia.descripcion_montaje;
+                      if (parsed && parsed._v === 2) {
+                        montajesList = parsed.montajes || [];
+                      } else if (Array.isArray(parsed)) {
+                        montajesList = parsed;
+                      } else if (parsed && typeof parsed === 'object') {
+                        montajesList = [parsed];
+                      }
+                    } catch { /* ignore */ }
+                  }
+
+                  // 1. Salón del día (montaje > slot > informe)
+                  const salonesDelDia = [
+                    parsed?.salon,
+                    ...montajesList.map(m => m.salon),
+                    dia.slot_salon,
+                    dia.salon
+                  ].filter(Boolean);
+                  const diaSalon = salonesDelDia.length > 0 
+                    ? Array.from(new Set(salonesDelDia.map(s => String(s).trim()))).join(', ')
+                    : (informe.Salon || '-');
+
+                  // 2. Pax del día (personas en montaje > cantidad platillos > slot_pax > informe.Pax)
+                  let diaPax = null;
+                  const personasMontaje = montajesList.find(m => m.num_personas && Number(m.num_personas) > 0)?.num_personas;
+                  if (personasMontaje) {
+                    diaPax = personasMontaje;
+                  } else if (dia.items && dia.items.length > 0) {
+                    const maxQty = Math.max(...dia.items.map(it => Number(it.cantidad_total) || 0));
+                    if (maxQty > 0) diaPax = maxQty;
+                  }
+                  if (!diaPax && dia.slot_pax && Number(dia.slot_pax) > 0) {
+                    diaPax = dia.slot_pax;
+                  }
+                  if (!diaPax) {
+                    diaPax = informe.Pax || '-';
+                  }
+
+                  // 3. Horario del día
+                  const diaHorario = parsed?.horario || montajesList.find(m => m.horario)?.horario || dia.slot_horario || (informe.HoraI ? `${informe.HoraI}${informe.HoraF ? ` - ${informe.HoraF}` : ''}` : '-');
+
+                  // 4. No Cotización del día
+                  const diaNoDoc = dia.slot_nodoc || informe.NoDoc || '-';
+
+                  return (
+                    <section className="iv-header-table">
+                      <div className="iv-ht-rows">
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">Encargado Evento</span>
+                          <span className="iv-ht-value">{informe.EncargadoEvento || '-'}</span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">No Cotización</span>
+                          <span className="iv-ht-value">
+                            {diaNoDoc}
+                            {informe.fecha_creacion && <span className="iv-ht-sub">{fechaCreacion}</span>}
+                          </span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">Horario</span>
+                          <span className="iv-ht-value">{diaHorario}</span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">Fecha Evento</span>
+                          <span className="iv-ht-value">{dia.fecha_evento ? formatFechaDia(dia.fecha_evento) : '-'}</span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">Institución</span>
+                          <span className="iv-ht-value">{informe.Institucion}</span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">No Pax</span>
+                          <span className="iv-ht-value">{diaPax}</span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">Salón / Área</span>
+                          <span className="iv-ht-value">{diaSalon}</span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">No Folio</span>
+                          <span className="iv-ht-value">{informe.folio || '-'}</span>
+                        </div>
+                        <div className="iv-ht-row">
+                          <span className="iv-ht-label">Vendedor</span>
+                          <span className="iv-ht-value">{informe.Vendedor || '-'}</span>
+                        </div>
+                      </div>
+                    </section>
+                  );
+                })()}
 
                 {/* ═══ ALERTAS / RESTRICCIONES ═══ */}
                 {(() => {
