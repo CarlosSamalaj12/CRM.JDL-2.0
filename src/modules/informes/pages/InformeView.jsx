@@ -253,6 +253,8 @@ export default function InformeView() {
     // de `onclone` (sobre el MISMO clon que captura html2canvas) para que
     // coincidan 1:1 con el canvas resultante.
     let safeBreakIntervals = [];
+    let clonedDayRanges = [];
+    let clonedImagesRange = null;
 
     // El logo del encabezado se muestra con filter: invert(1) porque es el
     // logo BLANCO de la marca (/logo.png = Oficial_JDL_blanco.png).
@@ -290,9 +292,7 @@ export default function InformeView() {
         backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
-        // Viewport de escritorio fijo: evita que en el clon apliquen los
-        // media queries de móvil (padding, imágenes apiladas, etc.) y
-        // garantiza que el documento se maquete con los estilos desktop.
+        // Viewport de escritorio fijo
         windowWidth: Math.max(el.scrollWidth, 1024),
         windowHeight: Math.max(el.scrollHeight, Math.ceil(targetWidthPx * 1.5)),
         onclone: (clonedDoc) => {
@@ -300,38 +300,40 @@ export default function InformeView() {
             clonedDoc.querySelectorAll('.no-print').forEach((n) => {
               n.style.display = 'none';
             });
-            // El sidebar de colaboración no debe aparecer en el PDF
             const colabSidebar = clonedDoc.querySelector('.colab-sidebar');
             if (colabSidebar) colabSidebar.style.display = 'none';
-            // Ajustar el documento clonado al ancho de página A4 para
-            // que la escala del PDF sea exacta.
+
             const docEl = clonedDoc.querySelector('.iv-documento');
             if (docEl) {
               docEl.style.width = `${Math.ceil(targetWidthPx)}px`;
               docEl.style.maxWidth = 'none';
               docEl.style.margin = '0 auto';
               docEl.style.boxSizing = 'border-box';
+              docEl.style.boxShadow = 'none';
+              docEl.style.border = 'none';
             }
             const container = clonedDoc.querySelector('.informe-print-container');
             if (container) {
               container.style.width = '100%';
               container.style.maxWidth = 'none';
             }
-            // Optimizar el espacio del PDF: compactar la galería de imágenes
-            // a 200px / 3 por fila (como el CSS de impresión) para que las
-            // fotos de referencia no dejen páginas casi vacías. Se inyecta
-            // ANTES de medir los cortes para que la paginación coincida con
-            // el layout que se captura.
-            const imgStyle = clonedDoc.createElement('style');
-            imgStyle.textContent = [
-              '.iv-imagenes { gap: 0.5rem !important; }',
+
+            // Inyectar estilos optimizados para que cada día quepa completo en su hoja
+            const pdfStyle = clonedDoc.createElement('style');
+            pdfStyle.textContent = [
+              '.iv-day-block { margin-bottom: 0 !important; padding-bottom: 0 !important; border-bottom: none !important; }',
+              '.iv-header-table { margin-bottom: 0.4rem !important; padding: 0.25rem 0.5rem !important; }',
+              '.iv-ht-row { padding: 0.16rem 0.35rem !important; }',
+              '.iv-day-header { margin-bottom: 0.3rem !important; padding-bottom: 0.2rem !important; }',
+              '.iv-montaje-container { padding: 0.4rem 0.6rem !important; }',
+              '.iv-montaje-comentario { margin-top: 0.3rem !important; padding: 0.3rem 0.5rem !important; }',
+              '.iv-imagenes { gap: 0.5rem !important; margin-top: 0 !important; }',
               '.iv-imagen-item { width: 200px !important; }',
               '.iv-imagen-thumb { width: 200px !important; height: 200px !important; }',
               '.iv-imagen-thumb img { max-width: 100% !important; max-height: 100% !important; }',
             ].join('\n');
-            clonedDoc.head.appendChild(imgStyle);
-            // Reemplazar el logo del encabezado por la versión ya invertida
-            // (html2canvas ignora el filter: invert(1) del original).
+            clonedDoc.head.appendChild(pdfStyle);
+
             if (logoDataUrl) {
               const headerLogo = clonedDoc.querySelector('.iv-header-left img');
               if (headerLogo) {
@@ -340,11 +342,33 @@ export default function InformeView() {
                 headerLogo.style.filter = 'none';
               }
             }
-            // Medir las líneas de texto y elementos no-divisibles sobre el
-            // clon que se va a capturar (misma maquetación, mismas fuentes),
-            // para que los saltos de página del PDF nunca corten una línea
-            // de texto ni partan un elemento a la mitad.
+
+            // Medir las posiciones exactas de cada día sobre el clon
             if (docEl) {
+              const rootRect = docEl.getBoundingClientRect();
+              const rootTop = rootRect.top;
+
+              const dayEls = Array.from(docEl.querySelectorAll('.iv-day-block'));
+              clonedDayRanges = dayEls.map((db, idx) => {
+                const r = db.getBoundingClientRect();
+                return {
+                  index: idx,
+                  top: r.top - rootTop,
+                  bottom: r.bottom - rootTop,
+                  height: r.height,
+                };
+              });
+
+              const imgsEl = docEl.querySelector('.iv-imagenes');
+              if (imgsEl) {
+                const ir = imgsEl.getBoundingClientRect();
+                clonedImagesRange = {
+                  top: ir.top - rootTop,
+                  bottom: ir.bottom - rootTop,
+                  height: ir.height,
+                };
+              }
+
               safeBreakIntervals = measureSafeBreakPositions(docEl, PDF_AVOID_SPLIT_SELECTOR);
             }
           } catch (e) { /* ignore */ }
@@ -356,90 +380,117 @@ export default function InformeView() {
 
     const mmPerPx = usableW / canvas.width;
     const pageContentPxH = usableH / mmPerPx;
-
-    // Convertir los intervalos de contenido (px CSS) a px del canvas para
-    // paginar el PDF sin cortar líneas de texto ni elementos.
     const canvasScale = canvas.width / targetWidthPx;
-    const contentItems = safeBreakIntervals.map(iv => ({
-      t: Math.round(iv.t * canvasScale),
-      b: Math.round(iv.b * canvasScale),
-    }));
 
-    // Identificar inicios de cada día (.iv-day-block) para forzar hoja separada por día
-    const dayBreakTops = [];
-    try {
-      const rootTop = el.getBoundingClientRect().top;
-      el.querySelectorAll('.iv-day-block').forEach((db, idx) => {
-        if (idx > 0) {
-          const r = db.getBoundingClientRect();
-          const dt = Math.round((r.top - rootTop) * canvasScale);
-          if (dt > 0) dayBreakTops.push(dt);
-        }
-      });
-    } catch { /* ignore */ }
-
-    // Calcular los cortes de página: cada página mide pageContentPxH, pero
-    // si ese límite caería DENTRO de una línea de texto o de un elemento
-    // no-divisible, el corte sube al inicio de ese elemento. Además, cada
-    // día (.iv-day-block) comienza en una hoja nueva separada.
-    const pages = [];
-    let yPx = 0;
-    const minPageH = pageContentPxH * 0.15; // evitar páginas casi vacías
-    while (yPx < canvas.height) {
-      const targetY = yPx + pageContentPxH;
-      if (targetY >= canvas.height) {
-        pages.push({ y: yPx, h: canvas.height - yPx });
-        break;
-      }
-      let cut = targetY;
-      const nextDayBreak = dayBreakTops.find(top => top > (yPx + minPageH) && top <= targetY);
-      if (nextDayBreak) {
-        cut = nextDayBreak;
-      } else {
-        for (const it of contentItems) {
-          if (it.t <= yPx) continue;   // ya quedó en páginas anteriores
-          if (it.t >= targetY) break;  // empieza después del límite → es seguro
-          if (it.b > targetY) {        // se cortaría → moverlo entero
-            cut = it.t;
-            break;
-          }
-        }
-      }
-      // Fallback defensivo: si el corte quedaría demasiado cerca del inicio
-      // (elemento más alto que una hoja), cortar en el límite de página.
-      if (cut - yPx < minPageH) cut = targetY;
-      pages.push({ y: yPx, h: cut - yPx });
-      yPx = cut;
+    if (!clonedDayRanges || clonedDayRanges.length === 0) {
+      clonedDayRanges = [{ index: 0, top: 0, bottom: canvas.height / canvasScale, height: canvas.height / canvasScale }];
     }
 
-    pages.forEach((page, pageIndex) => {
-      const drawHeightPx = page.h;
+    let isFirstPage = true;
 
-      // Canvas del tamaño EXACTO de la página. Antes se reutilizaba un
-      // canvas de altura de página completa y se insertaba la imagen en
-      // una altura menor (la del contenido real): la imagen PNG (más alta)
-      // quedaba aplastada verticalmente y la página salía borrosa /
-      // pixeleada, como una imagen mal colocada. Con el canvas a la altura
-      // exacta, la proporción del contenido se conserva 1:1 y las páginas
-      // se ven nítidas.
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = canvas.width;
-      pageCanvas.height = drawHeightPx;
-      const pageCtx = pageCanvas.getContext('2d');
-      pageCtx.fillStyle = '#ffffff';
-      pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      pageCtx.drawImage(
-        canvas,
-        0, page.y, canvas.width, drawHeightPx,
-        0, 0, pageCanvas.width, drawHeightPx
-      );
+    // Procesar cada día de forma independiente: cada día va en su propia(s) hoja(s)
+    for (const dRange of clonedDayRanges) {
+      const dayTopPx = Math.max(0, Math.round(dRange.top * canvasScale));
+      const dayBottomPx = Math.min(canvas.height, Math.round(dRange.bottom * canvasScale));
+      const dayHeightPx = dayBottomPx - dayTopPx;
+      if (dayHeightPx <= 0) continue;
 
-      const sliceImg = pageCanvas.toDataURL('image/png');
-      const sliceRenderH = drawHeightPx * mmPerPx;
+      // Si el día cabe en 1 hoja (hasta un 15% de tolerancia para que comentarios finales no se partan)
+      if (dayHeightPx <= pageContentPxH * 1.15) {
+        if (!isFirstPage) pdf.addPage();
+        isFirstPage = false;
 
-      if (pageIndex > 0) pdf.addPage();
-      pdf.addImage(sliceImg, 'PNG', marginMm, marginMm, usableW, sliceRenderH);
-    });
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = dayHeightPx;
+        const pCtx = pageCanvas.getContext('2d');
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        pCtx.drawImage(
+          canvas,
+          0, dayTopPx, canvas.width, dayHeightPx,
+          0, 0, pageCanvas.width, dayHeightPx
+        );
+
+        const sliceImg = pageCanvas.toDataURL('image/png');
+        if (dayHeightPx <= pageContentPxH) {
+          pdf.addImage(sliceImg, 'PNG', marginMm, marginMm, usableW, dayHeightPx * mmPerPx);
+        } else {
+          // Ajustar proporcionalmente para que todo el día quepa completo en la hoja sin cortarse
+          const scale = pageContentPxH / dayHeightPx;
+          const fitW = usableW * scale;
+          const offsetX = marginMm + (usableW - fitW) / 2;
+          pdf.addImage(sliceImg, 'PNG', offsetX, marginMm, fitW, usableH);
+        }
+      } else {
+        // Si el día es excepcionalmente largo (más de 1.15 páginas), paginar SOLO este día
+        let dayY = dayTopPx;
+        const minH = pageContentPxH * 0.2;
+        while (dayY < dayBottomPx) {
+          const targetY = dayY + pageContentPxH;
+          if (targetY >= dayBottomPx) {
+            if (!isFirstPage) pdf.addPage();
+            isFirstPage = false;
+            const sliceH = dayBottomPx - dayY;
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = sliceH;
+            const pCtx = pageCanvas.getContext('2d');
+            pCtx.fillStyle = '#ffffff';
+            pCtx.fillRect(0, 0, pageCanvas.width, sliceH);
+            pCtx.drawImage(canvas, 0, dayY, canvas.width, sliceH, 0, 0, pageCanvas.width, sliceH);
+            pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', marginMm, marginMm, usableW, sliceH * mmPerPx);
+            break;
+          }
+
+          let cut = targetY;
+          for (const it of safeBreakIntervals) {
+            const itT = Math.round(it.t * canvasScale);
+            const itB = Math.round(it.b * canvasScale);
+            if (itT <= dayY) continue;
+            if (itT >= targetY) break;
+            if (itB > targetY) {
+              cut = itT;
+              break;
+            }
+          }
+          if (cut - dayY < minH) cut = targetY;
+
+          if (!isFirstPage) pdf.addPage();
+          isFirstPage = false;
+          const sliceH = cut - dayY;
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceH;
+          const pCtx = pageCanvas.getContext('2d');
+          pCtx.fillStyle = '#ffffff';
+          pCtx.fillRect(0, 0, pageCanvas.width, sliceH);
+          pCtx.drawImage(canvas, 0, dayY, canvas.width, sliceH, 0, 0, pageCanvas.width, sliceH);
+          pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', marginMm, marginMm, usableW, sliceH * mmPerPx);
+          dayY = cut;
+        }
+      }
+    }
+
+    // 2. Procesar imágenes si existen (siempre en hoja nueva independiente)
+    if (clonedImagesRange && clonedImagesRange.height > 0) {
+      const imgTopPx = Math.max(0, Math.round(clonedImagesRange.top * canvasScale));
+      const imgBottomPx = Math.min(canvas.height, Math.round(clonedImagesRange.bottom * canvasScale));
+      const imgHeightPx = imgBottomPx - imgTopPx;
+      if (imgHeightPx > 0) {
+        if (!isFirstPage) pdf.addPage();
+        isFirstPage = false;
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = Math.min(imgHeightPx, pageContentPxH);
+        const pCtx = pageCanvas.getContext('2d');
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        pCtx.drawImage(canvas, 0, imgTopPx, canvas.width, pageCanvas.height, 0, 0, pageCanvas.width, pageCanvas.height);
+        pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', marginMm, marginMm, usableW, pageCanvas.height * mmPerPx);
+      }
+    }
+
     return pdf;
   };
 
@@ -569,22 +620,17 @@ export default function InformeView() {
         .app-nav {
           display: none !important;
         }
+        @page {
+          size: A4 portrait;
+          margin: 0.8cm;
+        }
         .iv-documento {
           box-shadow: none !important;
-          /* FIX CORRECTO: position absolute + top:0 ancla el documento al
-             origen de la página, eliminando el margen residual del navegador
-             (que en Kyocera/Guradar como PDF añade ~7-10cm). Para la
-             paginación multi-página usamos padding-top en el primer
-             .iv-day-block y dejamos que el navegador fluya el resto
-             normalmente. */
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
-          right: 0 !important;
+          position: static !important;
           background: #ffffff !important;
           background-color: #ffffff !important;
-          padding: 0 1.5cm 1cm 1.5cm !important;
-          margin: 0 !important;
+          padding: 0 !important;
+          margin: 0 auto !important;
           width: 100% !important;
           max-width: 100% !important;
           height: auto !important;
@@ -596,24 +642,40 @@ export default function InformeView() {
         .iv-day-block {
           page-break-after: always !important;
           break-after: page !important;
-          padding-bottom: 1cm !important;
-          margin-bottom: 1.5rem !important;
+          page-break-inside: auto !important;
+          break-inside: auto !important;
+          padding: 0 !important;
+          margin: 0 0 1rem 0 !important;
         }
         .iv-day-block:not(:first-of-type) {
           page-break-before: always !important;
           break-before: page !important;
-          padding-top: 1cm !important;
         }
         .iv-day-block:last-of-type {
           page-break-after: auto !important;
           break-after: auto !important;
         }
-        /* Padding-top del primer día para que tenga espacio arriba (1cm).
-           El position:absolute del padre ancla la primera página sin
-           margen residual, y este padding-top le da el espacio limpio. */
         .iv-day-block:first-of-type {
-          padding-top: 1cm !important;
           margin-top: 0 !important;
+          padding-top: 0 !important;
+        }
+        .iv-header-table {
+          margin-bottom: 0.4rem !important;
+          padding: 0.25rem 0.5rem !important;
+        }
+        .iv-ht-row {
+          padding: 0.16rem 0.35rem !important;
+        }
+        .iv-day-header {
+          margin-bottom: 0.3rem !important;
+          padding-bottom: 0.2rem !important;
+        }
+        .iv-montaje-container {
+          padding: 0.4rem 0.6rem !important;
+        }
+        .iv-montaje-comentario {
+          margin-top: 0.3rem !important;
+          padding: 0.3rem 0.5rem !important;
         }
         .iv-imagenes {
           display: grid !important;
