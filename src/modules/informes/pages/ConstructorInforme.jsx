@@ -614,6 +614,19 @@ export default function ConstructorInforme() {
                       mont = Array.isArray(parsed) ? parsed : (parsed && Object.keys(parsed).length > 0 ? [parsed] : []);
                     }
                   } catch { mont = []; }
+                  if (!salon && mont.length > 0) {
+                    salon = mont.map(m => m.salon).filter(Boolean).join(', ') || mont[0]?.salon || '';
+                  }
+                  if (!horario && mont.length > 0) {
+                    horario = mont.find(m => m.horario)?.horario || mont[0]?.horario || '';
+                  }
+                  if (!salon && d.salon) salon = d.salon;
+                  if (!horario && d.horario) horario = d.horario;
+                  if (!salon && d.slot_salon) salon = d.slot_salon;
+                  if (!horario && d.slot_horario) horario = d.slot_horario;
+                  const cdMatch = crmDays.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''));
+                  if (!salon && cdMatch?.salon) salon = cdMatch.salon;
+                  if (!horario && cdMatch?.horario) horario = cdMatch.horario;
                   const loadedItems = (d.items || []).map(item => ({
                     comp_id: Date.now() + Math.random(),
                     dbId: item.id || null,
@@ -725,6 +738,19 @@ export default function ConstructorInforme() {
               mont = Array.isArray(parsed) ? parsed : (parsed && Object.keys(parsed).length > 0 ? [parsed] : []);
             }
           } catch { mont = []; }
+          if (!salon && mont.length > 0) {
+            salon = mont.map(m => m.salon).filter(Boolean).join(', ') || mont[0]?.salon || '';
+          }
+          if (!horario && mont.length > 0) {
+            horario = mont.find(m => m.horario)?.horario || mont[0]?.horario || '';
+          }
+          if (!salon && d.salon) salon = d.salon;
+          if (!horario && d.horario) horario = d.horario;
+          if (!salon && d.slot_salon) salon = d.slot_salon;
+          if (!horario && d.slot_horario) horario = d.slot_horario;
+          const cdMatch = crmDaysRef.current?.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''));
+          if (!salon && cdMatch?.salon) salon = cdMatch.salon;
+          if (!horario && cdMatch?.horario) horario = cdMatch.horario;
           const loadedItems = (d.items || []).map(item => ({
             comp_id: Date.now() + Math.random(),
             dbId: item.id || null,
@@ -789,8 +815,8 @@ export default function ConstructorInforme() {
           menu_id: dia.menuAsignado?.id || null,
           descripcion_montaje: JSON.stringify({
             _v: 2,
-            salon: dia.salon || '',
-            horario: dia.horario || '',
+            salon: dia.salon || (dia.montaje && dia.montaje.map(m => m.salon).filter(Boolean).join(', ')) || (dia.montaje && dia.montaje[0]?.salon) || '',
+            horario: dia.horario || (dia.montaje && dia.montaje.find(m => m.horario)?.horario) || (dia.montaje && dia.montaje[0]?.horario) || '',
             montajes: dia.montaje || [],
             alertas: dia.alertas || [],
             alertaCustom: dia.alertaCustom || '',
