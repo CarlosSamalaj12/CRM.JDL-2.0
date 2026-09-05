@@ -40,10 +40,12 @@ const getEventGroupId = (idOcupacion) =>
 
 // Obtener cantidades de comida por evento+fecha desde weeklyServices
 const getServiceCounts = (services, idOcupacion, fecha) => {
+  const baseId = getEventGroupId(idOcupacion);
   const dayServices = services.filter(s => {
     const rawDate = String(s.FechaServicio || '');
     const cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate.slice(0, 10);
-    return cleanDate === fecha && String(s.Idocupacion) === String(idOcupacion);
+    const sBaseId = getEventGroupId(s.Idocupacion);
+    return cleanDate === fecha && (String(s.Idocupacion) === String(idOcupacion) || sBaseId === baseId);
   });
   if (dayServices.length === 0) return null;
   const result = { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
@@ -467,20 +469,28 @@ export default function Kanban() {
 
   const exportToExcel = () => {
     const rows = [];
+    const seenFoodExcel = new Set();
     for (const day of days) {
       for (const e of day.events) {
-        const svcX = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, e.Idocupacion, day.isoDate) : null;
+        const groupId = getEventGroupId(e.Idocupacion);
+        const foodKey = `${groupId}_${day.isoDate}`;
+        const canReceiveFood = !seenFoodExcel.has(foodKey);
+        if (canReceiveFood) seenFoodExcel.add(foodKey);
+
+        const svcX = (canReceiveFood && weeklyServices.length > 0)
+          ? getServiceCounts(weeklyServices, e.Idocupacion, day.isoDate)
+          : null;
         rows.push({
           'Fecha': day.isoDate || e.displayDate || '',
           'Institución': e.Institucion || '',
           'Salón': e.Salon || '',
           'Horario': `${fmtTime(e.HoraI)} - ${fmtTime(e.HoraF)}`,
           'Pax': e.Pax || 0,
-          'Des': svcX ? svcX.desayunos : (e.cant_desayunos || 0),
-          'Ref. AM': svcX ? svcX.refacciones_am : (e.cant_refacciones_am || 0),
-          'Alm.': svcX ? svcX.almuerzos : (e.cant_almuerzos || 0),
-          'Ref. PM': svcX ? svcX.refacciones_pm : (e.cant_refacciones_pm || 0),
-          'Cenas': svcX ? svcX.cenas : (e.cant_cenas || 0),
+          'Des': svcX ? svcX.desayunos : (canReceiveFood ? (e.cant_desayunos || 0) : 0),
+          'Ref. AM': svcX ? svcX.refacciones_am : (canReceiveFood ? (e.cant_refacciones_am || 0) : 0),
+          'Alm.': svcX ? svcX.almuerzos : (canReceiveFood ? (e.cant_almuerzos || 0) : 0),
+          'Ref. PM': svcX ? svcX.refacciones_pm : (canReceiveFood ? (e.cant_refacciones_pm || 0) : 0),
+          'Cenas': svcX ? svcX.cenas : (canReceiveFood ? (e.cant_cenas || 0) : 0),
           'Tipo': e.TipoEvento || '',
           'Estado': statusMap[e.Estatuscotizacion]?.label || '',
           'Vendedor': e.Vendedor || '',
@@ -532,6 +542,7 @@ export default function Kanban() {
       } else {
         const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
         const seenSharedPaxPrint = new Set();
+        const seenFoodPrint = new Set();
         for (const ev of day.events) {
           const paxVal = Number(ev.Pax) || 0;
           const groupId = getEventGroupId(ev.Idocupacion);
@@ -545,12 +556,19 @@ export default function Kanban() {
           } else {
             dayTotals.pax += paxVal;
           }
-          const svcP = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate) : null;
-          const evDes = svcP ? svcP.desayunos : (Number(ev.cant_desayunos) || 0);
-          const evRefAm = svcP ? svcP.refacciones_am : (Number(ev.cant_refacciones_am) || 0);
-          const evAlm = svcP ? svcP.almuerzos : (Number(ev.cant_almuerzos) || 0);
-          const evRefPm = svcP ? svcP.refacciones_pm : (Number(ev.cant_refacciones_pm) || 0);
-          const evCen = svcP ? svcP.cenas : (Number(ev.cant_cenas) || 0);
+
+          const foodKey = `${groupId}_${day.isoDate}`;
+          const canReceiveFood = !seenFoodPrint.has(foodKey);
+          if (canReceiveFood) seenFoodPrint.add(foodKey);
+
+          const svcP = (canReceiveFood && weeklyServices.length > 0)
+            ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate)
+            : null;
+          const evDes = svcP ? svcP.desayunos : (canReceiveFood ? (Number(ev.cant_desayunos) || 0) : 0);
+          const evRefAm = svcP ? svcP.refacciones_am : (canReceiveFood ? (Number(ev.cant_refacciones_am) || 0) : 0);
+          const evAlm = svcP ? svcP.almuerzos : (canReceiveFood ? (Number(ev.cant_almuerzos) || 0) : 0);
+          const evRefPm = svcP ? svcP.refacciones_pm : (canReceiveFood ? (Number(ev.cant_refacciones_pm) || 0) : 0);
+          const evCen = svcP ? svcP.cenas : (canReceiveFood ? (Number(ev.cant_cenas) || 0) : 0);
           dayTotals.desayunos += evDes;
           dayTotals.ref_am += evRefAm;
           dayTotals.almuerzos += evAlm;
@@ -976,6 +994,7 @@ export default function Kanban() {
                   } else {
                     const dayTotals = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
                     const seenSharedPaxTable = new Set();
+                    const seenFoodTable = new Set();
                     day.events.forEach((ev, ei) => {
                       const paxVal = Number(ev.Pax) || 0;
                       const groupId = getEventGroupId(ev.Idocupacion);
@@ -989,12 +1008,19 @@ export default function Kanban() {
                       } else {
                         dayTotals.pax += paxVal;
                       }
-                      const svc = weeklyServices.length > 0 ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate) : null;
-                      const evDes = svc ? svc.desayunos : (Number(ev.cant_desayunos) || 0);
-                      const evRefAm = svc ? svc.refacciones_am : (Number(ev.cant_refacciones_am) || 0);
-                      const evAlm = svc ? svc.almuerzos : (Number(ev.cant_almuerzos) || 0);
-                      const evRefPm = svc ? svc.refacciones_pm : (Number(ev.cant_refacciones_pm) || 0);
-                      const evCen = svc ? svc.cenas : (Number(ev.cant_cenas) || 0);
+
+                      const foodKey = `${groupId}_${day.isoDate}`;
+                      const canReceiveFood = !seenFoodTable.has(foodKey);
+                      if (canReceiveFood) seenFoodTable.add(foodKey);
+
+                      const svc = (canReceiveFood && weeklyServices.length > 0)
+                        ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate)
+                        : null;
+                      const evDes = svc ? svc.desayunos : (canReceiveFood ? (Number(ev.cant_desayunos) || 0) : 0);
+                      const evRefAm = svc ? svc.refacciones_am : (canReceiveFood ? (Number(ev.cant_refacciones_am) || 0) : 0);
+                      const evAlm = svc ? svc.almuerzos : (canReceiveFood ? (Number(ev.cant_almuerzos) || 0) : 0);
+                      const evRefPm = svc ? svc.refacciones_pm : (canReceiveFood ? (Number(ev.cant_refacciones_pm) || 0) : 0);
+                      const evCen = svc ? svc.cenas : (canReceiveFood ? (Number(ev.cant_cenas) || 0) : 0);
                       dayTotals.desayunos += evDes;
                       dayTotals.ref_am += evRefAm;
                       dayTotals.almuerzos += evAlm;
