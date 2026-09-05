@@ -828,7 +828,7 @@ export default function ReportsEventosAsignados({ onClose }) {
         { label: 'Cliente',        p: 0.19 },
         { label: 'Vendedor',       p: 0.17 },
         { label: 'Estado',         p: 0.12 },
-        { label: 'Respuesta',      p: 0.12 },
+        { label: 'Tiempo 1ra\nrespuesta', p: 0.12 },
         { label: 'PAX',            p: 0.06 },
         { label: 'Días al\nevento', p: 0.20 },
       ];
@@ -1421,7 +1421,7 @@ export default function ReportsEventosAsignados({ onClose }) {
                   <Th label="Cliente" sortKey="cliente" sortIcon={sortIcon} onSort={onSort} />
                   <Th label="Vendedor" sortKey="vendedor" sortIcon={sortIcon} onSort={onSort} />
                   <Th label="Estado" sortKey="estado" sortIcon={sortIcon} onSort={onSort} />
-                  <Th label="Respuesta" sortKey="respuesta" sortIcon={sortIcon} onSort={onSort} />
+                  <Th label="Tiempo de primera respuesta" sortKey="respuesta" sortIcon={sortIcon} onSort={onSort} />
                   <Th label="PAX" sortKey="pax" sortIcon={sortIcon} onSort={onSort} />
                   <Th label="Días → Evento" sortKey="diasEvento" sortIcon={sortIcon} onSort={onSort} />
                   <th>Último seguimiento</th>
