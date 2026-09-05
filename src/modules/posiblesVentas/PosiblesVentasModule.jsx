@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
@@ -301,7 +301,12 @@ function DeletedLeadCard({ lead, restoring, onRestore }) {
               {lead.vendedorNombre ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <Icon name="users" size={12} color="#94a3b8" strokeWidth={2.2} />
-                  Asignado: {lead.vendedorNombre}
+                  <span>Asignado: {lead.vendedorNombre}</span>
+                  {(lead.asignadoEn || lead.creadoEn) && (
+                    <span style={{ color: '#94a3b8', fontSize: '10.5px' }} title={`Asignado el ${formatFechaCompleta(lead.asignadoEn || lead.creadoEn)}`}>
+                      (hace {formatDiasAsignado(lead.asignadoEn || lead.creadoEn)})
+                    </span>
+                  )}
                 </span>
               ) : (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#d97706' }}>
@@ -446,6 +451,15 @@ function VendedorCard({ row }) {
 function LeadCard({ lead, userName, canEdit, canDelete, canSendMessage, onEdit, onDelete, onConvert, onVerReserva, onSendMessage }) {
   const est = ESTADO_MAP[lead.estado] || ESTADO_MAP.pendiente;
   const servicios = parseServicios(lead.servicios);
+  const fechaAsig = lead.asignadoEn || lead.creadoEn;
+  const fechaSeg = lead.primerSeguimientoEn || lead.ultimoSeguimientoEn || (lead.eventoId ? (lead.actualizadoEn || lead.creadoEn) : null);
+  const hasSeguimiento = Boolean(
+    lead.primerSeguimientoEn ||
+    lead.ultimoSeguimientoEn ||
+    lead.eventoId ||
+    lead.estado === 'en_proceso' ||
+    lead.estado === 'ganada'
+  );
   return (
     <div style={{
       display: 'flex',
@@ -490,9 +504,17 @@ function LeadCard({ lead, userName, canEdit, canDelete, canSendMessage, onEdit, 
             </div>
             {lead.vendedorNombre ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
-                <div style={{ fontSize: '11px', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '11px', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                   <Icon name="users" size={12} color="#64748b" strokeWidth={2.2} />
-                  Asignado a: <strong>{lead.vendedorNombre}</strong>
+                  <span>Asignado a: <strong>{lead.vendedorNombre}</strong></span>
+                  {fechaAsig && (
+                    <span
+                      style={{ color: '#64748b', fontSize: '10.5px', fontWeight: 500 }}
+                      title={`Asignado el ${formatFechaCompleta(fechaAsig)}`}
+                    >
+                      · hace {formatDiasAsignado(fechaAsig)}
+                    </span>
+                  )}
                 </div>
                 {lead.tomadoPorOtro && lead.atendidoPorNombre && (
                   <div style={{
@@ -582,15 +604,21 @@ function LeadCard({ lead, userName, canEdit, canDelete, canSendMessage, onEdit, 
           borderTop: '1px dashed #e2e8f0',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {(lead.ultimoSeguimientoEn || lead.eventoId || lead.estado === 'en_proceso' || lead.estado === 'ganada') ? (
-              <span style={{ fontSize: '11px', color: '#0f766e', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            {hasSeguimiento ? (
+              <span
+                style={{ fontSize: '11px', color: '#0f766e', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                title={`Fecha de seguimiento: ${formatFechaCompleta(fechaSeg)}${lead.ultimoSeguimientoEn && lead.primerSeguimientoEn && String(lead.ultimoSeguimientoEn) !== String(lead.primerSeguimientoEn) ? ` · Último: ${formatFechaCompleta(lead.ultimoSeguimientoEn)}` : ''}`}
+              >
                 <Icon name="refresh" size={12} color="#0f766e" strokeWidth={2.3} />
-                Seg: {formatFechaCorta(lead.ultimoSeguimientoEn || lead.actualizadoEn || lead.creadoEn)} ({formatTiempoTranscurrido(lead.ultimoSeguimientoEn || lead.actualizadoEn || lead.creadoEn)})
+                <span>Seguimiento el: <strong>{formatDiaSeguimiento(fechaSeg)}</strong></span>
               </span>
             ) : (
-              <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span
+                style={{ fontSize: '11px', color: '#dc2626', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                title={`Asignado el ${formatFechaCompleta(fechaAsig)} (${formatTiempoTranscurrido(fechaAsig)})`}
+              >
                 <Icon name="alertTriangle" size={12} color="#dc2626" strokeWidth={2.3} />
-                Sin seguimiento ({formatTiempoTranscurrido(lead.creadoEn)})
+                <span>Sin seguimiento ({formatDiasAsignado(fechaAsig)})</span>
               </span>
             )}
             <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
@@ -652,13 +680,51 @@ function parseServicios(raw) {
 }
 function toDateObj(val) {
   if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
   const d = new Date(String(val).replace(' ', 'T'));
   return isNaN(d.getTime()) ? null : d;
 }
-function formatFechaCorta(val) {
+function formatFechaCompleta(val) {
   const d = toDateObj(val);
-  if (!d) return '';
-  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  if (!d) return '—';
+  const fecha = d.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const hora = d.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${fecha} a las ${hora}`;
+}
+function formatDiaSeguimiento(val) {
+  const d = toDateObj(val);
+  if (!d) return '—';
+
+  const hoy = new Date();
+  const esMismoDia = (a, b) => (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+
+  const ayer = new Date(hoy);
+  ayer.setDate(ayer.getDate() - 1);
+
+  const hora = d.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  if (esMismoDia(d, hoy)) {
+    return `Hoy a las ${hora}`;
+  }
+  if (esMismoDia(d, ayer)) {
+    return `Ayer a las ${hora}`;
+  }
+
+  const weekdayRaw = d.toLocaleDateString('es-ES', { weekday: 'short' });
+  const weekday = weekdayRaw ? weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1).replace('.', '') : '';
+  const diaMes = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  const año = d.getFullYear() !== hoy.getFullYear() ? ` ${d.getFullYear()}` : '';
+
+  return `${weekday}, ${diaMes}${año} · ${hora}`;
 }
 function formatDuration(ms) {
   if (!ms || ms < 0 || isNaN(ms)) return '—';
@@ -669,10 +735,17 @@ function formatDuration(ms) {
   const dias = Math.floor(horas / 24);
   return `${dias}d ${horas % 24}h`;
 }
-function diasDesde(val) {
+function formatDiasAsignado(val) {
   const d = toDateObj(val);
-  if (!d) return null;
-  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+  if (!d) return '—';
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return '< 1 día';
+  const dias = Math.floor(diffMs / 86400000);
+  if (dias === 0) {
+    const horas = Math.floor(diffMs / 3600000);
+    return horas > 0 ? `${horas}h` : '< 1h';
+  }
+  return dias === 1 ? '1 día' : `${dias} días`;
 }
 
 function formatTiempoTranscurrido(val) {
@@ -731,7 +804,6 @@ export default function PosiblesVentasModule() {
   const [estadoFilter, setEstadoFilter] = useState('all');
   const [showVendorSummary, setShowVendorSummary] = useState(false);
   const [focusedLeadId, setFocusedLeadId] = useState(() => searchParams.get('focus') || null);
-  const focusTimerRef = useRef(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -985,9 +1057,10 @@ export default function PosiblesVentasModule() {
       const row = porVendedor.get(vid);
       row.total += 1;
       row[estado] += 1;
-      if (l.primerSeguimientoEn && l.creadoEn) {
+      const asigDate = l.asignadoEn || l.creadoEn;
+      if (l.primerSeguimientoEn && asigDate) {
         const t = new Date(String(l.primerSeguimientoEn).replace(' ', 'T')).getTime()
-          - new Date(String(l.creadoEn).replace(' ', 'T')).getTime();
+          - new Date(String(asigDate).replace(' ', 'T')).getTime();
         if (Number.isFinite(t) && t >= 0) {
           row.totalRespMs += t;
           row.nConSeguimiento += 1;

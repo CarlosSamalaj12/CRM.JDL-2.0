@@ -1032,6 +1032,16 @@ async function ensurePosiblesVentasAsignadoEn() {
     if (!idxCheck) {
       await conn.query("ALTER TABLE posibles_ventas ADD KEY idx_posibles_ventas_asignado_en (asignado_en)");
     }
+    // Backfill asignado_en para leads históricos con vendedor
+    await conn.query("UPDATE posibles_ventas SET asignado_en = creado_en WHERE asignado_en IS NULL AND vendedor_id IS NOT NULL");
+    // Backfill primer_seguimiento_en y ultimo_seguimiento_en desde eventos vinculados
+    await conn.query(`
+      UPDATE posibles_ventas pv
+      JOIN eventos e ON e.id = pv.evento_id OR e.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+      SET pv.primer_seguimiento_en = COALESCE(pv.primer_seguimiento_en, e.creado_en),
+          pv.ultimo_seguimiento_en = COALESCE(pv.ultimo_seguimiento_en, e.actualizado_en, e.creado_en)
+      WHERE pv.evento_id IS NOT NULL AND pv.primer_seguimiento_en IS NULL
+    `).catch(() => {});
   } finally {
     if (conn) conn.release();
   }
@@ -2068,6 +2078,20 @@ async function cleanupNotificacionesPorSeguimiento(oldState, newState) {
             )`,
         [baseId, baseId, baseId, baseId]
       );
+      // Sincronizar fecha de seguimiento en posibles_ventas
+      await conn.query(
+        `UPDATE posibles_ventas
+            SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                ultimo_seguimiento_en = CURRENT_TIMESTAMP
+          WHERE evento_id IS NOT NULL
+            AND (
+              evento_id = ?
+              OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+              OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+              OR SUBSTRING_INDEX(evento_id, '_s', 1) = SUBSTRING_INDEX(?, '_s', 1)
+            )`,
+        [baseId, baseId, baseId, baseId]
+      ).catch(() => {});
       if (result.affectedRows > 0) {
         totalDeleted += result.affectedRows;
         if (io) {

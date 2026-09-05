@@ -102,7 +102,9 @@ const LINKED_EVENT_SELECT = `
   COALESCE(e_direct.estado, ev.Estatuscotizacion) AS linked_estatus,
   COALESCE(e_direct.fecha_evento, ev.FechaEvento) AS linked_fecha,
   COALESCE(e_direct.id_usuario, u_legacy.id) AS linked_usuario_id,
-  COALESCE(u_direct.nombre, ev.Vendedor) AS atendido_por_nombre
+  COALESCE(u_direct.nombre, ev.Vendedor) AS atendido_por_nombre,
+  e_direct.creado_en AS linked_creado_en,
+  e_direct.actualizado_en AS linked_actualizado_en
 `;
 
 /** Para el listado principal: une con la tabla eventos y tbl_seguimientocotizaciones si existe. */
@@ -199,8 +201,8 @@ function buildLead(row) {
     creadoPorId: row.creado_por_id,
     creadoPorNombre: row.creado_por_nombre || null,
     estado: derived,
-    ultimoSeguimientoEn: row.ultimo_seguimiento_en || (row.evento_id ? (row.actualizado_en || row.creado_en) : null),
-    primerSeguimientoEn: row.primer_seguimiento_en || (row.evento_id ? (row.actualizado_en || row.creado_en) : null),
+    ultimoSeguimientoEn: row.ultimo_seguimiento_en || (row.evento_id ? (row.linked_actualizado_en || row.linked_creado_en || row.actualizado_en || row.creado_en) : null),
+    primerSeguimientoEn: row.primer_seguimiento_en || (row.evento_id ? (row.linked_creado_en || row.actualizado_en || row.creado_en) : null),
     eventoId: row.evento_id || null,
     atendidoPorId: row.linked_usuario_id || null,
     atendidoPorNombre: row.atendido_por_nombre || null,
@@ -265,11 +267,29 @@ export async function syncAllEstados({ onlyIds = null } = {}) {
         updates.push({ id: row.id, estado: derived });
       }
     }
-    if (updates.length === 0) return { changed: 0 };
 
-    for (const u of updates) {
-      await pool.query('UPDATE posibles_ventas SET estado = ? WHERE id = ?', [u.estado, u.id]);
+    if (updates.length > 0) {
+      for (const u of updates) {
+        await pool.query('UPDATE posibles_ventas SET estado = ? WHERE id = ?', [u.estado, u.id]);
+      }
     }
+
+    // Sincronizar fechas de primer y último seguimiento para leads con reservas vinculadas
+    await pool.query(`
+      UPDATE posibles_ventas pv
+      JOIN eventos e ON e.id = pv.evento_id OR e.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+      SET pv.primer_seguimiento_en = COALESCE(pv.primer_seguimiento_en, e.creado_en),
+          pv.ultimo_seguimiento_en = COALESCE(pv.ultimo_seguimiento_en, e.actualizado_en, e.creado_en)
+      WHERE pv.evento_id IS NOT NULL AND pv.primer_seguimiento_en IS NULL
+    `).catch(() => {});
+
+    // Sincronizar fecha de asignación para leads asignados que no tenían asignado_en
+    await pool.query(`
+      UPDATE posibles_ventas
+      SET asignado_en = creado_en
+      WHERE asignado_en IS NULL AND vendedor_id IS NOT NULL
+    `).catch(() => {});
+
     return { changed: updates.length };
   } catch (err) {
     console.error('[PosiblesVentas] syncAllEstados error:', err.message || err);
