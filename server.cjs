@@ -2860,6 +2860,7 @@ async function writeStateToTables(state, oldStateOpt = null) {
           rol,
           equipoId,
           puedeAutorizar,
+          puedeUsarChecklist,
         ]
       );
     }
@@ -4680,6 +4681,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           role: 'admin',
           equipo_id: null,
           canAuthorizeDiscount: true,
+          canUseChecklist: true,
         },
         token
       });
