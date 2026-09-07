@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
-import { getEquipos, updateUserEquipo, api } from '../../services/api.js';
+import { loadState as loadCrmState, invalidateStateCache } from '../../services/stateService';
+import { getEquipos, updateUserEquipo, updateUser, createUser, deleteUser, toggleUserActive, api } from '../../services/api.js';
 import toast from 'react-hot-toast';
 
 const ROLE_LABELS = {
@@ -35,6 +35,7 @@ export default function UserModal({ onClose }) {
   const [salesTargetEnabled, setSalesTargetEnabled] = useState(false);
   const [goalTiers, setGoalTiers] = useState([]);
   const [canAuthorizeDiscount, setCanAuthorizeDiscount] = useState(false);
+  const [canUseChecklist, setCanUseChecklist] = useState(false);
 
   const userModalRef = useRef(null);
 
@@ -94,6 +95,7 @@ export default function UserModal({ onClose }) {
     setSalesTargetEnabled(false);
     setGoalTiers([]);
     setCanAuthorizeDiscount(false);
+    setCanUseChecklist(false);
     setAvatarDataUrl('');
     setSignatureDataUrl('');
     setTierName('');
@@ -147,6 +149,7 @@ export default function UserModal({ onClose }) {
         setSalesTargetEnabled(user.salesTargetEnabled === true);
         setGoalTiers(user.goalTiers || []);
         setCanAuthorizeDiscount(user.canAuthorizeDiscount === true);
+        setCanUseChecklist(user.canUseChecklist === true);
         // Reset local media states while loading
         setAvatarDataUrl('');
         setSignatureDataUrl('');
@@ -173,20 +176,15 @@ export default function UserModal({ onClose }) {
     };
   }, [selectedUserId, users]);
 
-  const saveState = async (updatedUsers) => {
-    const currentState = await loadCrmState();
-    await saveCrmState({ ...currentState, users: updatedUsers });
-  };
-
   const toggleActive = async (userId) => {
-    const updatedUsers = users.map(u => u.id === userId ? { ...u, active: !u.active } : u);
     try {
-      await saveState(updatedUsers);
-      setUsers(updatedUsers);
+      await toggleUserActive(userId);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, active: !u.active } : u));
       if (selectedUserId === userId) {
-        const found = updatedUsers.find(u => u.id === userId);
-        if (found) setActive(found.active !== false);
+        setActive(prev => !prev);
       }
+      invalidateStateCache();
+      window.dispatchEvent(new CustomEvent('usersUpdated'));
       toast.success('Estado actualizado correctamente.', { duration: 1500 });
     } catch (e) {
       console.error('Error modifying user status:', e);
@@ -200,16 +198,14 @@ export default function UserModal({ onClose }) {
 
     try {
       setLoading(true);
-      const currentState = await loadCrmState();
-      const currentUsers = currentState.users || [];
-      const updatedUsers = currentUsers.filter(u => u.id !== userId);
-
-      await saveCrmState({ ...currentState, users: updatedUsers });
+      await deleteUser(userId);
+      invalidateStateCache();
       toast.success(`Usuario "${userName}" eliminado correctamente.`);
 
       if (selectedUserId === userId) {
         resetForm();
       }
+      window.dispatchEvent(new CustomEvent('usersUpdated'));
       await fetchUsers();
     } catch (err) {
       console.error('Error deleting user:', err);
@@ -346,74 +342,52 @@ export default function UserModal({ onClose }) {
 
     try {
       setLoading(true);
-      const currentState = await loadCrmState();
-      const currentUsers = currentState.users || [];
-
-      let updatedUsers = [...currentUsers];
 
       const nameTrimmed = fullName.trim().toLowerCase();
       const nameExists = selectedUserId
-        ? currentUsers.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed && u.id !== selectedUserId)
-        : currentUsers.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed);
+        ? users.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed && u.id !== selectedUserId)
+        : users.some(u => (u.fullName || u.name || '').trim().toLowerCase() === nameTrimmed);
       if (nameExists) {
         toast.error('Ya existe un usuario con ese nombre completo.');
         setLoading(false);
         return;
       }
 
+      const normalizedEmail = email.toLowerCase().trim();
+
+      const userPayload = {
+        name: fullName.trim(),
+        fullName: fullName.trim(),
+        username: normalizedEmail.split('@')[0],
+        email: normalizedEmail,
+        phone: phone.trim(),
+        role: role,
+        teamId: teamId ? Number(teamId) : null,
+        active: active,
+        salesTargetEnabled: salesTargetEnabled,
+        goalTiers: goalTiers,
+        canAuthorizeDiscount: canAuthorizeDiscount,
+        canUseChecklist: canUseChecklist,
+        avatarDataUrl: avatarDataUrl,
+        signatureDataUrl: signatureDataUrl,
+      };
+
       if (selectedUserId) {
-        updatedUsers = updatedUsers.map(u => {
-          if (u.id === selectedUserId) {
-            return {
-              ...u,
-              name: fullName,
-              fullName: fullName,
-              username: email.split('@')[0],
-              email: email.toLowerCase(),
-              phone: phone,
-              role: role,
-              teamId: teamId ? Number(teamId) : null,
-              active: active,
-              salesTargetEnabled: salesTargetEnabled,
-              goalTiers: goalTiers,
-              canAuthorizeDiscount: canAuthorizeDiscount,
-              avatarDataUrl: avatarDataUrl,
-              signatureDataUrl: signatureDataUrl,
-            };
-          }
-          return u;
-        });
+        await updateUser(selectedUserId, userPayload);
       } else {
-        const normalizedEmail = email.toLowerCase().trim();
-        if (currentUsers.some(u => String(u.email || '').toLowerCase() === normalizedEmail)) {
+        if (users.some(u => String(u.email || '').toLowerCase() === normalizedEmail)) {
           toast.error('El correo electrónico ya se encuentra pre-registrado en el sistema.');
           setLoading(false);
           return;
         }
 
         const newId = `user_prereg_${Date.now()}`;
-        const newUser = {
+        await createUser({
+          ...userPayload,
           id: newId,
-          name: fullName,
-          fullName: fullName,
-          username: normalizedEmail.split('@')[0],
-          email: normalizedEmail,
-          phone: phone,
           password: '',
-          role: role,
-          teamId: teamId ? Number(teamId) : null,
-          active: active,
-          salesTargetEnabled: salesTargetEnabled,
-          goalTiers: goalTiers,
-          canAuthorizeDiscount: canAuthorizeDiscount,
-          avatarDataUrl: avatarDataUrl,
-          signatureDataUrl: signatureDataUrl,
-        };
-
-        updatedUsers.push(newUser);
+        });
       }
-
-      await saveCrmState({ ...currentState, users: updatedUsers });
 
       // Sincronizar equipo_id directamente en la tabla usuarios para que el equipo se refleje en tareas semanales
       if (selectedUserId && !selectedUserId.startsWith('user_prereg_')) {
@@ -422,6 +396,23 @@ export default function UserModal({ onClose }) {
         });
       }
 
+      // Si el usuario editado es el usuario actualmente logueado, actualizar el localStorage para reflejo instantáneo
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        if (currentUser && (currentUser.id === selectedUserId || currentUser.email === normalizedEmail)) {
+          const updatedUser = {
+            ...currentUser,
+            ...userPayload,
+            canAuthorizeDiscount: canAuthorizeDiscount,
+            canUseChecklist: canUseChecklist,
+          };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
+      } catch (err) {
+        console.warn('No se pudo actualizar localStorage user:', err);
+      }
+
+      invalidateStateCache();
       toast.success(selectedUserId ? `Datos de ${fullName} actualizados.` : `${fullName} pre-registrado y autorizado.`, { duration: 2000 });
 
       window.dispatchEvent(new CustomEvent('usersUpdated'));
@@ -429,8 +420,8 @@ export default function UserModal({ onClose }) {
       handleClose();
 
     } catch (err) {
-      console.error('Error saving user to global state:', err);
-      toast.error('Ocurrió un error al guardar los datos del usuario.');
+      console.error('Error saving user to database:', err);
+      toast.error(err.message || 'Ocurrió un error al guardar los datos del usuario.');
     } finally {
       setLoading(false);
     }
@@ -606,6 +597,22 @@ export default function UserModal({ onClose }) {
               </label>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                 Recibirá notificaciones para aprobar o rechazar descuentos en cotizaciones
+              </div>
+            </div>
+
+            {/* Puede usar y llenar check lists */}
+            <div className="settings-modern-field">
+              <span>Uso de Check List</span>
+              <label className="settings-switch-inline">
+                <input
+                  type="checkbox"
+                  checked={canUseChecklist}
+                  onChange={(e) => setCanUseChecklist(e.target.checked)}
+                />
+                <span>PUEDE USAR Y LLENAR CHECK LISTS</span>
+              </label>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                Permite a este usuario (incluyendo coordinadores) llenar, calificar y guardar check lists de eventos
               </div>
             </div>
 

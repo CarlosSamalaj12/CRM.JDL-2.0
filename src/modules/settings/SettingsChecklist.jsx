@@ -758,7 +758,7 @@ export default function SettingsChecklist() {
   const [evItems, setEvItems] = useState([]);
   const [evHistory, setEvHistory] = useState([]);
 
-  const isReadOnly = currentUser?.rol === 'Coordinador';
+  const isReadOnly = currentUser?.rol === 'Coordinador' && !currentUser?.canUseChecklist;
 
   // Lock + PIN para re-editar la Evaluación después de guardada
   const [isEvLocked, setIsEvLocked] = useState(false);

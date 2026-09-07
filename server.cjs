@@ -296,6 +296,9 @@ async function ensureUsersExtendedStructure() {
     if (!colSet.has("puede_autorizar_descuento")) {
       await conn.query("ALTER TABLE usuarios ADD COLUMN puede_autorizar_descuento TINYINT(1) NOT NULL DEFAULT 0");
     }
+    if (!colSet.has("puede_usar_checklist")) {
+      await conn.query("ALTER TABLE usuarios ADD COLUMN puede_usar_checklist TINYINT(1) NOT NULL DEFAULT 0");
+    }
   } finally {
     if (conn) conn.release();
   }
@@ -1309,7 +1312,7 @@ async function readStateFromTables() {
       dbAnticipos,
     ] = await Promise.all([
       conn.query("SELECT id, nombre FROM salones ORDER BY id"),
-      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, NULL AS firma_data_url, NULL AS avatar_data_url, puede_autorizar_descuento FROM usuarios ORDER BY creado_en, id"),
+      conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, NULL AS firma_data_url, NULL AS avatar_data_url, puede_autorizar_descuento, puede_usar_checklist FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
       conn.query("SELECT id, id_grupo, nombre, nombre_salon, salon_principal, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos WHERE fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH) ORDER BY fecha_evento, hora_inicio, id"),
@@ -1595,6 +1598,7 @@ async function readStateFromTables() {
           role: str(u.rol || 'vendedor'),
           teamId: u.equipo_id ? Number(u.equipo_id) : null,
           canAuthorizeDiscount: Number(u.puede_autorizar_descuento) !== 0,
+          canUseChecklist: Number(u.puede_usar_checklist) !== 0,
         };
       }).filter((u) => u.id && u.name),
       companies: empresas.map((c) => ({
@@ -2352,7 +2356,7 @@ async function readLoginUsers() {
     conn = await pool.getConnection();
     const rows = await conn.query(
       `
-        SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, rol
+        SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, rol, puede_autorizar_descuento, puede_usar_checklist
         FROM usuarios
         WHERE activo = 1
         ORDER BY nombre_completo, nombre_usuario, nombre
@@ -2367,6 +2371,8 @@ async function readLoginUsers() {
         avatarDataUrl: str(r.avatar_data_url),
         signatureDataUrl: str(r.firma_data_url),
         role: str(r.rol || 'vendedor'),
+        canAuthorizeDiscount: Number(r.puede_autorizar_descuento) !== 0,
+        canUseChecklist: Number(r.puede_usar_checklist) !== 0,
       }))
       .filter((u) => u.id);
   } finally {
@@ -2380,7 +2386,7 @@ async function authenticateUser(userId, password) {
     conn = await pool.getConnection();
     const rows = await conn.query(
       `
-        SELECT id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, firma_data_url, rol, equipo_id, puede_autorizar_descuento
+        SELECT id, nombre, nombre_usuario, nombre_completo, correo, contrasena, avatar_data_url, firma_data_url, rol, equipo_id, puede_autorizar_descuento, puede_usar_checklist
         FROM usuarios
         WHERE id = ? AND activo = 1
         LIMIT 1
@@ -2402,6 +2408,7 @@ async function authenticateUser(userId, password) {
       role: str(row.rol || 'vendedor'),
       equipo_id: row.equipo_id ? Number(row.equipo_id) : null,
       canAuthorizeDiscount: Number(row.puede_autorizar_descuento) !== 0,
+      canUseChecklist: Number(row.puede_usar_checklist) !== 0,
     };
   } finally {
     if (conn) conn.release();
@@ -2811,12 +2818,13 @@ async function writeStateToTables(state, oldStateOpt = null) {
       const rol = str(u?.role || u?.rol || 'vendedor').trim();
       const equipoId = u?.teamId ? Number(u.teamId) : null;
       const puedeAutorizar = u?.canAuthorizeDiscount === true ? 1 : 0;
+      const puedeUsarChecklist = u?.canUseChecklist === true ? 1 : 0;
       if (!id || !nombre) continue;
       await conn.query(
         `
           INSERT INTO usuarios
-            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, puede_autorizar_descuento)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, firma_data_url, avatar_data_url, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, puede_autorizar_descuento, puede_usar_checklist)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             nombre = VALUES(nombre),
             nombre_usuario = VALUES(nombre_usuario),
@@ -2832,7 +2840,8 @@ async function writeStateToTables(state, oldStateOpt = null) {
             tiers_comision_json = VALUES(tiers_comision_json),
             rol = VALUES(rol),
             equipo_id = VALUES(equipo_id),
-            puede_autorizar_descuento = VALUES(puede_autorizar_descuento)
+            puede_autorizar_descuento = VALUES(puede_autorizar_descuento),
+            puede_usar_checklist = VALUES(puede_usar_checklist)
         `,
         [
           id,
@@ -4259,6 +4268,212 @@ app.put("/api/users/:id/equipo", async (req, res) => {
   }
 });
 
+// ── Rutas puntuales para gestión rápida de usuarios (5-15ms sin reescribir todo el CRM) ──
+app.put("/api/users/:id", async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    const u = req.body;
+    if (!id || !u) return res.status(400).json({ ok: false, message: "Datos incompletos." });
+
+    const nombre = str(u.fullName || u.name || '').trim();
+    const fullName = str(u.fullName || u.name || '').trim();
+    const username = str(u.username || (u.email ? u.email.split('@')[0] : '')).trim();
+    const email = str(u.email || '').trim().toLowerCase();
+    const phone = str(u.phone || '').trim();
+    const rol = str(u.role || u.rol || 'vendedor').trim();
+    const activo = u.active === false ? 0 : 1;
+    const equipoId = u.teamId ? Number(u.teamId) : null;
+    const puedeAutorizar = u.canAuthorizeDiscount === true ? 1 : 0;
+    const puedeUsarChecklist = u.canUseChecklist === true ? 1 : 0;
+    const salesTargetEnabled = u.salesTargetEnabled === true ? 1 : 0;
+    const goalTiersJson = Array.isArray(u.goalTiers) ? JSON.stringify(u.goalTiers) : (u.goalTiers ? JSON.stringify(u.goalTiers) : null);
+
+    conn = await pool.getConnection();
+
+    let extraSet = "";
+    const params = [
+      nombre,
+      fullName,
+      username,
+      email,
+      phone,
+      rol,
+      activo,
+      equipoId,
+      puedeAutorizar,
+      puedeUsarChecklist,
+      salesTargetEnabled,
+      goalTiersJson,
+    ];
+
+    if (u.password && typeof u.password === 'string' && u.password.trim().length > 0) {
+      const hashed = await ensurePasswordHash(u.password.trim());
+      extraSet += ", contrasena = ?";
+      params.push(hashed);
+    }
+    if (u.avatarDataUrl !== undefined) {
+      extraSet += ", avatar_data_url = ?";
+      params.push(u.avatarDataUrl || null);
+    }
+    if (u.signatureDataUrl !== undefined) {
+      extraSet += ", firma_data_url = ?";
+      params.push(u.signatureDataUrl || null);
+    }
+
+    params.push(id);
+
+    await conn.query(
+      `UPDATE usuarios SET
+        nombre = ?,
+        nombre_completo = ?,
+        nombre_usuario = ?,
+        correo = ?,
+        telefono = ?,
+        rol = ?,
+        activo = ?,
+        equipo_id = ?,
+        puede_autorizar_descuento = ?,
+        puede_usar_checklist = ?,
+        influye_meta_ventas = ?,
+        tiers_comision_json = ?
+        ${extraSet}
+      WHERE id = ?`,
+      params
+    );
+
+    emitServerChange('usuario', 'updated', { id });
+    if (io) {
+      io.emit("users-updated", { userId: id, timestamp: Date.now() });
+    }
+
+    return res.json({ ok: true, message: "Usuario actualizado exitosamente." });
+  } catch (err) {
+    console.error("Error updating user:", err);
+    return res.status(500).json({ ok: false, message: "Error al actualizar usuario.", detail: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.post("/api/users", async (req, res) => {
+  let conn;
+  try {
+    const u = req.body;
+    if (!u) return res.status(400).json({ ok: false, message: "Datos incompletos." });
+
+    const id = str(u.id || `user_${Date.now()}`).trim();
+    const nombre = str(u.fullName || u.name || '').trim();
+    const fullName = str(u.fullName || u.name || '').trim();
+    const username = str(u.username || (u.email ? u.email.split('@')[0] : '')).trim();
+    const email = str(u.email || '').trim().toLowerCase();
+    const phone = str(u.phone || '').trim();
+    const rol = str(u.role || u.rol || 'vendedor').trim();
+    const activo = u.active === false ? 0 : 1;
+    const equipoId = u.teamId ? Number(u.teamId) : null;
+    const puedeAutorizar = u.canAuthorizeDiscount === true ? 1 : 0;
+    const puedeUsarChecklist = u.canUseChecklist === true ? 1 : 0;
+    const salesTargetEnabled = u.salesTargetEnabled === true ? 1 : 0;
+    const goalTiersJson = Array.isArray(u.goalTiers) ? JSON.stringify(u.goalTiers) : null;
+    const avatarDataUrl = u.avatarDataUrl || null;
+    const signatureDataUrl = u.signatureDataUrl || null;
+
+    let passwordHash = "";
+    if (u.password && typeof u.password === 'string' && u.password.trim().length > 0) {
+      passwordHash = await ensurePasswordHash(u.password.trim());
+    }
+
+    conn = await pool.getConnection();
+
+    if (email) {
+      const existing = await conn.query("SELECT id FROM usuarios WHERE correo = ? LIMIT 1", [email]);
+      if (existing.length > 0) {
+        return res.status(400).json({ ok: false, message: "El correo electrónico ya se encuentra registrado." });
+      }
+    }
+
+    await conn.query(
+      `INSERT INTO usuarios
+        (id, nombre, nombre_completo, nombre_usuario, correo, telefono, contrasena, rol, activo, equipo_id, puede_autorizar_descuento, puede_usar_checklist, influye_meta_ventas, tiers_comision_json, avatar_data_url, firma_data_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        nombre,
+        fullName,
+        username,
+        email,
+        phone,
+        passwordHash,
+        rol,
+        activo,
+        equipoId,
+        puedeAutorizar,
+        puedeUsarChecklist,
+        salesTargetEnabled,
+        goalTiersJson,
+        avatarDataUrl,
+        signatureDataUrl
+      ]
+    );
+
+    emitServerChange('usuario', 'created', { id });
+    if (io) {
+      io.emit("users-updated", { userId: id, timestamp: Date.now() });
+    }
+
+    return res.json({ ok: true, user: { ...u, id }, message: "Usuario creado exitosamente." });
+  } catch (err) {
+    console.error("Error creating user:", err);
+    return res.status(500).json({ ok: false, message: "Error al crear usuario.", detail: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.put("/api/users/:id/toggle-active", async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    conn = await pool.getConnection();
+    await conn.query("UPDATE usuarios SET activo = 1 - activo WHERE id = ?", [id]);
+    const updated = await conn.query("SELECT activo FROM usuarios WHERE id = ? LIMIT 1", [id]);
+    const newActive = updated[0]?.activo === 1;
+
+    emitServerChange('usuario', 'updated', { id });
+    if (io) {
+      io.emit("users-updated", { userId: id, action: "toggle-active", active: newActive, timestamp: Date.now() });
+    }
+
+    return res.json({ ok: true, active: newActive });
+  } catch (err) {
+    console.error("Error toggling user active:", err);
+    return res.status(500).json({ ok: false, message: "Error al cambiar estado.", detail: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.delete("/api/users/:id", async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    conn = await pool.getConnection();
+    await conn.query("DELETE FROM usuarios WHERE id = ?", [id]);
+
+    emitServerChange('usuario', 'deleted', { id });
+    if (io) {
+      io.emit("users-updated", { userId: id, action: "deleted", timestamp: Date.now() });
+    }
+
+    return res.json({ ok: true, message: "Usuario eliminado exitosamente." });
+  } catch (err) {
+    console.error("Error deleting user:", err);
+    return res.status(500).json({ ok: false, message: "Error al eliminar usuario.", detail: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 app.post("/api/login", async (req, res) => {
   const userId = str(req.body?.userId).trim();
   const password = str(req.body?.password);
@@ -4305,7 +4520,7 @@ app.post("/api/auth/firebase", async (req, res) => {
     
     // 1. Buscar si el ID de Firebase ya existe
     const existingById = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo, rol, equipo_id, puede_autorizar_descuento FROM usuarios WHERE id = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, avatar_data_url, firma_data_url, activo, rol, equipo_id, puede_autorizar_descuento, puede_usar_checklist FROM usuarios WHERE id = ? LIMIT 1",
       [uid]
     );
 
@@ -4344,6 +4559,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           role: str(u.rol || 'vendedor'),
           equipo_id: u.equipo_id ? Number(u.equipo_id) : null,
           canAuthorizeDiscount: Number(u.puede_autorizar_descuento) !== 0,
+          canUseChecklist: Number(u.puede_usar_checklist) !== 0,
         },
         token
       });
@@ -4351,7 +4567,7 @@ app.post("/api/auth/firebase", async (req, res) => {
 
     // 2. Buscar si ya existe un usuario local con el mismo correo para vincularlo
     const existingByEmail = await conn.query(
-      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo, rol, equipo_id, puede_autorizar_descuento FROM usuarios WHERE correo = ? LIMIT 1",
+      "SELECT id, nombre, nombre_usuario, nombre_completo, avatar_data_url, firma_data_url, activo, rol, equipo_id, puede_autorizar_descuento, puede_usar_checklist FROM usuarios WHERE correo = ? LIMIT 1",
       [email]
     );
 
@@ -4421,6 +4637,7 @@ app.post("/api/auth/firebase", async (req, res) => {
           role: targetRole,
           equipo_id: u.equipo_id ? Number(u.equipo_id) : null,
           canAuthorizeDiscount: Number(u.puede_autorizar_descuento) !== 0,
+          canUseChecklist: Number(u.puede_usar_checklist) !== 0,
         },
         token
       });

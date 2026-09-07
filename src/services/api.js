@@ -151,3 +151,24 @@ export async function updateUserEquipo(userId, equipoId) {
   ensureApiToken();
   return api.put(`/api/users/${userId}/equipo`, { equipo_id: equipoId });
 }
+
+export async function updateUser(userId, data) {
+  ensureApiToken();
+  return api.put(`/api/users/${userId}`, data);
+}
+
+export async function createUser(data) {
+  ensureApiToken();
+  return api.post('/api/users', data);
+}
+
+export async function deleteUser(userId) {
+  ensureApiToken();
+  return api.delete(`/api/users/${userId}`);
+}
+
+export async function toggleUserActive(userId) {
+  ensureApiToken();
+  return api.put(`/api/users/${userId}/toggle-active`);
+}
+

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import { loadState as loadCrmState, invalidateStateCache } from '../../services/stateService';
 import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import { useDataSync } from '../../hooks/useDataSync.js';
-import { getEquipos } from '../../services/api.js';
+import { getEquipos, toggleUserActive, deleteUser } from '../../services/api.js';
 
 const ROLE_LABELS = {
   admin: 'Administrador',
@@ -59,20 +59,19 @@ export default function SettingsUsers() {
   useDataSync('usuario', () => fetchUsersAndTeams());
   useDataSync('equipo_trabajo', () => fetchUsersAndTeams());
 
-  const saveState = async (updatedUsers) => {
-    const currentState = await loadCrmState();
-    await saveCrmState({ ...currentState, users: updatedUsers });
-  };
-
   const toggleActive = async (userId) => {
-    const updatedUsers = users.map(u => u.id === userId ? { ...u, active: !u.active } : u);
+    const targetUser = users.find(u => u.id === userId);
+    const newActive = targetUser ? !targetUser.active : false;
+    const updatedUsers = users.map(u => u.id === userId ? { ...u, active: newActive } : u);
+    setUsers(updatedUsers);
     try {
-      await saveState(updatedUsers);
-      setUsers(updatedUsers);
+      await toggleUserActive(userId);
+      invalidateStateCache();
       window.dispatchEvent(new CustomEvent('usersUpdated'));
       toast.success('Estado actualizado correctamente.', { duration: 1500 });
     } catch (e) {
-      toast.error(e.message);
+      setUsers(users);
+      toast.error(e.message || 'No se pudo cambiar el estado del usuario.');
     }
   };
 
@@ -92,10 +91,9 @@ export default function SettingsUsers() {
     if (!result.isConfirmed) return;
 
     try {
-      const currentState = await loadCrmState();
-      const currentUsers = currentState.users || [];
-      const updatedUsers = currentUsers.filter(u => u.id !== userId);
-      await saveCrmState({ ...currentState, users: updatedUsers });
+      await deleteUser(userId);
+      invalidateStateCache();
+      const updatedUsers = users.filter(u => u.id !== userId);
       setUsers(updatedUsers);
       window.dispatchEvent(new CustomEvent('usersUpdated'));
       toast.success('Usuario eliminado permanentemente.', { duration: 2000 });
@@ -238,9 +236,29 @@ export default function SettingsUsers() {
 
                     {/* Role */}
                     <td>
-                      <span className="role-badge" style={{ background: roleStyle.bg, color: roleStyle.color, borderColor: roleStyle.border }}>
-                        {ROLE_LABELS[u.role] || 'Vendedor'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span className="role-badge" style={{ background: roleStyle.bg, color: roleStyle.color, borderColor: roleStyle.border }}>
+                          {ROLE_LABELS[u.role] || 'Vendedor'}
+                        </span>
+                        {u.canUseChecklist && (
+                          <span
+                            title="Tiene permiso para llenar y guardar Check Lists"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              fontSize: '10.5px',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              background: '#ecfdf5',
+                              color: '#065f46',
+                              border: '1px solid #a7f3d0',
+                              fontWeight: 700,
+                            }}
+                          >
+                            ✓ CheckList
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Active toggle */}

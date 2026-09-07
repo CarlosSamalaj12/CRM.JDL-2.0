@@ -79,6 +79,7 @@ export const authService = {
       role: user.rol || user.role || 'vendedor',
       teamId: user.teamId || user.equipo_id || null,
       canAuthorizeDiscount: user.canAuthorizeDiscount === true,
+      canUseChecklist: user.canUseChecklist === true,
     }));
     if (token) {
       localStorage.setItem('token', token);
