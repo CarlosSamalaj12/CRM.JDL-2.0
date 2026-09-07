@@ -236,7 +236,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     dueDate: event?.quote?.dueDate || '',
     discountType: event?.quote?.discountType || 'AMOUNT',
     discountValue: event?.quote?.discountValue || 0,
-    items: event?.quote?.items || [],
+    items: (event?.quote?.items || []).map(item => ({
+      ...item,
+      rowId: item.rowId || uid()
+    })),
     advances: event?.quote?.advances || [],
     templateId: event?.quote?.templateId || '',
     templateIds: (() => {
@@ -472,12 +475,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const allCartDates = useMemo(() => {
     const datesSet = new Set(availableServiceDates);
     const norm = (s) => String(s || '').trim().slice(0, 10);
+    const fallbackDate = availableServiceDates[0] || norm(quote.eventDate);
     (quote.items || []).forEach(it => {
-      const d = norm(it?.serviceDate || it?.date || it?.eventDate);
+      const d = norm(it?.serviceDate || it?.date || it?.eventDate) || fallbackDate;
       if (d && d.length === 10) datesSet.add(d);
     });
     return Array.from(datesSet).sort((a, b) => a.localeCompare(b));
-  }, [availableServiceDates, quote.items]);
+  }, [availableServiceDates, quote.items, quote.eventDate]);
 
   const filteredServices = useMemo(() => {
     const term = serviceSearch.trim().toLowerCase();
@@ -1871,10 +1875,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
         }
         .qp-cart-items-scroll {
-          max-height: min(620px, calc(100vh - 340px)) !important;
+          max-height: min(680px, calc(100vh - 320px)) !important;
           overflow-y: auto !important;
           overflow-x: hidden !important;
           scrollbar-width: thin !important;
+        }
+        .qp-cart-items-scroll > * {
+          flex-shrink: 0 !important;
         }
         .qp-cart-items-scroll::-webkit-scrollbar { width: 6px; }
         .qp-cart-items-scroll::-webkit-scrollbar-track { background: #f8fafc; border-radius: 3px; }
@@ -3621,6 +3628,21 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             width: 100% !important;
             min-height: 34px !important;
           }
+          .qp-header-selection-tools {
+            grid-column: 1 / -1 !important;
+            width: 100% !important;
+          }
+          .qp-header-selection-tools > div:last-child {
+            display: flex !important;
+            width: 100% !important;
+            gap: 6px !important;
+          }
+          .qp-header-selection-tools button {
+            width: auto !important;
+            flex: 1 !important;
+            min-height: 34px !important;
+            justify-content: center !important;
+          }
           .qp-mobile-tabs {
             display: flex !important;
             background: #e2e8f0 !important;
@@ -3893,7 +3915,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           </div>
 
           {/* Controles (Versión, Contrato, Moneda, Acciones) */}
-          <div className="qp-header-controls" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexShrink: 0 }}>
+          <div className="qp-header-controls" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
             {/* Versión */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap' }}>Versión</div>
@@ -3929,6 +3951,133 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   <option value={quote.version || 1}>V{quote.version || 1} (actual)</option>
                 )}
               </select>
+            </div>
+
+            {/* Acciones de selección de ítems en carrito (Duplicar, Subir, Bajar) */}
+            <div className="qp-header-selection-tools" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{
+                fontSize: 9,
+                fontWeight: 800,
+                color: selectedItemIds.size > 0 ? '#1d4ed8' : '#64748b',
+                textTransform: 'uppercase',
+                letterSpacing: '.3px',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
+                <span>Acciones selección</span>
+                {selectedItemIds.size > 0 && (
+                  <span style={{
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    border: '1px solid #bfdbfe',
+                    padding: '0 5px',
+                    borderRadius: 4,
+                    fontSize: 9,
+                    fontWeight: 800
+                  }}>
+                    {selectedItemIds.size} sel.
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <button
+                  className="qp-btn"
+                  type="button"
+                  disabled={selectedItemIds.size === 0}
+                  onClick={handleDuplicateSelected}
+                  title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para duplicar' : `Duplicar ${selectedItemIds.size} ítem(s) seleccionado(s)`}
+                  style={{
+                    height: 32,
+                    padding: '0 9px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    opacity: selectedItemIds.size === 0 ? 0.45 : 1,
+                    cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                    background: selectedItemIds.size > 0 ? '#f0fdf4' : '#ffffff',
+                    borderColor: selectedItemIds.size > 0 ? '#86efac' : '#cbd5e1',
+                    color: selectedItemIds.size > 0 ? '#15803d' : '#334155',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    boxSizing: 'border-box',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>📋</span>
+                  <span>Duplicar</span>
+                </button>
+                <button
+                  className="qp-btn"
+                  type="button"
+                  disabled={selectedItemIds.size === 0}
+                  onClick={() => handleMoveSelected('up')}
+                  title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para subir' : 'Subir en la lista de su fecha'}
+                  style={{
+                    height: 32,
+                    padding: '0 8px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    opacity: selectedItemIds.size === 0 ? 0.45 : 1,
+                    cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    boxSizing: 'border-box',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  ↑ Subir
+                </button>
+                <button
+                  className="qp-btn"
+                  type="button"
+                  disabled={selectedItemIds.size === 0}
+                  onClick={() => handleMoveSelected('down')}
+                  title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para bajar' : 'Bajar en la lista de su fecha'}
+                  style={{
+                    height: 32,
+                    padding: '0 8px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    opacity: selectedItemIds.size === 0 ? 0.45 : 1,
+                    cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    boxSizing: 'border-box',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  ↓ Bajar
+                </button>
+                {selectedItemIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedItemIds(new Set())}
+                    title="Deseleccionar todo"
+                    style={{
+                      height: 32,
+                      padding: '0 6px',
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      borderRadius: 6,
+                      color: '#b91c1c',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      boxSizing: 'border-box',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    ✕ Limpiar
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Plantillas */}
@@ -4855,70 +5004,29 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <div className="section-title" style={{ marginBottom: 0 }}>Servicios y productos agregados</div>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Cantidades, precio, fecha, servicio y total.</div>
                   </div>
-                  <div className="qp-toolbar" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                    {selectedItemIds.size > 0 && (
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 2 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', padding: '4px 8px', borderRadius: 6, border: '1px solid #bfdbfe' }}>
-                          {selectedItemIds.size} {selectedItemIds.size === 1 ? 'seleccionado' : 'seleccionados'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedItemIds(new Set())}
-                          title="Deseleccionar todo"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#64748b',
-                            fontSize: 11,
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
-                            padding: '2px 4px'
-                          }}
-                        >
-                          Limpiar
-                        </button>
-                      </div>
-                    )}
-                    <button
-                      className="qp-btn"
-                      type="button"
-                      disabled={selectedItemIds.size === 0}
-                      onClick={handleDuplicateSelected}
-                      title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para duplicar' : 'Duplicar ítems seleccionados'}
-                      style={{
-                        opacity: selectedItemIds.size === 0 ? 0.5 : 1,
-                        cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      Duplicar selección
-                    </button>
-                    <button
-                      className="qp-btn"
-                      type="button"
-                      disabled={selectedItemIds.size === 0}
-                      onClick={() => handleMoveSelected('up')}
-                      title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para subir' : 'Subir en la lista de su día'}
-                      style={{
-                        opacity: selectedItemIds.size === 0 ? 0.5 : 1,
-                        cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      ↑ Subir
-                    </button>
-                    <button
-                      className="qp-btn"
-                      type="button"
-                      disabled={selectedItemIds.size === 0}
-                      onClick={() => handleMoveSelected('down')}
-                      title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para bajar' : 'Bajar en la lista de su día'}
-                      style={{
-                        opacity: selectedItemIds.size === 0 ? 0.5 : 1,
-                        cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      ↓ Bajar
-                    </button>
-                  </div>
+                  {selectedItemIds.size > 0 && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', padding: '4px 10px', borderRadius: 6, border: '1px solid #bfdbfe' }}>
+                        {selectedItemIds.size} {selectedItemIds.size === 1 ? 'ítem seleccionado' : 'ítems seleccionados'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedItemIds(new Set())}
+                        title="Deseleccionar todo"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748b',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          padding: '2px 4px'
+                        }}
+                      >
+                        Limpiar selección
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {menuMontajeSummary.count > 0 && (
@@ -4947,26 +5055,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
                 <div className="qp-cart-items-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingRight: 4, paddingBottom: 4 }}>
                   {!quote.templateIds?.length ? (
-                    <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff' }}>
+                    <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff', flexShrink: 0 }}>
                       <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Selecciona un contrato</div>
                       <div style={{ fontSize: 11, color: '#94a3b8' }}>Para agregar servicios, primero elige Servihosp o Jardines en la barra superior.</div>
                     </div>
                   ) : quote.items.length === 0 ? (
-                    <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff' }}>
+                    <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff', flexShrink: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Tu carrito aún está vacío</div>
                       <div style={{ fontSize: 11, color: '#cbd5e1' }}>Busca un servicio en el panel izquierdo</div>
                     </div>
                   ) : (
                     allCartDates.map(date => {
                       const norm = (s) => String(s || '').trim().slice(0, 10);
-                      const dayItems = quote.items.filter(item => norm(item.serviceDate || item.date || item.eventDate) === date);
+                      const fallbackDate = availableServiceDates[0] || norm(quote.eventDate) || 'sin-fecha';
+                      const dayItems = quote.items.filter(item => (norm(item.serviceDate || item.date || item.eventDate) || fallbackDate) === date);
                       const isAllDaySelected = dayItems.length > 0 && dayItems.every(i => selectedItemIds.has(i.rowId));
                       const daySubtotal = dayItems.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
                       const isOutOfEvent = !availableServiceDates.includes(date);
 
                       return (
                         <div key={date} style={{
+                          flexShrink: 0,
                           border: isOutOfEvent ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
                           borderRadius: 8,
                           overflow: 'hidden',
@@ -5060,12 +5170,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {dayItems.map(item => {
+                                  {dayItems.map((item, itemIdx) => {
                                     const lineTotal = Number(item.qty || 0) * Number(item.price || 0);
                                     const currentItemDate = norm(item.serviceDate || item.date || item.eventDate || date);
                                     const itemOutOfEvent = !availableServiceDates.includes(currentItemDate);
                                     return (
-                                      <tr key={item.rowId} className={selectedItemIds.has(item.rowId) ? 'sel' : ''} style={{ background: itemOutOfEvent ? '#fffbeb20' : undefined }}>
+                                      <tr key={item.rowId || `item_${date}_${itemIdx}`} className={selectedItemIds.has(item.rowId) ? 'sel' : ''} style={{ background: itemOutOfEvent ? '#fffbeb20' : undefined }}>
                                         <td style={{ textAlign: 'center' }}>
                                           <input type="checkbox" className="qp-checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
                                         </td>
