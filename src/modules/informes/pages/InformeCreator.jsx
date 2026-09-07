@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   createInforme,
@@ -9,6 +9,7 @@ import {
   fetchEventById,
 } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 import {
   IconFileText, IconPlus, IconTrash, IconSearch, IconCheckCircle,
   IconChevronDown, IconChevronUp, IconArrowLeft, IconX
@@ -251,6 +252,36 @@ export default function InformeCreator() {
     }
   };
 
+  const { setInformeActions } = useContext(InformeActionsContext) || {};
+
+  const posTopbarEl = useMemo(() => (
+    <div className="pos-topbar">
+      <button onClick={() => navigate(-1)} className="btn-ghost" data-tooltip="Volver">
+        <IconArrowLeft size={16} />
+      </button>
+      <div className="pos-topbar-info">
+        <span className="pos-topbar-inst">{evento?.Institucion || 'Cargando...'}</span>
+        <span className="pos-topbar-meta">
+          <strong>{evento?.Pax || '?'}</strong> pax · {evento?.Salon || '?'} · {evento?.TipoEvento || '?'}
+        </span>
+      </div>
+      <div className="pos-topbar-right">
+        <span className="pos-topbar-ocup">
+          Ocupación <strong>#{id_ocupacion}</strong>
+        </span>
+      </div>
+    </div>
+  ), [evento, id_ocupacion, navigate]);
+
+  useEffect(() => {
+    if (setInformeActions) {
+      setInformeActions(posTopbarEl);
+    }
+    return () => {
+      if (setInformeActions) setInformeActions(null);
+    };
+  }, [posTopbarEl, setInformeActions]);
+
   // ─── Obtener el día activo ───
   const diaActivo = dias[activeDay] || dias[0];
 
@@ -262,22 +293,6 @@ export default function InformeCreator() {
 
   return (
     <div className="informe-creator-pos">
-      {/* ─── BARRA SUPERIOR: datos del evento ─── */}
-      <div className="pos-topbar">
-        <button onClick={() => navigate(-1)} className="btn-ghost" data-tooltip="Volver">
-          <IconArrowLeft size={16} />
-        </button>
-        <div className="pos-topbar-info">
-          <span className="pos-topbar-inst">{evento?.Institucion || 'Cargando...'}</span>
-          <span className="pos-topbar-meta">
-            <strong>{evento?.Pax || '?'}</strong> pax · {evento?.Salon || '?'} · {evento?.TipoEvento || '?'}
-          </span>
-        </div>
-        <div className="pos-topbar-ocup">
-          Ocupación <strong>#{id_ocupacion}</strong>
-        </div>
-      </div>
-
       {/* ─── PESTAÑAS DE DÍAS ─── */}
       <div className="pos-tabs">
         {dias.map((_, i) => (

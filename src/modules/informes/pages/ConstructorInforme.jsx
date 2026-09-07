@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   createInforme, createInformeDia, saveDiaMenuDetalle,
@@ -15,6 +15,7 @@ import {
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
+import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 import {
   IconFileText, IconPlus, IconSearch, IconCheckCircle,
   IconArrowLeft, IconX, IconGripVertical,
@@ -1003,7 +1004,11 @@ export default function ConstructorInforme() {
         comp_id: c.id, ingrediente_id: c.ingrediente_id,
         ingrediente_nombre: c.ingrediente_nombre, opcion_id: c.opcion_id,
         opcion_nombre: c.opcion_nombre, tipo: c.tipo_componente,
-        metodo_preparacion: '', cantidad: 1, notas: '',
+        metodo_preparacion: '',
+        cantidad: ['proteina', 'proteína', 'carne', 'carnes', 'aves', 'plato fuerte'].includes(String(c.tipo_componente || '').toLowerCase())
+          ? (Number(evento?.Pax) || 1)
+          : 1,
+        notas: '',
         tiempoComida: null, dbId: null,
       }));
       upd[activeDay].selectedItems = sortItemsByTiempoComida(upd[activeDay].selectedItems, customTiempoComidaOrder);
@@ -1036,7 +1041,8 @@ export default function ConstructorInforme() {
         setModalOpciones(ing);
         setModalPrep('');
         setModalOpc('');
-        setModalQty(1);
+        const defaultPax = Number(evento?.Pax) || 1;
+        setModalQty(defaultPax > 1 ? defaultPax : 1);
         setModalNotas('');
       } else {
         agregarItem(ing, null, '', 1, '');
@@ -1195,6 +1201,44 @@ export default function ConstructorInforme() {
     toast.success('Montaje eliminado');
   };
 
+  const { setInformeActions } = useContext(InformeActionsContext) || {};
+
+  const posTopbarEl = useMemo(() => (
+    <div className="pos-topbar">
+      <button onClick={() => navigate(-1)} className="btn-ghost" data-tooltip="Volver"><IconArrowLeft size={16} /></button>
+      <div className="pos-topbar-info">
+        <span className="pos-topbar-inst">{evento?.Institucion || 'Cargando...'}</span>
+        <span className="pos-topbar-meta">
+          <strong>{evento?.Pax || '?'}</strong> pax · {evento?.Salon || '?'} · {evento?.TipoEvento || '?'}
+          {evento?.Vendedor && <span> · {evento.Vendedor}</span>}
+          {evento?.HoraI && <span> · {evento.HoraI}{evento.HoraF ? `-${evento.HoraF}` : ''}</span>}
+          {evento?.NoDoc && <span> · {evento.NoDoc}</span>}
+        </span>
+      </div>
+      <div className="pos-topbar-right">
+        <span className="pos-topbar-user">{user?.nombre || user?.email}</span>
+        <span className="pos-topbar-ocup">#{id_ocupacion}</span>
+        {versionActiva && (
+          <button className="pos-topbar-badge" onClick={() => setShowVersionSelector(true)}
+            style={{background:'var(--success)',color:'white',cursor:'pointer',border:'none',fontSize:'inherit'}}
+            title="Cambiar de versión">
+            v{versionActiva} ▼
+          </button>
+        )}
+        {informeId && <span className="pos-topbar-badge">#{informeId}</span>}
+      </div>
+    </div>
+  ), [evento, user, id_ocupacion, versionActiva, informeId, navigate]);
+
+  useEffect(() => {
+    if (setInformeActions) {
+      setInformeActions(posTopbarEl);
+    }
+    return () => {
+      if (setInformeActions) setInformeActions(null);
+    };
+  }, [posTopbarEl, setInformeActions]);
+
   const diaActivo = dias[activeDay] || dias[0];
 
   if (loading) return <p className="status-message">Cargando...</p>;
@@ -1202,32 +1246,6 @@ export default function ConstructorInforme() {
 
   return (
     <div className="pos-page">
-      {/* ─── TOP BAR ─── */}
-      <div className="pos-topbar">
-        <button onClick={() => navigate(-1)} className="btn-ghost" data-tooltip="Volver"><IconArrowLeft size={16} /></button>
-        <div className="pos-topbar-info">
-          <span className="pos-topbar-inst">{evento?.Institucion || 'Cargando...'}</span>
-          <span className="pos-topbar-meta">
-            <strong>{evento?.Pax || '?'}</strong> pax · {evento?.Salon || '?'} · {evento?.TipoEvento || '?'}
-            {evento?.Vendedor && <span> · {evento.Vendedor}</span>}
-            {evento?.HoraI && <span> · {evento.HoraI}{evento.HoraF ? `-${evento.HoraF}` : ''}</span>}
-            {evento?.NoDoc && <span> · {evento.NoDoc}</span>}
-          </span>
-        </div>
-        <div className="pos-topbar-right">
-          <span className="pos-topbar-user">{user?.nombre || user?.email}</span>
-          <span className="pos-topbar-ocup">#{id_ocupacion}</span>
-          {versionActiva && (
-            <button className="pos-topbar-badge" onClick={() => setShowVersionSelector(true)}
-              style={{background:'var(--success)',color:'white',cursor:'pointer',border:'none',fontSize:'inherit'}}
-              title="Cambiar de versión">
-              v{versionActiva} ▼
-            </button>
-          )}
-          {informeId && <span className="pos-topbar-badge">#{informeId}</span>}
-        </div>
-      </div>
-
       {/* ─── DAY TABS ─── */}
       <div className="pos-tabs">
         {dias.map((d, i) => (
@@ -1431,7 +1449,52 @@ export default function ConstructorInforme() {
                           <IconGripVertical size={14} />
                         </span>
                         <span className="pos-ticket-item-nombre">{item.ingrediente_nombre}</span>
-                        {!esSimple && <span className="pos-ticket-item-qty">×{item.cantidad}</span>}
+                        {!esSimple && (
+                          <div
+                            className={`pos-ticket-item-qty-control ${
+                              ['proteina', 'proteína', 'carne', 'carnes', 'aves', 'plato fuerte'].includes(String(item.tipo || '').toLowerCase())
+                                ? 'pos-ticket-item-qty-control--protein'
+                                : ''
+                            }`}
+                            onClick={e => e.stopPropagation()}
+                            onMouseDown={e => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="pos-ticket-qty-btn"
+                              onClick={() => {
+                                const curr = Number(item.cantidad) || 1;
+                                if (curr > 1) cambiarItem(item.comp_id, 'cantidad', curr - 1);
+                              }}
+                              title="Restar 1"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              className="pos-ticket-qty-input"
+                              value={item.cantidad ?? 1}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                const val = raw === '' ? '' : Math.max(1, Number(raw));
+                                cambiarItem(item.comp_id, 'cantidad', val);
+                              }}
+                              title="Editar cantidad"
+                            />
+                            <button
+                              type="button"
+                              className="pos-ticket-qty-btn"
+                              onClick={() => {
+                                const curr = Number(item.cantidad) || 0;
+                                cambiarItem(item.comp_id, 'cantidad', curr + 1);
+                              }}
+                              title="Sumar 1"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
                         <div className="pos-ticket-item-tc-popover-wrapper">
                           <button
                             type="button"

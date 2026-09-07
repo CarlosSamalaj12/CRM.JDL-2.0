@@ -41,6 +41,11 @@ import {
   ClipboardList,
   Check,
   Edit,
+  Utensils,
+  Layers,
+  Wrench,
+  Armchair,
+  LayoutGrid,
 } from 'lucide-react';
 
 // Wrapper helper that sets standard props, adds our modern styles and micro-animations
@@ -97,3 +102,8 @@ export const IconClipboardList = wrapIcon(ClipboardList, 'crm-icon-clipboard');
 export const IconCheckSquare = wrapIcon(CheckSquare, 'crm-icon-checksquare');
 export const IconCheck = wrapIcon(Check, 'crm-icon-check');
 export const IconEdit = wrapIcon(Edit, 'crm-icon-edit');
+export const IconUtensils = wrapIcon(Utensils, 'crm-icon-utensils');
+export const IconLayers = wrapIcon(Layers, 'crm-icon-layers');
+export const IconWrench = wrapIcon(Wrench, 'crm-icon-wrench');
+export const IconArmchair = wrapIcon(Armchair, 'crm-icon-armchair');
+export const IconLayoutGrid = wrapIcon(LayoutGrid, 'crm-icon-layoutgrid');

@@ -1028,6 +1028,47 @@ export default function ReportsLayout() {
           border-top: 1px solid var(--border);
           box-sizing: border-box;
         }
+        .informe-actions-bar .pos-topbar {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          width: 100%;
+          background: transparent !important;
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .informe-actions-bar .pos-topbar-info {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 0.05rem;
+          min-width: 0;
+        }
+        .informe-actions-bar .pos-topbar-inst {
+          font-weight: 700;
+          font-size: 0.95rem;
+          color: var(--text-main);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .informe-actions-bar .pos-topbar-meta {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          display: flex;
+          gap: 0.4rem;
+          flex-wrap: wrap;
+        }
+        .informe-actions-bar .pos-topbar-right {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-shrink: 0;
+          margin-left: auto;
+        }
         .informe-actions-bar .kanban-filter {
           width: 100%;
           overflow: visible;

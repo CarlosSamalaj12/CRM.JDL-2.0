@@ -2,7 +2,7 @@ import express from 'express';
 import * as informeController from '../controllers/informeController.js';
 import { authenticate, authorizeRoles } from '../middlewares/auth.js';
 
-const EDIT_ROLES = ['Admin', 'Vendedor', 'FrontOffice'];
+const EDIT_ROLES = ['Admin', 'Vendedor', 'FrontOffice', 'Eventos'];
 
 const router = express.Router();
 

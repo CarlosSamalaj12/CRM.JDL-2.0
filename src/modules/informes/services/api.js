@@ -593,7 +593,7 @@ export async function getUsuarios() {
   return response.json();
 }
 
-// ─── Actualizar notas de un ítem individual del detalle de menú ───
+// ─── Actualizar notas o cantidad de un ítem individual del detalle de menú ───
 export async function updateDiaMenuItemNotas(itemId, notas) {
   const token = localStorage.getItem('token');
   const response = await fetch(`${apiUrl}/api/informes/detalle/${itemId}`, {
@@ -604,6 +604,18 @@ export async function updateDiaMenuItemNotas(itemId, notas) {
   if (!response.ok) throw new Error('Error al actualizar notas');
   return response.json();
 }
+
+export async function updateDiaMenuItemCantidad(itemId, cantidad_total) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/informes/detalle/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ cantidad_total }),
+  });
+  if (!response.ok) throw new Error('Error al actualizar cantidad');
+  return response.json();
+}
+
 
 // --- MONTAJE API ---
 

@@ -458,21 +458,38 @@ export async function saveDiaMenuDetalle(req, res, next) {
   } catch (error) { next(error); }
 }
 
-// ─── Actualizar notas de un ítem individual ───
-export async function updateDiaMenuItemNotas(req, res, next) {
+// ─── Actualizar detalle de un ítem individual (notas y/o cantidad_total) ───
+export async function updateDiaMenuItem(req, res, next) {
   try {
     const { itemId } = req.params;
-    const { notas } = req.body;
+    const { notas, cantidad_total } = req.body;
 
-    if (notas === undefined) {
-      return res.status(400).json({ message: 'El campo "notas" es requerido' });
+    if (notas === undefined && cantidad_total === undefined) {
+      return res.status(400).json({ message: 'Se requiere "notas" o "cantidad_total"' });
     }
 
+    const updates = [];
+    const values = [];
+
+    if (notas !== undefined) {
+      updates.push('notas = ?');
+      values.push(notas ? String(notas).trim() : null);
+    }
+    if (cantidad_total !== undefined) {
+      updates.push('cantidad_total = ?');
+      const n = Number(cantidad_total);
+      values.push(isNaN(n) || n <= 0 ? null : n);
+    }
+
+    values.push(itemId);
     await pool.query(
-      'UPDATE informe_dia_menu_detalle SET notas = ? WHERE id = ?',
-      [notas || null, itemId]
+      `UPDATE informe_dia_menu_detalle SET ${updates.join(', ')} WHERE id = ?`,
+      values
     );
 
-    res.json({ message: 'ok', id: itemId, notas: notas || null });
+    res.json({ message: 'ok', id: itemId, notas, cantidad_total });
   } catch (error) { next(error); }
 }
+
+export const updateDiaMenuItemNotas = updateDiaMenuItem;
+

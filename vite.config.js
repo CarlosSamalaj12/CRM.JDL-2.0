@@ -56,7 +56,26 @@ export default defineConfig(({ mode }) => {
           target: `http://127.0.0.1:${backendPort}`,
           changeOrigin: true,
           ws: true,
-          rewrite: (path) => path
+          rewrite: (path) => path,
+          configure: (proxy) => {
+            // Silencia errores inofensivos de desconexión abrupta cuando el cliente recarga la página o cierra la pestaña
+            proxy.on('error', (err) => {
+              if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err?.code)) return;
+              console.error('[vite] Error proxy Socket.IO:', err?.message || err);
+            });
+            proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
+              const origEmit = socket.emit;
+              socket.emit = function (event, ...args) {
+                if (event === 'error') {
+                  const err = args[0];
+                  if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err?.code)) {
+                    return false;
+                  }
+                }
+                return origEmit.apply(this, [event, ...args]);
+              };
+            });
+          }
         }
       }
     },
