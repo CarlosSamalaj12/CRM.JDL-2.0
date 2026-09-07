@@ -609,31 +609,43 @@ export default function SettingsChecklist() {
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            background: rgba(15,23,42,0.55) !important;
+            background: rgba(15,23,42,0.6) !important;
             overflow: hidden !important;
           }
           #eventChecklistBackdrop > [role="dialog"] {
-            width: min(94vw, 880px) !important;
+            width: min(94vw, 840px) !important;
             height: min(92vh, 880px) !important;
             height: min(92dvh, 880px) !important;
             max-width: 100vw !important;
             max-height: 100dvh !important;
             margin: 0 auto !important;
+            border-radius: 16px !important;
+            background: #ffffff !important;
+            box-shadow: 0 20px 50px rgba(15,23,42,0.2) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            position: relative !important;
           }
-          #eventChecklistBackdrop .checklist-rating-combobox { display: block !important; width: 100% !important; }
-          #eventChecklistBackdrop .checklist-rating-combobox option { font-weight: 600 !important; padding: 4px 8px !important; }
-          #eventChecklistBackdrop .checklist-rating-combobox option[value="malo"]       { color: #dc2626 !important; }
-          #eventChecklistBackdrop .checklist-rating-combobox option[value="regular"]    { color: #d97706 !important; }
-          #eventChecklistBackdrop .checklist-rating-combobox option[value="bueno"]      { color: #16a34a !important; }
-          #eventChecklistBackdrop .checklist-rating-combobox option[value="excelente"]  { color: #7c3aed !important; }
-          #eventChecklistBackdrop .checklist-rating-combobox option[value="no_aplica"]  { color: #94a3b8 !important; }
-          #eventChecklistBackdrop .checklist-status-combobox { display: block !important; width: 100% !important; }
-          #eventChecklistBackdrop .checklist-status-combobox option { font-weight: 600 !important; padding: 4px 8px !important; }
-          #eventChecklistBackdrop .checklist-status-combobox option[value="pendiente"]  { color: #64748b !important; }
-          #eventChecklistBackdrop .checklist-status-combobox option[value="en_proceso"] { color: #d97706 !important; }
-          #eventChecklistBackdrop .checklist-status-combobox option[value="cumplido"]   { color: #16a34a !important; }
-          #eventChecklistBackdrop .checklist-status-combobox option[value="no_aplica"]  { color: #475569 !important; }
+          #eventChecklistBackdrop .checklist-body {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
+            overscroll-behavior: contain !important;
+            padding: 14px 16px 20px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 12px !important;
+            background: #f8fafd !important;
+          }
           @media (max-width: 900px) {
+            #eventChecklistBackdrop {
+              align-items: stretch !important;
+              justify-content: stretch !important;
+              padding: 0 !important;
+            }
             #eventChecklistBackdrop > [role="dialog"] {
               width: 100vw !important;
               height: 100dvh !important;
@@ -643,73 +655,16 @@ export default function SettingsChecklist() {
               border-radius: 0 !important;
               border: none !important;
               box-shadow: none !important;
+              position: fixed !important;
+              inset: 0 !important;
             }
-            #eventChecklistBackdrop .checklist-tab-desc { display: none !important; }
             #eventChecklistBackdrop .checklist-body {
-              padding: 10px 12px !important;
-              padding-bottom: 24px !important;
-              overflow: visible !important;
+              padding: 12px 14px 24px !important;
             }
-            #eventChecklistBackdrop .checklist-footer {
-              padding: 10px 12px !important;
-              flex-direction: column !important;
-              gap: 8px !important;
-            }
-            #eventChecklistBackdrop .checklist-footer-buttons {
-              width: 100% !important;
-              justify-content: space-between !important;
-            }
-            #eventChecklistBackdrop .checklist-footer-buttons button,
-            #eventChecklistBackdrop .btn-exit {
-              min-height: 44px !important;
-              font-size: 0.9rem !important;
-            }
-            #eventChecklistBackdrop .checklist-table {
-              font-size: 0.68rem !important;
-              min-width: 340px !important;
-              width: 100% !important;
-              table-layout: fixed !important;
-            }
-            #eventChecklistBackdrop .checklist-table th,
-            #eventChecklistBackdrop .checklist-table td {
-              padding: 6px 5px !important;
-              white-space: normal !important;
-            }
-            #eventChecklistBackdrop .checklist-table select {
-              width: 100% !important;
-              font-size: 0.7rem !important;
-              min-height: 32px !important;
-            }
-            #eventChecklistBackdrop .checklist-table input[type="text"] {
-              width: 100% !important;
-              font-size: 0.7rem !important;
-              min-height: 32px !important;
-            }
-            #eventChecklistBackdrop .checklist-table-wrapper {
-              border: none !important;
-              border-radius: 0 !important;
-              overflow-x: auto !important;
-              overflow-y: auto !important;
-              -webkit-overflow-scrolling: touch !important;
-            }
-            #eventChecklistBackdrop .checklist-progress-container {
-              border: none !important;
-              border-radius: 0 !important;
-              background: transparent !important;
-              padding: 8px 0 !important;
-            }
-            #eventChecklistBackdrop .checklist-grid select,
-            #eventChecklistBackdrop .checklist-grid input,
-            #eventChecklistBackdrop .checklist-table select,
-            #eventChecklistBackdrop .checklist-table input,
+            #eventChecklistBackdrop select,
+            #eventChecklistBackdrop input,
             #eventChecklistBackdrop textarea {
               font-size: 16px !important;
-              min-height: 48px !important;
-            }
-            #eventChecklistBackdrop .checklist-table .checklist-rating-combobox,
-            #eventChecklistBackdrop .checklist-table input[type="text"] {
-              font-size: 13px !important;
-              min-height: 32px !important;
             }
           }
         `;
@@ -769,6 +724,7 @@ export default function SettingsChecklist() {
   // ID del item al que se le hace focus (flash) cuando falla la validación al guardar
   const [flashItemId, setFlashItemId] = useState(null);
   const flashTimerRef = useRef(null);
+  const [expandedNoteItemIds, setExpandedNoteItemIds] = useState(new Set());
 
   // Combinar el read-only del rol con el lock post-guardado
   const isEvReadOnly = isReadOnly || isEvLocked;
@@ -893,30 +849,56 @@ export default function SettingsChecklist() {
           return [...patched, ...newItems];
         };
 
-        const resolvedOpItems = opTplIds.length
-          ? mergeWithMultipleTemplates(op.items || [], opTplIds, TAB_OPERATIVA)
-          : (op.items || []);
-        const resolvedEvItems = evTplIds.length
-          ? mergeWithMultipleTemplates(evTabData.items || [], evTplIds, TAB_EVALUACION)
-          : (evTabData.items || []);
+        const hasSavedEvRatings = Array.isArray(evTabData.items) && evTabData.items.some(
+          it => it.rating !== null && it.rating !== undefined
+        );
+        const hasEvNotes = !!(evTabData.notes && String(evTabData.notes).trim().length > 0);
+        const hasEvHistory = Array.isArray(evTabData.history) && evTabData.history.length > 0;
+        const evHasData = hasSavedEvRatings || hasEvNotes || hasEvHistory;
 
-        setOpItems(resolvedOpItems);
-        setOpHistory(op.history || []);
-        setEvTplIds(evTplIds);
-        setEvNotes(evTabData.notes || '');
-        setEvItems(resolvedEvItems);
-        setEvHistory(evTabData.history || []);
+        // Si el evento no tiene datos reales guardados de evaluación, descartar plantillas inactivas
+        let validEvTplIds = evTplIds;
+        if (!evHasData) {
+          validEvTplIds = evTplIds.filter(tid => {
+            const tpl = tpls.find(t => String(t.id) === String(tid));
+            return tpl && tpl.active !== false;
+          });
+        }
+
+        const hasSavedOpProgress = Array.isArray(op.items) && op.items.some(
+          it => it.status && it.status !== 'pendiente'
+        );
+        const hasOpNotes = !!(op.notes && String(op.notes).trim().length > 0);
+        const hasOpHistory = Array.isArray(op.history) && op.history.length > 0;
+        const opHasData = hasSavedOpProgress || hasOpNotes || hasOpHistory;
+
+        let validOpTplIds = opTplIds;
+        if (!opHasData) {
+          validOpTplIds = opTplIds.filter(tid => {
+            const tpl = tpls.find(t => String(t.id) === String(tid));
+            return tpl && tpl.active !== false;
+          });
+        }
+
+        let resolvedOpItems = validOpTplIds.length
+          ? mergeWithMultipleTemplates(op.items || [], validOpTplIds, TAB_OPERATIVA)
+          : (opHasData ? (op.items || []) : []);
+        let resolvedEvItems = validEvTplIds.length
+          ? mergeWithMultipleTemplates(evTabData.items || [], validEvTplIds, TAB_EVALUACION)
+          : (evHasData ? (evTabData.items || []) : []);
+
         // Defaults: si el tab no tiene plantilla y no hay items, sugerir la primera
-        // plantilla que tenga sections del tipo correspondiente.
-        if (opTplIds.length === 0 && !resolvedOpItems.length && tpls.length > 0) {
+        // plantilla ACTIVA que tenga sections del tipo correspondiente.
+        if (validOpTplIds.length === 0 && !resolvedOpItems.length && tpls.length > 0) {
           const firstWithOp = tpls.find(t =>
+            t.active !== false &&
             (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA)
           );
           if (firstWithOp) {
             const tid = String(firstWithOp.id);
-            setOpTplIds([tid]);
+            validOpTplIds = [tid];
             const opSections = (firstWithOp.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA);
-            const items = opSections.flatMap(s =>
+            resolvedOpItems = opSections.flatMap(s =>
               (s.items || []).map(item => ({
                 id: item.id, text: item.text, sectionName: s.name,
                 sectionType: s.type || TAB_OPERATIVA,
@@ -925,18 +907,19 @@ export default function SettingsChecklist() {
                 status: 'pendiente', rating: null, comment: ''
               }))
             );
-            setOpItems(items);
           }
         }
-        if (evTplIds.length === 0 && !resolvedEvItems.length && tpls.length > 0) {
+
+        if (validEvTplIds.length === 0 && (!resolvedEvItems.length || !hasSavedEvRatings) && tpls.length > 0) {
           const firstWithEv = tpls.find(t =>
+            t.active !== false &&
             (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION)
           );
           if (firstWithEv) {
             const tid = String(firstWithEv.id);
-            setEvTplIds([tid]);
+            validEvTplIds = [tid];
             const evSections = (firstWithEv.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION);
-            const items = evSections.flatMap(s =>
+            resolvedEvItems = evSections.flatMap(s =>
               (s.items || []).map(item => ({
                 id: item.id, text: item.text, sectionName: s.name,
                 sectionType: s.type || TAB_OPERATIVA,
@@ -945,9 +928,16 @@ export default function SettingsChecklist() {
                 status: 'pendiente', rating: null, comment: ''
               }))
             );
-            setEvItems(items);
           }
         }
+
+        setOpTplIds(validOpTplIds);
+        setOpItems(resolvedOpItems);
+        setOpHistory(op.history || []);
+        setEvTplIds(validEvTplIds);
+        setEvNotes(evTabData.notes || '');
+        setEvItems(resolvedEvItems);
+        setEvHistory(evTabData.history || []);
         setActiveTab(TAB_OPERATIVA);
 
         // Inicializar lock: si la Evaluación ya tiene datos guardados con al menos
@@ -974,6 +964,7 @@ export default function SettingsChecklist() {
     setPinDisplay('');
     setPinError('');
     setFlashItemId(null);
+    setExpandedNoteItemIds(new Set());
     if (flashTimerRef.current) {
       clearTimeout(flashTimerRef.current);
       flashTimerRef.current = null;
@@ -1284,10 +1275,49 @@ export default function SettingsChecklist() {
     : 0;
   const satisfactionPct = Math.round((satisfactionAvg / 10) * 100);
 
+  const getEventTitle = () => {
+    if (!evtData) return 'Evento';
+    return String(evtData.eventName || evtData.client || evtData.name || evtData.company || 'Evento').trim();
+  };
+
+  const getEventDateFormatted = () => {
+    if (!evtData) return '';
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const fmt = (str) => {
+      if (!str) return '';
+      if (str instanceof Date) {
+        const d = String(str.getDate()).padStart(2, '0');
+        const m = months[str.getMonth()];
+        const y = str.getFullYear();
+        return `${d} ${m} ${y}`;
+      }
+      const clean = String(str).trim().slice(0, 10);
+      const parts = clean.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        const d = parts[2].padStart(2, '0');
+        const m = months[parseInt(parts[1], 10) - 1] || parts[1];
+        const y = parts[0];
+        return `${d} ${m} ${y}`;
+      }
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) {
+        const d = String(parsed.getDate()).padStart(2, '0');
+        const m = months[parsed.getMonth()];
+        const y = parsed.getFullYear();
+        return `${d} ${m} ${y}`;
+      }
+      return str;
+    };
+    const start = evtData.eventDateStart;
+    const end = evtData.eventDateEnd;
+    if (start && end && start !== end) {
+      return `${fmt(start)} → ${fmt(end)}`;
+    }
+    return fmt(evtData.date || evtData.eventDate || start || '');
+  };
+
   const modalContent = (
     <>
-
-
       <div
         id="eventChecklistBackdrop"
         onClick={e => { if (checklistModalRef.current && !checklistModalRef.current.contains(e.target)) closeEvent(); }}
@@ -1295,248 +1325,842 @@ export default function SettingsChecklist() {
           display: isOpen ? 'flex' : 'none',
         }}
       >
-        <div ref={checklistModalRef} role="dialog" style={{
-          width: 'min(94vw, 880px)',
-          height: 'min(92vh, 880px)',
-          display: 'flex', flexDirection: 'column',
-          background: '#ffffff', border: '1px solid #e2e8f0',
-          borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
-          overflow: 'hidden',
-          position: 'relative',
-          zIndex: 3001,
-        }}>
+        <div ref={checklistModalRef} role="dialog" aria-modal="true" aria-label="Check List Evento">
           {/* Header */}
-          <div className="checklist-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#fff', flexShrink: 0 }}>
-            <div>
-              <div className="checklist-header-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
-                Check List — Evento
-                {isReadOnly && <span style={{ marginLeft: '8px', fontSize: '0.65rem', fontWeight: 600, color: '#f59e0b', background: '#fffbeb', padding: '2px 8px', borderRadius: '999px' }}>Solo lectura</span>}
+          <div className="checklist-header" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            padding: '14px 16px',
+            borderBottom: '1px solid #e2e8f0',
+            background: '#ffffff',
+            flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+              {/* Purple document icon badge */}
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: '#eef2ff',
+                border: '1.5px solid #c7d2fe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>
-                {evtData ? (() => {
-                  const name = evtData.eventName || evtData.client || evtData.name || '';
-                  const start = evtData.eventDateStart;
-                  const end = evtData.eventDateEnd;
-                  const isMultiDay = start && end && start !== end;
-                  const dateLabel = isMultiDay
-                    ? `${start} → ${end}`
-                    : (evtData.date || evtData.eventDate || '');
-                  return `${name} — ${dateLabel}`;
-                })() : ''}
+
+              {/* Title and subtitles */}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div className="checklist-header-title" style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+                    Check List — Evento
+                  </div>
+                  {isReadOnly && (
+                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>
+                      Solo lectura
+                    </span>
+                  )}
+                </div>
+                <div style={{
+                  fontSize: '0.74rem',
+                  fontWeight: 800,
+                  color: '#475569',
+                  marginTop: '3px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.02em',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }} title={getEventTitle()}>
+                  {getEventTitle()}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>📅</span>
+                  <span>{getEventDateFormatted()}</span>
+                </div>
               </div>
             </div>
-            <button className="btn-exit" type="button" onClick={closeEvent}><XIcon /></button>
+
+            {/* Close button */}
+            <button
+              className="btn-exit"
+              type="button"
+              onClick={closeEvent}
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'transparent',
+                color: '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+              aria-label="Cerrar"
+            >
+              <XIcon />
+            </button>
           </div>
 
-          {/* Tab bar */}
-          <div className="checklist-tab-bar" style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafd', flexShrink: 0 }}>
-            {[
-              { key: TAB_OPERATIVA, label: 'Operativa', icon: '\u2699\uFE0F', desc: 'Pendiente / Cumplido', color: '#6366f1' },
-              { key: TAB_EVALUACION, label: 'Evaluaci\u00f3n', icon: '\u2B50', desc: 'Malo / Regular / Bueno / Excelente', color: '#7c3aed' },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                type="button"
-                className="checklist-tab"
-                onClick={() => setActiveTab(tab.key)}
-                style={{
-                  flex: 1, padding: '10px 16px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
-                  background: activeTab === tab.key ? '#ffffff' : 'transparent',
-                  color: activeTab === tab.key ? tab.color : '#94a3b8',
-                  borderBottom: activeTab === tab.key ? `2px solid ${tab.color}` : '2px solid transparent',
-                  transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                }}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-                <span className="checklist-tab-desc" style={{ fontSize: '0.6rem', fontWeight: 600, color: '#94a3b8', marginLeft: '2px' }}>{tab.desc}</span>
-              </button>
-            ))}
+          {/* Mode switch (Tabs) */}
+          <div className="checklist-tab-bar" style={{
+            display: 'flex',
+            background: '#f1f5f9',
+            padding: '4px',
+            borderRadius: '12px',
+            gap: '4px',
+            margin: '12px 14px 4px',
+            flexShrink: 0
+          }}>
+            <button
+              type="button"
+              className="checklist-tab"
+              onClick={() => setActiveTab(TAB_OPERATIVA)}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                background: activeTab === TAB_OPERATIVA ? '#ffffff' : 'transparent',
+                color: activeTab === TAB_OPERATIVA ? '#4f46e5' : '#64748b',
+                boxShadow: activeTab === TAB_OPERATIVA ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>⚙️</span>
+              <span>Operativa</span>
+            </button>
+            <button
+              type="button"
+              className="checklist-tab"
+              onClick={() => setActiveTab(TAB_EVALUACION)}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                background: activeTab === TAB_EVALUACION ? '#ffffff' : 'transparent',
+                color: activeTab === TAB_EVALUACION ? '#7c3aed' : '#64748b',
+                boxShadow: activeTab === TAB_EVALUACION ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>⭐</span>
+              <span>Evaluación</span>
+            </button>
           </div>
 
           {/* Body */}
-          <div className="checklist-body" style={{ flexGrow: 1, flexShrink: 1, flexBasis: '0%', minHeight: '0px', overflowY: 'auto', overflowX: 'visible', overscrollBehavior: 'contain', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafd' }}>
-            {/* Template selector + event info */}
-            {/* Template selector */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={s.label}>Plantilla</span>
-              {(() => {
-                const tplOptions = (templates || []).filter(t => t.active !== false && !activeTplIds.includes(String(t.id)));
-                return (
-                  <>
-                    {/* Chips de plantillas aplicadas */}
-                    {activeTplIds.length === 0 ? (
-                      <div style={{
-                        fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic',
-                        padding: '8px 10px', border: '1.5px dashed #cbd5e1', borderRadius: '8px',
-                        background: '#f8fafc', textAlign: 'center',
-                      }}>
-                        Sin plantillas. Elegí una para empezar.
+          <div className="checklist-body">
+            {/* Card 1: Plantillas aplicadas */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #e2e8f0',
+              padding: '14px 16px',
+              boxShadow: '0 2px 8px rgba(15,23,42,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  PLANTILLAS APLICADAS
+                </span>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>
+                  {activeTplIds.length === 1 ? '1 seleccionada' : `${activeTplIds.length} seleccionadas`}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                {activeTplIds.map(tid => {
+                  const tpl = (templates || []).find(t => String(t.id) === tid);
+                  const name = tpl?.name || `Plantilla #${tid}`;
+                  return (
+                    <span
+                      key={tid}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '5px 12px',
+                        borderRadius: '999px',
+                        background: '#eef2ff',
+                        border: '1.5px solid #c7d2fe',
+                        color: '#3730a3',
+                        fontSize: '0.8rem',
+                        fontWeight: 700
+                      }}
+                    >
+                      <span>{name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeTplFromTab(activeTab, tid)}
+                        disabled={activeTplsReadOnly}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: '#4f46e5',
+                          cursor: activeTplsReadOnly ? 'not-allowed' : 'pointer',
+                          fontSize: '1rem',
+                          lineHeight: 1,
+                          fontWeight: 800,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        aria-label={`Quitar ${name}`}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  );
+                })}
+
+                {/* Botón + Agregar plantilla con overlay de selector nativo */}
+                {(() => {
+                  const availableTpls = (templates || []).filter(t => t.active !== false && !activeTplIds.includes(String(t.id)));
+                  return (
+                    <div style={{ position: 'relative', display: 'inline-flex' }}>
+                      <button
+                        type="button"
+                        disabled={activeTplsReadOnly || availableTpls.length === 0}
+                        style={{
+                          padding: '5px 14px',
+                          borderRadius: '999px',
+                          border: '1.5px dashed #cbd5e1',
+                          background: '#f8fafc',
+                          color: '#475569',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: (activeTplsReadOnly || availableTpls.length === 0) ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <span>+</span>
+                        <span>Agregar plantilla</span>
+                      </button>
+                      {availableTpls.length > 0 && !activeTplsReadOnly && (
+                        <select
+                          value=""
+                          onChange={handleTpl(activeTab)}
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            opacity: 0,
+                            width: '100%',
+                            height: '100%',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="" disabled>Seleccionar plantilla...</option>
+                          {availableTpls.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                Podés combinar múltiples plantillas al mismo check list.
+              </div>
+            </div>
+
+            {/* Card 2: Avance General */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #e2e8f0',
+              padding: '14px 16px',
+              boxShadow: '0 2px 8px rgba(15,23,42,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              {activeTab === TAB_OPERATIVA ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      AVANCE GENERAL
+                    </span>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginRight: '6px' }}>
+                        OPERATIVO
+                      </span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#10b981' }}>
+                        {sat}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>
+                    {progress}%
+                  </div>
+
+                  <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      borderRadius: '999px',
+                      background: 'linear-gradient(90deg, #6366f1, #10b981)',
+                      width: `${progress}%`,
+                      transition: 'width 0.4s ease'
+                    }} />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                    {/* Cumplido */}
+                    <div style={{
+                      background: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: '10px',
+                      padding: '8px 4px',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#16a34a' }} />
+                        <span>{done}</span>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
-                        {activeTplIds.map(tid => {
-                          const tpl = (templates || []).find(t => String(t.id) === tid);
-                          const name = tpl?.name || `Plantilla #${tid}`;
-                          return (
-                            <span key={tid} style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '6px',
-                              padding: '4px 10px 4px 12px', borderRadius: '999px',
-                              background: '#eef2ff', border: '1px solid #c7d2fe',
-                              color: '#3730a3', fontSize: '0.78rem', fontWeight: 700,
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#16a34a' }}>Cumplido</div>
+                    </div>
+
+                    {/* En proceso */}
+                    <div style={{
+                      background: '#fffbeb',
+                      border: '1px solid #fde68a',
+                      borderRadius: '10px',
+                      padding: '8px 4px',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d97706' }} />
+                        <span>{activeItems.filter(i => i.status === 'en_proceso').length}</span>
+                      </div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#d97706' }}>En proceso</div>
+                    </div>
+
+                    {/* Pendiente */}
+                    <div style={{
+                      background: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '10px',
+                      padding: '8px 4px',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#64748b' }} />
+                        <span>{activeItems.filter(i => i.status === 'pendiente').length}</span>
+                      </div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Pendiente</div>
+                    </div>
+
+                    {/* No aplica */}
+                    <div style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '10px',
+                      padding: '8px 4px',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#94a3b8' }} />
+                        <span>{activeItems.filter(i => i.status === 'no_aplica').length}</span>
+                      </div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8' }}>No aplica</div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      SATISFACCIÓN DEL CLIENTE
+                    </span>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginRight: '6px' }}>
+                        PROMEDIO
+                      </span>
+                      <span style={{
+                        fontSize: '0.95rem',
+                        fontWeight: 900,
+                        color: satisfactionAvg >= 7.5 ? '#16a34a' : satisfactionAvg >= 5 ? '#d97706' : '#dc2626'
+                      }}>
+                        {applicableItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 10` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>
+                    {applicableItems.length > 0 ? `${satisfactionPct}%` : '0%'}
+                  </div>
+
+                  <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      borderRadius: '999px',
+                      background: satisfactionAvg >= 7.5 ? '#22c55e' : satisfactionAvg >= 5 ? '#eab308' : '#ef4444',
+                      width: `${satisfactionPct}%`,
+                      transition: 'width 0.4s ease'
+                    }} />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '6px 4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#7c3aed' }}>● {evalItems.filter(i => i.rating === 'excelente').length}</div>
+                      <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#7c3aed' }}>Excelente</div>
+                    </div>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '6px 4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#16a34a' }}>● {evalItems.filter(i => i.rating === 'bueno').length}</div>
+                      <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#16a34a' }}>Bueno</div>
+                    </div>
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '6px 4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#d97706' }}>● {evalItems.filter(i => i.rating === 'regular').length}</div>
+                      <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#d97706' }}>Regular</div>
+                    </div>
+                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '6px 4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#dc2626' }}>● {evalItems.filter(i => i.rating === 'malo').length}</div>
+                      <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#dc2626' }}>Malo</div>
+                    </div>
+                    <div style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px 4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569' }}>● {unratedCount}</div>
+                      <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b' }}>Sin calificar</div>
+                    </div>
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px 4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#64748b' }}>● {notApplicableCount}</div>
+                      <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8' }}>N/A</div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Card 3: Notas / Sugerencias Generales */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #e2e8f0',
+              padding: '14px 16px',
+              boxShadow: '0 2px 8px rgba(15,23,42,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                NOTAS / SUGERENCIAS GENERALES
+              </span>
+              <textarea
+                value={activeNotes}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (activeTab === TAB_OPERATIVA) setOpNotes(val);
+                  else setEvNotes(val);
+                }}
+                rows={2}
+                placeholder="Observaciones generales..."
+                readOnly={activeReadOnly}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #e2e8f0',
+                  background: '#f8fafc',
+                  color: '#0f172a',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  minHeight: '56px'
+                }}
+              />
+            </div>
+
+            {/* Section: Puntos a verificar */}
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: '4px',
+                marginBottom: '8px',
+                padding: '0 2px'
+              }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  PUNTOS A VERIFICAR ({tableItems.length})
+                </span>
+                <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>
+                  Toque para actualizar estado
+                </span>
+              </div>
+
+              {tableItems.length === 0 ? (
+                <div style={{
+                  background: '#ffffff',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  padding: '32px 16px',
+                  textAlign: 'center',
+                  color: '#94a3b8',
+                  fontSize: '0.85rem',
+                  fontStyle: 'italic'
+                }}>
+                  Selecciona una plantilla para cargar los puntos a verificar
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {tableItems.map((item, idx) => {
+                    const isUnrated = unratedIds.has(item.id);
+                    const isFlashing = flashItemId === item.id;
+                    const isNoteExpanded = expandedNoteItemIds.has(item.id) || (item.comment && String(item.comment).trim().length > 0);
+                    const hasComment = item.comment && String(item.comment).trim().length > 0;
+
+                    return (
+                      <div
+                        key={item.id}
+                        data-ev-item-id={item.id}
+                        style={{
+                          background: isFlashing ? '#fffbeb' : '#ffffff',
+                          borderRadius: '14px',
+                          border: isFlashing
+                            ? '2px solid #f59e0b'
+                            : (isUnrated ? '1.5px solid #dc2626' : '1px solid #e2e8f0'),
+                          boxShadow: isFlashing
+                            ? '0 0 0 4px rgba(245,158,11,0.2)'
+                            : '0 1px 4px rgba(15,23,42,0.03)',
+                          padding: '12px 14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {/* Top row: Number circle + Category badge */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <div style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: '#eff6ff',
+                            color: '#2563eb',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: '1px'
+                          }}>
+                            {idx + 1}
+                          </div>
+                          {item.sectionName && (
+                            <span style={{
+                              background: '#eff6ff',
+                              border: '1px solid #dbeafe',
+                              color: '#1d4ed8',
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.02em',
+                              lineHeight: 1.35,
+                              wordBreak: 'break-word',
+                              whiteSpace: 'normal',
+                              display: 'inline-block',
+                              maxWidth: '100%'
                             }}>
-                              {name}
-                              <button
-                                type="button"
-                                onClick={() => removeTplFromTab(activeTab, tid)}
-                                disabled={activeTplsReadOnly}
-                                aria-label={`Quitar ${name}`}
-                                style={{
-                                  background: 'transparent', border: 'none', padding: 0,
-                                  color: '#6366f1', cursor: activeTplsReadOnly ? 'not-allowed' : 'pointer',
-                                  fontSize: '1rem', lineHeight: 1, fontWeight: 800,
-                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                  width: '18px', height: '18px', borderRadius: '50%',
-                                }}
-                                onMouseEnter={e => { if (!activeTplsReadOnly) e.currentTarget.style.color = '#dc2626'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#6366f1'; }}
-                              >×</button>
+                              {item.sectionName.toUpperCase()}
                             </span>
-                          );
-                        })}
-                        {activeTplIds.length > 1 && (
+                          )}
+                        </div>
+
+                        {/* Item text / description */}
+                        <div style={{
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          lineHeight: 1.4,
+                          wordBreak: 'break-word',
+                          whiteSpace: 'normal'
+                        }}>
+                          {item.text}
+                        </div>
+
+                        {isFlashing && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#fef3c7',
+                            border: '1px solid #fde68a',
+                            color: '#92400e',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '4px 10px',
+                            borderRadius: '8px'
+                          }}>
+                            <span>⚠️</span>
+                            <span>Falta evaluar este punto</span>
+                          </div>
+                        )}
+
+                        {/* Controls row: Status Dropdown + Note Button */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          {/* Status / Rating selector */}
+                          <div style={{ position: 'relative', flex: 1, minWidth: '140px' }}>
+                            {activeTab === TAB_OPERATIVA ? (
+                              (() => {
+                                const STATUS_CONFIG = {
+                                  cumplido: { dot: '#16a34a', label: 'Cumplido', bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d' },
+                                  en_proceso: { dot: '#d97706', label: 'En proceso', bg: '#fffbeb', border: '#fde68a', color: '#b45309' },
+                                  pendiente: { dot: '#64748b', label: 'Pendiente', bg: '#f1f5f9', border: '#cbd5e1', color: '#334155' },
+                                  no_aplica: { dot: '#94a3b8', label: 'No aplica', bg: '#f8fafc', border: '#e2e8f0', color: '#64748b' }
+                                };
+                                const cur = STATUS_CONFIG[item.status] || STATUS_CONFIG.pendiente;
+                                return (
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    borderRadius: '10px',
+                                    border: `1.5px solid ${cur.border}`,
+                                    background: cur.bg,
+                                    color: cur.color,
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    minHeight: '38px',
+                                    boxSizing: 'border-box',
+                                    position: 'relative'
+                                  }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cur.dot }} />
+                                      <span>{cur.label}</span>
+                                    </div>
+                                    <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>⌄</span>
+                                    <select
+                                      value={item.status || 'pendiente'}
+                                      onChange={e => !isOpReadOnly && setSt(activeTab)(item.id, e.target.value)}
+                                      disabled={isOpReadOnly}
+                                      style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        opacity: 0,
+                                        width: '100%',
+                                        height: '100%',
+                                        cursor: isOpReadOnly ? 'default' : 'pointer'
+                                      }}
+                                    >
+                                      <option value="pendiente">Pendiente</option>
+                                      <option value="en_proceso">En proceso</option>
+                                      <option value="cumplido">Cumplido</option>
+                                      <option value="no_aplica">No aplica</option>
+                                    </select>
+                                  </div>
+                                );
+                              })()
+                            ) : (
+                              (() => {
+                                const curRating = RATING_LEVELS.find(r => r.value === item.rating);
+                                const label = curRating?.label || '— Calificar —';
+                                const dot = curRating?.dot || '#cbd5e1';
+                                return (
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    borderRadius: '10px',
+                                    border: `1.5px solid ${curRating ? curRating.dot : '#cbd5e1'}`,
+                                    background: '#ffffff',
+                                    color: curRating ? curRating.dot : '#64748b',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    minHeight: '38px',
+                                    boxSizing: 'border-box',
+                                    position: 'relative'
+                                  }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: dot }} />
+                                      <span>{label}</span>
+                                    </div>
+                                    <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>⌄</span>
+                                    <select
+                                      value={item.rating || ''}
+                                      onChange={e => !(isReadOnly || (isEvLocked && !!item.rating)) && setRating(activeTab)(item.id, e.target.value || null)}
+                                      disabled={isReadOnly || (isEvLocked && !!item.rating)}
+                                      style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        opacity: 0,
+                                        width: '100%',
+                                        height: '100%',
+                                        cursor: isReadOnly ? 'default' : 'pointer'
+                                      }}
+                                    >
+                                      <option value="">— Calificar —</option>
+                                      {RATING_LEVELS.map(r => (
+                                        <option key={r.value} value={r.value}>{r.label}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                );
+                              })()
+                            )}
+                          </div>
+
+                          {/* Note Button */}
                           <button
                             type="button"
-                            onClick={() => clearTplFromTab(activeTab)}
-                            disabled={activeTplsReadOnly}
-                            style={{
-                              padding: '4px 10px', borderRadius: '999px',
-                              border: '1px solid #fecaca', background: '#fef2f2',
-                              color: '#dc2626', fontSize: '0.72rem', fontWeight: 700,
-                              cursor: activeTplsReadOnly ? 'not-allowed' : 'pointer',
+                            onClick={() => {
+                              setExpandedNoteItemIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(item.id)) next.delete(item.id);
+                                else next.add(item.id);
+                                return next;
+                              });
                             }}
-                          >Quitar todas</button>
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: '10px',
+                              border: hasComment ? '1.5px solid #93c5fd' : '1.5px solid #e2e8f0',
+                              background: hasComment ? '#eff6ff' : '#f8fafc',
+                              color: hasComment ? '#1d4ed8' : '#475569',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              minHeight: '38px',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <span>💬</span>
+                            <span>Nota{hasComment ? ' ✓' : ''}</span>
+                          </button>
+                        </div>
+
+                        {/* Expanded note input */}
+                        {isNoteExpanded && (
+                          <div style={{ marginTop: '2px' }}>
+                            <input
+                              type="text"
+                              value={item.comment || ''}
+                              onChange={e => !(activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly) && setCm(activeTab)(item.id, e.target.value)}
+                              placeholder="Escribir nota o comentario..."
+                              readOnly={activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: '1.5px solid #cbd5e1',
+                                background: '#ffffff',
+                                color: '#0f172a',
+                                fontSize: '0.8rem',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                fontFamily: 'inherit'
+                              }}
+                            />
+                          </div>
                         )}
                       </div>
-                    )}
-                    {/* Dropdown para agregar plantilla */}
-                    <select
-                      value=""
-                      onChange={handleTpl(activeTab)}
-                      style={s.select}
-                      disabled={activeTplsReadOnly || tplOptions.length === 0}
-                    >
-                      <option value="">{tplOptions.length === 0 ? 'No hay más plantillas disponibles' : '+ Agregar plantilla'}</option>
-                      {tplOptions.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    {activeTplIds.length > 0 && (
-                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>
-                        Podés agregar varias plantillas al mismo check list.
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Notes */}
-            <div>
-              <span style={s.label}>Notas / Sugerencias</span>
-              <textarea value={activeNotes} onChange={e => {
-                const val = e.target.value;
-                if (activeTab === TAB_OPERATIVA) setOpNotes(val);
-                else setEvNotes(val);
-              }}
-                rows={2} placeholder="Observaciones generales..."
-                style={{ ...s.input, resize: 'vertical', minHeight: '50px' }}
-                readOnly={activeReadOnly} />
-            </div>
-
-
-            {/* Bloque Avance — solo en pestaña Operativa */}
-            {activeTab === TAB_OPERATIVA && (
-              <div className="checklist-progress-container" style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                  <span>Avance <span style={{ color: '#6366f1' }}>{progress}%</span></span>
-                  <span>Operativo <span style={{ color: '#10b981' }}>{sat}%</span></span>
-                </div>
-                <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg,#6366f1,#10b981)', width: `${progress}%`, transition: 'width 0.3s ease' }} />
-                </div>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8', flexWrap: 'wrap' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
-                    Cumplido: {done}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d97706', display: 'inline-block' }} />
-                    En proceso: {activeItems.filter(i => i.status === 'en_proceso').length}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
-                    Pendiente: {activeItems.filter(i => i.status === 'pendiente').length}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#64748b', display: 'inline-block' }} />
-                    No aplica: {activeItems.filter(i => i.status === 'no_aplica').length}
-                  </span>
-                </div>
+            {/* Preguntas Abiertas (Evaluación) */}
+            {activeTab === TAB_EVALUACION && openQuestions.length > 0 && (
+              <div style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                border: '1px solid #e2e8f0',
+                padding: '14px 16px',
+                boxShadow: '0 2px 8px rgba(15,23,42,0.03)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  PREGUNTAS ABIERTAS ({openQuestions.length})
+                </span>
+                {openQuestions.map((item, idx) => (
+                  <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingBottom: '10px', borderBottom: idx < openQuestions.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    <span style={{ fontSize: '0.84rem', color: '#1e293b', fontWeight: 600 }}>
+                      {idx + 1}. {item.text}
+                    </span>
+                    <textarea
+                      value={item.comment || ''}
+                      onChange={e => !isEvReadOnly && setCm(activeTab)(item.id, e.target.value)}
+                      placeholder="Escribir respuesta..."
+                      readOnly={isEvReadOnly}
+                      rows={2}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #d1d5db',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                        background: isEvReadOnly ? '#f8fafc' : '#ffffff',
+                        color: '#0f172a',
+                        fontFamily: 'inherit',
+                        boxSizing: 'border-box',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* Barra de Satisfacción del Cliente — solo en pestaña Evaluación */}
-            {activeTab === TAB_EVALUACION && evalItems.length > 0 && (
-              <div className="checklist-progress-container" style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                  <span>Satisfacción del Cliente</span>
-                  <span style={{
-                    color: satisfactionAvg >= 7.5 ? '#16a34a' : satisfactionAvg >= 5 ? '#d97706' : '#dc2626',
-                    fontSize: '0.9rem',
-                  }}>
-                    {applicableItems.length > 0 ? `${satisfactionAvg.toFixed(1)} / 10.0 (${satisfactionPct}%)` : '—'}
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, marginTop: '-2px', marginBottom: '6px' }}>
-                  Escala sobre 10 · Los puntos marcados como N/A no se cuentan en el promedio
-                </div>
-                <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: '999px',
-                    background: satisfactionAvg >= 7.5 ? '#22c55e' : satisfactionAvg >= 5 ? '#eab308' : '#ef4444',
-                    width: applicableItems.length > 0 ? `${satisfactionPct}%` : '0%',
-                    transition: 'width 0.4s ease'
-                  }} />
-                </div>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: '#94a3b8', flexWrap: 'wrap' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c3aed', display: 'inline-block' }} />
-                    Excelente: {evalItems.filter(i => i.rating === 'excelente').length}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
-                    Bueno: {evalItems.filter(i => i.rating === 'bueno').length}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d97706', display: 'inline-block' }} />
-                    Regular: {evalItems.filter(i => i.rating === 'regular').length}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
-                    Malo: {evalItems.filter(i => i.rating === 'malo').length}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#cbd5e1', display: 'inline-block' }} />
-                    Sin calificar: {unratedCount}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
-                    N/A: {notApplicableCount}
-                  </span>
-                </div>
-              </div>
-            )}
-
 
             {/* History toggle */}
             {activeHistory.length > 0 && (
@@ -1544,12 +2168,24 @@ export default function SettingsChecklist() {
                 <button
                   type="button"
                   onClick={() => setShowHistory(!showHistory)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: '#6366f1', padding: '4px 0', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: '#6366f1',
+                    padding: '4px 2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
                 >
-                  {showHistory ? '\u25BC' : '\u25B6'} Historial de ediciones ({activeHistory.length})
+                  <span>{showHistory ? '▼' : '▶'}</span>
+                  <span>Historial de ediciones ({activeHistory.length})</span>
                 </button>
                 {showHistory && (
-                  <div style={{ marginTop: '6px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#ffffff', padding: '8px 12px', maxHeight: '150px', overflowY: 'auto' }}>
+                  <div style={{ marginTop: '6px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#ffffff', padding: '10px 14px', maxHeight: '150px', overflowY: 'auto' }}>
                     {activeHistory.map((h, i) => {
                       const d = new Date(h.timestamp);
                       const dateStr = d.toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1564,266 +2200,124 @@ export default function SettingsChecklist() {
                 )}
               </div>
             )}
-
-            {/* Items table */}
-            <div className="checklist-table-wrapper" style={{
-              border: '1px solid #e2e8f0',
-              borderRadius: '10px',
-              overflowY: 'auto',
-              background: '#ffffff',
-              flexGrow: 1,
-              flexShrink: 1,
-              flexBasis: '0%',
-              minHeight: '150px'
-            }}>
-              {activeItems.length === 0 ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
-                  Selecciona una plantilla para cargar los puntos a evaluar
-                </div>
-              ) : (
-                <table className="checklist-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 6px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '28px', borderBottom: '1px solid #e2e8f0' }}>#</th>
-                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 6px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Punto</th>
-                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 4px', textAlign: 'center', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '105px', borderBottom: '1px solid #e2e8f0' }}>
-                        {activeTab === TAB_EVALUACION ? 'Calificaci\u00f3n' : 'Estado'}
-                      </th>
-                      <th style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '8px 4px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', width: '105px', borderBottom: '1px solid #e2e8f0' }}>Comentario</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableItems.map((item, idx) => {
-                      const isUnrated = unratedIds.has(item.id);
-                      const isFlashing = flashItemId === item.id;
-                      const rowBg = isFlashing
-                        ? '#fef3c7'
-                        : isUnrated
-                          ? '#fef2f2'
-                          : (activeTab === TAB_EVALUACION ? '#fcfcfd' : 'transparent');
-                      const rowShadow = isFlashing
-                        ? 'inset 0 0 0 2px #f59e0b, 0 0 0 4px rgba(245,158,11,0.25)'
-                        : (isUnrated ? 'inset 3px 0 0 0 #dc2626' : 'none');
-                      return (
-                      <tr key={item.id} data-ev-item-id={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: rowBg, boxShadow: rowShadow, transition: 'box-shadow 0.2s ease, background 0.2s ease' }}>
-                        <td style={{ padding: '6px 6px', color: '#94a3b8', fontWeight: 600, fontSize: '0.72rem', width: '28px', verticalAlign: 'top' }}>{idx + 1}</td>
-                        <td style={{ padding: '6px 10px' }}>
-                          <span style={{ color: '#6366f1', fontSize: '0.7rem', fontWeight: 600 }}>
-                            {item.sectionName ? `[${item.sectionName}] ` : ''}
-                          </span>
-                          <span style={{ color: '#0f172a', fontWeight: 500 }}>{item.text}</span>
-                          {isFlashing && (
-                            <div style={{ marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', padding: '2px 8px' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#f59e0b', color: '#fff', fontSize: '0.65rem', fontWeight: 800 }}>!</span>
-                              Falta evaluar este punto
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ padding: '6px 4px', textAlign: 'center', width: '105px' }}>
-                          {activeTab === TAB_EVALUACION ? (
-                            (() => {
-                              const currentRating = RATING_LEVELS.find(r => r.value === item.rating);
-                              const curDot = currentRating?.dot || '#cbd5e1';
-                              const hasRating = !!currentRating;
-                              return (
-                                <div style={{ position: 'relative', width: '100%' }}>
-                                  <span
-                                    aria-hidden="true"
-                                    style={{
-                                      position: 'absolute', left: '6px', top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      width: '5px', height: '5px', borderRadius: '50%',
-                                      background: hasRating ? curDot : '#cbd5e1',
-                                      pointerEvents: 'none',
-                                    }}
-                                  />
-                                  <select
-                                    className="checklist-rating-combobox"
-                                    value={item.rating || ''}
-                                    onChange={e => !(isReadOnly || (isEvLocked && !!item.rating)) && setRating(activeTab)(item.id, e.target.value || null)}
-                                    disabled={isReadOnly || (isEvLocked && !!item.rating)}
-                                    style={{
-                                      padding: '3px 16px 3px 15px', borderRadius: '5px',
-                                      border: `1.5px solid ${hasRating ? curDot : '#cbd5e1'}`,
-                                      fontSize: '0.68rem', fontWeight: 600,
-                                      cursor: isReadOnly ? 'default' : 'pointer',
-                                      backgroundColor: '#ffffff',
-                                      color: hasRating ? curDot : '#64748b',
-                                      opacity: isReadOnly ? 0.75 : 1, width: '100%',
-                                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-                                      backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><path d='M1 1l2.5 2.5L6 1' stroke='%2394a3b8' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>")`,
-                                      backgroundRepeat: 'no-repeat',
-                                      backgroundPosition: 'right 5px center',
-                                      backgroundSize: '7px 4px',
-                                      textOverflow: 'ellipsis',
-                                      minHeight: '30px',
-                                    }}
-                                  >
-                                    <option value="" style={{ color: '#64748b' }}>— Calificar —</option>
-                                    {RATING_LEVELS.map(r => (
-                                      <option key={r.value} value={r.value} style={{ color: r.dot, fontWeight: 600, backgroundColor: '#ffffff' }}>
-                                        {r.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              );
-                            })()
-                          ) : (
-                            (() => {
-                              const STATUS_DOT = {
-                                pendiente: '#94a3b8',
-                                en_proceso: '#d97706',
-                                cumplido: '#16a34a',
-                                no_aplica: '#64748b',
-                              };
-                              const STATUS_COLOR = {
-                                pendiente: '#64748b',
-                                en_proceso: '#d97706',
-                                cumplido: '#16a34a',
-                                no_aplica: '#475569',
-                              };
-                              const curDot = STATUS_DOT[item.status] || '#cbd5e1';
-                              const curColor = STATUS_COLOR[item.status] || '#64748b';
-                              const hasStatus = !!item.status;
-                              return (
-                                <div style={{ position: 'relative', width: '100%' }}>
-                                  <span
-                                    aria-hidden="true"
-                                    style={{
-                                      position: 'absolute', left: '6px', top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      width: '5px', height: '5px', borderRadius: '50%',
-                                      background: hasStatus ? curDot : '#cbd5e1',
-                                      pointerEvents: 'none',
-                                    }}
-                                  />
-                                  <select
-                                    className="checklist-status-combobox"
-                                    value={item.status || ''}
-                                    onChange={e => !isOpReadOnly && setSt(activeTab)(item.id, e.target.value)}
-                                    disabled={isOpReadOnly}
-                                    style={{
-                                      padding: '3px 16px 3px 15px', borderRadius: '5px',
-                                      border: `1.5px solid ${hasStatus ? curDot : '#cbd5e1'}`,
-                                      fontSize: '0.68rem', fontWeight: 600,
-                                      cursor: isOpReadOnly ? 'default' : 'pointer',
-                                      backgroundColor: '#ffffff',
-                                      color: hasStatus ? curColor : '#64748b',
-                                      opacity: isOpReadOnly ? 0.75 : 1, width: '100%',
-                                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-                                      backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><path d='M1 1l2.5 2.5L6 1' stroke='%2394a3b8' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>")`,
-                                      backgroundRepeat: 'no-repeat',
-                                      backgroundPosition: 'right 5px center',
-                                      backgroundSize: '7px 4px',
-                                      textOverflow: 'ellipsis',
-                                      minHeight: '30px',
-                                    }}
-                                  >
-                                    <option value="pendiente" style={{ color: STATUS_COLOR.pendiente, fontWeight: 600, backgroundColor: '#ffffff' }}>Pendiente</option>
-                                    <option value="en_proceso" style={{ color: STATUS_COLOR.en_proceso, fontWeight: 600, backgroundColor: '#ffffff' }}>En proceso</option>
-                                    <option value="cumplido" style={{ color: STATUS_COLOR.cumplido, fontWeight: 600, backgroundColor: '#ffffff' }}>Cumplido</option>
-                                    <option value="no_aplica" style={{ color: STATUS_COLOR.no_aplica, fontWeight: 600, backgroundColor: '#ffffff' }}>No aplica</option>
-                                  </select>
-                                </div>
-                              );
-                            })()
-                          )}
-                        </td>
-                        <td style={{ padding: '6px 4px', width: '105px' }}>
-                          <input type="text" value={item.comment || ''} onChange={e => !(activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly) && setCm(activeTab)(item.id, e.target.value)}
-                            placeholder="..." readOnly={activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly}
-                            style={{ width: '100%', padding: '3px 6px', borderRadius: '5px', border: '1.5px solid #e2e8f0', fontSize: '0.68rem', outline: 'none', background: (activeTab === TAB_EVALUACION ? (isReadOnly || (isEvLocked && !!item.rating)) : activeReadOnly) ? '#f8fafc' : '#ffffff', color: '#0f172a', boxSizing: 'border-box', minHeight: '30px' }} />
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            {/* Open questions — compact single-row per question, below a dashed divider */}
-            {activeTab === TAB_EVALUACION && openQuestions.length > 0 && (
-              <>
-                <div style={{ borderTop: '1.5px dashed #cbd5e1', margin: '6px 0 4px 0' }} />
-                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
-                  Preguntas abiertas
-                </span>
-                {openQuestions.map((item, idx) => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ flex: 1, fontSize: '0.77rem', color: '#334155', fontWeight: 500, lineHeight: 1.3 }}>
-                      {idx + 1}. {item.text}
-                    </span>
-                    <textarea
-                      value={item.comment || ''}
-                      onChange={e => !isEvReadOnly && setCm(activeTab)(item.id, e.target.value)}
-                      onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                      maxLength={2000}
-                      placeholder="Respuesta..."
-                      readOnly={isEvReadOnly}
-                      rows={1}
-                      style={{
-                        flex: 1,
-                        padding: '5px 9px',
-                        borderRadius: '6px',
-                        border: '1.5px solid #d1d9e6',
-                        fontSize: '0.75rem',
-                        outline: 'none',
-                        background: isEvReadOnly ? '#f8fafc' : '#fff',
-                        color: '#0f172a',
-                        fontFamily: 'inherit',
-                        boxSizing: 'border-box',
-                        resize: 'none',
-                        overflow: 'hidden',
-                        lineHeight: '1.5',
-                        minHeight: '30px',
-                        display: 'block',
-                      }}
-                    />
-                  </div>
-                ))}
-              </>
-            )}
           </div>
 
-          {/* Footer */}
-          <div className="checklist-footer" style={{ flexShrink: 0, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
-            <div style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span>{activeTab === TAB_OPERATIVA ? '\u2699\uFE0F Check List Operativa' : '\u2B50 Check List Evaluaci\u00f3n'}</span>
-              {activeTab === TAB_EVALUACION && isEvLocked && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: '999px' }}>
-                  🔒 Bloqueada
-                </span>
-              )}
-              {activeTab === TAB_OPERATIVA && isOpLocked && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#991b1b', background: '#fee2e2', padding: '2px 8px', borderRadius: '999px' }}>
-                  🔒 Bloqueado — evento pasado
-                </span>
-              )}
-              <HistoryBadge history={activeHistory} />
-            </div>
-            <div className="checklist-footer-buttons" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button className="btn-exit" type="button" onClick={closeEvent}>Cerrar</button>
-              {canUnlockEv && activeTab === TAB_EVALUACION && (
-                <button type="button" onClick={() => { setShowPinDialog(true); setPinInput(''); setPinDisplay(''); setPinError(''); }}
-                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #6366f1', background: '#eef2ff', color: '#4f46e5', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer' }}>
-                  Desbloquear
-                </button>
-              )}
-              {!isReadOnly && activeTab === TAB_EVALUACION && !isEvLocked && (
-                <button type="button" onClick={handleSave(TAB_EVALUACION)} disabled={savingEv}
-                  style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: savingEv ? 0.6 : 1 }}>
-                  {savingEv ? 'Guardando...' : 'Guardar Evaluación'}
-                </button>
-              )}
-              {!isReadOnly && activeTab === TAB_OPERATIVA && !isOpLocked && (
-                <button type="button" onClick={handleSave(TAB_OPERATIVA)} disabled={savingOp}
-                  style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', opacity: savingOp ? 0.6 : 1 }}>
-                  {savingOp ? 'Guardando...' : 'Guardar Operativa'}
-                </button>
-              )}
-            </div>
+          {/* Fixed Bottom Footer */}
+          <div className="checklist-footer" style={{
+            position: 'sticky',
+            bottom: 0,
+            background: '#ffffff',
+            borderTop: '1px solid #e2e8f0',
+            padding: '12px 16px',
+            paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+            zIndex: 100,
+            boxShadow: '0 -4px 16px rgba(0,0,0,0.06)',
+            flexShrink: 0
+          }}>
+            <button
+              className="btn-exit"
+              type="button"
+              onClick={closeEvent}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '12px',
+                border: '1.5px solid #e2e8f0',
+                background: '#f8fafc',
+                color: '#475569',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                minHeight: '46px',
+                minWidth: '85px',
+                boxSizing: 'border-box'
+              }}
+            >
+              Cerrar
+            </button>
+
+            {canUnlockEv && activeTab === TAB_EVALUACION && (
+              <button
+                type="button"
+                onClick={() => { setShowPinDialog(true); setPinInput(''); setPinDisplay(''); setPinError(''); }}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #6366f1',
+                  background: '#eef2ff',
+                  color: '#4f46e5',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  minHeight: '46px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                Desbloquear
+              </button>
+            )}
+
+            {!isReadOnly && activeTab === TAB_EVALUACION && !isEvLocked && (
+              <button
+                type="button"
+                onClick={handleSave(TAB_EVALUACION)}
+                disabled={savingEv}
+                style={{
+                  flex: 1,
+                  padding: '10px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: '#059669',
+                  color: '#ffffff',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  cursor: savingEv ? 'not-allowed' : 'pointer',
+                  opacity: savingEv ? 0.6 : 1,
+                  minHeight: '46px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(5,150,105,0.25)',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <span>✓</span>
+                <span>{savingEv ? 'Guardando...' : 'Guardar Evaluación'}</span>
+              </button>
+            )}
+
+            {!isReadOnly && activeTab === TAB_OPERATIVA && !isOpLocked && (
+              <button
+                type="button"
+                onClick={handleSave(TAB_OPERATIVA)}
+                disabled={savingOp}
+                style={{
+                  flex: 1,
+                  padding: '10px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: '#059669',
+                  color: '#ffffff',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  cursor: savingOp ? 'not-allowed' : 'pointer',
+                  opacity: savingOp ? 0.6 : 1,
+                  minHeight: '46px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(5,150,105,0.25)',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <span>✓</span>
+                <span>{savingOp ? 'Guardando...' : 'Guardar Operativa'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
