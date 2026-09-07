@@ -878,15 +878,44 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const handleMoveSelected = (dir) => {
     if (!selectedItemIds.size) return;
     setQuote(prev => {
+      const norm = (s) => String(s || '').trim().slice(0, 10);
       const items = [...prev.items];
-      if (dir === 'up') {
-        for (let i = 1; i < items.length; i++)
-          if (selectedItemIds.has(items[i].rowId) && !selectedItemIds.has(items[i-1].rowId)) [items[i-1], items[i]] = [items[i], items[i-1]];
-      } else {
-        for (let i = items.length - 2; i >= 0; i--)
-          if (selectedItemIds.has(items[i].rowId) && !selectedItemIds.has(items[i+1].rowId)) [items[i], items[i+1]] = [items[i+1], items[i]];
+      
+      // Agrupar ítems por su fecha de servicio para que subir/bajar reordene dentro del mismo día
+      const datesOrder = [];
+      const itemsByDate = new Map();
+      for (const item of items) {
+        const d = norm(item.serviceDate || item.date || item.eventDate);
+        if (!itemsByDate.has(d)) {
+          itemsByDate.set(d, []);
+          datesOrder.push(d);
+        }
+        itemsByDate.get(d).push(item);
       }
-      return { ...prev, items };
+
+      // Reordenar ítems seleccionados dentro de cada grupo de fecha
+      for (const group of itemsByDate.values()) {
+        if (dir === 'up') {
+          for (let i = 1; i < group.length; i++) {
+            if (selectedItemIds.has(group[i].rowId) && !selectedItemIds.has(group[i-1].rowId)) {
+              [group[i-1], group[i]] = [group[i], group[i-1]];
+            }
+          }
+        } else {
+          for (let i = group.length - 2; i >= 0; i--) {
+            if (selectedItemIds.has(group[i].rowId) && !selectedItemIds.has(group[i+1].rowId)) {
+              [group[i], group[i+1]] = [group[i+1], group[i]];
+            }
+          }
+        }
+      }
+
+      // Reconstruir array plano de items respetando los grupos
+      const next = [];
+      for (const d of datesOrder) {
+        next.push(...itemsByDate.get(d));
+      }
+      return { ...prev, items: next };
     });
   };
 
@@ -1828,6 +1857,29 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         #qp-body::-webkit-scrollbar { width: 6px; }
         #qp-body::-webkit-scrollbar-track { background: #f1f5f9; }
         #qp-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        
+        .qp-cart-sticky-header {
+          position: sticky !important;
+          top: 0 !important;
+          z-index: 25 !important;
+          background: #ffffff !important;
+          margin: -14px -16px 12px -16px !important;
+          padding: 12px 16px !important;
+          border-top-left-radius: 10px !important;
+          border-top-right-radius: 10px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+        }
+        .qp-cart-items-scroll {
+          max-height: min(620px, calc(100vh - 340px)) !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          scrollbar-width: thin !important;
+        }
+        .qp-cart-items-scroll::-webkit-scrollbar { width: 6px; }
+        .qp-cart-items-scroll::-webkit-scrollbar-track { background: #f8fafc; border-radius: 3px; }
+        .qp-cart-items-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .qp-cart-items-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         #quoteAdvanceBackdrop .modal > .modalHeader + div[style] { display: none !important; }
         body:not(.informes-theme) #quoteAdvanceBackdrop,
         #quoteAdvanceBackdrop {
@@ -3613,6 +3665,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           .qp-right-table-panel {
             width: 100% !important;
           }
+          .qp-cart-sticky-header {
+            top: 42px !important;
+            margin: -14px -16px 10px -16px !important;
+            padding: 10px 12px !important;
+          }
+          .qp-cart-items-scroll {
+            max-height: calc(100vh - 290px) !important;
+          }
           .qp-floating-footer {
             position: sticky !important;
             bottom: 0 !important;
@@ -4782,16 +4842,82 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
               {/* Tabla de servicios */}
               <div style={card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                <div className="qp-cart-sticky-header" style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginBottom: 12
+                }}>
                   <div>
                     <div className="eyebrow">Carrito operativo</div>
                     <div className="section-title" style={{ marginBottom: 0 }}>Servicios y productos agregados</div>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Cantidades, precio, fecha, servicio y total.</div>
                   </div>
-                  <div className="qp-toolbar" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button className="qp-btn" type="button" onClick={handleDuplicateSelected}>Duplicar selección</button>
-                    <button className="qp-btn" type="button" onClick={() => handleMoveSelected('up')}>↑ Subir</button>
-                    <button className="qp-btn" type="button" onClick={() => handleMoveSelected('down')}>↓ Bajar</button>
+                  <div className="qp-toolbar" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {selectedItemIds.size > 0 && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 2 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', padding: '4px 8px', borderRadius: 6, border: '1px solid #bfdbfe' }}>
+                          {selectedItemIds.size} {selectedItemIds.size === 1 ? 'seleccionado' : 'seleccionados'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedItemIds(new Set())}
+                          title="Deseleccionar todo"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#64748b',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: '2px 4px'
+                          }}
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      className="qp-btn"
+                      type="button"
+                      disabled={selectedItemIds.size === 0}
+                      onClick={handleDuplicateSelected}
+                      title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para duplicar' : 'Duplicar ítems seleccionados'}
+                      style={{
+                        opacity: selectedItemIds.size === 0 ? 0.5 : 1,
+                        cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Duplicar selección
+                    </button>
+                    <button
+                      className="qp-btn"
+                      type="button"
+                      disabled={selectedItemIds.size === 0}
+                      onClick={() => handleMoveSelected('up')}
+                      title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para subir' : 'Subir en la lista de su día'}
+                      style={{
+                        opacity: selectedItemIds.size === 0 ? 0.5 : 1,
+                        cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      ↑ Subir
+                    </button>
+                    <button
+                      className="qp-btn"
+                      type="button"
+                      disabled={selectedItemIds.size === 0}
+                      onClick={() => handleMoveSelected('down')}
+                      title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para bajar' : 'Bajar en la lista de su día'}
+                      style={{
+                        opacity: selectedItemIds.size === 0 ? 0.5 : 1,
+                        cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      ↓ Bajar
+                    </button>
                   </div>
                 </div>
 
@@ -4819,7 +4945,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   </div>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="qp-cart-items-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingRight: 4, paddingBottom: 4 }}>
                   {!quote.templateIds?.length ? (
                     <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff' }}>
                       <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>

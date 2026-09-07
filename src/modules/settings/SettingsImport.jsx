@@ -49,8 +49,13 @@ export default function SettingsImport() {
     [confirmPhase, progressPhase, errorsPhase].forEach(el => {
       if (el) el.style.display = 'none';
     });
-    if (mode === 'confirm' && confirmPhase) confirmPhase.style.display = '';
-    else if (mode === 'errors' && errorsPhase) {
+    if (mode === 'confirm' && confirmPhase) {
+      confirmPhase.style.display = '';
+      const msgEl = confirmPhase.querySelector('.import-confirm-msg');
+      if (msgEl && errors?.valid !== undefined) {
+        msgEl.innerHTML = `Se detectaron <strong>${errors.valid.toLocaleString()}</strong> fila(s) listas para importar.<br/><span style="font-size:12px;color:#64748b">(${errors.newCount || 0} nuevas, ${errors.updateCount || 0} actualizaciones)</span><br/>¿Deseas importarlas ahora?`;
+      }
+    } else if (mode === 'errors' && errorsPhase) {
       errorsPhase.style.display = '';
       // Populate error list
       const listEl = errorsPhase.querySelector('.import-errors-list');
@@ -204,13 +209,28 @@ export default function SettingsImport() {
       } else {
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        if (!sheetName) {
-          toast('El archivo Excel no contiene hojas de cálculo.');
-          return;
+        
+        // Seleccionar la hoja que contenga datos reales (ignora hojas de solo diccionario)
+        let targetSheet = null;
+        let jsonData = [];
+        for (const sheetName of workbook.SheetNames) {
+          const s = workbook.Sheets[sheetName];
+          const data = XLSX.utils.sheet_to_json(s, { defval: '', header: 1 });
+          if (data.length >= 2) {
+            const firstRowStr = data[0].map((c) => String(c || '').toLowerCase()).join(' ');
+            if (!firstRowStr.includes('diccionario') || data[0].length > 2) {
+              targetSheet = s;
+              jsonData = data;
+              break;
+            }
+          }
         }
-        const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
+        if (!targetSheet) {
+          const fallbackName = workbook.SheetNames[workbook.SheetNames.length - 1] || workbook.SheetNames[0];
+          targetSheet = workbook.Sheets[fallbackName];
+          jsonData = targetSheet ? XLSX.utils.sheet_to_json(targetSheet, { defval: '', header: 1 }) : [];
+        }
+
         if (jsonData.length < 2) {
           toast('El archivo Excel no tiene suficientes filas. Debe tener encabezados + al menos 1 fila de datos.');
           return;
@@ -264,10 +284,10 @@ export default function SettingsImport() {
 
       hideOverlay();
 
-      if (validation.valid) {
+      if (validation.valid && validation.summary?.valid > 0) {
         confirmingRef.current = true;
         pendingImportRef.current = { type, rows, state };
-        showOverlay('confirm');
+        showOverlay('confirm', validation.summary);
         return; // wait for user to click "Importar ahora" in overlay
       } else {
         confirmingRef.current = true;
@@ -295,10 +315,18 @@ export default function SettingsImport() {
     try {
       if (type === 'empresas') {
         const payload = buildCompanyPayload(rows);
+        if (!payload.length) {
+          toast('No se encontraron empresas válidas para importar. Verifica las columnas del archivo (ej. empresa_id, nombre_comercial).');
+          return;
+        }
         const res = await api.post('/api/import/companies', { companies: payload });
         toast(`Importación lista: ${res.count || payload.length} empresa(s) importada(s).`);
       } else if (type === 'encargados') {
-        const payload = buildManagerPayload(rows);
+        const payload = buildManagerPayload(rows, state);
+        if (!payload.length) {
+          toast('No se encontraron encargados válidos para importar. Verifica las columnas del archivo (ej. empresa_id, nombre_encargado).');
+          return;
+        }
         const res = await api.post('/api/import/managers', { managers: payload });
         toast(`Importación lista: ${res.count || payload.length} encargado(s) importado(s).`);
       } else {

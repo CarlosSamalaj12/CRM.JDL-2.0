@@ -1,50 +1,602 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
+import {
+  Trophy,
+  Building2,
+  Award,
+  Search,
+  FileSpreadsheet,
+  ArrowRight,
+  ArrowLeft,
+  Calendar,
+  Filter,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Phone,
+  Mail,
+  FileText,
+  ExternalLink
+} from 'lucide-react';
 import { loadState as loadCrmState } from '../../services/stateService';
 import { STATUS_META } from '../calendar/constants';
+import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 import ReportInfo from './components/ReportInfo';
 
 const API = '';
 
-const normalizeText = (value) => String(value || '').trim().toLowerCase();
+const normalizeText = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
 const money = (value) => `Q ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-function getSeries(event, events) {
-  if (!event?.groupId) return [event];
-  const series = (events || []).filter((item) => String(item.groupId || '') === String(event.groupId || ''));
-  return series.length ? series : [event];
+/**
+ * Compara nombres de empresas de manera inteligente.
+ * Soporta igualdad exacta y coincidencias de acrónimos o alias (ej. "INCAP - Instituto...", "PDH (Procuraduría...)").
+ * Evita falsos positivos con palabras genéricas comunes como "Boda", "Evento", etc.
+ */
+function isMatchingCompanyName(nameA, nameB) {
+  const a = normalizeText(nameA);
+  const b = normalizeText(nameB);
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  // Si uno de los dos tiene acrónimo o alias entre paréntesis o guiones
+  const partsA = a.split(/[\(\)\-\/–]/).map((s) => s.trim()).filter((s) => s.length >= 3);
+  const partsB = b.split(/[\(\)\-\/–]/).map((s) => s.trim()).filter((s) => s.length >= 3);
+
+  if (partsA.some((p) => p === b) || partsB.some((p) => p === a)) return true;
+
+  return false;
 }
 
-function getCompanyToken(quote = {}) {
-  if (quote.companyId) return `id:${quote.companyId}`;
-  const companyName = normalizeText(quote.companyName || quote.company || quote.billTo);
-  return companyName ? `name:${companyName}` : 'none';
+/**
+ * Resuelve la empresa legítima de una reserva.
+ * PREVIENE la contaminación producida por companyId residual/heredado de plantillas duplicadas
+ * (ej. eventos sociales o ministerios con companyId: 10 de INCAP).
+ */
+function resolveEventCompany(companies, quote, event, primary) {
+  const rawCompanyId = quote.companyId || event.companyId || primary?.companyId || '';
+  const explicitName = String(
+    quote.companyName || quote.company || quote.billTo || ''
+  ).trim();
+  const fallbackClientName = String(
+    event.clientName || primary?.clientName || ''
+  ).trim();
+
+  let matched = null;
+
+  // 1. Si hay un nombre de empresa explícito escrito en la cotización:
+  if (explicitName) {
+    // Si tiene un companyId, verificar si ESE companyId realmente corresponde al nombre
+    if (rawCompanyId) {
+      const candidateById = companies.find((c) => String(c.id || '') === String(rawCompanyId));
+      if (candidateById && isMatchingCompanyName(candidateById.name, explicitName)) {
+        matched = candidateById;
+      }
+    }
+
+    // Si candidateById no coincidió (fue un ID huérfano o clonado de otra empresa),
+    // buscamos en el catálogo de empresas por nombre
+    if (!matched) {
+      matched = companies.find((c) => isMatchingCompanyName(c.name, explicitName)) || null;
+    }
+
+    const finalName = matched ? matched.name : explicitName;
+    const finalToken = matched ? `id:${matched.id}` : `name:${normalizeText(explicitName)}`;
+
+    return {
+      matchedCompany: matched,
+      companyId: matched ? matched.id : '',
+      companyName: finalName,
+      companyToken: finalToken,
+      nit: matched?.nit || quote.nit || '',
+    };
+  }
+
+  // 2. Si no hay explicitName pero sí rawCompanyId:
+  if (rawCompanyId) {
+    const candidate = companies.find((c) => String(c.id || '') === String(rawCompanyId));
+    if (candidate) {
+      return {
+        matchedCompany: candidate,
+        companyId: candidate.id,
+        companyName: candidate.name,
+        companyToken: `id:${candidate.id}`,
+        nit: candidate.nit || quote.nit || '',
+      };
+    }
+  }
+
+  // 3. Si solo hay clientName:
+  if (fallbackClientName) {
+    const candidate = companies.find((c) => isMatchingCompanyName(c.name, fallbackClientName));
+    if (candidate) {
+      return {
+        matchedCompany: candidate,
+        companyId: candidate.id,
+        companyName: candidate.name,
+        companyToken: `id:${candidate.id}`,
+        nit: candidate.nit || quote.nit || '',
+      };
+    }
+
+    return {
+      matchedCompany: null,
+      companyId: '',
+      companyName: fallbackClientName,
+      companyToken: `name:${normalizeText(fallbackClientName)}`,
+      nit: quote.nit || '',
+    };
+  }
+
+  return {
+    matchedCompany: null,
+    companyId: '',
+    companyName: 'Consumidor Final / Sin Empresa',
+    companyToken: 'none',
+    nit: quote.nit || '',
+  };
 }
 
-function getCompanyName(quote = {}, companies = []) {
-  const company = quote.companyId ? companies.find((item) => String(item.id || '') === String(quote.companyId || '')) : null;
-  return company?.name || quote.companyName || quote.company || quote.billTo || 'Sin institucion';
+/**
+ * Resuelve el contacto/encargado del evento.
+ * CRÍTICO: Siempre prioriza el contacto explícito del evento antes de cualquier default del catálogo.
+ * NUNCA asigna el primer encargado de una empresa si el evento ya especifica a su propio contacto
+ * o si la empresa fue un falso match.
+ */
+function resolveEventContact(quote, event, primary, matchedCompany) {
+  const explicitName = String(
+    quote.managerName || quote.contact || primary?.contact || event?.contact || ''
+  ).trim();
+  const explicitPhone = String(
+    quote.phone || quote.contactPhone || primary?.phone || event?.phone || ''
+  ).trim();
+  const explicitEmail = String(
+    quote.email || quote.contactEmail || primary?.email || event?.email || ''
+  ).trim();
+
+  // Si hay un contacto explícito escrito en el evento/cotización, es el legítimo
+  if (explicitName) {
+    let managerPhone = explicitPhone;
+    let managerEmail = explicitEmail;
+    if (matchedCompany?.managers?.length) {
+      const matchedMgr = matchedCompany.managers.find(
+        (m) =>
+          String(m.id || '') === String(quote.managerId || '') ||
+          normalizeText(m.name) === normalizeText(explicitName)
+      );
+      if (matchedMgr) {
+        if (!managerPhone) managerPhone = matchedMgr.phone || '';
+        if (!managerEmail) managerEmail = matchedMgr.email || '';
+      }
+    }
+
+    return {
+      contact: explicitName,
+      contactPhone: managerPhone || matchedCompany?.phone || '',
+      contactEmail: managerEmail || matchedCompany?.email || '',
+    };
+  }
+
+  // Si no hay contacto explícito pero sí una empresa del catálogo válidamente vinculada:
+  if (matchedCompany) {
+    const specificMgr = quote.managerId
+      ? matchedCompany.managers?.find((m) => String(m.id || '') === String(quote.managerId))
+      : null;
+    const fallbackMgr = specificMgr || matchedCompany.managers?.[0];
+
+    const contactName = fallbackMgr?.name || matchedCompany.owner || matchedCompany.name || '';
+    if (contactName) {
+      return {
+        contact: contactName,
+        contactPhone: fallbackMgr?.phone || matchedCompany.phone || '',
+        contactEmail: fallbackMgr?.email || matchedCompany.email || '',
+      };
+    }
+  }
+
+  const fallbackClient = String(primary?.clientName || event?.clientName || '').trim();
+  return {
+    contact: fallbackClient || 'Sin encargado',
+    contactPhone: explicitPhone,
+    contactEmail: explicitEmail,
+  };
 }
 
-function getDateRangeLabel(fromDate, toDate) {
-  if (fromDate && toDate) return `${fromDate} - ${toDate}`;
-  if (fromDate) return `Desde ${fromDate}`;
-  if (toDate) return `Hasta ${toDate}`;
-  return 'Todos los registros';
+// ─── Exportar Ranking a Excel estructurado ───
+function exportRankingToExcel(rankingRows, periodLabel, statusLabel) {
+  if (!rankingRows.length) return;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+
+  const totalCartera = rankingRows.reduce((acc, r) => acc + r.totalAmount, 0);
+  const totalVisitas = rankingRows.reduce((acc, r) => acc + r.eventsCount, 0);
+  const totalPax = rankingRows.reduce((acc, r) => acc + r.totalPax, 0);
+
+  const rowsHtml = rankingRows.map((r, i) => `
+    <tr style="background:${i % 2 === 1 ? '#f8fafc' : '#ffffff'};">
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:center;font-weight:bold;color:#1e293b;">${r.rank}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;font-weight:bold;color:#0f172a;">${r.companyName}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;color:#475569;">${r.nit || '-'}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;color:#475569;">${r.contact || '-'}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;color:#475569;">${r.contactPhone || '-'}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:center;font-weight:bold;color:#2563eb;">${r.eventsCount}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:center;color:#16a34a;">${r.confirmedCount}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:center;font-weight:bold;">${r.totalPax.toLocaleString()}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:right;font-weight:bold;color:#0f172a;">Q ${r.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:right;color:#16a34a;">Q ${r.advancesAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:right;color:${r.pendingAmount > 0 ? '#dc2626' : '#16a34a'};font-weight:bold;">Q ${r.pendingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:right;">Q ${r.avgTicket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td style="padding:8px 10px;border:1px solid #d1d5db;text-align:center;color:#475569;">${r.lastVisit || '-'}</td>
+    </tr>
+  `).join('');
+
+  const tableHtml = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Ranking Empresas</x:Name>
+                <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+      </head>
+      <body style="font-family:Calibri,Arial,sans-serif;">
+        <table style="border-collapse:collapse;width:100%;">
+          <tr>
+            <td colspan="13" style="font-size:16pt;font-weight:bold;color:#0f172a;padding:12px 0;">JARDINES DEL LAGO — RANKING DE EMPRESAS E INSTITUCIONES</td>
+          </tr>
+          <tr>
+            <td colspan="13" style="font-size:10pt;color:#475569;padding-bottom:12px;">
+              Período: <strong>${periodLabel}</strong> | Filtro de Estado: <strong>${statusLabel}</strong> | Generado: ${dateStr} ${timeStr}
+            </td>
+          </tr>
+          <thead>
+            <tr style="background:#0f172a;color:#ffffff;font-size:10pt;font-weight:bold;text-align:center;">
+              <th style="padding:10px;border:1px solid #0f172a;">#</th>
+              <th style="padding:10px;border:1px solid #0f172a;text-align:left;">Empresa / Institución</th>
+              <th style="padding:10px;border:1px solid #0f172a;">NIT</th>
+              <th style="padding:10px;border:1px solid #0f172a;text-align:left;">Contacto Principal</th>
+              <th style="padding:10px;border:1px solid #0f172a;">Teléfono</th>
+              <th style="padding:10px;border:1px solid #0f172a;">Eventos</th>
+              <th style="padding:10px;border:1px solid #0f172a;">Confirmados</th>
+              <th style="padding:10px;border:1px solid #0f172a;">Total PAX</th>
+              <th style="padding:10px;border:1px solid #0f172a;text-align:right;">Facturación Total</th>
+              <th style="padding:10px;border:1px solid #0f172a;text-align:right;">Abonado</th>
+              <th style="padding:10px;border:1px solid #0f172a;text-align:right;">Saldo Pendiente</th>
+              <th style="padding:10px;border:1px solid #0f172a;text-align:right;">Ticket Promedio</th>
+              <th style="padding:10px;border:1px solid #0f172a;">Última Visita</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f1f5f9;font-weight:bold;border-top:2px solid #0f172a;">
+              <td colspan="5" style="padding:10px;border:1px solid #d1d5db;text-align:right;">TOTALES GENERALES:</td>
+              <td style="padding:10px;border:1px solid #d1d5db;text-align:center;color:#2563eb;">${totalVisitas}</td>
+              <td style="padding:10px;border:1px solid #d1d5db;text-align:center;">-</td>
+              <td style="padding:10px;border:1px solid #d1d5db;text-align:center;">${totalPax.toLocaleString()}</td>
+              <td style="padding:10px;border:1px solid #d1d5db;text-align:right;color:#0f172a;">Q ${totalCartera.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td colspan="4" style="padding:10px;border:1px solid #d1d5db;"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Ranking_Empresas_JDL_${now.toISOString().slice(0, 10)}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
+// ─── Componentes de Gráficos Vectoriales SVG Profesionales ───
+
+// Gráfico de Área Suave (Bezier + Gradient)
+function SmoothAreaChart({ data, height = 210 }) {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ padding: '36px', border: '1px dashed #cbd5e1', borderRadius: '14px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+        Sin registros de consumo en el rango de fechas.
+      </div>
+    );
+  }
+
+  const W = 620;
+  const H = height;
+  const padL = 60;
+  const padR = 24;
+  const padT = 24;
+  const padB = 36;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  const maxVal = Math.max(1, ...data.map((d) => d.amount));
+  const points = data.map((d, i) => {
+    const x = data.length === 1 ? padL + innerW / 2 : padL + (i / (data.length - 1)) * innerW;
+    const y = padT + (1 - d.amount / maxVal) * innerH;
+    return { x, y, d, i };
+  });
+
+  // Curva Bézier cúbica suave
+  const createSmoothPath = (pts) => {
+    if (pts.length === 0) return '';
+    if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+    let path = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i];
+      const p1 = pts[i + 1];
+      const cp1x = p0.x + (p1.x - p0.x) / 2;
+      const cp1y = p0.y;
+      const cp2x = p0.x + (p1.x - p0.x) / 2;
+      const cp2y = p1.y;
+      path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+    }
+    return path;
+  };
+
+  const linePath = createSmoothPath(points);
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${padT + innerH} L ${points[0].x} ${padT + innerH} Z`;
+
+  // Gridlines Y
+  const gridSteps = [0, 0.5, 1];
+
+  return (
+    <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="instAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+
+        {/* Líneas horizontales de guía */}
+        {gridSteps.map((pct) => {
+          const y = padT + (1 - pct) * innerH;
+          const val = maxVal * pct;
+          return (
+            <g key={pct}>
+              <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="1" />
+              <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8" fontWeight="600">
+                {val >= 1000 ? `Q ${(val / 1000).toFixed(0)}k` : `Q ${val.toFixed(0)}`}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Área sombreada */}
+        <path d={areaPath} fill="url(#instAreaGrad)" />
+
+        {/* Línea principal */}
+        <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Puntos y etiquetas X */}
+        {points.map((pt) => {
+          const isHovered = hoveredIdx === pt.i;
+          return (
+            <g key={pt.i} onMouseEnter={() => setHoveredIdx(pt.i)} onMouseLeave={() => setHoveredIdx(null)} style={{ cursor: 'pointer' }}>
+              {/* Etiqueta X (mes) */}
+              <text x={pt.x} y={padT + innerH + 18} textAnchor="middle" fontSize="10" fill="#64748b" fontWeight={isHovered ? '800' : '600'}>
+                {pt.d.label}
+              </text>
+
+              {/* Punto circular interactivo */}
+              <circle
+                cx={pt.x}
+                cy={pt.y}
+                r={isHovered ? 6 : 3.5}
+                fill="#ffffff"
+                stroke="#2563eb"
+                strokeWidth={isHovered ? 3 : 2}
+                style={{ transition: 'all 0.15s ease' }}
+              />
+
+              {/* Tooltip flotante al pasar el cursor */}
+              {isHovered && (
+                <g>
+                  <rect
+                    x={Math.max(10, Math.min(W - 120, pt.x - 55))}
+                    y={Math.max(4, pt.y - 42)}
+                    width="110"
+                    height="32"
+                    rx="8"
+                    fill="#0f172a"
+                    filter="drop-shadow(0 4px 6px rgba(0,0,0,0.15))"
+                  />
+                  <text x={Math.max(10, Math.min(W - 120, pt.x - 55)) + 55} y={Math.max(4, pt.y - 42) + 14} textAnchor="middle" fontSize="10" fontWeight="700" fill="#94a3b8">
+                    {pt.d.count} evento(s)
+                  </text>
+                  <text x={Math.max(10, Math.min(W - 120, pt.x - 55)) + 55} y={Math.max(4, pt.y - 42) + 26} textAnchor="middle" fontSize="11" fontWeight="800" fill="#38bdf8">
+                    {money(pt.d.amount)}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// Gráfico Donut de Estados
+function InteractiveDonutChart({ statusData, totalEvents }) {
+  const size = 170;
+  const strokeWidth = 22;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  if (!statusData.length || totalEvents === 0) {
+    return (
+      <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '14px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+        Sin eventos para mostrar.
+      </div>
+    );
+  }
+
+  let cumulativePercent = 0;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={strokeWidth} />
+          {statusData.map((item) => {
+            const pct = item.count / totalEvents;
+            const strokeDasharray = `${pct * circumference} ${circumference}`;
+            const strokeDashoffset = -cumulativePercent * circumference;
+            cumulativePercent += pct;
+            return (
+              <circle
+                key={item.label}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke={item.color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={strokeDasharray}
+                strokeDashoffset={strokeDashoffset}
+                style={{ transition: 'stroke-dashoffset 0.4s ease' }}
+              />
+            );
+          })}
+        </svg>
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total</span>
+          <span style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalEvents}</span>
+          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>reservas</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: '180px' }}>
+        {statusData.map((item) => {
+          const pct = Math.round((item.count / totalEvents) * 100);
+          return (
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, color: '#1e293b' }}>{item.label}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <strong style={{ color: '#0f172a' }}>{item.count}</strong>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>({pct}%)</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Barras Horizontales con Porcentajes
+function HorizontalBarRanking({ items, maxVal, showAmount = true, emptyText = 'Sin datos disponibles.' }) {
+  if (!items.length) {
+    return (
+      <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '14px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+        {emptyText}
+      </div>
+    );
+  }
+
+  const computedMax = maxVal || Math.max(1, ...items.map((i) => i.amount || i.count));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {items.map((item, idx) => {
+        const val = item.amount !== undefined ? item.amount : item.count;
+        const pct = Math.max(4, Math.min(100, (val / computedMax) * 100));
+        return (
+          <div key={item.label || idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', maxWidth: '70%', overflow: 'hidden' }}>
+                <span style={{ fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.label}
+                </span>
+                {item.subtitle && (
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>{item.subtitle}</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>{item.count} evento(s)</span>
+                {showAmount && item.amount !== undefined && (
+                  <strong style={{ color: '#0f172a', fontWeight: 800 }}>{money(item.amount)}</strong>
+                )}
+              </div>
+            </div>
+            <div style={{ height: '7px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${pct}%`,
+                background: item.color || 'linear-gradient(90deg, #2563eb, #3b82f6)',
+                borderRadius: '999px',
+                transition: 'width 0.4s cubic-bezier(0.2, 0, 0, 1)',
+              }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Componente Principal ───
 export default function ReportsInstitucion({ onClose }) {
-  const { events = [], users = [] } = useOutletContext();
+  const navigate = useNavigate();
+  const outletContext = useOutletContext();
+  const events = useMemo(() => outletContext?.events || [], [outletContext?.events]);
+  const users = useMemo(() => outletContext?.users || [], [outletContext?.users]);
+
   const currentYear = String(new Date().getFullYear());
+
+  // ── Estados de Control & Filtros ──
+  const [activeTab, setActiveTab] = useState('ranking'); // 'ranking' | 'institucion'
+  const [timePreset, setTimePreset] = useState('year'); // 'year' | 'last12' | 'all' | 'custom'
+  const [statusScope, setStatusScope] = useState('confirmed'); // 'confirmed' | 'pipeline' | 'all'
+  const [fromDate, setFromDate] = useState(`${currentYear}-01-01`);
+  const [toDate, setToDate] = useState(`${currentYear}-12-31`);
+
+  // Búsqueda y ordenamiento en ranking
+  const [rankingSearch, setRankingSearch] = useState('');
+  const [sortField, setSortField] = useState('total'); // 'total' | 'events' | 'pax' | 'ticket' | 'lastVisit' | 'name'
+  const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
+
+  // Empresa seleccionada para la Ficha Institucional
+  const [selectedCompanyToken, setSelectedCompanyToken] = useState('all');
+
+  // Datos externos (Catálogo de empresas y servicios)
   const [companies, setCompanies] = useState([]);
   const [catalogServices, setCatalogServices] = useState([]);
   const [menuRankings, setMenuRankings] = useState(null);
   const [menuLoading, setMenuLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [companyToken, setCompanyToken] = useState('all');
-  const [fromDate, setFromDate] = useState(`${currentYear}-01-01`);
-  const [toDate, setToDate] = useState(`${currentYear}-12-31`);
 
   useEffect(() => {
     let mounted = true;
@@ -60,7 +612,26 @@ export default function ReportsInstitucion({ onClose }) {
     return () => { mounted = false; };
   }, []);
 
-  const rows = useMemo(() => {
+  // ── Manejo de Períodos Rápidos ──
+  const handlePresetChange = (preset) => {
+    setTimePreset(preset);
+    const now = new Date();
+    if (preset === 'year') {
+      setFromDate(`${now.getFullYear()}-01-01`);
+      setToDate(`${now.getFullYear()}-12-31`);
+    } else if (preset === 'last12') {
+      const past = new Date();
+      past.setFullYear(now.getFullYear() - 1);
+      setFromDate(past.toISOString().slice(0, 10));
+      setToDate(now.toISOString().slice(0, 10));
+    } else if (preset === 'all') {
+      setFromDate('');
+      setToDate('');
+    }
+  };
+
+  // ── Normalización de Filas de Reservas (Canónico: Deduplicación → FinancialMeta) ──
+  const allReservationRows = useMemo(() => {
     const seen = new Set();
     const output = [];
 
@@ -69,273 +640,313 @@ export default function ReportsInstitucion({ onClose }) {
       if (reservationKey && seen.has(reservationKey)) continue;
       if (reservationKey) seen.add(reservationKey);
 
-      const series = getSeries(event, events).sort((a, b) => {
-        const dateDiff = String(a.date || '').localeCompare(String(b.date || ''));
-        if (dateDiff) return dateDiff;
-        return String(a.startTime || '').localeCompare(String(b.startTime || ''));
-      });
-      const primary = series.find((item) => item.quote) || series[0] || event;
+      const financialMeta = getEventSeriesFinancialMeta(event, events);
+      const primary = financialMeta.primaryEvent || event;
       const quote = primary?.quote || event?.quote || {};
-      const startDate = series[0]?.date || primary?.date || event?.date || '';
-      const endDate = series[series.length - 1]?.date || startDate;
-      const salones = Array.from(new Set(series.map((item) => item.salon).filter(Boolean)));
+
+      const startDate = String(financialMeta.startDate || primary?.eventDateStart || primary?.date || event?.date || '').trim();
+      const endDate = String(financialMeta.endDate || primary?.eventDateEnd || primary?.endDate || startDate).trim();
+
+      const salones = financialMeta.salones && financialMeta.salones.length ? financialMeta.salones : [financialMeta.mainSalon || primary?.salon || event?.salon || ''];
       const seller = users.find((user) => String(user.id || '') === String(primary?.userId || event?.userId || ''));
-      const company = quote.companyId ? companies.find((item) => String(item.id || '') === String(quote.companyId || '')) : null;
-      const manager = company?.managers?.find((item) => String(item.id || '') === String(quote.managerId || ''));
+
+      // Resolución de empresa y encargado (libre de contaminación por plantillas clonadas)
+      const compInfo = resolveEventCompany(companies, quote, event, primary);
+      const contactInfo = resolveEventContact(quote, event, primary, compInfo.matchedCompany);
+
+      const total = Number(quote.totalGtq || quote.total || 0);
+      const advancesList = Array.isArray(quote.advances) ? quote.advances : [];
+      const advancesSum = advancesList.reduce((sum, adv) => sum + Math.max(0, Number(adv.amount || 0)), 0);
 
       output.push({
         id: primary?.id || event?.id || reservationKey,
+        primaryId: primary?.id || event?.id || '',
         reservationKey,
-        companyToken: getCompanyToken(quote),
-        companyId: quote.companyId || '',
-        companyName: getCompanyName(quote, companies),
-        nit: company?.nit || quote.nit || '',
-        contact: manager?.name || company?.managers?.find((m) => m.name === quote.managerName)?.name || quote.managerName || '',
-        contactPhone: manager?.phone || quote.phone || company?.phone || '',
-        contactEmail: manager?.email || quote.email || company?.email || '',
-        status: primary?.status || event?.status || '',
+        companyToken: compInfo.companyToken,
+        companyId: compInfo.companyId,
+        companyName: compInfo.companyName,
+        companyRaw: compInfo.matchedCompany || null,
+        nit: compInfo.nit,
+        contact: contactInfo.contact,
+        contactPhone: contactInfo.contactPhone,
+        contactEmail: contactInfo.contactEmail,
+        status: primary?.status || event?.status || 'Sin estado',
         statusColor: STATUS_META[primary?.status || event?.status]?.color || '#64748b',
-        name: primary?.name || event?.name || '',
+        name: primary?.name || event?.name || 'Evento sin nombre',
         eventDate: startDate,
         endDate,
-        schedule: `${primary?.startTime || event?.startTime || ''} - ${primary?.endTime || event?.endTime || ''}`.trim(),
-        salon: salones.join(', ') || primary?.salon || event?.salon || '',
+        schedule: `${financialMeta.startTime || primary?.startTime || ''} - ${financialMeta.endTime || primary?.endTime || ''}`.trim(),
+        salon: salones.filter(Boolean).join(', ') || 'Sin salón',
         userName: seller?.fullName || seller?.name || 'Sin asignar',
         pax: Number(primary?.pax || event?.pax || quote.people || 0),
-        total: Number(quote.totalGtq || quote.total || 0),
+        total,
         subtotal: Number(quote.subtotalGtq || quote.subtotal || 0),
-        advances: Array.isArray(quote.advances) ? quote.advances : [],
+        advances: advancesList,
+        advancesSum,
+        pendingAmount: Math.max(0, total - advancesSum),
         items: Array.isArray(quote.items) ? quote.items : [],
         lastVisit: endDate || startDate || '',
       });
     }
 
-    return output.sort((a, b) => String(b.eventDate || '').localeCompare(String(a.eventDate || '')));
+    return output;
   }, [events, users, companies]);
 
-  const companyOptions = useMemo(() => {
+  // ── Filtrado Global por Fechas y Alcance de Estado ──
+  const filteredRows = useMemo(() => {
+    return allReservationRows.filter((row) => {
+      // Filtro de fecha
+      if (fromDate && row.eventDate && row.eventDate < fromDate) return false;
+      if (toDate && row.eventDate && row.eventDate > toDate) return false;
+
+      // Filtro de estado
+      if (statusScope === 'confirmed') {
+        if (row.status !== 'Confirmado' && row.status !== 'Realizado') return false;
+      } else if (statusScope === 'pipeline') {
+        const pipelineStatuses = ['Confirmado', 'Realizado', 'Pre reserva', '1er Cotizacion', 'Seguimiento', 'Lista de Espera'];
+        if (!pipelineStatuses.includes(row.status)) return false;
+      }
+      return true;
+    });
+  }, [allReservationRows, fromDate, toDate, statusScope]);
+
+  // ── Agrupación y Cálculo del Ranking de Empresas ──
+  const companyRanking = useMemo(() => {
     const map = new Map();
-    companies.forEach((company) => {
-      map.set(`id:${company.id}`, {
-        token: `id:${company.id}`,
-        name: company.name || 'Sin nombre',
-        contact: company.owner || company.managers?.[0]?.name || '',
-        email: company.email || company.managers?.[0]?.email || '',
+
+    filteredRows.forEach((row) => {
+      // Ignorar eventos sin nombre de empresa si son exclusivamente anónimos
+      if (row.companyToken === 'none') return;
+
+      const current = map.get(row.companyToken) || {
+        companyToken: row.companyToken,
+        companyName: row.companyName,
+        nit: row.nit,
+        contact: row.contact,
+        contactPhone: row.contactPhone,
+        contactEmail: row.contactEmail,
+        eventsCount: 0,
+        confirmedCount: 0,
+        totalAmount: 0,
+        advancesAmount: 0,
+        pendingAmount: 0,
+        totalPax: 0,
+        lastVisit: '',
+        salonsFreq: new Map(),
+        events: [],
+      };
+
+      current.eventsCount += 1;
+      if (row.status === 'Confirmado' || row.status === 'Realizado') {
+        current.confirmedCount += 1;
+      }
+      current.totalAmount += row.total;
+      current.advancesAmount += row.advancesSum;
+      current.pendingAmount += row.pendingAmount;
+      current.totalPax += row.pax;
+
+      if (!current.lastVisit || String(row.lastVisit).localeCompare(current.lastVisit) > 0) {
+        current.lastVisit = row.lastVisit;
+      }
+
+      if (row.nit && !current.nit) current.nit = row.nit;
+      if (row.contact && !current.contact) current.contact = row.contact;
+      if (row.contactPhone && !current.contactPhone) current.contactPhone = row.contactPhone;
+
+      row.salon.split(',').map((s) => s.trim()).filter(Boolean).forEach((s) => {
+        current.salonsFreq.set(s, (current.salonsFreq.get(s) || 0) + 1);
       });
-    });
-    rows.forEach((row) => {
-      if (!map.has(row.companyToken)) {
-        map.set(row.companyToken, {
-          token: row.companyToken,
-          name: row.companyName,
-          contact: row.contact,
-          email: row.contactEmail,
-        });
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [companies, rows]);
 
-  const visibleCompanyOptions = useMemo(() => {
-    const term = normalizeText(search);
-    if (!term) return companyOptions;
-    return companyOptions.filter((company) => (
-      normalizeText(company.name).includes(term)
-      || normalizeText(company.contact).includes(term)
-      || normalizeText(company.email).includes(term)
+      current.events.push(row);
+      map.set(row.companyToken, current);
+    });
+
+    const list = Array.from(map.values()).map((comp) => ({
+      ...comp,
+      avgTicket: comp.eventsCount > 0 ? comp.totalAmount / comp.eventsCount : 0,
+    }));
+
+    // Ordenamiento
+    list.sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === 'total') { valA = a.totalAmount; valB = b.totalAmount; }
+      if (sortField === 'events') { valA = a.eventsCount; valB = b.eventsCount; }
+      if (sortField === 'pax') { valA = a.totalPax; valB = b.totalPax; }
+      if (sortField === 'ticket') { valA = a.avgTicket; valB = b.avgTicket; }
+      if (sortField === 'lastVisit') { valA = a.lastVisit; valB = b.lastVisit; }
+      if (sortField === 'name') { valA = a.companyName; valB = b.companyName; }
+
+      if (typeof valA === 'string') {
+        return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return sortDir === 'asc' ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+    });
+
+    return list.map((item, index) => ({ ...item, rank: index + 1 }));
+  }, [filteredRows, sortField, sortDir]);
+
+  // Ranking filtrado por buscador
+  const filteredRanking = useMemo(() => {
+    if (!rankingSearch.trim()) return companyRanking;
+    const term = normalizeText(rankingSearch);
+    return companyRanking.filter((item) => (
+      normalizeText(item.companyName).includes(term) ||
+      normalizeText(item.contact).includes(term) ||
+      normalizeText(item.nit).includes(term) ||
+      normalizeText(item.contactEmail).includes(term)
     ));
-  }, [companyOptions, search]);
+  }, [companyRanking, rankingSearch]);
 
-  const filteredRows = useMemo(() => rows.filter((row) => {
-    if (companyToken !== 'all' && row.companyToken !== companyToken) return false;
-    if (fromDate && row.eventDate && row.eventDate < fromDate) return false;
-    if (toDate && row.eventDate && row.eventDate > toDate) return false;
-    if (search) {
-      const term = normalizeText(search);
-      const haystack = normalizeText(`${row.companyName} ${row.contact} ${row.contactEmail} ${row.name} ${row.salon}`);
-      if (!haystack.includes(term)) return false;
-    }
-    return true;
-  }), [rows, companyToken, fromDate, toDate, search]);
+  // Podio Top 3
+  const podiumTop3 = useMemo(() => companyRanking.slice(0, 3), [companyRanking]);
 
-  const selectedCompany = useMemo(() => {
-    if (companyToken === 'all') return null;
-    return companyOptions.find((item) => item.token === companyToken) || null;
-  }, [companyOptions, companyToken]);
+  // Macro KPIs para el tab de Ranking
+  const macroKpis = useMemo(() => {
+    const totalCompanies = companyRanking.length;
+    const totalPortfolio = companyRanking.reduce((sum, c) => sum + c.totalAmount, 0);
+    const totalPaxPortfolio = companyRanking.reduce((sum, c) => sum + c.totalPax, 0);
+    const totalEventsPortfolio = companyRanking.reduce((sum, c) => sum + c.eventsCount, 0);
+    const leader = companyRanking[0] || null;
 
-  const summary = useMemo(() => {
-    const total = filteredRows.reduce((acc, row) => acc + row.total, 0);
-    const pax = filteredRows.reduce((acc, row) => acc + row.pax, 0);
-    const confirmed = filteredRows.filter((row) => row.status === 'Confirmado').length;
-    const advances = filteredRows.reduce((acc, row) => (
-      acc + row.advances.reduce((sum, advance) => sum + Math.max(0, Number(advance.amount || 0)), 0)
-    ), 0);
-    const lastVisit = filteredRows.map((row) => row.lastVisit).filter(Boolean).sort().pop() || '-';
-    return { total, pax, confirmed, advances, pending: Math.max(0, total - advances), lastVisit };
-  }, [filteredRows]);
+    return { totalCompanies, totalPortfolio, totalPaxPortfolio, totalEventsPortfolio, leader };
+  }, [companyRanking]);
 
-  const rankBy = (reader, valueReader = () => 1) => {
+  // ── Datos para la Ficha Institucional (Empresa Seleccionada) ──
+  const selectedCompanyRows = useMemo(() => {
+    if (selectedCompanyToken === 'all') return filteredRows;
+    return filteredRows.filter((r) => r.companyToken === selectedCompanyToken);
+  }, [filteredRows, selectedCompanyToken]);
+
+  const selectedCompanyInfo = useMemo(() => {
+    if (selectedCompanyToken === 'all') return null;
+    return companyRanking.find((c) => c.companyToken === selectedCompanyToken)
+      || allReservationRows.find((r) => r.companyToken === selectedCompanyToken)
+      || null;
+  }, [companyRanking, allReservationRows, selectedCompanyToken]);
+
+  // Tendencia mensual para la Ficha Institucional
+  const monthlyTrendData = useMemo(() => {
     const map = new Map();
-    filteredRows.forEach((row) => {
-      const values = reader(row);
-      for (const value of Array.isArray(values) ? values : [values]) {
-        const label = String(value || '').trim();
-        if (!label) continue;
-        const current = map.get(label) || { label, count: 0, amount: 0 };
-        current.count += 1;
-        current.amount += Number(valueReader(row, label) || 0);
-        map.set(label, current);
-      }
+    selectedCompanyRows.forEach((r) => {
+      const key = r.eventDate ? r.eventDate.slice(0, 7) : 'Sin fecha';
+      const current = map.get(key) || { label: key, count: 0, amount: 0 };
+      current.count += 1;
+      current.amount += r.total;
+      map.set(key, current);
     });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 8);
-  };
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [selectedCompanyRows]);
 
-  // Salon and manager ranks only need counts, no monetary amount
-  const salonRank = useMemo(() => {
+  // Estados de reservas para Donut Chart
+  const statusDistribution = useMemo(() => {
     const map = new Map();
-    filteredRows.forEach((row) => {
-      const labels = row.salon.split(',').map((item) => item.trim());
-      for (const label of labels) {
-        if (!label) continue;
-        const current = map.get(label) || { label, count: 0 };
-        current.count += 1;
-        map.set(label, current);
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 8);
-  }, [filteredRows]);
-
-  const managerRank = useMemo(() => {
-    const map = new Map();
-    filteredRows.forEach((row) => {
-      const label = String(row.contact || 'Sin encargado').trim();
-      if (!label) return;
-      const current = map.get(label) || { label, count: 0 };
+    selectedCompanyRows.forEach((r) => {
+      const label = r.status || 'Sin estado';
+      const color = STATUS_META[label]?.color || '#64748b';
+      const current = map.get(label) || { label, color, count: 0 };
       current.count += 1;
       map.set(label, current);
     });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 8);
-  }, [filteredRows]);
-  const subcategoryRank = useMemo(() => {
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [selectedCompanyRows]);
+
+  // Salones preferidos
+  const salonRankingData = useMemo(() => {
     const map = new Map();
-    filteredRows.forEach((row) => {
-      row.items.forEach((item) => {
-        const catalogItem = catalogServices.find((s) => String(s.id) === String(item.serviceId));
-        const subcat = catalogItem?.subcategory || '';
+    selectedCompanyRows.forEach((r) => {
+      r.salon.split(',').map((s) => s.trim()).filter(Boolean).forEach((salon) => {
+        const current = map.get(salon) || { label: salon, count: 0, color: '#2563eb' };
+        current.count += 1;
+        map.set(salon, current);
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 7);
+  }, [selectedCompanyRows]);
+
+  // Subcategorías de servicios
+  const subcategoryRankingData = useMemo(() => {
+    const map = new Map();
+    selectedCompanyRows.forEach((r) => {
+      r.items.forEach((it) => {
+        const service = catalogServices.find((s) => String(s.id) === String(it.serviceId));
+        const subcat = service?.subcategory || '';
         if (!subcat) return;
-        const current = map.get(subcat) || { label: subcat, count: 0, amount: 0 };
-        current.count += Number(item.qty || 1);
-        current.amount += Number(item.qty || 1) * Number(item.price || 0);
+        const current = map.get(subcat) || { label: subcat, count: 0, amount: 0, color: '#10b981' };
+        current.count += Number(it.qty || 1);
+        current.amount += Number(it.qty || 1) * Number(it.price || 0);
         map.set(subcat, current);
       });
     });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount);
-  }, [filteredRows, catalogServices]);
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount).slice(0, 7);
+  }, [selectedCompanyRows, catalogServices]);
 
+  // Menú más pedido (llamado API)
   useEffect(() => {
-    if (!filteredRows.length) { setMenuRankings(null); return; }
-    const eventIds = filteredRows.map((r) => r.id).filter(Boolean);
+    if (!selectedCompanyRows.length) { setMenuRankings(null); return; }
+    const eventIds = selectedCompanyRows.map((r) => r.id).filter(Boolean);
     if (!eventIds.length) { setMenuRankings(null); return; }
     setMenuLoading(true);
     fetch(`${API}/api/reportes/menu-items?ids=${eventIds.join(',')}`)
       .then((r) => r.json())
       .then((data) => { setMenuRankings(data); setMenuLoading(false); })
       .catch(() => { setMenuRankings(null); setMenuLoading(false); });
-  }, [filteredRows]);
+  }, [selectedCompanyRows]);
 
-  const monthlyRank = useMemo(() => {
+  // Encargados con más actividad
+  const managersRanking = useMemo(() => {
     const map = new Map();
-    filteredRows.forEach((row) => {
-      const key = row.eventDate ? row.eventDate.slice(0, 7) : 'Sin fecha';
-      const current = map.get(key) || { label: key, count: 0, amount: 0 };
+    selectedCompanyRows.forEach((r) => {
+      const contactName = r.contact || 'Sin encargado';
+      const current = map.get(contactName) || { label: contactName, count: 0, amount: 0 };
       current.count += 1;
-      current.amount += row.total;
-      map.set(key, current);
+      current.amount += r.total;
+      map.set(contactName, current);
     });
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
-  }, [filteredRows]);
+    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 6);
+  }, [selectedCompanyRows]);
 
-  const statusRank = useMemo(() => {
-    const map = new Map();
-    const statusMetaKeys = Object.keys(STATUS_META);
-    filteredRows.forEach((row) => {
-      const rawLabel = String(row.status || 'Sin estado').trim();
-      // Normalize: match against STATUS_META keys case-insensitively
-      const metaKey = statusMetaKeys.find(k => k.toLowerCase() === rawLabel.toLowerCase());
-      const label = metaKey || rawLabel;
-      const current = map.get(label) || { label, count: 0, amount: 0 };
-      current.count += 1;
-      current.amount += Number(row.total || 0);
-      map.set(label, current);
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 8);
-  }, [filteredRows]);
-  const maxMonthlyAmount = Math.max(1, ...monthlyRank.map((item) => item.amount));
+  // Resumen de la Ficha
+  const companySummary = useMemo(() => {
+    const total = selectedCompanyRows.reduce((acc, r) => acc + r.total, 0);
+    const pax = selectedCompanyRows.reduce((acc, r) => acc + r.pax, 0);
+    const confirmed = selectedCompanyRows.filter((r) => r.status === 'Confirmado' || r.status === 'Realizado').length;
+    const advances = selectedCompanyRows.reduce((acc, r) => acc + r.advancesSum, 0);
+    const pending = Math.max(0, total - advances);
+    const lastVisit = selectedCompanyRows.map((r) => r.lastVisit).filter(Boolean).sort().pop() || '-';
+    return { total, pax, confirmed, advances, pending, lastVisit };
+  }, [selectedCompanyRows]);
 
-  const resetFilters = () => {
-    setSearch('');
-    setSearchInput('');
-    setCompanyToken('all');
-    setFromDate(`${currentYear}-01-01`);
-    setToDate(`${currentYear}-12-31`);
+  // ── Interacciones de Ordenamiento ──
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
   };
 
-  const applySearch = () => setSearch(searchInput.trim());
-  const clearSearch = () => { setSearchInput(''); setSearch(''); };
+  const openCompanyProfile = (token) => {
+    setSelectedCompanyToken(token);
+    setActiveTab('institucion');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const handleOpenReservation = (row) => {
+    const targetId = row.primaryId || row.id || row.reservationKey;
+    if (!targetId) return;
+    onClose?.();
+    navigate(`/reserva/${targetId}`);
+  };
 
-  const NAV_SECTIONS = [
-    ['institutionSectionOverview', 'Resumen'],
-    ['institutionSectionCharts', 'Gráficas'],
-    ['institutionSectionSalons', 'Salones'],
-    ['institutionSectionSubcategories', 'Subcategorías'],
-    ['institutionSectionMenu', 'Menú'],
-    ['institutionSectionManagers', 'Encargados'],
-    ['institutionSectionTimeline', 'Historial'],
-    ['institutionSectionEvents', 'Eventos'],
-  ];
-
-  const kpiCards = [
-    { label: 'Eventos', value: filteredRows.length, accent: '#10c972', meta: `${summary.confirmed} confirmados` },
-    { label: 'Total Cotizado', value: money(summary.total), accent: '#2563eb', meta: `Abonado ${money(summary.advances)}` },
-    { label: 'Saldo Pendiente', value: money(summary.pending), accent: summary.pending > 0 ? '#b91c1c' : '#15803d', meta: summary.pending > 0 ? 'por cobrar' : 'al día' },
-    { label: 'PAX Totales', value: summary.pax.toLocaleString(), accent: '#10c972', meta: `Prom. ${filteredRows.length ? Math.round(summary.pax / filteredRows.length) : 0}` },
-    { label: 'Última Visita', value: summary.lastVisit, accent: '#2563eb', meta: 'más reciente' },
-  ];
-
-  const overviewCards = [
-    { label: 'Empresa / Grupo', value: selectedCompany?.name || 'Todas', meta: selectedCompany?.contact || 'Filtro general', accent: '#2563eb' },
-    { label: 'Contacto Principal', value: filteredRows.find((row) => row.contact)?.contact || '-', meta: filteredRows.find((row) => row.contactPhone)?.contactPhone || 'Sin teléfono', accent: '#7c3aed' },
-    { label: 'NIT', value: filteredRows.find((row) => row.nit)?.nit || '-', meta: 'Dato cotización', accent: '#0d9488' },
-    { label: 'Vendedor Frecuente', value: rankBy((row) => row.userName)[0]?.label || '-', meta: 'Por eventos', accent: '#d97706' },
-  ];
-
-  const renderMetricList = (items, emptyText = 'Sin datos para el rango seleccionado.', showAmount = true) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {items.length ? items.map((item) => (
-        <div key={item.label} style={{
-          display: 'grid', gridTemplateColumns: showAmount && item.amount !== undefined ? '1fr auto auto' : '1fr auto', gap: '10px', alignItems: 'center',
-          padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#ffffff',
-          transition: 'all 0.15s ease',
-        }}>
-          <strong style={{ color: '#0f172a', fontSize: '14px' }}>{item.label}</strong>
-          <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{item.count} registro(s)</span>
-          {showAmount && item.amount !== undefined && (
-            <span style={{ color: '#0f172a', fontWeight: 900, fontSize: '14px', whiteSpace: 'nowrap' }}>{money(item.amount)}</span>
-          )}
-        </div>
-      )) : (
-        <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
-          {emptyText}
-        </div>
-      )}
-    </div>
-  );
+  const periodLabel = fromDate && toDate ? `${fromDate} al ${toDate}` : fromDate ? `Desde ${fromDate}` : 'Histórico Total';
+  const statusLabel = statusScope === 'confirmed' ? 'Confirmados y Realizados' : statusScope === 'pipeline' ? 'Pipeline Activo' : 'Todos los estados';
 
   return (
     <div className="reports-page-container">
-      {/* ── Header ── */}
+      {/* ── Header Principal ── */}
       <div className="reports-page-header">
         <div className="reports-brand-header">
           <div className="reports-brand-badge">
@@ -343,342 +954,662 @@ export default function ReportsInstitucion({ onClose }) {
           </div>
           <div>
             <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">Reporte por Institución</div>
-            <div className="reports-subtitle">Dashboard de clientes, consumo y comportamiento histórico</div>
+            <div className="reports-title">Reporte por Institución y Ranking Corporativo</div>
+            <div className="reports-subtitle">Analítica comercial de clientes corporativos, fidelidad y hábitos de consumo</div>
           </div>
         </div>
         <ReportInfo reportKey="institucion" />
         <button className="btn-exit" type="button" onClick={() => onClose?.()}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 4 7 9l6 5" />
+          </svg>
           Volver
         </button>
       </div>
 
       <div className="reports-page-body">
-        {/* ── Hero + Filters ── */}
-        <section className="reports-hero-panel">
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Relación comercial</span>
-              <h3 className="reports-section-title">Cliente, consumo e historial en una vista premium</h3>
-              <p className="reports-section-text">Encuentra instituciones clave, revisa comportamiento y baja al detalle con datos reales del EMS.</p>
-            </div>
-          </div>
+        {/* ── Pestañas de Navegación Superiores ── */}
+        <div className="inst-main-tabs-bar">
+          <button
+            type="button"
+            className={`inst-main-tab-btn ${activeTab === 'ranking' ? 'inst-main-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('ranking')}
+          >
+            <Trophy size={16} strokeWidth={2.2} style={{ color: activeTab === 'ranking' ? '#2563eb' : '#64748b' }} />
+            Ranking de Empresas
+            <span className="inst-tab-counter-badge">{companyRanking.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`inst-main-tab-btn ${activeTab === 'institucion' ? 'inst-main-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('institucion')}
+          >
+            <Building2 size={16} strokeWidth={2.2} style={{ color: activeTab === 'institucion' ? '#2563eb' : '#64748b' }} />
+            Ficha Institucional
+            {selectedCompanyInfo && (
+              <span className="inst-tab-counter-badge" style={{ background: '#2563eb', color: '#fff' }}>
+                {selectedCompanyInfo.companyName.substring(0, 15)}…
+              </span>
+            )}
+          </button>
+        </div>
 
-          {/* Bento KPI Grid */}
-          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-            {kpiCards.map((k, i) => (
-              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${k.accent}` }}>
-                <span className="reports-eyebrow">{k.label}</span>
-                <strong>{k.value}</strong>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{k.meta}</span>
+        {/* ── Toolbar de Filtros Globales ── */}
+        <section className="reports-hero-panel" style={{ padding: '16px 20px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+            {/* Período Rápido */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                <Calendar size={14} strokeWidth={2.2} style={{ color: '#64748b' }} />
+                <span>Período:</span>
               </div>
-            ))}
-          </div>
+              <div className="inst-pill-group">
+                <button
+                  type="button"
+                  className={`inst-pill-btn ${timePreset === 'year' ? 'inst-pill-btn--active' : ''}`}
+                  onClick={() => handlePresetChange('year')}
+                >
+                  Este Año ({currentYear})
+                </button>
+                <button
+                  type="button"
+                  className={`inst-pill-btn ${timePreset === 'last12' ? 'inst-pill-btn--active' : ''}`}
+                  onClick={() => handlePresetChange('last12')}
+                >
+                  Últimos 12 Meses
+                </button>
+                <button
+                  type="button"
+                  className={`inst-pill-btn ${timePreset === 'all' ? 'inst-pill-btn--active' : ''}`}
+                  onClick={() => handlePresetChange('all')}
+                >
+                  Histórico Completo
+                </button>
+              </div>
+            </div>
 
-          {/* Toolbar */}
-          <div className="reports-toolbar">
-            <label className="field institutionSearchField">
-              <span>Buscar institución</span>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
+            {/* Fechas personalizadas con fondo blanco forzado */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>
+                Desde:
                 <input
-                  type="text"
-                  placeholder="Escribe nombre, contacto o correo"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); applySearch(); } }}
-                  style={{ flex: 1 }}
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => { setFromDate(e.target.value); setTimePreset('custom'); }}
+                  className="inst-date-input"
+                  style={{ background: '#ffffff', color: '#0f172a', colorScheme: 'light', border: '1px solid #cbd5e1', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}
                 />
-                <button type="button" className="btnPrimary" onClick={applySearch} title="Buscar">Buscar</button>
-                {(searchInput || search) && (
-                  <button type="button" onClick={clearSearch} title="Limpiar búsqueda" style={{ padding: '0 10px' }}>×</button>
-                )}
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>
+                Hasta:
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => { setToDate(e.target.value); setTimePreset('custom'); }}
+                  className="inst-date-input"
+                  style={{ background: '#ffffff', color: '#0f172a', colorScheme: 'light', border: '1px solid #cbd5e1', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}
+                />
+              </label>
+            </div>
+
+            {/* Selector de Estado */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                <Filter size={14} strokeWidth={2.2} style={{ color: '#64748b' }} />
+                <span>Estados:</span>
               </div>
-              {searchInput && searchInput !== search && (
-                <small style={{ color: '#94a3b8', fontSize: '11px' }}>Pendiente: presiona Enter o "Buscar" para aplicar.</small>
-              )}
-              {!!search && (
-                <div className="institutionSearchResults">
-                  {visibleCompanyOptions.slice(0, 5).map((company) => (
-                    <button key={company.token} type="button" onClick={() => { setCompanyToken(company.token); setSearchInput(''); setSearch(''); }}>{company.name}</button>
-                  ))}
-                </div>
-              )}
-            </label>
-            <label className="field">
-              <span>Institución</span>
-              <select value={companyToken} onChange={(event) => setCompanyToken(event.target.value)}>
-                <option value="all">Todas las instituciones</option>
-                {visibleCompanyOptions.map((company) => <option key={company.token} value={company.token}>{company.name}</option>)}
+              <select
+                value={statusScope}
+                onChange={(e) => setStatusScope(e.target.value)}
+                className="inst-select-input"
+                style={{ padding: '6px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, background: '#ffffff', color: '#0f172a', colorScheme: 'light' }}
+              >
+                <option value="confirmed">Confirmados y Realizados (Ventas Reales)</option>
+                <option value="pipeline">Pipeline Activo (Cotizaciones + Confirmados)</option>
+                <option value="all">Todos los Estados (Sin excepción)</option>
               </select>
-            </label>
-            <label className="field">
-              <span>Desde</span>
-              <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>Hasta</span>
-              <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-            </label>
-            <div className="reports-actions">
-              <button type="button" onClick={() => { setFromDate(`${currentYear}-01-01`); setToDate(`${currentYear}-12-31`); }}>Año actual</button>
-              <button className="btnPrimary" type="button" onClick={resetFilters}>Limpiar filtros</button>
             </div>
           </div>
         </section>
 
-        {/* ── Storytelling ── */}
-        <div className="reports-storytelling-card">
-          <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>
-            {selectedCompany ? 'Institución seleccionada' : 'Todas las instituciones'}
-          </span>
-          <p className="reports-story-text">
-            <strong className="highlight-slate">{selectedCompany?.name || 'Cartera completa'}</strong>
-            {' — '}Período <strong className="highlight-slate">{getDateRangeLabel(fromDate, toDate)}</strong>.
-            Se registran <strong className="highlight-blue">{filteredRows.length}</strong> evento(s) con un valor cotizado total de <strong className="highlight-green">{money(summary.total)}</strong>,
-            de los cuales <strong className="highlight-green">{summary.confirmed}</strong> están confirmados.
-            El saldo pendiente asciende a <strong className={summary.pending > 0 ? 'highlight-orange' : 'highlight-green'}>{money(summary.pending)}</strong>.
-          </p>
-        </div>
-
-        {/* ── Navigation Tabs ── */}
-        <div className="reports-nav-tabs">
-          {NAV_SECTIONS.map(([id, label]) => (
-            <button key={id} className="reports-nav-tab-btn" type="button" onClick={() => scrollTo(id)}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Resumen Ejecutivo ── */}
-        <section className="reports-detail-section" id="institutionSectionOverview">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Resumen ejecutivo</div>
-            <div className="reports-detail-section-subtitle">Lectura rápida de la relación comercial</div>
-          </div>
-          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-            {overviewCards.map((c, i) => (
-              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${c.accent}`, gap: '4px' }}>
-                <span className="reports-eyebrow">{c.label}</span>
-                <strong style={{ fontSize: '14px', lineHeight: '1.3' }}>{c.value}</strong>
-                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{c.meta}</span>
+        {/* ══════════════════════════════════════════════════════════════════
+            PESTAÑA 1: RANKING DE EMPRESAS
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'ranking' && (
+          <div>
+            {/* Bento KPIs Globales del Ranking */}
+            <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '24px' }}>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #2563eb' }}>
+                <span className="reports-eyebrow">Instituciones Activas</span>
+                <strong>{macroKpis.totalCompanies}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>con visitas en el período</span>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Gráficas ── */}
-        <section className="reports-detail-section" id="institutionSectionCharts">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Gráficas interactivas</div>
-            <div className="reports-detail-section-subtitle">Montos y estados calculados con los filtros activos</div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '12px', alignItems: 'stretch' }}>
-            {/* Consumo por mes */}
-            <div className="bento-tile" style={{ padding: '16px', gap: '12px' }}>
-              <span className="reports-eyebrow">Consumo por mes</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
-                {monthlyRank.length ? monthlyRank.map((item) => (
-                  <div key={item.label}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 800, marginBottom: '4px' }}>
-                      <span style={{ color: '#1e293b' }}>{item.label}</span>
-                      <span style={{ color: '#2563eb' }}>{money(item.amount)}</span>
-                    </div>
-                    <div style={{ height: '8px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.max(4, (item.amount / maxMonthlyAmount) * 100)}%`, background: 'linear-gradient(90deg, #2563eb, #3b82f6)', borderRadius: '999px', transition: 'width 0.4s ease' }} />
-                    </div>
-                  </div>
-                )) : (
-                  <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
-                    Sin consumo para graficar.
-                  </div>
-                )}
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #10b981' }}>
+                <span className="reports-eyebrow">Facturación Cartera</span>
+                <strong>{money(macroKpis.totalPortfolio)}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>ingresos generados</span>
+              </div>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #f59e0b' }}>
+                <span className="reports-eyebrow">PAX Atendidos</span>
+                <strong>{macroKpis.totalPaxPortfolio.toLocaleString()}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>invitados totales</span>
+              </div>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #8b5cf6' }}>
+                <span className="reports-eyebrow">Visitas / Eventos</span>
+                <strong>{macroKpis.totalEventsPortfolio}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>reservas corporativas</span>
+              </div>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #ec4899' }}>
+                <span className="reports-eyebrow">Empresa Líder (#1)</span>
+                <strong style={{ fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {macroKpis.leader ? macroKpis.leader.companyName : 'Sin datos'}
+                </strong>
+                <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
+                  {macroKpis.leader ? money(macroKpis.leader.totalAmount) : '-'}
+                </span>
               </div>
             </div>
 
-            {/* Eventos por estado */}
-            <div className="bento-tile" style={{ padding: '16px', gap: '12px' }}>
-              <span className="reports-eyebrow">Eventos por estado</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                {statusRank.length ? statusRank.map((item) => {
-                  const statusKey = Object.keys(STATUS_META).find(k => k.toLowerCase() === item.label.toLowerCase());
-                  const color = statusKey ? STATUS_META[statusKey].color : '#64748b';
+            {/* ── Podio Top 3 (Minimalist & Sleek) ── */}
+            {podiumTop3.length > 0 && (
+              <div className="inst-podium-grid">
+                {podiumTop3.map((comp, idx) => {
+                  const rankClass = idx === 0 ? 'inst-podium-rank-1' : idx === 1 ? 'inst-podium-rank-2' : 'inst-podium-rank-3';
+                  const rankLabel = idx === 0 ? 'Top 1' : idx === 1 ? 'Top 2' : 'Top 3';
                   return (
-                    <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                      <span style={{ color, background: `${color}18`, border: `1px solid ${color}40`, borderRadius: '999px', padding: '3px 10px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }}>
-                        {item.label}
-                      </span>
-                      <strong style={{ color: '#0f172a', fontSize: '16px' }}>{item.count}</strong>
-                    </div>
-                  );
-                }) : (
-                  <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
-                    Sin estados para mostrar.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Salones ── */}
-        <section className="reports-detail-section" id="institutionSectionSalons">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Salones más usados</div>
-            <div className="reports-detail-section-subtitle">Ranking por frecuencia dentro del rango</div>
-          </div>
-          {renderMetricList(salonRank)}
-        </section>
-
-        {/* ── Subcategorías ── */}
-        <section className="reports-detail-section" id="institutionSectionSubcategories">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Servicios por subcategoría</div>
-            <div className="reports-detail-section-subtitle">Desayunos, almuerzos, refacciones y más</div>
-          </div>
-          {renderMetricList(subcategoryRank, 'Sin servicios con subcategoría en el rango.')}
-        </section>
-
-        {/* ── Menú (proteinas, guarniciones, bebidas) ── */}
-        <section className="reports-detail-section" id="institutionSectionMenu">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Menú más pedido</div>
-            <div className="reports-detail-section-subtitle">Proteinas, guarniciones, bebidas y postres</div>
-          </div>
-          {menuLoading ? (
-            <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
-              Cargando...
-            </div>
-          ) : menuRankings && Object.keys(menuRankings).length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-              {Object.entries(menuRankings).map(([tipo, items]) => (
-                <div key={tipo} className="bento-tile" style={{ padding: '14px', gap: '8px' }}>
-                  <span className="reports-eyebrow" style={{ textTransform: 'capitalize' }}>{tipo}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {items.slice(0, 6).map((item) => (
-                      <div key={item.nombre} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', padding: '4px 0', borderBottom: '1px solid #f1f5f9' }}>
-                        <span style={{ fontWeight: 700, color: '#1e293b' }}>{item.nombre}</span>
-                        <span style={{ fontWeight: 800, color: '#2563eb' }}>{item.total}x</span>
+                    <div
+                      key={comp.companyToken}
+                      className={`inst-podium-card ${rankClass}`}
+                      onClick={() => openCompanyProfile(comp.companyToken)}
+                      title="Haz clic para ver la ficha detallada"
+                    >
+                      <div className="inst-podium-header">
+                        <span className="inst-podium-badge">
+                          <Award size={13} strokeWidth={2.2} />
+                          {rankLabel}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>
+                          {comp.eventsCount} eventos
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
-              Sin datos de menú para el rango seleccionado.
-            </div>
-          )}
-        </section>
-
-        {/* ── Encargados ── */}
-        <section className="reports-detail-section" id="institutionSectionManagers">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Encargados con más actividad</div>
-            <div className="reports-detail-section-subtitle">Quién genera más eventos con nosotros</div>
-          </div>
-          {renderMetricList(managerRank)}
-        </section>
-
-        {/* ── Historial ── */}
-        <section className="reports-detail-section" id="institutionSectionTimeline">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Historial y comportamiento</div>
-            <div className="reports-detail-section-subtitle">Meses fuertes y última visita</div>
-          </div>
-          {renderMetricList(monthlyRank, 'Sin historial para el rango seleccionado.')}
-        </section>
-
-        {/* ── Eventos ── */}
-        <section className="reports-detail-section" id="institutionSectionEvents">
-          <div className="reports-detail-section-header">
-            <div className="reports-detail-section-title">Eventos del rango</div>
-            <div className="reports-detail-section-subtitle">Detalle para bajar a un caso específico</div>
-          </div>
-          {/* Totales por estado */}
-          {(() => {
-            const statusCounts = {};
-            const statusAmounts = {};
-            for (const row of filteredRows) {
-              const s = row.status || 'Sin estado';
-              statusCounts[s] = (statusCounts[s] || 0) + 1;
-              statusAmounts[s] = (statusAmounts[s] || 0) + row.total;
-            }
-            const entries = Object.entries(statusCounts);
-            if (!entries.length) return null;
-            return (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-                {entries.map(([status, count]) => {
-                  const color = STATUS_META[status]?.color || '#64748b';
-                  const amount = statusAmounts[status] || 0;
-                  return (
-                    <div key={status} style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      background: `${color}10`, border: `1px solid ${color}30`,
-                      borderRadius: '10px', padding: '8px 14px',
-                    }}>
-                      <span style={{
-                        width: '8px', height: '8px', borderRadius: '50%',
-                        background: color, display: 'inline-block', flexShrink: 0,
-                      }} />
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color }}>{status}</div>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
-                          {count} eventos · {money(amount)}
-                        </div>
+                      <div className="inst-podium-title" title={comp.companyName}>
+                        {comp.companyName}
+                      </div>
+                      <div className="inst-podium-amount">
+                        {money(comp.totalAmount)}
+                      </div>
+                      <div className="inst-podium-footer">
+                        <span>PAX: <strong>{comp.totalPax.toLocaleString()}</strong></span>
+                        <span>Ticket Prom: <strong>{money(comp.avgTicket)}</strong></span>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            );
-          })()}
-          {/* Tabla con scroll */}
-          <div className="reports-table-wrap" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <table className="reports-table" style={{ minWidth: '900px' }}>
-              <thead>
-                <tr>
-                  <th>Estado</th>
-                  <th>Reserva</th>
-                  <th>Fecha</th>
-                  <th>Evento</th>
-                  <th>Salón</th>
-                  <th>Encargado</th>
-                  <th style={{ textAlign: 'right' }}>PAX</th>
-                  <th style={{ textAlign: 'right' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.length ? filteredRows.map((row) => {
-                  const color = STATUS_META[row.status]?.color || '#64748b';
-                  return (
-                    <tr key={row.reservationKey || row.id}>
-                      <td>
-                        <span style={{ color, background: `${color}18`, border: `1px solid ${color}40`, borderRadius: '999px', padding: '3px 10px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }}>
-                          {row.status || '-'}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 600, color: '#475569' }}>{row.reservationKey || row.id}</td>
-                      <td>{row.eventDate || '-'}</td>
-                      <td style={{ fontWeight: 700 }}>{row.name || '-'}</td>
-                      <td>{row.salon || '-'}</td>
-                      <td style={{ color: '#475569' }}>{row.contact || row.userName || '-'}</td>
-                      <td style={{ fontWeight: 700, textAlign: 'right' }}>{row.pax || 0}</td>
-                      <td style={{ fontWeight: 700, textAlign: 'right', color: '#0f172a' }}>{money(row.total)}</td>
+            )}
+
+            {/* ── Gráficas de Cartera (Top Empresas + Estados) ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              {/* Top 8 Empresas por Facturación */}
+              <div className="inst-chart-card">
+                <div className="inst-chart-head">
+                  <div>
+                    <div className="inst-chart-title">Top Empresas por Facturación</div>
+                    <div className="inst-chart-subtitle">Participación proporcional sobre los ingresos de la cartera</div>
+                  </div>
+                </div>
+                <HorizontalBarRanking
+                  items={companyRanking.slice(0, 8).map((c) => ({
+                    label: c.companyName,
+                    amount: c.totalAmount,
+                    count: c.eventsCount,
+                  }))}
+                  maxVal={companyRanking[0]?.totalAmount || 1}
+                  emptyText="Sin empresas con facturación en el período."
+                />
+              </div>
+
+              {/* Distribución por Estado de Reservas */}
+              <div className="inst-chart-card">
+                <div className="inst-chart-head">
+                  <div>
+                    <div className="inst-chart-title">Distribución por Estado de Reservas</div>
+                    <div className="inst-chart-subtitle">Eventos totales de empresas registrados en el sistema</div>
+                  </div>
+                </div>
+                <InteractiveDonutChart
+                  statusData={statusDistribution}
+                  totalEvents={filteredRows.length}
+                />
+              </div>
+            </div>
+
+            {/* ── Tabla Interactiva de Ranking de Empresas ── */}
+            <div className="inst-chart-card" style={{ padding: '20px' }}>
+              <div className="inst-table-toolbar">
+                <div className="inst-search-wrapper">
+                  <Search size={15} strokeWidth={2} className="inst-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Buscar empresa por nombre, contacto o NIT..."
+                    value={rankingSearch}
+                    onChange={(e) => setRankingSearch(e.target.value)}
+                    style={{ background: '#ffffff', color: '#0f172a', colorScheme: 'light' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className="inst-btn-excel"
+                    onClick={() => exportRankingToExcel(filteredRanking, periodLabel, statusLabel)}
+                    title="Exportar tabla completa a Excel"
+                  >
+                    <FileSpreadsheet size={15} strokeWidth={2} />
+                    Exportar Excel
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabla con ordenamiento */}
+              <div className="reports-table-wrap" style={{ maxHeight: '520px', overflowY: 'auto' }}>
+                <table className="reports-table" style={{ minWidth: '940px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '45px', textAlign: 'center' }}>Pos.</th>
+                      <th className="inst-th-sortable" onClick={() => toggleSort('name')}>
+                        <div className="inst-th-content">
+                          Empresa / Institución
+                          {sortField === 'name' ? (
+                            sortDir === 'asc' ? <ArrowUp size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} /> : <ArrowDown size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} />
+                          ) : (
+                            <ArrowUpDown size={11} strokeWidth={1.8} style={{ color: '#94a3b8' }} />
+                          )}
+                        </div>
+                      </th>
+                      <th className="inst-th-sortable" onClick={() => toggleSort('total')} style={{ textAlign: 'right' }}>
+                        <div className="inst-th-content" style={{ justifyContent: 'flex-end' }}>
+                          Facturación Total
+                          {sortField === 'total' ? (
+                            sortDir === 'asc' ? <ArrowUp size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} /> : <ArrowDown size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} />
+                          ) : (
+                            <ArrowUpDown size={11} strokeWidth={1.8} style={{ color: '#94a3b8' }} />
+                          )}
+                        </div>
+                      </th>
+                      <th className="inst-th-sortable" onClick={() => toggleSort('events')} style={{ textAlign: 'center' }}>
+                        <div className="inst-th-content" style={{ justifyContent: 'center' }}>
+                          Visitas / Eventos
+                          {sortField === 'events' ? (
+                            sortDir === 'asc' ? <ArrowUp size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} /> : <ArrowDown size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} />
+                          ) : (
+                            <ArrowUpDown size={11} strokeWidth={1.8} style={{ color: '#94a3b8' }} />
+                          )}
+                        </div>
+                      </th>
+                      <th className="inst-th-sortable" onClick={() => toggleSort('pax')} style={{ textAlign: 'right' }}>
+                        <div className="inst-th-content" style={{ justifyContent: 'flex-end' }}>
+                          Total PAX
+                          {sortField === 'pax' ? (
+                            sortDir === 'asc' ? <ArrowUp size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} /> : <ArrowDown size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} />
+                          ) : (
+                            <ArrowUpDown size={11} strokeWidth={1.8} style={{ color: '#94a3b8' }} />
+                          )}
+                        </div>
+                      </th>
+                      <th className="inst-th-sortable" onClick={() => toggleSort('ticket')} style={{ textAlign: 'right' }}>
+                        <div className="inst-th-content" style={{ justifyContent: 'flex-end' }}>
+                          Ticket Promedio
+                          {sortField === 'ticket' ? (
+                            sortDir === 'asc' ? <ArrowUp size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} /> : <ArrowDown size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} />
+                          ) : (
+                            <ArrowUpDown size={11} strokeWidth={1.8} style={{ color: '#94a3b8' }} />
+                          )}
+                        </div>
+                      </th>
+                      <th className="inst-th-sortable" onClick={() => toggleSort('lastVisit')} style={{ textAlign: 'center' }}>
+                        <div className="inst-th-content" style={{ justifyContent: 'center' }}>
+                          Última Visita
+                          {sortField === 'lastVisit' ? (
+                            sortDir === 'asc' ? <ArrowUp size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} /> : <ArrowDown size={12} strokeWidth={2.5} style={{ color: '#2563eb' }} />
+                          ) : (
+                            <ArrowUpDown size={11} strokeWidth={1.8} style={{ color: '#94a3b8' }} />
+                          )}
+                        </div>
+                      </th>
+                      <th style={{ width: '110px', textAlign: 'center' }}>Acción</th>
                     </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                      No hay eventos con los filtros actuales.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {filteredRanking.length ? filteredRanking.map((row) => {
+                      const pillClass = row.rank === 1 ? 'inst-rank-pill--gold' : row.rank === 2 ? 'inst-rank-pill--silver' : row.rank === 3 ? 'inst-rank-pill--bronze' : 'inst-rank-pill--default';
+                      return (
+                        <tr key={row.companyToken} style={{ cursor: 'pointer' }} onClick={() => openCompanyProfile(row.companyToken)}>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`inst-rank-pill ${pillClass}`}>
+                              {row.rank}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>{row.companyName}</div>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              {row.contact ? `Contacto: ${row.contact}` : row.nit ? `NIT: ${row.nit}` : 'Sin contacto registrado'}
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 900, color: '#0f172a', fontSize: '13px' }}>
+                            {money(row.totalAmount)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ fontWeight: 800, color: '#2563eb' }}>{row.eventsCount}</span>
+                            <span style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>({row.confirmedCount} conf.)</span>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
+                            {row.totalPax.toLocaleString()}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#475569' }}>
+                            {money(row.avgTicket)}
+                          </td>
+                          <td style={{ textAlign: 'center', fontSize: '12px', color: '#475569' }}>
+                            {row.lastVisit || '-'}
+                          </td>
+                          <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className="inst-btn-profile"
+                              onClick={() => openCompanyProfile(row.companyToken)}
+                            >
+                              Ver Ficha
+                              <ArrowRight size={12} strokeWidth={2.2} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                          No se encontraron empresas con los filtros aplicados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </section>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            PESTAÑA 2: FICHA INSTITUCIONAL (PERFIL 360°)
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'institucion' && (
+          <div>
+            {/* Banner de Identidad Corporativa */}
+            <div className="inst-company-banner">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: '280px' }}>
+                <div className="inst-company-avatar">
+                  {selectedCompanyInfo ? selectedCompanyInfo.companyName.substring(0, 2).toUpperCase() : <Building2 size={24} strokeWidth={1.8} />}
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Perfil Institucional
+                  </div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: '2px 0 6px' }}>
+                    {selectedCompanyInfo?.companyName || 'Todas las instituciones'}
+                  </h2>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {selectedCompanyInfo?.nit && <span className="inst-meta-tag"><FileText size={11} /> NIT: {selectedCompanyInfo.nit}</span>}
+                    {selectedCompanyInfo?.contact && <span className="inst-meta-tag"><Phone size={11} /> Contacto: {selectedCompanyInfo.contact}</span>}
+                    {selectedCompanyInfo?.contactPhone && <span className="inst-meta-tag"><Phone size={11} /> Tel: {selectedCompanyInfo.contactPhone}</span>}
+                    {selectedCompanyInfo?.contactEmail && <span className="inst-meta-tag"><Mail size={11} /> {selectedCompanyInfo.contactEmail}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Selector de Empresa y Retorno */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <select
+                  value={selectedCompanyToken}
+                  onChange={(e) => setSelectedCompanyToken(e.target.value)}
+                  className="inst-select-input"
+                  style={{ padding: '9px 14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', background: '#1e293b', color: '#fff', fontSize: '13px', fontWeight: 700 }}
+                >
+                  <option value="all">Todas las instituciones (General)</option>
+                  {companyRanking.map((comp) => (
+                    <option key={comp.companyToken} value={comp.companyToken}>
+                      #{comp.rank} - {comp.companyName} ({money(comp.totalAmount)})
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  className="inst-btn-back"
+                  onClick={() => setActiveTab('ranking')}
+                >
+                  <ArrowLeft size={14} strokeWidth={2.2} />
+                  Volver al Ranking
+                </button>
+              </div>
+            </div>
+
+            {/* KPIs de la Institución */}
+            <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '24px' }}>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #2563eb' }}>
+                <span className="reports-eyebrow">Eventos Registrados</span>
+                <strong>{selectedCompanyRows.length}</strong>
+                <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
+                  {companySummary.confirmed} confirmados
+                </span>
+              </div>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #10b981' }}>
+                <span className="reports-eyebrow">Facturación Total</span>
+                <strong>{money(companySummary.total)}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                  Abonado {money(companySummary.advances)}
+                </span>
+              </div>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: companySummary.pending > 0 ? '4px solid #dc2626' : '4px solid #16a34a' }}>
+                <span className="reports-eyebrow">Saldo Pendiente</span>
+                <strong style={{ color: companySummary.pending > 0 ? '#dc2626' : '#16a34a' }}>
+                  {money(companySummary.pending)}
+                </strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                  {companySummary.pending > 0 ? 'por cobrar' : 'al día'}
+                </span>
+              </div>
+              <div className="bento-tile reports-kpi-tile" style={{ borderTop: '4px solid #f59e0b' }}>
+                <span className="reports-eyebrow">PAX Totales</span>
+                <strong>{companySummary.pax.toLocaleString()}</strong>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                  Promedio: {selectedCompanyRows.length ? Math.round(companySummary.pax / selectedCompanyRows.length) : 0} pax
+                </span>
+              </div>
+            </div>
+
+            {/* ── Gráficos de la Institución ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              {/* Consumo Mensual (Área suave SVG) */}
+              <div className="inst-chart-card">
+                <div className="inst-chart-head">
+                  <div>
+                    <div className="inst-chart-title">Evolución de Consumo Mensual</div>
+                    <div className="inst-chart-subtitle">Historial de montos facturados por mes</div>
+                  </div>
+                </div>
+                <SmoothAreaChart data={monthlyTrendData} height={220} />
+              </div>
+
+              {/* Distribución por Estado (Donut SVG) */}
+              <div className="inst-chart-card">
+                <div className="inst-chart-head">
+                  <div>
+                    <div className="inst-chart-title">Estado de las Reservas</div>
+                    <div className="inst-chart-subtitle">Confirmadas vs Cotizaciones en negociación</div>
+                  </div>
+                </div>
+                <InteractiveDonutChart statusData={statusDistribution} totalEvents={selectedCompanyRows.length} />
+              </div>
+            </div>
+
+            {/* ── Salones y Subcategorías ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              {/* Salones Preferidos */}
+              <div className="inst-chart-card">
+                <div className="inst-chart-head">
+                  <div>
+                    <div className="inst-chart-title">Salones Más Utilizados</div>
+                    <div className="inst-chart-subtitle">Espacios preferidos para sus eventos</div>
+                  </div>
+                </div>
+                <HorizontalBarRanking
+                  items={salonRankingData}
+                  showAmount={false}
+                  emptyText="Sin salones registrados."
+                />
+              </div>
+
+              {/* Servicios por Subcategoría */}
+              <div className="inst-chart-card">
+                <div className="inst-chart-head">
+                  <div>
+                    <div className="inst-chart-title">Servicios por Subcategoría</div>
+                    <div className="inst-chart-subtitle">Desayunos, almuerzos, refacciones y coffee breaks</div>
+                  </div>
+                </div>
+                <HorizontalBarRanking
+                  items={subcategoryRankingData}
+                  showAmount={true}
+                  emptyText="Sin consumo de alimentos o servicios catalogados."
+                />
+              </div>
+            </div>
+
+            {/* ── Menú Preferido (Bento Cards) ── */}
+            <div className="inst-chart-card" style={{ marginBottom: '24px' }}>
+              <div className="inst-chart-head">
+                <div>
+                  <div className="inst-chart-title">Menú Preferido de la Institución</div>
+                  <div className="inst-chart-subtitle">Proteínas, guarniciones, bebidas y postres más solicitados en sus eventos</div>
+                </div>
+              </div>
+              {menuLoading ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontWeight: 700 }}>
+                  Cargando preferencias culinarias...
+                </div>
+              ) : menuRankings && Object.keys(menuRankings).length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                  {Object.entries(menuRankings).map(([tipo, items]) => (
+                    <div key={tipo} style={{ background: '#f8fafc', borderRadius: '14px', padding: '14px', border: '1px solid #e2e8f0' }}>
+                      <span className="reports-eyebrow" style={{ textTransform: 'capitalize', color: '#2563eb', display: 'block', marginBottom: '8px' }}>
+                        {tipo}
+                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {items.slice(0, 5).map((it) => (
+                          <div key={it.nombre} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid #f1f5f9' }}>
+                            <span style={{ fontWeight: 700, color: '#1e293b' }}>{it.nombre}</span>
+                            <span style={{ fontWeight: 800, color: '#2563eb' }}>{it.total}x</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '24px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', background: '#f8fafc', fontWeight: 700, textAlign: 'center' }}>
+                  No se registran elecciones específicas de menú para esta institución.
+                </div>
+              )}
+            </div>
+
+            {/* ── Encargados Principales ── */}
+            {managersRanking.length > 0 && (
+              <div className="inst-chart-card" style={{ marginBottom: '24px' }}>
+                <div className="inst-chart-head">
+                  <div>
+                    <div className="inst-chart-title">Encargados con Más Actividad</div>
+                    <div className="inst-chart-subtitle">Quién gestiona las reservas dentro de esta institución</div>
+                  </div>
+                </div>
+                <HorizontalBarRanking items={managersRanking} showAmount={true} />
+              </div>
+            )}
+
+            {/* ── Historial de Eventos de la Institución ── */}
+            <div className="inst-chart-card">
+              <div className="inst-chart-head" style={{ marginBottom: '4px' }}>
+                <div>
+                  <div className="inst-chart-title">Historial Detallado de Eventos</div>
+                  <div className="inst-chart-subtitle">Listado de reservas correspondientes a la institución</div>
+                </div>
+              </div>
+              <div className="reports-table-wrap" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+                <table className="reports-table" style={{ minWidth: '880px' }}>
+                  <thead>
+                    <tr>
+                      <th>Estado</th>
+                      <th>Reserva</th>
+                      <th>Fecha</th>
+                      <th>Nombre del Evento</th>
+                      <th>Salón</th>
+                      <th>Encargado</th>
+                      <th style={{ textAlign: 'right' }}>PAX</th>
+                      <th style={{ textAlign: 'right' }}>Total</th>
+                      <th style={{ textAlign: 'center', width: '105px' }}>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedCompanyRows.length ? selectedCompanyRows.map((row) => {
+                      const color = STATUS_META[row.status]?.color || '#64748b';
+                      return (
+                        <tr
+                          key={row.reservationKey || row.id}
+                          className="inst-clickable-row"
+                          onClick={() => handleOpenReservation(row)}
+                          title="Haga clic para abrir los detalles de esta reserva en el calendario"
+                        >
+                          <td>
+                            <span style={{ color, background: `${color}18`, border: `1px solid ${color}40`, borderRadius: '999px', padding: '3px 10px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 700, color: '#2563eb' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span>#{row.reservationKey || row.id}</span>
+                              <ExternalLink size={12} strokeWidth={2.2} style={{ opacity: 0.7 }} />
+                            </div>
+                          </td>
+                          <td style={{ whiteSpace: 'nowrap', color: '#475569', fontSize: '12px' }}>{row.eventDate || '-'}</td>
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>{row.name}</td>
+                          <td style={{ fontSize: '12px' }}>{row.salon}</td>
+                          <td style={{ color: '#475569', fontSize: '12px' }}>{row.contact || row.userName}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700 }}>{row.pax}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>{money(row.total)}</td>
+                          <td style={{ textAlign: 'center' }} onClick={(e) => { e.stopPropagation(); handleOpenReservation(row); }}>
+                            <button
+                              type="button"
+                              className="inst-btn-profile"
+                              style={{ padding: '5px 10px', fontSize: '11px', borderRadius: '8px' }}
+                              title="Abrir reserva en Calendario"
+                            >
+                              Ver Reserva
+                              <ArrowRight size={11} strokeWidth={2.2} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                          Sin eventos registrados para los filtros seleccionados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

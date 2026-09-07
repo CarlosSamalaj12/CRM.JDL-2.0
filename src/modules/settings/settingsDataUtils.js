@@ -643,6 +643,123 @@ async function yieldToBrowser() {
   return new Promise(r => setTimeout(r, 10));
 }
 
+export function getCompanyRowFields(row) {
+  const id = String(
+    row.empresa_id ||
+    row.id_empresa ||
+    row.id ||
+    row.idempresa ||
+    row.codigo_empresa ||
+    row.company_id ||
+    row.companyid ||
+    ''
+  ).trim().replace(/^\*|\*$/g, '').trim();
+
+  const name = String(
+    row.nombre_comercial ||
+    row.nombre ||
+    row.empresa ||
+    row.institucion ||
+    row.cliente ||
+    row.company_name ||
+    ''
+  ).trim().replace(/^\*|\*$/g, '').trim();
+
+  const businessName = String(
+    row.razon_social_facturar ||
+    row.razon_social ||
+    row.facturar_a ||
+    row.business_name ||
+    name ||
+    ''
+  ).trim();
+
+  const nit = String(row.nit || row.cf || 'CF').trim();
+  const email = String(row.correo_empresa || row.correo || row.email || '').trim();
+  const phone = String(row.telefono_empresa || row.telefono || row.tel || '').trim();
+  const address = String(row.direccion_empresa || row.direccion || '').trim();
+  const eventType = String(row.tipo_evento_preferido || row.tipo_evento || row.tipo || '').trim();
+  const notes = String(row.notas_empresa || row.notas || row.observaciones || '').trim();
+
+  return { id, name, businessName, nit, email, phone, address, eventType, notes };
+}
+
+export function getManagerRowFields(row, state = {}) {
+  let companyId = String(
+    row.empresa_id ||
+    row.id_empresa ||
+    row.empresa ||
+    row.idempresa ||
+    row.company_id ||
+    row.companyid ||
+    row.codigo_empresa ||
+    ''
+  ).trim().replace(/^\*|\*$/g, '').trim();
+
+  // Si companyId no es un ID existente pero coincide con el nombre de una empresa registrada
+  if (companyId && state?.companies?.length) {
+    const existing = state.companies.find((c) => String(c.id || '').trim() === companyId);
+    if (!existing) {
+      const matchByName = state.companies.find((c) => normalizeKey(c.name) === normalizeKey(companyId));
+      if (matchByName) {
+        companyId = String(matchByName.id || '').trim();
+      }
+    }
+  }
+
+  const managerId = String(
+    row.encargado_id ||
+    row.id_encargado ||
+    row.id ||
+    row.idencargado ||
+    row.manager_id ||
+    row.managerid ||
+    ''
+  ).trim();
+
+  const name = String(
+    row.nombre_encargado ||
+    row.nombre ||
+    row.encargado ||
+    row.contacto ||
+    row.nombre_contacto ||
+    row.nombre_del_encargado ||
+    row.nombre_completo ||
+    row.persona_contacto ||
+    row.responsable ||
+    ''
+  ).trim().replace(/^\*|\*$/g, '').trim();
+
+  const phone = String(
+    row.telefono_encargado ||
+    row.telefono ||
+    row.tel ||
+    row.celular ||
+    row.telefono_contacto ||
+    row.phone ||
+    ''
+  ).trim();
+
+  const email = String(
+    row.correo_encargado ||
+    row.correo ||
+    row.email ||
+    row.correo_electronico ||
+    row.mail ||
+    ''
+  ).trim();
+
+  const address = String(
+    row.direccion_encargado ||
+    row.direccion ||
+    row.direccion_completa ||
+    row.address ||
+    ''
+  ).trim();
+
+  return { companyId, managerId, name, phone, email, address };
+}
+
 export async function validateCompanyRows(state, rows, onProgress) {
   const errors = [];
   const warnings = [];
@@ -658,8 +775,7 @@ export async function validateCompanyRows(state, rows, onProgress) {
     const end = Math.min(start + BATCH_SIZE, total);
     for (let i = start; i < end; i++) {
       const row = rows[i];
-      const id = String(row.empresa_id || '').trim();
-      const name = String(row.nombre_comercial || '').trim();
+      const { id, name } = getCompanyRowFields(row);
       const rowNum = i + 2; // fila 1 = encabezado
 
       if (!id && !name) {
@@ -668,7 +784,7 @@ export async function validateCompanyRows(state, rows, onProgress) {
       }
 
       if (!id) {
-        errors.push({ row: rowNum, field: 'empresa_id', value: '', message: 'Falta el ID de empresa (empresa_id).' });
+        errors.push({ row: rowNum, field: 'empresa_id', value: '', message: 'Falta el ID de empresa (empresa_id o id_empresa).' });
         continue;
       }
       if (!name) {
@@ -697,8 +813,18 @@ export async function validateCompanyRows(state, rows, onProgress) {
     warnings.push({ message: `${blankRows} fila(s) vacía(s) fueron ignoradas.` });
   }
 
+  const isValid = errors.length === 0 && validCount > 0;
+  if (errors.length === 0 && validCount === 0) {
+    errors.push({
+      row: 1,
+      field: 'encabezados',
+      value: '',
+      message: 'No se encontraron empresas válidas en el archivo. Verifica que las columnas coincidan con la plantilla (ej. empresa_id, nombre_comercial).',
+    });
+  }
+
   return {
-    valid: errors.length === 0,
+    valid: isValid,
     errors,
     warnings,
     summary: { total, valid: validCount, invalid: errors.length, newCount, updateCount, blankRows },
@@ -720,9 +846,7 @@ export async function validateManagerRows(state, rows, onProgress) {
     const end = Math.min(start + BATCH_SIZE, total);
     for (let i = start; i < end; i++) {
       const row = rows[i];
-      const empresaId = String(row.empresa_id || '').trim();
-      const nombre = String(row.nombre_encargado || '').trim();
-      const managerId = String(row.encargado_id || '').trim();
+      const { companyId: empresaId, managerId, name: nombre } = getManagerRowFields(row, state);
       const rowNum = i + 2;
 
       if (!empresaId && !nombre) {
@@ -731,11 +855,11 @@ export async function validateManagerRows(state, rows, onProgress) {
       }
 
       if (!empresaId) {
-        errors.push({ row: rowNum, field: 'empresa_id', value: nombre, message: 'Falta el ID de empresa para el encargado.' });
+        errors.push({ row: rowNum, field: 'empresa_id', value: nombre, message: 'Falta el ID de empresa para el encargado (columna empresa_id o id_empresa).' });
         continue;
       }
       if (!nombre) {
-        errors.push({ row: rowNum, field: 'nombre_encargado', value: empresaId, message: `El encargado de la empresa "${empresaId}" no tiene nombre.` });
+        errors.push({ row: rowNum, field: 'nombre_encargado', value: empresaId, message: `El encargado de la empresa "${empresaId}" no tiene nombre (columna nombre_encargado o nombre).` });
         continue;
       }
       if (!existingCompanyIds.has(empresaId)) {
@@ -762,8 +886,18 @@ export async function validateManagerRows(state, rows, onProgress) {
     warnings.push({ message: `${blankRows} fila(s) vacía(s) fueron ignoradas.` });
   }
 
+  const isValid = errors.length === 0 && validCount > 0;
+  if (errors.length === 0 && validCount === 0) {
+    errors.push({
+      row: 1,
+      field: 'encabezados',
+      value: '',
+      message: 'No se encontraron encargados válidos en el archivo. Verifica que las columnas coincidan con la plantilla (ej. empresa_id, nombre_encargado).',
+    });
+  }
+
   return {
-    valid: errors.length === 0,
+    valid: isValid,
     errors,
     warnings,
     summary: { total, valid: validCount, invalid: errors.length, newCount, updateCount, blankRows },
@@ -836,37 +970,35 @@ export async function validateEventRows(state, rows, onProgress) {
 export function buildCompanyPayload(rows) {
   return rows
     .map(row => {
-      const id = String(row.empresa_id || '').trim();
-      const name = String(row.nombre_comercial || '').trim();
+      const { id, name, businessName, nit, email, phone, address, eventType, notes } = getCompanyRowFields(row);
       if (!id || !name) return null;
       return {
         id,
         name,
-        businessName: String(row.razon_social_facturar || '').trim() || null,
-        nit: String(row.nit || '').trim() || null,
-        email: String(row.correo_empresa || '').trim() || null,
-        phone: String(row.telefono_empresa || '').trim() || null,
-        address: String(row.direccion_empresa || '').trim() || null,
-        eventType: String(row.tipo_evento_preferido || '').trim() || null,
-        notes: String(row.notas_empresa || '').trim() || null,
+        businessName: businessName || null,
+        nit: nit || null,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
+        eventType: eventType || null,
+        notes: notes || null,
       };
     })
     .filter(Boolean);
 }
 
-export function buildManagerPayload(rows) {
+export function buildManagerPayload(rows, state = {}) {
   return rows
     .map(row => {
-      const companyId = String(row.empresa_id || '').trim();
-      const name = String(row.nombre_encargado || '').trim();
+      const { companyId, managerId, name, phone, email, address } = getManagerRowFields(row, state);
       if (!companyId || !name) return null;
       return {
-        id: String(row.encargado_id || '').trim() || uid('mgr'),
+        id: managerId || uid('mgr'),
         companyId,
         name,
-        phone: String(row.telefono_encargado || '').trim() || null,
-        email: String(row.correo_encargado || '').trim() || null,
-        address: String(row.direccion_encargado || '').trim() || null,
+        phone: phone || null,
+        email: email || null,
+        address: address || null,
       };
     })
     .filter(Boolean);
