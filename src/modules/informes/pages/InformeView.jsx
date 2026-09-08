@@ -671,6 +671,74 @@ export default function InformeView() {
     };
   }, [informeActionsEl, setInformeActions]);
 
+  // Filtrar días que tengan menú o montaje (para omitir hojas vacías/solo habitaciones al imprimir o exportar)
+  const diasFiltrados = useMemo(() => {
+    if (!informe?.dias || !Array.isArray(informe.dias) || informe.dias.length === 0) {
+      return [];
+    }
+
+    const procesados = informe.dias.map((dia, idx) => {
+      let parsed = null;
+      let montajesList = [];
+      let alertas = [];
+      let alertaCustom = '';
+
+      if (dia.descripcion_montaje) {
+        try {
+          parsed = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : dia.descripcion_montaje;
+          if (parsed && parsed._v === 2) {
+            montajesList = parsed.montajes || [];
+            alertas = parsed.alertas || [];
+            alertaCustom = parsed.alertaCustom || '';
+          } else if (Array.isArray(parsed)) {
+            montajesList = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            montajesList = [parsed];
+          }
+        } catch {
+          if (typeof dia.descripcion_montaje === 'string' && dia.descripcion_montaje.trim()) {
+            montajesList = [{ observaciones: dia.descripcion_montaje.trim() }];
+          }
+        }
+      }
+
+      // Filtrar montajes que realmente tengan contenido asignado
+      const montajesValidos = montajesList.filter(m => {
+        if (!m) return false;
+        if (typeof m === 'string') return m.trim().length > 0;
+        return Boolean(
+          (m.tipo_montaje && String(m.tipo_montaje).trim()) ||
+          (m.equipo_necesario && String(m.equipo_necesario).trim()) ||
+          (m.manteleria && String(m.manteleria).trim()) ||
+          (m.mesas && String(m.mesas).trim()) ||
+          (m.sillas && String(m.sillas).trim()) ||
+          (m.cristaleria && String(m.cristaleria).trim()) ||
+          (m.observaciones && String(m.observaciones).trim()) ||
+          (m.num_personas && Number(m.num_personas) > 0)
+        );
+      });
+
+      const tieneMenu = (Array.isArray(dia.items) && dia.items.length > 0) || Boolean(dia.nombre_menu?.trim()) || Boolean(dia.comentario_menu?.trim());
+      const tieneMontaje = montajesValidos.length > 0;
+      const tieneContenido = tieneMenu || tieneMontaje;
+
+      return {
+        dia,
+        numeroDiaOriginal: idx + 1,
+        parsed,
+        montajesList: montajesValidos.length > 0 ? montajesValidos : montajesList,
+        alertas,
+        alertaCustom,
+        tieneMenu,
+        tieneMontaje,
+        tieneContenido,
+      };
+    });
+
+    const conContenido = procesados.filter(p => p.tieneContenido);
+    return conContenido.length > 0 ? conContenido : procesados;
+  }, [informe?.dias]);
+
   if (loading) return <p className="status-message">Cargando informe...</p>;
   if (error) return <p className="status-message status-error">{error}</p>;
   if (!informe) return <p className="status-message">Informe no encontrado.</p>;
@@ -867,27 +935,18 @@ export default function InformeView() {
         {/* ─── DOCUMENTO FORMAL ─── */}
         <div className="iv-documento" ref={docRef}>
           {/* ─── DÍAS (cada uno con diseño compacto en 2 columnas para ahorro de papel) ─── */}
-          {informe.dias.length > 0 ? (
-            informe.dias.map((dia, index) => {
-              let parsed = null;
-              let montajesList = [];
-              let alertas = [];
-              let alertaCustom = '';
-
-              if (dia.descripcion_montaje) {
-                try {
-                  parsed = typeof dia.descripcion_montaje === 'string' ? JSON.parse(dia.descripcion_montaje) : dia.descripcion_montaje;
-                  if (parsed && parsed._v === 2) {
-                    montajesList = parsed.montajes || [];
-                    alertas = parsed.alertas || [];
-                    alertaCustom = parsed.alertaCustom || '';
-                  } else if (Array.isArray(parsed)) {
-                    montajesList = parsed;
-                  } else if (parsed && typeof parsed === 'object') {
-                    montajesList = [parsed];
-                  }
-                } catch { /* ignore */ }
-              }
+          {diasFiltrados.length > 0 ? (
+            diasFiltrados.map((itemDia, pageIndex) => {
+              const {
+                dia,
+                numeroDiaOriginal,
+                parsed,
+                montajesList,
+                alertas,
+                alertaCustom,
+                tieneMenu,
+                tieneMontaje,
+              } = itemDia;
 
               const todasAlertas = [...alertas, ...(alertaCustom ? [alertaCustom] : [])];
 
@@ -924,9 +983,6 @@ export default function InformeView() {
               // 4. No Cotización del día
               const diaNoDoc = dia.slot_nodoc || informe.NoDoc || '-';
 
-              const tieneMenu = Array.isArray(dia.items) && dia.items.length > 0;
-              const tieneMontaje = montajesList.length > 0;
-
               // Items de menú agrupados por tiempo de comida
               let itemsTc = [];
               try {
@@ -935,7 +991,7 @@ export default function InformeView() {
               const gruposMenu = tieneMenu ? agruparItemsPorTiempoComida(dia.items, itemsTc, customTiempoComidaOrder) : [];
 
               return (
-                <div key={index} className="iv-day-block iv-paper-sheet">
+                <div key={dia.id || `dia-${numeroDiaOriginal}`} className="iv-day-block iv-paper-sheet">
                   {/* ═══ ENCABEZADO DE HOJA (Logo, Título Serif, Folio/Cotización, Fecha Emisión) ═══ */}
                   <header className="iv-sheet-header">
                     <div className="iv-sheet-brand">
@@ -944,7 +1000,7 @@ export default function InformeView() {
                       </div>
                       <div className="iv-sheet-title-group">
                         <h1 className="iv-sheet-main-title">INFORME DE EVENTO</h1>
-                        <p className="iv-sheet-sub-title">ORDEN DE SERVICIO Y LOGÍSTICA • PÁGINA {index + 1}</p>
+                        <p className="iv-sheet-sub-title">ORDEN DE SERVICIO Y LOGÍSTICA • PÁGINA {pageIndex + 1}</p>
                       </div>
                     </div>
                     <div className="iv-sheet-meta-badge">
@@ -954,7 +1010,7 @@ export default function InformeView() {
                   </header>
 
                   {/* ═══ DATOS DEL EVENTO: PÁGINA 1 FULL (2x4) vs PÁGINAS 2+ COMPACT (1 fila) ═══ */}
-                  {index === 0 ? (
+                  {pageIndex === 0 ? (
                     <div className="iv-meta-grid-full">
                       <div className="iv-mg-cell">
                         <span className="iv-mg-label">INSTITUCIÓN / CLIENTE</span>
@@ -965,7 +1021,7 @@ export default function InformeView() {
                         <span className="iv-mg-val">{informe.EncargadoEvento || '-'}</span>
                       </div>
                       <div className="iv-mg-cell">
-                        <span className="iv-mg-label">FECHA DEL DÍA 1</span>
+                        <span className="iv-mg-label">{informe.dias?.length > 1 ? `FECHA DEL DÍA ${numeroDiaOriginal}` : 'FECHA DEL DÍA 1'}</span>
                         <span className="iv-mg-val iv-mg-val-blue">{formatFechaDia(dia.fecha_evento)}</span>
                       </div>
                       <div className="iv-mg-cell">
@@ -1015,7 +1071,7 @@ export default function InformeView() {
                   {/* ═══ BARRA DEL DÍA (Navy Blue Ribbon) ═══ */}
                   <div className="iv-day-ribbon">
                     <div className="iv-dr-left">
-                      <span className="iv-dr-pill">DÍA {index + 1}</span>
+                      <span className="iv-dr-pill">DÍA {numeroDiaOriginal}</span>
                       <span className="iv-dr-salon">
                         {diaSalon && diaSalon !== '-' ? `Salón: ${diaSalon}` : 'Área de Habitaciones / General'}
                       </span>

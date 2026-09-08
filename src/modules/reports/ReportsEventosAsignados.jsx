@@ -744,7 +744,7 @@ export default function ReportsEventosAsignados({ onClose }) {
       writeCell(0, 0, 'PERÍODO',       periodTxt);
       writeCell(1, 0, 'VENDEDORES',     vendorsTxt);
       writeCell(2, 0, 'ESTADOS',        estadosTxt);
-      writeCell(0, 1, 'TOTAL LEADS',         totalTxt);
+      writeCell(0, 1, 'TOTAL PROSPECTOS',    totalTxt);
       writeCell(1, 1, 'SIN SEGUIMIENTO',     staleTxt);
       writeCell(2, 1, 'TASA DE CIERRE',      cierreTxt);
 
@@ -1449,7 +1449,7 @@ export default function ReportsEventosAsignados({ onClose }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span style={{ fontSize: '11.5px' }}>{asignado ? formatDate(asignado) : '—'}</span>
                           {isFallback && (
-                            <span title="Lead histórico: usando creado_en como fecha de asignación" style={{ display: 'inline-flex', color: '#94a3b8' }}>
+                            <span title="Prospecto histórico: usando creado_en como fecha de asignación" style={{ display: 'inline-flex', color: '#94a3b8' }}>
                               <History size={12} strokeWidth={2.3} />
                             </span>
                           )}

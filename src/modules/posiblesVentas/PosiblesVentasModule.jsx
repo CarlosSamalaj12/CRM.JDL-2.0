@@ -6,6 +6,7 @@ import {
   TrendingUp, AlertTriangle, Calendar, MapPin, Users, Phone,
   Mail, RefreshCw, Link as LinkIcon, RotateCcw, Trash2, Pencil,
   Search, Loader2, Inbox, BarChart3, Plus, X, ChevronDown, ChevronUp, Lock,
+  Download, LayoutList, LayoutGrid,
 } from 'lucide-react';
 import api from '../../services/api';
 import authService from '../../services/authService';
@@ -41,6 +42,9 @@ const ICONS = {
   chevronDown: ChevronDown,
   chevronUp: ChevronUp,
   lock: Lock,
+  download: Download,
+  layoutList: LayoutList,
+  layoutGrid: LayoutGrid,
 };
 
 function Icon({ name, size = 16, color, strokeWidth = 2, style, className }) {
@@ -123,66 +127,150 @@ const ESTADO_MAP = Object.fromEntries(ESTADOS.map(e => [e.key, e]));
 
 // ─── Componentes auxiliares ─────────────────────────────────
 
-function MetricMiniCard({ icon, label, value, subtitle, color, bg, border, iconBg, iconBorder }) {
+const AVATAR_PALETTES = [
+  { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
+  { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+  { bg: '#f5f3ff', color: '#7c3aed', border: '#ddd6fe' },
+  { bg: '#fff1f2', color: '#e11d48', border: '#fecdd3' },
+  { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
+  { bg: '#f0fdfa', color: '#0d9488', border: '#99f6e4' },
+];
+
+function getInitials(name) {
+  if (!name) return '?';
+  const clean = String(name).replace(/\(.*?\)/g, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function getAvatarStyle(name, estado) {
+  if (estado === 'perdida') {
+    return { bg: '#fff1f2', color: '#e11d48', border: '#fecdd3' };
+  }
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+  }
+  const idx = Math.abs(hash) % (AVATAR_PALETTES.length - 1);
+  return AVATAR_PALETTES[idx];
+}
+
+function formatDiaSeguimientoShort(val) {
+  const d = toDateObj(val);
+  if (!d) return null;
+  const diaSemana = d.toLocaleDateString('es-ES', { weekday: 'short' });
+  const diaNum = d.getDate();
+  const mes = d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+  const hora = d.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  return `${cap(diaSemana)}, ${diaNum} ${mes} · ${hora}`;
+}
+
+function MetricCardClean({ label, value, subtitle, pill, dotColor, isAttention, onClick, active }) {
   return (
-    <div style={{
-      background: bg || '#ffffff',
-      border: `1px solid ${border || '#e2e8f0'}`,
-      borderRadius: '10px',
-      padding: '6px 12px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      minWidth: '135px',
-      flex: '1 1 auto',
-      boxSizing: 'border-box',
-    }}>
-      <div style={{
-        width: '32px',
-        height: '32px',
-        borderRadius: '8px',
-        background: iconBg || '#f8fafc',
-        border: `1px solid ${iconBorder || border || '#cbd5e1'}`,
+    <div
+      onClick={onClick}
+      style={{
+        background: isAttention ? '#fff1f2' : '#ffffff',
+        border: isAttention ? '1px solid #fecdd3' : (active ? '1.5px solid #0f766e' : '1px solid #e2e8f0'),
+        borderRadius: '10px',
+        padding: '8px 14px',
+        minWidth: '110px',
+        flex: '1 1 auto',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}>
-        <Icon name={icon} size={15} color={color} strokeWidth={2.3} />
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.15 }}>
-        <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'all 0.15s ease',
+        boxShadow: active ? '0 2px 6px rgba(15,118,110,0.15)' : '0 1px 2px rgba(0,0,0,0.02)',
+      }}
+      onMouseEnter={e => {
+        if (onClick) {
+          e.currentTarget.style.borderColor = isAttention ? '#f43f5e' : '#94a3b8';
+          e.currentTarget.style.transform = 'translateY(-1px)';
+        }
+      }}
+      onMouseLeave={e => {
+        if (onClick) {
+          e.currentTarget.style.borderColor = isAttention ? '#fecdd3' : (active ? '#0f766e' : '#e2e8f0');
+          e.currentTarget.style.transform = 'translateY(0)';
+        }
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '4px' }}>
+        <span style={{
+          fontSize: '9.5px',
+          fontWeight: 800,
+          color: isAttention ? '#e11d48' : '#64748b',
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+        }}>
           {label}
         </span>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '2px' }}>
-          <span style={{ fontSize: '15px', fontWeight: 900, color: color || '#0f172a' }}>
-            {value}
+        {dotColor && (
+          <span style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: dotColor,
+            flexShrink: 0,
+          }} />
+        )}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+        <span style={{
+          fontSize: '18px',
+          fontWeight: 800,
+          color: isAttention ? '#e11d48' : '#0f172a',
+          lineHeight: 1.1,
+        }}>
+          {value}
+        </span>
+        {pill && (
+          <span style={{
+            background: pill.bg || '#f1f5f9',
+            color: pill.color || '#475569',
+            border: pill.border ? `1px solid ${pill.border}` : 'none',
+            fontSize: '10px',
+            fontWeight: 700,
+            padding: '1px 6px',
+            borderRadius: '4px',
+            whiteSpace: 'nowrap',
+          }}>
+            {pill.text}
           </span>
-          {subtitle && (
-            <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
-              {subtitle}
-            </span>
-          )}
-        </div>
+        )}
+        {subtitle && (
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: isAttention ? '#e11d48' : (subtitle.color || '#64748b'),
+            whiteSpace: 'nowrap',
+          }}>
+            {typeof subtitle === 'string' ? subtitle : subtitle.text}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-function EstadoPill({ estado, size = 'md' }) {
+function EstadoPillClean({ estado }) {
   const est = ESTADO_MAP[estado] || ESTADO_MAP.pendiente;
-  const padding = size === 'lg' ? '4px 12px' : '2px 8px';
-  const fontSize = size === 'lg' ? '11.5px' : '10.5px';
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '4px',
-      fontSize, fontWeight: 800, color: est.color,
-      padding, borderRadius: '999px',
-      background: est.softBg,
+      display: 'inline-flex', alignItems: 'center', gap: '5px',
+      fontSize: '11px', fontWeight: 700, color: est.color,
+      padding: '2px 9px', borderRadius: '999px',
+      background: est.softBg || est.bg,
       border: `1px solid ${est.border}`,
       whiteSpace: 'nowrap',
     }}>
-      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: est.color }} />
+      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: est.color }} />
       {est.label}
     </span>
   );
@@ -448,221 +536,465 @@ function VendedorCard({ row }) {
   );
 }
 
-function LeadCard({ lead, userName, canEdit, canDelete, canSendMessage, onEdit, onDelete, onConvert, onVerReserva, onSendMessage }) {
+function LeadCard({
+  lead,
+  userName,
+  canEdit,
+  canDelete,
+  canSendMessage,
+  onEdit,
+  onDelete,
+  onConvert,
+  onVerReserva,
+  onSendMessage,
+  onReactivar,
+}) {
   const est = ESTADO_MAP[lead.estado] || ESTADO_MAP.pendiente;
-  const servicios = parseServicios(lead.servicios);
   const fechaAsig = lead.asignadoEn || lead.creadoEn;
-  const fechaSeg = lead.primerSeguimientoEn || lead.ultimoSeguimientoEn || (lead.eventoId ? (lead.actualizadoEn || lead.creadoEn) : null);
-  const hasSeguimiento = Boolean(
-    lead.primerSeguimientoEn ||
-    lead.ultimoSeguimientoEn ||
-    lead.eventoId ||
-    lead.estado === 'en_proceso' ||
-    lead.estado === 'ganada'
-  );
+  const fechaSeg = lead.ultimoSeguimientoEn || lead.primerSeguimientoEn || (lead.eventoId ? (lead.actualizadoEn || lead.creadoEn) : null);
+  const initials = getInitials(lead.nombreCliente);
+  const avatarStyle = getAvatarStyle(lead.nombreCliente, lead.estado);
+  const accentColor = est.color || '#0d9488';
+
   return (
-    <div style={{
-      display: 'flex',
-      background: '#ffffff',
-      border: '1px solid #cbd5e1',
-      borderRadius: '12px',
-      overflow: 'hidden',
-      transition: 'border-color 0.15s, box-shadow 0.15s',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = '#94a3b8'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(15,23,42,0.06)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.boxShadow = 'none'; }}
+    <div
+      style={{
+        position: 'relative',
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '16px 20px 16px 22px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        display: 'flex',
+        alignItems: 'stretch',
+        justifyContent: 'space-between',
+        gap: '16px',
+        overflow: 'hidden',
+        transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = '#cbd5e1';
+        e.currentTarget.style.boxShadow = '0 4px 14px rgba(15,23,42,0.06)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = '#e2e8f0';
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+      }}
     >
       {/* Barra lateral con color del estado */}
-      <div style={{ width: '4px', background: est.color, flexShrink: 0 }} />
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: '4.5px',
+          background: accentColor,
+        }}
+      />
 
-      <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
-        {/* Cabecera: avatar + cliente + estado + vendedor */}
+      {/* Contenido Principal Izquierdo */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+        {/* Cabecera: Avatar Iniciales + Cliente + Estado + Vinculada + Info Asignado */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{
-            width: '34px', height: '34px', borderRadius: '50%',
-            background: `${est.color}15`, color: est.color,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: '13.5px', flexShrink: 0,
-          }}>
-            {(lead.nombreCliente || '?').trim().charAt(0).toUpperCase()}
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: avatarStyle.bg,
+              color: avatarStyle.color,
+              border: `1px solid ${avatarStyle.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '12px',
+              letterSpacing: '0.02em',
+              flexShrink: 0,
+            }}
+          >
+            {initials}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{lead.nombreCliente}</span>
-              <EstadoPill estado={lead.estado} />
-              {lead.eventoId && (
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  fontSize: '10.5px', fontWeight: 700, color: '#0f766e',
-                  padding: '2px 8px', borderRadius: '999px',
-                  background: '#ccfbf1', border: '1px solid #5eead4',
-                }}>
-                  <Icon name="link" size={11} color="#0f766e" strokeWidth={2.5} />
-                  Vinculada
-                </span>
-              )}
-            </div>
+
+          <span style={{ fontSize: '15.5px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
+            {lead.nombreCliente}
+          </span>
+
+          <EstadoPillClean estado={lead.estado} />
+
+          {lead.eventoId && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#475569',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                background: '#f1f5f9',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              <Icon name="link" size={11} color="#64748b" strokeWidth={2.4} />
+              Vinculada
+            </span>
+          )}
+
+          <span style={{ fontSize: '12px', color: '#64748b' }}>
             {lead.vendedorNombre ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
-                <div style={{ fontSize: '11px', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-                  <Icon name="users" size={12} color="#64748b" strokeWidth={2.2} />
-                  <span>Asignado a: <strong>{lead.vendedorNombre}</strong></span>
-                  {fechaAsig && (
-                    <span
-                      style={{ color: '#64748b', fontSize: '10.5px', fontWeight: 500 }}
-                      title={`Asignado el ${formatFechaCompleta(fechaAsig)}`}
-                    >
-                      · hace {formatDiasAsignado(fechaAsig)}
-                    </span>
-                  )}
-                </div>
-                {lead.tomadoPorOtro && lead.atendidoPorNombre && (
-                  <div style={{
-                    fontSize: '11px', color: '#b45309', fontWeight: 700,
-                    display: 'inline-flex', alignItems: 'center', gap: '4px',
-                    background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fde68a', width: 'fit-content'
-                  }}>
-                    <Icon name="alertTriangle" size={12} color="#b45309" strokeWidth={2.5} />
-                    Atendido por: <strong>{lead.atendidoPorNombre}</strong>
-                  </div>
-                )}
-              </div>
+              <>
+                Asignado a: <strong style={{ color: '#334155' }}>{lead.vendedorNombre}</strong>
+                {fechaAsig && <span> · hace {formatDiasAsignado(fechaAsig)}</span>}
+              </>
             ) : (
-              <div style={{ fontSize: '11px', color: '#d97706', marginTop: '2px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="alertTriangle" size={12} color="#d97706" strokeWidth={2.3} />
-                Sin vendedor asignado
-                {lead.atendidoPorNombre && (
-                  <span style={{ color: '#0f766e', marginLeft: '4px' }}>· Atendido por: <strong>{lead.atendidoPorNombre}</strong></span>
-                )}
-              </div>
+              <span style={{ color: '#d97706', fontWeight: 600 }}>Sin vendedor asignado</span>
             )}
-          </div>
+            {lead.tomadoPorOtro && lead.atendidoPorNombre && (
+              <span style={{ color: '#b45309', marginLeft: '6px' }}>
+                · Atendido por: <strong>{lead.atendidoPorNombre}</strong>
+              </span>
+            )}
+          </span>
         </div>
 
-        {/* Info del evento */}
-        {(lead.fechaEvento || (lead.salones || []).length > 0 || lead.pax || lead.telefono || lead.correo) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: '11.5px', color: '#334155', fontWeight: 600 }}>
-            {lead.fechaEvento && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="calendar" size={13} color="#64748b" strokeWidth={2.2} />
-                {lead.fechaEvento}
-              </span>
-            )}
-            {(lead.salones || []).length > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="mapPin" size={13} color="#64748b" strokeWidth={2.2} />
-                {(lead.salones || []).join(', ')}
-              </span>
-            )}
-            {lead.pax ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="users" size={13} color="#64748b" strokeWidth={2.2} />
-                {lead.pax} pax
-              </span>
-            ) : null}
-            {lead.telefono && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="phone" size={13} color="#64748b" strokeWidth={2.2} />
-                {lead.telefono}
-              </span>
-            )}
-            {lead.correo && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Icon name="mail" size={13} color="#64748b" strokeWidth={2.2} />
-                {lead.correo}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Servicios */}
-        {servicios.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {servicios.map((s, i) => (
-              <span key={i} style={{
-                fontSize: '10px', fontWeight: 700, color: '#0c4a6e',
-                padding: '2px 8px', borderRadius: '999px',
-                background: '#f0f9ff', border: '1px solid #bae6fd',
-              }}>{s}</span>
-            ))}
-          </div>
-        )}
-
-        {/* Notas */}
-        {lead.notas && (
-          <div style={{
-            fontSize: '11.5px', color: '#475569', lineHeight: 1.4,
-            background: '#f8fafc', borderRadius: '6px',
-            padding: '6px 10px', borderLeft: `3px solid ${est.color}`,
-          }}>{lead.notas}</div>
-        )}
-
-        {/* Footer: seguimiento + acciones */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexWrap: 'wrap', gap: '8px', paddingTop: '4px',
-          borderTop: '1px dashed #e2e8f0',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {hasSeguimiento ? (
-              <span
-                style={{ fontSize: '11px', color: '#0f766e', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                title={`Fecha de seguimiento: ${formatFechaCompleta(fechaSeg)}${lead.ultimoSeguimientoEn && lead.primerSeguimientoEn && String(lead.ultimoSeguimientoEn) !== String(lead.primerSeguimientoEn) ? ` · Último: ${formatFechaCompleta(lead.ultimoSeguimientoEn)}` : ''}`}
-              >
-                <Icon name="refresh" size={12} color="#0f766e" strokeWidth={2.3} />
-                <span>Seguimiento el: <strong>{formatDiaSeguimiento(fechaSeg)}</strong></span>
-              </span>
-            ) : (
-              <span
-                style={{ fontSize: '11px', color: '#dc2626', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                title={`Asignado el ${formatFechaCompleta(fechaAsig)} (${formatTiempoTranscurrido(fechaAsig)})`}
-              >
-                <Icon name="alertTriangle" size={12} color="#dc2626" strokeWidth={2.3} />
-                <span>Sin seguimiento ({formatDiasAsignado(fechaAsig)})</span>
-              </span>
-            )}
-            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-              · {userName(lead.creadoPorId) || lead.creadoPorNombre || '—'}
+        {/* Metadatos con iconos limpios (Fecha, Salón, Pax, Teléfono, Correo) */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '14px',
+            fontSize: '12px',
+            color: '#475569',
+            fontWeight: 500,
+            marginTop: '2px',
+          }}
+        >
+          {lead.fechaEvento && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <Icon name="calendar" size={13} color="#94a3b8" strokeWidth={2} />
+              <span>{lead.fechaEvento}</span>
             </span>
+          )}
+
+          {(lead.salones || []).length > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <Icon name="mapPin" size={13} color="#94a3b8" strokeWidth={2} />
+              <span>{(lead.salones || []).join(', ')}</span>
+            </span>
+          )}
+
+          {lead.pax ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <Icon name="users" size={13} color="#94a3b8" strokeWidth={2} />
+              <span>{lead.pax} pax</span>
+            </span>
+          ) : null}
+
+          {lead.telefono && (
+            <a
+              href={`tel:${lead.telefono}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                color: '#475569',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#0f766e')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            >
+              <Icon name="phone" size={13} color="#94a3b8" strokeWidth={2} />
+              <span>{lead.telefono}</span>
+            </a>
+          )}
+
+          {lead.correo && (
+            <a
+              href={`mailto:${lead.correo}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                color: '#475569',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#0f766e')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            >
+              <Icon name="mail" size={13} color="#94a3b8" strokeWidth={2} />
+              <span>{lead.correo}</span>
+            </a>
+          )}
+        </div>
+
+        {/* Burbuja de notas / cotización */}
+        {lead.notas && (
+          <div
+            style={{
+              background: '#f8fafc',
+              border: '1px solid #f1f5f9',
+              borderRadius: '8px',
+              padding: '7px 12px',
+              fontSize: '12px',
+              color: '#475569',
+              lineHeight: 1.45,
+              marginTop: '4px',
+              marginBottom: '4px',
+            }}
+          >
+            <span style={{ color: '#0d9488', fontWeight: 800, fontSize: '14px', marginRight: '5px' }}>“</span>
+            {lead.notas}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            {lead.eventoId ? (
-              <button onClick={onVerReserva} title="Abrir la reserva vinculada" style={btnAction('#0f766e', '#ccfbf1', '#5eead4')}>
-                <Icon name="link" size={12} color="#0f766e" strokeWidth={2.3} />
-                Ver reserva
-              </button>
-            ) : (
-              <button onClick={onConvert} title="Convertir en reserva del calendario" style={btnAction('#0f766e', '#ccfbf1', '#5eead4')}>
-                <Icon name="calendar" size={12} color="#0f766e" strokeWidth={2.3} />
-                Convertir
-              </button>
-            )}
-            {canSendMessage && (
-              <button
-                onClick={onSendMessage}
-                title="Enviar mensaje recordatorio al vendedor"
-                style={btnAction('#7c3aed', '#ede9fe', '#c4b5fd')}
-              >
-                <Icon name="mail" size={12} color="#7c3aed" strokeWidth={2.3} />
-                Mensaje
-              </button>
-            )}
-            {canEdit && (
-              <button onClick={onEdit} title="Editar" style={{ ...btnAction('#475569', '#ffffff', '#cbd5e1'), width: '30px', padding: 0 }}>
-                <Icon name="pencil" size={12} color="#475569" strokeWidth={2.3} />
-              </button>
-            )}
-            {canDelete && (
-              <button onClick={onDelete} title="Eliminar" style={{ ...btnAction('#ef4444', '#ffffff', '#fecaca'), width: '30px', padding: 0 }}>
-                <Icon name="trash" size={12} color="#ef4444" strokeWidth={2.3} />
-              </button>
-            )}
-          </div>
+        )}
+
+        {/* Seguimiento / Estado */}
+        <div style={{ marginTop: '2px' }}>
+          {lead.estado === 'perdida' ? (
+            <span style={{ fontSize: '11.5px', color: '#e11d48', fontStyle: 'italic', fontWeight: 500 }}>
+              Prospecto marcado como perdido por el asesor. Sin seguimiento programado.
+            </span>
+          ) : fechaSeg ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: lead.estado === 'pendiente' ? '#fffbeb' : '#f8fafc',
+                border: lead.estado === 'pendiente' ? '1px solid #fef3c7' : '1px solid #e2e8f0',
+                color: lead.estado === 'pendiente' ? '#b45309' : '#475569',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+              }}
+            >
+              <Icon
+                name="clock"
+                size={12}
+                color={lead.estado === 'pendiente' ? '#b45309' : '#64748b'}
+                strokeWidth={2.3}
+              />
+              <span>
+                {lead.estado === 'pendiente' ? 'Próximo seguimiento:' : 'Último contacto:'}{' '}
+                <strong>{formatDiaSeguimientoShort(fechaSeg)}</strong>
+                {lead.creadoPorNombre && <span> · {lead.creadoPorNombre}</span>}
+              </span>
+            </span>
+          ) : (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#fffbeb',
+                border: '1px solid #fef3c7',
+                color: '#b45309',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+              }}
+            >
+              <Icon name="alertTriangle" size={12} color="#b45309" strokeWidth={2.3} />
+              <span>Sin seguimiento programado</span>
+            </span>
+          )}
         </div>
       </div>
+
+      {/* Columna Derecha: Botones de Acción */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'stretch',
+          gap: '8px',
+          minWidth: '125px',
+          flexShrink: 0,
+        }}
+      >
+        {lead.eventoId ? (
+          <button
+            type="button"
+            onClick={onVerReserva}
+            title="Ver reserva vinculada"
+            style={{
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              color: '#334155',
+              fontSize: '12px',
+              fontWeight: 600,
+              height: '34px',
+              padding: '0 12px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              transition: 'all 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+          >
+            <Icon name="eye" size={13} color="#475569" strokeWidth={2.2} />
+            Ver reserva
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onConvert}
+            title="Ver detalle / convertir en reserva"
+            style={{
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              color: '#334155',
+              fontSize: '12px',
+              fontWeight: 600,
+              height: '34px',
+              padding: '0 12px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              transition: 'all 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+          >
+            <Icon name="eye" size={13} color="#475569" strokeWidth={2.2} />
+            Ver detalle
+          </button>
+        )}
+
+        {lead.estado === 'perdida' ? (
+          <button
+            type="button"
+            onClick={onReactivar || onEdit}
+            title="Reactivar evento"
+            style={{
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              color: '#334155',
+              fontSize: '12px',
+              fontWeight: 600,
+              height: '34px',
+              padding: '0 12px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              transition: 'all 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+          >
+            <Icon name="rotateCcw" size={13} color="#475569" strokeWidth={2.2} />
+            Reactivar
+          </button>
+        ) : (
+          canSendMessage && (
+            <button
+              type="button"
+              onClick={onSendMessage}
+              title="Enviar mensaje recordatorio al vendedor"
+              style={{
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                borderRadius: '8px',
+                color: '#059669',
+                fontSize: '12px',
+                fontWeight: 700,
+                height: '34px',
+                padding: '0 12px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                boxShadow: '0 1px 2px rgba(5,150,105,0.08)',
+                transition: 'all 0.12s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#d1fae5'; e.currentTarget.style.borderColor = '#6ee7b7'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#ecfdf5'; e.currentTarget.style.borderColor = '#a7f3d0'; }}
+            >
+              <Icon name="mail" size={13} color="#059669" strokeWidth={2.2} />
+              Mensaje
+            </button>
+          )
+        )}
+      </div>
+
+      {/* Controles secundarios (Editar / Eliminar) */}
+      {(canEdit || canDelete) && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2px',
+          }}
+        >
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              title="Editar"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                display: 'inline-flex',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.background = '#f1f5f9'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Icon name="pencil" size={12} strokeWidth={2.2} />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              title="Eliminar"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                display: 'inline-flex',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fef2f2'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Icon name="trash" size={12} strokeWidth={2.2} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
 
 function btnAction(color, bg, border) {
   return {
@@ -814,6 +1146,12 @@ export default function PosiblesVentasModule() {
   const [eliminadas, setEliminadas] = useState([]);
   const [loadingEliminadas, setLoadingEliminadas] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
+
+  // Filtros adicionales: salón y vista list/grid
+  const [salonFilter, setSalonFilter] = useState('all');
+  const [layoutMode, setLayoutMode] = useState('list');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Form state
   const [form, setForm] = useState({
@@ -1016,21 +1354,75 @@ export default function PosiblesVentasModule() {
 
   const filteredLeads = useMemo(() => {
     let items = leadsForVendorFilter;
-    if (estadoFilter !== 'all') {
+    if (estadoFilter === 'sin_seguimiento') {
+      items = items.filter(l => !l.ultimoSeguimientoEn);
+    } else if (estadoFilter !== 'all') {
       items = items.filter(l => l.estado === estadoFilter);
+    }
+    if (salonFilter !== 'all') {
+      items = items.filter(l => (l.salones || []).includes(salonFilter));
     }
     if (search) {
       const term = search.toLowerCase();
       items = items.filter(l =>
         (l.nombreCliente || '').toLowerCase().includes(term) ||
         (l.telefono || '').toLowerCase().includes(term) ||
+        (l.correo || '').toLowerCase().includes(term) ||
         (l.vendedorNombre || '').toLowerCase().includes(term) ||
         (l.atendidoPorNombre || '').toLowerCase().includes(term) ||
-        (l.salones || []).some(s => String(s).toLowerCase().includes(term))
+        (l.salones || []).some(s => String(s).toLowerCase().includes(term)) ||
+        (l.notas || '').toLowerCase().includes(term)
       );
     }
     return items;
-  }, [leadsForVendorFilter, estadoFilter, search]);
+  }, [leadsForVendorFilter, estadoFilter, salonFilter, search]);
+
+  const totalLeadsCount = filteredLeads.length;
+  const totalPages = Math.max(1, Math.ceil(totalLeadsCount / pageSize));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [estadoFilter, vendedorFilter, salonFilter, search]);
+
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLeads.slice(start, start + pageSize);
+  }, [filteredLeads, currentPage, pageSize]);
+
+  const exportToExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const rows = filteredLeads.map(l => ({
+        ID: l.id,
+        Cliente: l.nombreCliente || '—',
+        Teléfono: l.telefono || '—',
+        Correo: l.correo || '—',
+        'Fecha Evento': l.fechaEvento || '—',
+        Pax: l.pax || 0,
+        Salones: (l.salones || []).join(', ') || '—',
+        Estado: ESTADO_MAP[l.estado]?.label || l.estado || '—',
+        Vendedor: l.vendedorNombre || 'Sin asignar',
+        'Creado Por': l.creadoPorNombre || '—',
+        'Fecha Asignación': l.asignadoEn ? formatFechaCompleta(l.asignadoEn) : '—',
+        'Último Seguimiento': l.ultimoSeguimientoEn ? formatFechaCompleta(l.ultimoSeguimientoEn) : 'Sin seguimiento',
+        Notas: l.notas || '—',
+      }));
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'Eventos Asignados');
+      XLSX.writeFile(wb, `eventos-asignados-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success('Eventos asignados exportados a Excel');
+    } catch (err) {
+      console.error('Error exportando Excel:', err);
+      toast.error('Error al exportar a Excel');
+    }
+  };
+
+  const handleSync = async () => {
+    toast.info('Sincronizando...');
+    await loadLeads();
+    toast.success('Eventos asignados sincronizados');
+  };
 
   const stats = useMemo(() => {
     const byEstado = { pendiente: 0, en_proceso: 0, ganada: 0, perdida: 0 };
@@ -1207,291 +1599,480 @@ export default function PosiblesVentasModule() {
   };
 
   return (
-    <div className="pv-module-wrapper" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div className="pv-module-wrapper" style={{ padding: '0', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box', background: '#f8fafc' }}>
       <div style={{
-        display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxWidth: '1600px',
-        margin: '0 auto', background: '#ffffff', borderRadius: '16px',
-        border: '1px solid #cbd5e1', overflow: 'hidden',
-        boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
+        display: 'flex', flexDirection: 'column', height: '100%', width: '100%',
+        margin: '0 auto', background: '#f8fafc', overflow: 'hidden',
       }}>
 
-        {/* ── 1. COMPACT HERO HEADER + PIPELINE ── */}
+        {/* ── 1. ENCABEZADO MODERNO: PIPELINE ACTIVO + ACCIONES ── */}
         <div style={{
-          padding: '14px 20px',
-          background: 'linear-gradient(135deg, #f0fdfa 0%, #ffffff 60%, #f8fafc 100%)',
-          borderBottom: '1px solid #cbd5e1',
+          padding: '16px 24px',
+          background: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
           flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                width: '40px', height: '40px', borderRadius: '10px',
-                background: 'linear-gradient(135deg, #14b8a6, #0f766e)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 3px 10px rgba(20,184,166,0.3)',
-                color: '#ffffff',
-              }}>
-                <Icon name="handshake" size={22} color="#ffffff" strokeWidth={2.2} />
-              </div>
-              <div>
-                <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.15, letterSpacing: '-0.01em' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
                   Eventos Asignados
                 </h1>
-                <p style={{ color: '#64748b', fontSize: '11.5px', margin: '2px 0 0', fontWeight: 600 }}>
-                  Pipeline de leads y seguimiento comercial
-                </p>
+                <span style={{
+                  background: '#ecfdf5',
+                  color: '#059669',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: '999px',
+                  padding: '2px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                }}>
+                  Seguimiento activo
+                </span>
               </div>
+              <p style={{ color: '#64748b', fontSize: '12.5px', margin: '4px 0 0', fontWeight: 500 }}>
+                Seguimiento comercial de solicitudes, prospectos y reservas vinculadas.
+              </p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={exportToExcel}
+                style={{
+                  background: '#ffffff',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  padding: '7px 14px',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  transition: 'all 0.12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+              >
+                <Icon name="download" size={14} color="#64748b" strokeWidth={2.2} />
+                Exportar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSync}
+                style={{
+                  background: '#ffffff',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  padding: '7px 14px',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  transition: 'all 0.12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+              >
+                <Icon name="refresh" size={14} color="#64748b" strokeWidth={2.2} />
+                Sincronizar
+              </button>
+
               {canCreate && (
                 <button
+                  type="button"
                   onClick={openCreate}
                   style={{
-                    background: 'linear-gradient(135deg, #14b8a6, #0f766e)',
-                    color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '8px',
-                    fontWeight: 800, fontSize: '12.5px', cursor: 'pointer',
-                    boxShadow: '0 3px 10px rgba(20,184,166,0.35)',
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    transition: 'transform 0.12s, box-shadow 0.12s',
+                    background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '7px 16px',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(15,118,110,0.25)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.12s',
                   }}
                 >
-                  <Icon name="plus" size={15} color="#ffffff" strokeWidth={2.5} />
+                  <Icon name="plus" size={14} color="#ffffff" strokeWidth={2.5} />
                   Asignar evento
                 </button>
               )}
             </div>
           </div>
-
-          {/* Progress mini bar */}
-          {stats.total > 0 && (
-            <div style={{ marginTop: '10px' }}>
-              <div style={{
-                display: 'flex', height: '6px', borderRadius: '999px', overflow: 'hidden',
-                background: '#e2e8f0',
-              }}>
-                {ESTADOS.map(e => stats.byEstado[e.key] > 0 && (
-                  <div key={e.key}
-                    title={`${e.label}: ${stats.byEstado[e.key]} (${stats.pctOf(e.key)}%)`}
-                    style={{ width: `${(stats.byEstado[e.key] / stats.total) * 100}%`, background: e.color, transition: 'width 0.3s' }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* ── 2. UNIFIED METRICS STRIP (Mini Tarjetas KPIs en 1 sola fila) ── */}
+        {/* ── 2. KPIS REDISEÑADOS: TARJETAS EN FILA HORIZONTAL ── */}
         {vista === 'activas' && (
           <div style={{
-            padding: '10px 20px',
-            borderBottom: '1px solid #cbd5e1',
-            background: '#f8fafc',
+            padding: '12px 24px',
+            background: '#ffffff',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+            gap: '10px',
             flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            overflowX: 'auto',
           }}>
-            <MetricMiniCard
-              icon="clipboard"
-              label="TOTAL"
+            <MetricCardClean
+              label="TOTAL PROSPECTOS"
               value={stats.total}
-              subtitle={`${stats.sinSeguimiento} sin seg.`}
-              color="#0f172a"
-              bg="#ffffff"
-              border="#e2e8f0"
-              iconBg="#f8fafc"
+              pill={stats.sinSeguimiento > 0 ? { text: `${stats.sinSeguimiento} s/seg`, bg: '#fef3c7', color: '#b45309' } : null}
+              active={estadoFilter === 'all'}
+              onClick={() => setEstadoFilter('all')}
             />
-            <MetricMiniCard
-              icon="clock"
+            <MetricCardClean
               label="PENDIENTE"
               value={stats.byEstado.pendiente}
               subtitle={`${stats.pctOf('pendiente')}%`}
-              color="#d97706"
-              bg="#ffffff"
-              border="#fde68a"
-              iconBg="#fffbeb"
+              dotColor="#f59e0b"
+              active={estadoFilter === 'pendiente'}
+              onClick={() => setEstadoFilter('pendiente')}
             />
-            <MetricMiniCard
-              icon="eye"
+            <MetricCardClean
               label="EN PROCESO"
               value={stats.byEstado.en_proceso}
-              subtitle={`${stats.pctOf('en_proceso')}%`}
-              color="#2563eb"
-              bg="#ffffff"
-              border="#bfdbfe"
-              iconBg="#eff6ff"
+              subtitle={{ text: `${stats.pctOf('en_proceso')}%`, color: '#2563eb' }}
+              dotColor="#3b82f6"
+              active={estadoFilter === 'en_proceso'}
+              onClick={() => setEstadoFilter('en_proceso')}
             />
-            <MetricMiniCard
-              icon="trophy"
+            <MetricCardClean
               label="GANADA"
               value={stats.byEstado.ganada}
               subtitle={`${stats.pctOf('ganada')}%`}
-              color="#059669"
-              bg="#ffffff"
-              border="#a7f3d0"
-              iconBg="#ecfdf5"
+              dotColor="#10b981"
+              active={estadoFilter === 'ganada'}
+              onClick={() => setEstadoFilter('ganada')}
             />
-            <MetricMiniCard
-              icon="x"
+            <MetricCardClean
               label="PERDIDA"
               value={stats.byEstado.perdida}
               subtitle={`${stats.pctOf('perdida')}%`}
-              color="#dc2626"
-              bg="#ffffff"
-              border="#fecaca"
-              iconBg="#fef2f2"
+              dotColor="#ef4444"
+              active={estadoFilter === 'perdida'}
+              onClick={() => setEstadoFilter('perdida')}
             />
-            <MetricMiniCard
-              icon="trendingUp"
+            <MetricCardClean
               label="CONVERSIÓN"
               value={`${stats.conversion}%`}
               subtitle={`${stats.byEstado.ganada} ganadas`}
-              color="#7c3aed"
-              bg="#ffffff"
-              border="#ddd6fe"
-              iconBg="#f5f3ff"
             />
-            <MetricMiniCard
-              icon="handshake"
-              label="EVENTOS ASIGNADOS"
+            <MetricCardClean
+              label="ASIGNADOS"
               value={stats.eventosAsignados}
-              subtitle={`${stats.pctAsignados}%`}
-              color="#0f766e"
-              bg="#ffffff"
-              border="#99f6e4"
-              iconBg="#f0fdfa"
+              pill={{ text: `${stats.pctAsignados}%`, bg: '#ecfdf5', color: '#059669' }}
             />
-            <MetricMiniCard
-              icon="alertTriangle"
-              label="SIN ASIGNAR"
-              value={stats.sinAsignar}
-              subtitle={`${stats.total > 0 ? Math.round((stats.sinAsignar / stats.total) * 100) : 0}%`}
-              color="#ca8a04"
-              bg="#ffffff"
-              border="#fef08a"
-              iconBg="#fefce8"
+            <MetricCardClean
+              label="ATENCIÓN"
+              value={stats.sinSeguimiento}
+              subtitle="s/seguimiento"
+              dotColor="#e11d48"
+              isAttention={stats.sinSeguimiento > 0}
+              active={estadoFilter === 'sin_seguimiento'}
+              onClick={() => setEstadoFilter(f => f === 'sin_seguimiento' ? 'all' : 'sin_seguimiento')}
             />
-            {stats.sinSeguimiento > 0 && (
-              <MetricMiniCard
-                icon="alertTriangle"
-                label="SIN SEGUIMIENTO"
-                value={stats.sinSeguimiento}
-                subtitle={`${stats.total > 0 ? Math.round((stats.sinSeguimiento / stats.total) * 100) : 0}%`}
-                color="#dc2626"
-                bg="#ffffff"
-                border="#fecaca"
-                iconBg="#fef2f2"
-              />
-            )}
           </div>
         )}
 
-        {/* ── 3. CLEAN TOOLBAR ── */}
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#ffffff' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'space-between' }}>
-            {/* Filtros izquierdos */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-              {isAdmin && (
-                <ViewSegmented value={vista} onChange={setVista} adminCount={eliminadas.length} />
-              )}
-              {vista === 'activas' && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                  <QuickFilterChip
-                    active={estadoFilter === 'all'}
-                    count={stats.total}
-                    label="Todos"
-                    color="#0f172a"
-                    onClick={() => setEstadoFilter('all')}
-                  />
-                  {ESTADOS.map(e => (
-                    <QuickFilterChip
-                      key={e.key}
-                      active={estadoFilter === e.key}
-                      count={stats.byEstado[e.key] || 0}
-                      label={e.label}
-                      color={e.color}
-                      onClick={() => setEstadoFilter(e.key)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+        {/* ── 3. TOOLBAR: TABS TIPO CÁPSULA + VENDEDORES + SALONES + VISTA + BUSCADOR ── */}
+        <div style={{
+          padding: '12px 24px',
+          background: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          flexShrink: 0,
+        }}>
+          {/* Lado izquierdo: Tabs redondeados */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#f1f5f9',
+              borderRadius: '999px',
+              padding: '3px 4px',
+              gap: '2px',
+            }}>
+              <button
+                type="button"
+                onClick={() => { setVista('activas'); setEstadoFilter('all'); }}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '999px',
+                  border: 'none',
+                  background: estadoFilter === 'all' && vista === 'activas' ? '#ffffff' : 'transparent',
+                  color: estadoFilter === 'all' && vista === 'activas' ? '#0f172a' : '#64748b',
+                  fontWeight: estadoFilter === 'all' && vista === 'activas' ? 700 : 500,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  boxShadow: estadoFilter === 'all' && vista === 'activas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.12s',
+                }}
+              >
+                Todos
+                <span style={{
+                  background: estadoFilter === 'all' && vista === 'activas' ? '#f1f5f9' : 'transparent',
+                  color: '#64748b',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '0 4px',
+                  borderRadius: '4px',
+                }}>
+                  {stats.total}
+                </span>
+              </button>
 
-            {/* Vendedor + Buscador + Toggle Resumen Vendedor */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {vista === 'activas' && stats.vendedoresRows.length > 0 && (
+              {ESTADOS.map(e => {
+                const isActive = estadoFilter === e.key && vista === 'activas';
+                const count = stats.byEstado[e.key] || 0;
+                return (
+                  <button
+                    key={e.key}
+                    type="button"
+                    onClick={() => { setVista('activas'); setEstadoFilter(e.key); }}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: isActive ? '#ffffff' : 'transparent',
+                      color: isActive ? '#0f172a' : '#64748b',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.12s',
+                    }}
+                  >
+                    {e.label}
+                    <span style={{
+                      background: e.key === 'en_proceso' ? '#dbeafe' : (e.key === 'perdida' ? '#fee2e2' : (isActive ? '#f1f5f9' : 'transparent')),
+                      color: e.key === 'en_proceso' ? '#2563eb' : (e.key === 'perdida' ? '#dc2626' : '#64748b'),
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '0 6px',
+                      borderRadius: '999px',
+                    }}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {isAdmin && (
                 <button
                   type="button"
-                  onClick={() => setShowVendorSummary(v => !v)}
+                  onClick={() => setVista(v => v === 'eliminadas' ? 'activas' : 'eliminadas')}
                   style={{
-                    height: '34px', padding: '0 12px', borderRadius: '8px',
-                    border: '1.5px solid #cbd5e1',
-                    background: showVendorSummary ? '#e0f2fe' : '#ffffff',
-                    color: showVendorSummary ? '#0284c7' : '#475569',
-                    fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    transition: 'all 0.12s'
+                    padding: '5px 12px',
+                    borderRadius: '999px',
+                    border: 'none',
+                    background: vista === 'eliminadas' ? '#fee2e2' : 'transparent',
+                    color: vista === 'eliminadas' ? '#dc2626' : '#64748b',
+                    fontWeight: vista === 'eliminadas' ? 700 : 500,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.12s',
                   }}
-                  title="Ver u ocultar resumen de eventos asignados por vendedor"
                 >
-                  <Icon name="users" size={14} color={showVendorSummary ? '#0284c7' : '#475569'} strokeWidth={2.3} />
-                  <span>Vendedores ({stats.vendedoresRows.length})</span>
-                  <Icon name={showVendorSummary ? 'chevronUp' : 'chevronDown'} size={14} color="#64748b" strokeWidth={2.3} />
+                  <Icon name="trash" size={12} color={vista === 'eliminadas' ? '#dc2626' : '#64748b'} strokeWidth={2.2} />
+                  Eliminadas
+                  {eliminadas.length > 0 && (
+                    <span style={{
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      padding: '1px 6px',
+                      borderRadius: '999px',
+                    }}>
+                      {eliminadas.length}
+                    </span>
+                  )}
                 </button>
               )}
+            </div>
+          </div>
 
+          {/* Lado derecho: Vendedores dropdown + Salones dropdown + Vista List/Grid + Buscador */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <div style={{
+                position: 'absolute',
+                left: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                pointerEvents: 'none',
+              }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0d9488', border: '1.5px solid #fff' }} />
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', border: '1.5px solid #fff', marginLeft: '-3px' }} />
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8b5cf6', border: '1.5px solid #fff', marginLeft: '-3px' }} />
+              </div>
               <select
                 value={vendedorFilter}
                 onChange={e => setVendedorFilter(e.target.value)}
                 style={{
-                  height: '34px', padding: '0 10px', borderRadius: '8px',
-                  border: '1.5px solid',
-                  borderColor: vendedorFilter !== 'all' ? '#14b8a6' : '#cbd5e1',
-                  fontSize: '12px', fontWeight: 700,
-                  background: vendedorFilter !== 'all' ? '#f0fdfa' : '#ffffff',
-                  color: vendedorFilter !== 'all' ? '#0f766e' : '#1e293b',
-                  outline: 'none', cursor: 'pointer', flexShrink: 0,
+                  height: '34px',
+                  padding: '0 28px 0 34px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  background: '#ffffff',
+                  color: '#334155',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                }}
+              >
+                <option value="all">Vendedores ({vendedores.length})</option>
+                <option value="mine">👤 Mis asignaciones</option>
+                {vendedores.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.fullName || v.name}
+                  </option>
+                ))}
+              </select>
+              <span style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }}>
+                <Icon name="chevronDown" size={13} color="#64748b" strokeWidth={2.4} />
+              </span>
+            </div>
+
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: '10px', pointerEvents: 'none' }}>
+                <Icon name="mapPin" size={13} color="#64748b" strokeWidth={2.2} />
+              </span>
+              <select
+                value={salonFilter}
+                onChange={e => setSalonFilter(e.target.value)}
+                style={{
+                  height: '34px',
+                  padding: '0 28px 0 28px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  background: '#ffffff',
+                  color: '#334155',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  appearance: 'none',
                   maxWidth: '180px',
                 }}
-                title="Filtrar eventos por vendedor"
               >
-                <option value="mine" style={{ background: '#ffffff', color: '#0f172a' }}>👤 Mis asignaciones</option>
-                <option value="all" style={{ background: '#ffffff', color: '#0f172a' }}>👥 Todos los vendedores</option>
-                {vendedores.length > 0 && (
-                  <optgroup label="Vendedor específico">
-                    {vendedores.map(v => (
-                      <option key={v.id} value={v.id} style={{ background: '#ffffff', color: '#0f172a' }}>
-                        {v.fullName || v.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+                <option value="all">Todos los salones</option>
+                {salones.map(s => {
+                  const name = typeof s === 'string' ? s : (s.nombre || s.name);
+                  return <option key={name} value={name}>{name}</option>;
+                })}
               </select>
+              <span style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }}>
+                <Icon name="chevronDown" size={13} color="#64748b" strokeWidth={2.4} />
+              </span>
+            </div>
 
-              <div style={{ position: 'relative', minWidth: '220px', flex: 1, display: 'flex', alignItems: 'center' }}>
-                <span style={{ position: 'absolute', left: '10px', display: 'inline-flex', pointerEvents: 'none' }}>
-                  <Icon name="search" size={14} color="#94a3b8" strokeWidth={2.3} />
-                </span>
-                <input
-                  type="text"
-                  placeholder={vista === 'activas' ? 'Buscar cliente, teléfono, salón...' : 'Buscar en eliminadas...'}
-                  value={search} onChange={e => setSearch(e.target.value)}
-                  style={{
-                    width: '100%', padding: '6px 12px 6px 32px', borderRadius: '8px',
-                    border: '1.5px solid #cbd5e1', fontSize: '12px', height: '34px',
-                    boxSizing: 'border-box', background: '#ffffff', color: '#1e293b', outline: 'none',
-                  }}
-                />
-              </div>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#f1f5f9',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              padding: '2px',
+            }}>
+              <button
+                type="button"
+                onClick={() => setLayoutMode('list')}
+                title="Vista de lista"
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: layoutMode === 'list' ? '#ffffff' : 'transparent',
+                  color: layoutMode === 'list' ? '#0f172a' : '#64748b',
+                  boxShadow: layoutMode === 'list' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="clipboard" size={13} strokeWidth={2.3} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayoutMode('grid')}
+                title="Vista de cuadrícula"
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: layoutMode === 'grid' ? '#ffffff' : 'transparent',
+                  color: layoutMode === 'grid' ? '#0f172a' : '#64748b',
+                  boxShadow: layoutMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="barChart" size={13} strokeWidth={2.3} />
+              </button>
+            </div>
+
+            <div style={{ position: 'relative', minWidth: '200px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: '10px', display: 'inline-flex', pointerEvents: 'none' }}>
+                <Icon name="search" size={13} color="#94a3b8" strokeWidth={2.3} />
+              </span>
+              <input
+                type="text"
+                placeholder="Buscar cliente, teléfono..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px 6px 30px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                  height: '34px',
+                  background: '#ffffff',
+                  color: '#1e293b',
+                  outline: 'none',
+                }}
+              />
             </div>
           </div>
         </div>
 
         {/* ── 4. RESUMEN POR VENDEDOR (Plegable / Opcional) ── */}
         {vista === 'activas' && showVendorSummary && stats.vendedoresRows.length > 0 && (
-          <div style={{ padding: '12px 20px', borderBottom: '1px solid #cbd5e1', background: '#f8fafc', flexShrink: 0 }}>
+          <div style={{ padding: '12px 24px', borderBottom: '1px solid #cbd5e1', background: '#f8fafc', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <Icon name="handshake" size={14} color="#0f766e" strokeWidth={2.3} />
               <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#0f172a' }}>Resumen por Vendedor</span>
@@ -1510,8 +2091,8 @@ export default function PosiblesVentasModule() {
           </div>
         )}
 
-        {/* ── 5. LISTA PRINCIPAL DE TARJETAS DE EVENTOS ASIGNADOS (Con Scroll Directo) ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 24px', background: '#f8fafc' }}>
+        {/* ── 5. LISTA PRINCIPAL DE TARJETAS DE EVENTOS ASIGNADOS ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px 24px', background: '#f8fafc' }}>
           {vista === 'activas' ? (
             loading ? (
               <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
@@ -1538,45 +2119,143 @@ export default function PosiblesVentasModule() {
                 )}
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {filteredLeads.map(lead => (
-                  <div
-                    key={lead.id}
-                    id={`pv-lead-${lead.id}`}
-                    style={{
-                      borderRadius: '12px',
-                      transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-                      boxShadow: focusedLeadId && String(focusedLeadId) === String(lead.id)
-                        ? '0 0 0 3px #14b8a6, 0 8px 24px rgba(20,184,166,0.35)'
-                        : 'none',
-                      transform: focusedLeadId && String(focusedLeadId) === String(lead.id)
-                        ? 'scale(1.01)'
-                        : 'scale(1)',
-                    }}
-                  >
-                    <LeadCard
-                      lead={lead}
-                      userName={userName}
-                      canEdit={canEditLead(lead)}
-                      canDelete={canDeleteLead(lead)}
-                      canSendMessage={canSendMessage(lead)}
-                      onEdit={() => openEdit(lead)}
-                      onDelete={() => handleDelete(lead)}
-                      onSendMessage={() => openSendMessage(lead)}
-                      onConvert={() => {
-                        const params = new URLSearchParams();
-                        params.set('pv', String(lead.id));
-                        if (lead.fechaEvento) params.set('date', lead.fechaEvento);
-                        navigate(`/nueva-reserva?${params.toString()}`);
+              <>
+                <div style={layoutMode === 'grid' ? {
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))',
+                  gap: '12px',
+                } : {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}>
+                  {paginatedLeads.map(lead => (
+                    <div
+                      key={lead.id}
+                      id={`pv-lead-${lead.id}`}
+                      style={{
+                        borderRadius: '12px',
+                        transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+                        boxShadow: focusedLeadId && String(focusedLeadId) === String(lead.id)
+                          ? '0 0 0 3px #14b8a6, 0 8px 24px rgba(20,184,166,0.35)'
+                          : 'none',
+                        transform: focusedLeadId && String(focusedLeadId) === String(lead.id)
+                          ? 'scale(1.01)'
+                          : 'scale(1)',
                       }}
-                      onVerReserva={() => {
-                        if (!lead.eventoId) return;
-                        navigate(`/reserva/${lead.eventoId}`);
-                      }}
-                    />
+                    >
+                      <LeadCard
+                        lead={lead}
+                        userName={userName}
+                        canEdit={canEditLead(lead)}
+                        canDelete={canDeleteLead(lead)}
+                        canSendMessage={canSendMessage(lead)}
+                        onEdit={() => openEdit(lead)}
+                        onDelete={() => handleDelete(lead)}
+                        onSendMessage={() => openSendMessage(lead)}
+                        onReactivar={() => openEdit(lead)}
+                        onConvert={() => {
+                          const params = new URLSearchParams();
+                          params.set('pv', String(lead.id));
+                          if (lead.fechaEvento) params.set('date', lead.fechaEvento);
+                          navigate(`/nueva-reserva?${params.toString()}`);
+                        }}
+                        onVerReserva={() => {
+                          if (!lead.eventoId) return;
+                          navigate(`/reserva/${lead.eventoId}`);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── FOOTER DE PAGINACIÓN ── */}
+                {totalLeadsCount > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 4px 8px',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    marginTop: '8px',
+                  }}>
+                    <span style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 600 }}>
+                      Mostrando <strong>{Math.min(totalLeadsCount, (currentPage - 1) * pageSize + 1)}</strong> a{' '}
+                      <strong>{Math.min(totalLeadsCount, currentPage * pageSize)}</strong> de{' '}
+                      <strong>{totalLeadsCount}</strong> eventos activos
+                    </span>
+
+                    {totalPages > 1 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: currentPage === 1 ? '#94a3b8' : '#334155',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                            transition: 'all 0.12s',
+                          }}
+                        >
+                          Anterior
+                        </button>
+
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                            style={{
+                              minWidth: '32px',
+                              height: '32px',
+                              padding: '0 6px',
+                              borderRadius: '8px',
+                              border: page === currentPage ? '1px solid #0f766e' : '1px solid #cbd5e1',
+                              background: page === currentPage ? '#0f766e' : '#ffffff',
+                              color: page === currentPage ? '#ffffff' : '#334155',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                              transition: 'all 0.12s',
+                            }}
+                          >
+                            {page}
+                          </button>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: currentPage === totalPages ? '#94a3b8' : '#334155',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                            transition: 'all 0.12s',
+                          }}
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )
           ) : (
             /* Vista eliminadas */
@@ -1630,6 +2309,7 @@ export default function PosiblesVentasModule() {
         </div>
       </div>
 
+
       {/* ── MODAL NUEVO / EDITAR LEAD ── */}
       {modalOpen && (
         <div style={{
@@ -1657,7 +2337,7 @@ export default function PosiblesVentasModule() {
                     {editing ? 'Editar evento asignado' : 'Asignar nuevo evento'}
                   </h3>
                   <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0' }}>
-                    {editing ? 'Modifica los datos y asignación del lead' : 'Ingresa la información básica para notificar al vendedor'}
+                    {editing ? 'Modifica los datos y asignación del prospecto' : 'Ingresa la información básica para notificar al vendedor'}
                   </p>
                 </div>
               </div>

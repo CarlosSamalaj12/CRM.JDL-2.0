@@ -334,6 +334,43 @@ export default function Kanban() {
   const monday = new Date(fallbackDate);
   monday.setDate(diff);
 
+  const weekMeta = useMemo(() => {
+    const sun = new Date(monday);
+    sun.setDate(monday.getDate() + 6);
+
+    const getWeekNum = (date) => {
+      const target = new Date(date.valueOf());
+      const dayNr = (date.getDay() + 6) % 7;
+      target.setDate(target.getDate() - dayNr + 3);
+      const firstThursday = target.valueOf();
+      target.setMonth(0, 1);
+      if (target.getDay() !== 4) {
+        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+      }
+      return 1 + Math.ceil((firstThursday - target) / 604800000);
+    };
+
+    const wNum = getWeekNum(monday);
+    const mes1 = monday.toLocaleDateString('es-ES', { month: 'long' });
+    const mes2 = sun.toLocaleDateString('es-ES', { month: 'long' });
+    const anio1 = monday.getFullYear();
+    const anio2 = sun.getFullYear();
+
+    const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+    const mesCap1 = cap(mes1);
+    const mesCap2 = cap(mes2);
+
+    const mesLabel = (mes1 === mes2 && anio1 === anio2)
+      ? `${mesCap1.toUpperCase()} ${anio1}`
+      : `${mesCap1.toUpperCase()} - ${mesCap2.toUpperCase()} ${anio2}`;
+
+    const rangoSemana = (mes1 === mes2 && anio1 === anio2)
+      ? `Semana ${wNum} • Del ${monday.getDate()} al ${sun.getDate()} de ${mes1} de ${anio1}`
+      : `Semana ${wNum} • Del ${monday.getDate()} de ${mes1} al ${sun.getDate()} de ${mes2} de ${anio2}`;
+
+    return { weekNumber: wNum, mesLabel, rangoSemana, monday, sunday: sun };
+  }, [monday]);
+
   const columns = dayNames.map((name, index) => {
     const currentDay = new Date(monday);
     currentDay.setDate(monday.getDate() + index);
@@ -513,6 +550,38 @@ export default function Kanban() {
     const diffToMon = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     const monday = new Date(d);
     monday.setDate(diffToMon);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    const getWeekNum = (date) => {
+      const target = new Date(date.valueOf());
+      const dayNr = (date.getDay() + 6) % 7;
+      target.setDate(target.getDate() - dayNr + 3);
+      const firstThursday = target.valueOf();
+      target.setMonth(0, 1);
+      if (target.getDay() !== 4) {
+        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+      }
+      return 1 + Math.ceil((firstThursday - target) / 604800000);
+    };
+
+    const weekNumber = getWeekNum(monday);
+    const mes1 = monday.toLocaleDateString('es-ES', { month: 'long' });
+    const mes2 = sunday.toLocaleDateString('es-ES', { month: 'long' });
+    const anio1 = monday.getFullYear();
+    const anio2 = sunday.getFullYear();
+
+    const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+    const mesCap1 = cap(mes1);
+    const mesCap2 = cap(mes2);
+
+    const mesLabel = (mes1 === mes2 && anio1 === anio2)
+      ? `${mesCap1.toUpperCase()} ${anio1}`
+      : `${mesCap1.toUpperCase()} - ${mesCap2.toUpperCase()} ${anio2}`;
+
+    const rangoSemanaTexto = (mes1 === mes2 && anio1 === anio2)
+      ? `Semana ${weekNumber} • Del ${monday.getDate()} al ${sunday.getDate()} de ${mes1} de ${anio1}`
+      : `Semana ${weekNumber} • Del ${monday.getDate()} de ${mes1} al ${sunday.getDate()} de ${mes2} de ${anio2}`;
 
     const fmtShort = (date) => date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -536,7 +605,7 @@ export default function Kanban() {
     const weeklyTotalsPrint = { pax: 0, desayunos: 0, ref_am: 0, almuerzos: 0, ref_pm: 0, cenas: 0 };
     for (const day of weekDays) {
       const hasEvents = day.events.length > 0;
-      tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="13" style="background:#f0f4ff;font-weight:700;padding:8px 12px;font-size:13px;border-bottom:1px solid #d1d9e6;">${day.label}</td></tr>`;
+      tableRows += `<tr class="dia-header${hasEvents ? '' : ' sin-eventos'}"><td colspan="13" style="background:#f5f3ff;color:#3730a3;font-weight:800;padding:7px 12px;font-size:12.5px;border-bottom:1.5px solid #c7d2fe;border-left:4px solid #6366f1;-webkit-print-color-adjust:exact;print-color-adjust:exact;">${day.label}</td></tr>`;
       if (!hasEvents) {
         tableRows += `<tr><td colspan="13" style="text-align:center;padding:8px;color:#94a3b8;font-style:italic;border:none;">Sin eventos</td></tr>`;
       } else {
@@ -577,19 +646,19 @@ export default function Kanban() {
           const st = statusMap[ev.Estatuscotizacion] || { label: '—', color: 'gray' };
           const alerta = (ev.tiene_alertas == 1 || ev.tiene_alertas === true) ? '⚠' : '';
           tableRows += `<tr>
-            <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtShort(new Date(ev.displayDate + 'T12:00:00'))}</td>
-            <td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;"><span class="tag tag-${st.color}">${st.label}</span></td>
-            <td style="padding:6px 10px;font-size:12px;font-weight:600;border-bottom:1px solid #e2e8f0;">${ev.Institucion || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;">${ev.Salon || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtTime(ev.HoraI)} - ${fmtTime(ev.HoraF)}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${paxVal || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evDes || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evRefAm || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evAlm || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evRefPm || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${evCen || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${alerta}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;">${ev.Vendedor || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtShort(new Date(ev.displayDate + 'T12:00:00'))}</td>
+            <td style="padding:5px 6px;font-size:11px;border-bottom:1px solid #e2e8f0;"><span class="tag tag-${st.color}">${st.label}</span></td>
+            <td style="padding:5px 6px;font-size:11px;font-weight:600;border-bottom:1px solid #e2e8f0;line-height:1.25;">${ev.Institucion || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;border-bottom:1px solid #e2e8f0;line-height:1.25;">${ev.Salon || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;white-space:nowrap;border-bottom:1px solid #e2e8f0;">${fmtTime(ev.HoraI)} - ${fmtTime(ev.HoraF)}</td>
+            <td style="padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;">${paxVal || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid #e2e8f0;">${evDes || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid #e2e8f0;">${evRefAm || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid #e2e8f0;">${evAlm || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid #e2e8f0;">${evRefPm || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid #e2e8f0;">${evCen || '—'}</td>
+            <td style="padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid #e2e8f0;">${alerta}</td>
+            <td style="padding:5px 6px;font-size:11px;border-bottom:1px solid #e2e8f0;line-height:1.2;">${ev.Vendedor || '—'}</td>
           </tr>`;
         }
         weeklyTotalsPrint.pax += dayTotals.pax;
@@ -599,70 +668,218 @@ export default function Kanban() {
         weeklyTotalsPrint.ref_pm += dayTotals.ref_pm;
         weeklyTotalsPrint.cenas += dayTotals.cenas;
         const shortDate = day.events[0]?.displayDate ? new Date(day.events[0].displayDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
-        tableRows += `<tr style="background:#f1f5f9;">
-          <td colspan="5" style="font-size:11px;font-weight:700;text-align:right;padding:4px 12px;border-bottom:1px solid #e2e8f0;color:#475569;">Total ${shortDate}</td>
-          <td style="font-size:12px;font-weight:800;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#1e40af;">${dayTotals.pax}</td>
-          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.desayunos}</td>
-          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.ref_am}</td>
-          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.almuerzos}</td>
-          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.ref_pm}</td>
-          <td style="font-size:11px;font-weight:700;text-align:center;padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.cenas}</td>
+        tableRows += `<tr style="background:#f8fafc;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+          <td colspan="5" style="font-size:11px;font-weight:700;text-align:right;padding:5px 8px;border-bottom:1px solid #e2e8f0;color:#475569;">Total ${shortDate}</td>
+          <td style="font-size:11px;font-weight:800;text-align:center;padding:5px 6px;border-bottom:1px solid #e2e8f0;color:#4f46e5;">${dayTotals.pax}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:5px 6px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.desayunos}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:5px 6px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.ref_am}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:5px 6px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.almuerzos}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:5px 6px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.ref_pm}</td>
+          <td style="font-size:11px;font-weight:700;text-align:center;padding:5px 6px;border-bottom:1px solid #e2e8f0;color:#475569;">${dayTotals.cenas}</td>
           <td colspan="2" style="border-bottom:1px solid #e2e8f0;"></td>
         </tr>`;
       }
     }
     if (weekDays.length > 0) {
-      tableRows += `<tr style="background:#e0e7ff;">
-        <td colspan="5" style="font-size:12px;font-weight:800;text-align:right;padding:6px 12px;border-top:2px solid #6366f1;color:#3730a3;">TOTAL SEMANA</td>
-        <td style="font-size:13px;font-weight:900;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#1e40af;">${weeklyTotalsPrint.pax}</td>
-        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.desayunos}</td>
-        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.ref_am}</td>
-        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.almuerzos}</td>
-        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.ref_pm}</td>
-        <td style="font-size:12px;font-weight:800;text-align:center;padding:6px 8px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.cenas}</td>
+      tableRows += `<tr style="background:#e0e7ff;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+        <td colspan="5" style="font-size:11.5px;font-weight:800;text-align:right;padding:6px 8px;border-top:2px solid #6366f1;color:#312e81;">TOTAL SEMANA</td>
+        <td style="font-size:12px;font-weight:900;text-align:center;padding:6px 6px;border-top:2px solid #6366f1;color:#4338ca;">${weeklyTotalsPrint.pax}</td>
+        <td style="font-size:11.5px;font-weight:800;text-align:center;padding:6px 6px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.desayunos}</td>
+        <td style="font-size:11.5px;font-weight:800;text-align:center;padding:6px 6px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.ref_am}</td>
+        <td style="font-size:11.5px;font-weight:800;text-align:center;padding:6px 6px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.almuerzos}</td>
+        <td style="font-size:11.5px;font-weight:800;text-align:center;padding:6px 6px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.ref_pm}</td>
+        <td style="font-size:11.5px;font-weight:800;text-align:center;padding:6px 6px;border-top:2px solid #6366f1;color:#3730a3;">${weeklyTotalsPrint.cenas}</td>
         <td colspan="2" style="border-top:2px solid #6366f1;"></td>
       </tr>`;
     }
 
     return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>Ocupación Semanal</title>
+<head><meta charset="UTF-8"><title>Ocupación Semanal — ${mesLabel}</title>
 <style>
-  @page { margin: 15mm 12mm; }
+  @page { margin: 10mm 10mm; size: portrait; }
   * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; }
-  .print-header { display: flex; align-items: center; justify-content: center; margin-bottom: 4px; padding: 0; border: none; }
-  .print-header img { height: 30px; width: auto; opacity: 0.6; }
-  .print-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #475569; }
-  .print-meta strong { color: #0f172a; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-  th, td { word-break: break-word; overflow-wrap: break-word; }
-  th { background: #1e40af; color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 0; padding: 10px 12px; background: #ffffff; }
+  .print-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 2.5px solid #4f46e5;
+  }
+  .print-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .print-logo-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 6px;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print-logo-img {
+    max-width: 32px;
+    max-height: 32px;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .print-title-group {
+    display: flex;
+    flex-direction: column;
+  }
+  .print-main-title {
+    font-family: 'Cinzel', 'Playfair Display', 'Segoe UI', serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: #312e81;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 0;
+    line-height: 1.15;
+  }
+  .print-sub-title {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #6366f1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 2px 0 0 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  .print-period-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+  }
+  .print-month-pill {
+    background: #f5f3ff;
+    border: 1.5px solid #ddd6fe;
+    color: #4f46e5;
+    font-weight: 800;
+    font-size: 12px;
+    padding: 3px 12px;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print-week-range {
+    font-size: 10px;
+    font-weight: 600;
+    color: #475569;
+    margin-top: 3px;
+  }
+  .print-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 7px 12px;
+    background: #faf5ff;
+    border: 1px solid #e0e7ff;
+    border-left: 3.5px solid #6366f1;
+    border-radius: 6px;
+    font-size: 10.5px;
+    color: #475569;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print-meta strong { color: #1e1b4b; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+  .dia-header { page-break-after: avoid !important; break-after: avoid !important; }
+  th, td { word-break: break-word; overflow-wrap: break-word; vertical-align: middle; }
+  th {
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    color: #ffffff;
+    padding: 7px 5px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   th:first-child { border-radius: 6px 0 0 0; }
   th:last-child { border-radius: 0 6px 0 0; }
-  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9.5px; font-weight: 700; white-space: nowrap; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   .tag-green { background: #dcfce7; color: #16a34a; }
   .tag-fucsia { background: #fdf2f8; color: #d946ef; }
   .tag-gray { background: #f1f5f9; color: #64748b; }
   .tag-purple { background: #f3e8ff; color: #a855f7; }
   tr.sin-eventos td { background: #fafafa; }
-  .print-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
+  .print-footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
 </style></head>
 <body>
   <div class="print-header">
-    <img src="/Oficial_JDL_acua.png" alt="Logo" onerror="this.style.display='none'" />
+    <div class="print-brand">
+      <div class="print-logo-circle">
+        <img src="/logo.png" alt="JDL" class="print-logo-img" onerror="this.src='/Oficial_JDL_acua.png'" />
+      </div>
+      <div class="print-title-group">
+        <h1 class="print-main-title">INFORME DE OCUPACIÓN SEMANAL</h1>
+        <p class="print-sub-title">CONTROL OPERATIVO Y SERVICIOS • JARDINES DEL LAGO</p>
+      </div>
+    </div>
+    <div class="print-period-badge">
+      <div class="print-month-pill">${mesLabel}</div>
+      <div class="print-week-range">${rangoSemanaTexto}</div>
+    </div>
   </div>
   <div class="print-meta">
-    <span>Impreso por: <strong>${userName}</strong></span>
-    <span>Fecha y hora: <strong>${printTimestamp}</strong></span>
+    <span>📅 <strong>Período:</strong> ${rangoSemanaTexto}</span>
+    <span>👤 <strong>Impreso por:</strong> ${userName}</span>
+    <span>🕒 <strong>Fecha y hora:</strong> ${printTimestamp}</span>
   </div>
   <table>
+    <colgroup>
+      <col style="width: 78px;" />
+      <col style="width: 82px;" />
+      <col style="width: 250px;" />
+      <col style="width: 130px;" />
+      <col style="width: 95px;" />
+      <col style="width: 48px;" />
+      <col style="width: 42px;" />
+      <col style="width: 48px;" />
+      <col style="width: 42px;" />
+      <col style="width: 48px;" />
+      <col style="width: 42px;" />
+      <col style="width: 38px;" />
+      <col style="width: 145px;" />
+    </colgroup>
     <thead><tr>
-      <th>Día</th><th>Estado</th><th>Institución</th><th>Salón</th><th>Horario</th><th>Pax</th><th title="Cantidad Desayunos">Des.</th><th title="Cantidad Refacciones AM">Ref.AM</th><th title="Cantidad Almuerzos">Alm.</th><th title="Cantidad Refacciones PM">Ref.PM</th><th title="Cantidad Cenas">Cenas</th><th>Alertas</th><th>Vendedor</th>
+      <th>Día</th>
+      <th>Estado</th>
+      <th>Institución</th>
+      <th>Salón</th>
+      <th>Horario</th>
+      <th style="text-align:center;">Pax</th>
+      <th style="text-align:center;" title="Cantidad Desayunos">Des.</th>
+      <th style="text-align:center;" title="Cantidad Refacciones AM">Ref.AM</th>
+      <th style="text-align:center;" title="Cantidad Almuerzos">Alm.</th>
+      <th style="text-align:center;" title="Cantidad Refacciones PM">Ref.PM</th>
+      <th style="text-align:center;" title="Cantidad Cenas">Cenas</th>
+      <th style="text-align:center;">Alertas</th>
+      <th>Vendedor</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>
-  <div class="print-footer">Documento generado por Jardines EMS — ${printTimestamp}</div>
+  <div class="print-footer">Documento generado por Jardines EMS • ${mesLabel} — ${printTimestamp}</div>
 </body></html>`;
   };
 
@@ -672,7 +889,7 @@ export default function Kanban() {
 
     // Crear un contenedor oculto para renderizar el HTML
     const container = document.createElement('div');
-    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:1200px;background:#fff;z-index:-1;';
+    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:1100px;background:#fff;z-index:-1;padding:0;margin:0;';
     container.innerHTML = html;
     document.body.appendChild(container);
 
@@ -684,34 +901,157 @@ export default function Kanban() {
         return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
       }));
 
+      const scale = 2;
       const canvas = await html2canvas(container, {
-        scale: 2,
+        scale,
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
-        width: 1200,
+        width: 1100,
         logging: false,
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const { default: jsPDF } = await import('jspdf');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pageW = pdf.internal.pageSize.getWidth();  // 210 mm
+      const pageH = pdf.internal.pageSize.getHeight(); // 297 mm
+      const marginMm = 10; // 10 mm de margen uniforme en todos los bordes
+      const usableW = pageW - marginMm * 2;  // 190 mm
+      const usableH = pageH - marginMm * 2;  // 277 mm
 
-      let heightLeft = pdfHeight;
-      let position = 0;
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      const mmPerPx = usableW / canvas.width;
+      const maxPageCanvasH = usableH / mmPerPx; // altura máxima en px de canvas por hoja
 
-      // Primera página
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
+      // Medir coordenadas de elementos sobre el contenedor para cortes limpios entre filas
+      const containerRect = container.getBoundingClientRect();
+      const cTop = containerRect.top;
+      const canvasRatio = canvas.height / containerRect.height;
 
-      // Páginas adicionales si el contenido es más largo que una hoja
-      while (heightLeft > 0) {
-        position = heightLeft - pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
+      // Medir thead para poder repetirlo en páginas 2+
+      const theadEl = container.querySelector('thead');
+      let theadTop = 0;
+      let theadBottom = 0;
+      let theadH = 0;
+      if (theadEl) {
+        const thRect = theadEl.getBoundingClientRect();
+        theadTop = Math.max(0, Math.round((thRect.top - cTop) * canvasRatio));
+        theadBottom = Math.min(canvas.height, Math.round((thRect.bottom - cTop) * canvasRatio));
+        theadH = theadBottom - theadTop;
+      }
+
+      // Medir cada fila (tr) de tbody
+      const trEls = Array.from(container.querySelectorAll('tbody tr'));
+      const rowBounds = trEls.map(tr => {
+        const r = tr.getBoundingClientRect();
+        return {
+          isDayHeader: tr.classList.contains('dia-header'),
+          top: Math.round((r.top - cTop) * canvasRatio),
+          bottom: Math.round((r.bottom - cTop) * canvasRatio),
+          height: Math.round(r.height * canvasRatio),
+        };
+      }).filter(r => r.height > 0);
+
+      let isFirstPage = true;
+      let currentRowIdx = 0;
+
+      if (rowBounds.length === 0) {
+        const imgData = canvas.toDataURL('image/png');
+        const sliceH = Math.min(canvas.height, maxPageCanvasH);
+        pdf.addImage(imgData, 'PNG', marginMm, marginMm, usableW, sliceH * mmPerPx);
+      } else {
+        while (currentRowIdx < rowBounds.length) {
+          if (!isFirstPage) {
+            pdf.addPage();
+          }
+
+          if (isFirstPage) {
+            // Página 1: incluye el encabezado institucional, metadata, thead y las primeras filas
+            const startCanvasY = 0;
+            let endRowIdx = currentRowIdx;
+
+            while (endRowIdx < rowBounds.length) {
+              const nextRow = rowBounds[endRowIdx];
+              if (nextRow.bottom - startCanvasY > maxPageCanvasH) {
+                break;
+              }
+              endRowIdx++;
+            }
+
+            // Si no cupo ninguna fila (caso extremo), forzar al menos la primera
+            if (endRowIdx <= currentRowIdx) {
+              endRowIdx = currentRowIdx + 1;
+            } else if (endRowIdx < rowBounds.length) {
+              // Si la última fila que cabe es un título de día (dia-header), moverlo a la página siguiente
+              if (rowBounds[endRowIdx - 1]?.isDayHeader && (endRowIdx - 1 > currentRowIdx)) {
+                endRowIdx--;
+              }
+            }
+
+            const isLastBatch = (endRowIdx >= rowBounds.length);
+            const cutY = isLastBatch ? canvas.height : rowBounds[endRowIdx - 1].bottom;
+            const sliceH = cutY - startCanvasY;
+
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = sliceH;
+            const ctx = pageCanvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+            ctx.drawImage(canvas, 0, startCanvasY, canvas.width, sliceH, 0, 0, pageCanvas.width, sliceH);
+
+            const imgData = pageCanvas.toDataURL('image/png');
+            pdf.addImage(imgData, 'PNG', marginMm, marginMm, usableW, sliceH * mmPerPx);
+
+            currentRowIdx = endRowIdx;
+            isFirstPage = false;
+          } else {
+            // Páginas 2+: repetimos thead arriba y continuamos con las siguientes filas
+            const availCanvasH = maxPageCanvasH - theadH;
+            const startRowTop = (currentRowIdx > 0) ? rowBounds[currentRowIdx - 1].bottom : rowBounds[currentRowIdx].top;
+
+            let endRowIdx = currentRowIdx;
+            while (endRowIdx < rowBounds.length) {
+              const nextRow = rowBounds[endRowIdx];
+              if (nextRow.bottom - startRowTop > availCanvasH) {
+                break;
+              }
+              endRowIdx++;
+            }
+
+            if (endRowIdx <= currentRowIdx) {
+              endRowIdx = currentRowIdx + 1;
+            } else if (endRowIdx < rowBounds.length) {
+              if (rowBounds[endRowIdx - 1]?.isDayHeader && (endRowIdx - 1 > currentRowIdx)) {
+                endRowIdx--;
+              }
+            }
+
+            const isLastBatch = (endRowIdx >= rowBounds.length);
+            const cutY = isLastBatch ? canvas.height : rowBounds[endRowIdx - 1].bottom;
+            const dataH = cutY - startRowTop;
+            const totalSliceH = theadH + dataH;
+
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = totalSliceH;
+            const ctx = pageCanvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+
+            // 1. Dibujar thead arriba
+            if (theadH > 0) {
+              ctx.drawImage(canvas, 0, theadTop, canvas.width, theadH, 0, 0, canvas.width, theadH);
+            }
+
+            // 2. Dibujar las filas de datos debajo del thead
+            ctx.drawImage(canvas, 0, startRowTop, canvas.width, dataH, 0, theadH, canvas.width, dataH);
+
+            const imgData = pageCanvas.toDataURL('image/png');
+            pdf.addImage(imgData, 'PNG', marginMm, marginMm, usableW, totalSliceH * mmPerPx);
+
+            currentRowIdx = endRowIdx;
+          }
+        }
       }
 
       const filename = `ocupacion-semana-${selectedDate}.pdf`;
@@ -719,7 +1059,9 @@ export default function Kanban() {
     } catch (err) {
       console.error('Error generando PDF:', err);
     } finally {
-      document.body.removeChild(container);
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
       setPdfLoading(false);
     }
   };
@@ -731,13 +1073,18 @@ export default function Kanban() {
     const printHtml = html
       .replace('</style>', `
   @media print {
+    @page { margin: 10mm; size: portrait; }
     body { padding: 0; }
     .no-print { display: none; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+    thead { display: table-header-group !important; }
+    .dia-header { page-break-after: avoid !important; break-after: avoid !important; }
   }
 </style>`)
       .replace('</body>', `
   <div class="no-print" style="text-align:center;margin-top:20px;">
-    <button onclick="window.print()" style="padding:10px 28px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Imprimir / PDF</button>
+    <button onclick="window.print()" style="padding:10px 28px;background:linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(99,102,241,0.3);">Imprimir / PDF</button>
     <button onclick="window.close()" style="padding:10px 28px;background:#e2e8f0;color:#475569;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-left:8px;">Cerrar</button>
   </div>
   <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
@@ -949,7 +1296,71 @@ export default function Kanban() {
       )}
 
       {!loading && !error && viewMode === 'tabla' && (
-        <div className="tabla-eventos-wrapper">
+        <div className="tabla-eventos-container">
+          <div className="tabla-header-banner" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            padding: '0.75rem 1.2rem',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(79, 70, 229, 0.03) 100%)',
+            border: '1px solid #e0e7ff',
+            borderLeft: '4px solid #6366f1',
+            borderRadius: '10px',
+            marginBottom: '0.75rem',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: 38,
+                height: 38,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                padding: '4px',
+                flexShrink: 0
+              }}>
+                <img src="/logo.png" alt="JDL" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#312e81', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                  Control de Ocupación Semanal
+                </h2>
+                <p style={{ margin: '1px 0 0', fontSize: '0.72rem', color: '#6366f1', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  JARDINES DEL LAGO • VISTA TABULAR DE EVENTOS
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{
+                background: '#f5f3ff',
+                border: '1.5px solid #ddd6fe',
+                color: '#4f46e5',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '6px',
+                letterSpacing: '0.04em'
+              }}>
+                {weekMeta.mesLabel}
+              </span>
+              <span style={{
+                background: '#ffffff',
+                border: '1px solid #c7d2fe',
+                color: '#3730a3',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '6px'
+              }}>
+                {weekMeta.rangoSemana}
+              </span>
+            </div>
+          </div>
+          <div className="tabla-eventos-wrapper">
           <table className="tabla-eventos"><thead><tr>
                 <th className="col-dia">Día</th>
                 <th className="col-estado">Estado</th>
@@ -1122,7 +1533,7 @@ export default function Kanban() {
                             </td>
                           </>
                         )}
-                        <td className="col-pax" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#1e40af'}}>
+                        <td className="col-pax" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#4f46e5'}}>
                           {dayTotals.pax}
                         </td>
                         <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.desayunos}</td>
@@ -1160,7 +1571,7 @@ export default function Kanban() {
                           </td>
                         </>
                       )}
-                      <td style={{fontSize:'0.82rem',fontWeight:900,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#1e40af'}}>
+                      <td style={{fontSize:'0.82rem',fontWeight:900,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#4338ca'}}>
                         {weeklyTotals.pax}
                       </td>
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.desayunos}</td>
@@ -1177,9 +1588,11 @@ export default function Kanban() {
                         </>
                       )}
                     </tr>
-                  ) : []
+                  ) : null
                 );
-              })()}</tbody></table>
+              })()}
+            </tbody></table>
+          </div>
         </div>
       )}
       {pdfLoading && <LoadingSpinner mensaje="Generando PDF..." />}
