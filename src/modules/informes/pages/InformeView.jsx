@@ -357,14 +357,6 @@ export default function InformeView() {
     const marginMm = 10; // 1 cm
     const usableW = pageW - marginMm * 2;
     const usableH = pageH - marginMm * 2;
-
-    // Ancho objetivo del documento en el clon: el ancho útil de la página
-    // A4 expresado en px a 96dpi (190mm ≈ 718px). Con esto el canvas se
-    // captura SIEMPRE a ancho de página y la escala del PDF es 1:1
-    // (1px CSS = 1/96in), sin importar el ancho de la ventana actual.
-    // Antes el documento se estiraba/comprimía según la ventana (en
-    // móvil/ventana angosta el texto salía enorme y estirado; en
-    // escritorio salía ~15% más chico que en pantalla).
     const targetWidthPx = (usableW / 25.4) * 96;
 
     // Intervalos de contenido (líneas de texto y elementos no-divisibles)
@@ -640,8 +632,27 @@ export default function InformeView() {
     }
   };
 
-  const handleVolver = () => {
-    navigate(-1);
+  const handleVolver = (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    // 1. Si el usuario navegó desde otra vista dentro del CRM, retroceder exactamente a donde estaba
+    if (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) {
+      navigate(-1);
+      return;
+    }
+    // 2. Si se recargó la página o se abrió directamente, volver a la vista anterior recordada o a Ocupación
+    let lastRoute = null;
+    try {
+      lastRoute = sessionStorage.getItem('informes_last_parent_route');
+    } catch {}
+
+    if (lastRoute && !lastRoute.startsWith('/informe/')) {
+      navigate(lastRoute);
+    } else {
+      // Por defecto siempre volver al Tablero de Ocupación (/kanban)
+      navigate('/kanban');
+    }
   };
 
   // Botones de acción para el header (segunda línea)
@@ -1516,8 +1527,8 @@ export default function InformeView() {
             bottom: 0,
             left: 0,
             right: 0,
-            width: '100vw',
-            maxWidth: '100vw',
+            width: '100%',
+            maxWidth: '100%',
             zIndex: 99995,
             display: 'flex',
             flexDirection: 'row',
@@ -1559,6 +1570,8 @@ export default function InformeView() {
               color: '#64748b',
               cursor: 'pointer',
               padding: '2px 0',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'rgba(0,0,0,0.05)',
             }}
             title="Volver"
           >

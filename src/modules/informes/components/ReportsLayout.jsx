@@ -8,6 +8,7 @@ import SearchBar from './SearchBar.jsx';
 import PwaInstallBanner from './PwaInstallBanner.jsx';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import {
+  IconArrowLeft,
   IconGrid,
   IconHome,
   IconMoon,
@@ -39,8 +40,23 @@ export default function ReportsLayout() {
   // Auto-ocultar el botón flotante de menú al scrollear hacia abajo
   const [fabVisible, setFabVisible] = useState(true);
   const [informeActions, setInformeActions] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
   const lastScrollY = useRef(0);
   const hideTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const updateMobile = (e) => setIsMobile(e.matches);
+    setIsMobile(mq.matches);
+    if (mq.addEventListener) {
+      mq.addEventListener('change', updateMobile);
+      return () => mq.removeEventListener('change', updateMobile);
+    } else {
+      mq.addListener(updateMobile);
+      return () => mq.removeListener(updateMobile);
+    }
+  }, []);
 
   // Safety net: restaurar scroll del body al montar/desmontar
   useEffect(() => {
@@ -105,6 +121,14 @@ export default function ReportsLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isInformeView && location.pathname !== '/login') {
+      try {
+        sessionStorage.setItem('informes_last_parent_route', location.pathname + location.search);
+      } catch {}
+    }
+  }, [location.pathname, location.search, isInformeView]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -112,6 +136,28 @@ export default function ReportsLayout() {
 
   const handleExitReports = () => {
     navigate('/calendar');
+  };
+
+  const handleVolver = (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    if (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) {
+      navigate(-1);
+      return;
+    }
+    let lastRoute = null;
+    try {
+      lastRoute = sessionStorage.getItem('informes_last_parent_route');
+    } catch {}
+
+    if (lastRoute && lastRoute !== location.pathname) {
+      navigate(lastRoute);
+    } else if (location.pathname === '/informes') {
+      handleExitReports();
+    } else {
+      navigate('/kanban');
+    }
   };
 
   return (
@@ -313,32 +359,54 @@ export default function ReportsLayout() {
             <p className="brand-sub">Gestión de Eventos</p>
           </div>
         </div>
-        <nav className="app-nav">
-          <NavLink
-            to="/informes"
-            end
-            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-          >
-            <IconHome size={16} /> <span className="nav-text">Dashboard</span>
-          </NavLink>
-          <NavLink
-            to="/kanban"
-            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-          >
-            <IconGrid size={16} /> <span className="nav-text">Ocupación</span>
-          </NavLink>
+        <nav className="app-nav" aria-label="Navegación principal">
+          {isMobile ? (
+            <button
+              type="button"
+              onClick={handleVolver}
+              className="nav-link nav-btn-back"
+              title="Volver"
+              aria-label="Volver"
+            >
+              <IconArrowLeft size={16} /> <span className="nav-text">Volver</span>
+            </button>
+          ) : (
+            <>
+              <NavLink
+                to="/informes"
+                end
+                className={({ isActive }) => (isActive ? 'nav-link nav-link-dashboard active' : 'nav-link nav-link-dashboard')}
+                title="Dashboard"
+                aria-label="Dashboard"
+              >
+                <IconHome size={16} /> <span className="nav-text">Dashboard</span>
+              </NavLink>
+              <NavLink
+                to="/kanban"
+                className={({ isActive }) => (isActive ? 'nav-link nav-link-kanban active' : 'nav-link nav-link-kanban')}
+                title="Ocupación"
+                aria-label="Ocupación"
+              >
+                <IconGrid size={16} /> <span className="nav-text">Ocupación</span>
+              </NavLink>
+            </>
+          )}
           {canManageCatalog && (
             <>
               <NavLink
                 to="/catalog"
-                className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                className={({ isActive }) => (isActive ? 'nav-link nav-link-catalog active' : 'nav-link nav-link-catalog')}
+                title="Catálogo"
+                aria-label="Catálogo"
               >
                 <IconPackage size={16} /> <span className="nav-text">Catálogo</span>
               </NavLink>
 
               <NavLink
                 to="/config"
-                className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                className={({ isActive }) => (isActive ? 'nav-link nav-link-config active' : 'nav-link nav-link-config')}
+                title="Configuración"
+                aria-label="Configuración"
               >
                 <IconSettings size={16} /> <span className="nav-text">Config</span>
               </NavLink>
@@ -459,9 +527,10 @@ export default function ReportsLayout() {
               flex-wrap: nowrap !important;
             }
             .informes-shell .header-search-container {
-              grid-column: 1 / -1 !important;
+              grid-column: 1 !important;
               grid-row: 2 !important;
               width: 100% !important;
+              min-width: 0 !important;
             }
             .informes-shell .informe-actions-bar {
               width: 100% !important;
@@ -476,19 +545,24 @@ export default function ReportsLayout() {
               display: none !important;
             }
             .informes-shell.is-informe-view .app-header {
+              position: relative !important;
+              top: auto !important;
+              left: auto !important;
+              right: auto !important;
+              width: auto !important;
+              margin: 0.45rem 0.45rem 0.35rem 0.45rem !important;
+              border-radius: 8px !important;
               padding: 0.35rem 0.65rem !important;
-              margin-bottom: 0.2rem !important;
               gap: 0 !important;
             }
             .informes-shell.is-informe-view .header-top-row {
-              grid-template-rows: auto !important;
-              gap: 0 !important;
+              grid-template-rows: auto auto !important;
+              gap: 0.3rem !important;
             }
-            .informes-shell.is-informe-view .mobile-hamburger-btn {
-              bottom: 84px !important;
-            }
-            .informes-shell.is-informe-view .informe-print-container {
-              padding-bottom: 95px !important;
+            .informes-shell.is-informe-view .mobile-hamburger-btn,
+            body:has(.kanban-mobile-bottom-bar) .mobile-hamburger-btn {
+              right: 0.45rem !important;
+              bottom: calc(56px + max(16px, env(safe-area-inset-bottom, 16px)) + 10px) !important;
             }
             .informes-shell .header-search-container > div {
               min-width: 0 !important;
@@ -507,8 +581,79 @@ export default function ReportsLayout() {
               background: transparent !important;
               margin-top: 0 !important;
             }
-            /* Ocultar navegación en móvil — está en el drawer */
+            /* Navegación móvil: alineada en la misma fila con la barra de búsqueda */
             .informes-shell .app-nav {
+              grid-column: 2 !important;
+              grid-row: 2 !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: flex-end !important;
+              gap: 6px !important;
+              width: auto !important;
+              overflow-x: visible !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              scrollbar-width: none !important;
+              -ms-overflow-style: none !important;
+              -webkit-overflow-scrolling: touch !important;
+            }
+            .informes-shell.is-informe-view .app-nav {
+              grid-column: 1 / -1 !important;
+              justify-content: center !important;
+            }
+            .informes-shell .app-nav::-webkit-scrollbar {
+              display: none !important;
+            }
+            .informes-shell .app-nav .nav-link {
+              display: inline-flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              padding: 0 !important;
+              border-radius: 8px !important;
+              width: 34px !important;
+              min-width: 34px !important;
+              height: 34px !important;
+              min-height: 34px !important;
+              flex-shrink: 0 !important;
+              border: 1px solid var(--border, #e2e8f0) !important;
+              background: var(--bg-card, #ffffff) !important;
+              color: var(--text-secondary, #64748b) !important;
+              box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+              text-decoration: none !important;
+              cursor: pointer !important;
+              transition: all 0.15s ease !important;
+            }
+            /* En móvil: Ocultar Dashboard (inicio) y Ocupación; Mostrar Volver, Catálogo y Config */
+            .informes-shell .app-nav .nav-link-dashboard,
+            .informes-shell .app-nav .nav-link-kanban,
+            .informes-shell .app-nav a.nav-link-dashboard,
+            .informes-shell .app-nav a.nav-link-kanban {
+              display: none !important;
+            }
+            .informes-shell .app-nav .nav-btn-back {
+              display: inline-flex !important;
+            }
+            .informes-shell .app-nav .nav-link-catalog,
+            .informes-shell .app-nav .nav-link-config {
+              display: inline-flex !important;
+            }
+            .informes-shell .app-nav .nav-link svg {
+              width: 15px !important;
+              height: 15px !important;
+            }
+            .informes-shell .app-nav .nav-link:hover {
+              background: var(--bg-hover, #f1f5f9) !important;
+              color: var(--text-primary, #0f172a) !important;
+            }
+            .informes-shell .app-nav .nav-link:active {
+              transform: scale(0.94);
+            }
+            .informes-shell .app-nav .nav-link.active {
+              background: var(--primary-bg, rgba(99, 102, 241, 0.12)) !important;
+              border-color: var(--primary-light, rgba(99, 102, 241, 0.4)) !important;
+              color: var(--primary, #4f46e5) !important;
+            }
+            .informes-shell .app-nav .nav-text {
               display: none !important;
             }
             /* Header-left más compacto */
@@ -966,6 +1111,9 @@ export default function ReportsLayout() {
           align-items: center;
           gap: 0.25rem;
           flex-shrink: 0;
+        }
+        .app-nav .nav-btn-back {
+          display: none !important;
         }
         .header-controls {
           display: flex;

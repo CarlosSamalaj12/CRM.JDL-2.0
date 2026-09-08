@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -1482,10 +1483,10 @@ export default function Kanban() {
                 <IconLayers size={20} color="#ffffff" strokeWidth={2.3} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#4f46e5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '9.5px', fontWeight: 650, color: '#4f46e5', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   JARDINES DEL LAGO
                 </span>
-                <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
                   Ocupación Semanal
                 </span>
               </div>
@@ -1617,23 +1618,23 @@ export default function Kanban() {
               onClick={() => setViewMode('kanban')}
               style={{
                 flex: 1,
-                padding: '7px 4px',
+                padding: '6px 4px',
                 borderRadius: '9px',
                 border: 'none',
                 background: viewMode === 'kanban' ? '#ffffff' : 'transparent',
                 color: viewMode === 'kanban' ? '#4f46e5' : '#64748b',
-                fontWeight: viewMode === 'kanban' ? 800 : 600,
-                fontSize: '12.5px',
+                fontWeight: viewMode === 'kanban' ? 700 : 500,
+                fontSize: '12px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '6px',
+                gap: '5px',
                 cursor: 'pointer',
                 boxShadow: viewMode === 'kanban' ? '0 1px 3px rgba(79,70,229,0.12), 0 1px 2px rgba(0,0,0,0.05)' : 'none',
                 transition: 'all 0.15s ease',
               }}
             >
-              <IconGrid size={13} strokeWidth={2.4} />
+              <IconGrid size={13} strokeWidth={2.2} />
               Ocupación
             </button>
 
@@ -1642,23 +1643,23 @@ export default function Kanban() {
               onClick={() => setViewMode('tabla')}
               style={{
                 flex: 1,
-                padding: '7px 4px',
+                padding: '6px 4px',
                 borderRadius: '9px',
                 border: 'none',
                 background: viewMode === 'tabla' ? '#ffffff' : 'transparent',
                 color: viewMode === 'tabla' ? '#4f46e5' : '#64748b',
-                fontWeight: viewMode === 'tabla' ? 800 : 600,
-                fontSize: '12.5px',
+                fontWeight: viewMode === 'tabla' ? 700 : 500,
+                fontSize: '12px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '6px',
+                gap: '5px',
                 cursor: 'pointer',
                 boxShadow: viewMode === 'tabla' ? '0 1px 3px rgba(79,70,229,0.12), 0 1px 2px rgba(0,0,0,0.05)' : 'none',
                 transition: 'all 0.15s ease',
               }}
             >
-              <IconFileText size={13} strokeWidth={2.4} />
+              <IconFileText size={13} strokeWidth={2.2} />
               Lista / Tabla
             </button>
 
@@ -1667,23 +1668,23 @@ export default function Kanban() {
               onClick={() => setViewMode('tareas')}
               style={{
                 flex: 1,
-                padding: '7px 4px',
+                padding: '6px 4px',
                 borderRadius: '9px',
                 border: 'none',
                 background: viewMode === 'tareas' ? '#ffffff' : 'transparent',
                 color: viewMode === 'tareas' ? '#4f46e5' : '#64748b',
-                fontWeight: viewMode === 'tareas' ? 800 : 600,
-                fontSize: '12.5px',
+                fontWeight: viewMode === 'tareas' ? 700 : 500,
+                fontSize: '12px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '6px',
+                gap: '5px',
                 cursor: 'pointer',
                 boxShadow: viewMode === 'tareas' ? '0 1px 3px rgba(79,70,229,0.12), 0 1px 2px rgba(0,0,0,0.05)' : 'none',
                 transition: 'all 0.15s ease',
               }}
             >
-              <IconClipboardList size={13} strokeWidth={2.4} />
+              <IconClipboardList size={13} strokeWidth={2.2} />
               Tareas
             </button>
           </div>
@@ -1699,17 +1700,17 @@ export default function Kanban() {
           }}>
             <div>
               <div style={{
-                fontSize: '10.5px',
-                fontWeight: 800,
+                fontSize: '9.5px',
+                fontWeight: 700,
                 color: '#64748b',
-                letterSpacing: '0.05em',
+                letterSpacing: '0.04em',
                 textTransform: 'uppercase',
               }}>
                 {weekMeta.mesLabel}
               </div>
               <div style={{
-                fontSize: '13.5px',
-                fontWeight: 800,
+                fontSize: '12px',
+                fontWeight: 700,
                 color: '#0f172a',
                 letterSpacing: '-0.01em',
                 marginTop: '1px',
@@ -1756,8 +1757,8 @@ export default function Kanban() {
                 alignItems: 'center',
                 gap: '4px',
                 padding: '0 6px',
-                fontSize: '12px',
-                fontWeight: 700,
+                fontSize: '11px',
+                fontWeight: 650,
                 color: '#1e293b',
               }}>
                 <span>{formattedPickerDate}</span>
@@ -1827,18 +1828,18 @@ export default function Kanban() {
                   type="button"
                   onClick={() => setMobileDayIndex(i)}
                   style={{
-                    flex: '1 0 44px',
-                    minWidth: '44px',
-                    height: '68px',
-                    padding: '6px 2px',
-                    borderRadius: '13px',
+                    flex: '1 0 42px',
+                    minWidth: '42px',
+                    height: '62px',
+                    padding: '5px 2px',
+                    borderRadius: '11px',
                     border: isSelected ? '1.5px solid #4338ca' : '1px solid #e2e8f0',
                     background: isSelected
                       ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
                       : '#ffffff',
                     color: isSelected ? '#ffffff' : '#0f172a',
                     boxShadow: isSelected
-                      ? '0 4px 14px rgba(79, 70, 229, 0.35)'
+                      ? '0 3px 10px rgba(79, 70, 229, 0.3)'
                       : '0 1px 2px rgba(0,0,0,0.02)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -1849,17 +1850,17 @@ export default function Kanban() {
                   }}
                 >
                   <span style={{
-                    fontSize: '9.5px',
-                    fontWeight: 800,
-                    letterSpacing: '0.04em',
-                    color: isSelected ? 'rgba(255,255,255,0.85)' : '#64748b',
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    letterSpacing: '0.03em',
+                    color: isSelected ? 'rgba(255,255,255,0.9)' : '#64748b',
                   }}>
                     {shortDay}
                   </span>
 
                   <span style={{
-                    fontSize: '15.5px',
-                    fontWeight: 800,
+                    fontSize: '13.5px',
+                    fontWeight: 700,
                     lineHeight: 1,
                     color: isSelected ? '#ffffff' : '#0f172a',
                   }}>
@@ -1869,12 +1870,12 @@ export default function Kanban() {
                   <span style={{
                     background: isSelected ? '#ffffff' : '#f1f5f9',
                     color: isSelected ? '#4338ca' : '#475569',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    padding: '1px 6px',
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    padding: '1px 5px',
                     borderRadius: '999px',
                     lineHeight: 1.2,
-                    minWidth: '16px',
+                    minWidth: '15px',
                     textAlign: 'center',
                   }}>
                     {isSelected ? `${count} ev` : count}
@@ -1966,7 +1967,7 @@ events={events}
 
       {!loading && !error && viewMode === 'tabla' && (
         isMobileView ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', paddingBottom: '95px' }}>
             {/* Header del Día Seleccionado: Programación del día + Eventos + Pax */}
             <div style={{
               display: 'flex',
@@ -2029,83 +2030,133 @@ events={events}
               </div>
             </div>
 
-            {/* Barra de Acciones de Exportación / PDF Móvil */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '8px',
-              padding: '2px 0 6px',
-            }}>
-              <button
-                type="button"
-                onClick={exportToPdf}
-                disabled={pdfLoading}
+            {/* ─── BARRA INFERIOR DE ACCIONES EN MÓVIL (PORTAL AL BODY) ─── */}
+            {typeof document !== 'undefined' && createPortal(
+              <div
+                className="iv-mobile-bottom-bar kanban-mobile-bottom-bar no-print"
                 style={{
+                  position: 'fixed',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  width: '100%',
+                  maxWidth: '100%',
+                  zIndex: 99995,
                   display: 'flex',
+                  flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '9px 6px',
-                  borderRadius: '10px',
-                  border: '1px solid #c7d2fe',
-                  background: '#eef2ff',
-                  color: '#4338ca',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(79, 70, 229, 0.08)',
+                  justifyContent: 'space-around',
+                  gap: '8px',
+                  background: 'rgba(255, 255, 255, 0.97)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  borderTop: '1px solid rgba(226, 232, 240, 0.95)',
+                  boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.12)',
+                  paddingTop: '6px',
+                  paddingBottom: 'max(14px, env(safe-area-inset-bottom, 14px))',
+                  paddingLeft: 'max(12px, env(safe-area-inset-left, 12px))',
+                  paddingRight: 'max(12px, env(safe-area-inset-right, 12px))',
+                  boxSizing: 'border-box',
+                  transform: 'translateZ(0)',
+                  WebkitTransform: 'translateZ(0)',
+                  willChange: 'transform',
                 }}
               >
-                <IconFileText size={15} color="#4338ca" strokeWidth={2.3} />
-                <span>{pdfLoading ? 'Generando...' : 'Descargar PDF'}</span>
-              </button>
+                {/* 1. Descargar PDF */}
+                <button
+                  type="button"
+                  onClick={exportToPdf}
+                  disabled={pdfLoading}
+                  className="iv-mob-btn iv-mob-btn-pdf"
+                  title="Descargar PDF"
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    height: '42px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(79, 70, 229, 0.25)',
+                    background: 'rgba(79, 70, 229, 0.08)',
+                    color: '#4338ca',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2px',
+                    cursor: pdfLoading ? 'wait' : 'pointer',
+                    padding: '2px 0',
+                    opacity: pdfLoading ? 0.7 : 1,
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  <IconFileText size={17} color="#4338ca" strokeWidth={2.2} />
+                  <span className="iv-mob-label" style={{ color: '#4338ca', fontWeight: 700 }}>
+                    {pdfLoading ? 'PDF...' : 'Descargar PDF'}
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={exportToExcel}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '9px 6px',
-                  borderRadius: '10px',
-                  border: '1px solid #a7f3d0',
-                  background: '#ecfdf5',
-                  color: '#065f46',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(5, 150, 105, 0.08)',
-                }}
-              >
-                <IconDownload size={15} color="#065f46" strokeWidth={2.3} />
-                <span>Exportar Excel</span>
-              </button>
+                {/* 2. Exportar Excel */}
+                <button
+                  type="button"
+                  onClick={exportToExcel}
+                  className="iv-mob-btn"
+                  title="Exportar Excel"
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    height: '42px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(5, 150, 105, 0.25)',
+                    background: 'rgba(5, 150, 105, 0.08)',
+                    color: '#065f46',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2px',
+                    cursor: 'pointer',
+                    padding: '2px 0',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  <IconDownload size={17} color="#065f46" strokeWidth={2.2} />
+                  <span className="iv-mob-label" style={{ color: '#065f46', fontWeight: 700 }}>
+                    Exportar Excel
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handlePrint}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '9px 6px',
-                  borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#334155',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
-                }}
-              >
-                <IconPrinter size={15} color="#334155" strokeWidth={2.3} />
-                <span>Imprimir</span>
-              </button>
-            </div>
+                {/* 3. Imprimir */}
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="iv-mob-btn iv-mob-btn-print"
+                  title="Imprimir"
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    height: '42px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2px',
+                    cursor: 'pointer',
+                    padding: '2px 0',
+                    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  <IconPrinter size={17} color="#ffffff" strokeWidth={2.2} />
+                  <span className="iv-mob-label" style={{ color: '#ffffff', fontWeight: 700 }}>
+                    Imprimir
+                  </span>
+                </button>
+              </div>,
+              document.body
+            )}
 
             {/* Lista de Tarjetas Estilo Referencia para Lista/Tabla en Móvil */}
             {dayEvents.length === 0 ? (

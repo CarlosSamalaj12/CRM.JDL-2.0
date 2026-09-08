@@ -183,8 +183,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [serviceSearch, setServiceSearch] = useState('');
   const [selectedCatalogService, setSelectedCatalogService] = useState(null);
   const [selectedServiceDate, setSelectedServiceDate] = useState('');
-  const [companySearchQuery, setCompanySearchQuery] = useState('');
+  const [companySearchQuery, setCompanySearchQuery] = useState(() => String(event?.quote?.companyName || event?.quote?.empresa || event?.empresa || '').trim());
   const [showCompanyResults, setShowCompanyResults] = useState(false);
+
+  useEffect(() => {
+    if (quote?.companyName && !companySearchQuery) {
+      setCompanySearchQuery(quote.companyName);
+    }
+  }, [quote?.companyName, companySearchQuery]);
   const [selectedItemIds, setSelectedItemIds] = useState(new Set());
   const [showDocPanel, setShowDocPanel] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
@@ -396,9 +402,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const unsubState = socketService.on('state-updated', async () => {
       try {
         const freshData = await loadCrmState({ cacheBust: true });
-        const currentEvId = String(event?.id || eventData?.id || eventProp?.id || '');
+        if (Array.isArray(freshData?.companies)) {
+          setCompanies(freshData.companies);
+        }
+        const currentEvId = String(event?.id || eventData?.id || eventProp?.id || '').trim();
         if (currentEvId) {
-          const freshEvent = (freshData?.events || []).find(e => String(e.id) === currentEvId || String(e.id_grupo) === currentEvId);
+          const freshEvent = (freshData?.events || []).find(e => (currentEvId && String(e.id || '').trim() === currentEvId) || (e.id_grupo && currentEvId && String(e.id_grupo).trim() === currentEvId));
           if (freshEvent?.quote?.advances) {
             setQuote(prev => ({
               ...prev,
@@ -501,15 +510,38 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     if (!term) return [];
     return companies.filter(c => c.name?.toLowerCase().includes(term) || c.nit?.toLowerCase().includes(term)).slice(0, 8);
   }, [companySearchQuery, companies]);
-  const selectedQuoteCompany = useMemo(
-    () => companies.find(c => String(c.id || '') === String(quote.companyId || '')) || null,
-    [companies, quote.companyId]
-  );
+  const selectedQuoteCompany = useMemo(() => {
+    if (quote.companyId) {
+      const byId = companies.find(c => String(c.id || '').trim() === String(quote.companyId).trim());
+      if (byId) return byId;
+    }
+    if (quote.companyName) {
+      const nameNorm = quote.companyName.trim().toLowerCase();
+      const byName = companies.find(c => String(c.name || '').trim().toLowerCase() === nameNorm);
+      if (byName) return byName;
+    }
+    return null;
+  }, [companies, quote.companyId, quote.companyName]);
 
   const applyCompanyManager = (company, managerId) => {
     if (!company) return;
     const managers = Array.isArray(company.managers) ? company.managers : [];
-    const manager = managers.find(m => String(m.id || '') === String(managerId || '')) || managers[0] || null;
+    const targetId = String(managerId || '').trim();
+    let manager = null;
+    if (targetId) {
+      manager = managers.find(m => String(m.id || '').trim() === targetId)
+        || managers.find(m => String(m.name || '').trim().toLowerCase() === targetId.toLowerCase())
+        || null;
+    }
+    if (!manager && !targetId && (quote.managerId || quote.contact)) {
+      manager = managers.find(m => String(m.id || '').trim() === String(quote.managerId || '').trim())
+        || managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())
+        || null;
+    }
+    if (!manager) {
+      manager = managers[0] || null;
+    }
+
     setQuote(prev => ({
       ...prev,
       companyId: company.id || prev.companyId,
@@ -521,32 +553,42 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       billTo: company.businessName || company.billTo || company.name || '',
       address: company.address || '',
       eventType: company.eventType || prev.eventType || 'Social',
-      managerId: manager?.id || '',
+      managerId: manager?.id || (manager ? manager.name : ''),
       managerName: manager?.name || '',
       dueDate: prev.eventDate ? calculateDueDate(prev.eventDate) : prev.dueDate
     }));
   };
 
   const handleCompanySelect = (c) => {
-    applyCompanyManager(c, c.managers?.[0]?.id || '');
+    let targetMgrId = '';
+    if (Array.isArray(c.managers) && c.managers.length > 0) {
+      const matchByName = c.managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase());
+      targetMgrId = matchByName?.id || c.managers[0]?.id || '';
+    }
+    applyCompanyManager(c, targetMgrId);
     setCompanySearchQuery(c.name);
     setShowCompanyResults(false);
   };
 
   const openCreateCompanyModal = () => {
-    const existing = quote.companyId ? companies.find(c => String(c.id || '') === String(quote.companyId || '')) : null;
+    const existing = quote.companyId
+      ? companies.find(c => String(c.id || '').trim() === String(quote.companyId).trim())
+      : (quote.companyName ? companies.find(c => String(c.name || '').trim().toLowerCase() === quote.companyName.trim().toLowerCase()) : null);
+    
+    const targetCompanyId = existing?.id || quote.companyId || '';
     const initialManagers = existing?.managers?.length
-      ? existing.managers
+      ? existing.managers.map(m => ({ ...m }))
       : (quote.contact || quote.managerName ? [{
-          id: quote.managerId || `mgr_${Date.now()}`,
+          id: quote.managerId || `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           name: quote.contact || quote.managerName || '',
           phone: quote.phone || '',
           email: quote.email || '',
           address: quote.address || ''
         }] : []);
-    setCompanyDraftId(existing?.id || '');
+
+    setCompanyDraftId(targetCompanyId);
     setCompanyDraft({
-      name: existing?.name || companySearchQuery || quote.companyName || '',
+      name: existing?.name || quote.companyName || companySearchQuery || '',
       owner: existing?.owner || quote.contact || quote.managerName || '',
       email: existing?.email || quote.email || '',
       nit: existing?.nit || quote.nit || '',
@@ -556,7 +598,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       phone: existing?.phone || quote.phone || '',
       notes: existing?.notes || ''
     });
-    setCompanyDraftActive(true);
+    setCompanyDraftActive(existing ? existing.active !== false : true);
     setCompanyManagersDraft(initialManagers);
     setManagerDraft(emptyManagerDraft);
     setEditingManagerId('');
@@ -654,20 +696,36 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
     setCreatingCompany(true);
     try {
-      const currentState = await loadCrmState();
+      const currentState = await loadCrmState({ cacheBust: true });
       const currentCompanies = Array.isArray(currentState.companies) ? currentState.companies : [];
-      const existingIndex = currentCompanies.findIndex((item) => {
-        const sameNit = clean.nit && String(item.nit || '').trim().toLowerCase() === clean.nit.toLowerCase();
-        const sameName = String(item.name || '').trim().toLowerCase() === clean.name.toLowerCase();
-        const sameId = companyDraftId && String(item.id || '') === String(companyDraftId);
-        return sameId || sameNit || sameName;
-      });
+
+      // 1. Coincidencia estricta por ID si existe companyDraftId
+      let existingIndex = -1;
+      if (companyDraftId) {
+        existingIndex = currentCompanies.findIndex(item => String(item.id || '').trim() === String(companyDraftId).trim());
+      }
+      // 2. Si no hay companyDraftId, buscar por nombre exacto normalizado
+      if (existingIndex < 0 && !companyDraftId) {
+        const nameLower = clean.name.toLowerCase();
+        existingIndex = currentCompanies.findIndex(item => String(item.name || '').trim().toLowerCase() === nameLower);
+      }
+
       const baseCompany = existingIndex >= 0 ? currentCompanies[existingIndex] : null;
+      const targetCompanyId = baseCompany?.id || companyDraftId || `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+      const savedManagers = companyManagersDraft.map((manager, index) => ({
+        id: String(manager.id || `mgr_${Date.now()}_${index}`).trim(),
+        name: String(manager.name || '').trim(),
+        phone: String(manager.phone || '').trim(),
+        email: String(manager.email || '').trim(),
+        address: String(manager.address || '').trim()
+      })).filter(manager => manager.name);
+
       const savedCompany = {
         ...(baseCompany || {}),
-        id: baseCompany?.id || companyDraftId || `cmp_${Date.now()}`,
+        id: targetCompanyId,
         name: clean.name,
-        owner: clean.owner || companyManagersDraft[0]?.name || '',
+        owner: clean.owner || savedManagers[0]?.name || '',
         email: clean.email,
         nit: clean.nit,
         businessName: clean.businessName || clean.name,
@@ -676,14 +734,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         address: clean.address,
         phone: clean.phone,
         notes: clean.notes,
-        managers: companyManagersDraft.map((manager, index) => ({
-          id: manager.id || `mgr_${Date.now()}_${index}`,
-          name: String(manager.name || '').trim(),
-          phone: String(manager.phone || '').trim(),
-          email: String(manager.email || '').trim(),
-          address: String(manager.address || '').trim()
-        })).filter(manager => manager.name)
+        managers: savedManagers
       };
+
+      // Conservar el encargado que se estaba editando o el que ya estaba en la cotización
+      const preferredManagerId = editingManagerId || quote.managerId;
+      const matchedManager = savedManagers.find(m => String(m.id || '').trim() === String(preferredManagerId || '').trim())
+        || savedManagers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())
+        || savedManagers[0]
+        || null;
+
       const nextCompanies = existingIndex >= 0
         ? currentCompanies.map((item, idx) => idx === existingIndex ? savedCompany : item)
         : [...currentCompanies, savedCompany];
@@ -694,17 +754,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       await saveCrmState({ ...currentState, companies: nextCompanies, disabledCompanies: Array.from(nextDisabledCompanies) });
 
       setCompanies(nextCompanies);
-      handleCompanySelect(savedCompany);
+      applyCompanyManager(savedCompany, matchedManager?.id || matchedManager?.name || '');
+      setCompanySearchQuery(savedCompany.name);
+      setShowCompanyResults(false);
       resetCreateCompanyModal();
       localSwal({
         icon: 'success',
         title: existingIndex >= 0 ? 'Empresa actualizada' : 'Empresa agregada',
-        text: 'La empresa quedó asociada al encargado seleccionado.',
+        text: 'La empresa y su encargado quedaron asociados a esta cotización.',
         timer: 1800,
         showConfirmButton: false
       });
     } catch (err) {
-      console.error('Error creando empresa:', err);
+      console.error('Error creando/actualizando empresa:', err);
       localSwal({ icon: 'error', title: 'Error', text: 'No se pudo guardar la empresa.' });
     } finally {
       setCreatingCompany(false);
@@ -4370,7 +4432,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         <label style={fieldLabel}>Encargado de la empresa</label>
                         <select
                           style={fieldSelect}
-                          value={quote.managerId || selectedQuoteCompany.managers[0]?.id || ''}
+                          value={
+                            selectedQuoteCompany.managers.some(m => String(m.id || '') === String(quote.managerId || ''))
+                              ? String(quote.managerId)
+                              : selectedQuoteCompany.managers.some(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())
+                              ? (selectedQuoteCompany.managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())?.id || selectedQuoteCompany.managers[0]?.id || '')
+                              : selectedQuoteCompany.managers[0]?.id || ''
+                          }
                           onChange={e => applyCompanyManager(selectedQuoteCompany, e.target.value)}
                         >
                           {selectedQuoteCompany.managers.map(manager => (

@@ -41,7 +41,7 @@ export default function SettingsEmpresas({ inline, onBack }) {
   );
 
   const reloadData = async () => {
-    const crmState = await loadCrmState();
+    const crmState = await loadCrmState({ cacheBust: true });
     setStateSnapshot(crmState);
     setCompanies(Array.isArray(crmState.companies) ? crmState.companies : []);
     setDisabledCompanies(Array.isArray(crmState.disabledCompanies) ? crmState.disabledCompanies.map(String) : []);
@@ -198,7 +198,8 @@ export default function SettingsEmpresas({ inline, onBack }) {
 
     setSaving(true);
     try {
-      const nextState = { ...(stateSnapshot || await loadCrmState()) };
+      const freshState = await loadCrmState({ cacheBust: true });
+      const nextState = { ...freshState };
       const currentCompanies = Array.isArray(nextState.companies) ? nextState.companies : [];
       const nameLower = (payload.name || '').trim().toLowerCase();
       const companyExists = selectedId
