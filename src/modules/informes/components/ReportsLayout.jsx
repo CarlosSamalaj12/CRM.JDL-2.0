@@ -142,19 +142,8 @@ export default function ReportsLayout() {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
-    if (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) {
+    if (window.history.length > 1) {
       navigate(-1);
-      return;
-    }
-    let lastRoute = null;
-    try {
-      lastRoute = sessionStorage.getItem('informes_last_parent_route');
-    } catch {}
-
-    if (lastRoute && lastRoute !== location.pathname) {
-      navigate(lastRoute);
-    } else if (location.pathname === '/informes') {
-      handleExitReports();
     } else {
       navigate('/kanban');
     }

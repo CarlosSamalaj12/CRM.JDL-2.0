@@ -49,7 +49,21 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: `http://127.0.0.1:${backendPort}`,
-          changeOrigin: true
+          changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('error', (err, req, res) => {
+              // Silencia el error mientras el backend termina de inicializar (arranque en frío)
+              if (err?.code === 'ECONNREFUSED') {
+                if (res && !res.headersSent && typeof res.writeHead === 'function') {
+                  res.writeHead(503, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'Backend iniciando, esperando conexión...' }));
+                }
+                return;
+              }
+              if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err?.code)) return;
+              console.error('[vite] Error proxy API:', err?.message || err);
+            });
+          }
         },
         // Socket.IO: necesita ws:true para el handshake WebSocket
         '/socket.io': {
@@ -58,9 +72,9 @@ export default defineConfig(({ mode }) => {
           ws: true,
           rewrite: (path) => path,
           configure: (proxy) => {
-            // Silencia errores inofensivos de desconexión abrupta cuando el cliente recarga la página o cierra la pestaña
+            // Silencia errores inofensivos de desconexión abrupta o arranque en frío
             proxy.on('error', (err) => {
-              if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err?.code)) return;
+              if (['ECONNABORTED', 'ECONNRESET', 'EPIPE', 'ECONNREFUSED'].includes(err?.code)) return;
               console.error('[vite] Error proxy Socket.IO:', err?.message || err);
             });
             proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
@@ -68,7 +82,7 @@ export default defineConfig(({ mode }) => {
               socket.emit = function (event, ...args) {
                 if (event === 'error') {
                   const err = args[0];
-                  if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err?.code)) {
+                  if (['ECONNABORTED', 'ECONNRESET', 'EPIPE', 'ECONNREFUSED'].includes(err?.code)) {
                     return false;
                   }
                 }

@@ -636,21 +636,9 @@ export default function InformeView() {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
-    // 1. Si el usuario navegó desde otra vista dentro del CRM, retroceder exactamente a donde estaba
-    if (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) {
+    if (window.history.length > 1) {
       navigate(-1);
-      return;
-    }
-    // 2. Si se recargó la página o se abrió directamente, volver a la vista anterior recordada o a Ocupación
-    let lastRoute = null;
-    try {
-      lastRoute = sessionStorage.getItem('informes_last_parent_route');
-    } catch {}
-
-    if (lastRoute && !lastRoute.startsWith('/informe/')) {
-      navigate(lastRoute);
     } else {
-      // Por defecto siempre volver al Tablero de Ocupación (/kanban)
       navigate('/kanban');
     }
   };
