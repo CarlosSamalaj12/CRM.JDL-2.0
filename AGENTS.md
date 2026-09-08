@@ -219,3 +219,60 @@ Cómo forzar actualización de clientes desde el server:
     - `TOTAL LEADS` → `TOTAL PROSPECTOS`.
     - `leads` → `prospectos` (en subtítulos, modales y notas de estado).
 
+### Ocupación Semanal: rediseño móvil adaptativo según referencia visual (2026-09-07)
+- Requerimiento:
+  1. La pestaña **Lista / Tabla** (`viewMode === 'tabla'`) en móviles mostraba una tabla rígida de 13 columnas recortada y difícil de leer en pantallas pequeñas. Se solicitó rediseñar **Lista / Tabla** en móvil basándose en la imagen de referencia provista (tarjetas limpias por día con carrusel superior).
+  2. La pestaña **Ocupación** (`viewMode === 'kanban'`) debe mantener sus `EventCard`s completos para permitir ver notas, mensajes, chat en tiempo real, menciones a usuarios con `@`, reacciones de emojis y botones de checklist/alertas.
+  3. No se requiere botón para saltar a reserva desde las tarjetas ni botón flotante (+) para nueva reserva, ya que colisionaba con el botón flotante del menú móvil en la esquina inferior derecha.
+- Solución implementada:
+  - **Encabezado móvil de marca y carrusel**:
+    - Ícono púrpura de marca, subtítulo `JARDINES DEL LAGO` y título `Ocupación Semanal`.
+    - Selector en cápsula de 3 vistas: `[ 🎛️ Ocupación ]`, `[ 📄 Lista / Tabla ]`, `[ 📋 Tareas ]`.
+    - Stepper con fecha interactiva que abre el datepicker nativo del dispositivo y carrusel de 7 días (LUN a DOM) con conteo de eventos y resaltado púrpura del día activo.
+  - **Pestaña Lista / Tabla en móvil (`MobileTablaCard`)**:
+    - Reemplaza la tabla HTML rígida por una lista de tarjetas limpias inspirada exactamente en la referencia:
+      - Fila superior: Pill de estado (`● CONFIRMADO`, `● PRE-RESERVA`, `● MANTENIMIENTO`), `Día DD` y conteo destacado `N PAX`.
+      - Fila media: Nombre de la institución/evento en negrita mayúscula de alto contraste.
+      - Fila inferior: Salón con badge (`🏢`) y horario (`🕒 HH:MM - HH:MM`).
+      - Desglose de comida enriquecido por tipo de servicio con conteos precisos desde `weeklyServices` (Desayunos `🍳`, Refacciones AM `☕`, Almuerzos `🍽️`, Refacciones PM `🍪`, Cenas `🍲`) como pills coloreadas.
+      - Solución al bug del `0` fantasma: en JSX `{event.tiene_alertas && ...}` evaluaba a `0` numérico cuando MariaDB devolvía `0`. Se convirtió a ternario estricto con `Boolean()`.
+      - Al tocar la tarjeta, navega directamente al informe del evento. Sin botones innecesarios de reserva abajo.
+    - **Barra de exportación móvil**:
+      - Botones directos y visibles `[ 📄 Descargar PDF ]`, `[ 📊 Exportar Excel ]`, `[ 🖨️ Imprimir ]` en la vista de Lista / Tabla para fácil conversión a PDF en teléfonos.
+    - **Tarjeta de totales del día**:
+      - Resumen al pie del día con total de Pax y sumatoria de todos los tiempos de comida del día seleccionado.
+  - **Pestaña Ocupación en móvil (`EventCard`)**:
+    - Mantiene intacto el componente `EventCard` original para el día seleccionado en el carrusel, preservando notas, hilos de mensajes, menciones `@usuario`, reacciones y acceso al checklist.
+  - **Remoción de botón flotante (+)**:
+    - Eliminado el botón FAB que causaba superposición ("trasposición") con el botón circular flotante del menú principal del sistema.
+  - **Aislamiento desktop**:
+    - La vista de escritorio se mantiene al 100% intacta. En móvil se desactiva la barra duplicada `informe-actions-bar` para garantizar máxima área visual útil.
+
+### Vista de Informe (`InformeView`): Rediseño de acciones a barra inferior en móvil (2026-09-07)
+- Bug / Requerimiento:
+  - En la vista móvil de informes (`InformeView`), los botones de acción (`[Volver]`, `[Exportar PDF]`, `[Imprimir]`, `[Colaborar]`, `[Editar]`) se apilaban en 3 filas dentro del header superior fijo (`.informe-actions-bar`), sumado a la barra de búsqueda global `<SearchBar />`.
+  - Esto consumía más del 40-50% del alto de pantalla de los teléfonos, ocultando y bloqueando la visibilidad del documento formal del evento (`.iv-documento`).
+  - Adicionalmente, el panel de colaboración (`colabOpen`) se inicializaba en `true` por defecto, ocupando espacio masivo estático al final de la pantalla.
+- Solución implementada:
+  - **Header móvil ultra compacto**:
+    - Al abrir un informe (`isInformeView`), en pantallas móviles (`<= 768px`) se ocultan la barra de búsqueda global y la barra superior de botones (`.informe-actions-bar`), dejando solo una fila delgada (~44px) con el logo institucional y los controles esenciales (modo oscuro, notificaciones y salir).
+  - **Barra inferior de acciones fija (`.iv-mobile-bottom-bar`)**:
+    - Reubicados todos los botones a un dock inferior moderno con fondo glassmorphism translúcido (`backdrop-filter: blur(16px)`), soporte para `env(safe-area-inset-bottom)` y animación activa al toque:
+      - `[ ← Volver ]`: Botón táctil para regresar a la vista anterior.
+      - `[ 📄 PDF ]`: Pill con badge verde esmeralda (`#059669`) con indicador de carga durante la generación.
+      - `[ 🖨️ Imprimir ]`: Botón destacado con gradiente de marca púrpura (`#6366f1` a `#4f46e5`).
+      - `[ 💬 Colaborar ]`: Botón con ícono de chat y estado activo/indicador si está desplegado.
+      - `[ ✏️ Editar ]`: Visible según permisos de rol (`Admin`, `Vendedor`, `FrontOffice`, `Eventos`) para editar el evento en el constructor POS.
+  - **Colaboración como Bottom Sheet móvil**:
+    - `colabOpen` se inicializa en `false` en pantallas móviles (salvo que venga con `highlightComentarioId` en la URL).
+    - Al tocar "Colaborar", se abre como un **Bottom Sheet modal sobrepuesto** con fondo oscuro deslizable (`.colab-mobile-backdrop` + `.colab-mobile-sheet`), permitiendo leer y escribir comentarios sin deformar el documento y cerrándolo fácilmente con `✕` o tocando afuera.
+  - **Márgenes de seguridad y exclusión en impresión**:
+    - Padding inferior (`padding-bottom: 75px`) en `.informe-print-container` para evitar que el pie de página quede tapado por la barra inferior al hacer scroll.
+    - Exclusión estricta en impresión y exportación PDF (`.no-print` y `@media print`).
+  - **Montaje mediante `createPortal` al `document.body`**:
+    - Al renderizar dentro de `.informe-view-layout`, los ancestros flex con `flex-direction: column` y `align-items: center` atrapaban el contenedor `position: fixed`, provocando que los botones colapsaran verticalmente en el centro del documento en vez de estirarse horizontalmente a lo ancho del viewport.
+    - Se encapsuló la barra (`.iv-mobile-bottom-bar`) y el panel de colaboración móvil en `createPortal(..., document.body)` con ancho explícito `100vw`, `flex-direction: row` y estilos inline de alta prioridad, asegurando que se sitúe horizontalmente de extremo a extremo en la base de la pantalla.
+  - **Compatibilidad**:
+    - En escritorio (`> 768px`) la interfaz se mantiene exactamente como estaba (barra de acciones en el header y panel lateral de colaboración lado a lado).
+
+

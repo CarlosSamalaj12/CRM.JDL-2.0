@@ -28,6 +28,7 @@ export default function ReportsLayout() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const navigate = useNavigate();
   const location = useLocation();
+  const isInformeView = /^\/informe\/[^/]+$/.test(location.pathname);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   // Sistema de control de versiones: polling cada 3h
@@ -115,7 +116,7 @@ export default function ReportsLayout() {
 
   return (
     <InformeActionsContext.Provider value={useMemo(() => ({ setInformeActions }), [])}>
-    <div className="reports-root app-shell informes-shell">
+    <div className={`reports-root app-shell informes-shell${isInformeView ? ' is-informe-view' : ''}`}>
       {/* Botón de Hamburguesa Flotante en Móvil */}
       <button
         className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
@@ -467,6 +468,27 @@ export default function ReportsLayout() {
               margin-top: 0.15rem !important;
               padding-top: 0.45rem !important;
               padding-bottom: 0 !important;
+            }
+            .informes-shell.is-informe-view .header-search-container {
+              display: none !important;
+            }
+            .informes-shell.is-informe-view .informe-actions-bar {
+              display: none !important;
+            }
+            .informes-shell.is-informe-view .app-header {
+              padding: 0.35rem 0.65rem !important;
+              margin-bottom: 0.2rem !important;
+              gap: 0 !important;
+            }
+            .informes-shell.is-informe-view .header-top-row {
+              grid-template-rows: auto !important;
+              gap: 0 !important;
+            }
+            .informes-shell.is-informe-view .mobile-hamburger-btn {
+              bottom: 84px !important;
+            }
+            .informes-shell.is-informe-view .informe-print-container {
+              padding-bottom: 95px !important;
             }
             .informes-shell .header-search-container > div {
               min-width: 0 !important;

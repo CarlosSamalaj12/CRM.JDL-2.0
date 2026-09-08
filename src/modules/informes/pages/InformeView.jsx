@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useContext, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getInformeById, getImagenes, imagenUrl, marcarInformeLeido, updateDiaMenuItemNotas, updateDiaMenuItemCantidad } from '../services/api.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -62,7 +63,14 @@ export default function InformeView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [colabOpen, setColabOpen] = useState(true);
+  const [colabOpen, setColabOpen] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 768 ? Boolean(highlightComentarioId) : true));
+  const [isMobileView, setIsMobileView] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
+
+  useEffect(() => {
+    const handleResize = () => setIsMobileView(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [imagenes, setImagenes] = useState([]);
   const [editingNotaId, setEditingNotaId] = useState(null);
   const [editingNotaValue, setEditingNotaValue] = useState('');
@@ -661,15 +669,19 @@ export default function InformeView() {
      </>
    ), [pdfLoading, colabOpen, user, informe?.id_ocupacion, navigate]);
 
-  // Pasar las acciones al header
+  // Pasar las acciones al header (solo en desktop, móvil usa barra inferior)
   useEffect(() => {
     if (setInformeActions) {
-      setInformeActions(informeActionsEl);
+      if (isMobileView) {
+        setInformeActions(null);
+      } else {
+        setInformeActions(informeActionsEl);
+      }
     }
     return () => {
       if (setInformeActions) setInformeActions(null);
     };
-  }, [informeActionsEl, setInformeActions]);
+  }, [informeActionsEl, setInformeActions, isMobileView]);
 
   // Filtrar días que tengan menú o montaje (para omitir hojas vacías/solo habitaciones al imprimir o exportar)
   const diasFiltrados = useMemo(() => {
@@ -795,6 +807,8 @@ export default function InformeView() {
         .no-print,
         .actions-bar,
         .colab-sidebar,
+        .colab-mobile-backdrop,
+        .iv-mobile-bottom-bar,
         .app-header,
         .app-nav,
         .iv-badge-edit-icon,
@@ -1433,15 +1447,239 @@ export default function InformeView() {
         </div>
       </div>
 
-      {/* ─── SIDEBAR COLABORACIÓN ─── */}
+      {/* ─── SIDEBAR / BOTTOM SHEET DE COLABORACIÓN ─── */}
       {colabOpen && (
-        <aside className="colab-sidebar">
-          <div className="colab-sidebar-header">
-            <h3><IconMessageCircle size={16} /> Colaboración</h3>
-            <button className="btn-ghost btn-sm" onClick={() => setColabOpen(false)}>✕</button>
-          </div>
-          <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} />
-        </aside>
+        isMobileView && typeof document !== 'undefined' ? (
+          createPortal(
+            <>
+              <div
+                className="colab-mobile-backdrop no-print"
+                onClick={() => setColabOpen(false)}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(15, 23, 42, 0.5)',
+                  backdropFilter: 'blur(4px)',
+                  WebkitBackdropFilter: 'blur(4px)',
+                  zIndex: 99998,
+                }}
+              />
+              <aside
+                className="colab-sidebar colab-mobile-sheet no-print"
+                style={{
+                  position: 'fixed',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  width: '100vw',
+                  maxWidth: '100vw',
+                  height: '80vh',
+                  maxHeight: '80vh',
+                  zIndex: 99999,
+                  background: 'var(--bg-card, #ffffff)',
+                  borderRadius: '20px 20px 0 0',
+                  boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.28)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  border: '1px solid var(--border, #e2e8f0)',
+                  borderBottom: 'none',
+                }}
+              >
+                <div className="colab-sidebar-header" style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border, #e2e8f0)' }}>
+                  <h3><IconMessageCircle size={16} /> Colaboración</h3>
+                  <button className="btn-ghost btn-sm" onClick={() => setColabOpen(false)} title="Cerrar">✕</button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                  <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} />
+                </div>
+              </aside>
+            </>,
+            document.body
+          )
+        ) : (
+          <aside className="colab-sidebar">
+            <div className="colab-sidebar-header">
+              <h3><IconMessageCircle size={16} /> Colaboración</h3>
+              <button className="btn-ghost btn-sm" onClick={() => setColabOpen(false)} title="Cerrar">✕</button>
+            </div>
+            <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} />
+          </aside>
+        )
+      )}
+
+      {/* ─── BARRA INFERIOR DE ACCIONES EN MÓVIL (PORTAL AL BODY) ─── */}
+      {isMobileView && typeof document !== 'undefined' && createPortal(
+        <div
+          className="iv-mobile-bottom-bar no-print"
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100vw',
+            maxWidth: '100vw',
+            zIndex: 99995,
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+            gap: '4px',
+            background: 'rgba(255, 255, 255, 0.97)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            borderTop: '1px solid rgba(226, 232, 240, 0.95)',
+            boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.12)',
+            paddingTop: '6px',
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
+            paddingLeft: 'max(8px, env(safe-area-inset-left, 8px))',
+            paddingRight: 'max(8px, env(safe-area-inset-right, 8px))',
+            boxSizing: 'border-box',
+            transform: 'translateZ(0)',
+            WebkitTransform: 'translateZ(0)',
+            willChange: 'transform',
+          }}
+        >
+          {/* 1. Volver */}
+          <button
+            type="button"
+            onClick={handleVolver}
+            className="iv-mob-btn iv-mob-btn-secondary"
+            style={{
+              flex: '1 1 0',
+              minWidth: 0,
+              height: '42px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '2px 0',
+            }}
+            title="Volver"
+          >
+            <IconArrowLeft size={17} />
+            <span style={{ fontSize: '10.5px', fontWeight: 600, lineHeight: 1.1 }}>Volver</span>
+          </button>
+
+          {/* 2. Exportar PDF */}
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            disabled={pdfLoading}
+            className="iv-mob-btn iv-mob-btn-pdf"
+            style={{
+              flex: '1 1 0',
+              minWidth: 0,
+              height: '42px',
+              background: 'rgba(5, 150, 105, 0.08)',
+              border: 'none',
+              borderRadius: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+              color: '#059669',
+              cursor: pdfLoading ? 'wait' : 'pointer',
+              padding: '2px 0',
+              opacity: pdfLoading ? 0.7 : 1,
+            }}
+            title="Exportar PDF"
+          >
+            <IconDownload size={17} />
+            <span style={{ fontSize: '10.5px', fontWeight: 600, lineHeight: 1.1 }}>{pdfLoading ? 'PDF...' : 'PDF'}</span>
+          </button>
+
+          {/* 3. Imprimir (Destacado) */}
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="iv-mob-btn iv-mob-btn-print"
+            style={{
+              flex: '1.2 1 0',
+              minWidth: 0,
+              height: '42px',
+              background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              border: 'none',
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+              color: '#ffffff',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
+            }}
+            title="Imprimir informe"
+          >
+            <IconPrinter size={17} />
+            <span style={{ fontSize: '10.5px', fontWeight: 600, lineHeight: 1.1, color: '#ffffff' }}>Imprimir</span>
+          </button>
+
+          {/* 4. Colaborar */}
+          <button
+            type="button"
+            onClick={() => setColabOpen(!colabOpen)}
+            className={`iv-mob-btn iv-mob-btn-colab ${colabOpen ? 'active' : ''}`}
+            style={{
+              flex: '1 1 0',
+              minWidth: 0,
+              height: '42px',
+              background: colabOpen ? 'rgba(79, 70, 229, 0.12)' : 'transparent',
+              border: 'none',
+              borderRadius: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+              color: colabOpen ? '#4338ca' : '#4f46e5',
+              cursor: 'pointer',
+              padding: '2px 0',
+            }}
+            title={colabOpen ? 'Cerrar colaboración' : 'Abrir colaboración'}
+          >
+            <IconMessageCircle size={17} />
+            <span style={{ fontSize: '10.5px', fontWeight: 600, lineHeight: 1.1 }}>Colaborar</span>
+          </button>
+
+          {/* 5. Editar */}
+          {user && ['Admin', 'Vendedor', 'FrontOffice', 'Eventos'].includes(user.rol) && (
+            <button
+              type="button"
+              onClick={() => navigate(`/informe/pos/${informe?.id_ocupacion}`)}
+              className="iv-mob-btn iv-mob-btn-edit"
+              style={{
+                flex: '1 1 0',
+                minWidth: 0,
+                height: '42px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '2px',
+                color: '#d97706',
+                cursor: 'pointer',
+                padding: '2px 0',
+              }}
+              title="Editar informe"
+            >
+              <IconFileText size={17} />
+              <span style={{ fontSize: '10.5px', fontWeight: 600, lineHeight: 1.1 }}>Editar</span>
+            </button>
+          )}
+        </div>,
+        document.body
       )}
     </div>
   );

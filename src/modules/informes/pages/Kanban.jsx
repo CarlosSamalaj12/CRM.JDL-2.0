@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useContext } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
 import html2canvas from 'html2canvas';
@@ -10,12 +10,19 @@ import EventCard from '../components/EventCard.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 
-import { IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock, IconAlertCircle, IconX, IconPrinter, IconFileText, IconMapPin, IconUser, IconDownload, IconClipboardList } from '../components/Icons.jsx';
+import {
+  IconGrid, IconTag, IconBuilding, IconCheckCircle, IconClock,
+  IconAlertCircle, IconX, IconPrinter, IconFileText, IconMapPin,
+  IconUser, IconDownload, IconClipboardList, IconLayers, IconSearch,
+  IconCalendar,
+} from '../components/Icons.jsx';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import SettingsChecklist from '../../settings/SettingsChecklist';
 import WeeklyTasks from '../components/WeeklyTasks.jsx';
+import { emitOpenEventChecklist } from '../../../utils/appEvents';
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const dayShortNames = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
 
 const statusMap = {
   4: { label: 'Confirmado', color: 'green' },
@@ -34,12 +41,23 @@ function formatDateShort(iso) {
 }
 const fmtTime = (t) => (t || '').slice(0, 5) || '??:??';
 
+const getDayLabelFull = (isoDate) => {
+  if (!isoDate) return '';
+  const d = new Date(isoDate + 'T12:00:00');
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  const weekday = cap(d.toLocaleDateString('es-ES', { weekday: 'long' }));
+  const day = d.getDate();
+  const month = d.toLocaleDateString('es-ES', { month: 'long' });
+  return `${weekday}, ${day} de ${month}`;
+};
+
 // Helper para normalizar el ID base de eventos multi-slot (ej. "evt_123_s2_20260728" -> "evt_123")
 const getEventGroupId = (idOcupacion) =>
   String(idOcupacion || '').replace(/_s\d+_\d{6,}$/, '');
 
 // Obtener cantidades de comida por evento+fecha desde weeklyServices
 const getServiceCounts = (services, idOcupacion, fecha) => {
+  if (!services || services.length === 0 || !idOcupacion || !fecha) return null;
   const baseId = getEventGroupId(idOcupacion);
   const dayServices = services.filter(s => {
     const rawDate = String(s.FechaServicio || '');
@@ -57,11 +75,222 @@ const getServiceCounts = (services, idOcupacion, fecha) => {
   return result;
 };
 
+function MobileTablaCard({
+  event,
+  dayNum,
+  dayIso,
+  highlighted,
+  navigate,
+  weeklyServices,
+}) {
+  const status = statusMap[event.Estatuscotizacion] || { label: 'Confirmado', color: 'green' };
+  const statusLabel = status.label.toUpperCase();
+  const isConfirmado = event.Estatuscotizacion === 4;
+  const isPrereserva = event.Estatuscotizacion === 7;
+  const isMantenimiento = event.Estatuscotizacion === 8;
+
+  const statusBg = isConfirmado ? '#ecfdf5' : isPrereserva ? '#fdf2f8' : isMantenimiento ? '#f5f3ff' : '#f1f5f9';
+  const statusColor = isConfirmado ? '#059669' : isPrereserva ? '#db2777' : isMantenimiento ? '#7c3aed' : '#475569';
+  const statusBorder = isConfirmado ? '#a7f3d0' : isPrereserva ? '#fbcfe8' : isMantenimiento ? '#ddd6fe' : '#cbd5e1';
+
+  // Obtener conteos de alimentos de weeklyServices o del evento
+  const targetDate = dayIso || (event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : (event.displayDate || ''));
+  const sCounts = (weeklyServices && weeklyServices.length > 0)
+    ? getServiceCounts(weeklyServices, event.Idocupacion, targetDate)
+    : null;
+
+  const des = sCounts ? (Number(sCounts.desayunos) || 0) : (Number(event.cant_desayunos) || 0);
+  const alm = sCounts ? (Number(sCounts.almuerzos) || 0) : (Number(event.cant_almuerzos) || 0);
+  const cen = sCounts ? (Number(sCounts.cenas) || 0) : (Number(event.cant_cenas) || 0);
+  const refAm = sCounts ? (Number(sCounts.refacciones_am || sCounts.ref_am) || 0) : (Number(event.cant_refacciones_am) || 0);
+  const refPm = sCounts ? (Number(sCounts.refacciones_pm || sCounts.ref_pm) || 0) : (Number(event.cant_refacciones_pm) || 0);
+
+  const hasAlertas = (event.tiene_alertas === 1 || event.tiene_alertas === true);
+  const hasFood = (des > 0 || alm > 0 || cen > 0 || refAm > 0 || refPm > 0);
+
+  const dateQs = event.FechaEvento ? `?date=${String(event.FechaEvento).slice(0, 10)}` : '';
+
+  return (
+    <div
+      id={`evento-${event.Idocupacion}`}
+      onClick={() => navigate(`/informe/${event.Idocupacion}${dateQs}`)}
+      style={{
+        background: '#ffffff',
+        border: highlighted ? '2px solid #8b5cf6' : '1px solid #e2e8f0',
+        borderRadius: '16px',
+        padding: '14px 16px',
+        boxShadow: highlighted ? '0 0 16px rgba(139, 92, 246, 0.25)' : '0 2px 6px rgba(0,0,0,0.03)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '9px',
+        cursor: 'pointer',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+      }}
+    >
+      {/* Top Row: Estado pill + Día + Pax */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span
+            style={{
+              background: statusBg,
+              color: statusColor,
+              border: `1px solid ${statusBorder}`,
+              borderRadius: '999px',
+              padding: '2px 8px',
+              fontSize: '10.5px',
+              fontWeight: 800,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              letterSpacing: '0.02em',
+            }}
+          >
+            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: statusColor }} />
+            {statusLabel}
+          </span>
+
+          <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#64748b' }}>
+            Día {dayNum}
+          </span>
+        </div>
+
+        <div>
+          <span style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a' }}>
+            {event.Pax || 0}
+          </span>
+          <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', marginLeft: '3px' }}>
+            PAX
+          </span>
+        </div>
+      </div>
+
+      {/* Middle: Institución en negrita */}
+      <div>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '15px',
+            fontWeight: 800,
+            color: '#0f172a',
+            letterSpacing: '-0.01em',
+            textTransform: 'uppercase',
+            lineHeight: 1.25,
+          }}
+        >
+          {event.Institucion || event.NombreEvento || 'Evento sin nombre'}
+        </h3>
+      </div>
+
+      {/* Bottom: Salón con badge + Horario */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div
+            style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '6px',
+              background: '#eef2ff',
+              color: '#4f46e5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <IconBuilding size={13} color="#4f46e5" strokeWidth={2.3} />
+          </div>
+          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>
+            {event.Salon || 'Sin salón'}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
+          <IconClock size={13} color="#64748b" strokeWidth={2.3} />
+          <span>{fmtTime(event.HoraI)} - {fmtTime(event.HoraF)}</span>
+        </div>
+      </div>
+
+      {/* Alimentos / Alertas si aplican - Badges independientes sin 0 suelto */}
+      {(hasFood || hasAlertas) ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '6px',
+            paddingTop: '6px',
+            borderTop: '1px dashed #f1f5f9',
+          }}
+        >
+          {des > 0 ? (
+            <span style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>
+              🍳 {des} Des
+            </span>
+          ) : null}
+
+          {refAm > 0 ? (
+            <span style={{ fontSize: '11px', color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>
+              ☕ {refAm} Ref.AM
+            </span>
+          ) : null}
+
+          {alm > 0 ? (
+            <span style={{ fontSize: '11px', color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>
+              🍽️ {alm} Alm
+            </span>
+          ) : null}
+
+          {refPm > 0 ? (
+            <span style={{ fontSize: '11px', color: '#7c3aed', background: '#faf5ff', border: '1px solid #e9d5ff', padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>
+              🍪 {refPm} Ref.PM
+            </span>
+          ) : null}
+
+          {cen > 0 ? (
+            <span style={{ fontSize: '11px', color: '#be123c', background: '#fff1f2', border: '1px solid #fecdd3', padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>
+              🍲 {cen} Cen
+            </span>
+          ) : null}
+
+          {hasAlertas ? (
+            <span
+              style={{
+                fontSize: '10.5px',
+                color: '#b45309',
+                background: '#fef3c7',
+                border: '1px solid #fde68a',
+                padding: '2px 7px',
+                borderRadius: '6px',
+                fontWeight: 700,
+              }}
+            >
+              ⚠️ Alertas
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const kanbanMemoryCache = {};
 
 export default function Kanban() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { setInformeActions } = useContext(InformeActionsContext) || {};
+
+  const [mobileSearch, setMobileSearch] = useState('');
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Función para obtener la fecha inicial (URL param > localStorage > hoy)
   const getInitialDate = () => {
@@ -392,11 +621,44 @@ export default function Kanban() {
       if (filterTipo && e.TipoEvento !== filterTipo) return false;
       if (filterSalon && e.Salon !== filterSalon) return false;
       if (filterAlertas && !(e.tiene_alertas == 1 || e.tiene_alertas === true)) return false;
+      if (mobileSearch && mobileSearch.trim()) {
+        const q = mobileSearch.toLowerCase().trim();
+        const match = (e.Institucion || '').toLowerCase().includes(q) ||
+                      (e.Salon || '').toLowerCase().includes(q) ||
+                      (e.Vendedor || '').toLowerCase().includes(q) ||
+                      (e.NombreEvento || '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
       return true;
     }),
   }));
 
   const totalEvents = filteredColumns.reduce((sum, col) => sum + col.items.length, 0);
+
+  const mobileWeekLabel = useMemo(() => {
+    const sun = new Date(monday);
+    sun.setDate(monday.getDate() + 6);
+    const wNum = weekMeta.weekNumber;
+    const mesSun = sun.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+    const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+    const d1 = String(monday.getDate()).padStart(2, '0');
+    const d2 = String(sun.getDate()).padStart(2, '0');
+    return `Semana ${wNum} · ${d1} al ${d2} ${cap(mesSun)}`;
+  }, [monday, weekMeta]);
+
+  const formattedPickerDate = useMemo(() => {
+    const dd = String(monday.getDate()).padStart(2, '0');
+    const mm = String(monday.getMonth() + 1).padStart(2, '0');
+    const yyyy = monday.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }, [monday]);
+
+  const currentCol = filteredColumns[mobileDayIndex] || filteredColumns[0];
+  const dayEvents = currentCol?.items || [];
+
+  const dayPax = useMemo(() => {
+    return (currentCol?.items || []).reduce((acc, ev) => acc + (Number(ev.Pax || ev.pax || 0) || 0), 0);
+  }, [currentCol]);
 
 
 
@@ -1185,38 +1447,446 @@ export default function Kanban() {
   ), [viewMode, filterAlertas, searchParams, setSearchParams, selectedDate, pdfLoading, totalEvents, hasFilter]);
 
   useEffect(() => {
-    if (setInformeActions) setInformeActions(kanbanActionsEl);
+    if (setInformeActions) {
+      if (isMobileView) {
+        setInformeActions(null);
+      } else {
+        setInformeActions(kanbanActionsEl);
+      }
+    }
     return () => {
       if (setInformeActions) setInformeActions(null);
     };
-  }, [kanbanActionsEl, setInformeActions]);
+  }, [kanbanActionsEl, setInformeActions, isMobileView]);
 
   return (
     <section className="kanban-shell">
-      {!loading && !error && isMobileView && (viewMode === 'kanban' || viewMode === 'tareas' || viewMode === 'tabla') && (
-        <div className="kanban-header">
-          <div className="kanban-day-selector">
-            <button onClick={handlePrevDay} className="kanban-day-arrow">‹</button>
-            <div className="kanban-day-pills-wrap">
-              {filteredColumns.map((col, i) => (
+      {/* ─── VISTA MÓVIL: ENCABEZADO Y CONTROLES DE ALTA FIDELIDAD ─── */}
+      {isMobileView && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', boxSizing: 'border-box', marginBottom: '8px' }}>
+          {/* 1. Header Bar: Logo JDL + Título + Búsqueda + Alertas + Exportar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '4px 2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)',
+                flexShrink: 0,
+              }}>
+                <IconLayers size={20} color="#ffffff" strokeWidth={2.3} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#4f46e5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  JARDINES DEL LAGO
+                </span>
+                <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                  Ocupación Semanal
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setShowMobileSearch(s => !s)}
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: showMobileSearch ? '#f1f5f9' : '#ffffff',
+                  color: '#475569',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+                aria-label="Buscar eventos"
+              >
+                <IconSearch size={15} color="#475569" strokeWidth={2.2} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const newParams = new URLSearchParams(searchParams);
+                  if (filterAlertas) {
+                    newParams.delete('alertas');
+                  } else {
+                    newParams.set('alertas', '1');
+                  }
+                  setSearchParams(newParams);
+                }}
+                style={{
+                  height: '34px',
+                  padding: '0 8px',
+                  borderRadius: '8px',
+                  border: filterAlertas ? '1.5px solid #f59e0b' : '1px solid #cbd5e1',
+                  background: filterAlertas ? '#fef3c7' : '#ffffff',
+                  color: filterAlertas ? '#b45309' : '#475569',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+                title="Filtrar por alertas"
+              >
+                <span>⚠️</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowExportMenu(true)}
+                style={{
+                  height: '34px',
+                  padding: '0 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#1e293b',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                }}
+              >
+                <IconDownload size={13} color="#475569" strokeWidth={2.3} />
+                Exportar
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Barra de búsqueda rápida en móvil */}
+          {showMobileSearch && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: '#ffffff',
+              padding: '6px 12px',
+              borderRadius: '10px',
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            }}>
+              <IconSearch size={14} color="#64748b" strokeWidth={2.2} />
+              <input
+                type="text"
+                placeholder="Buscar por institución, salón o asesor..."
+                value={mobileSearch}
+                onChange={e => setMobileSearch(e.target.value)}
+                autoFocus
+                style={{ flex: 1, border: 'none', outline: 'none', fontSize: '13px', background: 'transparent', color: '#0f172a' }}
+              />
+              {mobileSearch && (
+                <button
+                  type="button"
+                  onClick={() => setMobileSearch('')}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', fontSize: '12px' }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 3. Conmutador de Vistas: Cápsula [ Ocupación | Lista/Tabla | Tareas ] */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: '#f1f5f9',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            padding: '3px',
+            gap: '3px',
+            width: '100%',
+            boxSizing: 'border-box',
+          }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              style={{
+                flex: 1,
+                padding: '7px 4px',
+                borderRadius: '9px',
+                border: 'none',
+                background: viewMode === 'kanban' ? '#ffffff' : 'transparent',
+                color: viewMode === 'kanban' ? '#4f46e5' : '#64748b',
+                fontWeight: viewMode === 'kanban' ? 800 : 600,
+                fontSize: '12.5px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                boxShadow: viewMode === 'kanban' ? '0 1px 3px rgba(79,70,229,0.12), 0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <IconGrid size={13} strokeWidth={2.4} />
+              Ocupación
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('tabla')}
+              style={{
+                flex: 1,
+                padding: '7px 4px',
+                borderRadius: '9px',
+                border: 'none',
+                background: viewMode === 'tabla' ? '#ffffff' : 'transparent',
+                color: viewMode === 'tabla' ? '#4f46e5' : '#64748b',
+                fontWeight: viewMode === 'tabla' ? 800 : 600,
+                fontSize: '12.5px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                boxShadow: viewMode === 'tabla' ? '0 1px 3px rgba(79,70,229,0.12), 0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <IconFileText size={13} strokeWidth={2.4} />
+              Lista / Tabla
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('tareas')}
+              style={{
+                flex: 1,
+                padding: '7px 4px',
+                borderRadius: '9px',
+                border: 'none',
+                background: viewMode === 'tareas' ? '#ffffff' : 'transparent',
+                color: viewMode === 'tareas' ? '#4f46e5' : '#64748b',
+                fontWeight: viewMode === 'tareas' ? 800 : 600,
+                fontSize: '12.5px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                boxShadow: viewMode === 'tareas' ? '0 1px 3px rgba(79,70,229,0.12), 0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <IconClipboardList size={13} strokeWidth={2.4} />
+              Tareas
+            </button>
+          </div>
+
+          {/* 4. Barra de Navegación de Semana: Mes/Semana + Stepper de Fecha */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '2px 2px',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}>
+            <div>
+              <div style={{
+                fontSize: '10.5px',
+                fontWeight: 800,
+                color: '#64748b',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}>
+                {weekMeta.mesLabel}
+              </div>
+              <div style={{
+                fontSize: '13.5px',
+                fontWeight: 800,
+                color: '#0f172a',
+                letterSpacing: '-0.01em',
+                marginTop: '1px',
+              }}>
+                {mobileWeekLabel}
+              </div>
+            </div>
+
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '10px',
+              padding: '2px',
+              gap: '2px',
+              position: 'relative',
+            }}>
+              <button
+                type="button"
+                onClick={handlePrevWeek}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#475569',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+                aria-label="Semana anterior"
+              >
+                ‹
+              </button>
+
+              <div style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '0 6px',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#1e293b',
+              }}>
+                <span>{formattedPickerDate}</span>
+                <IconCalendar size={13} color="#64748b" strokeWidth={2.3} />
+                <input
+                  type="date"
+                  value={selectedDate ? getMonday(selectedDate.slice(0, 10)) : ''}
+                  onChange={(e) => {
+                    if (e.target.value) setSelectedDate(getMonday(e.target.value));
+                  }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer',
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextWeek}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#475569',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+                aria-label="Semana siguiente"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+
+          {/* 5. Carrusel de 7 Días con Tarjetas de Alta Fidelidad */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'stretch',
+            gap: '6px',
+            overflowX: 'auto',
+            padding: '2px 0 4px',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+            width: '100%',
+          }}>
+            {filteredColumns.map((col, i) => {
+              const isSelected = mobileDayIndex === i;
+              const dayNum = col.isoDate.split('-')[2];
+              const shortDay = dayShortNames[i];
+              const count = viewMode === 'tareas' ? (taskCounts[col.isoDate] || 0) : col.items.length;
+
+              return (
                 <button
                   key={col.isoDate}
+                  type="button"
                   onClick={() => setMobileDayIndex(i)}
-                  className={`kanban-day-pill ${mobileDayIndex === i ? 'active' : ''}`}
+                  style={{
+                    flex: '1 0 44px',
+                    minWidth: '44px',
+                    height: '68px',
+                    padding: '6px 2px',
+                    borderRadius: '13px',
+                    border: isSelected ? '1.5px solid #4338ca' : '1px solid #e2e8f0',
+                    background: isSelected
+                      ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
+                      : '#ffffff',
+                    color: isSelected ? '#ffffff' : '#0f172a',
+                    boxShadow: isSelected
+                      ? '0 4px 14px rgba(79, 70, 229, 0.35)'
+                      : '0 1px 2px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
                 >
-                  <span className="pill-day">{col.name.slice(0, 3).replace('.','')}</span>
-                  <span className="pill-date">{col.isoDate.slice(5)}</span>
-                  <span className="pill-count">
-                    {viewMode === 'tareas' ? (taskCounts[col.isoDate] || 0) : col.items.length}
+                  <span style={{
+                    fontSize: '9.5px',
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    color: isSelected ? 'rgba(255,255,255,0.85)' : '#64748b',
+                  }}>
+                    {shortDay}
+                  </span>
+
+                  <span style={{
+                    fontSize: '15.5px',
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    color: isSelected ? '#ffffff' : '#0f172a',
+                  }}>
+                    {dayNum}
+                  </span>
+
+                  <span style={{
+                    background: isSelected ? '#ffffff' : '#f1f5f9',
+                    color: isSelected ? '#4338ca' : '#475569',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    lineHeight: 1.2,
+                    minWidth: '16px',
+                    textAlign: 'center',
+                  }}>
+                    {isSelected ? `${count} ev` : count}
                   </span>
                 </button>
-              ))}
-            </div>
-            <button onClick={handleNextDay} className="kanban-day-arrow">›</button>
+              );
+            })}
           </div>
         </div>
       )}
 
+      {/* Barra de Filtro Activo (si hay filtros aplicados) */}
       {(hasFilter || filterExiting) && (
         <div className={`kanban-filter-bar ${filterExiting ? 'filter-exit' : ''}`}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1241,50 +1911,49 @@ export default function Kanban() {
       {loading && <p className="status-message">Cargando eventos...</p>}
       {error && <p className="status-message status-error">{error}</p>}
 
+      {/* ─── VISTA PRINCIPAL DE OCUPACIÓN (KANBAN) ─── */}
       {!loading && !error && viewMode === 'kanban' && (
-        <>
-          <div className={`kanban-board ${isMobileView ? 'kanban-board--mobile' : ''}`}>
+        <div className={`kanban-board ${isMobileView ? 'kanban-board--mobile' : ''}`}>
           {filteredColumns
             .filter((_, i) => !isMobileView || i === mobileDayIndex)
             .map((column, ci) => {
-            return (
-            <div key={column.name} id={`kcol-${ci}`} className="kanban-column">
-              <div className="kanban-column-header">
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',flexWrap:'wrap',gap:'4px'}}>
-                  <span style={{textTransform:'capitalize'}}>{column.name}</span>
-                  <span className="kanban-column-count">{column.items.length}</span>
+              return (
+                <div key={column.name} id={`kcol-${ci}`} className="kanban-column" style={isMobileView ? { width: '100%', margin: 0 } : {}}>
+                  <div className="kanban-column-header">
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',flexWrap:'wrap',gap:'4px'}}>
+                      <span style={{textTransform:'capitalize'}}>{column.name}</span>
+                      <span className="kanban-column-count">{column.items.length}</span>
+                    </div>
+                  </div>
+                  <div className="kanban-column-body">
+                    {column.items.length === 0 ? (
+                      <p className="kanban-empty">Sin eventos este día</p>
+                    ) : (
+                      column.items.map((event) => (
+                        <EventCard 
+                          key={`${event.Idocupacion}-${event.displayDate}`} 
+                          event={event} 
+                          highlighted={eventoResaltado === String(event.Idocupacion)}
+                          onNavigateToTareas={(id) => {
+                            setTargetEventId(id);
+                            setViewMode('tareas');
+                          }}
+                          highlightNotaId={searchParams.get('notaId')}
+                          tareasCount={taskCountsMap[event.Idocupacion] || 0}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="kanban-column-body">
-                {column.items.length === 0 ? (
-                  <p className="kanban-empty">Sin eventos este día</p>
-                ) : (
-                  column.items.map((event) => (
-                      <EventCard 
-                        key={`${event.Idocupacion}-${event.displayDate}`} 
-                        event={event} 
-                        highlighted={eventoResaltado === String(event.Idocupacion)}
-                        onNavigateToTareas={(id) => {
-                          setTargetEventId(id);
-                          setViewMode('tareas');
-                        }}
-                        highlightNotaId={searchParams.get('notaId')}
-                        tareasCount={taskCountsMap[event.Idocupacion] || 0}
-                      />
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
         </div>
-        </>
       )}
 
       {!loading && !error && viewMode === 'tareas' && (
         <WeeklyTasks
           selectedDate={selectedDate}
-          events={events}
+events={events}
           onDateChange={setSelectedDate}
           mobileDayIndex={mobileDayIndex}
           setMobileDayIndex={setMobileDayIndex}
@@ -1296,7 +1965,232 @@ export default function Kanban() {
       )}
 
       {!loading && !error && viewMode === 'tabla' && (
-        <div className="tabla-eventos-container">
+        isMobileView ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+            {/* Header del Día Seleccionado: Programación del día + Eventos + Pax */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '4px 2px',
+              flexWrap: 'wrap',
+              gap: '8px',
+              marginTop: '2px',
+            }}>
+              <div>
+                <div style={{
+                  fontSize: '10.5px',
+                  fontWeight: 800,
+                  color: '#64748b',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                }}>
+                  PROGRAMACIÓN DEL DÍA
+                </div>
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: 800,
+                  color: '#0f172a',
+                  letterSpacing: '-0.01em',
+                  marginTop: '1px',
+                }}>
+                  {getDayLabelFull(currentCol?.isoDate)}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  background: '#ecfdf5',
+                  color: '#059669',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: '999px',
+                  padding: '3px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#059669' }} />
+                  {currentCol?.items.length || 0} Eventos
+                </span>
+
+                <span style={{
+                  background: '#eef2ff',
+                  color: '#4f46e5',
+                  border: '1px solid #c7d2fe',
+                  borderRadius: '999px',
+                  padding: '3px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                }}>
+                  {dayPax}+ Pax
+                </span>
+              </div>
+            </div>
+
+            {/* Barra de Acciones de Exportación / PDF Móvil */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '8px',
+              padding: '2px 0 6px',
+            }}>
+              <button
+                type="button"
+                onClick={exportToPdf}
+                disabled={pdfLoading}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '9px 6px',
+                  borderRadius: '10px',
+                  border: '1px solid #c7d2fe',
+                  background: '#eef2ff',
+                  color: '#4338ca',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(79, 70, 229, 0.08)',
+                }}
+              >
+                <IconFileText size={15} color="#4338ca" strokeWidth={2.3} />
+                <span>{pdfLoading ? 'Generando...' : 'Descargar PDF'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={exportToExcel}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '9px 6px',
+                  borderRadius: '10px',
+                  border: '1px solid #a7f3d0',
+                  background: '#ecfdf5',
+                  color: '#065f46',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(5, 150, 105, 0.08)',
+                }}
+              >
+                <IconDownload size={15} color="#065f46" strokeWidth={2.3} />
+                <span>Exportar Excel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrint}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '9px 6px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+                }}
+              >
+                <IconPrinter size={15} color="#334155" strokeWidth={2.3} />
+                <span>Imprimir</span>
+              </button>
+            </div>
+
+            {/* Lista de Tarjetas Estilo Referencia para Lista/Tabla en Móvil */}
+            {dayEvents.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                color: '#64748b',
+                padding: '40px 20px',
+                background: '#ffffff',
+                borderRadius: '14px',
+                border: '1px dashed #cbd5e1',
+                margin: '8px 0',
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#475569' }}>
+                  Sin eventos programados este día
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
+                  Selecciona otro día en el carrusel para ver sus eventos
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {dayEvents.map(event => (
+                  <MobileTablaCard
+                    key={`${event.Idocupacion}-${event.displayDate}`}
+                    event={event}
+                    dayNum={currentCol?.isoDate?.split('-')[2] || ''}
+                    dayIso={currentCol?.isoDate}
+                    highlighted={eventoResaltado === String(event.Idocupacion)}
+                    navigate={navigate}
+                    weeklyServices={weeklyServices}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Resumen y Totales del Día en Móvil */}
+            {dayEvents.length > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(79, 70, 229, 0.02) 100%)',
+                border: '1px solid #e0e7ff',
+                borderRadius: '14px',
+                padding: '12px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                marginTop: '4px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#3730a3', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Total Día {currentCol?.isoDate?.split('-')[2]}
+                  </span>
+                  <span style={{ fontSize: '14px', fontWeight: 900, color: '#4338ca' }}>
+                    {dayPax} PAX
+                  </span>
+                </div>
+                {/* Desglose de Alimentos del Día si existen */}
+                {(() => {
+                  let totalDes = 0, totalRefAm = 0, totalAlm = 0, totalRefPm = 0, totalCen = 0;
+                  dayEvents.forEach(ev => {
+                    const sc = (weeklyServices && weeklyServices.length > 0)
+                      ? getServiceCounts(weeklyServices, ev.Idocupacion, currentCol?.isoDate)
+                      : null;
+                    totalDes += sc ? (Number(sc.desayunos) || 0) : (Number(ev.cant_desayunos) || 0);
+                    totalRefAm += sc ? (Number(sc.refacciones_am || sc.ref_am) || 0) : (Number(ev.cant_refacciones_am) || 0);
+                    totalAlm += sc ? (Number(sc.almuerzos) || 0) : (Number(ev.cant_almuerzos) || 0);
+                    totalRefPm += sc ? (Number(sc.refacciones_pm || sc.ref_pm) || 0) : (Number(ev.cant_refacciones_pm) || 0);
+                    totalCen += sc ? (Number(sc.cenas) || 0) : (Number(ev.cant_cenas) || 0);
+                  });
+                  const hasDayFood = (totalDes > 0 || totalRefAm > 0 || totalAlm > 0 || totalRefPm > 0 || totalCen > 0);
+                  if (!hasDayFood) return null;
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', paddingTop: '4px', borderTop: '1px dashed #c7d2fe' }}>
+                      {totalDes > 0 ? <span style={{ fontSize: '11px', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: '5px' }}>🍳 {totalDes} Desayunos</span> : null}
+                      {totalRefAm > 0 ? <span style={{ fontSize: '11px', fontWeight: 700, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: '5px' }}>☕ {totalRefAm} Ref.AM</span> : null}
+                      {totalAlm > 0 ? <span style={{ fontSize: '11px', fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: '5px' }}>🍽️ {totalAlm} Almuerzos</span> : null}
+                      {totalRefPm > 0 ? <span style={{ fontSize: '11px', fontWeight: 700, color: '#7c3aed', background: '#faf5ff', border: '1px solid #e9d5ff', padding: '2px 6px', borderRadius: '5px' }}>🍪 {totalRefPm} Ref.PM</span> : null}
+                      {totalCen > 0 ? <span style={{ fontSize: '11px', fontWeight: 700, color: '#be123c', background: '#fff1f2', border: '1px solid #fecdd3', padding: '2px 6px', borderRadius: '5px' }}>🍲 {totalCen} Cenas</span> : null}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="tabla-eventos-container">
           <div className="tabla-header-banner" style={{
             display: 'flex',
             alignItems: 'center',
@@ -1420,54 +2314,83 @@ export default function Kanban() {
                         dayTotals.pax += paxVal;
                       }
 
-                      const foodKey = `${groupId}_${day.isoDate}`;
-                      const canReceiveFood = !seenFoodTable.has(foodKey);
-                      if (canReceiveFood) seenFoodTable.add(foodKey);
-
-                      const svc = (canReceiveFood && weeklyServices.length > 0)
-                        ? getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate)
-                        : null;
-                      const evDes = svc ? svc.desayunos : (canReceiveFood ? (Number(ev.cant_desayunos) || 0) : 0);
-                      const evRefAm = svc ? svc.refacciones_am : (canReceiveFood ? (Number(ev.cant_refacciones_am) || 0) : 0);
-                      const evAlm = svc ? svc.almuerzos : (canReceiveFood ? (Number(ev.cant_almuerzos) || 0) : 0);
-                      const evRefPm = svc ? svc.refacciones_pm : (canReceiveFood ? (Number(ev.cant_refacciones_pm) || 0) : 0);
-                      const evCen = svc ? svc.cenas : (canReceiveFood ? (Number(ev.cant_cenas) || 0) : 0);
-                      dayTotals.desayunos += evDes;
-                      dayTotals.ref_am += evRefAm;
-                      dayTotals.almuerzos += evAlm;
-                      dayTotals.ref_pm += evRefPm;
-                      dayTotals.cenas += evCen;
-                      const st = statusMap[ev.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
                       const rowId = `${day.isoDate}-${ev.Idocupacion}-${ei}`;
                       const isExpanded = expandedRows.has(rowId);
-                      const hasAlerts = (ev.tiene_alertas == 1 || ev.tiene_alertas === true);
+                      const st = statusMap[ev.Estatuscotizacion] || { label: 'Desconocido', color: 'gray' };
+                      const sCounts = getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate);
+                      let dVal, raVal, aVal, rpVal, cVal;
+                      if (sCounts) {
+                        dVal = sCounts.desayunos;
+                        raVal = sCounts.ref_am;
+                        aVal = sCounts.almuerzos;
+                        rpVal = sCounts.ref_pm;
+                        cVal = sCounts.cenas;
+                      } else {
+                        dVal = ev.cant_desayunos;
+                        raVal = ev.cant_refacciones_am;
+                        aVal = ev.cant_almuerzos;
+                        rpVal = ev.cant_refacciones_pm;
+                        cVal = ev.cant_cenas;
+                      }
+                      if (isShared) {
+                        const foodKey = `${groupId}_${day.isoDate}`;
+                        if (!seenFoodTable.has(foodKey)) {
+                          seenFoodTable.add(foodKey);
+                          dayTotals.desayunos += Number(dVal) || 0;
+                          dayTotals.ref_am += Number(raVal) || 0;
+                          dayTotals.almuerzos += Number(aVal) || 0;
+                          dayTotals.ref_pm += Number(rpVal) || 0;
+                          dayTotals.cenas += Number(cVal) || 0;
+                        }
+                      } else {
+                        dayTotals.desayunos += Number(dVal) || 0;
+                        dayTotals.ref_am += Number(raVal) || 0;
+                        dayTotals.almuerzos += Number(aVal) || 0;
+                        dayTotals.ref_pm += Number(rpVal) || 0;
+                        dayTotals.cenas += Number(cVal) || 0;
+                      }
+                      const hasAlerts = ev.tiene_alertas == 1 || ev.tiene_alertas === true;
                       rows.push(
                         <tr
                           key={rowId}
-                          className={`tabla-eventos-row${isExpanded ? ' row-expanded' : ''}`}
-                          onClick={() => { if (isMobileView) toggleRow(rowId); }}
+                          onClick={() => {
+                            if (isMobileView) {
+                              setExpandedRows((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(rowId)) next.delete(rowId);
+                                else next.add(rowId);
+                                return next;
+                              });
+                            }
+                          }}
+                          style={{
+                            cursor: isMobileView ? 'pointer' : 'default',
+                            background: isExpanded ? 'var(--surface-2, #f8fafc)' : 'transparent',
+                          }}
                         >
                           <td className="col-dia">{isMobileView ? day.isoDate.slice(8) : day.shortDate}</td>
-                          <td className="col-estado"><span className={`event-tag event-tag-${st.color}`} style={{fontSize: isMobileView ? '0.55rem' : '0.65rem',padding:'0.1rem 0.2rem'}}>{isMobileView ? (mobileStatusMap[ev.Estatuscotizacion]?.label || st.label) : st.label}</span></td>
-                          <td className="col-inst" style={{fontWeight:500,fontSize: isMobileView ? '0.6rem' : 'inherit'}}>{ev.Institucion || '—'}</td>
-                          <td className="col-salon">{isMobileView ? '' : <IconMapPin size={13} />} {ev.Salon || '—'}</td>
-                          <td className="col-horario">{isMobileView ? '' : <IconClock size={13} />} {fmtTime(ev.HoraI)} - {fmtTime(ev.HoraF)}</td>
-                          <td className="col-pax">{paxVal || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evDes || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evRefAm || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evAlm || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evRefPm || '—'}</td>
-                          <td className="col-food" style={{fontSize:'0.72rem',fontWeight:600,textAlign:'center'}}>{evCen || '—'}</td>
-                          <td className="col-alertas">
-                            {hasAlerts
-                              ? <span className="event-tag event-tag-warning" style={{fontSize: isMobileView ? '0.55rem' : '0.65rem',padding:'0.1rem 0.2rem'}}>⚠️</span>
-                              : <span className="mobile-only mob-no-alertas">—</span>
-                            }
+                          <td className="col-estado">
+                            <span className={`event-tag event-tag-${st.color}`} style={{fontSize:'0.65rem',padding:'0.15rem 0.4rem'}}>
+                              {st.label}
+                            </span>
                           </td>
-                          <td className="col-vendedor">{isMobileView ? '' : <IconUser size={13} />} {ev.Vendedor || '—'}</td>
+                          <td className="col-inst" style={{fontWeight:600}} title={ev.Institucion || ev.NombreEvento || '—'}>
+                            {ev.Institucion || ev.NombreEvento || '—'}
+                          </td>
+                          <td className="col-salon" title={ev.Salon || '—'}>{ev.Salon || '—'}</td>
+                          <td className="col-horario">{fmtTime(ev.HoraI)} - {fmtTime(ev.HoraF)}</td>
+                          <td className="col-pax" style={{fontWeight:700}}>{ev.Pax || 0}</td>
+                          <td className="col-food">{dVal || 0}</td>
+                          <td className="col-food">{raVal || 0}</td>
+                          <td className="col-food">{aVal || 0}</td>
+                          <td className="col-food">{rpVal || 0}</td>
+                          <td className="col-food">{cVal || 0}</td>
+                          <td className="col-alertas" style={{textAlign:'center'}}>
+                            {hasAlerts ? <span className="event-tag event-tag-warning" style={{fontSize:'0.65rem',padding:'0.1rem 0.35rem'}}>⚠️ Alertas</span> : '—'}
+                          </td>
+                          <td className="col-vendedor" title={ev.Vendedor || '—'}>{ev.Vendedor || '—'}</td>
                         </tr>
                       );
-                      /* ─── Expandable detail row (mobile) ─── */
                       if (isExpanded) {
                         rows.push(
                           <tr key={`${rowId}-detail`} className="tabla-detail-row">
@@ -1490,11 +2413,11 @@ export default function Kanban() {
                                 <div className="detail-section">
                                   <span className="detail-label">Alimentos</span>
                                   <div className="detail-food-grid">
-                                    <span className="detail-food-item"><span className="food-title">Des.</span> {evDes || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Ref.AM</span> {evRefAm || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Alm.</span> {evAlm || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Ref.PM</span> {evRefPm || 0}</span>
-                                    <span className="detail-food-item"><span className="food-title">Cenas</span> {evCen || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Des.</span> {dVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Ref.AM</span> {raVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Alm.</span> {aVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Ref.PM</span> {rpVal || 0}</span>
+                                    <span className="detail-food-item"><span className="food-title">Cenas</span> {cVal || 0}</span>
                                   </div>
                                 </div>
                                 <div className="detail-section">
@@ -1518,21 +2441,9 @@ export default function Kanban() {
                     weeklyTotals.cenas += dayTotals.cenas;
                     rows.push(
                       <tr key={`${day.isoDate}-total`} className="tabla-total-row" style={{background:'var(--surface-2, #f1f5f9)'}}>
-                        {isMobileView ? (
-                          <td colSpan={5} className="col-dia col-estado col-inst col-salon col-horario" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid #e2e8f0',color:'#475569'}}>
-                            Total
-                          </td>
-                        ) : (
-                          <>
-                            <td className="col-dia" style={{borderBottom:'1px solid var(--border)'}}></td>
-                            <td className="col-estado" style={{borderBottom:'1px solid var(--border)'}}></td>
-                            <td className="col-inst" style={{borderBottom:'1px solid var(--border)'}}></td>
-                            <td className="col-salon" style={{borderBottom:'1px solid var(--border)'}}></td>
-                            <td className="col-horario" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid var(--border)',color:'#475569'}}>
-                              Total {day.shortDate}
-                            </td>
-                          </>
-                        )}
+                        <td colSpan={5} className="col-dia col-estado col-inst col-salon col-horario" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'right',padding:'4px 12px',borderBottom:'1px solid var(--border)',color:'#475569'}}>
+                          {isMobileView ? 'Total' : `Total ${day.shortDate}`}
+                        </td>
                         <td className="col-pax" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#4f46e5'}}>
                           {dayTotals.pax}
                         </td>
@@ -1541,36 +2452,17 @@ export default function Kanban() {
                         <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.almuerzos}</td>
                         <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.ref_pm}</td>
                         <td className="col-food" style={{fontSize:'0.72rem',fontWeight:700,textAlign:'center',padding:'4px 8px',borderBottom:'1px solid var(--border)',color:'#475569'}}>{dayTotals.cenas}</td>
-                        {isMobileView ? (
-                          <td colSpan={2} className="col-alertas col-vendedor" style={{borderBottom:'1px solid var(--border)'}}></td>
-                        ) : (
-                          <>
-                            <td className="col-alertas" style={{borderBottom:'1px solid var(--border)'}}></td>
-                            <td className="col-vendedor" style={{borderBottom:'1px solid var(--border)'}}></td>
-                          </>
-                        )}
+                        <td colSpan={2} className="col-alertas col-vendedor" style={{borderBottom:'1px solid var(--border)'}}></td>
                       </tr>
                     );
                   }
                   return rows;
                 }).concat(
                   filteredDays.length > 0 && !(isMobileView && viewMode === 'tabla') ? (
-                    <tr key="semana-total" style={{background:'#e0e7ff'}}>
-                      {isMobileView ? (
-                        <td colSpan={5} style={{fontSize:'0.75rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>
-                          TOTAL SEMANA
-                        </td>
-                      ) : (
-                        <>
-                          <td className="col-dia" style={{borderTop:'2px solid #6366f1'}}></td>
-                          <td className="col-estado" style={{borderTop:'2px solid #6366f1'}}></td>
-                          <td className="col-inst" style={{borderTop:'2px solid #6366f1'}}></td>
-                          <td className="col-salon" style={{borderTop:'2px solid #6366f1'}}></td>
-                          <td className="col-horario" style={{fontSize:'0.75rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>
-                            TOTAL SEMANA
-                          </td>
-                        </>
-                      )}
+                    <tr key="semana-total" style={{background:'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(79, 70, 229, 0.06) 100%)'}}>
+                      <td colSpan={5} style={{fontSize:'0.78rem',fontWeight:800,textAlign:'right',padding:'6px 12px',borderTop:'2px solid #6366f1',color:'#3730a3',letterSpacing:'0.03em'}}>
+                        TOTAL SEMANA
+                      </td>
                       <td style={{fontSize:'0.82rem',fontWeight:900,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#4338ca'}}>
                         {weeklyTotals.pax}
                       </td>
@@ -1579,14 +2471,7 @@ export default function Kanban() {
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.almuerzos}</td>
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.ref_pm}</td>
                       <td style={{fontSize:'0.75rem',fontWeight:800,textAlign:'center',padding:'6px 8px',borderTop:'2px solid #6366f1',color:'#3730a3'}}>{weeklyTotals.cenas}</td>
-                      {isMobileView ? (
-                        <td colSpan={2} style={{borderTop:'2px solid #6366f1'}}></td>
-                      ) : (
-                        <>
-                          <td className="col-alertas" style={{borderTop:'2px solid #6366f1'}}></td>
-                          <td className="col-vendedor" style={{borderTop:'2px solid #6366f1'}}></td>
-                        </>
-                      )}
+                      <td colSpan={2} style={{borderTop:'2px solid #6366f1'}}></td>
                     </tr>
                   ) : null
                 );
@@ -1594,9 +2479,148 @@ export default function Kanban() {
             </tbody></table>
           </div>
         </div>
+        )
       )}
       {pdfLoading && <LoadingSpinner mensaje="Generando PDF..." />}
       <SettingsChecklist />
+
+
+      {/* Menú Flotante de Exportación en Móvil */}
+      {showExportMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.5)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+          onClick={() => setShowExportMenu(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px',
+              padding: '20px 20px 30px',
+              width: '100%',
+              maxWidth: '500px',
+              boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconDownload size={16} strokeWidth={2.3} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Exportar Ocupación</h4>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>{mobileWeekLabel}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExportMenu(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer', padding: '4px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExportMenu(false);
+                  exportToExcel();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#1e293b',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>📊</span>
+                <div>
+                  <div>Descargar Excel (.xlsx)</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Tabla con todos los eventos y desglose de servicios</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExportMenu(false);
+                  exportToPdf();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#1e293b',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>📄</span>
+                <div>
+                  <div>Descargar PDF institucional</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Formato formal con logo y control por día</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExportMenu(false);
+                  handlePrint();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#1e293b',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>🖨️</span>
+                <div>
+                  <div>Imprimir vista semanal</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Abre el diálogo directo de impresión</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
