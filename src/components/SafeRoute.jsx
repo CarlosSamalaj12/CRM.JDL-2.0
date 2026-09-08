@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { useLocation } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
 
 /* ─── CSS keyframes (single injection) ─── */
@@ -126,8 +127,9 @@ function createFallback() {
 }
 
 export default function SafeRoute({ children, fallback }) {
+  const location = useLocation();
   return (
-    <ErrorBoundary>
+    <ErrorBoundary key={location.pathname} resetKey={location.pathname}>
       <Suspense fallback={fallback || null}>
         {children}
       </Suspense>

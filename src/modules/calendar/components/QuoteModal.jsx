@@ -185,12 +185,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [selectedServiceDate, setSelectedServiceDate] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState(() => String(event?.quote?.companyName || event?.quote?.empresa || event?.empresa || '').trim());
   const [showCompanyResults, setShowCompanyResults] = useState(false);
-
-  useEffect(() => {
-    if (quote?.companyName && !companySearchQuery) {
-      setCompanySearchQuery(quote.companyName);
-    }
-  }, [quote?.companyName, companySearchQuery]);
   const [selectedItemIds, setSelectedItemIds] = useState(new Set());
   const [showDocPanel, setShowDocPanel] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
@@ -276,6 +270,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   // Asi no sobrescribe lo que el usuario ya haya seleccionado.
   const quoteRef = useRef(quote);
   useEffect(() => { quoteRef.current = quote; }, [quote]);
+  useEffect(() => {
+    if (quote?.companyName && !companySearchQuery) {
+      setCompanySearchQuery(quote.companyName);
+    }
+  }, [quote?.companyName, companySearchQuery]);
   // ─── Auto-save draft to localStorage ───
   useAutoSave(event, quote);
 
