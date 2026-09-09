@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS items_cotizacion_evento (
   fecha_servicio DATE NULL,
   cantidad DECIMAL(12,2) NOT NULL DEFAULT 0,
   precio DECIMAL(12,2) NOT NULL DEFAULT 0,
-  nombre VARCHAR(260) NOT NULL,
+  nombre TEXT NOT NULL,
   descripcion TEXT NULL,
   creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

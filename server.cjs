@@ -607,7 +607,7 @@ async function ensureQuoteVersionStructure() {
         fecha_servicio DATE NULL,
         cantidad DECIMAL(12,2) NOT NULL DEFAULT 0,
         precio DECIMAL(12,2) NOT NULL DEFAULT 0,
-        nombre VARCHAR(240) NOT NULL,
+        nombre TEXT NOT NULL,
         descripcion TEXT NULL,
         PRIMARY KEY (id),
         KEY idx_items_cotizacion_version_evento (id_evento, version_num)
@@ -1216,6 +1216,40 @@ async function ensureQuoteItemPrimaryKeyColumnSize() {
     }
   } finally {
     if (conn) conn.release();
+  }
+}
+
+async function ensureQuoteItemNombreColumnSize() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
+    const targets = [
+      { table: 'items_cotizacion_evento', column: 'nombre' },
+      { table: 'items_cotizacion_version_evento', column: 'nombre' },
+      { table: 'servicios', column: 'nombre' }
+    ];
+    for (const t of targets) {
+      const cols = await conn.query(
+        `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?`,
+        [DB_NAME, t.table, t.column]
+      );
+      if (cols.length > 0 && String(cols[0].data_type).toLowerCase() !== 'text') {
+        try {
+          await conn.query(`ALTER TABLE ${t.table} MODIFY COLUMN ${t.column} TEXT NOT NULL`);
+          console.log(`[MIGRACIÓN] ${t.table}.${t.column} modificado a TEXT.`);
+        } catch (alterErr) {
+          console.warn(`[MIGRACIÓN] No se pudo alterar ${t.table}.${t.column}:`, alterErr.message);
+        }
+      }
+    }
+  } finally {
+    if (conn) {
+      try {
+        await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+      } catch (_) {}
+      conn.release();
+    }
   }
 }
 
@@ -3001,11 +3035,7 @@ function isEventUnchanged(e, oldEvent) {
   const qB = oldEvent.quote;
   if (!qA && !qB) return true;
   if (!qA || !qB) return false;
-  if (String(qA.code || '').trim() !== String(qB.code || '').trim()) return false;
-  if (Number(qA.total || 0) !== Number(qB.total || 0)) return false;
-  if (Number(qA.version || 1) !== Number(qB.version || 1)) return false;
-  if ((qA.items?.length || 0) !== (qB.items?.length || 0)) return false;
-  if ((qA.advances?.length || 0) !== (qB.advances?.length || 0)) return false;
+  if (JSON.stringify(qA) !== JSON.stringify(qB)) return false;
 
   return true;
 }
@@ -5730,6 +5760,7 @@ const MIGRATIONS = [
   { name: 'UsersExtended', fn: ensureUsersExtendedStructure },
   { name: 'EquiposTrabajo', fn: ensureEquiposTrabajoStructure },
   { name: 'QuoteItemPKColSize', fn: ensureQuoteItemPrimaryKeyColumnSize },
+  { name: 'QuoteItemNombreColSize', fn: ensureQuoteItemNombreColumnSize },
   { name: 'EncargadosEmpresaColSize', fn: ensureEncargadosEmpresaColumnSize },
   { name: 'CotizacionesEventoColSize', fn: ensureCotizacionesEventoColumnSize },
   { name: 'RequiredTables', fn: ensureRequiredTables },
@@ -5765,6 +5796,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureUsersExtendedStructure',
   'ensureEquiposTrabajoStructure',
   'ensureQuoteItemPrimaryKeyColumnSize',
+  'ensureQuoteItemNombreColumnSize',
   'ensureEncargadosEmpresaColumnSize',
   'ensureCotizacionesEventoColumnSize',
   'ensureRequiredTables',

@@ -1239,9 +1239,10 @@ export default function ReservationForm() {
       setSaving(false);
       showNotification(shouldFollowUp ? 'Cotizacion actualizada. Estado a Seguimiento.' : 'Cotizacion guardada');
       if (!options?.keepOpen) setShowQuoteModal(false);
-    } catch {
+    } catch (err) {
       showNotification('Error al guardar cotizacion', 'error');
       setSaving(false);
+      throw err;
     }
   };
 
