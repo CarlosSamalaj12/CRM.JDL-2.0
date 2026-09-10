@@ -363,3 +363,22 @@ Cómo forzar actualización de clientes desde el server:
       - Diálogo modal interactivo al hacer clic para reservar el bloque (`+ Reservar este bloque horario`), reservar el día completo o abrir la reserva completa.
     - **Alternancia de vista**: Permite conmutar con un clic entre la **Matriz (6 Bloques)** y la vista de **Tarjetas Detalladas** en grid multi-columna de escritorio.
 
+### Cotizaciones: Reemplazo accidental de Empresa y Encargado por colisión de `companyId` compartido (2026-09-10)
+- Bug: Al crear una cotización, llenar el carrito operativo e ingresar datos de empresa y encargado, al reabrir el evento días después para agregar ítems extras o imprimir/guardar, aparecía otra empresa o encargado no asignado originalmente (ej. "60 AÑOS MIRNA CANO" o encargados de otras instituciones ajenas).
+- Causa raíz:
+  1. **Herencia de IDs colisionados**: En migraciones históricas, más de 250 eventos en MariaDB tenían asignado `companyId: "10"` (u otros valores genéricos como `"100"` o `"1000"`), a pesar de que cada evento poseía su propio `companyName` y `contact` real (bodas, talleres, retiros, cumpleaños, etc.).
+  2. **Sobreescritura global de empresa**: Cuando un usuario editaba una cotización y guardaba la empresa desde el modal de edición/creación en `QuoteModal.jsx`, el modal reusaba `existing?.id || quote.companyId` (`"10"`). Al guardar (ej. el 9 de septiembre para "60 AÑOS MIRNA CANO"), sobreescribió el registro `10` en la tabla global `empresas`.
+  3. **Cascada a todos los eventos y fallback a primer encargado**: Al cargar cualquier evento con `companyId: "10"`, el modal traía a la nueva empresa ("60 AÑOS MIRNA CANO"). Al no coincidir el encargado del evento con los de la empresa alterada, el `<select>` de encargado caía automáticamente a `managers[0]` ("MIRNA CANO"), sobreescribiendo permanentemente el contacto al volver a guardar la cotización.
+  4. **Desincronización `quote.contact` vs `quote.managerName`**: En `QuoteModal`, el input de texto modificaba `contact`, pero en MariaDB (`tbl_seguimientocotizaciones` y endpoints de cotizaciones) se priorizaba `nombre_encargado` (`quote.managerName`), provocando discrepancias entre lo que el asesor escribía y lo que se visualizaba en los reportes o al reabrir.
+- Solución arquitectónica:
+  - **Saneamiento y migración de base de datos (`scripts/fix_collided_quote_companies.cjs`)**:
+    - Se migraron 553 registros de eventos con IDs de empresa colisionados.
+    - Cada empresa distinta fue aislada en su propio registro en `empresas` (`cmp_leg_...`) junto con sus encargados en `encargados_empresa`, preservando el nombre, teléfono y correo originales.
+    - Se actualizaron los campos `companyId`, `companyName`, `managerId`, `managerName` y `contact` en el JSON de cotización de cada evento en `cotizaciones_evento` y `tbl_seguimientocotizaciones`.
+  - **Aislamiento en `QuoteModal.jsx`**:
+    - *Validación estricta de concordancia*: `selectedQuoteCompany` ahora verifica si el nombre de la empresa en el catálogo coincide (`normalizeComp(byId.name) === normalizeComp(quote.companyName)`). Si no coincide, descarta el `companyId` colisionado para evitar asociar una empresa ajena.
+    - *Desacoplamiento de creación vs edición*: Se separaron `openCreateCompanyModal()` (que siempre genera un nuevo ID único `cmp_...`) de `openEditCompanyModal(targetComp)` (que edita explícitamente una empresa existente del catálogo).
+    - *Selector rápido `+ Agregar encargado`*: Nuevo botón ergonómico junto al selector de encargados con modal dedicado (`showQuickManagerModal`) para vincular nuevos contactos a la empresa seleccionada de inmediato sin perder datos de la cotización.
+    - *Preservación de contacto asignado*: Si un evento tiene un contacto guardado que aún no figura en `companyManagers`, el `<select>` muestra y retiene la opción `👤 {quote.contact} (Contacto asignado)` en lugar de forzar un fallback destructivo a `managers[0]`.
+    - *Sincronización bidireccional*: Al editar el contacto o seleccionarlo en el dropdown, `quote.contact` y `quote.managerName` se mantienen 100% sincronizados.
+

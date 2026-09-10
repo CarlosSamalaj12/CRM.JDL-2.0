@@ -190,6 +190,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [showVersionPanel, setShowVersionPanel] = useState(false);
   const [showCreateServiceModal, setShowCreateServiceModal] = useState(false);
   const [showCreateCompanyModal, setShowCreateCompanyModal] = useState(false);
+  const [showQuickManagerModal, setShowQuickManagerModal] = useState(false);
+  const [quickManagerDraft, setQuickManagerDraft] = useState({ name: '', phone: '', email: '', address: '' });
+  const [savingQuickManager, setSavingQuickManager] = useState(false);
   const [companyDraftId, setCompanyDraftId] = useState('');
   const [companyDraft, setCompanyDraft] = useState(emptyCompanyDraft);
   const [companyDraftActive, setCompanyDraftActive] = useState(true);
@@ -512,7 +515,17 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const selectedQuoteCompany = useMemo(() => {
     if (quote.companyId) {
       const byId = companies.find(c => String(c.id || '').trim() === String(quote.companyId).trim());
-      if (byId) return byId;
+      if (byId) {
+        // Protección contra colisión de IDs heredados (ej. ID 10/100/1000 que pertenecía a otro cliente):
+        // Si el evento ya tiene un quote.companyName explícito y difiere del nombre de la empresa del ID,
+        // no forzar la empresa del ID colisionado sino buscar por nombre o devolver null.
+        if (quote.companyName && String(byId.name || '').trim().toLowerCase() !== String(quote.companyName).trim().toLowerCase()) {
+          const byName = companies.find(c => String(c.name || '').trim().toLowerCase() === String(quote.companyName).trim().toLowerCase());
+          if (byName) return byName;
+          return null;
+        }
+        return byId;
+      }
     }
     if (quote.companyName) {
       const nameNorm = quote.companyName.trim().toLowerCase();
@@ -527,17 +540,17 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const managers = Array.isArray(company.managers) ? company.managers : [];
     const targetId = String(managerId || '').trim();
     let manager = null;
-    if (targetId) {
+    if (targetId && targetId !== '__current_custom__') {
       manager = managers.find(m => String(m.id || '').trim() === targetId)
         || managers.find(m => String(m.name || '').trim().toLowerCase() === targetId.toLowerCase())
         || null;
     }
-    if (!manager && !targetId && (quote.managerId || quote.contact)) {
+    if (!manager && (!targetId || targetId === '__current_custom__') && (quote.managerId || quote.contact)) {
       manager = managers.find(m => String(m.id || '').trim() === String(quote.managerId || '').trim())
         || managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())
         || null;
     }
-    if (!manager) {
+    if (!manager && managers.length > 0 && !quote.contact) {
       manager = managers[0] || null;
     }
 
@@ -546,14 +559,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       companyId: company.id || prev.companyId,
       companyName: company.name || prev.companyName,
       contact: manager?.name || company.owner || prev.contact || '',
-      email: manager?.email || company.email || '',
-      phone: manager?.phone || company.phone || '',
-      nit: company.nit || '',
-      billTo: company.businessName || company.billTo || company.name || '',
-      address: company.address || '',
+      email: manager?.email || company.email || prev.email || '',
+      phone: manager?.phone || company.phone || prev.phone || '',
+      nit: company.nit || prev.nit || '',
+      billTo: company.businessName || company.billTo || company.name || prev.billTo || '',
+      address: company.address || prev.address || '',
       eventType: company.eventType || prev.eventType || 'Social',
-      managerId: manager?.id || (manager ? manager.name : ''),
-      managerName: manager?.name || '',
+      managerId: manager?.id || (manager ? manager.name : (prev.managerId || '')),
+      managerName: manager?.name || prev.managerName || (manager ? manager.name : prev.contact || ''),
       dueDate: prev.eventDate ? calculateDueDate(prev.eventDate) : prev.dueDate
     }));
   };
@@ -569,39 +582,105 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     setShowCompanyResults(false);
   };
 
+  // Abre el modal para crear una NUEVA empresa (siempre con ID único nuevo)
   const openCreateCompanyModal = () => {
-    const existing = quote.companyId
-      ? companies.find(c => String(c.id || '').trim() === String(quote.companyId).trim())
-      : (quote.companyName ? companies.find(c => String(c.name || '').trim().toLowerCase() === quote.companyName.trim().toLowerCase()) : null);
-    
-    const targetCompanyId = existing?.id || quote.companyId || '';
-    const initialManagers = existing?.managers?.length
-      ? existing.managers.map(m => ({ ...m }))
-      : (quote.contact || quote.managerName ? [{
-          id: quote.managerId || `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          name: quote.contact || quote.managerName || '',
-          phone: quote.phone || '',
-          email: quote.email || '',
-          address: quote.address || ''
-        }] : []);
-
-    setCompanyDraftId(targetCompanyId);
+    resetCreateCompanyModal();
+    setCompanyDraftId(''); // ID vacío garantiza generar nuevo ID único y no sobreescribir ninguna empresa existente
+    const initialManagers = (quote.contact || quote.managerName) ? [{
+      id: `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: quote.contact || quote.managerName || '',
+      phone: quote.phone || '',
+      email: quote.email || '',
+      address: quote.address || ''
+    }] : [];
     setCompanyDraft({
-      name: existing?.name || quote.companyName || companySearchQuery || '',
-      owner: existing?.owner || quote.contact || quote.managerName || '',
-      email: existing?.email || quote.email || '',
-      nit: existing?.nit || quote.nit || '',
-      businessName: existing?.businessName || existing?.billTo || quote.billTo || quote.companyName || companySearchQuery || '',
-      eventType: existing?.eventType || quote.eventType || 'Social',
-      address: existing?.address || quote.address || '',
-      phone: existing?.phone || quote.phone || '',
-      notes: existing?.notes || ''
+      ...emptyCompanyDraft,
+      name: companySearchQuery.trim() || quote.companyName || '',
+      businessName: companySearchQuery.trim() || quote.companyName || '',
+      owner: quote.contact || quote.managerName || '',
+      email: quote.email || '',
+      phone: quote.phone || '',
+      nit: quote.nit || '',
+      address: quote.address || '',
+      eventType: quote.eventType || 'Social'
     });
-    setCompanyDraftActive(existing ? existing.active !== false : true);
     setCompanyManagersDraft(initialManagers);
     setManagerDraft(emptyManagerDraft);
     setEditingManagerId('');
+    setCompanyDraftActive(true);
     setShowCreateCompanyModal(true);
+  };
+
+  // Abre el modal para EDITAR explícitamente la empresa actual seleccionada
+  const openEditCompanyModal = (targetComp = null) => {
+    const existing = targetComp || selectedQuoteCompany;
+    if (!existing) return;
+    setCompanyDraftId(existing.id || '');
+    setCompanyDraft({
+      name: existing.name || '',
+      owner: existing.owner || '',
+      email: existing.email || '',
+      nit: existing.nit || '',
+      businessName: existing.businessName || existing.billTo || existing.name || '',
+      eventType: existing.eventType || 'Social',
+      address: existing.address || '',
+      phone: existing.phone || '',
+      notes: existing.notes || ''
+    });
+    setCompanyDraftActive(existing.active !== false);
+    setCompanyManagersDraft(Array.isArray(existing.managers) ? existing.managers.map(m => ({ ...m })) : []);
+    setManagerDraft(emptyManagerDraft);
+    setEditingManagerId('');
+    setShowCreateCompanyModal(true);
+  };
+
+  // Agrega un encargado rápidamente a la empresa actualmente seleccionada
+  const handleSaveQuickManager = async () => {
+    const targetComp = selectedQuoteCompany;
+    if (!targetComp) {
+      toast.error('Primero selecciona o crea una empresa.');
+      return;
+    }
+    const name = quickManagerDraft.name.trim();
+    if (!name) {
+      toast.error('El nombre del encargado es obligatorio.');
+      return;
+    }
+    setSavingQuickManager(true);
+    try {
+      const currentState = await loadCrmState({ cacheBust: true });
+      const currentCompanies = Array.isArray(currentState.companies) ? currentState.companies : [];
+      const compIdx = currentCompanies.findIndex(c => String(c.id).trim() === String(targetComp.id).trim());
+      if (compIdx < 0) {
+        toast.error('No se encontró la empresa en el catálogo.');
+        return;
+      }
+      const newManager = {
+        id: `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        name,
+        phone: quickManagerDraft.phone.trim(),
+        email: quickManagerDraft.email.trim(),
+        address: quickManagerDraft.address.trim()
+      };
+      const existingManagers = Array.isArray(currentCompanies[compIdx].managers) ? currentCompanies[compIdx].managers : [];
+      const updatedComp = {
+        ...currentCompanies[compIdx],
+        owner: currentCompanies[compIdx].owner || name,
+        managers: [...existingManagers, newManager]
+      };
+      const nextCompanies = currentCompanies.map((c, i) => i === compIdx ? updatedComp : c);
+      await saveCrmState({ ...currentState, companies: nextCompanies });
+      setCompanies(nextCompanies);
+      applyCompanyManager(updatedComp, newManager.id);
+      setShowQuickManagerModal(false);
+      setQuickManagerDraft({ name: '', phone: '', email: '', address: '' });
+      toast.success(`Encargado "${name}" agregado a ${updatedComp.name}`);
+    } catch (err) {
+      console.error('Error guardando encargado rápido:', err);
+      toast.error('Error al guardar el encargado.');
+    } finally {
+      setSavingQuickManager(false);
+    }
   };
 
   const resetCreateCompanyModal = () => {
@@ -698,18 +777,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       const currentState = await loadCrmState({ cacheBust: true });
       const currentCompanies = Array.isArray(currentState.companies) ? currentState.companies : [];
 
-      // 1. Coincidencia estricta por ID si existe companyDraftId
+      // 1. Coincidencia estricta por ID SOLO si existe companyDraftId explícito (edición)
       let existingIndex = -1;
       if (companyDraftId) {
         existingIndex = currentCompanies.findIndex(item => String(item.id || '').trim() === String(companyDraftId).trim());
       }
-      // 2. Si no hay companyDraftId, buscar por nombre exacto normalizado
+      // 2. Si no hay companyDraftId (creación), buscar si ya existe una empresa con ese MISMO NOMBRE exacto
       if (existingIndex < 0 && !companyDraftId) {
         const nameLower = clean.name.toLowerCase();
         existingIndex = currentCompanies.findIndex(item => String(item.name || '').trim().toLowerCase() === nameLower);
       }
 
       const baseCompany = existingIndex >= 0 ? currentCompanies[existingIndex] : null;
+      // Generar SIEMPRE ID único nuevo si es empresa nueva para prevenir colisiones
       const targetCompanyId = baseCompany?.id || companyDraftId || `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
       const savedManagers = companyManagersDraft.map((manager, index) => ({
@@ -4339,29 +4419,23 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                 color: '#334155', 
                                 borderRadius: '6px', 
                                 border: '1px solid #cbd5e1', 
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)', 
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '3px',
-                                transition: 'background .12s'
+                                gap: '4px',
+                                transition: 'all .12s'
                               }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
-                              onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                              title="Editar datos de la empresa en el catálogo"
                             >
                               ✏️ Editar
                             </button>
                           )}
                           <button
                             type="button"
-                            onClick={() => {
-                              setCompanyDraftId('');
-                              setCompanyDraft(emptyCompanyDraft);
-                              setCompanyManagersDraft([]);
-                              setManagerDraft(emptyManagerDraft);
-                              setEditingManagerId('');
-                              setCompanyDraftActive(true);
-                              setShowCreateCompanyModal(true);
-                            }}
+                            onClick={() => openCreateCompanyModal()}
                             style={{ 
                               minHeight: 28, 
                               padding: '0 12px', 
@@ -4380,6 +4454,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             }}
                             onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
                             onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
+                            title="Crear una nueva empresa única en el catálogo"
                           >
                             + Nueva
                           </button>
@@ -4392,7 +4467,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           onChange={e => { setCompanySearchQuery(e.target.value); setShowCompanyResults(true); }}
                           onFocus={() => setShowCompanyResults(true)}
                           onBlur={() => setTimeout(() => setShowCompanyResults(false), 200)}
-                          placeholder="Buscar institución..."
+                          placeholder="Buscar institución en el catálogo..."
                         />
                         {showCompanyResults && companySearchQuery.trim() && (
                           <div className="qp-company-drop">
@@ -4409,37 +4484,86 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             <div
                               onMouseDown={e => {
                                 e.preventDefault();
-                                setCompanyDraftId('');
-                                setCompanyDraft(emptyCompanyDraft);
-                                setCompanyManagersDraft([]);
-                                setManagerDraft(emptyManagerDraft);
-                                setEditingManagerId('');
-                                setCompanyDraftActive(true);
-                                setShowCreateCompanyModal(true);
+                                openCreateCompanyModal();
                               }}
                               style={{ padding: '10px 14px', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 13, borderTop: filteredCompanies.length > 0 ? '1px solid #e2e8f0' : 'none' }}
                             >
-                              ➕ Crear nueva empresa{companySearchQuery.trim() ? ` "${companySearchQuery.trim()}"` : ''}
+                              ➕ Crear nueva empresa "{companySearchQuery.trim()}"
                             </div>
                           </div>
                         )}
                       </div>
+                      {selectedQuoteCompany ? (
+                        <div style={{ marginTop: 4, fontSize: 11.5, color: '#059669', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                          <span>✓ Vinculada a:</span>
+                          <span style={{ color: '#0f172a' }}>{selectedQuoteCompany.name}</span>
+                        </div>
+                      ) : quote.companyName ? (
+                        <div style={{ marginTop: 4, fontSize: 11.5, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                          <span>⚠️ Asignada:</span>
+                          <span style={{ color: '#0f172a' }}>{quote.companyName}</span>
+                          <button
+                            type="button"
+                            onClick={() => openCreateCompanyModal()}
+                            style={{ background: 'none', border: 'none', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                          >
+                            (Registrar en catálogo)
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
 
                     {selectedQuoteCompany && Array.isArray(selectedQuoteCompany.managers) && selectedQuoteCompany.managers.length > 0 ? (
                       <div>
-                        <label style={fieldLabel}>Encargado de la empresa</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <label style={{ ...fieldLabel, marginBottom: 0 }}>Encargado de la empresa</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickManagerDraft({ name: '', phone: '', email: '', address: '' });
+                              setShowQuickManagerModal(true);
+                            }}
+                            style={{
+                              minHeight: 24, 
+                              padding: '0 8px', 
+                              fontSize: 11, 
+                              fontWeight: 700, 
+                              background: '#ecfdf5', 
+                              color: '#059669', 
+                              borderRadius: '6px', 
+                              border: '1px solid #a7f3d0', 
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all .12s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#d1fae5'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#ecfdf5'; }}
+                            title="Agregar un nuevo contacto a esta empresa"
+                          >
+                            + Agregar encargado
+                          </button>
+                        </div>
                         <select
                           style={fieldSelect}
                           value={
                             selectedQuoteCompany.managers.some(m => String(m.id || '') === String(quote.managerId || ''))
                               ? String(quote.managerId)
                               : selectedQuoteCompany.managers.some(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())
-                              ? (selectedQuoteCompany.managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())?.id || selectedQuoteCompany.managers[0]?.id || '')
-                              : selectedQuoteCompany.managers[0]?.id || ''
+                              ? (selectedQuoteCompany.managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())?.id || '')
+                              : (quote.contact ? '__current_custom__' : (selectedQuoteCompany.managers[0]?.id || ''))
                           }
-                          onChange={e => applyCompanyManager(selectedQuoteCompany, e.target.value)}
+                          onChange={e => {
+                            if (e.target.value === '__current_custom__') return;
+                            applyCompanyManager(selectedQuoteCompany, e.target.value);
+                          }}
                         >
+                          {quote.contact && !selectedQuoteCompany.managers.some(m => String(m.name || '').trim().toLowerCase() === String(quote.contact).trim().toLowerCase()) && (
+                            <option value="__current_custom__">
+                              👤 {quote.contact} (Contacto asignado)
+                            </option>
+                          )}
                           {selectedQuoteCompany.managers.map(manager => (
                             <option key={manager.id || manager.name} value={manager.id || manager.name}>
                               {manager.name || 'Encargado'}
@@ -4466,38 +4590,23 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           <button
                             type="button"
                             onClick={() => {
-                              setCompanyDraftId(selectedQuoteCompany.id || '');
-                              setCompanyDraft({
-                                name: emptyCompanyDraft.name,
-                                owner: emptyCompanyDraft.owner,
-                                email: emptyCompanyDraft.email,
-                                nit: emptyCompanyDraft.nit,
-                                businessName: emptyCompanyDraft.businessName,
-                                eventType: emptyCompanyDraft.eventType,
-                                address: emptyCompanyDraft.address,
-                                phone: emptyCompanyDraft.phone,
-                                notes: emptyCompanyDraft.notes,
-                                ...selectedQuoteCompany
-                              });
-                              setCompanyManagersDraft([]);
-                              setManagerDraft(emptyManagerDraft);
-                              setEditingManagerId('');
-                              setCompanyDraftActive(selectedQuoteCompany.active !== false);
-                              setShowCreateCompanyModal(true);
+                              setQuickManagerDraft({ name: quote.contact || quote.managerName || '', phone: quote.phone || '', email: quote.email || '', address: quote.address || '' });
+                              setShowQuickManagerModal(true);
                             }}
                             style={{
                               marginTop: 6,
-                              background: 'transparent',
+                              background: '#ffffff',
                               border: '1px solid #d97706',
                               color: '#92400e',
                               fontSize: 11.5,
                               fontWeight: 700,
                               padding: '4px 10px',
                               borderRadius: 6,
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'block'
                             }}
                           >
-                            + Agregar encargado
+                            + Agregar encargado a {selectedQuoteCompany.name}
                           </button>
                         </div>
                       </div>
@@ -4522,7 +4631,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             if (f.key === 'phone') {
                               val = val.replace(/\D/g, '');
                             }
-                            setQuote(p => ({ ...p, [f.key]: val }));
+                            setQuote(p => {
+                              const next = { ...p, [f.key]: val };
+                              // Sincronizar siempre managerName si se edita el contacto
+                              if (f.key === 'contact') {
+                                next.managerName = val;
+                              }
+                              return next;
+                            });
                           }} 
                         />
                       </div>
@@ -5539,6 +5655,74 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             <div style={{ padding: '14px 18px', borderTop: '1px solid #cbdced', background: '#f8fbff', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <button className="qp-btn" type="button" disabled={!companyDraftId} onClick={() => setCompanyDraftActive(prev => !prev)}>{companyDraftActive ? 'Inhabilitar' : 'Reactivar'}</button>
               <button className="qp-btn-primary" type="button" disabled={creatingCompany} onClick={handleCreateCompany}>{creatingCompany ? 'Guardando...' : 'Guardar empresa'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Rápido: + Agregar Encargado a Empresa Existente ── */}
+      {showQuickManagerModal && selectedQuoteCompany && (
+        <div id="quickManagerBackdrop" onClick={e => e.preventDefault()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 1000001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #cbd5e1', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', width: 'min(500px, 96vw)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>+ Agregar Encargado</h3>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>Empresa: <strong style={{ color: '#0f172a' }}>{selectedQuoteCompany.name}</strong></p>
+              </div>
+              <button className="qp-close-btn" type="button" onClick={() => setShowQuickManagerModal(false)} aria-label="Cerrar">✕</button>
+            </div>
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={fieldLabel}>Nombre completo del encargado / contacto *</label>
+                <input
+                  style={fieldInput}
+                  value={quickManagerDraft.name}
+                  onChange={e => setQuickManagerDraft(p => ({ ...p, name: e.target.value }))}
+                  placeholder="Ej: Lic. Carlos Hernández"
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={fieldLabel}>Teléfono</label>
+                  <input
+                    style={fieldInput}
+                    value={quickManagerDraft.phone}
+                    onChange={e => setQuickManagerDraft(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }))}
+                    placeholder="Número directo"
+                  />
+                </div>
+                <div>
+                  <label style={fieldLabel}>Correo electrónico</label>
+                  <input
+                    style={fieldInput}
+                    type="email"
+                    value={quickManagerDraft.email}
+                    onChange={e => setQuickManagerDraft(p => ({ ...p, email: e.target.value }))}
+                    placeholder="correo@ejemplo.com"
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={fieldLabel}>Dirección / Departamento (opcional)</label>
+                <input
+                  style={fieldInput}
+                  value={quickManagerDraft.address}
+                  onChange={e => setQuickManagerDraft(p => ({ ...p, address: e.target.value }))}
+                  placeholder="Ciudad o sede"
+                />
+              </div>
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button className="qp-btn" type="button" onClick={() => setShowQuickManagerModal(false)}>Cancelar</button>
+              <button
+                className="qp-btn-primary"
+                type="button"
+                disabled={savingQuickManager || !quickManagerDraft.name.trim()}
+                onClick={handleSaveQuickManager}
+              >
+                {savingQuickManager ? 'Guardando...' : '✓ Guardar y asignar'}
+              </button>
             </div>
           </div>
         </div>
