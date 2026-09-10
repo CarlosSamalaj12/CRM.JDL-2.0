@@ -6157,11 +6157,13 @@ async function start() {
       let conn;
       try {
         conn = await pool.getConnection();
-        const [rows] = await conn.query(
+        // mariadb devuelve el array de filas directamente en `await query()`,
+        // NO un [rows, metadata] como mysql2. Por eso NO desestructuramos.
+        const rows = await conn.query(
           'SELECT valor_json FROM app_state_kv WHERE clave = ? LIMIT 1',
           [clave]
         );
-        if (!rows.length) return fallback;
+        if (!Array.isArray(rows) || !rows.length) return fallback;
         const raw = rows[0].valor_json;
         if (raw == null) return fallback;
         try { return JSON.parse(String(raw)); } catch (_) { return fallback; }
@@ -6208,25 +6210,39 @@ async function start() {
       };
     }
 
-    // Helper: snapshot del template + items resueltos para una lista de plantillaIds
-    function buildEvaluationSnapshot(templates, items, plantillaIds) {
+    // Helper: snapshot del template + items resueltos para una lista de plantillaIds.
+    // Usa los items anidados en t.sections[].items (mismo shape que usa el frontend),
+    // con fallback a la tabla plana checklistTemplateItems por si la sección viene
+    // sin items embebidos.
+    function buildEvaluationSnapshot(templates, flatItems, plantillaIds) {
       const tpls = templates.filter(t => plantillaIds.includes(Number(t.id)));
       const sections = [];
       const seen = new Set();
+      const flat = Array.isArray(flatItems) ? flatItems : [];
       for (const t of tpls) {
         const secArr = Array.isArray(t.sections) ? t.sections : [];
         for (const s of secArr) {
           if (String(s.type || '').toLowerCase() !== 'evaluacion') continue;
-          // Resolver items desde la tabla plana (más fiable que andar mirando s.itemIds)
-          const sectionItems = items.filter(it => {
-            const secId = Number(it.sectionId ?? it.section_id ?? it.seccionId);
-            const sameSection = secId === Number(s.id);
-            const sameTemplate = Number(it.templateId ?? it.plantillaId ?? it.plantilla_id) === Number(t.id);
-            return sameSection || (sameTemplate && (it.sectionName === s.name || it.section === s.name));
-          });
           const key = `${t.id}::${s.id || s.name}`;
           if (seen.has(key)) continue;
           seen.add(key);
+
+          // 1) Items embebidos en la sección (shape principal)
+          let sectionItems = Array.isArray(s.items) ? s.items : [];
+
+          // 2) Fallback: buscar en la tabla plana por sectionId/plantillaId+sectionName
+          if (!sectionItems.length && flat.length) {
+            const secId = Number(s.id);
+            const secName = String(s.name || '');
+            sectionItems = flat.filter(it => {
+              const itSecId = Number(it.sectionId ?? it.section_id ?? it.seccionId);
+              const itTplId = Number(it.templateId ?? it.plantillaId ?? it.plantilla_id);
+              if (secId && itSecId === secId) return true;
+              if (itTplId === Number(t.id) && (it.sectionName === secName || it.section === secName)) return true;
+              return false;
+            });
+          }
+
           sections.push({
             id: Number(s.id) || null,
             name: String(s.name || s.nombre || 'Sección'),
@@ -6264,12 +6280,21 @@ async function start() {
       const events = Array.isArray(state.events) ? state.events : [];
       const event = events.find(e => String(e.id) === String(eventoId)) || null;
 
-      // Cargar eventChecklists para saber qué plantilla(s) de evaluación están aplicadas
+      // Resolver plantilla(s) de Evaluación a usar. Prioridad:
+      //   1) templateIds enviados en el body (selección actual del frontend,
+      //      incluso si el usuario todavía no hizo "Guardar Evaluación").
+      //   2) eventChecklists[eventoId].evaluacion ya persistido.
+      const bodyTplIds = Array.isArray(req.body?.templateIds) ? req.body.templateIds : null;
       const eventChecklists = await readEventChecklists();
       const tabData = (eventChecklists[eventoId] && eventChecklists[eventoId].evaluacion) || null;
-      const plantillaIds = tabData && Array.isArray(tabData.templateIds) && tabData.templateIds.length
-        ? tabData.templateIds.map(Number).filter(Number.isFinite)
-        : (tabData && tabData.templateId ? [Number(tabData.templateId)] : []);
+      let plantillaIds = [];
+      if (bodyTplIds && bodyTplIds.length) {
+        plantillaIds = bodyTplIds.map(Number).filter(Number.isFinite);
+      } else if (tabData && Array.isArray(tabData.templateIds) && tabData.templateIds.length) {
+        plantillaIds = tabData.templateIds.map(Number).filter(Number.isFinite);
+      } else if (tabData && tabData.templateId) {
+        plantillaIds = [Number(tabData.templateId)].filter(Number.isFinite);
+      }
 
       if (!plantillaIds.length) {
         return res.status(400).json({

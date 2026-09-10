@@ -1022,6 +1022,10 @@ export default function SettingsChecklist() {
     setPublicLinksError(null);
     try {
       const token = localStorage.getItem('token');
+      // Pasamos los templateIds actuales de Evaluación para que el backend
+      // pueda generar el link sin necesidad de que el usuario haya hecho
+      // "Guardar Evaluación" todavía (autoselección del dropdown).
+      const currentTplIds = (evTplIds || []).map(Number).filter(Number.isFinite);
       const r = await fetch(`/api/events/${encodeURIComponent(evtId)}/checklist-public-links`, {
         method: 'POST',
         headers: {
@@ -1029,7 +1033,7 @@ export default function SettingsChecklist() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: 'omit',
-        body: JSON.stringify({ expiresInDays: 30 }),
+        body: JSON.stringify({ expiresInDays: 30, templateIds: currentTplIds }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
