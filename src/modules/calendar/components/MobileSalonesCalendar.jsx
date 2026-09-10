@@ -570,10 +570,6 @@ export default function MobileSalonesCalendar({
             <div className="ms-brand-title">
               <span>Jardines EMS</span>
             </div>
-            <div className="ms-brand-sub">
-              <span className="ms-online-dot"></span>
-              <span>Sede Campestre Central</span>
-            </div>
           </div>
         </div>
 

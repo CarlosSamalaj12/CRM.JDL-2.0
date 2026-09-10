@@ -67,11 +67,33 @@ const getServiceCounts = (services, idOcupacion, fecha) => {
     return cleanDate === fecha && (String(s.Idocupacion) === String(idOcupacion) || sBaseId === baseId);
   });
   if (dayServices.length === 0) return null;
-  const result = { desayunos: 0, refacciones_am: 0, almuerzos: 0, refacciones_pm: 0, cenas: 0 };
+  const result = {
+    desayunos: 0,
+    refacciones_am: 0,
+    ref_am: 0,
+    almuerzos: 0,
+    refacciones_pm: 0,
+    ref_pm: 0,
+    cenas: 0,
+  };
   for (const s of dayServices) {
     const tipo = s.TipoServicio;
     const cantidad = Number(s.cantidad) || 0;
-    if (tipo in result) result[tipo] += cantidad;
+    if (tipo === 'desayunos') {
+      result.desayunos += cantidad;
+    } else if (tipo === 'refacciones_am' || tipo === 'ref_am') {
+      result.refacciones_am += cantidad;
+      result.ref_am += cantidad;
+    } else if (tipo === 'almuerzos') {
+      result.almuerzos += cantidad;
+    } else if (tipo === 'refacciones_pm' || tipo === 'ref_pm') {
+      result.refacciones_pm += cantidad;
+      result.ref_pm += cantidad;
+    } else if (tipo === 'cenas') {
+      result.cenas += cantidad;
+    } else if (tipo in result) {
+      result[tipo] += cantidad;
+    }
   }
   return result;
 };
@@ -2371,17 +2393,17 @@ events={events}
                       const sCounts = getServiceCounts(weeklyServices, ev.Idocupacion, day.isoDate);
                       let dVal, raVal, aVal, rpVal, cVal;
                       if (sCounts) {
-                        dVal = sCounts.desayunos;
-                        raVal = sCounts.ref_am;
-                        aVal = sCounts.almuerzos;
-                        rpVal = sCounts.ref_pm;
-                        cVal = sCounts.cenas;
+                        dVal = Number(sCounts.desayunos) || 0;
+                        raVal = Number(sCounts.refacciones_am ?? sCounts.ref_am) || 0;
+                        aVal = Number(sCounts.almuerzos) || 0;
+                        rpVal = Number(sCounts.refacciones_pm ?? sCounts.ref_pm) || 0;
+                        cVal = Number(sCounts.cenas) || 0;
                       } else {
-                        dVal = ev.cant_desayunos;
-                        raVal = ev.cant_refacciones_am;
-                        aVal = ev.cant_almuerzos;
-                        rpVal = ev.cant_refacciones_pm;
-                        cVal = ev.cant_cenas;
+                        dVal = Number(ev.cant_desayunos) || 0;
+                        raVal = Number(ev.cant_refacciones_am) || 0;
+                        aVal = Number(ev.cant_almuerzos) || 0;
+                        rpVal = Number(ev.cant_refacciones_pm) || 0;
+                        cVal = Number(ev.cant_cenas) || 0;
                       }
                       if (isShared) {
                         const foodKey = `${groupId}_${day.isoDate}`;

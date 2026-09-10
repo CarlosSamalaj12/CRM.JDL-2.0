@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import { loadState as loadCrmState, saveState as saveCrmState, invalidateStateCache } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
 import { isEventSeriesInPast } from '../../utils/eventSeriesInPast';
@@ -18,12 +18,24 @@ const SECTION_TYPE_OPTIONS = [
 ];
 
 const RATING_LEVELS = [
+  { value: 'muy_malo', label: 'Muy malo', score: 1, dot: '#991b1b' },
   { value: 'malo', label: 'Malo', score: 2.5, dot: '#dc2626' },
   { value: 'regular', label: 'Regular', score: 5, dot: '#d97706' },
   { value: 'bueno', label: 'Bueno', score: 7.5, dot: '#16a34a' },
   { value: 'excelente', label: 'Excelente', score: 10, dot: '#7c3aed' },
   { value: 'no_aplica', label: 'N/A', score: 0, dot: '#94a3b8' },
 ];
+
+// Helper: asegurar que cualquier link público use el origin actual (http://localhost:5173 en local)
+function formatChecklistPublicUrl(rawUrl, token) {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    if (token) return `${window.location.origin}/checklist-public/${token}`;
+    if (rawUrl && (rawUrl.includes(':4000') || rawUrl.includes('127.0.0.1:4000') || rawUrl.includes('localhost:4000'))) {
+      return rawUrl.replace(/https?:\/\/[^/]+/, window.location.origin);
+    }
+  }
+  return rawUrl || '';
+}
 
 // PIN de Admin para autorizar re-edición de la Evaluación después de guardada.
 const EVALUATION_UNLOCK_PIN = '20273131';
@@ -765,223 +777,224 @@ export default function SettingsChecklist() {
     select: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', color: '#0f172a', fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit', minHeight: '44px', WebkitAppearance: 'menulist', appearance: 'menulist' },
   };
 
-  useEffect(() => {
-    const handler = async (e) => {
-      const id = e?.detail?.eventId;
-      if (!id) return;
-      try {
-        const user = authService.getCurrentUser();
-        setCurrentUser(user ? { ...user, rol: normalizeRole(user.role) } : null);
+  // Carga y sincronización de datos de checklist del evento
+  const loadEventData = React.useCallback(async (id, { keepActiveTab = false, openModal = true } = {}) => {
+    if (!id) return;
+    try {
+      const user = authService.getCurrentUser();
+      setCurrentUser(user ? { ...user, rol: normalizeRole(user.role) } : null);
 
-        const state = await loadCrmState();
-        setTemplates(Array.isArray(state.checklistTemplates) ? state.checklistTemplates : []);
-        setPastEventEditGraceDays(Number(state.pastEventEditGraceDays || 0));
-        const eventsList = Array.isArray(state.events) ? state.events : [];
-        setEvents(eventsList);
-        const checklists = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
-        const eventFound = eventsList.find(x => x.id === id);
-        setEvtId(id);
-        setEvtData(eventFound || null);
+      invalidateStateCache();
+      const state = await loadCrmState({ cacheBust: true });
+      const tpls = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
+      setTemplates(tpls);
+      setPastEventEditGraceDays(Number(state.pastEventEditGraceDays || 0));
+      const eventsList = Array.isArray(state.events) ? state.events : [];
+      setEvents(eventsList);
+      const checklists = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
+      const eventFound = eventsList.find(x => String(x.id) === String(id) || String(x.Idocupacion || '') === String(id));
+      setEvtId(id);
+      setEvtData(eventFound || null);
 
-        let raw = checklists[id] || eventFound?.checklist;
-        // Migrate old format (single checklist with mixed items) to new format (operativa/evaluacion)
-        if (raw && !raw[TAB_OPERATIVA] && !raw[TAB_EVALUACION] && Array.isArray(raw.items)) {
-          const opItems = raw.items.filter(i => i.sectionType !== TAB_EVALUACION);
-          const evItems = raw.items.filter(i => i.sectionType === TAB_EVALUACION);
-          raw = {
-            [TAB_OPERATIVA]: { templateId: raw.templateId, notes: raw.notes, items: opItems, history: [] },
-            [TAB_EVALUACION]: { templateId: null, notes: '', items: evItems, history: [] },
-          };
-          // Persist migration immediately
-          await saveCrmState({ ...state, eventChecklists: { ...checklists, [id]: raw } });
-        }
+      let raw = checklists[id] || checklists[String(id)] || eventFound?.checklist;
+      // Migrate old format (single checklist with mixed items) to new format (operativa/evaluacion)
+      if (raw && !raw[TAB_OPERATIVA] && !raw[TAB_EVALUACION] && Array.isArray(raw.items)) {
+        const opItems = raw.items.filter(i => i.sectionType !== TAB_EVALUACION);
+        const evItems = raw.items.filter(i => i.sectionType === TAB_EVALUACION);
+        raw = {
+          [TAB_OPERATIVA]: { templateId: raw.templateId, notes: raw.notes, items: opItems, history: [] },
+          [TAB_EVALUACION]: { templateId: null, notes: '', items: evItems, history: [] },
+        };
+        // Persist migration immediately
+        await saveCrmState({ ...state, eventChecklists: { ...checklists, [id]: raw } });
+      }
 
-        const tpls = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
-        const op = raw?.[TAB_OPERATIVA] || {};
-        const evTabData = raw?.[TAB_EVALUACION] || {};
-        // Lectura con fallback legacy: templateIds (array) tiene prioridad;
-        // si no existe, se usa templateId (string) convertido a array.
-        const opTplIds = Array.isArray(op.templateIds) ? op.templateIds.map(String)
-                       : op.templateId ? [String(op.templateId)] : [];
-        const evTplIds = Array.isArray(evTabData.templateIds) ? evTabData.templateIds.map(String)
-                       : evTabData.templateId ? [String(evTabData.templateId)] : [];
-        setOpTplIds(opTplIds);
-        setOpNotes(op.notes || '');
+      const op = raw?.[TAB_OPERATIVA] || {};
+      const evTabData = raw?.[TAB_EVALUACION] || {};
+      // Lectura con fallback legacy: templateIds (array) tiene prioridad;
+      // si no existe, se usa templateId (string) convertido a array.
+      const opTplIds = Array.isArray(op.templateIds) ? op.templateIds.map(String)
+                     : op.templateId ? [String(op.templateId)] : [];
+      const evTplIds = Array.isArray(evTabData.templateIds) ? evTabData.templateIds.map(String)
+                     : evTabData.templateId ? [String(evTabData.templateId)] : [];
+      setOpTplIds(opTplIds);
+      setOpNotes(op.notes || '');
 
-        // Merge saved items with current templates (multi):
-        // 1) patch type/templateId/templateName on already-saved items
-        // 2) append any NEW template items not yet saved in the event checklist
-        // 3) filtra por sectionType para que Operativa y Evaluación no se mezclen
-        // 4) deduplica items por id entre las distintas plantillas
-        const mergeWithMultipleTemplates = (savedItems, templateIds, sectionTypeFilter) => {
-          if (!Array.isArray(templateIds) || templateIds.length === 0) return savedItems;
-          const allTplItems = [];
-          for (const tId of templateIds) {
-            const tpl = tpls.find(t => String(t.id) === String(tId));
-            if (!tpl) continue;
-            const sectionsForType = (tpl.sections || []).filter(
-              s => (s.type || TAB_OPERATIVA) === sectionTypeFilter
-            );
-            for (const sec of sectionsForType) {
-              for (const item of (sec.items || [])) {
-                allTplItems.push({
-                  id: item.id,
-                  text: item.text,
-                  sectionName: sec.name,
-                  sectionType: sec.type || TAB_OPERATIVA,
-                  templateId: Number(tId),
-                  templateName: tpl.name,
-                  type: item.type || undefined,
-                  status: 'pendiente',
-                  rating: null,
-                  comment: '',
-                });
-              }
+      // Merge saved items with current templates (multi):
+      // 1) patch type/templateId/templateName on already-saved items
+      // 2) append any NEW template items not yet saved in the event checklist
+      // 3) filtra por sectionType para que Operativa y Evaluación no se mezclen
+      // 4) deduplica items por id entre las distintas plantillas
+      const mergeWithMultipleTemplates = (savedItems, templateIds, sectionTypeFilter) => {
+        if (!Array.isArray(templateIds) || templateIds.length === 0) return savedItems;
+        const allTplItems = [];
+        for (const tId of templateIds) {
+          const tpl = tpls.find(t => String(t.id) === String(tId));
+          if (!tpl) continue;
+          const sectionsForType = (tpl.sections || []).filter(
+            s => (s.type || TAB_OPERATIVA) === sectionTypeFilter
+          );
+          for (const sec of sectionsForType) {
+            for (const item of (sec.items || [])) {
+              allTplItems.push({
+                id: item.id,
+                text: item.text,
+                sectionName: sec.name,
+                sectionType: sec.type || TAB_OPERATIVA,
+                templateId: Number(tId),
+                templateName: tpl.name,
+                type: item.type || undefined,
+                status: 'pendiente',
+                rating: null,
+                comment: '',
+              });
             }
           }
-          const savedIds = new Set(savedItems.map(i => i.id));
-          // patch type y templateId/templateName en items guardados
-          const patched = savedItems.map(item => {
-            const match = allTplItems.find(x => x.id === item.id);
-            if (!match) return item;
-            return {
-              ...item,
-              templateId: match.templateId,
-              templateName: match.templateName,
-              type: match.type || item.type,
-            };
-          });
-          // items nuevos del template que aún no estaban guardados
-          const newItems = allTplItems.filter(i => !savedIds.has(i.id));
-          return [...patched, ...newItems];
-        };
+        }
+        const savedIds = new Set((savedItems || []).map(i => String(i.id ?? i.itemId)));
+        // patch type y templateId/templateName en items guardados
+        const patched = (savedItems || []).map(item => {
+          const itemIdStr = String(item.id ?? item.itemId);
+          const match = allTplItems.find(x => String(x.id) === itemIdStr);
+          if (!match) return item;
+          return {
+            ...item,
+            id: item.id ?? item.itemId,
+            itemId: item.itemId ?? item.id,
+            text: item.text || match.text,
+            sectionName: item.sectionName || match.sectionName,
+            comment: item.comment || item.comentario || '',
+            comentario: item.comentario || item.comment || '',
+            templateId: match.templateId,
+            templateName: match.templateName,
+            type: match.type || item.type,
+          };
+        });
+        // items nuevos del template que aún no estaban guardados
+        const newItems = allTplItems.filter(i => !savedIds.has(String(i.id)));
+        return [...patched, ...newItems];
+      };
 
-        const hasSavedEvRatings = Array.isArray(evTabData.items) && evTabData.items.some(
-          it => it.rating !== null && it.rating !== undefined
+      const hasSavedEvRatings = Array.isArray(evTabData.items) && evTabData.items.some(
+        it => it.rating !== null && it.rating !== undefined
+      );
+      const hasEvNotes = !!(evTabData.notes && String(evTabData.notes).trim().length > 0);
+      const hasEvHistory = Array.isArray(evTabData.history) && evTabData.history.length > 0;
+      const evHasData = hasSavedEvRatings || hasEvNotes || hasEvHistory;
+
+      // Si el evento no tiene datos reales guardados de evaluación, descartar plantillas inactivas
+      let validEvTplIds = evTplIds;
+      if (!evHasData) {
+        validEvTplIds = evTplIds.filter(tid => {
+          const tpl = tpls.find(t => String(t.id) === String(tid));
+          return tpl && tpl.active !== false;
+        });
+      }
+
+      const hasSavedOpProgress = Array.isArray(op.items) && op.items.some(
+        it => it.status && it.status !== 'pendiente'
+      );
+      const hasOpNotes = !!(op.notes && String(op.notes).trim().length > 0);
+      const hasOpHistory = Array.isArray(op.history) && op.history.length > 0;
+      const opHasData = hasSavedOpProgress || hasOpNotes || hasOpHistory;
+
+      let validOpTplIds = opTplIds;
+      if (!opHasData) {
+        validOpTplIds = opTplIds.filter(tid => {
+          const tpl = tpls.find(t => String(t.id) === String(tid));
+          return tpl && tpl.active !== false;
+        });
+      }
+
+      let resolvedOpItems = validOpTplIds.length
+        ? mergeWithMultipleTemplates(op.items || [], validOpTplIds, TAB_OPERATIVA)
+        : (opHasData ? (op.items || []) : []);
+      let resolvedEvItems = validEvTplIds.length
+        ? mergeWithMultipleTemplates(evTabData.items || [], validEvTplIds, TAB_EVALUACION)
+        : (evHasData ? (evTabData.items || []) : []);
+
+      // Defaults: si el tab no tiene plantilla y no hay items, sugerir la primera
+      // plantilla ACTIVA que tenga sections del tipo correspondiente.
+      if (validOpTplIds.length === 0 && !resolvedOpItems.length && tpls.length > 0) {
+        const firstWithOp = tpls.find(t =>
+          t.active !== false &&
+          (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA)
         );
-        const hasEvNotes = !!(evTabData.notes && String(evTabData.notes).trim().length > 0);
-        const hasEvHistory = Array.isArray(evTabData.history) && evTabData.history.length > 0;
-        const evHasData = hasSavedEvRatings || hasEvNotes || hasEvHistory;
-
-        // Si el evento no tiene datos reales guardados de evaluación, descartar plantillas inactivas
-        let validEvTplIds = evTplIds;
-        if (!evHasData) {
-          validEvTplIds = evTplIds.filter(tid => {
-            const tpl = tpls.find(t => String(t.id) === String(tid));
-            return tpl && tpl.active !== false;
-          });
+        if (firstWithOp) {
+          const tid = String(firstWithOp.id);
+          validOpTplIds = [tid];
+          const opSections = (firstWithOp.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA);
+          resolvedOpItems = opSections.flatMap(s =>
+            (s.items || []).map(item => ({
+              id: item.id, text: item.text, sectionName: s.name,
+              sectionType: s.type || TAB_OPERATIVA,
+              templateId: Number(tid), templateName: firstWithOp.name,
+              type: item.type || undefined,
+              status: 'pendiente', rating: null, comment: ''
+            }))
+          );
         }
+      }
 
-        const hasSavedOpProgress = Array.isArray(op.items) && op.items.some(
-          it => it.status && it.status !== 'pendiente'
+      if (validEvTplIds.length === 0 && (!resolvedEvItems.length || !hasSavedEvRatings) && tpls.length > 0) {
+        const firstWithEv = tpls.find(t =>
+          t.active !== false &&
+          (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION)
         );
-        const hasOpNotes = !!(op.notes && String(op.notes).trim().length > 0);
-        const hasOpHistory = Array.isArray(op.history) && op.history.length > 0;
-        const opHasData = hasSavedOpProgress || hasOpNotes || hasOpHistory;
-
-        let validOpTplIds = opTplIds;
-        if (!opHasData) {
-          validOpTplIds = opTplIds.filter(tid => {
-            const tpl = tpls.find(t => String(t.id) === String(tid));
-            return tpl && tpl.active !== false;
-          });
-        }
-
-        let resolvedOpItems = validOpTplIds.length
-          ? mergeWithMultipleTemplates(op.items || [], validOpTplIds, TAB_OPERATIVA)
-          : (opHasData ? (op.items || []) : []);
-        let resolvedEvItems = validEvTplIds.length
-          ? mergeWithMultipleTemplates(evTabData.items || [], validEvTplIds, TAB_EVALUACION)
-          : (evHasData ? (evTabData.items || []) : []);
-
-        // Defaults: si el tab no tiene plantilla y no hay items, sugerir la primera
-        // plantilla ACTIVA que tenga sections del tipo correspondiente.
-        if (validOpTplIds.length === 0 && !resolvedOpItems.length && tpls.length > 0) {
-          const firstWithOp = tpls.find(t =>
-            t.active !== false &&
-            (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA)
+        if (firstWithEv) {
+          const tid = String(firstWithEv.id);
+          validEvTplIds = [tid];
+          const evSections = (firstWithEv.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION);
+          resolvedEvItems = evSections.flatMap(s =>
+            (s.items || []).map(item => ({
+              id: item.id, text: item.text, sectionName: s.name,
+              sectionType: s.type || TAB_OPERATIVA,
+              templateId: Number(tid), templateName: firstWithEv.name,
+              type: item.type || undefined,
+              status: 'pendiente', rating: null, comment: ''
+            }))
           );
-          if (firstWithOp) {
-            const tid = String(firstWithOp.id);
-            validOpTplIds = [tid];
-            const opSections = (firstWithOp.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_OPERATIVA);
-            resolvedOpItems = opSections.flatMap(s =>
-              (s.items || []).map(item => ({
-                id: item.id, text: item.text, sectionName: s.name,
-                sectionType: s.type || TAB_OPERATIVA,
-                templateId: Number(tid), templateName: firstWithOp.name,
-                type: item.type || undefined,
-                status: 'pendiente', rating: null, comment: ''
-              }))
-            );
-          }
         }
+      }
 
-        if (validEvTplIds.length === 0 && (!resolvedEvItems.length || !hasSavedEvRatings) && tpls.length > 0) {
-          const firstWithEv = tpls.find(t =>
-            t.active !== false &&
-            (t.sections || []).some(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION)
-          );
-          if (firstWithEv) {
-            const tid = String(firstWithEv.id);
-            validEvTplIds = [tid];
-            const evSections = (firstWithEv.sections || []).filter(s => (s.type || TAB_OPERATIVA) === TAB_EVALUACION);
-            resolvedEvItems = evSections.flatMap(s =>
-              (s.items || []).map(item => ({
-                id: item.id, text: item.text, sectionName: s.name,
-                sectionType: s.type || TAB_OPERATIVA,
-                templateId: Number(tid), templateName: firstWithEv.name,
-                type: item.type || undefined,
-                status: 'pendiente', rating: null, comment: ''
-              }))
-            );
-          }
-        }
+      setOpTplIds(validOpTplIds);
+      setOpItems(resolvedOpItems);
+      setOpHistory(op.history || []);
+      setOpNotes(op.notes || '');
 
-        setOpTplIds(validOpTplIds);
-        setOpItems(resolvedOpItems);
-        setOpHistory(op.history || []);
-        setEvTplIds(validEvTplIds);
-        setEvNotes(evTabData.notes || '');
-        setEvItems(resolvedEvItems);
-        setEvHistory(evTabData.history || []);
+      setEvTplIds(validEvTplIds);
+      setEvNotes(evTabData.notes || '');
+      setEvItems(resolvedEvItems);
+      setEvHistory(evTabData.history || []);
+
+      if (!keepActiveTab) {
         setActiveTab(TAB_OPERATIVA);
+      }
 
-        // Reset del estado de links públicos cada vez que se abre un evento
+      // Reset del estado de links públicos solo si se está abriendo el modal de cero
+      if (openModal) {
         setPublicLinks([]);
         setLastGeneratedUrl(null);
         setPublicLinksError(null);
+      }
 
-        // Inicializar lock: si la Evaluación ya tiene datos guardados con al menos
-        // un rating, queda bloqueada al abrir. Si está vacía, editable normal.
-        const hasSavedRatings = resolvedEvItems.length > 0
-          && resolvedEvItems.some(it => it.rating !== null && it.rating !== undefined);
-        setIsEvLocked(hasSavedRatings);
-        setShowPinDialog(false);
-        setPinInput('');
-        setPinError('');
+      // Inicializar lock: si la Evaluación ya tiene datos guardados con al menos
+      // un rating, queda bloqueada al abrir. Si está vacía, editable normal.
+      const hasSavedRatings = resolvedEvItems.length > 0
+        && resolvedEvItems.some(it => it.rating !== null && it.rating !== undefined);
+      setIsEvLocked(hasSavedRatings);
+      setShowPinDialog(false);
+      setPinInput('');
+      setPinError('');
 
+      if (openModal) {
         setIsOpen(true);
-      } catch (err) { console.error(err); toast('Error al abrir checklist'); }
-    };
-    window.addEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
-    return () => window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
-  }, []);
-
-  const closeEvent = () => {
-    setIsOpen(false);
-    setIsEvLocked(false);
-    setShowPinDialog(false);
-    setPinInput('');
-    setPinDisplay('');
-    setPinError('');
-    setFlashItemId(null);
-    setExpandedNoteItemIds(new Set());
-    if (flashTimerRef.current) {
-      clearTimeout(flashTimerRef.current);
-      flashTimerRef.current = null;
+      }
+    } catch (err) {
+      console.error(err);
+      toast('Error al abrir checklist');
     }
-  };
+  }, []);
 
   // ── Helpers para links públicos de evaluación ──────────────────────────
   const loadPublicLinks = React.useCallback(async (eventoId) => {
@@ -1000,7 +1013,11 @@ export default function SettingsChecklist() {
         setPublicLinks([]);
         return;
       }
-      setPublicLinks(Array.isArray(data.links) ? data.links : []);
+      const formatted = (Array.isArray(data.links) ? data.links : []).map(l => ({
+        ...l,
+        url: formatChecklistPublicUrl(l.url, l.token),
+      }));
+      setPublicLinks(formatted);
     } catch (_err) {
       setPublicLinksError('Error de red al cargar los links públicos.');
       setPublicLinks([]);
@@ -1009,12 +1026,53 @@ export default function SettingsChecklist() {
     }
   }, []);
 
+  useEffect(() => {
+    const handler = (e) => {
+      const id = e?.detail?.eventId;
+      if (id) loadEventData(id, { keepActiveTab: false, openModal: true });
+    };
+    window.addEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
+    return () => window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
+  }, [loadEventData]);
+
+  // Sincronización en vivo: cuando un cliente envía su evaluación vía link público
+  useEffect(() => {
+    const handleSubmitted = async (e) => {
+      const data = e?.detail;
+      invalidateStateCache();
+      if (isOpen && evtId && String(data?.eventoId) === String(evtId)) {
+        toast(`🎉 ¡${data?.submitterNombre || 'El cliente'} acaba de enviar su evaluación!`);
+        await loadEventData(evtId, { keepActiveTab: true, openModal: false });
+        if (activeTab === TAB_EVALUACION) {
+          loadPublicLinks(evtId);
+        }
+      }
+    };
+    window.addEventListener('checklist-public-submitted', handleSubmitted);
+    return () => window.removeEventListener('checklist-public-submitted', handleSubmitted);
+  }, [isOpen, evtId, activeTab, loadEventData, loadPublicLinks]);
+
   // Cargar links públicos cuando el modal está abierto y hay un evento cargado
   useEffect(() => {
     if (isOpen && evtId && activeTab === TAB_EVALUACION) {
       loadPublicLinks(evtId);
     }
   }, [isOpen, evtId, activeTab, loadPublicLinks]);
+
+  const closeEvent = () => {
+    setIsOpen(false);
+    setIsEvLocked(false);
+    setShowPinDialog(false);
+    setPinInput('');
+    setPinDisplay('');
+    setPinError('');
+    setFlashItemId(null);
+    setExpandedNoteItemIds(new Set());
+    if (flashTimerRef.current) {
+      clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = null;
+    }
+  };
 
   const handleGeneratePublicLink = async () => {
     if (!evtId) return;
@@ -1040,7 +1098,11 @@ export default function SettingsChecklist() {
         toast(data?.message || 'No se pudo generar el link público.');
         return;
       }
-      setLastGeneratedUrl({ url: data.url, expiresAt: data.expiresAt, createdAt: data.createdAt });
+      setLastGeneratedUrl({
+        url: formatChecklistPublicUrl(data.url, data.token),
+        expiresAt: data.expiresAt,
+        createdAt: data.createdAt,
+      });
       await loadPublicLinks(evtId);
     } catch (_err) {
       toast('Error de red al generar el link.');
@@ -1368,6 +1430,15 @@ export default function SettingsChecklist() {
   const activeHistory = activeTab === TAB_OPERATIVA ? opHistory : evHistory;
   const activeSaving = activeTab === TAB_OPERATIVA ? savingOp : savingEv;
 
+  // Detección de evaluación enviada por cliente vía link público
+  const publicSubmissionEntry = useMemo(() => {
+    return (evHistory || []).slice().reverse().find(h => h.source === 'public_link' || h.action === 'respuesta_publica');
+  }, [evHistory]);
+
+  const hasSubmittedEvaluation = useMemo(() => {
+    return !!publicSubmissionEntry || (evItems || []).some(it => it.rating || it.comment || it.comentario);
+  }, [publicSubmissionEntry, evItems]);
+
   // Open questions = evaluacion items with type 'libre'
   const isOpenQuestion = (item) => item.type === 'libre';
   const tableItems = activeTab === TAB_EVALUACION ? activeItems.filter(i => !isOpenQuestion(i)) : activeItems;
@@ -1609,6 +1680,19 @@ export default function SettingsChecklist() {
             >
               <span>⭐</span>
               <span>Evaluación</span>
+              {hasSubmittedEvaluation && (
+                <span style={{
+                  fontSize: '0.67rem',
+                  fontWeight: 800,
+                  background: '#dcfce7',
+                  color: '#15803d',
+                  padding: '2px 7px',
+                  borderRadius: '999px',
+                  lineHeight: 1.2
+                }}>
+                  Calificada ✓
+                </span>
+              )}
             </button>
           </div>
 
@@ -1957,6 +2041,46 @@ export default function SettingsChecklist() {
                 }}
               />
             </div>
+
+            {/* Banner de evaluación completada por el cliente */}
+            {activeTab === TAB_EVALUACION && publicSubmissionEntry && (
+              <div style={{
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                border: '1.5px solid #86efac',
+                borderRadius: '14px',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+                boxShadow: '0 2px 8px rgba(22,101,52,0.06)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.4rem' }}>🌟</span>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#166534' }}>
+                      Evaluación completada por el cliente: {publicSubmissionEntry.userName || 'Cliente'}
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#15803d', marginTop: '2px' }}>
+                      {publicSubmissionEntry.contact ? `Contacto: ${publicSubmissionEntry.contact} · ` : ''}
+                      {publicSubmissionEntry.at ? new Date(publicSubmissionEntry.at).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
+                    </div>
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  background: '#ffffff',
+                  color: '#15803d',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  border: '1px solid #86efac'
+                }}>
+                  ✓ Recibida vía link público
+                </span>
+              </div>
+            )}
 
             {/* Section: Puntos a verificar */}
             <div>

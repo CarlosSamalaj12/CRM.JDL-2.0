@@ -8139,6 +8139,11 @@ button[data-tooltip-bottom]::after {
     background: #ffffff !important;
   }
   
+  .iv-day-block {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
   .iv-day-block + .iv-day-block {
     page-break-before: always !important;
     break-before: page !important;
@@ -8150,14 +8155,25 @@ button[data-tooltip-bottom]::after {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
     gap: 0.5rem !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
 
   .iv-col-card {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .iv-menu-item-card,
+  .iv-menu-grupo-pill,
+  .iv-montaje-top-box,
+  .iv-montaje-chips-box,
+  .iv-montaje-mantel-box,
+  .iv-montaje-subcard,
+  .iv-montaje-obs-callout {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    border: 1px solid #cbd5e1 !important;
   }
 
   .iv-badge-edit-icon,

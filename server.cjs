@@ -6264,10 +6264,23 @@ async function start() {
 
     // Helper: armar URL pública absoluta
     function publicBaseUrl(req) {
-      const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0];
+      // 1. Si la petición viene con header Origin o Referer desde el frontend local (ej. Vite en localhost:5173 o 127.0.0.1:5173)
+      const originHeader = req.headers.origin || (req.headers.referer ? (() => { try { return new URL(req.headers.referer).origin; } catch (_) { return ''; } })() : '');
+      if (originHeader && (originHeader.includes('localhost:') || originHeader.includes('127.0.0.1:'))) {
+        return originHeader;
+      }
+
+      // 2. Si el host es local (puerto 4000 del backend) en entorno de desarrollo local, apuntar al puerto 5173 de Vite
       const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+      if (host.includes('localhost:4000') || host.includes('127.0.0.1:4000') || host === 'localhost' || host === '127.0.0.1') {
+        return 'http://localhost:5173';
+      }
+
+      // 3. Producción (detrás de proxy reverso o dominio configurado)
+      const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0];
       return `${proto}://${host}`;
     }
+
 
     // ── POST /api/events/:eventoId/checklist-public-links ─ (auth)
     app.post('/api/events/:eventoId/checklist-public-links', authenticateChecklistJWT, async (req, res) => {
@@ -6590,6 +6603,7 @@ async function start() {
           status: null,
           rating: newIt.rating,
           comentario: newIt.comentario,
+          comment: newIt.comentario,
           sourceLinkId: link.id,
         };
         if (idx >= 0) mergedItems[idx] = next;
@@ -6622,7 +6636,18 @@ async function start() {
       await writeKv('checklistPublicLinks', map);
 
       // Notificar vía socket al staff conectado (no rompe nada si no hay io)
-      try { if (io) io.emit('checklist-public-submitted', { eventoId, linkId: link.id, at: link.submittedAt }); } catch (_) {}
+      try {
+        if (io) {
+          io.emit('checklist-public-submitted', {
+            eventoId,
+            linkId: link.id,
+            at: link.submittedAt,
+            submitterNombre,
+            submitterContacto,
+          });
+          io.emit('state-updated', { type: 'eventChecklists', eventoId });
+        }
+      } catch (_) {}
 
       return res.json({ ok: true, submittedAt: link.submittedAt });
     });
@@ -6634,6 +6659,15 @@ async function start() {
     const { notFound, errorHandler } = await import("./backend/src/middlewares/errorHandler.js");
     app.use("/api", notFound);
     app.use("/api", errorHandler);
+
+    // Redirección de respaldo: si alguien abre el link público en el puerto del backend (4000), redirigir al frontend Vite (5173)
+    app.get("/checklist-public/:token", (req, res) => {
+      const host = req.headers.host || '';
+      if (host.includes('4000') || host.includes('localhost') || host.includes('127.0.0.1')) {
+        return res.redirect(`http://localhost:5173/checklist-public/${req.params.token}`);
+      }
+      return res.redirect(`/checklist-public/${req.params.token}`);
+    });
 
     // Fallback wildcard handler registered AFTER dynamic ESM routes
     app.get("*", (req, res) => {

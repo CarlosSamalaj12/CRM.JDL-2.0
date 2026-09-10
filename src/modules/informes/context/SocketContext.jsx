@@ -191,6 +191,15 @@ export function SocketProvider({ children }) {
       window.dispatchEvent(new CustomEvent('entity:changed', { detail: data }));
     });
 
+    socket.on('checklist-public-submitted', (data) => {
+      window.dispatchEvent(new CustomEvent('checklist-public-submitted', { detail: data }));
+      showBrowserNotif('Checklist respondido', `${data?.submitterNombre || 'Un cliente'} ha enviado su evaluación.`);
+    });
+
+    socket.on('state-updated', (data) => {
+      window.dispatchEvent(new CustomEvent('stateUpdated', { detail: data }));
+    });
+
     socketRef.current = socket;
     globalSocket = socket;
 

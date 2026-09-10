@@ -9,6 +9,7 @@ const RATING_LEVELS = [
   { value: 'bueno', label: 'Bueno', score: 7.5, color: '#16a34a', dot: '#16a34a' },
   { value: 'regular', label: 'Regular', score: 5, color: '#d97706', dot: '#d97706' },
   { value: 'malo', label: 'Malo', score: 2.5, color: '#dc2626', dot: '#dc2626' },
+  { value: 'muy_malo', label: 'Muy malo', score: 1, color: '#991b1b', dot: '#991b1b' },
   { value: 'no_aplica', label: 'N/A', score: 0, color: '#94a3b8', dot: '#94a3b8' },
 ];
 
@@ -346,7 +347,7 @@ export default function ReportsSatisfaccion({ onClose }) {
       const totalScore = ratedItems.reduce((sum, i) => sum + (RATING_LEVELS.find(r => r.value === i.rating)?.score || 0), 0);
       const avg = totalScore / ratedItems.length;
 
-      const dist = { malo: 0, regular: 0, bueno: 0, excelente: 0 };
+      const dist = { muy_malo: 0, malo: 0, regular: 0, bueno: 0, excelente: 0 };
       ratedItems.forEach(i => { if (dist[i.rating] !== undefined) dist[i.rating]++; });
 
       const evTplIds = (Array.isArray(chk?.evaluacion?.templateIds) ? chk.evaluacion.templateIds
@@ -636,7 +637,7 @@ export default function ReportsSatisfaccion({ onClose }) {
       excellentPct: totalRatings > 0 ? (totalDist.excelente / totalRatings) * 100 : 0,
       goodPct: totalRatings > 0 ? (totalDist.bueno / totalRatings) * 100 : 0,
       regularPct: totalRatings > 0 ? (totalDist.regular / totalRatings) * 100 : 0,
-      badPct: totalRatings > 0 ? (totalDist.malo / totalRatings) * 100 : 0,
+      badPct: totalRatings > 0 ? (((totalDist.malo || 0) + (totalDist.muy_malo || 0)) / totalRatings) * 100 : 0,
     };
   }, [satisfactionData]);
 

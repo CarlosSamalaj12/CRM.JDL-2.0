@@ -439,6 +439,8 @@ export default function InformeView() {
               '.iv-day-ribbon { margin-top: 0.35rem !important; margin-bottom: 0.45rem !important; padding: 0.25rem 0.6rem !important; }',
               '.iv-two-col-layout { gap: 0.5rem !important; }',
               '.iv-col-card { padding: 0.4rem 0.6rem !important; }',
+              '.iv-day-block, .iv-two-col-layout, .iv-col-card { page-break-inside: auto !important; break-inside: auto !important; }',
+              '.iv-menu-item-card, .iv-menu-grupo-pill, .iv-montaje-top-box, .iv-montaje-chips-box, .iv-montaje-mantel-box, .iv-montaje-subcard, .iv-montaje-obs-callout { page-break-inside: avoid !important; break-inside: avoid !important; }',
               '.iv-empty-service-box-wide { padding: 1.2rem 1rem !important; }',
               '.iv-imagenes { gap: 0.5rem !important; margin-top: 0 !important; }',
               '.iv-imagen-item { width: 200px !important; }',
@@ -566,6 +568,13 @@ export default function InformeView() {
             if (itT <= dayY) continue;
             if (itT >= targetY) break;
             if (itB > targetY) {
+              const elemH = itB - itT;
+              const fillRatio = (itT - dayY) / pageContentPxH;
+              // Si el elemento es muy alto y cortar antes de él dejaría la página con menos del 55% de contenido,
+              // no cortar aquí arriba para no dejar la hoja vacía debajo del encabezado:
+              if (elemH > pageContentPxH * 0.35 && fillRatio < 0.55) {
+                continue;
+              }
               cut = itT;
               break;
             }
@@ -847,8 +856,8 @@ export default function InformeView() {
         .iv-day-block {
           page-break-after: always !important;
           break-after: page !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
+          page-break-inside: auto !important;
+          break-inside: auto !important;
           padding: 0 !important;
           margin: 0 !important;
         }
@@ -864,11 +873,21 @@ export default function InformeView() {
           display: grid !important;
           grid-template-columns: 1fr 1fr !important;
           gap: 0.5rem !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
+          page-break-inside: auto !important;
+          break-inside: auto !important;
         }
         .iv-col-card {
           border: 1px solid #cbd5e1 !important;
+          page-break-inside: auto !important;
+          break-inside: auto !important;
+        }
+        .iv-menu-item-card,
+        .iv-menu-grupo-pill,
+        .iv-montaje-top-box,
+        .iv-montaje-chips-box,
+        .iv-montaje-mantel-box,
+        .iv-montaje-subcard,
+        .iv-montaje-obs-callout {
           page-break-inside: avoid !important;
           break-inside: avoid !important;
         }
@@ -1728,7 +1747,9 @@ const PDF_AVOID_SPLIT_SELECTOR = [
   '.iv-day-ribbon',
   '.iv-col-header',
   '.iv-col-footer',
-  '.iv-menu-grupo-block',
+  '.iv-card-alertas',
+  '.iv-menu-grupo-pill',
+  '.iv-menu-item-card',
   '.iv-menu-subitem',
   '.iv-montaje-top-box',
   '.iv-montaje-chips-box',
