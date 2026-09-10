@@ -454,6 +454,7 @@ export default function ReservationForm() {
   const urlEndDate = searchParams.get('endDate') || urlDate;
   const urlStart = searchParams.get('start');
   const urlEnd = searchParams.get('end');
+  const urlSalon = searchParams.get('salon') || '';
   const urlOpenAdvances = searchParams.get('openAdvances') === 'true';
   const urlPv = searchParams.get('pv'); // id de posible venta a convertir en reserva
 
@@ -467,7 +468,7 @@ export default function ReservationForm() {
 
   const [formData, setFormData] = useState(() => ({
     name: '',
-    salon: '',
+    salon: urlSalon,
     status: 'Reserva sin Cotizacion',
     date: getDefaultDate(),
     endDate: getDefaultEndDate(),
@@ -483,7 +484,7 @@ export default function ReservationForm() {
   }));
 
   const [slots, setSlots] = useState(() => [
-    { salon: '', pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion', isPrincipal: true }
+    { salon: urlSalon, pax: '', dateStart: getDefaultDate(), dateEnd: getDefaultEndDate(), startTime: urlStart || '10:00', endTime: urlEnd || '12:00', status: 'Reserva sin Cotizacion', isPrincipal: true }
   ]);
 
   const [saving, setSaving] = useState(false);

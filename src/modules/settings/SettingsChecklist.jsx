@@ -690,6 +690,13 @@ export default function SettingsChecklist() {
   const [savingOp, setSavingOp] = useState(false);
   const [savingEv, setSavingEv] = useState(false);
   const [evtId, setEvtId] = useState(null);
+  // Public link management (link para que el cliente llene Evaluación sin login)
+  const [publicLinks, setPublicLinks] = useState([]);
+  const [publicLinksLoading, setPublicLinksLoading] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [revokingId, setRevokingId] = useState(null);
+  const [lastGeneratedUrl, setLastGeneratedUrl] = useState(null);
+  const [publicLinksError, setPublicLinksError] = useState(null);
   const [evtData, setEvtData] = useState(null);
   const [activeTab, setActiveTab] = useState(TAB_OPERATIVA);
   const [currentUser, setCurrentUser] = useState(null);
@@ -940,6 +947,11 @@ export default function SettingsChecklist() {
         setEvHistory(evTabData.history || []);
         setActiveTab(TAB_OPERATIVA);
 
+        // Reset del estado de links públicos cada vez que se abre un evento
+        setPublicLinks([]);
+        setLastGeneratedUrl(null);
+        setPublicLinksError(null);
+
         // Inicializar lock: si la Evaluación ya tiene datos guardados con al menos
         // un rating, queda bloqueada al abrir. Si está vacía, editable normal.
         const hasSavedRatings = resolvedEvItems.length > 0
@@ -969,6 +981,128 @@ export default function SettingsChecklist() {
       clearTimeout(flashTimerRef.current);
       flashTimerRef.current = null;
     }
+  };
+
+  // ── Helpers para links públicos de evaluación ──────────────────────────
+  const loadPublicLinks = React.useCallback(async (eventoId) => {
+    if (!eventoId) { setPublicLinks([]); return; }
+    setPublicLinksLoading(true);
+    setPublicLinksError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`/api/events/${encodeURIComponent(eventoId)}/checklist-public-links`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'omit',
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setPublicLinksError(data?.message || 'No se pudieron cargar los links públicos.');
+        setPublicLinks([]);
+        return;
+      }
+      setPublicLinks(Array.isArray(data.links) ? data.links : []);
+    } catch (_err) {
+      setPublicLinksError('Error de red al cargar los links públicos.');
+      setPublicLinks([]);
+    } finally {
+      setPublicLinksLoading(false);
+    }
+  }, []);
+
+  // Cargar links públicos cuando el modal está abierto y hay un evento cargado
+  useEffect(() => {
+    if (isOpen && evtId && activeTab === TAB_EVALUACION) {
+      loadPublicLinks(evtId);
+    }
+  }, [isOpen, evtId, activeTab, loadPublicLinks]);
+
+  const handleGeneratePublicLink = async () => {
+    if (!evtId) return;
+    setGeneratingLink(true);
+    setPublicLinksError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`/api/events/${encodeURIComponent(evtId)}/checklist-public-links`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'omit',
+        body: JSON.stringify({ expiresInDays: 30 }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast(data?.message || 'No se pudo generar el link público.');
+        return;
+      }
+      setLastGeneratedUrl({ url: data.url, expiresAt: data.expiresAt, createdAt: data.createdAt });
+      await loadPublicLinks(evtId);
+    } catch (_err) {
+      toast('Error de red al generar el link.');
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const handleRevokePublicLink = async (linkId) => {
+    if (!linkId) return;
+    if (!await modernConfirm('¿Revocar este link? El cliente ya no podrá enviar respuestas con él. Las respuestas ya recibidas se conservan.')) {
+      return;
+    }
+    setRevokingId(linkId);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`/api/checklist-public-links/${encodeURIComponent(linkId)}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'omit',
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast(data?.message || 'No se pudo revocar el link.');
+        return;
+      }
+      toast('Link revocado.');
+      await loadPublicLinks(evtId);
+    } catch (_err) {
+      toast('Error de red al revocar el link.');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  const copyToClipboard = async (text, label = 'Link') => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      toast(`${label} copiado al portapapeles.`);
+    } catch (_err) {
+      toast('No se pudo copiar. Cópialo manualmente.');
+    }
+  };
+
+  const buildWhatsappShareUrl = (url, eventName) => {
+    const msg = `Hola${eventName ? `, te compartimos el link para tu evaluación del evento "${eventName}"` : ''}:\n\n${url}\n\nTus respuestas son confidenciales. ¡Gracias!`;
+    return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  };
+
+  const statusLabel = (s) => {
+    if (s === 'active') return { label: 'Activo', bg: '#dcfce7', color: '#15803d' };
+    if (s === 'submitted') return { label: 'Respondido', bg: '#dbeafe', color: '#1d4ed8' };
+    if (s === 'revoked') return { label: 'Revocado', bg: '#fee2e2', color: '#b91c1c' };
+    if (s === 'expired') return { label: 'Expirado', bg: '#f1f5f9', color: '#475569' };
+    return { label: s, bg: '#f1f5f9', color: '#475569' };
   };
 
   // Handler del input del PIN: enmascara el valor con puntos (•) en la UI
@@ -2159,6 +2293,294 @@ export default function SettingsChecklist() {
                     />
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Link público de Evaluación — solo visible en la pestaña Evaluación y si hay plantilla aplicada */}
+            {activeTab === TAB_EVALUACION && evTplIds.length > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)',
+                borderRadius: '16px',
+                border: '1px solid #c7d2fe',
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                boxShadow: '0 2px 8px rgba(99,102,241,0.06)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      🔗 Link público para el cliente
+                    </div>
+                    <div style={{ fontSize: '0.83rem', color: '#4338ca', marginTop: 4, lineHeight: 1.4 }}>
+                      Genera un link para enviar al cliente por WhatsApp. Él llena la Evaluación desde su celular sin necesidad de ver ni tener acceso a tu CRM.
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleGeneratePublicLink}
+                    disabled={generatingLink}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: generatingLink ? '#a5b4fc' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                      color: '#ffffff',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: generatingLink ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+                    }}
+                  >
+                    <span>{generatingLink ? '⏳' : '➕'}</span>
+                    <span>{generatingLink ? 'Generando…' : 'Generar link'}</span>
+                  </button>
+                  {publicLinks.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => loadPublicLinks(evtId)}
+                      disabled={publicLinksLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #c7d2fe',
+                        background: '#ffffff',
+                        color: '#4338ca',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: publicLinksLoading ? 'not-allowed' : 'pointer',
+                        opacity: publicLinksLoading ? 0.6 : 1,
+                      }}
+                    >
+                      ↻ Refrescar
+                    </button>
+                  )}
+                </div>
+
+                {lastGeneratedUrl && (
+                  <div style={{
+                    background: '#ffffff',
+                    border: '1px solid #c7d2fe',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 700 }}>
+                      ✅ Link creado. Cópialo y envíalo al cliente.
+                    </div>
+                    <div style={{
+                      fontSize: '0.78rem',
+                      color: '#1e293b',
+                      background: '#f8fafc',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      wordBreak: 'break-all',
+                      border: '1px solid #e2e8f0',
+                      fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                    }}>
+                      {lastGeneratedUrl.url}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                      Expira: {new Date(lastGeneratedUrl.expiresAt).toLocaleString('es-GT', { dateStyle: 'long', timeStyle: 'short' })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(lastGeneratedUrl.url, 'Link')}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #c7d2fe',
+                          background: '#eef2ff',
+                          color: '#4338ca',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        📋 Copiar
+                      </button>
+                      <a
+                        href={buildWhatsappShareUrl(lastGeneratedUrl.url, evtData?.nombre || evtData?.title || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          color: '#ffffff',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        💬 Enviar por WhatsApp
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {publicLinksError && (
+                  <div style={{ background: '#fee2e2', color: '#991b1b', padding: '8px 12px', borderRadius: '8px', fontSize: '0.78rem' }}>
+                    {publicLinksError}
+                  </div>
+                )}
+
+                {publicLinks.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Links generados ({publicLinks.length})
+                    </div>
+                    {publicLinks.map(link => {
+                      const sl = statusLabel(link.status);
+                      return (
+                        <div key={link.id} style={{
+                          background: '#ffffff',
+                          border: '1px solid #e0e7ff',
+                          borderRadius: '10px',
+                          padding: '10px 12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: sl.color, background: sl.bg, padding: '3px 8px', borderRadius: 999 }}>
+                              {sl.label.toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                              {new Date(link.createdAt).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              {link.createdByUserNombre ? ` · por ${link.createdByUserNombre}` : ''}
+                            </span>
+                          </div>
+
+                          <div style={{
+                            fontSize: '0.74rem',
+                            color: '#475569',
+                            background: '#f8fafc',
+                            padding: '6px 8px',
+                            borderRadius: '6px',
+                            wordBreak: 'break-all',
+                            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                          }}>
+                            {link.url}
+                          </div>
+
+                          {link.status === 'submitted' && (
+                            <div style={{ background: '#dbeafe', color: '#1d4ed8', padding: '6px 8px', borderRadius: '6px', fontSize: '0.74rem' }}>
+                              ✅ Respondido por <strong>{link.submitterNombre || '—'}</strong>
+                              {link.submitterContacto ? ` (${link.submitterContacto})` : ''}
+                              {' · '}
+                              {new Date(link.submittedAt).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })}
+                            </div>
+                          )}
+
+                          {link.status === 'active' && link.expiresAt && (
+                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                              Expira: {new Date(link.expiresAt).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })}
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                            {link.status === 'active' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(link.url, 'Link')}
+                                  style={{
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    border: '1.5px solid #c7d2fe',
+                                    background: '#eef2ff',
+                                    color: '#4338ca',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  📋 Copiar
+                                </button>
+                                <a
+                                  href={buildWhatsappShareUrl(link.url, evtData?.nombre || evtData?.title || '')}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: '#ffffff',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    textDecoration: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  💬 WhatsApp
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevokePublicLink(link.id)}
+                                  disabled={revokingId === link.id}
+                                  style={{
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    border: '1.5px solid #fecaca',
+                                    background: '#fef2f2',
+                                    color: '#b91c1c',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: revokingId === link.id ? 'not-allowed' : 'pointer',
+                                    opacity: revokingId === link.id ? 0.6 : 1,
+                                  }}
+                                >
+                                  {revokingId === link.id ? 'Revocando…' : '🚫 Revocar'}
+                                </button>
+                              </>
+                            )}
+                            {(link.status === 'submitted' || link.status === 'expired') && (
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(link.url, 'Link')}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '6px',
+                                  border: '1.5px solid #e2e8f0',
+                                  background: '#f8fafc',
+                                  color: '#475569',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                📋 Copiar link
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {!publicLinksLoading && publicLinks.length === 0 && !publicLinksError && (
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', textAlign: 'center', padding: '6px 0' }}>
+                    Aún no has generado ningún link para este evento.
+                  </div>
+                )}
               </div>
             )}
 

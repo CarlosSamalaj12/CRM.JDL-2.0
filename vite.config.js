@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
     // Inyecta la versión actual del bundle al frontend como variable global.
     // Accesible vía import.meta.env.VITE_APP_VERSION
     define: {
-      __APP_VERSION__: JSON.stringify(getBuildVersion()),
+      __APP_VERSION__: JSON.stringify(mode === 'development' ? '0.0.0-dev' : getBuildVersion()),
     },
     server: {
       proxy: {

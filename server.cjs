@@ -6130,6 +6130,479 @@ async function start() {
     });
     // ─── FIN WEB PUSH ───
 
+    // ─── CHECKLIST PUBLIC LINKS ────────────────────────────────────────────
+    // Permite al staff generar un link público (sin login) para que el cliente
+    // llene la pestaña "Evaluación" del checklist desde su celular. Las respuestas
+    // se guardan en app_state_kv dentro de `eventChecklists[eventoId][evaluacion]`
+    // usando exactamente el mismo shape que produce SettingsChecklist al guardar
+    // internamente, así no hay que tocar el resto del flujo.
+
+    // Auth JWT inline para endpoints admin de checklist
+    function authenticateChecklistJWT(req, res, next) {
+      const header = req.headers.authorization;
+      if (!header || !header.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token requerido' });
+      }
+      try {
+        const decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
+        req.user = decoded;
+        next();
+      } catch {
+        return res.status(401).json({ message: 'Token inválido o expirado' });
+      }
+    }
+
+    // Helper: leer el JSON de un clave de app_state_kv (devuelve parsed/default)
+    async function readKv(clave, fallback) {
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        const [rows] = await conn.query(
+          'SELECT valor_json FROM app_state_kv WHERE clave = ? LIMIT 1',
+          [clave]
+        );
+        if (!rows.length) return fallback;
+        const raw = rows[0].valor_json;
+        if (raw == null) return fallback;
+        try { return JSON.parse(String(raw)); } catch (_) { return fallback; }
+      } finally {
+        if (conn) conn.release();
+      }
+    }
+
+    // Helper: upsert de un clave en app_state_kv
+    async function writeKv(clave, value) {
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        await conn.query(
+          `INSERT INTO app_state_kv (clave, valor_json) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+          [clave, JSON.stringify(value ?? null)]
+        );
+      } finally {
+        if (conn) conn.release();
+      }
+    }
+
+    // Helper: leer y mergear eventChecklists preservando claves no tocadas
+    async function readEventChecklists() {
+      const cur = await readKv('eventChecklists', {});
+      return (cur && typeof cur === 'object' && !Array.isArray(cur)) ? cur : {};
+    }
+    async function writeEventChecklists(all) {
+      await writeKv('eventChecklists', all || {});
+    }
+
+    // Helper: leer checklistTemplates / checklistTemplateItems / sections
+    async function readChecklistTemplates() {
+      const [tpls, items, secs] = await Promise.all([
+        readKv('checklistTemplates', []),
+        readKv('checklistTemplateItems', []),
+        readKv('checklistTemplateSections', ['General']),
+      ]);
+      return {
+        templates: Array.isArray(tpls) ? tpls : [],
+        items: Array.isArray(items) ? items : [],
+        sections: Array.isArray(secs) ? secs : ['General'],
+      };
+    }
+
+    // Helper: snapshot del template + items resueltos para una lista de plantillaIds
+    function buildEvaluationSnapshot(templates, items, plantillaIds) {
+      const tpls = templates.filter(t => plantillaIds.includes(Number(t.id)));
+      const sections = [];
+      const seen = new Set();
+      for (const t of tpls) {
+        const secArr = Array.isArray(t.sections) ? t.sections : [];
+        for (const s of secArr) {
+          if (String(s.type || '').toLowerCase() !== 'evaluacion') continue;
+          // Resolver items desde la tabla plana (más fiable que andar mirando s.itemIds)
+          const sectionItems = items.filter(it => {
+            const secId = Number(it.sectionId ?? it.section_id ?? it.seccionId);
+            const sameSection = secId === Number(s.id);
+            const sameTemplate = Number(it.templateId ?? it.plantillaId ?? it.plantilla_id) === Number(t.id);
+            return sameSection || (sameTemplate && (it.sectionName === s.name || it.section === s.name));
+          });
+          const key = `${t.id}::${s.id || s.name}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          sections.push({
+            id: Number(s.id) || null,
+            name: String(s.name || s.nombre || 'Sección'),
+            type: 'evaluacion',
+            items: sectionItems
+              .slice()
+              .sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0))
+              .map(it => ({
+                id: Number(it.id),
+                text: String(it.text || it.texto || ''),
+                type: it.type || it.tipo || undefined,
+                orden: Number(it.orden) || 0,
+              })),
+          });
+        }
+      }
+      return sections;
+    }
+
+    // Helper: armar URL pública absoluta
+    function publicBaseUrl(req) {
+      const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0];
+      const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+      return `${proto}://${host}`;
+    }
+
+    // ── POST /api/events/:eventoId/checklist-public-links ─ (auth)
+    app.post('/api/events/:eventoId/checklist-public-links', authenticateChecklistJWT, async (req, res) => {
+      const eventoId = str(req.params.eventoId).trim();
+      if (!eventoId) return res.status(400).json({ message: 'eventoId requerido' });
+
+      // Cargar estado para snapshot del evento
+      const stateResult = await readStateFromTables().catch(() => null);
+      const state = stateResult && stateResult.state ? stateResult.state : {};
+      const events = Array.isArray(state.events) ? state.events : [];
+      const event = events.find(e => String(e.id) === String(eventoId)) || null;
+
+      // Cargar eventChecklists para saber qué plantilla(s) de evaluación están aplicadas
+      const eventChecklists = await readEventChecklists();
+      const tabData = (eventChecklists[eventoId] && eventChecklists[eventoId].evaluacion) || null;
+      const plantillaIds = tabData && Array.isArray(tabData.templateIds) && tabData.templateIds.length
+        ? tabData.templateIds.map(Number).filter(Number.isFinite)
+        : (tabData && tabData.templateId ? [Number(tabData.templateId)] : []);
+
+      if (!plantillaIds.length) {
+        return res.status(400).json({
+          message: 'Este evento aún no tiene una plantilla de Evaluación aplicada. Abre el checklist, selecciona una plantilla en la pestaña Evaluación y guarda antes de generar un link público.',
+        });
+      }
+
+      // Cargar templates y verificar que todos los ids existan y tengan secciones evaluacion
+      const { templates } = await readChecklistTemplates();
+      const itemsArr = await readKv('checklistTemplateItems', []);
+      const validTpls = templates.filter(t => plantillaIds.includes(Number(t.id)));
+      if (!validTpls.length) {
+        return res.status(400).json({ message: 'Las plantillas asociadas al evento no existen en el catálogo.' });
+      }
+      const sections = buildEvaluationSnapshot(templates, itemsArr, plantillaIds);
+      if (!sections.length || !sections.some(s => (s.items || []).length)) {
+        return res.status(400).json({
+          message: 'Las plantillas seleccionadas no tienen secciones de Evaluación con puntos. Edita la plantilla y agrega al menos una sección tipo Evaluación.',
+        });
+      }
+
+      // Generar token
+      const token = crypto.randomBytes(24).toString('hex'); // 48 chars
+      const id = `cpl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const nowIso = new Date().toISOString();
+      const days = Math.max(1, Math.min(365, Number(req.body?.expiresInDays) || 30));
+      const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+
+      // Cargar links existentes y mergear
+      const all = await readKv('checklistPublicLinks', {});
+      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      map[id] = {
+        id,
+        token,
+        eventoId,
+        eventoNombre: str(event?.nombre || event?.title || event?.cliente || ''),
+        eventoFecha: str(event?.fecha_evento || event?.fecha || ''),
+        eventoSalon: str(event?.salon || event?.nombre_salon || ''),
+        templateIds: plantillaIds,
+        createdAt: nowIso,
+        createdByUserId: str(req.user?.id || ''),
+        createdByUserNombre: str(req.user?.nombre || req.user?.fullName || ''),
+        expiresAt,
+        revokedAt: null,
+        submittedAt: null,
+        submitterNombre: null,
+        submitterContacto: null,
+        submitterNotas: null,
+      };
+      await writeKv('checklistPublicLinks', map);
+
+      const base = publicBaseUrl(req);
+      return res.status(201).json({
+        id,
+        token,
+        url: `${base}/checklist-public/${token}`,
+        expiresAt,
+        createdAt: nowIso,
+        eventoNombre: str(event?.nombre || ''),
+        eventoFecha: str(event?.fecha_evento || event?.fecha || ''),
+      });
+    });
+
+    // ── GET /api/events/:eventoId/checklist-public-links ─ (auth)
+    app.get('/api/events/:eventoId/checklist-public-links', authenticateChecklistJWT, async (req, res) => {
+      const eventoId = str(req.params.eventoId).trim();
+      if (!eventoId) return res.status(400).json({ message: 'eventoId requerido' });
+      const all = await readKv('checklistPublicLinks', {});
+      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      const list = Object.values(map)
+        .filter(l => String(l.eventoId) === String(eventoId))
+        .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+        .map(l => {
+          const now = Date.now();
+          const expMs = l.expiresAt ? Date.parse(l.expiresAt) : null;
+          let status = 'active';
+          if (l.revokedAt) status = 'revoked';
+          else if (expMs != null && expMs < now) status = 'expired';
+          else if (l.submittedAt) status = 'submitted';
+          return {
+            id: l.id,
+            token: l.token,
+            url: `${publicBaseUrl(req)}/checklist-public/${l.token}`,
+            createdAt: l.createdAt,
+            createdByUserNombre: l.createdByUserNombre || '',
+            expiresAt: l.expiresAt,
+            revokedAt: l.revokedAt,
+            submittedAt: l.submittedAt,
+            submitterNombre: l.submitterNombre || null,
+            submitterContacto: l.submitterContacto || null,
+            status,
+          };
+        });
+      return res.json({ links: list });
+    });
+
+    // ── DELETE /api/checklist-public-links/:id ─ (auth)
+    app.delete('/api/checklist-public-links/:id', authenticateChecklistJWT, async (req, res) => {
+      const id = str(req.params.id).trim();
+      if (!id) return res.status(400).json({ message: 'id requerido' });
+      const all = await readKv('checklistPublicLinks', {});
+      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      const link = map[id];
+      if (!link) return res.status(404).json({ message: 'Link no encontrado' });
+      if (link.revokedAt) return res.json({ ok: true, id, revokedAt: link.revokedAt });
+      link.revokedAt = new Date().toISOString();
+      link.revokedByUserId = str(req.user?.id || '');
+      link.revokedByUserNombre = str(req.user?.nombre || req.user?.fullName || '');
+      map[id] = link;
+      await writeKv('checklistPublicLinks', map);
+      return res.json({ ok: true, id, revokedAt: link.revokedAt });
+    });
+
+    // Rate limit en memoria para el endpoint público POST (por token)
+    const publicSubmitAttempts = new Map(); // token -> [timestamps]
+    function rateLimitOk(token, max = 5, windowMs = 60_000) {
+      const now = Date.now();
+      const arr = (publicSubmitAttempts.get(token) || []).filter(t => now - t < windowMs);
+      if (arr.length >= max) return false;
+      arr.push(now);
+      publicSubmitAttempts.set(token, arr);
+      return true;
+    }
+
+    // ── GET /api/checklist-public/:token ─ (PÚBLICO, sin auth)
+    app.get('/api/checklist-public/:token', async (req, res) => {
+      const token = str(req.params.token).trim();
+      if (!token || token.length < 16) return res.status(400).json({ message: 'Token inválido' });
+
+      const all = await readKv('checklistPublicLinks', {});
+      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      const link = Object.values(map).find(l => l.token === token);
+      if (!link) return res.status(404).json({ message: 'Link no encontrado o ya no está disponible.' });
+
+      const now = Date.now();
+      const expMs = link.expiresAt ? Date.parse(link.expiresAt) : null;
+      let status = 'active';
+      if (link.revokedAt) status = 'revoked';
+      else if (expMs != null && expMs < now) status = 'expired';
+      else if (link.submittedAt) status = 'submitted';
+
+      // Cargar templates y armar snapshot solo con secciones evaluación
+      const { templates, items: itemsArr } = await readChecklistTemplates();
+      const sections = buildEvaluationSnapshot(templates, itemsArr, link.templateIds || []);
+
+      // Si ya fue enviado, devolvemos la submission previa
+      let previousSubmission = null;
+      if (status === 'submitted') {
+        const eventChecklists = await readEventChecklists();
+        const ev = (eventChecklists[link.eventoId] && eventChecklists[link.eventoId].evaluacion) || null;
+        const itemsArr2 = Array.isArray(ev?.items) ? ev.items : [];
+        // Filtrar los items cuya fuente fue este link
+        const linkItems = itemsArr2.filter(it => it?.sourceLinkId === link.id);
+        previousSubmission = {
+          submitterNombre: link.submitterNombre || null,
+          submitterContacto: link.submitterContacto || null,
+          notas: link.submitterNotas || null,
+          submittedAt: link.submittedAt,
+          items: linkItems.map(it => ({
+            itemId: it.itemId ?? it.id,
+            rating: it.rating ?? null,
+            comentario: it.comentario ?? it.comment ?? null,
+          })),
+        };
+      }
+
+      return res.json({
+        ok: true,
+        status,
+        event: {
+          id: link.eventoId,
+          nombre: link.eventoNombre || '',
+          fecha: link.eventoFecha || '',
+          salon: link.eventoSalon || '',
+        },
+        template: {
+          templateIds: link.templateIds || [],
+          sections,
+        },
+        expiresAt: link.expiresAt,
+        submittedAt: link.submittedAt,
+        previousSubmission,
+      });
+    });
+
+    // ── POST /api/checklist-public/:token ─ (PÚBLICO, sin auth)
+    app.post('/api/checklist-public/:token', async (req, res) => {
+      const token = str(req.params.token).trim();
+      if (!token || token.length < 16) return res.status(400).json({ message: 'Token inválido' });
+      if (!rateLimitOk(token, 5, 60_000)) {
+        return res.status(429).json({ message: 'Demasiados intentos. Espera un momento y vuelve a intentar.' });
+      }
+
+      const all = await readKv('checklistPublicLinks', {});
+      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      const link = Object.values(map).find(l => l.token === token);
+      if (!link) return res.status(404).json({ message: 'Link no encontrado o ya no está disponible.' });
+      if (link.revokedAt) return res.status(410).json({ message: 'Este link fue revocado y ya no acepta respuestas.' });
+      if (link.expiresAt && Date.parse(link.expiresAt) < Date.now()) {
+        return res.status(410).json({ message: 'Este link ha expirado.' });
+      }
+      if (link.submittedAt) {
+        return res.status(409).json({ message: 'Este link ya fue respondido.', submittedAt: link.submittedAt });
+      }
+
+      const submitterNombre = str(req.body?.submitterNombre).trim();
+      const submitterContacto = str(req.body?.submitterContacto).trim();
+      const notas = str(req.body?.notas).trim();
+      const incoming = Array.isArray(req.body?.items) ? req.body.items : [];
+      if (!submitterNombre) {
+        return res.status(400).json({ message: 'Indica tu nombre para continuar.' });
+      }
+      if (!incoming.length) {
+        return res.status(400).json({ message: 'No se recibieron respuestas.' });
+      }
+
+      // Resolver plantilla para validar itemIds
+      const { templates, items: itemsArr } = await readChecklistTemplates();
+      const sections = buildEvaluationSnapshot(templates, itemsArr, link.templateIds || []);
+      const validItemIds = new Set();
+      for (const s of sections) for (const it of (s.items || [])) validItemIds.add(Number(it.id));
+
+      // Construir items finales en el shape que usa SettingsChecklist
+      const finalItems = [];
+      for (const raw of incoming) {
+        const itemId = Number(raw.itemId ?? raw.id);
+        if (!validItemIds.has(itemId)) continue;
+        const rating = raw.rating ? String(raw.rating) : null;
+        const comment = str(raw.comentario ?? raw.comment).trim();
+        if (!rating && !comment) continue;
+        finalItems.push({
+          id: itemId,
+          itemId,
+          text: '',
+          sectionName: '',
+          sectionType: 'evaluacion',
+          status: null,
+          rating: ['muy_malo', 'malo', 'regular', 'bueno', 'excelente'].includes(rating) ? rating : (rating || null),
+          comentario: comment || '',
+          sourceLinkId: link.id,
+        });
+      }
+
+      if (!finalItems.length) {
+        return res.status(400).json({ message: 'Debes completar al menos una pregunta antes de enviar.' });
+      }
+
+      // Merge en eventChecklists preservando operativa y todo lo demás
+      const eventChecklists = await readEventChecklists();
+      const eventoId = link.eventoId;
+      const cur = (eventChecklists[eventoId] && typeof eventChecklists[eventoId] === 'object') ? eventChecklists[eventoId] : {};
+      const evTab = (cur.evaluacion && typeof cur.evaluacion === 'object') ? cur.evaluacion : {};
+      const templateIds = (Array.isArray(link.templateIds) ? link.templateIds : []).map(Number).filter(Number.isFinite);
+
+      // Historial entry con marca de origen público
+      const historyEntry = {
+        at: new Date().toISOString(),
+        userId: null,
+        userName: submitterNombre,
+        contact: submitterContacto || null,
+        source: 'public_link',
+        linkId: link.id,
+        token: link.token,
+        action: 'respuesta_publica',
+        changes: { itemsCount: finalItems.length },
+      };
+
+      // Combinar items: si ya existía uno del mismo itemId, preservamos su texto/sección
+      // del shape viejo y actualizamos rating/comentario/sourceLinkId.
+      const existingItems = Array.isArray(evTab.items) ? evTab.items : [];
+      const itemsById = new Map(existingItems.map(it => [Number(it.itemId ?? it.id), it]));
+      // Para texto/sección, buscar en el snapshot
+      const itemTextMap = new Map();
+      const itemSectionMap = new Map();
+      for (const s of sections) {
+        for (const it of (s.items || [])) {
+          itemTextMap.set(Number(it.id), it.text || '');
+          itemSectionMap.set(Number(it.id), s.name || '');
+        }
+      }
+      const mergedItems = existingItems.slice();
+      for (const newIt of finalItems) {
+        const prev = itemsById.get(Number(newIt.itemId));
+        const text = prev?.text || itemTextMap.get(Number(newIt.itemId)) || '';
+        const sectionName = prev?.sectionName || itemSectionMap.get(Number(newIt.itemId)) || '';
+        const idx = mergedItems.findIndex(it => Number(it.itemId ?? it.id) === Number(newIt.itemId));
+        const next = {
+          id: prev?.id || newIt.itemId,
+          itemId: Number(newIt.itemId),
+          text,
+          sectionName,
+          sectionType: 'evaluacion',
+          status: null,
+          rating: newIt.rating,
+          comentario: newIt.comentario,
+          sourceLinkId: link.id,
+        };
+        if (idx >= 0) mergedItems[idx] = next;
+        else mergedItems.push(next);
+      }
+
+      const nextEvTab = {
+        ...evTab,
+        templateIds: templateIds.length ? templateIds : (evTab.templateIds || []),
+        templateId: templateIds[0] ?? evTab.templateId ?? null,
+        notes: notas || evTab.notes || '',
+        items: mergedItems,
+        history: [...(Array.isArray(evTab.history) ? evTab.history : []), historyEntry],
+      };
+
+      const nextEventChecklists = {
+        ...eventChecklists,
+        [eventoId]: { ...cur, evaluacion: nextEvTab },
+      };
+
+      // Persistir (escrituras separadas para no acoplarse a la escritura global del state)
+      await writeEventChecklists(nextEventChecklists);
+
+      // Marcar link como enviado
+      link.submittedAt = new Date().toISOString();
+      link.submitterNombre = submitterNombre;
+      link.submitterContacto = submitterContacto || null;
+      link.submitterNotas = notas || null;
+      map[link.id] = link;
+      await writeKv('checklistPublicLinks', map);
+
+      // Notificar vía socket al staff conectado (no rompe nada si no hay io)
+      try { if (io) io.emit('checklist-public-submitted', { eventoId, linkId: link.id, at: link.submittedAt }); } catch (_) {}
+
+      return res.json({ ok: true, submittedAt: link.submittedAt });
+    });
+    // ─── FIN CHECKLIST PUBLIC LINKS ────────────────────────────────────────
+
     // ensureNotificacionesComentarioId ahora en runMigrations()
 
     // Error middleware global (después de todas las rutas)

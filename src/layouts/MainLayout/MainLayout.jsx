@@ -43,6 +43,17 @@ export default function MainLayout() {
     return localStorage.getItem('calendar_sellerFilter') || 'all';
   });
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(() => {
+    return typeof window !== 'undefined' ? window.innerWidth <= 768 : false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Siempre iniciar en la semana actual cuando se cambia a vista semanal
   useEffect(() => {
@@ -65,6 +76,8 @@ export default function MainLayout() {
   const [occupancyWeeklyOps, setOccupancyWeeklyOps] = useState({});
   const [reminders, setReminders] = useState({});
   const [salonConflictDisabled, setSalonConflictDisabled] = useState([]);
+  const [salonCapacities, setSalonCapacities] = useState({});
+  const [disabledSalones, setDisabledSalones] = useState([]);
 
   async function loadInitialData(useCache = true) {
     if (useCache && memoryCache) {
@@ -74,6 +87,8 @@ export default function MainLayout() {
       setOccupancyWeeklyOps(memoryCache.occupancyWeeklyOps);
       setReminders(memoryCache.reminders);
       setSalonConflictDisabled(memoryCache.salonConflictDisabled || []);
+      setSalonCapacities(memoryCache.salonCapacities || {});
+      setDisabledSalones(memoryCache.disabledSalones || []);
       setLoading(false);
       // Cargar del servidor en segundo plano de forma silenciosa
       loadInitialDataFromServer(true);
@@ -106,6 +121,8 @@ export default function MainLayout() {
         : {};
       const loadedReminders = stateRes?.reminders || {};
       const loadedNoConflict = Array.isArray(stateRes?.salonConflictDisabled) ? stateRes.salonConflictDisabled : [];
+      const loadedCapacities = (stateRes?.salonCapacities && typeof stateRes.salonCapacities === 'object') ? stateRes.salonCapacities : {};
+      const loadedDisabledSalones = Array.isArray(stateRes?.disabledSalones) ? stateRes.disabledSalones : [];
 
       memoryCache = {
         events: eventsData,
@@ -113,7 +130,9 @@ export default function MainLayout() {
         users: loadedUsers,
         occupancyWeeklyOps: loadedOps,
         reminders: loadedReminders,
-        salonConflictDisabled: loadedNoConflict
+        salonConflictDisabled: loadedNoConflict,
+        salonCapacities: loadedCapacities,
+        disabledSalones: loadedDisabledSalones
       };
 
       setEvents(eventsData);
@@ -122,6 +141,8 @@ export default function MainLayout() {
       setOccupancyWeeklyOps(loadedOps);
       setReminders(loadedReminders);
       setSalonConflictDisabled(loadedNoConflict);
+      setSalonCapacities(loadedCapacities);
+      setDisabledSalones(loadedDisabledSalones);
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
@@ -376,6 +397,13 @@ export default function MainLayout() {
     
     if (viewMode === 'day') {
       return currentDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    } else if (viewMode === 'timeline') {
+      const weekday = currentDate.toLocaleDateString('es-ES', { weekday: 'short' });
+      const day = currentDate.getDate();
+      const month = currentDate.toLocaleDateString('es-ES', { month: 'short' });
+      const year = currentDate.getFullYear();
+      const cap = (str) => str.charAt(0).toUpperCase() + str.slice(1).replace('.', '');
+      return `${cap(weekday)} ${day} ${cap(month)} ${year}`;
     } else if (viewMode === 'week') {
       const start = new Date(currentDate);
       
@@ -398,7 +426,7 @@ export default function MainLayout() {
 
   const handlePrev = () => {
     const newDate = new Date(currentDate);
-    if (viewMode === 'day') newDate.setDate(newDate.getDate() - 1);
+    if (viewMode === 'day' || viewMode === 'timeline') newDate.setDate(newDate.getDate() - 1);
     else if (viewMode === 'week') newDate.setDate(newDate.getDate() - 7);
     else if (viewMode === 'year') newDate.setFullYear(newDate.getFullYear() - 1);
     else newDate.setMonth(newDate.getMonth() - 1);
@@ -407,7 +435,7 @@ export default function MainLayout() {
 
   const handleNext = () => {
     const newDate = new Date(currentDate);
-    if (viewMode === 'day') newDate.setDate(newDate.getDate() + 1);
+    if (viewMode === 'day' || viewMode === 'timeline') newDate.setDate(newDate.getDate() + 1);
     else if (viewMode === 'week') newDate.setDate(newDate.getDate() + 7);
     else if (viewMode === 'year') newDate.setFullYear(newDate.getFullYear() + 1);
     else newDate.setMonth(newDate.getMonth() + 1);
@@ -419,7 +447,7 @@ export default function MainLayout() {
       <Sidebar events={events} users={users} reminders={reminders} />
       
       <div className="lum-main" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        {isCalendarView && (
+        {isCalendarView && !isMobile && (
           <>
             <Topbar 
               viewMode={viewMode} 
@@ -440,7 +468,7 @@ export default function MainLayout() {
               setSellerFilter={setSellerFilter}
               users={users}
             />
-            <Legend />
+            {viewMode !== 'timeline' && <Legend />}
           </>
         )}
         
@@ -487,7 +515,10 @@ export default function MainLayout() {
               setSellerFilter,
               occupancyWeeklyOps,
               handleUpdateOccupancyOps,
-              salonConflictDisabled
+              salonConflictDisabled,
+              salonCapacities,
+              disabledSalones,
+              isMobile
             }} />
           </ErrorBoundary>
         </div>

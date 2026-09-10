@@ -275,4 +275,91 @@ Cómo forzar actualización de clientes desde el server:
   - **Compatibilidad**:
     - En escritorio (`> 768px`) la interfaz se mantiene exactamente como estaba (barra de acciones en el header y panel lateral de colaboración lado a lado).
 
+### Calendario Móvil: Disponibilidad de Salones en 1 Clic (2026-09-09)
+- Requerimiento:
+  - El calendario en versión móvil comprimía la vista de semana de escritorio en 3 columnas angostas con scroll horizontal incómodo y sin claridad de disponibilidad.
+  - Se solicitó rediseñar la experiencia móvil para consultar con **1 solo clic** qué salones están libres, ocupados o desocupados, siguiendo la maqueta de referencia provista.
+- Solución implementada:
+  - **Componente dedicado (`MobileSalonesCalendar.jsx`)**:
+    - Detección automática en móviles (`<= 768px`) al entrar a `/calendar`.
+    - Header institucional: `Jardines EMS • Sede Campestre Central` con estado verde, campana de notificaciones con badge, avatar con iniciales del usuario y botón hamburguesa que activa el menú lateral del CRM.
+    - Navegador de fechas `< 📅 Mié 9 Sept 2026 >` con botón `Hoy`.
+    - Tira semanal interactiva (7 días: LUN..DOM) con selección activa en azul índigo (`MIÉ 9+`) y puntos de colores calculados según los estados reales de las reservas del día (verde, azul, rosa, etc.).
+    - Tarjetas KPI interactivas de 1 clic: `LIBRES (N salones)`, `OCUPADOS (N salones)`, `MANT. (N área)` que filtran instantáneamente la lista con un solo toque.
+    - Carrusel de chips de filtro rápido: `Todas`, `Solo Libres`, `Ocupación Parcial`, `Ocupados`, `Salones Grandes (> 150 PAX)`.
+    - Tarjetas de salón por disponibilidad (06:00 a 24:00, 18 horas operativas):
+      - *Disponible todo el día*: Línea de tiempo visual completa con horas disponibles y botón primario `+ Reservar este salón`.
+      - *Ocupación parcial*: Intervalos libres (mínimo 1 hora) con botón `+ Reservar` intercalados cronológicamente con tarjetas de eventos ocupados (horario, badge de estado, cotización `Cot. Q XX,XXX`, comensales `PAX XX`, vendedor y notas), más botones `Ver detalle` y `+ Añadir reserva`.
+      - *Ocupado todo el día*: Lista de reservas que abarcan el día completo.
+      - *Mantenimiento*: Bloque violeta con llave inglesa, descripción de trabajo, horario restringido y botón de reapertura `🕒 Reservar tarde`.
+    - Prellenado inteligente: Al tocar `+ Reservar este salón` o `+ Reservar` en un espacio libre, `ReservationForm` abre con fecha, salón y horas preseleccionadas automáticamente mediante `?salon=...`.
+    - Código de colores operativo: Desplegable al final del scroll con guía visual de los 7 estados.
+    - Botón flotante (FAB) `+ Nueva reserva` violeta/índigo con texto y cruz blanca.
+    - Barra de navegación inferior fija: `Calendario` (vistas clásicas), `Salones` (vista móvil activa), `Cotizaciones` (`/posibles-ventas`) y `Reportes` (`/reports`).
+  - **Aislamiento desktop**:
+    - En pantallas grandes (`> 768px`), el calendario de escritorio permanece 100% intacto con su topbar y grilla completa.
+
+### Calendario Móvil: Navegación de Semanas y Buscador de Mes/Año (2026-09-09)
+- Bug: Los controles de cambiar de semana (`<` y `>`) y el botón para buscar mes/año no respondían o se bloqueaban en dispositivos móviles.
+- Causas raíz identificadas y resueltas:
+  1. **Escape de contenedor `overflow: auto` (Montaje con `createPortal`)**: El modal de búsqueda de mes se renderizaba dentro del árbol React hijo de `.lum-main` (que tiene `overflow: auto; position: relative`). En WebKit/Chromium móvil, los elementos `position: fixed` quedaban atrapados dentro del contenedor con scroll o recortados fuera del viewport visible, dejando además un backdrop transparente que bloqueaba clics posteriores. Se encapsuló el modal con `createPortal(..., document.body)` para garantizar despliegue en pantalla completa al frente de toda la aplicación.
+  2. **Intercepción por pseudo-elementos globales (`button::after`)**: En `styles.css:322`, la regla global `button::after { content: ''; position: absolute; inset: 0; ... }` generaba hitboxes de miles de píxeles al aplicarse sobre botones con `all: unset`. Se suprimió de raíz con `display: none !important; content: none !important; pointer-events: none !important;` en todos los botones de `.mobile-salones-root` y `.ms-month-modal-backdrop`.
+  3. **Semántica táctil nativa**: Se cambió `.ms-date-display` de `<div>` a `<button type="button">` con `touch-action: manipulation !important` y `pointer-events: none` en iconos/textos internos para que los toques táctiles se registren sin retardos ni pérdidas de foco en Android y Safari iOS.
+  4. **Buscador interactivo de Meses y Años**: Se agregó una barra de búsqueda (`ms-month-search-input`) dentro del modal donde el usuario puede escribir el mes (ej: "Oct", "Diciembre") o el año (ej: "2027"), filtrando en tiempo real la cuadrícula de 12 meses y actualizando el selector con 1 solo toque.
+  5. **Navegación por deslizamiento (Swipe)**: Soporte táctil nativo en la tira semanal (`onTouchStart` / `onTouchEnd` > 45px horizontal) para cambiar de semana deslizando el dedo hacia la izquierda o derecha.
+  6. **Aislamiento en modo desarrollo (`vite.config.js`)**: En `mode === 'development'`, `__APP_VERSION__` ahora inyecta `'0.0.0-dev'`, impidiendo que `UpdateBanner` aparezca superpuesto en la parte superior en entornos locales.
+  7. **Cierre prematuro al navegar meses en fecha exacta (`↑` / `↓`)**: En Chrome, al pulsar las flechas del selector nativo `<input type="date">` para cambiar de mes, se disparaba `onChange` intermedio, cerrando el modal de inmediato. Se desacopló el cierre automático de `onChange` usando estado local `exactDateValue` + botón explícito `[ Aplicar ]` y verificación estricta de `e.target === e.currentTarget` en el backdrop.
+  8. **Iconografía Minimalista Profesional y Retiro de Buscador (2026-09-09)**:
+     - Retirado el input de búsqueda del modal de meses para una experiencia visual limpia y directa, aprovechando la cuadrícula de 12 meses accesible con un solo toque.
+     - Eliminados todos los emojis (`📅`, `🏖️`, `🎨`, `🕒`) y caracteres de texto plano (`‹`, `›`, `✕`, `▲`, `▼`, `+`).
+     - Sustituidos por iconos vectoriales SVG minimalistas (`strokeWidth="2.2"`, esquinas redondeadas, consistentes con el diseño moderno del CRM) en cabecera de modal (`.ms-modal-icon-badge`), botón de cierre, selector de año, botones de reserva en tarjetas, estado vacío, código de colores y botón flotante FAB.
+     - **Rediseño de 'O fecha exacta'**: Estructurado en tarjeta de 2 filas (`.ms-month-exact-date-box`) con etiqueta superior e input ampliado a ancho completo con altura ergonómica (38px) junto al botón `[ Aplicar ]`, eliminando la colisión del texto de la fecha con el icono nativo de calendario.
+
+### Calendario Móvil: Vista Timeline Diario (6 Bloques) y Barra Inferior Simplificada (2026-09-09)
+- Requerimiento:
+  1. Eliminar los botones inferiores (`Calendario`, `Salones`, `Cotizaciones`, `Reportes`) y el botón flotante (FAB) que tapaba la pantalla.
+  2. Colocar abajo únicamente dos botones ergonómicos lado a lado: a la derecha `+ Nueva reserva` y a la par (izquierda) el selector de vista tipo timeline (`Vista Timeline` / `Vista Tarjetas`).
+  3. Crear una vista tipo Timeline inspirada en la maqueta de referencia provista por el usuario (`media_1788992570103.png`), manteniendo el diseño estructural de matriz de 6 bloques y píldoras 3D, pero armonizando 100% los colores con la estética clara, moderna e institucional del CRM.
+- Solución implementada:
+  - **Barra inferior unificada (`.ms-bottom-bar-unified`)**:
+    - Removidos el botón flotante `.ms-fab` y el `<nav className="ms-bottom-nav">` con los 4 accesos directos.
+    - Barra fija inferior tipo dock con fondo glassmorphism translúcido claro (`rgba(255, 255, 255, 0.96)` con `backdrop-filter: blur(16px)`), borde superior suave `#e2e8f0`, soporte para `env(safe-area-inset-bottom)` y layout 50/50 (`flex: 1` por botón):
+      - Botón izquierdo (`.ms-bottom-view-btn`): Alterna entre `[ ⫼ Vista Timeline ]` y `[ ⊞ Vista Tarjetas ]` con icono SVG minimalista y estado activo en suave índigo `#eef2ff` / `#4338ca`.
+      - Botón derecho (`.ms-bottom-new-btn`): `+ Nueva reserva` con fondo gradiente púrpura/índigo institucional (`#6366f1` a `#4f46e5`) e icono vectorial de suma.
+  - **Vista Timeline Diario — 6 Bloques (`.ms-timeline-card`) en Paleta Armonizada del CRM**:
+    - **Tarjeta contenedor**: Fondo blanco puro (`#ffffff`), borde suave `#e2e8f0`, esquinas redondeadas (16px), sombra sutil ejecutiva (`0 4px 16px -2px rgba(15, 23, 42, 0.06)`).
+    - **Encabezado de matriz**: Título `Timeline Diario — 6 Bloques` con icono índigo `#4f46e5`, texto `#0f172a` y badge de `HOY` o fecha seleccionada en pill suave `#eef2ff` / `#4338ca`.
+    - **Columnas de tiempo**: `SALA` (slate-700), y bloques horarios `10h`, `12h`, `14h`, `16h`, `18h`, `20h` (slate-500).
+    - **Indicador de bloque en tiempo real (`▲`)**: Si se visualiza el día de hoy, la columna de la hora activa se resalta en el color primario del CRM (`#4338ca`) con una flecha cian/índigo `▲`.
+    - **Pills 3D biseladas adaptadas a la paleta del CRM**:
+      - *Libre*: Verde esmeralda suave (`#d1fae5` con bisel superior `#10b981` y bordes `#a7f3d0`).
+      - *Confirmado (En Uso)*: Rosa/coral suave (`#ffe4e6` con bisel superior `#e11d48` y bordes `#fecdd3`).
+      - *Cotizado / En Proceso*: Ámbar suave (`#fef3c7` con bisel superior `#d97706` y bordes `#fde68a`).
+      - *Pre-reserva / Lista de espera*: Azul suave (`#dbeafe` con bisel superior `#2563eb` y bordes `#bfdbfe`).
+      - *Mantenimiento*: Lavanda suave (`#ede9fe` con bisel superior `#7c3aed` y bordes `#ddd6fe`).
+    - **Leyenda inferior**: Barra redondeada al pie de la matriz (`#f8fafc`) con puntos de color 3D y etiquetas claras: `Libres`, `Confirmado`, `Cotizado`, `Pre-reserva`, `Mant.`.
+  - **Modal interactivo por bloque (Bottom Sheet `ms-block-detail-card`)**:
+    - Al pulsar cualquier píldora de la matriz, se abre un modal inferior detallado con fondo blanco y tipografía institucional del CRM:
+      - Si está libre: Botón directo `+ Reservar este bloque` que prellena automáticamente el salón, fecha y horario en `ReservationForm`.
+      - Si está ocupado o en cotización: Muestra el nombre de la institución, cliente, comensales (PAX), vendedor, estado comercial y botón `👁 Ver reserva completa`.
+      - Si está en mantenimiento: Muestra la descripción del trabajo y horas restringidas.
+  - **Alternancia fluida de vistas**: Los usuarios pueden alternar entre la vista ejecutiva rápida de matriz (Timeline) y la vista detallada cronológica (Tarjetas) con un solo toque sin perder la fecha o filtros activos.
+
+### Calendario Escritorio: Vista Timeline Diario (6 Bloques y Tarjetas) (2026-09-09)
+- Requerimiento:
+  - Extender la experiencia de la vista Timeline de la versión móvil hacia la versión de escritorio (`> 768px`).
+- Solución implementada:
+  - **Componente dedicado (`DesktopTimelineView.jsx`)**:
+    - **Acceso desde Topbar**: Añadido `{ key: 'timeline', label: 'Timeline' }` al array de `views` en `Topbar.jsx` y activación de filtros (`isFilterActive`).
+    - **Navegación y formato en MainLayout**: `viewMode === 'timeline'` soporta navegación anterior/siguiente día a día y etiqueta legible con día de la semana (`dateRangeLabel`).
+    - **Tira semanal de 7 días (LUN..DOM)**: Mini-panel interactivo que muestra las tarjetas del día con conteo de eventos, puntos de ocupación de colores y navegación de semanas `<` y `>`.
+    - **Tarjetas KPI y Filtros rápidos de 1 Clic**: Métricas de `TOTAL SALONES`, `LIBRES TODO EL DÍA`, `OCUPACIÓN PARCIAL`, `OCUPADOS`, `MANTENIMIENTO` y chips de categoría (`Todos`, `Solo Libres`, `Parciales`, `Ocupados`, `Grandes >150 PAX`) integrados con filtros de Topbar (búsqueda, salón, estado, vendedor).
+    - **Matriz de 6 Bloques para Escritorio**:
+      - Columnas de tiempo: `10h (08:00-11:00)`, `12h (11:00-13:00)`, `14h (13:00-15:00)`, `16h (15:00-17:00)`, `18h (17:00-19:00)`, `20h (19:00-23:00)`.
+      - Indicador `▲ ACTUAL` en tiempo real en la columna horaria activa del día actual.
+      - Píldoras 3D armonizadas con nombres de eventos visibles, comensales (PAX) y horarios.
+      - Celdas disponibles con badge `✓ Libre` y botón `+ Reservar`.
+      - Tooltip flotante enriquecido al pasar el cursor por encima de cualquier bloque con datos completos del evento/salón.
+      - Diálogo modal interactivo al hacer clic para reservar el bloque (`+ Reservar este bloque horario`), reservar el día completo o abrir la reserva completa.
+    - **Alternancia de vista**: Permite conmutar con un clic entre la **Matriz (6 Bloques)** y la vista de **Tarjetas Detalladas** en grid multi-columna de escritorio.
 

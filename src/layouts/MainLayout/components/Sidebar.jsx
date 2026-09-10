@@ -18,6 +18,12 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
   const [isMobileMencionOpen, setIsMobileMencionOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
+  useEffect(() => {
+    const handleOpenDrawer = () => setIsMobileOpen(true);
+    window.addEventListener('open-mobile-drawer', handleOpenDrawer);
+    return () => window.removeEventListener('open-mobile-drawer', handleOpenDrawer);
+  }, []);
+
   // Auto-ocultar el botón flotante de menú al scrollear
   const [fabVisible, setFabVisible] = useState(true);
   const lastScrollY = useRef(0);
@@ -315,16 +321,20 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
   }, [isReminderOpen]);
 
 
+  const isCalendar = location.pathname === '/calendar' || location.pathname === '/nueva-reserva' || location.pathname.startsWith('/reserva/');
+
   return (
     <>
-      {/* Botón de Hamburguesa Flotante en Móvil */}
-      <button 
-className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
-        onClick={() => setIsMobileOpen(true)}
-        aria-label="Abrir men"
-      >
-        <span className="material-symbols-outlined">menu</span>
-      </button>
+      {/* Botón de Hamburguesa Flotante en Móvil (oculto en calendario porque tiene su propio header) */}
+      {!isCalendar && (
+        <button 
+          className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
+          onClick={() => setIsMobileOpen(true)}
+          aria-label="Abrir menú"
+        >
+          <span className="material-symbols-outlined">menu</span>
+        </button>
+      )}
 
       {/* Cajón de Navegación (Drawer) en Móvil */}
       {isMobileOpen && (

@@ -2,6 +2,8 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import { STATUS_META } from './constants';
 import ReservationForm from './components/ReservationForm';
+import MobileSalonesCalendar from './components/MobileSalonesCalendar';
+import DesktopTimelineView from './components/DesktopTimelineView';
 import { toast } from '../../utils/toast';
 import '../../styles/tooltips.css';
 
@@ -230,12 +232,34 @@ export default function Calendar() {
     currentDate = new Date(), 
     setCurrentDate = () => {},
     events = [], 
+    salones = [],
+    salonCapacities = {},
+    disabledSalones = [],
     users = [],
     statusFilter = 'all',
     searchQuery = '',
     roomFilter = 'all',
-    sellerFilter = 'all'
+    sellerFilter = 'all',
+    isMobile: outletIsMobile
   } = outlet;
+
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof outletIsMobile === 'boolean') return outletIsMobile;
+    return typeof window !== 'undefined' ? window.innerWidth <= 768 : false;
+  });
+  const [mobileViewMode, setMobileViewMode] = useState('salones'); // 'salones' | 'classic'
+
+  useEffect(() => {
+    if (typeof outletIsMobile === 'boolean') {
+      setIsMobile(outletIsMobile);
+      return;
+    }
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [outletIsMobile]);
 
   const todayRef = useRef(null);
 
@@ -290,7 +314,7 @@ export default function Calendar() {
   const navigateCalendar = (direction) => {
     const amount = direction === 'next' ? 1 : -1;
     const newDate = new Date(currentDate);
-    if (viewMode === 'day') {
+    if (viewMode === 'day' || viewMode === 'timeline') {
       newDate.setDate(newDate.getDate() + amount);
     } else if (viewMode === 'week') {
       newDate.setDate(newDate.getDate() + amount * 7);
@@ -1238,6 +1262,8 @@ export default function Calendar() {
               const isCompactHeight = height <= 72;
               const color = STATUS_META[ev.status]?.color || '#64748b';
               const seriesBadge = getEventSeriesBadge(ev, events);
+              const seller = users.find(u => String(u.id) === String(ev.userId));
+              const sellerName = seller?.fullName || seller?.name || ev.seller || 'Ventas';
               
               const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
               const normalBg = isMaint
@@ -1959,13 +1985,95 @@ export default function Calendar() {
         }
       `}</style>
       {/* Contenido del calendario */}
-      <div style={{ flex: 1, overflow: (viewMode === 'year' || viewMode === 'agenda') ? 'auto' : 'hidden' }}>
-        {viewMode === 'week' && renderWeekView()}
-        {viewMode === 'month' && renderMonthView()}
-        {viewMode === 'day' && renderDayView()}
-        {viewMode === 'year' && renderYearView()}
-        {viewMode === 'agenda' && renderAgendaView()}
-      </div>
+      {isMobile && mobileViewMode === 'salones' ? (
+        <MobileSalonesCalendar
+          events={events}
+          salones={salones}
+          salonCapacities={salonCapacities}
+          disabledSalones={disabledSalones}
+          users={users}
+          currentDate={currentDate}
+          setCurrentDate={setCurrentDate}
+          setViewMode={setViewMode}
+          onSwitchToClassicCalendar={() => setMobileViewMode('classic')}
+        />
+      ) : (
+        <div style={{ flex: 1, overflow: (viewMode === 'year' || viewMode === 'agenda' || viewMode === 'timeline') ? 'auto' : 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {isMobile && mobileViewMode === 'classic' && (
+            <div style={{
+              background: '#f5f3ff',
+              borderBottom: '1px solid #ddd6fe',
+              padding: '10px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              position: 'sticky',
+              top: 0,
+              zIndex: 30
+            }}>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {['month', 'week', 'day', 'agenda', 'timeline'].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setViewMode(m)}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: viewMode === m ? '#4338ca' : '#fff',
+                      color: viewMode === m ? '#fff' : '#334155',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {m === 'month' ? 'Mes' : m === 'week' ? 'Semana' : m === 'day' ? 'Día' : m === 'agenda' ? 'Agenda' : 'Timeline'}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setMobileViewMode('salones')}
+                style={{
+                  background: '#4338ca',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span>🏨 Salones (1 Clic)</span>
+              </button>
+            </div>
+          )}
+
+          {viewMode === 'week' && renderWeekView()}
+          {viewMode === 'month' && renderMonthView()}
+          {viewMode === 'day' && renderDayView()}
+          {viewMode === 'year' && renderYearView()}
+          {viewMode === 'agenda' && renderAgendaView()}
+          {viewMode === 'timeline' && (
+            <DesktopTimelineView
+              events={events}
+              salones={salones}
+              salonCapacities={salonCapacities}
+              disabledSalones={disabledSalones}
+              users={users}
+              currentDate={currentDate}
+              setCurrentDate={setCurrentDate}
+              searchQuery={searchQuery}
+              roomFilter={roomFilter}
+              sellerFilter={sellerFilter}
+              statusFilter={statusFilter}
+            />
+          )}
+        </div>
+      )}
 
       {/* Modal de reserva */}
       {(location.pathname === '/nueva-reserva' || location.pathname.startsWith('/reserva/')) && (

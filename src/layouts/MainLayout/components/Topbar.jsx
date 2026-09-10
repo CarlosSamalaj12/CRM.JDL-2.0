@@ -7,6 +7,7 @@ const views = [
   { key: 'month', label: 'Mes' },
   { key: 'year', label: 'Año' },
   { key: 'agenda', label: 'Agenda' },
+  { key: 'timeline', label: 'Timeline' },
 ];
 
 export default function Topbar({ 
@@ -28,7 +29,7 @@ export default function Topbar({
   setSellerFilter,
   users
 }) {
-  const isFilterActive = isCalendarView && (viewMode === 'month' || viewMode === 'week');
+  const isFilterActive = isCalendarView && (viewMode === 'month' || viewMode === 'week' || viewMode === 'timeline');
 
   return (
     <header className="topbar" style={{ 

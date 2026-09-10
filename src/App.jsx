@@ -29,6 +29,7 @@ const InformeCreator = lazy(() => import('./modules/informes/pages/InformeCreato
 const InformeView = lazy(() => import('./modules/informes/pages/InformeView'));
 const Configuracion = lazy(() => import('./modules/informes/pages/Configuracion'));
 const Dashboard = lazy(() => import('./modules/informes/pages/Dashboard'));
+const PublicChecklistPage = lazy(() => import('./modules/checklist/PublicChecklistPage'));
 
 function getHomePath(user) {
   if (!user) return '/login';
@@ -148,6 +149,9 @@ function App() {
               <Suspense fallback={null}>
               <Routes>
                 <Route path="/login" element={<SafeRoute><Login /></SafeRoute>} />
+
+                {/* Ruta pública para que el cliente llene la evaluación del checklist sin login */}
+                <Route path="/checklist-public/:token" element={<PublicChecklistPage />} />
 
                 <Route element={<ReportsLayout />}>
                   <Route path="/informes" element={<ProtectedRoute><SafeRoute><Dashboard /></SafeRoute></ProtectedRoute>} />
