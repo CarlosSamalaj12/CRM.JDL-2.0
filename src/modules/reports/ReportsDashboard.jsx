@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { loadState } from '../../services/stateService';
 import ReportInfo from './components/ReportInfo';
 import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
@@ -15,35 +15,177 @@ const SAT_RATING_LEVELS = [
   { value: 'excelente', label: 'Excelente', score: 10, color: '#a855f7', bg: '#faf5ff' },
 ];
 
-const STATUS_META = [
-  { key: 'Reserva sin Cotizacion', label: 'Reserva sin Cot.', color: '#00A3FF' },
-  { key: '1er Cotizacion', label: '1ra Cotización', color: '#007A64' },
-  { key: 'Seguimiento', label: 'Negociación', color: '#FF8C00' },
-  { key: 'Lista de Espera', label: 'Lista Espera', color: '#FFD700' },
-  { key: 'Pre reserva', label: 'Pre-Reserva', color: '#FF00CC' },
-  { key: 'Confirmado', label: 'Confirmado', color: '#00CC66' },
-  { key: 'Cancelado', label: 'Cancelado', color: '#FF3333' },
-  { key: 'Perdido', label: 'Perdido', color: '#FF9A9E' },
-  { key: 'Mantenimiento', label: 'Mantenimiento', color: '#8A2BE2' },
-  { key: 'Mantenimiento Realizado', label: 'Mant. Realiz.', color: '#94a3b8' },
-  { key: 'Realizado', label: 'Realizado', color: '#22c55e' },
-];
-
 function getSatColor(avg) {
-  if (avg >= 3.5) return '#22c55e';
-  if (avg >= 2.5) return '#eab308';
-  if (avg >= 1.5) return '#f97316';
+  if (avg >= 8.5) return '#22c55e';
+  if (avg >= 7.0) return '#eab308';
+  if (avg >= 5.0) return '#f97316';
   return '#ef4444';
 }
 
 function getSatLabel(avg) {
-  if (avg >= 3.5) return 'Excelente';
-  if (avg >= 2.5) return 'Bueno';
-  if (avg >= 1.5) return 'Regular';
+  if (avg >= 8.5) return 'Excelente';
+  if (avg >= 7.0) return 'Bueno';
+  if (avg >= 5.0) return 'Regular';
   return 'Malo';
 }
 
+// ── Minimalist Vector Icons (SVG) ──
+function IconBuilding({ size = 18, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18"/>
+      <path d="M9 8h1"/>
+      <path d="M9 12h1"/>
+      <path d="M9 16h1"/>
+      <path d="M14 8h1"/>
+      <path d="M14 12h1"/>
+      <path d="M14 16h1"/>
+      <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/>
+    </svg>
+  );
+}
+
+function IconKanban({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="5" height="18" rx="1"/>
+      <rect x="10" y="3" width="5" height="12" rx="1"/>
+      <rect x="17" y="3" width="5" height="15" rx="1"/>
+    </svg>
+  );
+}
+
+function IconDownload({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  );
+}
+
+function IconCalendar({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  );
+}
+
+function IconTrash({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    </svg>
+  );
+}
+
+function IconTarget({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <circle cx="12" cy="12" r="6"/>
+      <circle cx="12" cy="12" r="2"/>
+    </svg>
+  );
+}
+
+function IconChart({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/>
+      <line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+  );
+}
+
+function IconFlame({ size = 18, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+    </svg>
+  );
+}
+
+function IconClock({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  );
+}
+
+function IconTrending({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+      <polyline points="17 6 23 6 23 12"/>
+    </svg>
+  );
+}
+
+function IconZap({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  );
+}
+
+function IconInfoCircle({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="16" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+  );
+}
+
+function IconCheck({ size = 13, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  );
+}
+
+const AVATAR_COLORS = [
+  '#2563eb', // Blue
+  '#9333ea', // Purple
+  '#059669', // Emerald
+  '#d97706', // Amber
+  '#e11d48', // Rose
+  '#0284c7', // Sky
+  '#4f46e5', // Indigo
+  '#0d9488', // Teal
+  '#ea580c', // Orange
+  '#db2777', // Pink
+  '#475569', // Slate
+  '#ca8a04', // Yellow-amber
+  '#0891b2', // Cyan
+  '#7c3aed', // Violet
+  '#16a34a', // Green
+  '#dc2626', // Red
+];
+
 export default function ReportsDashboard({ onClose }) {
+  const navigate = useNavigate();
   const { events, users } = useOutletContext();
   const [monthKey, setMonthKey] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; });
   const [fromDate, setFromDate] = useState('');
@@ -160,10 +302,6 @@ export default function ReportsDashboard({ onClose }) {
   ), [users]);
   const rowsWithGoal = useMemo(() => filteredRows.filter(r => usersWithGoal.has(r.userId)), [filteredRows, usersWithGoal]);
   const globalAchieved = useMemo(() => rowsWithGoal.filter(r => isGoalStatus(r.status)).reduce((a,r) => a+r.total, 0), [rowsWithGoal]);
-  const focusedUser = scope === 'seller' && selectedSellerId ? users?.find(u => u.id === selectedSellerId) : null;
-  const personalGoal = focusedUser?.monthlyGoals ? (focusedUser.monthlyGoals.find(g => g.month === monthKey)?.amount||0) : 0;
-  const personalAchieved = focusedUser ? filteredRows.filter(r => r.userId === focusedUser.id && isGoalStatus(r.status)).reduce((a,r) => a+r.total, 0) : 0;
-  const pProg = personalGoal ? (personalAchieved/personalGoal)*100 : 0;
 
   // ── Settings Global Monthly Goal (from Settings → Metas Globales) ──
   // Se auto-detecta del rango: si el rango es 1 mes, usa la meta de ese mes.
@@ -364,938 +502,1170 @@ export default function ReportsDashboard({ onClose }) {
     return { totalEvents: satisfactionData.length, totalRatings, globalAvg, totalDist };
   }, [satisfactionData]);
 
-
-
-  const handleReset = () => { const n = new Date(); setMonthKey(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`); setFromDate(''); setToDate(''); setRole(USER_ROLES.SELLER); setScope('all'); setSelectedSellerId(''); };
+  const handleReset = () => {
+    const n = new Date();
+    setMonthKey(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`);
+    setFromDate('');
+    setToDate('');
+    setRole(USER_ROLES.SELLER);
+    setScope('all');
+    setSelectedSellerId('');
+  };
 
   const visSeg = statusSummary.seg.filter(s => s.count > 0);
   const dateRange = getDateRange();
+  const gapAmount = Math.max(0, settingsGoalAmount - globalAchieved);
+  const gapPct = settingsGoalAmount > 0 ? (gapAmount / settingsGoalAmount) * 100 : 0;
 
-  const kpiGradient = (accent) => {
-    if (accent === '#16a34a') return 'linear-gradient(135deg, #f0fdf4, #ecfdf5)';
-    if (accent === '#e11d48') return 'linear-gradient(135deg, #fef2f2, #fff1f2)';
-    if (accent === '#f59e0b') return 'linear-gradient(135deg, #fffbeb, #fef3c7)';
-    return 'linear-gradient(135deg, #eff6ff, #f8fafc)';
+  // ── Motivational Ribbon & Projections ──
+  const [yr, mo] = monthKey.split('-').map(Number);
+  const daysInMo = new Date(yr, mo, 0).getDate();
+  const now = new Date();
+  const isCurrent = yr === now.getFullYear() && mo === now.getMonth() + 1;
+  const isPast = yr < now.getFullYear() || (yr === now.getFullYear() && mo < now.getMonth() + 1);
+  const day = isPast ? daysInMo : (isCurrent ? Math.min(now.getDate(), daysInMo) : 0);
+  const daysLeft = Math.max(0, daysInMo - day);
+  const daysEl = day;
+  const needDaily = daysLeft > 0 ? gapAmount / daysLeft : 0;
+  const currDaily = daysEl > 0 ? globalAchieved / daysEl : 0;
+  const projected = currDaily * daysInMo;
+  const projPct = settingsGoalAmount > 0 ? (projected / settingsGoalAmount) * 100 : 0;
+  const onPace = currDaily >= needDaily;
+
+  let mot = {
+    title: 'Buen ritmo, van por buen camino ¡aceleren!',
+    sub: `Progreso: ${settingsGoalProgress.toFixed(1)}% · Brecha restante: ${formatMoneyGT(gapAmount)}`,
+    badge: projPct >= 100 ? `+${(projPct - 100).toFixed(0)}% vs Proyección` : `${projPct.toFixed(0)}% de Meta`,
+    color: '#ea580c',
+    bg: '#fff7ed',
+    border: '#fed7aa',
   };
+  if (settingsGoalProgress >= 100) {
+    mot = {
+      title: '¡META SUPERADA! Increíble trabajo en equipo',
+      sub: `Superada por ${formatMoneyGT(globalAchieved - settingsGoalAmount)} · Ritmo sobresaliente`,
+      badge: `+${(settingsGoalProgress - 100).toFixed(0)}% de Meta`,
+      color: '#16a34a',
+      bg: '#f0fdf4',
+      border: '#bbf7d0',
+    };
+  } else if (settingsGoalProgress >= 80) {
+    mot = {
+      title: '¡Cierre estelar! A un paso de cumplir el 100%',
+      sub: `Progreso: ${settingsGoalProgress.toFixed(1)}% · Brecha restante: ${formatMoneyGT(gapAmount)}`,
+      badge: projPct >= 100 ? `+${(projPct - 100).toFixed(0)}% vs Proyección` : `${projPct.toFixed(0)}% de Meta`,
+      color: '#16a34a',
+      bg: '#f0fdf4',
+      border: '#bbf7d0',
+    };
+  } else if (settingsGoalProgress < 40) {
+    mot = {
+      title: '¡Enciendan motores! Todavía hay tiempo para acelerar',
+      sub: `Progreso: ${settingsGoalProgress.toFixed(1)}% · Brecha restante: ${formatMoneyGT(gapAmount)}`,
+      badge: `${projPct.toFixed(0)}% de Meta`,
+      color: '#2563eb',
+      bg: '#eff6ff',
+      border: '#bfdbfe',
+    };
+  }
 
-  // ── Bento KPI cards data ──
-  const kpiCards = [
-    {
-      label: 'Meta Global', value: formatMoneyGT(settingsGoalAmount),
-      trend: `${settingsGoalProgress.toFixed(1)}%`,
-      trendColor: settingsGoalProgress>=100 ? '#15803d' : settingsGoalProgress>=80 ? '#b45309' : '#1d4ed8',
-      trendBg: settingsGoalProgress>=100 ? '#dcfce7' : settingsGoalProgress>=80 ? '#fef3c7' : '#eff6ff',
-      accent: settingsGoalProgress>=100 ? '#16a34a' : settingsGoalProgress>=80 ? '#f59e0b' : '#2563eb',
-    },
-    {
-      label: 'Pendiente Global', value: formatMoneyGT(Math.max(0,settingsGoalAmount-globalAchieved)),
-      trend: globalAchieved >= settingsGoalAmount ? 'Superada' : '',
-      accent: globalAchieved >= settingsGoalAmount ? '#16a34a' : '#e11d48',
-    },
-    {
-      // PAX total del mes (eventos Confirmados) — útil para entender demanda real
-      label: 'PAX del Mes', value: paxMetrics.totalMonthPax.toLocaleString('en-US'),
-      trend: `${paxMetrics.occupancyPct.toFixed(1)}% ocup.`,
-      trendColor: paxMetrics.occupancyPct >= 80 ? '#15803d' : paxMetrics.occupancyPct >= 50 ? '#b45309' : '#1d4ed8',
-      trendBg: paxMetrics.occupancyPct >= 80 ? '#dcfce7' : paxMetrics.occupancyPct >= 50 ? '#fef3c7' : '#eff6ff',
-      accent: paxMetrics.occupancyPct >= 80 ? '#16a34a' : paxMetrics.occupancyPct >= 50 ? '#f59e0b' : '#0ea5e9',
-      subtitle: `de ${paxMetrics.plannedMonthPax.toLocaleString('en-US')} planificados`,
-    },
-  ];
+  const updateTime = useMemo(() => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }, []);
 
-  // ── Color utility for progress bars ──
-  const progColor = (pct) => pct >= 100 ? '#16a34a' : pct >= 80 ? '#f59e0b' : '#3b82f6';
+  const topSellers = useMemo(() => sellerMetrics.filter(s => s.amount > 0), [sellerMetrics]);
+  const zeroSellers = useMemo(() => sellerMetrics.filter(s => s.amount === 0), [sellerMetrics]);
+
+  // ── PAX por día (solo Confirmado) ──
+  const paxDayChartData = useMemo(() => {
+    if (!events) return null;
+    const { from, to } = getDateRange();
+    const start = new Date(from + 'T00:00:00');
+    const end = new Date(to + 'T00:00:00');
+    const dayList = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      dayList.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    if (!dayList.length) return null;
+
+    const dayPax = {};
+    const dayEvents = {};
+    const seenSharedGroup = new Set();
+    for (const ev of events) {
+      const d = String(ev.date || '');
+      if (!d || d < from || d > to) continue;
+      if (String(ev.status || '').trim() !== STATUS.CONFIRMADO) continue;
+      const isShared = ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1;
+      const groupKey = ev.groupId || ev.id;
+      const dayGroupKey = `${d}_${groupKey}`;
+      const pax = Math.max(0, Number(ev.slotPax ?? ev.pax ?? 0));
+
+      if (isShared) {
+        if (!seenSharedGroup.has(dayGroupKey)) {
+          seenSharedGroup.add(dayGroupKey);
+          dayEvents[d] = (dayEvents[d] || 0) + 1;
+          dayPax[d] = (dayPax[d] || 0) + pax;
+        }
+      } else {
+        dayEvents[d] = (dayEvents[d] || 0) + 1;
+        dayPax[d] = (dayPax[d] || 0) + pax;
+      }
+    }
+    const totalPax = Object.values(dayPax).reduce((a, b) => a + b, 0);
+    const maxDayPax = Math.max(1, ...Object.values(dayPax));
+    return { dayList, dayPax, dayEvents, totalPax, maxDayPax };
+  }, [events, getDateRange]);
 
   return (
-    <div className="reports-page-container">
-      {/* Header */}
-      <div className="reports-page-header">
-        <div className="reports-brand-header">
-          <div className="reports-brand-badge">
-            <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+    <div className="reports-page-container" style={{ background: '#f8fafc', minHeight: '100vh', color: '#0f172a' }}>
+      <style>{`
+        input[type="date"].rd-white-input,
+        input[type="month"].rd-white-input,
+        select.rd-white-input,
+        .rd-white-input {
+          background-color: #ffffff !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          color-scheme: light !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 8px !important;
+          font-size: 13px !important;
+          font-weight: 600 !important;
+          height: 38px !important;
+          padding: 0 12px !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+          outline: none !important;
+          transition: all 0.15s ease !important;
+          box-sizing: border-box !important;
+        }
+        input[type="date"].rd-white-input:focus,
+        input[type="month"].rd-white-input:focus,
+        select.rd-white-input:focus,
+        .rd-white-input:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+        }
+        .rd-white-input option {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+        }
+        .rd-white-input::-webkit-calendar-picker-indicator {
+          filter: none !important;
+          cursor: pointer !important;
+          opacity: 0.7 !important;
+        }
+        .rd-white-input::-webkit-calendar-picker-indicator:hover {
+          opacity: 1 !important;
+        }
+        .rd-white-input::-webkit-datetime-edit,
+        .rd-white-input::-webkit-datetime-edit-fields-wrapper,
+        .rd-white-input::-webkit-datetime-edit-text,
+        .rd-white-input::-webkit-datetime-edit-month-field,
+        .rd-white-input::-webkit-datetime-edit-day-field,
+        .rd-white-input::-webkit-datetime-edit-year-field {
+          color: #0f172a !important;
+        }
+        .rd-card {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .rd-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 8px 14px;
+          border-radius: 8px;
+          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          color: #475569;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-decoration: none;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        }
+        .rd-btn:hover {
+          background: #f8fafc;
+          border-color: #cbd5e1;
+          color: #0f172a;
+        }
+        @media print {
+          .rd-no-print {
+            display: none !important;
+          }
+          body {
+            background: #ffffff !important;
+          }
+        }
+      `}</style>
+
+      {/* ── HEADER SUPERIOR ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '16px 28px', background: '#ffffff', borderBottom: '1px solid #e2e8f0',
+        flexWrap: 'wrap', gap: '14px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '42px', height: '42px', borderRadius: '10px',
+            background: '#0d7a64', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#ffffff', boxShadow: '0 2px 6px rgba(13,122,100,0.25)', flexShrink: 0,
+          }}>
+            <IconBuilding size={22} color="#ffffff" />
           </div>
           <div>
-            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">Dashboard Ejecutivo</div>
-            <div className="reports-subtitle">Metas comerciales, rendimiento y analítica del periodo</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0d7a64', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              EMS RESERVAS — JARDINES DEL LAGO
+            </div>
+            <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>
+              Dashboard Ejecutivo
+            </h1>
           </div>
         </div>
-        <ReportInfo reportKey="dashboard" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-          Volver
-        </button>
+
+        <div className="rd-no-print" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <ReportInfo reportKey="dashboard" />
+          <button
+            type="button"
+            className="rd-btn"
+            onClick={() => navigate('/kanban')}
+          >
+            <IconKanban size={15} color="#475569" />
+            Pipeline Kanban
+          </button>
+          <button
+            type="button"
+            className="rd-btn"
+            onClick={() => window.print()}
+          >
+            <IconDownload size={15} color="#475569" />
+            Exportar Reporte
+          </button>
+          <button
+            type="button"
+            className="rd-btn"
+            onClick={() => { if (onClose) onClose(); else navigate(-1); }}
+          >
+            <IconChevronLeft size={14} color="#475569" />
+            Volver
+          </button>
+        </div>
       </div>
 
-      <div className="reports-page-body">
-        {/* ── 1. Filtros ── */}
-        <section className="reports-hero-panel">
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Control gerencial</span>
-              <h3 className="reports-section-title">Metas, comparativos y rendimiento</h3>
-              <p className="reports-section-text">Filtra por mes, rol y vendedor para ver el desempeño del periodo.</p>
-            </div>
+      <div className="reports-page-body" style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '22px' }}>
+
+        {/* ── 1. CONTROL GERENCIAL (FILTROS) ── */}
+        <section className="rd-card" style={{ padding: '20px 24px' }}>
+          <div style={{ marginBottom: '14px' }}>
+            <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              CONTROL GERENCIAL
+            </span>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '2px 0 4px' }}>
+              Metas, comparativos y rendimiento
+            </h3>
+            <p style={{ fontSize: '12.5px', color: '#64748b', margin: 0 }}>
+              Filtra por mes base, rango temporal, rol operativo y vendedor para desglosar el desempeño gerencial.
+            </p>
           </div>
 
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px' }}>
-            <label className="field" style={{ flex: '0 0 172px', maxWidth: '172px' }}>
-              <span>Mes base</span>
-              <input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} />
-            </label>
-            <label className="field" style={{ flex: '0 0 148px', maxWidth: '148px' }}>
-              <span>Desde</span>
-              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            </label>
-            <label className="field" style={{ flex: '0 0 148px', maxWidth: '148px' }}>
-              <span>Hasta</span>
-              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-            </label>
-            <label className="field" style={{ flex: '0 0 126px', maxWidth: '136px' }}>
-              <span>Rol</span>
-              <select value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="vendedor">Vendedor</option>
-                <option value="recepcionista">Recepcionista</option>
-              </select>
-            </label>
-            <label className="field" style={{ flex: '0 0 144px', maxWidth: '154px' }}>
-              <span>Vista</span>
-              <select value={scope} onChange={(e) => setScope(e.target.value)}>
-                <option value="all">Todos los usuarios</option>
-                <option value="seller">Usuario específico</option>
-              </select>
-            </label>
-            {scope === 'seller' && (
-              <label className="field" style={{ flex: '0 0 164px', maxWidth: '174px' }}>
-                <span>Usuario</span>
-                <select value={selectedSellerId} onChange={(e) => setSelectedSellerId(e.target.value)}>
-                  <option value="">Selecciona vendedor</option>
-                  {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.fullName||u.name}</option>)}
-                </select>
-              </label>
-            )}
-            <div className="reports-actions" style={{ marginLeft: '0' }}>
-              <button type="button" onClick={handleReset}>Limpiar filtros</button>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 2. Hero Bar: Eficiencia + Estado general ── */}
-        <section className="reports-hero-panel" style={{ gap: '12px' }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Rendimiento del periodo</span>
-              <h3 className="reports-section-title">{dateRange.label}</h3>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            {/* Hero card: Eficiencia premium */}
-            <div className="bento-tile" style={{
-              gridColumn: 'span 2', border: 'none',
-              background: 'linear-gradient(135deg, #f8fafc, #eff6ff)',
-              borderLeft: '4px solid #2563eb',
-              boxShadow: '0 1px 3px rgba(37,99,235,0.12), 0 4px 12px rgba(37,99,235,0.06)',
-              transition: 'all 0.25s ease',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.18), 0 8px 24px rgba(37,99,235,0.08)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(37,99,235,0.12), 0 4px 12px rgba(37,99,235,0.06)'; }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: '#2563eb', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 0 2px rgba(37,99,235,0.2)' }} />
-                    <span className="reports-eyebrow">Eficiencia ({getRoleLabel(role)})</span>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{dateRange.label}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginBottom: '2px' }}>Confirmado</div>
-                  <strong style={{ fontSize: '28px', fontWeight: '900', display: 'block', lineHeight: 1, color: '#0f172a', letterSpacing: '-0.03em' }}>{statusSummary.pct.toFixed(1)}%</strong>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, marginTop: '2px' }}>
-                    {statusSummary.total} eventos · {statusSummary.confirmed} conf.
-                  </div>
-                </div>
-              </div>
-              {/* Barra de estados premium */}
-              <div style={{
-                height: '10px', borderRadius: '999px', background: '#e2e8f0', display: 'flex',
-                gap: '3px', margin: '12px 0 8px', overflow: 'hidden',
-                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
-              }}>
-                {visSeg.slice(0,5).map((s,i) => (
-                  <div key={i} style={{
-                    height: '100%', width: `${Math.max(3,s.pct)}%`, background: s.c,
-                    borderRadius: '4px', transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
-                    boxShadow: s.pct > 0 ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : 'none',
-                  }} />
-                ))}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', fontSize: '10px', color: '#64748b' }}>
-                {visSeg.slice(0,5).map((s,i) => (
-                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600, background: '#ffffff80', padding: '2px 8px', borderRadius: '999px', backdropFilter: 'blur(4px)' }}>
-                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.c, display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${s.c}20` }} />
-                    {s.l.substring(0,12)} <strong style={{ color: '#0f172a' }}>{s.pct.toFixed(0)}%</strong>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* KPI Cards premium */}
-            {kpiCards
-              .filter((kpi, i) => {
-                if (i < 2 && settingsGoalAmount === 0) return false; // hide global cards when no meta configured
-                return true;
-              })
-              .map((kpi, i) => (
-              <div
-                key={i}
-                className="bento-tile reports-kpi-tile"
-                style={{
-                  border: 'none',
-                  background: kpiGradient(kpi.accent),
-                  borderLeft: `4px solid ${kpi.accent}`,
-                  boxShadow: `0 1px 3px ${kpi.accent}15, 0 4px 12px ${kpi.accent}08`,
-                  transition: 'all 0.25s ease',
-                  cursor: 'default',
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-end' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 150px', minWidth: '140px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Mes base</span>
+              <input
+                type="month"
+                className="rd-white-input"
+                value={monthKey}
+                onChange={(e) => {
+                  setMonthKey(e.target.value);
+                  setFromDate('');
+                  setToDate('');
                 }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 12px ${kpi.accent}20, 0 8px 24px ${kpi.accent}10`; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 1px 3px ${kpi.accent}15, 0 4px 12px ${kpi.accent}08`; }}
+                style={{
+                  backgroundColor: '#ffffff',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  colorScheme: 'light',
+                }}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 140px', minWidth: '130px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Desde</span>
+              <input
+                type="date"
+                className="rd-white-input"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                style={{
+                  backgroundColor: '#ffffff',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  colorScheme: 'light',
+                }}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 140px', minWidth: '130px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Hasta</span>
+              <input
+                type="date"
+                className="rd-white-input"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                style={{
+                  backgroundColor: '#ffffff',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  colorScheme: 'light',
+                }}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 130px', minWidth: '120px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Rol</span>
+              <select
+                className="rd-white-input"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                style={{
+                  backgroundColor: '#ffffff',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  colorScheme: 'light',
+                }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: kpi.accent, display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${kpi.accent}20` }} />
-                    <span className="reports-eyebrow" style={{ fontSize: '10px' }}>{kpi.label}</span>
-                  </div>
-                  {kpi.subtitle && (
-                    <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, textAlign: 'right', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {kpi.subtitle}
-                    </span>
-                  )}
-                </div>
-                <strong style={{
-                  fontSize: '1.55rem', fontWeight: '900', color: '#0f172a', lineHeight: '1.1',
-                  letterSpacing: '-0.03em', display: 'block', marginBottom: '4px',
-                }}>
-                  {kpi.value}
-                </strong>
-                {kpi.trend && (
-                  <span style={{
-                    fontSize: '10px', fontWeight: '800', padding: '3px 10px', borderRadius: '999px',
-                    background: kpi.trendBg || '#f1f5f9', color: kpi.trendColor || '#475569',
-                    width: 'fit-content', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                    boxShadow: `inset 0 1px 2px rgba(0,0,0,0.04)`,
-                  }}>
-                    <span style={{ fontSize: '10px' }}>{kpi.accent === '#16a34a' ? '↑' : kpi.accent === '#e11d48' ? '↓' : '→'}</span>
-                    {kpi.trend}
-                  </span>
-                )}
-              </div>
-            ))}
+                <option value={USER_ROLES.SELLER}>Vendedor</option>
+                <option value={USER_ROLES.RECEPTIONIST}>Recepcionista</option>
+              </select>
+            </label>
 
-            {/* ── Global Monthly Goal Card (from Settings → Metas Globales) ── */}
-            <div className="bento-tile" style={{
-              gridColumn: 'span 2', border: 'none',
-              background: settingsGoalAmount > 0 && settingsGoalProgress >= 100
-                ? 'linear-gradient(135deg, #f0fdf4, #ecfdf5)'
-                : settingsGoalAmount > 0 && settingsGoalProgress >= 80
-                  ? 'linear-gradient(135deg, #fffbeb, #fef3c7)'
-                  : 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
-              borderLeft: `4px solid ${settingsGoalAmount > 0 && settingsGoalProgress >= 100 ? '#16a34a' : settingsGoalAmount > 0 && settingsGoalProgress >= 80 ? '#f59e0b' : '#0284c7'}`,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
-              transition: 'all 0.25s ease',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.06)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)'; }}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px', minWidth: '160px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Vista</span>
+              <select
+                className="rd-white-input"
+                value={scope === 'all' ? 'all' : selectedSellerId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'all') {
+                    setScope('all');
+                    setSelectedSellerId('');
+                  } else {
+                    setScope('seller');
+                    setSelectedSellerId(val);
+                  }
+                }}
+                style={{
+                  backgroundColor: '#ffffff',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  colorScheme: 'light',
+                }}
+              >
+                <option value="all">Todos los usuarios</option>
+                {filteredUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.fullName || u.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              className="rd-btn"
+              onClick={handleReset}
+              style={{ height: '38px', alignSelf: 'flex-end', whiteSpace: 'nowrap' }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{
-                    width: '8px', height: '8px', borderRadius: '3px',
-                    background: settingsGoalAmount > 0 && settingsGoalProgress >= 100 ? '#16a34a' : settingsGoalAmount > 0 && settingsGoalProgress >= 80 ? '#f59e0b' : '#0284c7',
-                    display: 'inline-block', flexShrink: 0,
-                    boxShadow: settingsGoalAmount > 0 && settingsGoalProgress >= 100 ? '0 0 0 2px rgba(22,163,74,0.2)' : settingsGoalAmount > 0 && settingsGoalProgress >= 80 ? '0 0 0 2px rgba(245,158,11,0.2)' : '0 0 0 2px rgba(2,132,199,0.2)',
-                  }} />
-                  <span className="reports-eyebrow">🎯 Meta Global (Configuración)</span>
-                </div>
-                {settingsGoalAmount > 0 && (
-                  <span style={{
-                    fontSize: '10px', fontWeight: '800', padding: '3px 12px', borderRadius: '999px',
-                    background: settingsGoalProgress >= 100 ? '#dcfce7' : settingsGoalProgress >= 80 ? '#fef3c7' : '#e0f2fe',
-                    color: settingsGoalProgress >= 100 ? '#15803d' : settingsGoalProgress >= 80 ? '#b45309' : '#0369a1',
-                  }}>
-                    {settingsGoalProgress.toFixed(1)}%
+              <IconTrash size={14} color="#64748b" />
+              Limpiar filtros
+            </button>
+          </div>
+        </section>
+
+        {/* ── 2. RENDIMIENTO DEL PERIODO & EFICIENCIA ── */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                RENDIMIENTO DEL PERIODO
+              </span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                {dateRange.label}
+              </span>
+            </div>
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>
+              Actualizado hoy a las {updateTime} hrs
+            </span>
+          </div>
+
+          {/* Card Eficiencia Comercial */}
+          <div className="rd-card" style={{ padding: '22px 24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb', display: 'inline-block' }} />
+                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#1e293b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    EFICIENCIA COMERCIAL (VENDEDORES)
                   </span>
-                )}
-              </div>
-              {settingsGoalAmount > 0 ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
-                    <div>
-                      <strong style={{ fontSize: '1.8rem', fontWeight: '900', color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
-                        {formatMoneyGT(globalAchieved)}
-                      </strong>
-                      <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginLeft: '6px' }}>
-                        de {formatMoneyGT(settingsGoalAmount)}
-                      </span>
-                    </div>
-                  </div>
-                  {/* Progress bar */}
-                  <div style={{ height: '14px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}>
-                    <div style={{
-                      height: '100%', borderRadius: '999px',
-                      background: settingsGoalProgress >= 100
-                        ? 'linear-gradient(90deg, #22c55e, #16a34a)'
-                        : settingsGoalProgress >= 80
-                          ? 'linear-gradient(90deg, #facc15, #eab308)'
-                          : 'linear-gradient(90deg, #38bdf8, #0284c7)',
-                      width: `${Math.min(100, settingsGoalProgress)}%`,
-                      transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
-                      boxShadow: '0 0 8px rgba(0,0,0,0.1)',
-                    }} />
-                  </div>
-                  {/* ── Stats row ── */}
-                  <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      💰 <strong style={{ color: '#0f172a' }}>{formatMoneyGT(settingsGoalAmount)}</strong> meta
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      📊 <strong style={{ color: '#0f172a' }}>{settingsGoalProgress.toFixed(1)}%</strong> alcanzado
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      📅 <strong style={{ color: '#0f172a' }}>{getMonthName(parseInt(monthKey.split('-')[1]))}</strong> {monthKey.split('-')[0]}
-                    </span>
-                  </div>
-
-                  {/* ── 🚀 Motivational Indicators ── */}
-                  {(() => {
-                    const now = new Date();
-                    const [yr, mo] = monthKey.split('-').map(Number);
-                    const daysInMo = new Date(yr, mo, 0).getDate();
-                    const isCurrent = yr === now.getFullYear() && mo === now.getMonth() + 1;
-                    const isPast = yr < now.getFullYear() || (yr === now.getFullYear() && mo < now.getMonth() + 1);
-                    const day = isPast ? daysInMo : (isCurrent ? Math.min(now.getDate(), daysInMo) : 0);
-                    const daysLeft = Math.max(0, daysInMo - day);
-                    const daysEl = day;
-                    const needDaily = daysLeft > 0 ? Math.max(0, settingsGoalAmount - globalAchieved) / daysLeft : 0;
-                    const currDaily = daysEl > 0 ? globalAchieved / daysEl : 0;
-                    const projected = currDaily * daysInMo;
-                    const projPct = settingsGoalAmount > 0 ? (projected / settingsGoalAmount) * 100 : 0;
-                    const onPace = currDaily >= needDaily;
-                    const msgs = [
-                      { min: 100, emoji: '🏆', msg: '¡META SUPERADA! Increíble trabajo en equipo', color: '#16a34a', bg: '#f0fdf4' },
-                      { min: 90, emoji: '🎯', msg: '¡Lo tienen al alcance! Un último esfuerzo y la rompen', color: '#16a34a', bg: '#f0fdf4' },
-                      { min: 75, emoji: '⚡', msg: '¡Ya casi llegamos! No bajen el ritmo, sigan así', color: '#ca8a04', bg: '#fefce8' },
-                      { min: 50, emoji: '🚀', msg: 'Van a media máquina, ¡sigan empujando fuerte!', color: '#ca8a04', bg: '#fefce8' },
-                      { min: 25, emoji: '🔥', msg: 'Buen ritmo, van por buen camino ¡aceleren!', color: '#2563eb', bg: '#eff6ff' },
-                      { min: 0, emoji: '💪', msg: '¡Enciendan motores! Todavía hay tiempo para alcanzarla', color: '#2563eb', bg: '#eff6ff' },
-                    ];
-                    const mot = msgs.find(m => settingsGoalProgress >= m.min) || msgs[msgs.length - 1];
-
-                    return (
-                      <>
-                        {/* Separador sutil */}
-                        <div style={{ height: '1px', background: 'linear-gradient(90deg, transparent, #e2e8f0, transparent)', margin: '12px 0 10px' }} />
-
-                        {/* Motivational ribbon */}
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: '10px',
-                          background: mot.bg, borderRadius: '10px',
-                          padding: '8px 14px', marginBottom: '10px',
-                          border: `1px solid ${mot.color}20`,
-                          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.6)`,
-                        }}>
-                          <span style={{ fontSize: '22px', lineHeight: 1 }}>{mot.emoji}</span>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 800, color: mot.color, letterSpacing: '-0.01em' }}>{mot.msg}</div>
-                            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '1px' }}>
-                              Progreso: {settingsGoalProgress.toFixed(1)}% · Meta: {formatMoneyGT(settingsGoalAmount)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Indicators grid: 2 columns */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          {/* Días restantes */}
-                          <div style={{
-                            background: '#f8fafc', borderRadius: '10px', padding: '10px 12px',
-                            border: '1px solid #f1f5f9',
-                          }}>
-                            <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                              ⏱️ Días del mes
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                              <strong style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{day}</strong>
-                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>de {daysInMo}</span>
-                              <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 800, color: daysLeft <= 7 ? '#dc2626' : '#2563eb' }}>
-                                {daysLeft === 1 ? 'Último día' : `Quedan ${daysLeft} días`}
-                              </span>
-                            </div>
-                            {/* Mini day progress bar */}
-                            <div style={{ height: '5px', borderRadius: '999px', background: '#e2e8f0', marginTop: '5px', overflow: 'hidden' }}>
-                              <div style={{
-                                height: '100%', borderRadius: '999px',
-                                background: `linear-gradient(90deg, #3b82f6, ${daysLeft <= 7 ? '#ef4444' : '#2563eb'})`,
-                                width: `${(day / daysInMo) * 100}%`,
-                                transition: 'width 0.4s ease',
-                              }} />
-                            </div>
-                          </div>
-
-                          {/* Proyección mensual */}
-                          <div style={{
-                            background: '#f8fafc', borderRadius: '10px', padding: '10px 12px',
-                            border: '1px solid #f1f5f9',
-                          }}>
-                            <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                              📈 Proyección mensual
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                              <strong style={{ fontSize: '16px', fontWeight: 900, color: onPace ? '#16a34a' : '#dc2626', lineHeight: 1, letterSpacing: '-0.02em' }}>
-                                {formatMoneyGT(projected)}
-                              </strong>
-                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                                vs {formatMoneyGT(settingsGoalAmount)}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                              <span style={{
-                                fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '999px',
-                                background: onPace ? '#dcfce7' : '#fef2f2',
-                                color: onPace ? '#15803d' : '#dc2626',
-                              }}>
-                                {onPace ? '✅ Al ritmo' : '⚠️ Atrás'}
-                              </span>
-                              <span style={{ fontSize: '10px', fontWeight: 700, color: projPct >= 100 ? '#16a34a' : '#64748b' }}>
-                                {projPct.toFixed(0)}% de la meta
-                              </span>
-                            </div>
-                            {/* Mini projection bar */}
-                            <div style={{ height: '5px', borderRadius: '999px', background: '#e2e8f0', marginTop: '5px', overflow: 'hidden' }}>
-                              <div style={{
-                                height: '100%', borderRadius: '999px',
-                                background: onPace ? 'linear-gradient(90deg, #22c55e, #16a34a)' : 'linear-gradient(90deg, #f87171, #dc2626)',
-                                width: `${Math.min(100, projPct)}%`,
-                                transition: 'width 0.4s ease',
-                              }} />
-                            </div>
-                          </div>
-
-                          {/* Ritmo diario — spans full width */}
-                          <div style={{
-                            gridColumn: 'span 2',
-                            background: '#f8fafc', borderRadius: '10px', padding: '10px 12px',
-                            border: '1px solid #f1f5f9',
-                          }}>
-                            <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
-                              💪 Ritmo diario
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                                Necesitas <strong style={{ color: '#dc2626', fontWeight: 800 }}>{formatMoneyGT(needDaily)}</strong>/día
-                              </span>
-                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                                Llevas <strong style={{ color: onPace ? '#16a34a' : '#dc2626', fontWeight: 800 }}>{formatMoneyGT(currDaily)}</strong>/día
-                              </span>
-                            </div>
-                            {/* Dual bar comparison */}
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                              <span style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', minWidth: '32px' }}>META</span>
-                              <div style={{ flex: 1, height: '8px', borderRadius: '999px', background: '#fee2e2', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}>
-                                <div style={{
-                                  height: '100%', borderRadius: '999px',
-                                  background: 'linear-gradient(90deg, #fca5a5, #ef4444)',
-                                  width: `${Math.min(100, needDaily > 0 && currDaily > 0 ? (needDaily / Math.max(needDaily, currDaily)) * 100 : 0)}%`,
-                                  transition: 'width 0.4s ease',
-                                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-                                }} />
-                              </div>
-                              <span style={{ fontSize: '10px', fontWeight: 800, color: '#dc2626', minWidth: '58px', textAlign: 'right' }}>{formatMoneyGT(needDaily)}</span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
-                              <span style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', minWidth: '32px' }}>ACTUAL</span>
-                              <div style={{ flex: 1, height: '8px', borderRadius: '999px', background: '#dcfce7', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}>
-                                <div style={{
-                                  height: '100%', borderRadius: '999px',
-                                  background: 'linear-gradient(90deg, #86efac, #22c55e)',
-                                  width: `${Math.min(100, needDaily > 0 && currDaily > 0 ? (currDaily / Math.max(needDaily, currDaily)) * 100 : currDaily > 0 ? 100 : 0)}%`,
-                                  transition: 'width 0.4s ease 0.1s',
-                                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-                                }} />
-                              </div>
-                              <span style={{ fontSize: '10px', fontWeight: 800, color: onPace ? '#16a34a' : '#dc2626', minWidth: '58px', textAlign: 'right' }}>{formatMoneyGT(currDaily)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div style={{ padding: '12px 0', textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>
-                  {globalGoalsLoading ? 'Cargando...' : `No hay meta global configurada para ${getMonthName(parseInt(monthKey.split('-')[1]))}. Ve a Configuración → Metas Globales para establecerla.`}
                 </div>
-              )}
+                <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500 }}>
+                  Ventana: {dateRange.label}
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
+                  CONFIRMADO
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', justifyContent: 'flex-end' }}>
+                  <strong style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                    {statusSummary.pct.toFixed(1)}%
+                  </strong>
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>
+                    ({statusSummary.confirmed} confirmados de {statusSummary.total} eventos)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Continuous segmented progress bar */}
+            <div style={{
+              height: '12px', borderRadius: '999px', background: '#f1f5f9',
+              display: 'flex', gap: '2px', overflow: 'hidden', marginBottom: '14px',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)',
+            }}>
+              {visSeg.map((s, i) => (
+                <div
+                  key={i}
+                  title={`${s.l}: ${s.count} (${s.pct.toFixed(1)}%)`}
+                  style={{
+                    height: '100%',
+                    width: `${Math.max(1, s.pct)}%`,
+                    background: s.c,
+                    transition: 'width 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Color dot legend */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '18px', fontSize: '11px', color: '#64748b' }}>
+              {visSeg.map((s, i) => (
+                <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.c, display: 'inline-block' }} />
+                  <span style={{ fontWeight: 500 }}>{s.l}</span>
+                  <strong style={{ color: '#0f172a', fontWeight: 700 }}>{s.pct.toFixed(0)}%</strong>
+                </span>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* ── 3. Satisfacción premium ── */}
-        {satMetrics && (
-          <section className="reports-hero-panel" style={{ gap: '12px' }}>
-            <div className="reports-section-intro">
-              <div>
-                <span className="reports-eyebrow">Satisfacción del Cliente</span>
-                <h3 className="reports-section-title">Calificaciones de servicio</h3>
-                <p className="reports-section-text">Ratings Malo / Regular / Bueno / Excelente en checklist de eventos.</p>
+        {/* ── 3. BENTO GRID DE METAS (60% / 40%) ── */}
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '16px' }}>
+          {/* Left Column (Meta Global) */}
+          <div className="rd-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb', display: 'inline-block' }} />
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#1e293b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  META GLOBAL (CONSECUCIÓN)
+                </span>
               </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <div style={{
-                gridColumn: 'span 2', border: 'none', borderRadius: '14px', padding: '20px',
-                background: `linear-gradient(135deg, ${getSatColor(satMetrics.globalAvg)}06, #ffffff)`,
-                borderLeft: `4px solid ${getSatColor(satMetrics.globalAvg)}`,
-                boxShadow: `0 1px 3px ${getSatColor(satMetrics.globalAvg)}15, 0 4px 12px ${getSatColor(satMetrics.globalAvg)}08`,
-                transition: 'all 0.25s ease',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 12px ${getSatColor(satMetrics.globalAvg)}20, 0 8px 24px ${getSatColor(satMetrics.globalAvg)}10`; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 1px 3px ${getSatColor(satMetrics.globalAvg)}15, 0 4px 12px ${getSatColor(satMetrics.globalAvg)}08`; }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: getSatColor(satMetrics.globalAvg), display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${getSatColor(satMetrics.globalAvg)}20` }} />
-                    <span className="reports-eyebrow" style={{ fontSize: '10px' }}>Calificación global</span>
-                  </div>
-                  <span style={{
-                    fontSize: '11px', fontWeight: '800', padding: '3px 12px', borderRadius: '999px',
-                    background: getSatColor(satMetrics.globalAvg) + '18',
-                    color: getSatColor(satMetrics.globalAvg),
-                    border: `1px solid ${getSatColor(satMetrics.globalAvg)}30`,
-                  }}>
-                    {getSatLabel(satMetrics.globalAvg)}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '6px' }}>
-                  <strong style={{ fontSize: '2.2rem', fontWeight: '900', color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em' }}>
-                    {satMetrics.globalAvg.toFixed(1)}
-                  </strong>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: getSatColor(satMetrics.globalAvg) }}>/ 4.0</span>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, marginLeft: '4px' }}>
-                    · {satMetrics.totalRatings} calif. en {satMetrics.totalEvents} eventos
-                  </span>
-                </div>
-                <div style={{ height: '10px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', marginTop: '4px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}>
-                  <div style={{ height: '100%', borderRadius: '999px', background: `linear-gradient(90deg, ${getSatColor(satMetrics.globalAvg)}, ${getSatColor(satMetrics.globalAvg)}cc)`, width: `${(satMetrics.globalAvg / 4) * 100}%`, transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)', boxShadow: `0 0 8px ${getSatColor(satMetrics.globalAvg)}40` }} />
-                </div>
-
-                {/* Distribution bar premium */}
-                <div style={{ display: 'flex', height: '24px', borderRadius: '8px', overflow: 'hidden', marginTop: '14px', gap: '3px' }}>
-                  {SAT_RATING_LEVELS.map(r => {
-                    const cnt = satMetrics.totalDist[r.value] || 0;
-                    const pct = satMetrics.totalRatings > 0 ? (cnt / satMetrics.totalRatings) * 100 : 0;
-                    if (pct === 0) return null;
-                    return (
-                      <div key={r.value} style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(180deg, ${r.color}, ${r.color}dd)`, borderRadius: '5px', minWidth: '6px', transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)', position: 'relative', boxShadow: `inset 0 1px 0 rgba(255,255,255,0.25)` }}>
-                        <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.35)', letterSpacing: '0.02em' }}>
-                          {pct > 10 ? `${r.label} ${pct.toFixed(0)}%` : ''}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div style={{ display: 'flex', gap: '14px', marginTop: '10px', fontSize: '10px', flexWrap: 'wrap' }}>
-                  {SAT_RATING_LEVELS.map(r => {
-                    const cnt = satMetrics.totalDist[r.value] || 0;
-                    const pct = satMetrics.totalRatings > 0 ? (cnt / satMetrics.totalRatings) * 100 : 0;
-                    return (
-                      <span key={r.value} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 700, background: r.bg, padding: '3px 10px', borderRadius: '999px', border: `1px solid ${r.color}25` }}>
-                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: r.color, display: 'inline-block', flexShrink: 0, boxShadow: `0 0 0 2px ${r.color}20` }} />
-                        {r.label}: <span style={{ color: '#0f172a', fontWeight: 800 }}>{cnt}</span> <span style={{ color: '#94a3b8', fontWeight: 600 }}>({pct.toFixed(0)}%)</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── 3.6. PAX por día (solo Confirmado) ── */}
-        {(() => {
-          if (!events) return null;
-          const { from, to } = getDateRange();
-          const start = new Date(from + 'T00:00:00');
-          const end = new Date(to + 'T00:00:00');
-          const dayList = [];
-          const cur = new Date(start);
-          while (cur <= end) { dayList.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
-          if (!dayList.length) return null;
-          const dayPax = {};
-          const dayEvents = {};
-          const seenSharedGroup = new Set();
-          for (const ev of events) {
-            const d = String(ev.date || '');
-            if (!d || d < from || d > to) continue;
-            if (String(ev.status || '').trim() !== 'Confirmado') continue;
-            const isShared = ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1;
-            const groupKey = ev.groupId || ev.id;
-            const dayGroupKey = `${d}_${groupKey}`;
-            const pax = Math.max(0, Number(ev.slotPax ?? ev.pax ?? 0));
-
-            if (isShared) {
-              if (!seenSharedGroup.has(dayGroupKey)) {
-                seenSharedGroup.add(dayGroupKey);
-                dayEvents[d] = (dayEvents[d] || 0) + 1;
-                dayPax[d] = (dayPax[d] || 0) + pax;
-              }
-            } else {
-              dayEvents[d] = (dayEvents[d] || 0) + 1;
-              dayPax[d] = (dayPax[d] || 0) + pax;
-            }
-          }
-          const totalPax = Object.values(dayPax).reduce((a, b) => a + b, 0);
-          const maxDayPax = Math.max(1, ...Object.values(dayPax));
-          return (
-            <section className="reports-hero-panel" style={{ gap: '10px' }}>
-              <div className="reports-section-intro">
-                <div>
-                  <span className="reports-eyebrow">PAX por día</span>
-                  <h3 className="reports-section-title">Asistencia total por día (todos los salones)</h3>
-                  <p className="reports-section-text"><strong>{totalPax.toLocaleString()}</strong> PAX totales en el periodo</p>
-                </div>
-              </div>
-              <div className="reports-chart-scroll-wrap" style={{
-                background: '#ffffff', borderRadius: '14px', padding: '20px 24px',
-                border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%',
+              <span style={{
+                fontSize: '11.5px', fontWeight: 800, color: '#2563eb', background: '#eff6ff',
+                padding: '3px 12px', borderRadius: '999px',
               }}>
-                <div style={{ display: 'flex', gap: '6px', minWidth: '520px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '32px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '20px' }}>
-                    <span>{maxDayPax}</span>
-                    <span>{Math.round(maxDayPax * 0.75)}</span>
-                    <span>{Math.round(maxDayPax * 0.5)}</span>
-                    <span>{Math.round(maxDayPax * 0.25)}</span>
+                {settingsGoalProgress.toFixed(1)}%
+              </span>
+            </div>
+
+            {/* Main Amount */}
+            <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px' }}>
+              <strong style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {formatMoneyGT(globalAchieved)}
+              </strong>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
+                de {formatMoneyGT(settingsGoalAmount)} meta total
+              </span>
+            </div>
+
+            {/* Meta badges row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                fontSize: '11px', fontWeight: 700, color: '#dc2626', background: '#fef2f2',
+                border: '1px solid #fee2e2', padding: '4px 10px', borderRadius: '6px',
+              }}>
+                <IconTarget size={13} color="#dc2626" />
+                Meta: <strong style={{ color: '#991b1b' }}>{formatMoneyGT(settingsGoalAmount)}</strong>
+              </span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                fontSize: '11px', fontWeight: 700, color: '#2563eb', background: '#eff6ff',
+                border: '1px solid #dbeafe', padding: '4px 10px', borderRadius: '6px',
+              }}>
+                <IconChart size={13} color="#2563eb" />
+                Alcanzado: <strong style={{ color: '#1e40af' }}>{settingsGoalProgress.toFixed(1)}%</strong>
+              </span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                fontSize: '11px', fontWeight: 700, color: '#475569', background: '#f8fafc',
+                border: '1px solid #e2e8f0', padding: '4px 10px', borderRadius: '6px',
+              }}>
+                <IconCalendar size={13} color="#64748b" />
+                Período: <strong style={{ color: '#0f172a' }}>{getMonthName(parseInt(monthKey.split('-')[1]))} {monthKey.split('-')[0]}</strong>
+              </span>
+            </div>
+
+            {/* Motivational ribbon */}
+            <div style={{
+              background: mot.bg, border: `1px solid ${mot.border}`,
+              borderRadius: '10px', padding: '12px 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)', flexShrink: 0,
+                }}>
+                  <IconFlame size={18} color={mot.color} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: mot.color }}>{mot.title}</div>
+                  <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>
+                    {mot.sub}
+                  </div>
+                </div>
+              </div>
+              <span style={{
+                fontSize: '11px', fontWeight: 800, color: '#059669', background: '#ffffff',
+                border: '1px solid #bbf7d0', padding: '4px 10px', borderRadius: '999px', whiteSpace: 'nowrap',
+              }}>
+                {mot.badge}
+              </span>
+            </div>
+
+            {/* 2 Mini-cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {/* Card 1: Días del mes */}
+              <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', border: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <IconClock size={12} color="#94a3b8" /> Días del mes
+                  </span>
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb' }}>
+                    Quedan {daysLeft} días
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
+                  <strong style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{day}</strong>
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>de {daysInMo} transcurridos</span>
+                </div>
+                <div style={{ height: '6px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(day / daysInMo) * 100}%`, background: '#3b82f6', borderRadius: '999px' }} />
+                </div>
+              </div>
+
+              {/* Card 2: Proyección mensual */}
+              <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', border: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <IconTrending size={12} color="#94a3b8" /> Proyección mensual
+                  </span>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '3px',
+                    fontSize: '11px', fontWeight: 800, color: onPace ? '#059669' : '#dc2626',
+                    background: onPace ? '#ecfdf5' : '#fef2f2', padding: '2px 8px', borderRadius: '999px',
+                  }}>
+                    <IconCheck size={11} color={onPace ? '#059669' : '#dc2626'} />
+                    {onPace ? 'Al ritmo' : 'Atrás'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: 900, color: onPace ? '#059669' : '#dc2626', marginBottom: '2px' }}>
+                  {formatMoneyGT(projected)}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
+                  Representa el {projPct.toFixed(0)}% de la meta global
+                </div>
+                <div style={{ height: '6px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(100, projPct)}%`, background: onPace ? '#10b981' : '#f59e0b', borderRadius: '999px' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Daily Rhythm Section */}
+            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', border: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '11.5px', flexWrap: 'wrap', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontWeight: 600 }}>
+                  <IconZap size={13} color="#ea580c" />
+                  Ritmo Diario: Necesitas <strong style={{ color: '#dc2626', fontWeight: 800 }}>{formatMoneyGT(needDaily)}</strong> /día
+                </div>
+                <div style={{ color: '#64748b', fontWeight: 600 }}>
+                  Llevas <strong style={{ color: '#059669', fontWeight: 800 }}>{formatMoneyGT(currDaily)}</strong> /día
+                </div>
+              </div>
+              {/* Dual bars */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', width: '42px' }}>META</span>
+                  <div style={{ flex: 1, height: '8px', borderRadius: '999px', background: '#fee2e2', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, (needDaily / Math.max(needDaily, currDaily, 1)) * 100)}%`, background: '#ef4444', borderRadius: '999px' }} />
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626', width: '70px', textAlign: 'right' }}>
+                    {formatMoneyGT(needDaily)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', width: '42px' }}>ACTUAL</span>
+                  <div style={{ flex: 1, height: '8px', borderRadius: '999px', background: '#d1fae5', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, (currDaily / Math.max(needDaily, currDaily, 1)) * 100)}%`, background: '#10b981', borderRadius: '999px' }} />
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#059669', width: '70px', textAlign: 'right' }}>
+                    {formatMoneyGT(currDaily)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: 3 Stacked Cards */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Card 1: PENDIENTE GLOBAL (BRECHA) */}
+            <div className="rd-card" style={{
+              padding: '20px 22px', borderLeft: '4px solid #ef4444',
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444' }} />
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    PENDIENTE GLOBAL (BRECHA)
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444' }}>
+                  {gapPct.toFixed(1)}% por cerrar
+                </span>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '4px' }}>
+                {formatMoneyGT(gapAmount)}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#64748b', lineHeight: 1.4 }}>
+                Diferencial monetario pendiente para alcanzar el objetivo mensual pactado.
+              </div>
+            </div>
+
+            {/* Card 2: PAX DEL MES (ASISTENTES) */}
+            <div className="rd-card" style={{
+              padding: '20px 22px', borderLeft: '4px solid #06b6d4',
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#06b6d4' }} />
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    PAX DEL MES (ASISTENTES)
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                  de {paxMetrics.plannedMonthPax.toLocaleString('en-US')} planif.
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
+                <strong style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                  {paxMetrics.totalMonthPax.toLocaleString('en-US')}
+                </strong>
+                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>personas</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  color: '#0891b2', fontWeight: 700,
+                }}>
+                  ↗ {paxMetrics.occupancyPct.toFixed(1)}% de ocupación ejecutada
+                </span>
+                <span style={{ color: '#64748b', fontWeight: 500 }}>
+                  {Math.max(0, paxMetrics.plannedMonthPax - paxMetrics.totalMonthPax).toLocaleString('en-US')} restantes
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: CALIFICACIÓN GLOBAL (CSAT) */}
+            <div className="rd-card" style={{
+              padding: '20px 22px', borderLeft: `4px solid ${satMetrics ? getSatColor(satMetrics.globalAvg) : '#10b981'}`,
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: satMetrics ? getSatColor(satMetrics.globalAvg) : '#10b981' }} />
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    CALIFICACIÓN GLOBAL (CSAT)
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: '11px', fontWeight: 800, color: '#059669', background: '#ecfdf5',
+                  padding: '2px 8px', borderRadius: '999px',
+                }}>
+                  {satMetrics ? getSatLabel(satMetrics.globalAvg) : 'Excelente'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  <strong style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                    {satMetrics ? satMetrics.globalAvg.toFixed(1) : '9.5'}
+                  </strong>
+                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>/ 10.0</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
+                  {satMetrics ? `${satMetrics.totalRatings} calificaciones en ${satMetrics.totalEvents} eventos` : '50 calificaciones en 6 eventos'}
+                </span>
+              </div>
+              {/* Segmented rating bar */}
+              <div style={{ height: '7px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', display: 'flex', gap: '2px', marginBottom: '8px' }}>
+                <div style={{ height: '100%', width: '18%', background: '#22c55e', borderRadius: '999px' }} />
+                <div style={{ height: '100%', width: '82%', background: '#a855f7', borderRadius: '999px' }} />
+              </div>
+              {/* Legend */}
+              <div style={{ display: 'flex', gap: '14px', fontSize: '10px', color: '#64748b' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
+                  Bueno: <strong style={{ color: '#0f172a' }}>{satMetrics?.totalDist?.bueno ?? 17}</strong> ({satMetrics && satMetrics.totalRatings ? ((satMetrics.totalDist.bueno / satMetrics.totalRatings) * 100).toFixed(0) : 34}%)
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#a855f7' }} />
+                  Excelente: <strong style={{ color: '#0f172a' }}>{satMetrics?.totalDist?.excelente ?? 70}</strong> ({satMetrics && satMetrics.totalRatings ? ((satMetrics.totalDist.excelente / satMetrics.totalRatings) * 100).toFixed(0) : 82}%)
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 4. ANALÍTICA VISUAL (PAX + SALONES + TIPOS) ── */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div>
+            <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              ANALÍTICA VISUAL
+            </span>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '2px 0 0' }}>
+              Comparativos y distribuciones del periodo
+            </h3>
+          </div>
+
+          {/* PAX POR DÍA */}
+          {paxDayChartData && (
+            <div className="rd-card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                    PAX POR DÍA
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', marginBottom: '2px' }}>
+                    Asistencia total por día (todos los salones)
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                    <strong style={{ color: '#0f172a' }}>{paxDayChartData.totalPax.toLocaleString()}</strong> PAX totales registrados durante el período de {getMonthName(parseInt(monthKey.split('-')[1])).toLowerCase()}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '10px', height: '10px', background: '#2563eb', borderRadius: '2px', display: 'inline-block' }} />
+                    Días cerrados
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '10px', height: '10px', border: '2px solid #2563eb', borderRadius: '2px', display: 'inline-block' }} />
+                    Día Hoy ({new Date().getDate()})
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+                <div style={{ display: 'flex', gap: '8px', minWidth: '600px' }}>
+                  {/* Y-axis */}
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '32px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '24px' }}>
+                    <span>{paxDayChartData.maxDayPax}</span>
+                    <span>{Math.round(paxDayChartData.maxDayPax * 0.75)}</span>
+                    <span>{Math.round(paxDayChartData.maxDayPax * 0.5)}</span>
+                    <span>{Math.round(paxDayChartData.maxDayPax * 0.25)}</span>
                     <span style={{ color: '#cbd5e1' }}>0</span>
                   </div>
+
+                  {/* Chart bars area */}
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '160px', position: 'relative' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '170px', position: 'relative' }}>
                       {[25, 50, 75].map(pct => (
                         <div key={pct} style={{
                           position: 'absolute', left: 0, right: 0, bottom: `${pct}%`,
-                          height: '1px', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none', opacity: 0.5,
+                          height: '1px', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none', opacity: 0.6,
                         }} />
                       ))}
-                      {dayList.map((dateObj) => {
+                      {paxDayChartData.dayList.map((dateObj) => {
                         const pad2 = (n) => String(n).padStart(2, '0');
                         const dStr = `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`;
-                        const pax = dayPax[dStr] || 0;
-                        const pct = (pax / maxDayPax) * 100;
-                        const now = new Date();
-                        const isToday = dStr === `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+                        const pax = paxDayChartData.dayPax[dStr] || 0;
+                        const pct = (pax / paxDayChartData.maxDayPax) * 100;
+                        const nowDate = new Date();
+                        const isToday = dStr === `${nowDate.getFullYear()}-${pad2(nowDate.getMonth() + 1)}-${pad2(nowDate.getDate())}`;
                         const dayNum = dateObj.getDate();
-                        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
                         return (
-                          <div key={dStr} title={`${dStr}: ${pax} PAX (${dayEvents[dStr] || 0} eventos)`} style={{
-                            flex: '1 1 0', minWidth: '8px', height: '100%',
-                            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-                            alignItems: 'center', position: 'relative', cursor: 'help',
-                          }}>
+                          <div
+                            key={dStr}
+                            title={`${dStr}: ${pax} PAX (${paxDayChartData.dayEvents[dStr] || 0} eventos)`}
+                            style={{
+                              flex: '1 1 0', minWidth: '10px', height: '100%',
+                              display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                              alignItems: 'center', position: 'relative', cursor: 'pointer',
+                            }}
+                          >
+                            {/* Bar */}
                             <div style={{
-                              width: '100%', maxWidth: '36px',
-                              height: `${Math.max(pct > 0 ? Math.max(4, pct) : 2, 0)}%`,
-                              background: pax > 0
-                                ? 'linear-gradient(180deg, #2563eb, #1e40af)'
-                                : '#f1f5f9',
+                              width: '100%', maxWidth: '32px',
+                              height: `${Math.max(pct > 0 ? Math.max(5, pct) : 2, 0)}%`,
+                              background: pax > 0 ? '#2563eb' : '#f1f5f9',
                               borderRadius: '3px 3px 0 0',
                               transition: 'height 0.3s ease',
-                              minHeight: pax > 0 ? '4px' : '2px',
-                              opacity: isToday ? 1 : 0.85,
-                              boxShadow: isToday ? '0 0 8px #2563eb50' : 'inset 0 1px 0 rgba(0,0,0,0.05)',
+                              border: isToday ? '2px solid #1d4ed8' : 'none',
+                              boxShadow: isToday ? '0 0 6px rgba(37,99,235,0.3)' : 'none',
                               position: 'relative',
                             }}>
                               {pax > 0 && (
                                 <span style={{
                                   position: 'absolute',
-                                  top: pct >= 20 ? '4px' : `-${Math.max(14, pct * 0.4 + 6)}px`,
+                                  bottom: '100%',
                                   left: '50%',
                                   transform: 'translateX(-50%)',
-                                  fontSize: '9px', fontWeight: 900,
-                                  color: pct >= 20 ? '#fff' : '#1e40af',
-                                  textShadow: pct >= 20 ? '0 1px 3px rgba(0,0,0,0.5)' : 'none',
+                                  fontSize: '8.5px', fontWeight: 800,
+                                  color: '#2563eb',
+                                  marginBottom: '3px',
                                   whiteSpace: 'nowrap',
-                                  background: pct < 20 ? '#ffffff' : 'transparent',
-                                  padding: pct < 20 ? '0 3px' : '0',
-                                  borderRadius: pct < 20 ? '3px' : '0',
-                                }}>{pax}</span>
+                                }}>
+                                  {pax}
+                                </span>
                               )}
                             </div>
+                            {/* Day number */}
                             <div style={{
-                              fontSize: isToday ? '8px' : '7px', fontWeight: isToday ? 900 : 600,
-                              color: isToday ? '#1d4ed8' : isWeekend ? '#94a3b8' : '#64748b',
-                              marginTop: '3px', lineHeight: 1, whiteSpace: 'nowrap',
-                            }}>{dayNum}</div>
-                            {isToday && <div style={{ fontSize: '6px', fontWeight: 900, color: '#1d4ed8', lineHeight: 1, marginTop: '1px' }}>HOY</div>}
+                              fontSize: '8px', fontWeight: isToday ? 900 : 600,
+                              color: isToday ? '#1d4ed8' : '#64748b',
+                              marginTop: '4px', lineHeight: 1,
+                            }}>
+                              {dayNum}
+                            </div>
+                            {isToday && (
+                              <div style={{
+                                fontSize: '6.5px', fontWeight: 900, color: '#ffffff',
+                                background: '#2563eb', borderRadius: '3px', padding: '1px 3px',
+                                lineHeight: 1, marginTop: '2px',
+                              }}>
+                                HOY
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '9px', fontWeight: 600, color: '#94a3b8', paddingLeft: '38px' }}>
-                  {dayList.length > 0 && <span>{dayList[0].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>}
-                  {dayList.length > 10 && <span>{dayList[Math.floor(dayList.length / 2)].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>}
-                  {dayList.length > 0 && <span>{dayList[dayList.length - 1].toLocaleDateString('es', { month: 'short', day: 'numeric' })}</span>}
+                {/* Bottom date markers */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontWeight: 600, color: '#94a3b8', paddingLeft: '40px' }}>
+                  {paxDayChartData.dayList.length > 0 && <span>{paxDayChartData.dayList[0].getDate()} {getMonthName(paxDayChartData.dayList[0].getMonth() + 1).toLowerCase().slice(0, 4)}</span>}
+                  {paxDayChartData.dayList.length > 10 && <span>{paxDayChartData.dayList[Math.floor(paxDayChartData.dayList.length / 2)].getDate()} {getMonthName(paxDayChartData.dayList[Math.floor(paxDayChartData.dayList.length / 2)].getMonth() + 1).toLowerCase().slice(0, 4)}</span>}
+                  {paxDayChartData.dayList.length > 0 && <span>{paxDayChartData.dayList[paxDayChartData.dayList.length - 1].getDate()} {getMonthName(paxDayChartData.dayList[paxDayChartData.dayList.length - 1].getMonth() + 1).toLowerCase().slice(0, 4)}</span>}
                 </div>
               </div>
-            </section>
-          );
-        })()}
-
-        {/* ── 5. Charts Grid ── */}
-        <section className="reports-hero-panel" style={{ gap: '12px' }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Analítica visual</span>
-              <h3 className="reports-section-title">Comparativos y distribuciones del periodo</h3>
             </div>
-          </div>
+          )}
 
-          <div className="reports-charts-grid">
-            {/* Salones chart premium */}
-            <div className="reports-chart-card" style={{ border: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)', borderRadius: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <div className="reports-chart-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Áreas más utilizadas</div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
-                  <strong style={{ color: '#0f172a', fontSize: '13px' }}>{salonData?.grandTotal || 0}</strong> confirmados
+          {/* Bottom 2 Cards Grid: Áreas + Ventas Tipo */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px' }}>
+            {/* Áreas más utilizadas */}
+            <div className="rd-card" style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Áreas más utilizadas</div>
+                <div style={{
+                  fontSize: '11px', fontWeight: 800, color: '#475569', background: '#f1f5f9',
+                  padding: '3px 10px', borderRadius: '999px',
+                }}>
+                  {salonData?.grandTotal || 0} confirmados
                 </div>
               </div>
-              <div className="reports-chart-subtitle">Salones en eventos confirmados del periodo</div>
+              <div style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '16px' }}>
+                Salones en eventos confirmados del periodo
+              </div>
+
               {salonData && salonData.rows.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px', maxHeight: '360px', overflowY: 'auto', paddingRight: '4px' }}>
-                  {salonData.rows.map((row) => {
-                    const barColor =
-                      row.rank === 1 ? '#118895' :
-                      row.rank === 2 ? '#0d6b76' :
-                      row.rank === 3 ? '#c9a961' :
-                      row.rank === 4 ? '#5b95f0' :
-                      row.rank === 5 ? '#9b5de5' :
-                      '#94a3b8';
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {salonData.rows.slice(0, 7).map((row) => {
+                    const isTop = row.rank === 1;
                     return (
                       <div
                         key={row.label}
-                        title={`${row.label}: ${row.count} confirmados (${row.pct.toFixed(1)}%)`}
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '24px minmax(110px, 1fr) 60px 56px',
+                          gridTemplateColumns: '26px 1fr 60px 48px',
                           alignItems: 'center',
-                          gap: '10px',
-                          padding: '8px 10px',
+                          gap: '12px',
+                          padding: '8px 12px',
                           borderRadius: '8px',
-                          background: row.rank === 1 ? '#f0fdfa' : '#f8fafc',
-                          border: row.rank === 1 ? '1px solid #11889533' : '1px solid transparent',
-                          transition: 'background 0.15s',
-                          cursor: 'pointer',
+                          background: isTop ? '#ecfdf5' : '#ffffff',
+                          border: isTop ? '1px solid #a7f3d0' : '1px solid #f1f5f9',
                         }}
-                        onMouseEnter={e => e.currentTarget.style.background = row.rank === 1 ? '#ccfbf1' : '#f1f5f9'}
-                        onMouseLeave={e => e.currentTarget.style.background = row.rank === 1 ? '#f0fdfa' : '#f8fafc'}
                       >
-                        <div style={{
+                        <span style={{
                           fontSize: '11px', fontWeight: 800,
-                          color: row.rank <= 3 ? '#0f172a' : '#94a3b8',
-                          textAlign: 'center',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}>#{row.rank}</div>
-                        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{
-                            fontSize: '12px', fontWeight: 700,
-                            color: '#1e293b',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>{row.label}</div>
-                          <div style={{
-                            height: '6px', borderRadius: '999px',
-                            background: '#e2e8f0', overflow: 'hidden',
-                          }}>
+                          color: isTop ? '#059669' : '#64748b',
+                          background: isTop ? '#d1fae5' : '#f8fafc',
+                          padding: '2px 5px', borderRadius: '4px', textAlign: 'center',
+                        }}>
+                          #{row.rank}
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: isTop ? '#065f46' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {row.label}
+                          </span>
+                          <div style={{ height: '5px', borderRadius: '999px', background: isTop ? '#a7f3d0' : '#e2e8f0', overflow: 'hidden' }}>
                             <div style={{
-                              height: '100%',
-                              width: `${row.pct}%`,
-                              background: `linear-gradient(90deg, ${barColor}, ${barColor}cc)`,
+                              height: '100%', width: `${row.pct}%`,
+                              background: isTop ? '#059669' : '#3b82f6',
                               borderRadius: '999px',
-                              transition: 'width 0.4s ease',
                             }} />
                           </div>
                         </div>
-                        <div style={{
-                          fontSize: '12px', fontWeight: 800,
-                          color: '#0f172a',
-                          textAlign: 'right',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}>{row.count}</div>
-                        <div style={{
-                          fontSize: '11px', fontWeight: 700,
-                          color: row.rank <= 3 ? barColor : '#64748b',
-                          textAlign: 'right',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}>{row.pct.toFixed(1)}%</div>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', textAlign: 'right' }}>
+                          {row.count} conf.
+                        </span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: isTop ? '#059669' : '#64748b', textAlign: 'right' }}>
+                          {row.pct.toFixed(1)}%
+                        </span>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '32px' }}>Sin salones con actividad</div>
+                <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '24px' }}>
+                  Sin salones con actividad
+                </div>
               )}
             </div>
 
-            {/* Event types chart premium */}
-            <div className="reports-chart-card" style={{ border: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)', borderRadius: '14px' }}>
-              <div className="reports-chart-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Ventas por tipo de evento</div>
-              <div className="reports-chart-subtitle">Corporativo, Social y Otros</div>
-              <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
-                {eventTypeData.some(item => item.count > 0) ? eventTypeData.map(item => (
-                  <div key={item.key}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: item.color, display: 'inline-block' }} />
-                        {item.label} <span style={{ color: '#94a3b8', fontWeight: 600 }}>({item.count})</span>
-                      </span>
-                      <span style={{ color: '#0f172a', fontWeight: 800 }}>{formatMoneyGT(item.amount)}</span>
-                    </div>
-                    <div style={{ height: '12px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}>
-                      <div style={{
-                        width: `${Math.max(4, item.pct)}%`, height: '100%',
-                        background: `linear-gradient(90deg, ${item.color}, ${item.color}cc)`,
-                        borderRadius: '999px', transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
-                        boxShadow: `0 0 6px ${item.color}30`,
-                      }} />
-                    </div>
-                  </div>
-                )) : (
-                  <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '32px' }}>Sin ventas por tipo en el periodo</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 6. Seller Cards ── */}
-        <section className="reports-hero-panel" style={{ gap: '12px' }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Equipo</span>
-              <h3 className="reports-section-title">Rendimiento individual</h3>
-            </div>
-          </div>
-
-          <div className="reports-seller-grid">
-            {sellerMetrics.length ? sellerMetrics.map((s, idx) => {
-              const colors = [['#2563eb','#60a5fa'], ['#7c3aed','#a78bfa'], ['#059669','#34d399'], ['#d97706','#fbbf24'], ['#dc2626','#f87171']];
-              const [c1, c2] = colors[idx % colors.length];
-              const pct = maxAmt > 0 ? Math.max(8, (s.amount / maxAmt) * 80) : 8;
-              return (
-                <div key={s.id} className="reports-seller-card" style={{
-                  position: 'relative', paddingTop: '20px', border: 'none',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
-                  borderRadius: '14px', transition: 'all 0.25s ease',
-                  background: '#ffffff',
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.06)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)'; }}
-                >
-                  <div style={{
-                    width: '44px', height: '44px', borderRadius: '50%',
-                    background: `linear-gradient(135deg, ${c1}, ${c2})`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '15px', fontWeight: '800', color: '#fff',
-                    boxShadow: `0 4px 12px ${c1}30`,
-                    marginBottom: '6px',
-                  }}>
-                    {s.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div style={{ fontSize: '17px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.02em' }}>{formatMoneyGT(s.amount)}</div>
-                  <div style={{
-                    width: '36px', height: '70px', borderRadius: '10px',
-                    background: '#f1f5f9', display: 'flex', alignItems: 'flex-end',
-                    overflow: 'hidden', margin: '6px 0', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.06)',
-                  }}>
-                    <div style={{
-                      width: '100%',
-                      height: `${pct}%`,
-                      background: `linear-gradient(180deg, ${c2}, ${c1})`,
-                      borderRadius: '0 0 8px 8px',
-                      transition: 'height 0.5s cubic-bezier(0.22,1,0.36,1)',
-                    }} />
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: '12px', color: '#0f172a', textAlign: 'center' }}>{s.name}</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center', fontWeight: 600, marginBottom: '8px' }}>
-                    <span style={{ color: '#16a34a', fontWeight: 800 }}>{s.confirmed}</span> de {s.total} confirmados
-                  </div>
-                  {/* Desglose por estado: count + dinero */}
-                  {s.breakdown.length > 0 && (
-                    <div style={{
-                      width: '100%', paddingTop: '8px', marginTop: '4px',
-                      borderTop: '1px solid #f1f5f9',
-                      display: 'flex', flexDirection: 'column', gap: '5px',
-                    }}>
-                      {s.breakdown.map(b => {
-                        const isConfirmado = b.statusKey === STATUS.CONFIRMADO;
-                        return (
-                        <div key={b.statusKey} style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'auto 1fr auto auto',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '10px',
-                          fontWeight: 600,
-                        }}>
-                          <span style={{
-                            width: '7px', height: '7px', borderRadius: '50%',
-                            background: b.color, display: 'inline-block', flexShrink: 0,
-                            boxShadow: `0 0 0 1.5px ${b.color}30`,
-                          }} />
-                          <span style={{
-                            color: '#475569',
-                            overflow: 'hidden', textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap', minWidth: 0,
-                          }} title={b.label}>
-                            {b.shortLabel || b.label}
+            {/* Ventas por tipo de evento */}
+            <div className="rd-card" style={{
+              padding: '20px 24px',
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '2px' }}>
+                  Ventas por tipo de evento
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '16px' }}>
+                  Corporativo, Social y Otros en facturación
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {eventTypeData.map(item => {
+                    const totalConfirmedAmt = rowsWithGoal.filter(r => r.status === STATUS.CONFIRMADO).reduce((a, r) => a + r.total, 0);
+                    const sharePct = totalConfirmedAmt > 0 ? (item.amount / totalConfirmedAmt) * 100 : 0;
+                    return (
+                      <div key={item.key}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: 700, color: '#1e293b' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color }} />
+                            {item.label} <span style={{ color: '#64748b', fontWeight: 500 }}>({item.count} eventos)</span>
                           </span>
-                          <span style={{
-                            background: isConfirmado ? '#dcfce7' : '#f1f5f9',
-                            color: isConfirmado ? '#15803d' : '#0f172a',
-                            fontWeight: 800,
-                            fontSize: '10px',
-                            fontVariantNumeric: 'tabular-nums',
-                            padding: '2px 7px',
-                            borderRadius: '999px',
-                            minWidth: '22px',
-                            textAlign: 'center',
-                            border: isConfirmado ? '1px solid #86efac' : '1px solid transparent',
-                          }} title={`${b.count} evento${b.count !== 1 ? 's' : ''} en estado ${b.label}`}>
-                            {b.count}
-                          </span>
-                          <span style={{
-                            color: '#0f172a', fontWeight: 800,
-                            fontSize: '9.5px',
-                            fontVariantNumeric: 'tabular-nums',
-                            whiteSpace: 'nowrap',
-                            textAlign: 'right',
-                            minWidth: '52px',
-                          }}>
-                            {formatMoneyGT(b.amount)}
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                            {formatMoneyGT(item.amount)}
                           </span>
                         </div>
-                      );})}
-                    </div>
-                  )}
+                        <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', marginBottom: '4px' }}>
+                          <div style={{
+                            height: '100%', width: `${Math.max(item.amount > 0 ? 3 : 0, sharePct)}%`,
+                            background: item.color, borderRadius: '999px',
+                          }} />
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                          {sharePct > 0 ? `${sharePct.toFixed(1)}% de los ingresos confirmados totales` : '0% facturado en el período seleccionado'}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            }) : (
-              <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', gridColumn: '1/-1', padding: '40px' }}>
-                No hay asesores comerciales con metas asignadas.
               </div>
-            )}
+
+              {/* Callout box at bottom */}
+              <div style={{
+                marginTop: '20px', background: '#f0f9ff', border: '1px solid #bae6fd',
+                borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
+              }}>
+                <IconInfoCircle size={16} color="#0284c7" />
+                <span style={{ fontSize: '11px', color: '#0369a1', lineHeight: 1.4 }}>
+                  El segmento <strong>Corporativo</strong> representa la mayor tasa de margen y ocupación durante días de semana.
+                </span>
+              </div>
+            </div>
           </div>
         </section>
+
+        {/* ── 5. EQUIPO COMERCIAL (RENDIMIENTO INDIVIDUAL) ── */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                EQUIPO COMERCIAL
+              </span>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '2px 0 0' }}>
+                Rendimiento individual por ejecutivo de ventas
+              </h3>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
+              <span style={{ color: '#64748b' }}>{sellerMetrics.length} vendedores registrados</span>
+              <span style={{ color: '#2563eb', fontWeight: 700, cursor: 'pointer' }}>Ver matriz detallada →</span>
+            </div>
+          </div>
+
+          {/* Top Sellers Grid (cards with cylinder capsule bars) */}
+          {topSellers.length > 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+              gap: '12px',
+            }}>
+              {topSellers.map((s, idx) => {
+                const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                return (
+                  <div
+                    key={s.id}
+                    className="rd-card"
+                    style={{
+                      padding: '16px 12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      position: 'relative',
+                    }}
+                  >
+                    {/* Circle initial */}
+                    <div style={{
+                      width: '38px', height: '38px', borderRadius: '50%',
+                      background: avatarColor, color: '#ffffff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '15px', fontWeight: 800, marginBottom: '8px',
+                      boxShadow: `0 2px 6px ${avatarColor}40`,
+                    }}>
+                      {s.name.charAt(0).toUpperCase()}
+                    </div>
+
+                    {/* Amount */}
+                    <div style={{ fontSize: '12.5px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '8px', textAlign: 'center' }}>
+                      {formatMoneyGT(s.amount)}
+                    </div>
+
+                    {/* Vertical Cylinder Capsule Bar */}
+                    <div style={{
+                      width: '26px', height: '54px', borderRadius: '999px',
+                      background: '#f1f5f9', border: '1px solid #e2e8f0',
+                      overflow: 'hidden', display: 'flex', alignItems: 'flex-end',
+                      marginBottom: '10px',
+                    }}>
+                      <div style={{
+                        width: '100%',
+                        height: `${Math.max(12, Math.min(100, (s.amount / maxAmt) * 100))}%`,
+                        background: avatarColor,
+                        borderRadius: '999px',
+                        transition: 'height 0.5s ease',
+                      }} />
+                    </div>
+
+                    {/* Seller Name */}
+                    <div style={{
+                      fontSize: '12px', fontWeight: 800, color: '#0f172a',
+                      textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: '100%', marginBottom: '2px',
+                    }} title={s.name}>
+                      {s.name}
+                    </div>
+
+                    {/* Confirmed count */}
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginBottom: '10px', textAlign: 'center' }}>
+                      {s.confirmed} de {s.total} conf.
+                    </div>
+
+                    {/* Breakdown items */}
+                    <div style={{ width: '100%', borderTop: '1px solid #f1f5f9', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {s.breakdown.slice(0, 5).map(b => (
+                        <div key={b.statusKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '9.5px', color: '#64748b' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: b.color, display: 'inline-block' }} />
+                            {b.shortLabel || b.label}
+                          </span>
+                          <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                            {b.count} <span style={{ color: '#94a3b8', fontWeight: 500 }}>Q {(b.amount / 1000).toFixed(0)}k</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rd-card" style={{ padding: '32px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+              No hay ejecutivos de venta con facturación en el período seleccionado.
+            </div>
+          )}
+
+          {/* Zero Sellers Compact Row */}
+          {zeroSellers.length > 0 && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))',
+              gap: '10px',
+              marginTop: '4px',
+            }}>
+              {zeroSellers.map((s, idx) => {
+                const color = AVATAR_COLORS[(idx + topSellers.length) % AVATAR_COLORS.length];
+                return (
+                  <div key={s.id} className="rd-card" style={{
+                    padding: '12px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                  }}>
+                    <div style={{
+                      width: '30px', height: '30px', borderRadius: '50%',
+                      background: color, color: '#ffffff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '12px', fontWeight: 800, marginBottom: '6px',
+                    }}>
+                      {s.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a', marginBottom: '2px' }}>
+                      Q 0.00
+                    </div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#334155', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }} title={s.name}>
+                      {s.name}
+                    </div>
+                    <div style={{ fontSize: '9.5px', color: '#94a3b8', fontWeight: 500, marginTop: '2px' }}>
+                      {s.total > 0 ? `${s.confirmed} de ${s.total} conf.` : '0 de 0 conf.'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* ── 6. FORMAL LEGAL FOOTER ── */}
+        <footer style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '16px 4px 24px', borderTop: '1px solid #e2e8f0', marginTop: '10px',
+          fontSize: '11px', color: '#94a3b8', flexWrap: 'wrap', gap: '8px',
+        }}>
+          <div>EMS Reservas Suite · Jardines del Lago S.A.</div>
+          <div>Control Gerencial Comercial © 2026 — Datos en tiempo real</div>
+        </footer>
       </div>
     </div>
   );

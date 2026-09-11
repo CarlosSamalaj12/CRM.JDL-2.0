@@ -2769,13 +2769,17 @@
 .reports-hero-panel select,
 .inst-date-input,
 .inst-select-input,
-.inst-search-wrapper input {
+.inst-search-wrapper input,
+.rd-white-input,
+input[type="month"].rd-white-input,
+input[type="date"].rd-white-input,
+select.rd-white-input {
   background-color: #ffffff !important;
   background: #ffffff !important;
   color: #0f172a !important;
   color-scheme: light !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 10px !important;
+  border-radius: 8px !important;
   padding: 7px 12px !important;
   font-size: 13px !important;
   font-weight: 600 !important;
@@ -2789,20 +2793,23 @@
 .reports-hero-panel select:focus,
 .inst-date-input:focus,
 .inst-select-input:focus,
-.inst-search-wrapper input:focus {
+.inst-search-wrapper input:focus,
+.rd-white-input:focus {
   border-color: #2563eb !important;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14) !important;
 }
 
 .reports-hero-panel input[type="date"]::-webkit-calendar-picker-indicator,
-.inst-date-input::-webkit-calendar-picker-indicator {
+.inst-date-input::-webkit-calendar-picker-indicator,
+.rd-white-input::-webkit-calendar-picker-indicator {
   filter: none !important;
   cursor: pointer;
   opacity: 0.65;
 }
 
 .reports-hero-panel input[type="date"]::-webkit-calendar-picker-indicator:hover,
-.inst-date-input::-webkit-calendar-picker-indicator:hover {
+.inst-date-input::-webkit-calendar-picker-indicator:hover,
+.rd-white-input::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 

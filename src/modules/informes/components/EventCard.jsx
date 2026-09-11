@@ -22,7 +22,7 @@ function getMencionFilter(text) {
   return after;
 }
 
-export default function EventCard({ event, dragHandleProps, highlighted = false, onNavigateToTareas, highlightNotaId, tareasCount = 0 }) {
+export default function EventCard({ event, dragHandleProps, highlighted = false, onNavigateToTareas, highlightNotaId, tareasCount = 0, columnDate }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -177,8 +177,9 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
   // callable directo. Usamos toast.info() porque el mensaje es informativo,
   // no un error.
   const handleVerInforme = () => {
+    const cardDate = (columnDate || event.displayDate || (event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : '')).slice(0, 10);
     if (!event.tiene_informe) {
-      const fecha = event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : '';
+      const fecha = cardDate;
       const salon = event.Salon || event.nombre_salon || '';
       const msg = salon
         ? `No hay informe creado para este día (${fecha} · ${salon})`
@@ -186,7 +187,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
       toast.info(msg, { duration: 3500 });
       return;
     }
-    const dateQs = event.FechaEvento ? `?date=${String(event.FechaEvento).slice(0, 10)}` : '';
+    const dateQs = cardDate ? `?date=${cardDate}` : '';
     navigate(`/informe/${event.Idocupacion}${dateQs}`);
   };
 
@@ -306,11 +307,8 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
         )}
         <button 
           type="button" 
-          onClick={() => {
-            if (!event.tiene_informe) return;
-            navigate(`/informe/${event.Idocupacion}?date=${event.FechaEvento ? String(event.FechaEvento).slice(0, 10) : ''}`);
-          }} 
-          data-tooltip={event.tiene_informe ? "Ver informe" : "No hay informe creado"} 
+          onClick={handleVerInforme} 
+          data-tooltip={event.tiene_informe ? "Ver informe de este día" : "No hay informe creado"} 
           style={{
             flex: '0 0 30px',
             justifyContent: 'center',
@@ -532,7 +530,39 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
                 ))}
               </div>
             )}
-            <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = notaText ? `${notaText} @` : '@';
+                  setNotaText(text);
+                  setMencionFilter('');
+                  setShowMenciones(true);
+                  if (notaInputRef.current) {
+                    notaInputRef.current.focus();
+                  }
+                }}
+                title="Mencionar a alguien (@)"
+                style={{
+                  width: '32px',
+                  minWidth: '32px',
+                  maxWidth: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: 'var(--primary-bg, #eef2ff)',
+                  border: '1px solid var(--border, #cbd5e1)',
+                  color: 'var(--primary, #4f46e5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  padding: 0,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <IconAtSign size={14} />
+              </button>
               <input
                 ref={notaInputRef}
                 type="text"
@@ -540,9 +570,33 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
                 value={notaText}
                 onChange={e => handleInputChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                style={{ flex: 1 }}
+                style={{
+                  flex: 1,
+                  height: '34px',
+                  padding: '0 12px',
+                  borderRadius: '17px',
+                  border: '1.5px solid var(--border, #cbd5e1)',
+                  background: 'var(--bg-input, #ffffff)',
+                  fontSize: '13px',
+                  color: 'var(--text-main, #0f172a)',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
               />
-              <button className="btn-primary btn-sm" onClick={handleAddNota} disabled={!notaText.trim() || sending}>
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                onClick={handleAddNota}
+                disabled={!notaText.trim() || sending}
+                style={{
+                  height: '34px',
+                  padding: '0 14px',
+                  borderRadius: '17px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
                 {sending ? '...' : 'Enviar'}
               </button>
             </div>

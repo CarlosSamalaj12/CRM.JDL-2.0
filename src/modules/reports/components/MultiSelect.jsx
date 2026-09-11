@@ -21,6 +21,10 @@ export default function MultiSelect({
   emptyLabel = 'Todos',
   searchable = false,
   width = 240,
+  minWidth = 200,
+  triggerStyle = {},
+  wrapperStyle = {},
+  className = '',
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -221,8 +225,8 @@ export default function MultiSelect({
   ) : null;
 
   return (
-    <div ref={wrapperRef} style={{ minWidth: 240, position: 'relative', width }}>
-      <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+    <div ref={wrapperRef} className={`multiselect-wrapper ${className}`} style={{ minWidth, position: 'relative', width, ...wrapperStyle }}>
+      <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
         {placeholder}
       </span>
       <div
@@ -231,12 +235,13 @@ export default function MultiSelect({
         style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 10px',
-          border: `1px solid ${open ? '#2563eb' : '#e2e8f0'}`,
-          borderRadius: '20px', background: '#ffffff',
-          boxShadow: open ? '0 0 0 2px #2563eb30' : '0 1px 3px #00000008',
+          border: `1px solid ${open ? '#2563eb' : '#cbd5e1'}`,
+          borderRadius: '8px', background: '#ffffff',
+          boxShadow: open ? '0 0 0 2px #2563eb30' : '0 1px 2px rgba(0,0,0,0.03)',
           transition: 'box-shadow 0.15s, border-color 0.15s',
-          minHeight: 36, cursor: 'pointer', width: '100%',
+          minHeight: 38, cursor: 'pointer', width: '100%',
           boxSizing: 'border-box',
+          ...triggerStyle,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' }}>

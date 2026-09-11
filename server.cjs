@@ -3984,6 +3984,8 @@ app.get("/api/maintenance-status", async (_req, res) => {
 // devolvemos una versión "0.0.0-dev" para no romper el flujo.
 // (fs y path ya están requeridos arriba en este archivo)
 let cachedVersionRead = { value: null, mtimeMs: 0 };
+let lastBroadcastedVersion = null;
+
 function readAppVersion() {
   try {
     // En producción servimos dist/; en dev servimos la raíz del proyecto
@@ -3998,7 +4000,22 @@ function readAppVersion() {
         // Re-leer solo si cambió el mtime (evita I/O en cada request)
         if (cachedVersionRead.mtimeMs !== stat.mtimeMs || !cachedVersionRead.value) {
           const raw = fs.readFileSync(p, "utf8");
-          cachedVersionRead = { value: JSON.parse(raw), mtimeMs: stat.mtimeMs };
+          const parsed = JSON.parse(raw);
+          const previousVersion = cachedVersionRead.value ? cachedVersionRead.value.version : null;
+          cachedVersionRead = { value: parsed, mtimeMs: stat.mtimeMs };
+
+          // Si cambió la versión en caliente y hay Socket.IO activo, notificar de inmediato
+          if (previousVersion && parsed.version !== previousVersion && parsed.version !== "0.0.0-dev") {
+            lastBroadcastedVersion = parsed.version;
+            if (typeof io !== "undefined" && io) {
+              console.log(`[server] 🚀 Nueva versión detectada (${parsed.version}). Emitiendo system:force-logout a todos los clientes.`);
+              io.emit("system:force-logout", {
+                version: parsed.version,
+                forceLogout: true,
+                message: parsed.message || "Se ha desplegado una nueva versión del sistema.",
+              });
+            }
+          }
         }
         return cachedVersionRead.value;
       }
@@ -4010,10 +4027,33 @@ function readAppVersion() {
     version: "0.0.0-dev",
     minVersion: "0.0.0-dev",
     required: false,
+    forceLogout: false,
     message: "",
     deployedAt: new Date(0).toISOString(),
   };
 }
+
+// Watcher periódico cada 15 segundos para emitir force-logout apenas se termine un build
+setInterval(() => {
+  try {
+    const info = readAppVersion();
+    if (info && info.version && info.version !== "0.0.0-dev") {
+      if (lastBroadcastedVersion && info.version !== lastBroadcastedVersion) {
+        lastBroadcastedVersion = info.version;
+        if (typeof io !== "undefined" && io) {
+          console.log(`[server] 🚀 Watcher detectó cambio de versión a ${info.version}. Emitiendo system:force-logout.`);
+          io.emit("system:force-logout", {
+            version: info.version,
+            forceLogout: true,
+            message: info.message || "Se ha desplegado una nueva versión del sistema.",
+          });
+        }
+      } else if (!lastBroadcastedVersion) {
+        lastBroadcastedVersion = info.version;
+      }
+    }
+  } catch (_) {}
+}, 15000);
 
 app.get("/api/version", (_req, res) => {
   // Sin caché — siempre devuelve la última versión

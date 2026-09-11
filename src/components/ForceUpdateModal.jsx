@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-const REFRESH_COUNTDOWN_SECONDS = 30; // Auto-refresh si el usuario ignora el modal
+const REFRESH_COUNTDOWN_SECONDS = 20; // Auto-cierre y refresh tras 20s
 
 export default function ForceUpdateModal({
   open = false,
@@ -14,8 +14,9 @@ export default function ForceUpdateModal({
   currentVersion,
   message,
   onUpdate,
-  onDismiss, // opcional: si existe, se muestra botón secundario "Más tarde"
-  reason,    // 'outdated' | 'below-min'
+  onDismiss, // opcional: si existe y no es forceLogout, se muestra botón "Más tarde"
+  reason,    // 'force-logout' | 'outdated' | 'below-min'
+  forceLogout = true,
 }) {
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_COUNTDOWN_SECONDS);
 
@@ -29,7 +30,7 @@ export default function ForceUpdateModal({
     };
     window.addEventListener('keydown', onKey);
 
-    // Countdown → auto-refresh
+    // Countdown → auto-refresh con force logout
     const interval = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
@@ -105,7 +106,9 @@ export default function ForceUpdateModal({
             color: '#0f172a',
           }}
         >
-          {reason === 'below-min' ? 'Actualización obligatoria' : 'Nueva versión disponible'}
+          {reason === 'force-logout' || forceLogout || reason === 'below-min'
+            ? '⚡ Actualización obligatoria'
+            : 'Nueva versión disponible'}
         </h2>
 
         <p
@@ -116,7 +119,8 @@ export default function ForceUpdateModal({
             lineHeight: 1.5,
           }}
         >
-          {message || 'Hay una nueva versión de la aplicación. Por favor actualiza para continuar.'}
+          {message ||
+            'Se ha desplegado una nueva versión del sistema. Tu sesión se cerrará y se limpiará la caché para que los cambios tomen efecto correctamente.'}
         </p>
 
         <div
@@ -170,10 +174,10 @@ export default function ForceUpdateModal({
           onMouseEnter={(e) => { e.currentTarget.style.background = '#1e293b'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = '#0f172a'; }}
         >
-          Actualizar ahora
+          {forceLogout ? 'Cerrar sesión y actualizar ahora' : 'Actualizar ahora'}
         </button>
 
-        {onDismiss && (
+        {onDismiss && !forceLogout && (
           <button
             type="button"
             onClick={onDismiss}
@@ -199,7 +203,7 @@ export default function ForceUpdateModal({
             color: '#94a3b8',
           }}
         >
-          La página se recargará automáticamente en{' '}
+          La sesión se cerrará automáticamente en{' '}
           <strong style={{ color: '#0f172a' }}>{secondsLeft}s</strong>
         </div>
       </div>

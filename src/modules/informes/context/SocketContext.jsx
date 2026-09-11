@@ -200,6 +200,10 @@ export function SocketProvider({ children }) {
       window.dispatchEvent(new CustomEvent('stateUpdated', { detail: data }));
     });
 
+    socket.on('system:force-logout', (data) => {
+      window.dispatchEvent(new CustomEvent('system:force-logout', { detail: data }));
+    });
+
     socketRef.current = socket;
     globalSocket = socket;
 

@@ -15,6 +15,7 @@ import ReportsLayout from './modules/informes/components/ReportsLayout';
 import { AuthProvider } from './modules/informes/context/AuthContext';
 import { ToastProvider } from './modules/informes/context/ToastContext';
 import { SocketProvider } from './modules/informes/context/SocketContext';
+import { CURRENT_VERSION, forcePurgeAndLogout } from './services/versionService';
 
 const Login = lazy(() => import('./modules/auth/Login'));
 const Calendar = lazy(() => import('./modules/calendar/Calendar'));
@@ -76,6 +77,30 @@ function App() {
         setMaintenance(data.maintenanceMode === true);
       })
       .catch(() => setMaintenance(false));
+  }, []);
+
+  // Control de versiones en arranque en frío (solo producción):
+  // Si la versión instalada difiere de la del bundle, purga sesión y cachés
+  React.useEffect(() => {
+    if (CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
+      const pathname = window.location.pathname;
+      const isPublicRoute = pathname.startsWith('/checklist-public/');
+      const isLoginPage = pathname === '/login';
+
+      const savedVersion = localStorage.getItem('crm_installed_version');
+      const hasSession = !!localStorage.getItem('token');
+
+      if (savedVersion && savedVersion !== CURRENT_VERSION) {
+        console.warn(`[App] Nueva versión instalada (${CURRENT_VERSION} vs ${savedVersion}). Cerrando sesión para renovar app.`);
+        forcePurgeAndLogout(CURRENT_VERSION);
+      } else if (!savedVersion) {
+        localStorage.setItem('crm_installed_version', CURRENT_VERSION);
+        if (hasSession && !isPublicRoute && !isLoginPage) {
+          console.warn('[App] Sesión anterior detectada sin versión registrada. Purgando para asegurar consistencia.');
+          forcePurgeAndLogout(CURRENT_VERSION);
+        }
+      }
+    }
   }, []);
 
   React.useEffect(() => {

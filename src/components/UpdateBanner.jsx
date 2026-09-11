@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVersionCheck } from '../hooks/useVersionCheck';
+import { CURRENT_VERSION } from '../services/versionService';
+import ForceUpdateModal from './ForceUpdateModal';
 
 // Escuchar mensajes del Service Worker (NAVIGATE_TO, SW_ACTIVATED)
 function useSWMessage(handler) {
@@ -121,6 +123,7 @@ export default function UpdateBanner() {
   }, [updateState]);
 
   const targetVersion = updateState?.serverVersion || '';
+  const isForceLogout = Boolean(updateState?.forceLogout || updateState?.reason === 'force-logout' || updateState?.reason === 'below-min');
 
   const handleUpdate = useCallback(async () => {
     setUpdating(true);
@@ -129,39 +132,40 @@ export default function UpdateBanner() {
       try { sessionStorage.setItem('dismissed_version', targetVersion); } catch (_) {}
     }
 
-    try {
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(key => caches.delete(key)));
-      }
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const reg of registrations) {
-          await reg.unregister();
-        }
-      }
-    } catch (e) {
-      console.warn('[UpdateBanner] Error al purgar cachés:', e);
-    }
-
     if (waitingWorker) {
-      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      try {
+        waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      } catch (_) {}
     }
 
-    const url = new URL(window.location.href);
-    url.searchParams.set('_u', String(Date.now()));
-    window.location.replace(url.toString());
-  }, [waitingWorker, targetVersion]);
+    await reload(targetVersion);
+  }, [waitingWorker, targetVersion, reload]);
 
   const handleDismiss = useCallback(() => {
+    if (isForceLogout) return; // No se puede descartar si es obligatorio
     setVisible(false);
     setDismissed(true);
     if (targetVersion) {
       try { sessionStorage.setItem('dismissed_version', targetVersion); } catch (_) {}
     }
-  }, [targetVersion]);
+  }, [targetVersion, isForceLogout]);
 
-  if (!visible || dismissed) return null;
+  if (!visible || (dismissed && !isForceLogout)) return null;
+
+  // Si la actualización exige cierre de sesión, mostrar modal prioritario e inescapable
+  if (isForceLogout) {
+    return (
+      <ForceUpdateModal
+        open={true}
+        serverVersion={targetVersion}
+        currentVersion={CURRENT_VERSION}
+        message={updateState?.message}
+        onUpdate={handleUpdate}
+        reason={updateState?.reason}
+        forceLogout={true}
+      />
+    );
+  }
 
   return (
     <div style={{

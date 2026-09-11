@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
 import firebaseService from '../../services/firebase';
@@ -18,6 +18,9 @@ function getHomePath(user) {
 }
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const isUpdated = searchParams.get('update') === '1';
+  const updateVersion = searchParams.get('v') || '';
   const [loading, setLoading] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
@@ -73,16 +76,22 @@ export default function Login() {
       return;
     }
 
-    toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
-  }, []);
+    if (!isUpdated) {
+      toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
+    }
+  }, [isUpdated]);
 
   // Redirect to correct home path immediately if session is already active
   useEffect(() => {
+    if (isUpdated) {
+      authService.clearSession();
+      return;
+    }
     const user = authService.getCurrentUser();
     if (user) {
       navigate(getHomePath(user), { replace: true });
     }
-  }, [contextUser, navigate]);
+  }, [contextUser, navigate, isUpdated]);
 
   // Complete Google redirect login when popup auth is blocked by the browser.
   useEffect(() => {
@@ -209,7 +218,42 @@ export default function Login() {
             </div>
           </div>
 
-
+          {/* AVISO DE ACTUALIZACIÓN DEL SISTEMA */}
+          {isUpdated && (
+            <div style={{
+              margin: '0 0 20px 0',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: 'rgba(14, 165, 233, 0.12)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              textAlign: 'left',
+              animation: 'loginFadeInUp 0.4s ease-out',
+            }}>
+              <div style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                background: '#0284c7',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: '18px',
+              }}>
+                ✨
+              </div>
+              <div style={{ fontSize: '13px', lineHeight: 1.4, color: '#e0f2fe' }}>
+                <strong style={{ display: 'block', color: '#38bdf8', marginBottom: '2px' }}>
+                  Sistema actualizado {updateVersion ? `(v${updateVersion})` : ''}
+                </strong>
+                Tu sesión se cerró para asegurar que recibas todas las mejoras de forma limpia. Inicia sesión para continuar.
+              </div>
+            </div>
+          )}
 
           {/* BOTÓN DE GOOGLE LOGIN */}
           <div className="loginGoogleBtnContainer">

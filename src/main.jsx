@@ -6,7 +6,7 @@ import './styles/global-scoped.css';
 import './styles/design-system-scoped.css';
 import './styles/responsive-mobile.css';
 
-import { CURRENT_VERSION } from './services/versionService';
+import { CURRENT_VERSION, forcePurgeAndLogout } from './services/versionService';
 
 // ═══════════════════════════════════════════════════════════════
 //  SERVICE WORKER — Único punto de registro y detección de
@@ -20,7 +20,11 @@ if ('serviceWorker' in navigator && window.location.pathname !== '/login') {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!refreshing) {
       refreshing = true;
-      window.location.reload();
+      if (CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
+        forcePurgeAndLogout(CURRENT_VERSION);
+      } else {
+        window.location.reload();
+      }
     }
   });
 

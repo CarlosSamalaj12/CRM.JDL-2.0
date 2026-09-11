@@ -9,7 +9,7 @@
 //   {updateState && <ForceUpdateModal {...updateState} onUpdate={reload} />}
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { fetchServerVersion, evaluateUpdate, CURRENT_VERSION } from '../services/versionService';
+import { fetchServerVersion, evaluateUpdate, forcePurgeAndLogout, CURRENT_VERSION } from '../services/versionService';
 
 const DEFAULT_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 horas
 
@@ -38,28 +38,11 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
     }
   }, []);
 
-  // Función pública: recarga la página (limpia SW viejo, baja assets nuevos)
-  const reload = useCallback(async () => {
-    try {
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(key => caches.delete(key)));
-      }
-      // Registrar desregistro del Service Worker para forzar actualización limpia
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const reg of registrations) {
-          await reg.unregister();
-        }
-      }
-    } catch (e) {
-      console.warn('[useVersionCheck] Error limpiando caches/SW:', e);
-    }
-    // Redirigir con timestamp para saltar el cache HTTP del navegador
-    const url = new URL(window.location.href);
-    url.searchParams.set('_u', String(Date.now()));
-    window.location.replace(url.toString());
-  }, []);
+  // Función pública: purga sesión, cachés y redirige a login
+  const reload = useCallback(async (targetVer) => {
+    const v = targetVer || updateState?.serverVersion || serverVersion || '';
+    await forcePurgeAndLogout(v);
+  }, [updateState, serverVersion]);
 
   // Check al montar + polling
   useEffect(() => {
@@ -89,6 +72,7 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     // Listener del Service Worker: cuando se activa una versión nueva,
+    // Listener del Service Worker: cuando se activa una versión nueva,
     // el SW manda un mensaje { type: 'SW_ACTIVATED', version: '...' }.
     // Disparamos un check inmediato para mostrar el modal sin esperar al polling de 3h.
     const onSwMessage = (event) => {
@@ -102,11 +86,27 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
       navigator.serviceWorker.addEventListener('message', onSwMessage);
     }
 
+    // Listener para eventos directos de Socket.IO en tiempo real
+    const onSystemForceLogout = (e) => {
+      const data = e.detail || {};
+      if (CURRENT_VERSION === '0.0.0-dev' || CURRENT_VERSION.startsWith('0.0.0-')) return;
+      setServerVersion(data.version || 'nueva');
+      setUpdateState({
+        needsUpdate: true,
+        reason: 'force-logout',
+        forceLogout: true,
+        serverVersion: data.version,
+        message: data.message || 'Se ha desplegado una nueva versión del sistema. Se cerrará sesión para aplicar los cambios limpiamente.',
+      });
+    };
+    window.addEventListener('system:force-logout', onSystemForceLogout);
+
     return () => {
       mountedRef.current = false;
       clearTimeout(initialTimer);
       if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('system:force-logout', onSystemForceLogout);
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', onSwMessage);
       }

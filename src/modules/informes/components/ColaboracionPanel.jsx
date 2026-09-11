@@ -250,49 +250,194 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
   ];
 
   return (
-    <div className="colab-panel">
-      <div className="colab-tabs">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              className={`colab-tab ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <Icon size={14} />
-              {tab.label}
-              {tab.count > 0 && <span className="colab-tab-count">{tab.count}</span>}
-            </button>
-          );
-        })}
+    <div className="colab-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+      {/* ─── PESTAÑAS SEGMENTADAS TIPO CÁPSULA ─── */}
+      <div className="colab-tabs" style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '6px 12px',
+        background: '#f8fafc',
+        borderBottom: '1px solid #e2e8f0',
+        gap: '6px',
+        flexShrink: 0,
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '3px',
+          background: '#e2e8f0',
+          padding: '3px',
+          borderRadius: '10px',
+          flex: 1,
+        }}>
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                className={`colab-tab ${isActive ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  flex: 1,
+                  height: '32px',
+                  padding: '0 8px',
+                  borderRadius: '7px',
+                  border: 'none',
+                  background: isActive ? '#ffffff' : 'transparent',
+                  color: isActive ? '#4f46e5' : '#64748b',
+                  fontSize: '12px',
+                  fontWeight: isActive ? 700 : 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  cursor: 'pointer',
+                  boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Icon size={13} />
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    background: isActive ? '#eef2ff' : '#cbd5e1',
+                    color: isActive ? '#4f46e5' : '#475569',
+                    lineHeight: 1.2,
+                  }}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Enterado / Leído pill button */}
+        <button
+          type="button"
+          onClick={handleEnterado}
+          title={userLeido ? 'Ya marcaste este informe como leído' : 'Marcar como leído / enterado'}
+          style={{
+            height: '32px',
+            padding: '0 10px',
+            borderRadius: '8px',
+            border: '1px solid',
+            borderColor: userLeido ? '#a7f3d0' : '#cbd5e1',
+            background: userLeido ? '#ecfdf5' : '#ffffff',
+            color: userLeido ? '#059669' : '#475569',
+            fontSize: '11.5px',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            cursor: 'pointer',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <IconCheckCircle size={14} style={{ color: userLeido ? '#10b981' : '#94a3b8' }} />
+          <span>{userLeido ? 'Leído' : 'Enterado'}</span>
+        </button>
       </div>
 
-      <div className="colab-content">
+      <div className="colab-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: 0 }}>
         {/* Tab: COMENTARIOS */}
         {activeTab === 'comentarios' && (
-          <div className="colab-comentarios">
-            <div className="colab-comment-list" ref={commentListRef}>
-              {comentarios.length === 0 && (
-                <p className="colab-empty">Sin comentarios aún. Usa @ para mencionar a alguien.</p>
-              )}
+          <div className="colab-comentarios" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+            <div className="colab-comment-list" ref={commentListRef} style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', margin: 0 }}>
+              {comentarios.length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '36px 20px',
+                  textAlign: 'center',
+                  color: '#64748b',
+                  margin: 'auto 0',
+                }}>
+                  <div style={{
+                    width: '54px',
+                    height: '54px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#4f46e5',
+                    marginBottom: '12px',
+                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.12)',
+                  }}>
+                    <IconMessageCircle size={26} />
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+                    Canal de comunicación activo
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#64748b', maxWidth: '280px', lineHeight: 1.4 }}>
+                    Escribe notas sobre el evento o usa <strong style={{ color: '#4f46e5' }}>@</strong> para mencionar a un usuario del equipo.
+                  </div>
+                </div>
+              ) : null}
+
               {comentarios.map((c) => (
-                <div key={c.id} id={`comentario-${c.id}`} className={`colab-comment-item ${c.dia_id === diaId ? 'colab-highlight' : ''}`}>
-                  <div className="colab-avatar">{c.usuario_nombre?.charAt(0) || '?'}</div>
-                  <div className="colab-comment-body">
-                    <div className="colab-comment-header">
-                      <strong>{c.usuario_nombre}</strong>
+                <div key={c.id} id={`comentario-${c.id}`} className={`colab-comment-item ${c.dia_id === diaId ? 'colab-highlight' : ''}`} style={{
+                  display: 'flex',
+                  gap: '10px',
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  background: c.dia_id === diaId ? '#eef2ff' : '#f8fafc',
+                  border: '1px solid',
+                  borderColor: c.dia_id === diaId ? '#c7d2fe' : '#e2e8f0',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                }}>
+                  <div className="colab-avatar" style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    flexShrink: 0,
+                    boxShadow: '0 2px 6px rgba(99,102,241,0.25)',
+                  }}>
+                    {c.usuario_nombre?.charAt(0) || '?'}
+                  </div>
+                  <div className="colab-comment-body" style={{ flex: 1, minWidth: 0 }}>
+                    <div className="colab-comment-header" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
+                      <strong style={{ fontSize: '13px', color: '#0f172a' }}>{c.usuario_nombre}</strong>
                       {c.menciones && c.menciones.length > 0 && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', flexWrap: 'wrap', marginRight: '0.3rem' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                           {c.menciones.map(m => (
-                            <span key={m.id} className="colab-mention-tag">
-                              <IconAtSign size={11} /> {m.nombre}
+                            <span key={m.id} className="colab-mention-tag" style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: '#4f46e5',
+                              background: '#e0e7ff',
+                              padding: '1px 6px',
+                              borderRadius: '999px',
+                            }}>
+                              <IconAtSign size={10} /> {m.nombre}
                             </span>
                           ))}
                         </span>
                       )}
-                      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
-                        <span className="colab-time">
+                      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                        <span className="colab-time" style={{ fontSize: '11px', color: '#94a3b8' }}>
                           {new Date(c.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {/* Reaction chips inline with timestamp */}
@@ -303,16 +448,17 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                           return (
                             <button
                               key={r.emoji}
+                              type="button"
                               onClick={async () => {
                                 try { await toggleReaccionComentario(informeId, c.id, r.emoji); loadAll(); } catch {}
                               }}
                               style={{
-                                display: 'inline-flex', alignItems: 'center', gap: '0.1rem',
-                                fontSize: '0.62rem', padding: '0.04rem 0.25rem',
-                                borderRadius: 'var(--radius-full)',
+                                display: 'inline-flex', alignItems: 'center', gap: '2px',
+                                fontSize: '11px', padding: '1px 6px',
+                                borderRadius: '999px',
                                 border: '1px solid',
-                                borderColor: isActive ? 'var(--primary)' : 'var(--border)',
-                                background: isActive ? 'var(--primary-bg)' : 'transparent',
+                                borderColor: isActive ? '#6366f1' : '#cbd5e1',
+                                background: isActive ? '#eef2ff' : '#ffffff',
                                 cursor: 'pointer', lineHeight: 1.2,
                                 transition: 'all 0.15s',
                               }}
@@ -323,26 +469,26 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                               }}
                               onMouseLeave={() => setHoveredTooltip(null)}
                             >
-                              <span style={{ fontSize: '0.7rem' }}>{r.emoji}</span>
-                              <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.58rem' }}>{users.length}</span>
+                              <span style={{ fontSize: '12px' }}>{r.emoji}</span>
+                              <span style={{ color: '#475569', fontWeight: 700, fontSize: '10px' }}>{users.length}</span>
                             </button>
                           );
                         })}
                         {/* Floating add reaction button */}
                         <div style={{ position: 'relative', display: 'inline-flex' }}>
                           <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); setReactingTo(reactingTo === c.id ? null : c.id); }}
                             style={{
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: '0.6rem', width: '16px', height: '16px',
-                              borderRadius: '50%', border: 'none',
-                              background: reactingTo === c.id ? 'var(--primary-bg)' : 'transparent',
+                              fontSize: '12px', width: '22px', height: '22px',
+                              borderRadius: '50%', border: '1px solid #cbd5e1',
+                              background: reactingTo === c.id ? '#eef2ff' : '#ffffff',
+                              color: '#64748b',
                               cursor: 'pointer', lineHeight: 1, padding: 0,
-                              opacity: 0.5, transition: 'all 0.15s',
+                              transition: 'all 0.15s',
                             }}
                             title="Reaccionar"
-                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                            onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
                           >
                             +
                           </button>
@@ -350,31 +496,30 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                             <div
                               style={{
                                 position: 'absolute', top: '1.5rem', right: '-0.2rem',
-                                display: 'flex', gap: '0.15rem',
-                                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-full)',
-                                padding: '0.2rem 0.35rem',
-                                boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                display: 'flex', gap: '4px',
+                                background: '#ffffff', border: '1px solid #cbd5e1',
+                                borderRadius: '999px',
+                                padding: '4px 8px',
+                                boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
                                 zIndex: 100, whiteSpace: 'nowrap',
                               }}
                             >
                               {REACCIONES.map(r => (
                                 <button
                                   key={r.emoji}
+                                  type="button"
                                   onClick={async () => {
                                     try { await toggleReaccionComentario(informeId, c.id, r.emoji); } catch {}
                                     setReactingTo(null);
                                     loadAll();
                                   }}
                                   style={{
-                                    fontSize: '1.15rem', padding: '0.1rem 0.15rem',
+                                    fontSize: '16px', padding: '2px 4px',
                                     border: 'none', background: 'transparent',
-                                    cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer', borderRadius: '4px',
                                     transition: 'transform 0.12s', lineHeight: 1,
                                   }}
                                   title={r.label}
-                                  onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
-                                  onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                                 >
                                   {r.emoji}
                                 </button>
@@ -393,26 +538,32 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                         </div>
                       </div>
                     </div>
-                    <p className="colab-comment-text">{c.contenido}</p>
+                    <p className="colab-comment-text" style={{ margin: '2px 0 0 0', fontSize: '13.5px', color: '#334155', lineHeight: 1.45, wordBreak: 'break-word' }}>
+                      {c.contenido}
+                    </p>
                     {/* Botón Responder */}
                     <button
+                      type="button"
                       onClick={() => setRespondiendoA(respondiendoA === c.id ? null : c.id)}
                       style={{
-                        marginTop: '0.3rem',
+                        marginTop: '4px',
                         background: 'none',
                         border: 'none',
-                        color: 'var(--primary)',
-                        fontSize: '0.72rem',
-                        fontWeight: 600,
+                        color: '#4f46e5',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
                         cursor: 'pointer',
-                        padding: '0.2rem 0',
+                        padding: '2px 0',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
                       }}
                     >
                       💬 Responder
                     </button>
                     {/* Input de respuesta */}
                     {respondiendoA === c.id && (
-                      <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.3rem' }}>
+                      <div style={{ marginTop: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
                         <input
                           ref={respuestaRef}
                           type="text"
@@ -422,10 +573,13 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                           autoFocus
                           style={{
                             flex: 1,
-                            padding: '0.4rem 0.6rem',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-sm)',
-                            fontSize: '0.78rem',
+                            padding: '6px 10px',
+                            border: '1.5px solid #cbd5e1',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            outline: 'none',
                           }}
                           onKeyDown={e => {
                             if (e.key === 'Enter' && textoRespuesta.trim()) {
@@ -434,20 +588,41 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                           }}
                         />
                         <button
+                          type="button"
                           className="btn-primary btn-sm"
                           onClick={() => handleResponder(c.id)}
                           disabled={!textoRespuesta.trim()}
-                          style={{ fontSize: '0.72rem' }}
+                          style={{
+                            height: '32px',
+                            padding: '0 12px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            background: '#4f46e5',
+                            color: '#ffffff',
+                            border: 'none',
+                            cursor: textoRespuesta.trim() ? 'pointer' : 'not-allowed',
+                          }}
                         >
                           Enviar
                         </button>
                         <button
+                          type="button"
                           className="btn-secondary btn-sm"
                           onClick={() => {
                             setRespondiendoA(null);
                             setTextoRespuesta('');
                           }}
-                          style={{ fontSize: '0.72rem' }}
+                          style={{
+                            height: '32px',
+                            padding: '0 8px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            background: '#f1f5f9',
+                            color: '#64748b',
+                            border: '1px solid #cbd5e1',
+                            cursor: 'pointer',
+                          }}
                         >
                           ✕
                         </button>
@@ -455,37 +630,58 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                     )}
                     {/* Respuestas anidadas */}
                     {c.respuestas && c.respuestas.length > 0 && (
-                      <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.5rem' }}>                          {c.respuestas.map(r => (
+                      <div style={{ marginLeft: '12px', borderLeft: '2.5px solid #818cf8', paddingLeft: '10px', marginTop: '8px' }}>
+                        {c.respuestas.map(r => (
                           <div key={r.id}>
-                            <div id={`comentario-${r.id}`} className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
-                              <div className="colab-avatar">{r.usuario_nombre?.charAt(0) || '?'}</div>
+                            <div id={`comentario-${r.id}`} className="colab-comment-item" style={{
+                              background: '#ffffff',
+                              padding: '8px 10px',
+                              marginBottom: '6px',
+                              borderRadius: '8px',
+                              border: '1px solid #e2e8f0',
+                            }}>
+                              <div className="colab-avatar" style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '50%',
+                                background: '#818cf8',
+                                color: '#ffffff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                              }}>
+                                {r.usuario_nombre?.charAt(0) || '?'}
+                              </div>
                               <div className="colab-comment-body">
-                                <div className="colab-comment-header">
-                                  <strong style={{ fontSize: '0.78rem' }}>{r.usuario_nombre || 'Usuario'}</strong>
-                                  <span className="colab-time">
+                                <div className="colab-comment-header" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <strong style={{ fontSize: '12px', color: '#0f172a' }}>{r.usuario_nombre || 'Usuario'}</strong>
+                                  <span className="colab-time" style={{ fontSize: '10.5px', color: '#94a3b8' }}>
                                     {new Date(r.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                 </div>
-                                <p className="colab-comment-text" style={{ fontSize: '0.78rem' }}>{r.contenido}</p>
+                                <p className="colab-comment-text" style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#334155' }}>{r.contenido}</p>
                                 {/* Botón Responder en respuestas anidadas */}
                                 <button
+                                  type="button"
                                   onClick={() => setRespondiendoA(respondiendoA === r.id ? null : r.id)}
                                   style={{
-                                    marginTop: '0.3rem',
+                                    marginTop: '3px',
                                     background: 'none',
                                     border: 'none',
-                                    color: 'var(--primary)',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 600,
+                                    color: '#4f46e5',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
                                     cursor: 'pointer',
-                                    padding: '0.2rem 0',
+                                    padding: '2px 0',
                                   }}
                                 >
                                   💬 Responder
                                 </button>
                                 {/* Input de respuesta para respuesta anidada */}
                                 {respondiendoA === r.id && (
-                                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.3rem' }}>
+                                  <div style={{ marginTop: '6px', display: 'flex', gap: '6px' }}>
                                     <input
                                       ref={respuestaRef}
                                       type="text"
@@ -495,10 +691,11 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                                       autoFocus
                                       style={{
                                         flex: 1,
-                                        padding: '0.4rem 0.6rem',
-                                        border: '1px solid var(--border)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        fontSize: '0.78rem',
+                                        padding: '6px 8px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        background: '#ffffff',
                                       }}
                                       onKeyDown={e => {
                                         if (e.key === 'Enter' && textoRespuesta.trim()) {
@@ -507,20 +704,22 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                                       }}
                                     />
                                     <button
+                                      type="button"
                                       className="btn-primary btn-sm"
                                       onClick={() => handleResponder(r.id)}
                                       disabled={!textoRespuesta.trim()}
-                                      style={{ fontSize: '0.72rem' }}
+                                      style={{ fontSize: '11px', padding: '0 8px', height: '28px', background: '#4f46e5', color: '#ffffff', border: 'none', borderRadius: '6px' }}
                                     >
                                       Enviar
                                     </button>
                                     <button
+                                      type="button"
                                       className="btn-secondary btn-sm"
                                       onClick={() => {
                                         setRespondiendoA(null);
                                         setTextoRespuesta('');
                                       }}
-                                      style={{ fontSize: '0.72rem' }}
+                                      style={{ fontSize: '11px', padding: '0 6px', height: '28px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px' }}
                                     >
                                       ✕
                                     </button>
@@ -528,25 +727,6 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                                 )}
                               </div>
                             </div>
-                            {/* Sub-respuestas anidadas (nivel 2) */}
-                            {r.respuestas && r.respuestas.length > 0 && (
-                              <div style={{ marginLeft: '1.5rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.8rem', marginTop: '0.3rem' }}>
-                                {r.respuestas.map(r2 => (
-                                  <div key={r2.id} id={`comentario-${r2.id}`} className="colab-comment-item" style={{ background: 'var(--bg-elevated)', padding: '0.6rem', marginBottom: '0.4rem' }}>
-                                    <div className="colab-avatar">{r2.usuario_nombre?.charAt(0) || '?'}</div>
-                                    <div className="colab-comment-body">
-                                      <div className="colab-comment-header">
-                                        <strong style={{ fontSize: '0.78rem' }}>{r2.usuario_nombre || 'Usuario'}</strong>
-                                        <span className="colab-time">
-                                          {new Date(r2.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                      </div>
-                                      <p className="colab-comment-text" style={{ fontSize: '0.78rem' }}>{r2.contenido}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
@@ -556,15 +736,37 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
               ))}
             </div>
 
-            <div className="colab-comment-form">
+            {/* ─── FORMULARIO DE COMENTARIO ANCLADO AL FONDO ─── */}
+            <div className="colab-comment-form" style={{
+              flexShrink: 0,
+              background: '#ffffff',
+              borderTop: '1px solid #e2e8f0',
+              padding: '10px 14px',
+              paddingBottom: 'max(14px, env(safe-area-inset-bottom, 14px))',
+              position: 'relative',
+              boxSizing: 'border-box',
+            }}>
               {showMenciones && (
-                <div className="colab-mention-list" style={{ position: 'relative', zIndex: 1000 }}>
+                <div className="colab-mention-list" style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: '12px',
+                  right: '12px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '12px',
+                  marginBottom: '8px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.12)',
+                  zIndex: 1000,
+                }}>
                   {usuariosError ? (
-                    <div className="colab-mention-item" style={{ cursor: 'default', opacity: 0.8, color: '#ef4444' }}>
+                    <div className="colab-mention-item" style={{ cursor: 'default', padding: '10px 12px', color: '#ef4444', fontSize: '12.5px' }}>
                       <span>❌ {usuariosError}</span>
                     </div>
                   ) : usuariosFiltrados.length === 0 ? (
-                    <div className="colab-mention-item" style={{ cursor: 'default', opacity: 0.6 }}>
+                    <div className="colab-mention-item" style={{ cursor: 'default', padding: '10px 12px', color: '#94a3b8', fontSize: '12.5px' }}>
                       <span><em>{usuarios.length === 0 ? 'Cargando usuarios...' : 'Sin resultados'}</em></span>
                     </div>
                   ) : (
@@ -590,29 +792,124 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                           }
                         }}
                         onClick={() => selectMencion(u)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          transition: 'background 0.15s',
+                        }}
                       >
-                        <span className="colab-mention-avatar">{(u.nombre || u.email || '?').charAt(0).toUpperCase()}</span>
-                        <span><strong>{u.nombre || u.email}</strong> {u.rol && <small>{u.rol}</small>}</span>
+                        <span className="colab-mention-avatar" style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}>
+                          {(u.nombre || u.email || '?').charAt(0).toUpperCase()}
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <strong style={{ fontSize: '13px', color: '#0f172a' }}>{u.nombre || u.email}</strong>
+                          {u.rol && <span style={{ fontSize: '11px', color: '#64748b' }}>{u.rol}</span>}
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
               )}
+
               {menciones.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.25rem' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
                   {menciones.map(m => (
-                    <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem', color: 'var(--primary)', background: 'var(--primary-bg)', padding: '0.1rem 0.4rem', borderRadius: 'var(--radius-full)' }}>
-                      <IconAtSign size={11} /> {m.nombre}
-                      <button onClick={() => removeMencion(m.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0', fontSize: '0.65rem', lineHeight: 1 }}>✕</button>
+                    <span key={m.id} style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '12px',
+                      color: '#4f46e5',
+                      background: '#eef2ff',
+                      border: '1px solid #c7d2fe',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontWeight: 600,
+                    }}>
+                      <IconAtSign size={12} /> {m.nombre}
+                      <button
+                        type="button"
+                        onClick={() => removeMencion(m.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#6366f1',
+                          cursor: 'pointer',
+                          padding: '0 2px',
+                          fontSize: '12px',
+                          lineHeight: 1,
+                          fontWeight: 'bold',
+                        }}
+                      >
+                        ✕
+                      </button>
                     </span>
                   ))}
                 </div>
               )}
-              <div className="colab-input-row">
+
+              <div className="colab-input-row" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                width: '100%',
+                boxSizing: 'border-box',
+              }}>
+                {/* Botón rápido @ para menciones */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = nuevoComentario ? `${nuevoComentario} @` : '@';
+                    setNuevoComentario(text);
+                    setMencionFilter('');
+                    setShowMenciones(true);
+                    if (comentarioRef.current) {
+                      comentarioRef.current.focus();
+                    }
+                  }}
+                  title="Mencionar a alguien (@)"
+                  style={{
+                    width: '38px',
+                    minWidth: '38px',
+                    maxWidth: '38px',
+                    height: '38px',
+                    borderRadius: '50%',
+                    background: '#f1f5f9',
+                    border: '1px solid #cbd5e1',
+                    color: '#4f46e5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    padding: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <IconAtSign size={16} />
+                </button>
+
+                {/* Input de texto principal */}
                 <input
                   ref={comentarioRef}
                   type="text"
-                  placeholder="Escribe un comentario... Usa @ para mencionar"
+                  placeholder="Escribe un comentario..."
                   value={nuevoComentario}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -627,9 +924,51 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                     }
                   }}
                   onKeyDown={handleKeyDown}
+                  style={{
+                    flex: '1 1 0%',
+                    minWidth: 0,
+                    height: '40px',
+                    padding: '0 14px',
+                    background: '#f8fafc',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '20px',
+                    fontSize: '14.5px',
+                    color: '#0f172a',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.15s ease, background 0.15s ease',
+                  }}
                 />
-                <button className="btn-primary btn-sm" onClick={handleComentar} disabled={loading || !nuevoComentario.trim()}>
-                  <IconSend size={14} />
+
+                {/* Botón circular de enviar */}
+                <button
+                  type="button"
+                  className="colab-send-btn"
+                  onClick={handleComentar}
+                  disabled={loading || !nuevoComentario.trim()}
+                  title="Enviar comentario"
+                  style={{
+                    width: '40px',
+                    minWidth: '40px',
+                    maxWidth: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: nuevoComentario.trim()
+                      ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
+                      : '#e2e8f0',
+                    color: nuevoComentario.trim() ? '#ffffff' : '#94a3b8',
+                    border: 'none',
+                    cursor: nuevoComentario.trim() ? 'pointer' : 'not-allowed',
+                    boxShadow: nuevoComentario.trim() ? '0 2px 8px rgba(99, 102, 241, 0.35)' : 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <IconSend size={16} />
                 </button>
               </div>
             </div>
@@ -638,18 +977,38 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
 
         {/* Tab: HISTORIAL */}
         {activeTab === 'historial' && (
-          <div className="colab-history">
+          <div className="colab-history" style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
             {historial.length === 0 ? (
-              <p className="colab-empty">Sin actividad registrada aún.</p>
+              <p className="colab-empty" style={{ textAlign: 'center', color: '#64748b', fontSize: '13px', padding: '24px' }}>
+                Sin actividad registrada aún.
+              </p>
             ) : (
               historial.map((h, i) => (
-                <div key={h.id || i} className="colab-history-item">
-                  <div className="colab-history-dot" />
-                  <div className="colab-history-body">
-                    <strong>{h.usuario_nombre}</strong>
-                    <span className="colab-history-action">{h.accion}</span>
-                    {h.descripcion && <p className="colab-history-desc">{h.descripcion}</p>}
-                    <span className="colab-time">
+                <div key={h.id || i} className="colab-history-item" style={{
+                  display: 'flex',
+                  gap: '10px',
+                  padding: '8px 0 8px 14px',
+                  borderLeft: '2px solid #e2e8f0',
+                  marginLeft: '8px',
+                  position: 'relative',
+                }}>
+                  <div className="colab-history-dot" style={{
+                    position: 'absolute',
+                    left: '-5px',
+                    top: '12px',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#6366f1',
+                    border: '2px solid #ffffff',
+                  }} />
+                  <div className="colab-history-body" style={{ flex: 1 }}>
+                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>{h.usuario_nombre}</strong>
+                    <span className="colab-history-action" style={{ fontSize: '12px', color: '#4f46e5', marginLeft: '6px', fontWeight: 600 }}>
+                      {h.accion}
+                    </span>
+                    {h.descripcion && <p className="colab-history-desc" style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>{h.descripcion}</p>}
+                    <span className="colab-time" style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
                       {new Date(h.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -661,21 +1020,45 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
 
         {/* Tab: LECTORES */}
         {activeTab === 'lectores' && (
-          <div className="colab-readers">
+          <div className="colab-readers" style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
             {lecturas.length === 0 ? (
-              <p className="colab-empty">Nadie ha marcado este informe como leído aún.</p>
+              <p className="colab-empty" style={{ textAlign: 'center', color: '#64748b', fontSize: '13px', padding: '24px' }}>
+                Nadie ha marcado este informe como leído aún.
+              </p>
             ) : (
-              <div className="colab-reader-list">
+              <div className="colab-reader-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {lecturas.map((l) => (
-                  <div key={l.id} className="colab-reader-item">
-                    <div className="colab-avatar">{l.usuario_nombre?.charAt(0) || '?'}</div>
-                    <div>
-                      <strong>{l.usuario_nombre}</strong>
-                      <span className="colab-time">
+                  <div key={l.id} className="colab-reader-item" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                  }}>
+                    <div className="colab-avatar" style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      flexShrink: 0,
+                    }}>
+                      {l.usuario_nombre?.charAt(0) || '?'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>{l.usuario_nombre}</strong>
+                      <span className="colab-time" style={{ fontSize: '11px', color: '#059669', fontWeight: 500 }}>
                         Leyó el {new Date(l.leido_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <IconCheckCircle size={16} className="colab-reader-check" />
+                    <IconCheckCircle size={18} style={{ color: '#059669', flexShrink: 0 }} />
                   </div>
                 ))}
               </div>
@@ -684,17 +1067,6 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
         )}
       </div>
 
-      {/* Acciones rápidas */}
-      <div className="colab-actions">
-        <button
-          className={`btn-ghost btn-sm ${userLeido ? 'colab-action-done' : ''}`}
-          onClick={handleEnterado}
-          data-tooltip={userLeido ? 'Ya marcaste este informe como leído' : 'Marcar como leído'}
-        >
-          <IconCheckCircle size={14} />
-          {userLeido ? 'Leído' : 'Enterado'}
-        </button>
-      </div>
       {hoveredTooltip && (
         <ReactionTooltip
           emoji={hoveredTooltip.emoji}

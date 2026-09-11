@@ -131,7 +131,7 @@ function MobileTablaCard({
   const hasAlertas = (event.tiene_alertas === 1 || event.tiene_alertas === true);
   const hasFood = (des > 0 || alm > 0 || cen > 0 || refAm > 0 || refPm > 0);
 
-  const dateQs = event.FechaEvento ? `?date=${String(event.FechaEvento).slice(0, 10)}` : '';
+  const dateQs = targetDate ? `?date=${String(targetDate).slice(0, 10)}` : '';
 
   return (
     <div
@@ -1956,6 +1956,7 @@ export default function Kanban() {
                         <EventCard 
                           key={`${event.Idocupacion}-${event.displayDate}`} 
                           event={event} 
+                          columnDate={column.isoDate}
                           highlighted={eventoResaltado === String(event.Idocupacion)}
                           onNavigateToTareas={(id) => {
                             setTargetEventId(id);

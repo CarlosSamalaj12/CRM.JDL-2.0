@@ -115,11 +115,13 @@ try {
   // ── Escribir dist/version.json (lo lee el server en GET /api/version) ──
   const minVersionFromEnv = process.env.APP_MIN_VERSION;
   const minVersion = minVersionFromEnv || newVersion;
+  const forceLogout = process.env.APP_FORCE_LOGOUT !== 'false';
   const versionInfo = {
     version: newVersion,
     minVersion,
-    required: !!minVersionFromEnv,
-    message: process.env.APP_UPDATE_MESSAGE || '',
+    required: true,
+    forceLogout,
+    message: process.env.APP_UPDATE_MESSAGE || 'Se ha desplegado una nueva versión del sistema. Se cerrará sesión para aplicar los cambios limpiamente.',
     deployedAt: new Date().toISOString(),
   };
   const versionJsonPath = path.join(distDir, 'version.json');

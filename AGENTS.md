@@ -5,31 +5,31 @@ CRM interno de Jardines del Lago. Stack: React 19 + Vite 8 + Express (server.cjs
 Frontend divided: legacy CRM (`src/modules/{calendar,customers,reports,settings}/` con ApiClient)
 y módulo Informes (`src/modules/informes/` con fetch crudo + AuthContext/SocketContext/ToastContext).
 
-## Sistema de control de versiones (instalado 2026-07-18)
+## Sistema de control de versiones y cierre de sesión automático (actualizado 2026-09-11)
 
-Cómo forzar actualización de clientes desde el server:
+Cómo forzar actualización de clientes y cierre de sesión limpio desde cada build:
 
 **Build time:**
-- `scripts/bump-sw-version.cjs` se ejecuta después de `vite build` (definido en `package.json`).
-- Bump formato: `YYYY-MM-DD-NN` (NN se incrementa por build del mismo día, max 99).
-- Escribe `dist/sw.js` (con VERSION actualizada) y `dist/version.json` (con `{version, minVersion, required, message, deployedAt}`).
+- `scripts/bump-sw-version.cjs` se ejecuta antes de `vite build` (definido en `package.json`).
+- Incrementa automáticamente la versión semántica (ej. `2.1.68` → `2.1.69`).
+- Escribe `dist/sw.js` (con VERSION actualizada), `dist/version.json` y `public/version.json` con `{ version, minVersion, required: true, forceLogout: true, message, deployedAt }`.
 
 **Backend:**
 - `server.cjs` tiene `GET /api/version` que lee `dist/version.json` con cache por mtime.
-- Override de versión mínima: variable de entorno `APP_MIN_VERSION="2026-07-15-01"` + `APP_UPDATE_MESSAGE="..."` antes del build.
-- Si `APP_MIN_VERSION` está seteado, marca `required: true` y bloquea a clientes por debajo.
+- Un watcher periódico (cada 15s) detecta cuando `dist/version.json` cambia de versión y emite inmediatamente `io.emit('system:force-logout', { version, forceLogout: true, message })` para notificar a todos los navegadores conectados en tiempo real.
 
 **Frontend:**
 - `vite.config.js` inyecta `__APP_VERSION__` global leyendo `dist/version.json` (dev = `"0.0.0-dev"`).
-- `src/services/versionService.js` — `fetchServerVersion()` + `compareVersions()` + `evaluateUpdate()`.
-- `src/hooks/useVersionCheck.js` — hook con polling 3h + re-check on visibilitychange.
-- `src/components/ForceUpdateModal.jsx` — modal full-screen portal al body, z-index máx, ESC bloqueado, countdown 30s auto-reload.
-- `src/components/VersionFooter.jsx` — footer con `v{current} · server: v{server} · [↻]`.
-- Integrados en `MainLayout` y `ReportsLayout`.
-
-**Reload trick:** al actualizar, `useVersionCheck.reload()` hace `window.location.replace(url + '?_u=' + Date.now())` para que el SW no sirva la versión cacheada.
-
-**Importante CORS:** `server.cjs` debe tener `Cache-Control, Pragma` en `Access-Control-Allow-Headers` (ya agregado).
+- `src/services/versionService.js`:
+  - `forcePurgeAndLogout(targetVersion)`: purga `localStorage.removeItem('user')`, `localStorage.removeItem('token')`, `sessionStorage.clear()`, elimina todas las cachés (`caches.delete`) y desregistra los Service Workers. Luego redirige a `/login?update=1&v={version}&_u={timestamp}`.
+- `src/App.jsx`:
+  - Arranque en frío: si `CURRENT_VERSION !== '0.0.0-dev'` y `localStorage.getItem('crm_installed_version') !== CURRENT_VERSION`, purga de inmediato la sesión y cachés antes de cargar rutas protegidas.
+- `src/components/ForceUpdateModal.jsx` y `src/components/UpdateBanner.jsx`:
+  - Si un usuario tiene la app abierta durante el build, se muestra un modal prioritario con cuenta regresiva de 20s y botón "Cerrar sesión y actualizar ahora". Al llegar a 0s o hacer clic, purga todo y redirige a `/login`.
+- `src/modules/auth/Login.jsx`:
+  - Si recibe `?update=1`, muestra un banner elegante informando que el sistema se actualizó y se cerró la sesión para cargar los cambios limpiamente. Evita rebotes si había sesión residual.
+- `src/main.jsx`:
+  - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
 

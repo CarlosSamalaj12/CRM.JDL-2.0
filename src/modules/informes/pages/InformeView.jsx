@@ -54,8 +54,17 @@ function isProteina(item) {
 export default function InformeView() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightComentarioId = searchParams.get('highlightComentario') || null;
+  const dateParam = searchParams.get('date') || searchParams.get('fecha') || searchParams.get('dia') || null;
+  const [selectedDiaDate, setSelectedDiaDate] = useState(() => dateParam ? String(dateParam).slice(0, 10) : null);
+
+  useEffect(() => {
+    const p = searchParams.get('date') || searchParams.get('fecha') || searchParams.get('dia') || null;
+    if (p) {
+      setSelectedDiaDate(String(p).slice(0, 10));
+    }
+  }, [searchParams]);
   const toast = useToast();
   const { user } = useAuth();
   const { connected: socketConnected, joinRoom, leaveRoom } = useSocket();
@@ -631,7 +640,10 @@ export default function InformeView() {
       };
       const namePart = cleanString(informe.Institucion || informe.EncargadoEvento || "");
       const docPart = cleanString(informe.NoDoc || id);
-      const filename = `informe_${namePart}_${docPart}.pdf`.replace(/_+/g, "_").replace(/_$/, "").toLowerCase();
+      const daySuffix = (diasFiltrados.length === 1 && diasFiltrados[0].numeroDiaOriginal)
+        ? `_dia${diasFiltrados[0].numeroDiaOriginal}`
+        : "";
+      const filename = `informe_${namePart}_${docPart}${daySuffix}.pdf`.replace(/_+/g, "_").replace(/_$/, "").toLowerCase();
       pdf.save(filename);
     } catch (err) {
       console.error('Error al exportar PDF:', err);
@@ -691,8 +703,8 @@ export default function InformeView() {
     };
   }, [informeActionsEl, setInformeActions, isMobileView]);
 
-  // Filtrar días que tengan menú o montaje (para omitir hojas vacías/solo habitaciones al imprimir o exportar)
-  const diasFiltrados = useMemo(() => {
+  // Obtener todos los días válidos con contenido real (menú o montaje)
+  const todosDiasValidos = useMemo(() => {
     if (!informe?.dias || !Array.isArray(informe.dias) || informe.dias.length === 0) {
       return [];
     }
@@ -759,6 +771,43 @@ export default function InformeView() {
     return conContenido.length > 0 ? conContenido : procesados;
   }, [informe?.dias]);
 
+  // Filtrar por día seleccionado si hay parámetro ?date= o selección activa
+  const diasFiltrados = useMemo(() => {
+    if (!todosDiasValidos || todosDiasValidos.length === 0) return [];
+
+    if (selectedDiaDate && selectedDiaDate !== 'all') {
+      const cleanTarget = String(selectedDiaDate).slice(0, 10);
+      
+      // 1. Intentar coincidencia exacta de fecha YYYY-MM-DD
+      const porFecha = todosDiasValidos.filter(item => {
+        const itemFecha = String(item.dia?.fecha_evento || '').slice(0, 10);
+        return itemFecha === cleanTarget;
+      });
+      if (porFecha.length > 0) return porFecha;
+
+      // 2. Intentar coincidencia por número de día (ej: "1", "2")
+      const num = Number(selectedDiaDate);
+      if (!isNaN(num) && num > 0) {
+        const porNumero = todosDiasValidos.filter(item => item.numeroDiaOriginal === num);
+        if (porNumero.length > 0) return porNumero;
+      }
+    }
+
+    return todosDiasValidos;
+  }, [todosDiasValidos, selectedDiaDate]);
+
+  const selectedDiaValue = useMemo(() => {
+    if (!selectedDiaDate || selectedDiaDate === 'all') return 'all';
+    const match = todosDiasValidos.find(item => {
+      const cleanFecha = String(item.dia?.fecha_evento || '').slice(0, 10);
+      return cleanFecha === selectedDiaDate || String(item.numeroDiaOriginal) === selectedDiaDate;
+    });
+    if (match) {
+      return String(match.dia?.fecha_evento || '').slice(0, 10) || String(match.numeroDiaOriginal);
+    }
+    return 'all';
+  }, [todosDiasValidos, selectedDiaDate]);
+
   if (loading) return <p className="status-message">Cargando informe...</p>;
   if (error) return <p className="status-message status-error">{error}</p>;
   if (!informe) return <p className="status-message">Informe no encontrado.</p>;
@@ -781,6 +830,20 @@ export default function InformeView() {
       year: 'numeric'
     });
     
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  };
+
+  const formatFechaShort = (fechaStr) => {
+    if (!fechaStr) return '';
+    const cleanFecha = String(fechaStr).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanFecha)) return '';
+    const date = new Date(cleanFecha + 'T12:00:00');
+    if (isNaN(date.getTime())) return '';
+    const formatted = date.toLocaleDateString('es-ES', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   };
 
@@ -964,6 +1027,110 @@ export default function InformeView() {
         }
       `}</style>
       <div className="informe-print-container">
+        {/* ─── SELECTOR DESPLEGABLE DE DÍA (COMPACTO, OCULTO AL IMPRIMIR O EXPORTAR PDF) ─── */}
+        {todosDiasValidos.length > 1 && (
+          <div className="no-print iv-dia-selector-bar" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            padding: '8px 16px',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            margin: '0 auto 14px auto',
+            maxWidth: '100%',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+            boxSizing: 'border-box',
+            flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                color: '#4f46e5',
+                background: '#eef2ff',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                whiteSpace: 'nowrap',
+              }}>
+                📅 DÍA DEL EVENTO
+              </span>
+              <span style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 500 }}>
+                {diasFiltrados.length === 1
+                  ? `Mostrando únicamente Día ${diasFiltrados[0].numeroDiaOriginal} de ${todosDiasValidos.length}`
+                  : `Mostrando todos los días (${todosDiasValidos.length})`}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label htmlFor="iv-dia-select" style={{ fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
+                Seleccionar día:
+              </label>
+              <select
+                id="iv-dia-select"
+                value={selectedDiaValue}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'all') {
+                    setSelectedDiaDate('all');
+                    setSearchParams(prev => {
+                      const next = new URLSearchParams(prev);
+                      next.delete('date');
+                      next.delete('fecha');
+                      next.delete('dia');
+                      return next;
+                    });
+                  } else {
+                    setSelectedDiaDate(val);
+                    setSearchParams(prev => {
+                      const next = new URLSearchParams(prev);
+                      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                        next.set('date', val);
+                        next.delete('dia');
+                      } else {
+                        next.set('dia', val);
+                        next.delete('date');
+                      }
+                      return next;
+                    });
+                  }
+                }}
+                style={{
+                  height: '36px',
+                  padding: '0 32px 0 12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  outline: 'none',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  minWidth: '220px',
+                }}
+              >
+                {todosDiasValidos.map((item) => {
+                  const cleanFecha = String(item.dia?.fecha_evento || '').slice(0, 10);
+                  const shortFecha = cleanFecha ? formatFechaShort(cleanFecha) : '';
+                  const salonInfo = item.dia?.slot_salon || item.dia?.salon || '';
+                  const label = `Día ${item.numeroDiaOriginal}${shortFecha ? ` • ${shortFecha}` : ''}${salonInfo ? ` (${salonInfo})` : ''}`;
+                  const optVal = cleanFecha || String(item.numeroDiaOriginal);
+                  return (
+                    <option key={item.dia?.id || item.numeroDiaOriginal} value={optVal}>
+                      {label}
+                    </option>
+                  );
+                })}
+                <option value="all">📋 Ver todos los días ({todosDiasValidos.length})</option>
+              </select>
+            </div>
+          </div>
+        )}
+
         {/* ─── DOCUMENTO FORMAL ─── */}
         <div className="iv-documento" ref={docRef}>
           {/* ─── DÍAS (cada uno con diseño compacto en 2 columnas para ahorro de papel) ─── */}
@@ -1476,10 +1643,10 @@ export default function InformeView() {
                 style={{
                   position: 'fixed',
                   inset: 0,
-                  background: 'rgba(15, 23, 42, 0.5)',
-                  backdropFilter: 'blur(4px)',
-                  WebkitBackdropFilter: 'blur(4px)',
-                  zIndex: 99998,
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  backdropFilter: 'blur(6px)',
+                  WebkitBackdropFilter: 'blur(6px)',
+                  zIndex: 100000,
                 }}
               />
               <aside
@@ -1491,24 +1658,113 @@ export default function InformeView() {
                   right: 0,
                   width: '100vw',
                   maxWidth: '100vw',
-                  height: '80vh',
-                  maxHeight: '80vh',
-                  zIndex: 99999,
+                  height: '86dvh',
+                  maxHeight: '86dvh',
+                  zIndex: 100001,
                   background: 'var(--bg-card, #ffffff)',
-                  borderRadius: '20px 20px 0 0',
-                  boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.28)',
+                  borderRadius: '24px 24px 0 0',
+                  boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.32)',
                   display: 'flex',
                   flexDirection: 'column',
+                  overflow: 'hidden',
                   border: '1px solid var(--border, #e2e8f0)',
                   borderBottom: 'none',
                 }}
               >
-                <div className="colab-sidebar-header" style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border, #e2e8f0)' }}>
-                  <h3><IconMessageCircle size={16} /> Colaboración</h3>
-                  <button className="btn-ghost btn-sm" onClick={() => setColabOpen(false)} title="Cerrar">✕</button>
+                {/* Indicador de arrastre táctil */}
+                <div
+                  style={{
+                    width: '100%',
+                    padding: '10px 0 2px 0',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setColabOpen(false)}
+                >
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '4.5px',
+                      background: '#cbd5e1',
+                      borderRadius: '999px',
+                    }}
+                  />
                 </div>
-                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                  <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} />
+
+                <div
+                  className="colab-sidebar-header"
+                  style={{
+                    padding: '8px 16px 12px 16px',
+                    borderBottom: '1px solid var(--border, #e2e8f0)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
+                      }}
+                    >
+                      <IconMessageCircle size={18} />
+                    </div>
+                    <div>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: '15px',
+                          fontWeight: 800,
+                          color: '#0f172a',
+                          letterSpacing: '-0.01em',
+                        }}
+                      >
+                        Colaboración & Notas
+                      </h3>
+                      <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500 }}>
+                        Canal interno del evento
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => setColabOpen(false)}
+                    title="Cerrar colaboración"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      minWidth: '32px',
+                      borderRadius: '50%',
+                      background: '#f1f5f9',
+                      color: '#64748b',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      padding: 0,
+                      transition: 'background 0.15s ease',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                  <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} isMobile={true} />
                 </div>
               </aside>
             </>,
@@ -1537,7 +1793,7 @@ export default function InformeView() {
             width: '100%',
             maxWidth: '100%',
             zIndex: 99995,
-            display: 'flex',
+            display: colabOpen ? 'none' : 'flex',
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-around',
