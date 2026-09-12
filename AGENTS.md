@@ -33,6 +33,11 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 
+### Eventos anteriores a 1 mes ocultos en Calendario y Reportes (2026-09-12)
+- Bug: Los eventos de más de 30 días de antigüedad (ej. desde el 11 de agosto hacia atrás) no se mostraban en el calendario, reportes históricos (ventas, comisiones, eficiencia) ni en el buscador global.
+- Causa raíz: En el commit `dd8134f` (14 de agosto de 2026) se añadió `WHERE fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH)` a `readStateFromTables()` en `server.cjs:1352` y en el `DELETE` de `writeStateToTables()` en `server.cjs:3012` como una optimización prematura. Al ser dinámico, cada día que pasaba empujaba la fecha de corte hacia adelante, ocultando 398 eventos intactos de la BD para ahorrar solo ~40ms de consulta.
+- Fix: Removido el filtro dinámico de fecha en `server.cjs` (tanto en el `SELECT` de eventos como en el `DELETE` de huérfanos). Toda la historia vuelve a cargarse en el estado del CRM.
+
 ### Salón "No Usa Salon" genera conflicto (2026-07-18)
 - Bug: `conflictService.js` lowercased solo el nombre del slot, no los valores del array `salonConflictDisabled`.
 - Fix: helper `isNoConflictSalon()` case-insensitive en ambos lados.

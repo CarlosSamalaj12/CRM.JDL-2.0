@@ -1349,7 +1349,7 @@ async function readStateFromTables() {
       conn.query("SELECT id, nombre, nombre_usuario, nombre_completo, correo, telefono, contrasena, activo, influye_meta_ventas, metas_mensuales_json, tiers_comision_json, rol, equipo_id, NULL AS firma_data_url, NULL AS avatar_data_url, puede_autorizar_descuento, puede_usar_checklist FROM usuarios ORDER BY creado_en, id"),
       conn.query("SELECT id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas FROM empresas ORDER BY creado_en, id"),
       conn.query("SELECT id, id_empresa, nombre, telefono, correo, direccion FROM encargados_empresa ORDER BY creado_en, id"),
-      conn.query("SELECT id, id_grupo, nombre, nombre_salon, salon_principal, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos WHERE fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH) ORDER BY fecha_evento, hora_inicio, id"),
+      conn.query("SELECT id, id_grupo, nombre, nombre_salon, salon_principal, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json FROM eventos ORDER BY fecha_evento, hora_inicio, id"),
       conn.query("SELECT clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto FROM historial_evento ORDER BY id DESC"),
       conn.query("SELECT id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, id_usuario_creador, finalizado FROM recordatorios_evento ORDER BY id"),
       conn.query("SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('services','serviceCategories','quickTemplates','quoteServiceTemplates','contractTemplates','disabledCompanies','disabledServices','disabledManagers','disabledSalones','globalMonthlyGoals','checklistTemplates','checklistTemplateItems','checklistTemplateSections','menuMontajeSections','menuMontajeBebidas','eventChecklists','occupancyWeeklyOps','salonCapacities','salonOccupancyEnabled','salonConflictDisabled','exchangeRate','appointmentReminderOffset','pastEventEditGraceDays','informe_tiempos_orden','informe_tipos_montaje','maintenanceMode')"),
@@ -3009,7 +3009,7 @@ async function writeStateToTables(state, oldStateOpt = null) {
       const idPlaceholders = idList.map(() => '?').join(',');
       const groupPlaceholders = groupList.map(() => '?').join(',');
       await conn.query(
-        `DELETE FROM eventos WHERE id_grupo IN (${groupPlaceholders}) AND id NOT IN (${idPlaceholders}) AND fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH)`,
+        `DELETE FROM eventos WHERE id_grupo IN (${groupPlaceholders}) AND id NOT IN (${idPlaceholders})`,
         [...groupList, ...idList]
       );
     }
