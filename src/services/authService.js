@@ -111,6 +111,11 @@ export const authService = {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     api.setToken(null);
+    try {
+      import('./firebase.js').then(({ firebaseService }) => {
+        firebaseService?.logout?.().catch(() => {});
+      }).catch(() => {});
+    } catch {}
   }
 };
 

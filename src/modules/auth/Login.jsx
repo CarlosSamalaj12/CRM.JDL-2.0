@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
-import firebaseService from '../../services/firebase';
+import firebaseService, { auth } from '../../services/firebase';
 import { useAuth } from '../informes/context/AuthContext';
 import { CURRENT_VERSION } from '../../services/versionService';
 
@@ -23,8 +23,11 @@ export default function Login() {
   const initialIsUpdated = searchParams.get('update') === '1';
   const updateVersion = searchParams.get('v') || '';
   const [showUpdateNotice, setShowUpdateNotice] = useState(initialIsUpdated);
-  const isPendingRedirect = typeof window !== 'undefined' && sessionStorage.getItem('pending_google_redirect') === '1';
+  const startedAt = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
+  const isRecentAuth = startedAt && (Date.now() - Number(startedAt) < 120000);
+  const isPendingRedirect = typeof window !== 'undefined' && (sessionStorage.getItem('pending_google_redirect') === '1' || Boolean(isRecentAuth));
   const [loading, setLoading] = useState(isPendingRedirect);
+  const [verifyingText, setVerifyingText] = useState(isPendingRedirect ? 'Verificando cuenta de Google...' : '');
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
   const { user: contextUser, syncSession } = useAuth();
@@ -98,22 +101,39 @@ export default function Login() {
     }
   }, [navigate]);
 
-  // Complete Google redirect login when popup auth is blocked by the browser.
+  // Sincronización de usuario de Google (Redirect nativo, onAuthStateChanged o Popup)
   useEffect(() => {
     let cancelled = false;
 
+    // 1. Resolver resultado de redirección (si el navegador venía de una redirección de Google)
     const completeRedirectLogin = async () => {
       try {
-        const isPending = typeof window !== 'undefined' && sessionStorage.getItem('pending_google_redirect') === '1';
-        if (isPending) setLoading(true);
+        const startedAt = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
+        const isRecent = startedAt && (Date.now() - Number(startedAt) < 120000);
+        const isPending = (typeof window !== 'undefined' && sessionStorage.getItem('pending_google_redirect') === '1') || isRecent;
+        
+        if (isPending) {
+          setLoading(true);
+          setVerifyingText('Verificando acceso con Google Workspace...');
+        }
 
         const firebaseUser = await firebaseService.getGoogleRedirectUser();
         if (!firebaseUser || cancelled) {
-          if (isPending && !cancelled) setLoading(false);
+          if (isPending && !cancelled) {
+            setLoading(false);
+            setVerifyingText('');
+          }
+          return;
+        }
+
+        const localSession = authService.getCurrentUser();
+        if (localSession) {
+          navigate(getHomePath(localSession), { replace: true });
           return;
         }
 
         setLoading(true);
+        setVerifyingText('Sincronizando sesión corporativa...');
         const localUser = await authService.loginFirebase(firebaseUser);
         if (cancelled) return;
 
@@ -121,6 +141,7 @@ export default function Login() {
         sessionStorage.removeItem('login_redirect_count');
         sessionStorage.removeItem('last_login_redirect_time');
         sessionStorage.removeItem('pending_google_redirect');
+        try { localStorage.removeItem('google_auth_started_at'); } catch {}
         setShowUpdateNotice(false);
 
         toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
@@ -129,20 +150,56 @@ export default function Login() {
         setTimeout(() => { navigate(homePath, { replace: true }); }, 300);
       } catch (err) {
         sessionStorage.removeItem('pending_google_redirect');
+        try { localStorage.removeItem('google_auth_started_at'); } catch {}
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
           document.activeElement?.blur();
           toast.error(err.message || 'No se pudo completar el inicio de sesión con Google.');
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setVerifyingText('');
+        }
       }
     };
 
     completeRedirectLogin();
 
+    // 2. Suscripción proactiva a onAuthStateChanged para sesiones demoradas o restauradas por IndexedDB
+    const unsubscribeAuth = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (!firebaseUser || cancelled) return;
+      const existingUser = authService.getCurrentUser();
+      if (existingUser) return;
+
+      try {
+        setLoading(true);
+        setVerifyingText('Restaurando sesión corporativa...');
+        const localUser = await authService.loginFirebase(firebaseUser);
+        if (cancelled) return;
+
+        sessionStorage.removeItem('login_redirect_count');
+        sessionStorage.removeItem('last_login_redirect_time');
+        sessionStorage.removeItem('pending_google_redirect');
+        try { localStorage.removeItem('google_auth_started_at'); } catch {}
+        setShowUpdateNotice(false);
+
+        toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
+        syncSession();
+        const homePath = getHomePath(localUser);
+        setTimeout(() => { navigate(homePath, { replace: true }); }, 300);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[Login] Error sincronizando sesión desde onAuthStateChanged:', err);
+          setLoading(false);
+          setVerifyingText('');
+        }
+      }
+    });
+
     return () => {
       cancelled = true;
+      if (unsubscribeAuth) unsubscribeAuth();
     };
   }, [navigate, syncSession]);
 
@@ -150,16 +207,24 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     if (googleLoginRef.current) return;
     googleLoginRef.current = true;
-    setLoading(true);
 
+    // IMPORTANTE: NO llamamos a setLoading(true) aquí antes de signInWithPopup.
+    // En iOS Safari y Android Chrome, cualquier mutación de DOM o deshabilitar el botón
+    // antes de abrir la ventana destruye el "User Activation Token" (gesto táctil),
+    // haciendo que el navegador móvil bloquee el popup como 'auth/popup-blocked'.
     let loadingToast = null;
     try {
       const firebaseUser = await firebaseService.loginWithGoogle();
       if (!firebaseUser) {
-        // Redireccionando a Google — no reseteamos loading, la página se recargará
+        // Redireccionando a Google (fallback nativo si el navegador bloqueó el popup)
+        setLoading(true);
+        setVerifyingText('Conectando con Google Workspace...');
         return;
       }
 
+      // Usuario autenticado con éxito por popup
+      setLoading(true);
+      setVerifyingText('Sincronizando con el servidor corporativo...');
       loadingToast = toast.loading('Sincronizando con el servidor...');
 
       const localUser = await authService.loginFirebase(firebaseUser);
@@ -168,6 +233,7 @@ export default function Login() {
 
       sessionStorage.removeItem('login_redirect_count');
       sessionStorage.removeItem('last_login_redirect_time');
+      try { localStorage.removeItem('google_auth_started_at'); } catch {}
       setShowUpdateNotice(false);
 
       toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
@@ -177,6 +243,7 @@ export default function Login() {
     } catch (err) {
       console.error('Google login error detail:', err);
       if (loadingToast) toast.dismiss(loadingToast);
+      try { localStorage.removeItem('google_auth_started_at'); } catch {}
       
       if (
         err.code === 'auth/operation-not-allowed' ||
@@ -200,7 +267,7 @@ export default function Login() {
       setTimeout(() => {
         googleLoginRef.current = false;
         setLoading(false);
-      }, 1000);
+      }, 600);
     }
   };
 
@@ -321,6 +388,28 @@ export default function Login() {
             </div>
           </div>
 
+          {/* Indicador de verificación corporativa en progreso (útil para móviles y conexiones lentas) */}
+          {loading && verifyingText && (
+            <div className="loginVerifyingNotice" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              padding: '11px 16px',
+              background: 'rgba(2, 132, 199, 0.08)',
+              border: '1px solid rgba(2, 132, 199, 0.28)',
+              borderRadius: '12px',
+              marginBottom: '16px',
+              color: '#0369a1',
+              fontSize: '0.88rem',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.08)'
+            }}>
+              <span className="loginSpinner" style={{ borderColor: '#0284c7', borderTopColor: 'transparent', width: '16px', height: '16px', borderWidth: '2px' }} />
+              <span>{verifyingText}</span>
+            </div>
+          )}
+
           {/* Botón Principal: Continuar con Google Workspace */}
           <div className="loginGoogleBtnContainer">
             <button 
@@ -333,7 +422,7 @@ export default function Login() {
               {loading ? (
                 <span className="loginLoadingState">
                   <span className="loginSpinner" />
-                  <span>Autenticando...</span>
+                  <span>{verifyingText || 'Autenticando...'}</span>
                 </span>
               ) : (
                 <>
