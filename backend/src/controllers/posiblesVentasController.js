@@ -561,11 +561,11 @@ export async function getPosibleVenta(req, res, next) {
     }
     const lead = rows[0];
 
-    if (rol === 'vendedor' && String(lead.vendedor_id || '') !== userId) {
-      return res.status(403).json({ message: 'No tienes permiso para ver este evento asignado' });
-    }
-    if ((rol === 'frontoffice' || rol === 'recepcionista') && String(lead.creado_por_id || '') !== userId) {
-      return res.status(403).json({ message: 'No tienes permiso para ver este evento asignado' });
+    // Solo coordinadores están restringidos a los suyos (igual que en getPosiblesVentas)
+    if (rol.includes('coordinad') || rol === 'eventos') {
+      if (String(lead.vendedor_id || '') !== userId && String(lead.creado_por_id || '') !== userId) {
+        return res.status(403).json({ message: 'No tienes permiso para ver este evento asignado' });
+      }
     }
 
     setImmediate(() => {
@@ -650,8 +650,8 @@ export async function createPosibleVenta(req, res, next) {
 }
 
 // ─── PATCH /api/posibles-ventas/:id ───
-// NOTA: el campo `estado` ya no se acepta del cliente (es derivado).
-// Solo se permite setear `eventoId` (flujo de conversión lead → reserva).
+// Permite a administradores, recepcionistas y vendedores editar datos del prospecto
+// o vincular/desvincular una reserva del calendario.
 export async function updatePosibleVenta(req, res, next) {
   try {
     const { id } = req.params;
@@ -664,24 +664,16 @@ export async function updatePosibleVenta(req, res, next) {
     }
     const lead = rows[0];
 
-    // Permisos
+    // Permisos: Admin, Recepción y Vendedores pueden editar datos o vincular
+    if (rol.includes('coordinad') || rol === 'eventos') {
+      return res.status(403).json({ message: 'Los coordinadores no tienen permiso para modificar eventos asignados' });
+    }
+
     const isAdmin = rol === 'admin';
     const isReception = rol === 'frontoffice' || rol === 'recepcionista';
     const isVendedor = rol === 'vendedor';
-    const isOwner = String(lead.creado_por_id || '') === userId;
-    const isAssigned = String(lead.vendedor_id || '') === userId;
 
-    if (isAdmin) {
-      // puede todo
-    } else if (isReception) {
-      if (!isOwner) {
-        return res.status(403).json({ message: 'No tienes permiso para modificar este evento asignado' });
-      }
-    } else if (isVendedor) {
-      if (!isAssigned) {
-        return res.status(403).json({ message: 'No tienes permiso para modificar este evento asignado' });
-      }
-    } else {
+    if (!isAdmin && !isReception && !isVendedor) {
       return res.status(403).json({ message: 'No tienes permiso para modificar este evento asignado' });
     }
 
@@ -690,64 +682,58 @@ export async function updatePosibleVenta(req, res, next) {
     const params = [];
     let vendedorIdAnterior = String(lead.vendedor_id || '');
 
-    // No permitir editar ni reasignar si ya no está en estado 'pendiente' (a menos que se esté asociando un eventoId)
-    if (lead.estado !== 'pendiente' && body.eventoId === undefined) {
+    // No permitir editar datos si el evento ya está cerrado como 'ganada' (a menos que se esté gestionando eventoId)
+    if (lead.estado === 'ganada' && body.eventoId === undefined) {
       return res.status(400).json({
-        message: 'No se puede editar ni reasignar un evento al que ya se le está dando seguimiento o ya está confirmado. Solo se permite editar o reasignar eventos en estado pendiente.',
+        message: 'No se puede editar un evento que ya está confirmado (ganada).',
       });
     }
 
-    // El vendedor solo puede registrar seguimiento (sin tocar otros campos);
-    // pero como el estado ahora es derivado, este endpoint ya no hace nada para vendedor.
-    if (!isVendedor) {
-      if (body.nombreCliente !== undefined) {
-        const nombre = String(body.nombreCliente || '').trim();
-        if (!nombre) return res.status(400).json({ message: 'El nombre del cliente es requerido' });
-        updates.push('nombre_cliente = ?');
-        params.push(nombre);
-      }
-      if (body.telefono !== undefined) {
-        updates.push('telefono = ?');
-        params.push(String(body.telefono || '').trim() || null);
-      }
-      if (body.correo !== undefined) {
-        updates.push('correo = ?');
-        params.push(String(body.correo || '').trim() || null);
-      }
-      if (body.fechaEvento !== undefined) {
-        updates.push('fecha_evento = ?');
-        params.push(toDateStr(body.fechaEvento));
-      }
-      if (body.salones !== undefined) {
-        updates.push('salones_json = ?');
-        params.push(JSON.stringify(Array.isArray(body.salones) ? body.salones : []));
-      }
-      if (body.pax !== undefined) {
-        updates.push('pax = ?');
-        params.push(body.pax !== null && body.pax !== '' ? Number(body.pax) : null);
-      }
-      if (body.servicios !== undefined) {
-        updates.push('servicios_json = ?');
-        params.push(JSON.stringify(Array.isArray(body.servicios) ? body.servicios : []));
-      }
-      if (body.notas !== undefined) {
-        updates.push('notas = ?');
-        params.push(String(body.notas || '').trim() || null);
-      }
-      if (body.vendedorId !== undefined) {
-        const nuevoVendedor = String(body.vendedorId || '').trim() || null;
-        updates.push('vendedor_id = ?');
-        params.push(nuevoVendedor);
-        // Si se está pasando de "sin vendedor" a "con vendedor", o reasignando,
-        // actualizamos asignado_en. Si se está pasando de "con vendedor" a "sin vendedor",
-        // mantenemos la fecha original (auditoría: sabemos cuándo se asignó por última vez).
-        if (nuevoVendedor && nuevoVendedor !== vendedorIdAnterior) {
-          updates.push('asignado_en = CURRENT_TIMESTAMP');
-        }
+    if (body.nombreCliente !== undefined) {
+      const nombre = String(body.nombreCliente || '').trim();
+      if (!nombre) return res.status(400).json({ message: 'El nombre del cliente es requerido' });
+      updates.push('nombre_cliente = ?');
+      params.push(nombre);
+    }
+    if (body.telefono !== undefined) {
+      updates.push('telefono = ?');
+      params.push(String(body.telefono || '').trim() || null);
+    }
+    if (body.correo !== undefined) {
+      updates.push('correo = ?');
+      params.push(String(body.correo || '').trim() || null);
+    }
+    if (body.fechaEvento !== undefined) {
+      updates.push('fecha_evento = ?');
+      params.push(toDateStr(body.fechaEvento));
+    }
+    if (body.salones !== undefined) {
+      updates.push('salones_json = ?');
+      params.push(JSON.stringify(Array.isArray(body.salones) ? body.salones : []));
+    }
+    if (body.pax !== undefined) {
+      updates.push('pax = ?');
+      params.push(body.pax !== null && body.pax !== '' ? Number(body.pax) : null);
+    }
+    if (body.servicios !== undefined) {
+      updates.push('servicios_json = ?');
+      params.push(JSON.stringify(Array.isArray(body.servicios) ? body.servicios : []));
+    }
+    if (body.notas !== undefined) {
+      updates.push('notas = ?');
+      params.push(String(body.notas || '').trim() || null);
+    }
+    if (body.vendedorId !== undefined) {
+      const nuevoVendedor = String(body.vendedorId || '').trim() || null;
+      updates.push('vendedor_id = ?');
+      params.push(nuevoVendedor);
+      // Si se asigna o reasigna vendedor, actualizamos asignado_en
+      if (nuevoVendedor && nuevoVendedor !== vendedorIdAnterior) {
+        updates.push('asignado_en = CURRENT_TIMESTAMP');
       }
     }
 
-    // Enlace a la reserva creada: lo setea el flujo de conversión (cualquier rol autorizado).
+    // Enlace a la reserva creada o vinculada
     if (body.eventoId !== undefined) {
       const evId = String(body.eventoId || '').trim() || null;
       updates.push('evento_id = ?');
@@ -782,7 +768,7 @@ export async function updatePosibleVenta(req, res, next) {
     });
 
     // Notificar al nuevo vendedor si cambió la asignación
-    if (!isVendedor && body.vendedorId !== undefined) {
+    if (body.vendedorId !== undefined) {
       const nuevoVendedor = String(body.vendedorId || '').trim() || null;
       if (nuevoVendedor && nuevoVendedor !== vendedorIdAnterior) {
         await notificarVendedor(req, id, nuevoVendedor, lead.nombre_cliente, 'reasignada');

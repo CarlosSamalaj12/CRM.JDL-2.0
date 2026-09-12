@@ -33,6 +33,15 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 
+### Eventos Asignados: seguimiento cruzado por otro vendedor y permisos de edición para vendedores (2026-09-12)
+- Bug 1: Cuando un vendedor atendía un evento asignado a otro vendedor que no tuvo tiempo y le daba seguimiento (creaba la cotización o reserva), el evento en `Eventos Asignados` (`/posibles-ventas`) no cambiaba a "En Proceso", manteniéndose perpetuamente en "Pendiente".
+- Causa raíz: En `posiblesVentasController.js`, tanto `getPosibleVenta` (`GET /:id`) como `updatePosibleVenta` (`PATCH /:id`) bloqueaban con `403 Forbidden` si `rol === 'vendedor'` y `lead.vendedor_id !== userId`. Al guardar la reserva desde `ReservationForm.jsx`, la vinculación `{ eventoId: newId }` fallaba silenciosamente por el 403, dejando `evento_id` en `NULL`. Sin `evento_id`, `computeEstado()` evaluaba el prospecto siempre como `pendiente`.
+- Bug 2: Los vendedores no podían editar ningún dato erróneo de los eventos asignados (ej. nombre, teléfono, correo, fecha tentativa, pax, salón, notas). En el frontend todos los inputs tenían `disabled={editing && userRole === 'vendedor'}`, y en el backend `updatePosibleVenta` envolvía todas las actualizaciones en `if (!isVendedor)`.
+- Solución:
+  1. `posiblesVentasController.js`: Removidos los filtros 403 en `getPosibleVenta` y `updatePosibleVenta` para vendedores y recepcionistas. Eliminado `if (!isVendedor)` para que los vendedores puedan actualizar los campos y reasignar vendedor. Notificación al nuevo vendedor si cambia la asignación.
+  2. `PosiblesVentasModule.jsx`: `canEditLead` actualizado para permitir edición por rol `vendedor` y recepción mientras el evento no esté en `ganada`. Removido `disabled` en todos los inputs del modal. Incorporado el componente de vinculación/desvinculación con el calendario (`Reserva vinculada en Calendario`) con sugerencia automática de coincidencia por cliente/fecha en 1 clic.
+  3. Reparación de datos existentes: Leads #33 (Boda Alejandro Bonilla e Isabel Maldonado atendida por Wendy en `evt_19f35230`) y #18 (AARON ESTRADA atendida en `evt_67afabe6`) vinculados y sincronizados a estado `en_proceso`.
+
 ### Eventos anteriores a 1 mes ocultos en Calendario y Reportes (2026-09-12)
 - Bug: Los eventos de más de 30 días de antigüedad (ej. desde el 11 de agosto hacia atrás) no se mostraban en el calendario, reportes históricos (ventas, comisiones, eficiencia) ni en el buscador global.
 - Causa raíz: En el commit `dd8134f` (14 de agosto de 2026) se añadió `WHERE fecha_evento >= DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH)` a `readStateFromTables()` en `server.cjs:1352` y en el `DELETE` de `writeStateToTables()` en `server.cjs:3012` como una optimización prematura. Al ser dinámico, cada día que pasaba empujaba la fecha de corte hacia adelante, ocultando 398 eventos intactos de la BD para ahorrar solo ~40ms de consulta.

@@ -276,6 +276,8 @@ function EstadoPillClean({ estado }) {
   );
 }
 
+const EstadoPill = EstadoPillClean;
+
 function QuickFilterChip({ active, count, label, color, onClick }) {
   return (
     <button
@@ -1107,8 +1109,10 @@ export default function PosiblesVentasModule() {
   const outlet = useOutletContext() || {};
   const outletSalones = outlet?.salones;
   const outletUsers = outlet?.users;
+  const outletEvents = outlet?.events;
   const salones = useMemo(() => (Array.isArray(outletSalones) ? outletSalones : []), [outletSalones]);
   const users = useMemo(() => (Array.isArray(outletUsers) ? outletUsers : []), [outletUsers]);
+  const events = useMemo(() => (Array.isArray(outletEvents) ? outletEvents : []), [outletEvents]);
 
   const currentUser = authService.getCurrentUser();
   const userRole = String(currentUser?.role || '').trim().toLowerCase();
@@ -1128,6 +1132,21 @@ export default function PosiblesVentasModule() {
         return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
       });
   }, [users]);
+
+  // Lista deduplicada de reservas para vinculación en el modal
+  const availableEventsList = useMemo(() => {
+    if (!Array.isArray(events)) return [];
+    const seen = new Set();
+    const list = [];
+    for (const ev of events) {
+      if (!ev || !ev.id) continue;
+      const baseId = String(ev.id).replace(/_(s|slot)\d+_\d{6,}$/, '') || String(ev.id);
+      if (seen.has(baseId)) continue;
+      seen.add(baseId);
+      list.push(ev);
+    }
+    return list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  }, [events]);
 
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1156,7 +1175,7 @@ export default function PosiblesVentasModule() {
   // Form state
   const [form, setForm] = useState({
     nombreCliente: '', telefono: '', correo: '', fechaEvento: '',
-    pax: '', notas: '', vendedorId: '',
+    pax: '', notas: '', vendedorId: '', eventoId: '',
   });
   const [formSalones, setFormSalones] = useState(new Set());
   const [formServicios, setFormServicios] = useState(new Set());
@@ -1264,7 +1283,7 @@ export default function PosiblesVentasModule() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nombreCliente: '', telefono: '', correo: '', fechaEvento: '', pax: '', notas: '', vendedorId: '' });
+    setForm({ nombreCliente: '', telefono: '', correo: '', fechaEvento: '', pax: '', notas: '', vendedorId: '', eventoId: '' });
     setFormSalones(new Set());
     setFormServicios(new Set());
     setModalOpen(true);
@@ -1280,6 +1299,7 @@ export default function PosiblesVentasModule() {
       pax: lead.pax ?? '',
       notas: lead.notas || '',
       vendedorId: lead.vendedorId || '',
+      eventoId: lead.eventoId || '',
     });
     setFormSalones(new Set(Array.isArray(lead.salones) ? lead.salones : []));
     setFormServicios(new Set(parseServicios(lead.servicios)));
@@ -1302,6 +1322,7 @@ export default function PosiblesVentasModule() {
       servicios,
       notas: form.notas.trim(),
       vendedorId: form.vendedorId || null,
+      eventoId: form.eventoId !== undefined ? (form.eventoId || null) : undefined,
     };
     setSaving(true);
     try {
@@ -1483,10 +1504,11 @@ export default function PosiblesVentasModule() {
   };
 
   const canEditLead = (lead) => {
-    if (lead?.estado !== 'pendiente') return false;
+    if (lead?.estado === 'ganada') return false;
     if (isAdmin) return true;
-    if (userRole === 'vendedor') return String(lead.vendedorId || '') === String(currentUser?.id || '');
-    return String(lead.creadoPorId || '') === String(currentUser?.id || '');
+    if (userRole === 'vendedor') return true;
+    if (userRole === 'frontoffice' || userRole === 'recepcionista') return true;
+    return String(lead?.creadoPorId || '') === String(currentUser?.id || '');
   };
 
   const canDeleteLead = (lead) => {
@@ -1591,6 +1613,30 @@ export default function PosiblesVentasModule() {
       toast.success('Mensaje enviado al vendedor');
     }
   };
+
+  const linkedEventObj = useMemo(() => {
+    if (!form.eventoId || !Array.isArray(events)) return null;
+    const baseId = String(form.eventoId).replace(/_(s|slot)\d+_\d{6,}$/, '') || String(form.eventoId);
+    return events.find(e => String(e.id) === form.eventoId || String(e.id).startsWith(baseId)) || null;
+  }, [form.eventoId, events]);
+
+  const suggestedMatch = useMemo(() => {
+    if (!editing || form.eventoId || !Array.isArray(events)) return null;
+    const clientWords = String(form.nombreCliente || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 3 && !['boda', 'cumpleanos', 'cumpleaños', 'anos', 'años', 'evento', 'para', 'hotel'].includes(w));
+    if (clientWords.length === 0) return null;
+
+    return availableEventsList.find(ev => {
+      const evName = String(ev.name || '').toLowerCase();
+      const matchWords = clientWords.filter(w => evName.includes(w));
+      const wordsMatch = matchWords.length >= Math.min(2, clientWords.length);
+      const dateMatch = form.fechaEvento && ev.date && String(form.fechaEvento).slice(0, 10) === String(ev.date).slice(0, 10);
+      return wordsMatch || (dateMatch && matchWords.length >= 1);
+    }) || null;
+  }, [editing, form.eventoId, form.nombreCliente, form.fechaEvento, availableEventsList, events]);
 
   const inputStyle = {
     padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1',
@@ -2351,7 +2397,6 @@ export default function PosiblesVentasModule() {
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Nombre del cliente / Empresa *</span>
                 <input value={form.nombreCliente} onChange={e => setForm({ ...form, nombreCliente: e.target.value })}
-                  disabled={editing && userRole === 'vendedor'}
                   style={inputStyle} placeholder="Ej. Juan Pérez / Banco Industrial" autoFocus />
               </label>
 
@@ -2359,13 +2404,11 @@ export default function PosiblesVentasModule() {
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Teléfono</span>
                   <input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })}
-                    disabled={editing && userRole === 'vendedor'}
                     style={inputStyle} placeholder="55554444" />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Correo electrónico</span>
                   <input type="email" value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })}
-                    disabled={editing && userRole === 'vendedor'}
                     style={inputStyle} placeholder="cliente@correo.com" />
                 </label>
               </div>
@@ -2374,13 +2417,11 @@ export default function PosiblesVentasModule() {
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Fecha tentativa del evento</span>
                   <input type="date" value={form.fechaEvento} onChange={e => setForm({ ...form, fechaEvento: e.target.value })}
-                    disabled={editing && userRole === 'vendedor'}
                     style={inputStyle} />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Cantidad de personas (PAX)</span>
                   <input type="number" value={form.pax} onChange={e => setForm({ ...form, pax: e.target.value })}
-                    disabled={editing && userRole === 'vendedor'}
                     style={inputStyle} placeholder="Ej. 150" min="1" />
                 </label>
               </div>
@@ -2396,7 +2437,6 @@ export default function PosiblesVentasModule() {
                   onChange={vals => setFormSalones(new Set(vals))}
                   placeholder="Seleccionar salones..."
                   emptyLabel="Seleccionar salones..."
-                  disabled={editing && userRole === 'vendedor'}
                   width="100%"
                 />
               </div>
@@ -2408,7 +2448,6 @@ export default function PosiblesVentasModule() {
                     const sel = formServicios.has(s);
                     return (
                       <button key={s} type="button"
-                        disabled={editing && userRole === 'vendedor'}
                         onClick={() => {
                           setFormServicios(prev => {
                             const next = new Set(prev);
@@ -2442,7 +2481,6 @@ export default function PosiblesVentasModule() {
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Requisitos del cliente</span>
                 <textarea value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })}
-                  disabled={editing && userRole === 'vendedor'}
                   rows={2} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Ej. tipo de cocina, restricciones o preferencias del cliente" />
               </label>
 
@@ -2451,13 +2489,104 @@ export default function PosiblesVentasModule() {
                   Vendedor asignado
                 </span>
                 <select value={form.vendedorId} onChange={e => setForm({ ...form, vendedorId: e.target.value })}
-                  disabled={editing && userRole === 'vendedor'} style={inputStyle}>
+                  style={inputStyle}>
                   <option value="">— Sin asignar —</option>
                   {vendedores.map(v => (
                     <option key={v.id} value={v.id}>{v.fullName || v.name}</option>
                   ))}
                 </select>
               </label>
+
+              {editing && (
+                <div style={{
+                  padding: '12px', borderRadius: '10px',
+                  background: '#f8fafc', border: '1px solid #cbd5e1',
+                  display: 'flex', flexDirection: 'column', gap: '8px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <Icon name="link" size={13} color="#0d9488" strokeWidth={2.4} />
+                      Reserva vinculada en Calendario
+                    </span>
+                    {form.eventoId && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, eventoId: '' }))}
+                        style={{
+                          background: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c',
+                          fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
+                          cursor: 'pointer',
+                        }}
+                        title="Desvincular reserva del calendario"
+                      >
+                        ✕ Desvincular
+                      </button>
+                    )}
+                  </div>
+
+                  {form.eventoId ? (
+                    <div style={{
+                      background: '#ffffff', border: '1px solid #99f6e4', borderRadius: '8px',
+                      padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f766e' }}>
+                          {linkedEventObj ? (linkedEventObj.name || linkedEventObj.nombre) : `Reserva ID: ${form.eventoId}`}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          {linkedEventObj ? `${linkedEventObj.date || linkedEventObj.fecha_evento || ''} · ${linkedEventObj.status || linkedEventObj.estado || ''} · Salón: ${linkedEventObj.salon || linkedEventObj.nombre_salon || '—'}` : 'Reserva conectada'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10.5px', background: '#ccfbf1', color: '#0f766e', fontWeight: 800, padding: '2px 8px', borderRadius: '999px' }}>
+                        Conectada
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      {suggestedMatch && (
+                        <div style={{
+                          background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px',
+                          padding: '8px 10px', marginBottom: '8px', display: 'flex', alignItems: 'center',
+                          justifyContent: 'space-between', gap: '8px',
+                        }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#065f46' }}>
+                              💡 Reserva coincidente detectada:
+                            </span>
+                            <span style={{ fontSize: '11.5px', color: '#047857', fontWeight: 600 }}>
+                              {suggestedMatch.name || suggestedMatch.nombre} ({suggestedMatch.date || suggestedMatch.fecha_evento || '—'})
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, eventoId: suggestedMatch.id }))}
+                            style={{
+                              background: '#059669', color: '#ffffff', border: 'none',
+                              borderRadius: '6px', padding: '4px 10px', fontSize: '11.5px', fontWeight: 800,
+                              cursor: 'pointer', flexShrink: 0,
+                            }}
+                          >
+                            ✓ Vincular
+                          </button>
+                        </div>
+                      )}
+
+                      <select
+                        value={form.eventoId || ''}
+                        onChange={e => setForm(f => ({ ...f, eventoId: e.target.value }))}
+                        style={{ ...inputStyle, fontSize: '12px' }}
+                      >
+                        <option value="">— Ninguna reserva vinculada (Sin vincular) —</option>
+                        {availableEventsList.map(ev => (
+                          <option key={ev.id} value={ev.id}>
+                            {ev.name || ev.nombre} ({ev.date || ev.fecha_evento || 'Sin fecha'}) — {ev.status || ev.estado || 'Sin estado'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {editing && (
                 <div style={{
