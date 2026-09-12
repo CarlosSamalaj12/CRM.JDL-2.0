@@ -27,7 +27,7 @@ class ApiClient {
       ...options.headers,
     };
 
-    const activeToken = this.token || localStorage.getItem('token');
+    const activeToken = localStorage.getItem('token') || this.token;
     if (activeToken) {
       headers['Authorization'] = `Bearer ${activeToken}`;
     }

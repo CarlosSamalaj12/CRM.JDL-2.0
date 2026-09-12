@@ -84,6 +84,7 @@ export const authService = {
     }));
     if (token) {
       localStorage.setItem('token', token);
+      api.setToken(token);
     }
     if (CURRENT_VERSION && CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
       localStorage.setItem('crm_installed_version', CURRENT_VERSION);
@@ -109,6 +110,7 @@ export const authService = {
   clearSession() {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    api.setToken(null);
   }
 };
 

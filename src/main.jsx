@@ -20,11 +20,7 @@ if ('serviceWorker' in navigator && window.location.pathname !== '/login') {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!refreshing) {
       refreshing = true;
-      if (CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
-        forcePurgeAndLogout(CURRENT_VERSION);
-      } else {
-        window.location.reload();
-      }
+      window.location.reload();
     }
   });
 

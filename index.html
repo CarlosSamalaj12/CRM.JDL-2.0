@@ -19,34 +19,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // ═══════════════════════════════════════════════════════════
-      //  SERVICE WORKER — Solo limpieza inicial en Login.
-      //  El registro y actualización del SW se maneja desde
-      //  src/main.jsx (único punto de control).
-      // ═══════════════════════════════════════════════════════════
-      if ('serviceWorker' in navigator) {
-        const isLogin = window.location.pathname === '/login';
-        if (isLogin) {
-          // En la pantalla de Login: desregistrar SWs viejos y purgar cachés
-          // para evitar que el SW de una versión anterior interfiera.
-          navigator.serviceWorker.getRegistrations().then(regs => {
-            for (let reg of regs) {
-              reg.unregister().then(() => console.log('[SW] Desregistrado forzadamente en Login.'));
-            }
-          });
-          if (window.caches) {
-            caches.keys().then(names => {
-              for (let name of names) {
-                caches.delete(name).then(() => console.log('[Cache] Borrada cache vieja:', name));
-              }
-            });
-          }
-        }
-        // NOTA: Ya NO registramos el SW aquí para evitar el doble registro
-        // con main.jsx. El registro se hace exclusivamente en main.jsx
-        // y solo cuando NO estamos en la página de login.
-      }
-    </script>
   </body>
 </html>
