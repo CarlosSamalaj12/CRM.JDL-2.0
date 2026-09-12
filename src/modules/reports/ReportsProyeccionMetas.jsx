@@ -6,6 +6,101 @@ import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 
+// ── Minimalist Vector Icons ──
+function IconCalendar({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconTrendingUp({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
+function IconTarget({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IconUsers({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function IconAward({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="7" />
+      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+  );
+}
+
+function IconStar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
+function IconDownload({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function IconClock({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconCheckCircle({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
 function getLocalDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -43,6 +138,33 @@ const STATUS_COLORS = {
   'Perdido': { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4' },
   'Realizado': { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
 };
+
+function TeamIcon({ name, size = 20, color = '#ffffff' }) {
+  if (name === 'trending-up') return <IconTrendingUp size={size} color={color} />;
+  if (name === 'award') return <IconAward size={size} color={color} />;
+  if (name === 'star') return <IconStar size={size} color={color} />;
+  if (name === 'target') return <IconTarget size={size} color={color} />;
+  if (name === 'users') return <IconUsers size={size} color={color} />;
+  if (name === 'calendar') return <IconCalendar size={size} color={color} />;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </svg>
+  );
+}
+
+// Colores/íconos vectoriales para los equipos (rotan si hay más de los definidos)
+const TEAM_THEMES = [
+  { color: '#10b981', bg: '#dcfce7', textColor: '#065f46', icon: 'briefcase' },
+  { color: '#3b82f6', bg: '#dbeafe', textColor: '#1e40af', icon: 'trending-up' },
+  { color: '#8b5cf6', bg: '#ede9fe', textColor: '#5b21b6', icon: 'award' },
+  { color: '#f59e0b', bg: '#fef3c7', textColor: '#92400e', icon: 'star' },
+  { color: '#ec4899', bg: '#fce7f3', textColor: '#9d174d', icon: 'target' },
+  { color: '#06b6d4', bg: '#cffafe', textColor: '#155e75', icon: 'users' },
+  { color: '#ef4444', bg: '#fee2e2', textColor: '#991b1b', icon: 'award' },
+  { color: '#84cc16', bg: '#ecfccb', textColor: '#3f6212', icon: 'calendar' },
+];
 
 export default function ReportsProyeccionMetas({ onClose }) {
   const { events, users } = useOutletContext();
@@ -116,18 +238,6 @@ export default function ReportsProyeccionMetas({ onClose }) {
     }
     return map;
   }, [equipos]);
-
-  // Colores/íconos para los equipos (rotan si hay más de los definidos)
-  const TEAM_THEMES = [
-    { color: '#10b981', bg: '#dcfce7', textColor: '#065f46', icon: '💼' },  // verde
-    { color: '#3b82f6', bg: '#dbeafe', textColor: '#1e40af', icon: '📞' },  // azul
-    { color: '#8b5cf6', bg: '#ede9fe', textColor: '#5b21b6', icon: '👑' },  // violeta
-    { color: '#f59e0b', bg: '#fef3c7', textColor: '#92400e', icon: '⭐' },  // ámbar
-    { color: '#ec4899', bg: '#fce7f3', textColor: '#9d174d', icon: '🌟' },  // rosa
-    { color: '#06b6d4', bg: '#cffafe', textColor: '#155e75', icon: '🔷' },  // cyan
-    { color: '#ef4444', bg: '#fee2e2', textColor: '#991b1b', icon: '🔥' },  // rojo
-    { color: '#84cc16', bg: '#ecfccb', textColor: '#3f6212', icon: '🌿' },  // lima
-  ];
 
   // ── Generate months ──
   const monthList = useMemo(() => {
@@ -461,6 +571,23 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const t = new Date();
     setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth(), 1)));
     setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
+  };
+
+  const setPreset = (preset) => {
+    const n = new Date();
+    if (preset === 'thisMonth') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth(), 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() + 1, 0)));
+    } else if (preset === 'lastMonth') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() - 1, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth(), 0)));
+    } else if (preset === 'last3Months') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() - 2, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() + 1, 0)));
+    } else if (preset === 'year') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), 0, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), 11, 31)));
+    }
   };
 
   // ── Helper: calcula los datos de proyección para un grupo de usuarios (un equipo) ──
@@ -880,88 +1007,228 @@ th.right{text-align:right}</style></head><body>
           </div>
           <div>
             <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">🎯 Proyección de Metas</div>
+            <div className="reports-title">Proyección de Metas</div>
             <div className="reports-subtitle">¿Cuánto necesita vender cada vendedor para alcanzar el siguiente nivel?</div>
           </div>
         </div>
         <ReportInfo reportKey="proyeccion" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <IconChevronLeft size={16} />
           Volver
         </button>
       </div>
 
       <div className="reports-page-body">
-        {/* ── Hero / KPIs ── */}
-        <section className="reports-hero-panel" style={{ gap: '12px' }}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Proyección por vendedor</span>
-              <h3 className="reports-section-title">Proyección de Ventas vs Metas</h3>
-              <p className="reports-section-text">
-                Basado en el promedio diario de ventas, proyectamos cuánto alcanzará cada vendedor
-                y cuánto necesita vender para llegar al siguiente nivel de meta.
-              </p>
-            </div>
-          </div>
-
-          {/* KPI Banner */}
+        {/* ── 5 Tarjetas KPI Ejecutivas ── */}
+        <section className="reports-hero-panel" style={{ gap: '16px' }}>
           <div style={{
-            display: 'flex', gap: '16px', padding: '16px 20px',
-            background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
-            borderRadius: '12px', flexWrap: 'wrap', alignItems: 'center',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+            gap: '14px',
+            width: '100%',
           }}>
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                💰 Ventas actuales: <strong style={{ color: '#0f172a', fontSize: '13px' }}>{formatMoney(totalCurrentSales)}</strong>
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📈 Proyectado: <strong style={{ color: '#2563eb', fontSize: '13px' }}>{formatMoney(totalProjected)}</strong>
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }} title="Monto que falta para alcanzar la siguiente meta del periodo">
-                🎯 Faltante sgte. meta: <strong style={{ color: '#f59e0b', fontSize: '13px' }}>{formatMoney(totalGapNeeded)}</strong>
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📅 Día {periodInfo.elapsedDays} de {periodInfo.totalDays} · <strong style={{ color: '#f59e0b' }}>{periodInfo.remainingDays} restantes</strong>
-              </span>
+            {/* Card 1: Ventas Actuales */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Ventas Actuales
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTrendingUp size={16} color="#059669" />
+                </div>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {formatMoney(totalCurrentSales)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>{userRows.length} vendedores evaluados</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
-              <span style={{
-                fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px',
-                background: '#d1fae5', color: '#065f46',
-              }}>
-                ✅ {usersComplete} completados
-              </span>
-              <span style={{
-                fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px',
-                background: '#dbeafe', color: '#1e40af',
-              }}>
-                📊 {usersOnTrack} en camino
-              </span>
-              <span style={{
-                fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px',
-                background: '#fef3c7', color: '#92400e',
-              }}>
-                ⚡ {usersNeedBoost} requieren impulso
-              </span>
+
+            {/* Card 2: Proyectado Total */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Venta Proyectada
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTarget size={16} color="#2563eb" />
+                </div>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#2563eb', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {formatMoney(totalProjected)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Ritmo estimado fin de periodo
+              </div>
+            </div>
+
+            {/* Card 3: Brecha Siguiente Nivel */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Brecha Siguiente Nivel
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconAward size={16} color="#d97706" />
+                </div>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#d97706', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {formatMoney(totalGapNeeded)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Faltante global para subir tier
+              </div>
+            </div>
+
+            {/* Card 4: Días del Periodo */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Días de Periodo
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconCalendar size={16} color="#475569" />
+                </div>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                Día {periodInfo.elapsedDays} <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 600 }}>/ {periodInfo.totalDays}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>
+                {periodInfo.remainingDays} días restantes
+              </div>
+            </div>
+
+            {/* Card 5: Estado de Metas */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Cumplimiento Metas
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconCheckCircle size={16} color="#7c3aed" />
+                </div>
+              </div>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {usersComplete} logradas
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {usersOnTrack} en camino · {usersNeedBoost} requieren impulso
+              </div>
             </div>
           </div>
 
           {/* Toolbar */}
-          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px' }}>
-            <label className="field" style={{ flex: '0 0 148px' }}>
+          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('thisMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Este Mes
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('lastMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Mes Anterior
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('last3Months')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Últimos 3M
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('year')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Año
+              </button>
+            </div>
+
+            <div style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 4px' }} />
+
+            <label className="field" style={{ flex: '0 0 142px' }}>
               <span>Desde</span>
               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
             </label>
-            <label className="field" style={{ flex: '0 0 148px' }}>
+            <label className="field" style={{ flex: '0 0 142px' }}>
               <span>Hasta</span>
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </label>
-            <div className="reports-actions" style={{ gap: '8px' }}>
-              <button type="button" onClick={handleReset}>Mes Actual</button>
-            </div>
+
             {/* Filtro por vendedor */}
-            <div className="field" style={{ minWidth: 150 }}>
+            <div className="field" style={{ minWidth: 160 }}>
               <MultiSelect
                 selected={userFilter}
                 onChange={setUserFilter}
@@ -972,7 +1239,7 @@ th.right{text-align:right}</style></head><body>
               />
             </div>
             {/* Status dropdown */}
-            <div className="field" style={{ minWidth: 220 }}>
+            <div className="field" style={{ minWidth: 200 }}>
               <MultiSelect
                 selected={statusFilter}
                 onChange={setStatusFilter}
@@ -981,49 +1248,46 @@ th.right{text-align:right}</style></head><body>
                 emptyLabel="Todos los estados"
               />
             </div>
-            {/* Export PDF */}
-            <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
-              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-              borderRadius: '8px', border: '1.5px solid #dc2626',
-              background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#fff', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              transition: 'all 0.15s ease',
-              opacity: pdfLoading ? 0.7 : 1,
-            }}
-              onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.borderColor = '#b91c1c'; }}}
-              onMouseLeave={e => { if (!pdfLoading) { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}}
-            >
-              <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-                <path d="M5 8l4 4 4-4" />
-                <path d="M9 12V2" />
-              </svg>
-              {pdfLoading ? 'Generando...' : 'Exportar PDF'}
-            </button>
-            <button type="button" onClick={handleExportExcel} style={{
-              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-              borderRadius: '8px', border: '1.5px solid #16a34a',
-              background: '#16a34a', color: '#fff', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              transition: 'all 0.15s ease',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.borderColor = '#15803d'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.borderColor = '#16a34a'; }}
-            >
-              <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-                <path d="M5 8l4 4 4-4" />
-                <path d="M9 12V2" />
-              </svg>
-              Exportar CSV
-            </button>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {/* Export PDF */}
+              <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
+                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
+                borderRadius: '8px', border: '1.5px solid #dc2626',
+                background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#fff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px',
+                transition: 'all 0.15s ease',
+                opacity: pdfLoading ? 0.7 : 1,
+              }}
+                onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.borderColor = '#b91c1c'; }}}
+                onMouseLeave={e => { if (!pdfLoading) { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}}
+              >
+                <IconDownload size={14} color="#fff" />
+                {pdfLoading ? 'Generando...' : 'Exportar PDF'}
+              </button>
+              <button type="button" onClick={handleExportExcel} style={{
+                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
+                borderRadius: '8px', border: '1.5px solid #16a34a',
+                background: '#16a34a', color: '#fff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px',
+                transition: 'all 0.15s ease',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.borderColor = '#15803d'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.borderColor = '#16a34a'; }}
+              >
+                <IconDownload size={14} color="#fff" />
+                Exportar CSV
+              </button>
+            </div>
           </div>
         </section>
 
         {/* --- Charts por equipo --- */}
         {teamProjections.length === 0 ? (
           <section className="reports-hero-panel" style={{ padding: 60, textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <IconUsers size={40} color="#94a3b8" />
+            </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>
               No hay equipos con vendedores configurados en este período
             </div>
@@ -1069,7 +1333,7 @@ th.right{text-align:right}</style></head><body>
             <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
               <div>
                 <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  💰 Venta confirmada
+                  Venta confirmada
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#10b981' }}>
                   {formatMoney(effectivePotentialData.totalActual)}
@@ -1080,7 +1344,7 @@ th.right{text-align:right}</style></head><body>
               </div>
               <div>
                 <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  🎯 Potencial a cerrar
+                  Potencial a cerrar
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#8b5cf6' }}>
                   {formatMoney(effectivePotentialData.totalPotential)}
@@ -1091,7 +1355,7 @@ th.right{text-align:right}</style></head><body>
               </div>
               <div>
                 <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  📊 Cobertura (pendiente)
+                  Cobertura (pendiente)
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#7c3aed' }}>
                   {effectivePotentialData.coveragePct.toFixed(1)}%
@@ -1102,7 +1366,7 @@ th.right{text-align:right}</style></head><body>
               </div>
               <div>
                 <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  🚀 Crecimiento si cierras todo
+                  Crecimiento si cierras todo
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#db2777' }}>
                   {effectivePotentialData.crecimientoPct > 0 ? `+${effectivePotentialData.crecimientoPct.toFixed(0)}%` : '—'}
@@ -1347,7 +1611,7 @@ th.right{text-align:right}</style></head><body>
                               {r.nextTier.name} <span style={{ fontWeight: 600, color: '#64748b' }}>(Q {r.nextTier.amount.toLocaleString()})</span>
                             </span>
                           ) : r.reachedTier ? (
-                            <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11px' }}>🏆 Meta máxima alcanzada</span>
+                            <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11px' }}>Meta máxima alcanzada</span>
                           ) : (
                             <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '10px' }}>—</span>
                           )}
@@ -1356,7 +1620,7 @@ th.right{text-align:right}</style></head><body>
                           {hasGap ? (
                             <span style={{ fontWeight: 700, color: '#f59e0b' }}>{formatMoney(r.neededForNext)}</span>
                           ) : (
-                            <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11px' }}>✅ Completado</span>
+                            <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11px' }}>Completado</span>
                           )}
                         </td>
                         <td style={{ fontWeight: 700, color: '#f59e0b' }}>
@@ -1523,9 +1787,9 @@ function TeamChartSection({ tp, index = 0 }) {
         <div style={{
           width: '44px', height: '44px', background: theme.color, borderRadius: '12px',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '22px', boxShadow: `0 4px 10px ${theme.color}40`,
+          boxShadow: `0 4px 10px ${theme.color}40`,
         }}>
-          {theme.icon}
+          {typeof theme.icon === 'string' ? <TeamIcon name={theme.icon} size={22} color="#ffffff" /> : theme.icon}
         </div>
         <div style={{ flex: 1, minWidth: '200px' }}>
           <div style={{ fontSize: '9px', fontWeight: 800, color: theme.textColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -1540,22 +1804,22 @@ function TeamChartSection({ tp, index = 0 }) {
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <div style={{ textAlign: 'center', minWidth: '90px' }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>💰 Ventas</div>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Ventas</div>
             <div style={{ fontSize: '15px', fontWeight: 900, color: '#10b981' }}>{formatMoney(teamSales)}</div>
           </div>
           <div style={{ textAlign: 'center', minWidth: '90px' }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>🎯 Pendiente</div>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Pendiente</div>
             <div style={{ fontSize: '15px', fontWeight: 900, color: '#8b5cf6' }}>{formatMoney(teamPotential)}</div>
           </div>
           <div style={{ textAlign: 'center', minWidth: '90px' }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }} title="Monto que falta para alcanzar la siguiente meta del equipo">📊 Faltante sgte. meta</div>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }} title="Monto que falta para alcanzar la siguiente meta del equipo">Faltante sgte. meta</div>
             <div style={{ fontSize: '15px', fontWeight: 900, color: '#f59e0b' }}>{formatMoney(teamGap)}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
-          {teamComplete > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#d1fae5', color: '#065f46' }}>✅ {teamComplete}</span>}
-          {teamOnTrack > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#dbeafe', color: '#1e40af' }}>📊 {teamOnTrack}</span>}
-          {teamNeedBoost > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#fef3c7', color: '#92400e' }}>⚡ {teamNeedBoost}</span>}
+          {teamComplete > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#d1fae5', color: '#065f46' }}>✓ {teamComplete} alcanzada{teamComplete !== 1 ? 's' : ''}</span>}
+          {teamOnTrack > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#dbeafe', color: '#1e40af' }}>{teamOnTrack} en camino</span>}
+          {teamNeedBoost > 0 && <span style={{ fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#fef3c7', color: '#92400e' }}>{teamNeedBoost} por impulsar</span>}
         </div>
       </div>
 
@@ -1676,7 +1940,9 @@ function TeamChartSection({ tp, index = 0 }) {
                         outlineOffset: isComplete ? '-1px' : 0,
                       }}>
                         {isComplete ? (
-                          <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', fontSize: '10px', lineHeight: 1 }}>✅</div>
+                          <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', display: 'flex' }}>
+                            <IconCheckCircle size={12} color="#059669" />
+                          </div>
                         ) : hasSales && (
                           <div style={{
                             position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)',
@@ -1757,35 +2023,35 @@ function TeamChartSection({ tp, index = 0 }) {
               {hoveredRow.name}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px' }}>
-              <span style={{ color: '#94a3b8' }}>💰 Ventas</span>
+              <span style={{ color: '#94a3b8' }}>Ventas</span>
               <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(hoveredRow.currentSales)}</span>
               {hoveredRow.potential > 0 && (
                 <>
-                  <span style={{ color: '#94a3b8' }}>🎯 Pendiente</span>
+                  <span style={{ color: '#94a3b8' }}>Pendiente</span>
                   <span style={{ fontWeight: 800, color: '#a78bfa' }}>{formatMoney(hoveredRow.potential)}</span>
-                  <span style={{ color: '#94a3b8' }}>📈 Si cierra todo</span>
+                  <span style={{ color: '#94a3b8' }}>Si cierra todo</span>
                   <span style={{ fontWeight: 800, color: '#c4b5fd' }}>{formatMoney(hoveredRow.currentSales + hoveredRow.potential)}</span>
                 </>
               )}
               {hoveredRow.reachedTier && (
                 <>
-                  <span style={{ color: '#94a3b8' }}>🏆 Tier</span>
+                  <span style={{ color: '#94a3b8' }}>Tier</span>
                   <span style={{ fontWeight: 700, color: '#f59e0b' }}>{hoveredRow.reachedTier.name} ({hoveredRow.reachedTier.percentage}%)</span>
                 </>
               )}
               {hoveredRow.nextTier ? (
                 <>
-                  <span style={{ color: '#94a3b8' }}>📊 Siguiente</span>
+                  <span style={{ color: '#94a3b8' }}>Siguiente</span>
                   <span style={{ fontWeight: 700, color: '#60a5fa' }}>{hoveredRow.nextTier.name} (Q {hoveredRow.nextTier.amount.toLocaleString()})</span>
-                  <span style={{ color: '#94a3b8' }}>📈 Fata meta</span>
+                  <span style={{ color: '#94a3b8' }}>Falta meta</span>
                   <span style={{ fontWeight: 800, color: '#f59e0b' }}>{formatMoney(hoveredRow.neededForNext)}</span>
-                  <span style={{ color: '#94a3b8' }}>📅 Prom./día</span>
+                  <span style={{ color: '#94a3b8' }}>Prom./día</span>
                   <span style={{ fontWeight: 700, color: '#cbd5e1' }}>{formatMoney(hoveredRow.dailyAvg)}</span>
-                  <span style={{ color: '#94a3b8' }}>🎯 Proyectado</span>
+                  <span style={{ color: '#94a3b8' }}>Proyectado</span>
                   <span style={{ fontWeight: 800, color: '#60a5fa' }}>{formatMoney(hoveredRow.projectedTotal)}</span>
                 </>
               ) : (
-                <span style={{ gridColumn: '1 / -1', color: '#94a3b8', fontStyle: 'italic' }}>🏆 Meta máxima alcanzada</span>
+                <span style={{ gridColumn: '1 / -1', color: '#94a3b8', fontStyle: 'italic' }}>Meta máxima alcanzada</span>
               )}
             </div>
           </div>

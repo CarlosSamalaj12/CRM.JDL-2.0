@@ -19,8 +19,9 @@ function getHomePath(user) {
 
 export default function Login() {
   const [searchParams] = useSearchParams();
-  const isUpdated = searchParams.get('update') === '1';
+  const initialIsUpdated = searchParams.get('update') === '1';
   const updateVersion = searchParams.get('v') || '';
+  const [showUpdateNotice, setShowUpdateNotice] = useState(initialIsUpdated);
   const [loading, setLoading] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const navigate = useNavigate();
@@ -28,70 +29,72 @@ export default function Login() {
   const googleLoginRef = useRef(false);
 
   useEffect(() => {
-    // ── Detector de bucles de redirección (Auto-limpieza de caché) ──
-    const now = Date.now();
-    const lastRedirectStr = sessionStorage.getItem('last_login_redirect_time');
-    const redirectCountStr = sessionStorage.getItem('login_redirect_count');
-    
-    let lastRedirect = lastRedirectStr ? Number(lastRedirectStr) : 0;
-    let redirectCount = redirectCountStr ? Number(redirectCountStr) : 0;
-    
-    const diff = now - lastRedirect;
-    if (lastRedirect > 0 && diff > 500 && diff < 10000) {
-      redirectCount += 1;
-      sessionStorage.setItem('login_redirect_count', String(redirectCount));
-    } else if (lastRedirect === 0 || diff >= 10000) {
-      redirectCount = 0;
-      sessionStorage.setItem('login_redirect_count', '0');
-    }
-    sessionStorage.setItem('last_login_redirect_time', String(now));
-    
-    if (redirectCount >= 5) {
-      console.warn('[Auto-Limpieza] Detectado bucle de redirección. Limpiando caché...');
-      localStorage.clear();
-      
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          for (let reg of registrations) reg.unregister();
-        }).catch(() => {});
-      }
-      
-      if ('caches' in window) {
-        caches.keys().then((keys) => {
-          return Promise.all(keys.map(key => caches.delete(key)));
-        }).catch(() => {});
-      }
-      
+    // Si viene de una actualización (?update=1), purgar cualquier sesión residual una sola vez al entrar
+    if (initialIsUpdated) {
+      authService.clearSession();
       sessionStorage.removeItem('login_redirect_count');
       sessionStorage.removeItem('last_login_redirect_time');
+      // Limpiar query params de la barra de direcciones para evitar rebotes
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // ── Detector de bucles de redirección (Auto-limpieza de caché) ──
+      const now = Date.now();
+      const lastRedirectStr = sessionStorage.getItem('last_login_redirect_time');
+      const redirectCountStr = sessionStorage.getItem('login_redirect_count');
       
-      toast.error('Conflicto de caché detectado. Limpiando memoria y reiniciando aplicación...', { 
-        id: 'cache-cleanup', 
-        duration: 5000 
-      });
+      let lastRedirect = lastRedirectStr ? Number(lastRedirectStr) : 0;
+      let redirectCount = redirectCountStr ? Number(redirectCountStr) : 0;
       
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-      return;
+      const diff = now - lastRedirect;
+      if (lastRedirect > 0 && diff > 500 && diff < 8000) {
+        redirectCount += 1;
+        sessionStorage.setItem('login_redirect_count', String(redirectCount));
+      } else if (lastRedirect === 0 || diff >= 8000) {
+        redirectCount = 0;
+        sessionStorage.setItem('login_redirect_count', '0');
+      }
+      sessionStorage.setItem('last_login_redirect_time', String(now));
+      
+      if (redirectCount >= 8) {
+        console.warn('[Auto-Limpieza] Detectado bucle de redirección persistente. Limpiando caché...');
+        localStorage.clear();
+        
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (let reg of registrations) reg.unregister();
+          }).catch(() => {});
+        }
+        
+        if ('caches' in window) {
+          caches.keys().then((keys) => {
+            return Promise.all(keys.map(key => caches.delete(key)));
+          }).catch(() => {});
+        }
+        
+        sessionStorage.removeItem('login_redirect_count');
+        sessionStorage.removeItem('last_login_redirect_time');
+        
+        toast.error('Conflicto de caché detectado. Limpiando memoria y reiniciando...', { 
+          id: 'cache-cleanup', 
+          duration: 4000 
+        });
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        return;
+      }
     }
+  }, []);
 
-    if (!isUpdated) {
-      toast.success('Sistema listo', { id: 'sistema-listo', duration: 3000 });
-    }
-  }, [isUpdated]);
-
-  // Redirect to correct home path immediately if session is already active
+  // Redirigir si ya hay una sesión activa legítima al cargar la página
   useEffect(() => {
-    if (isUpdated) {
-      authService.clearSession();
-      return;
-    }
+    if (initialIsUpdated) return;
     const user = authService.getCurrentUser();
     if (user) {
       navigate(getHomePath(user), { replace: true });
     }
-  }, [contextUser, navigate, isUpdated]);
+  }, [navigate]);
 
   // Complete Google redirect login when popup auth is blocked by the browser.
   useEffect(() => {
@@ -107,10 +110,14 @@ export default function Login() {
         if (cancelled) return;
 
         document.activeElement?.blur();
+        sessionStorage.removeItem('login_redirect_count');
+        sessionStorage.removeItem('last_login_redirect_time');
+        setShowUpdateNotice(false);
+
         toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
         syncSession();
         const homePath = getHomePath(localUser);
-        setTimeout(() => { navigate(homePath, { replace: true }); }, 500);
+        setTimeout(() => { navigate(homePath, { replace: true }); }, 300);
       } catch (err) {
         if (!cancelled) {
           console.error('Google redirect login error detail:', err);
@@ -148,10 +155,15 @@ export default function Login() {
       const localUser = await authService.loginFirebase(firebaseUser);
       document.activeElement?.blur();
       if (loadingToast) toast.dismiss(loadingToast);
+
+      sessionStorage.removeItem('login_redirect_count');
+      sessionStorage.removeItem('last_login_redirect_time');
+      setShowUpdateNotice(false);
+
       toast.success(`Bienvenido, ${localUser.fullName || localUser.name}`, { duration: 2000 });
       syncSession();
       const homePath = getHomePath(localUser);
-      setTimeout(() => { window.location.href = homePath; }, 500);
+      setTimeout(() => { navigate(homePath, { replace: true }); }, 300);
     } catch (err) {
       console.error('Google login error detail:', err);
       if (loadingToast) toast.dismiss(loadingToast);
@@ -219,7 +231,7 @@ export default function Login() {
           </div>
 
           {/* AVISO DE ACTUALIZACIÓN DEL SISTEMA */}
-          {isUpdated && (
+          {showUpdateNotice && (
             <div style={{
               margin: '0 0 20px 0',
               padding: '12px 14px',

@@ -3,7 +3,72 @@ import { useState, useMemo, useRef, useLayoutEffect, useEffect } from 'react';
 import { STATUS_META } from '../calendar/constants';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
-import { getEventSeries } from './components/eventSeriesUtils';
+
+// ── Minimalist Vector Icons ──
+function IconCalendar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconCheckCircle({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+function IconClock({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconUsers({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function IconDollar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="1" x2="12" y2="23" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function IconChevronRight({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
 
 const getMonday = (dateStr) => {
   const d = new Date(dateStr + 'T00:00:00');
@@ -25,6 +90,10 @@ const ALL_STATUSES = [
   'Pre reserva', 'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
   'Lista de Espera', 'Confirmado', 'Cancelado', 'Perdido'
 ];
+
+function formatMoneyGT(v) {
+  return 'Q ' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function ReportsOcupacion({ onClose }) {
   const { events, users } = useOutletContext();
@@ -72,7 +141,6 @@ export default function ReportsOcupacion({ onClose }) {
       .filter(ev => {
         const d = String(ev.date || '');
         if (!d || d < fromIso || d > toIso) return false;
-        // Si statusFilter está vacío = "Todos" (sin filtro)
         if (statusFilter.size === 0) return true;
         return statusFilter.has(String(ev.status || ''));
       })
@@ -100,13 +168,11 @@ export default function ReportsOcupacion({ onClose }) {
   }, [events, users, weekDays, statusFilter]);
 
   // Deduplicar rows por reserva (groupId | id) para evitar sumar totales
-  // duplicados cuando un evento es multi-día. Se queda con la fila del
-  // primer día de la serie (la que tiene el evento principal).
+  // duplicados cuando un evento es multi-día.
   const uniqueReservationRows = useMemo(() => {
     if (!events) return [];
     const seen = new Set();
     const out = [];
-    // Ordenar rows por fecha para que el primero sea el día de inicio
     const sorted = [...rows].sort((a, b) => String(a.eventDate).localeCompare(String(b.eventDate)));
     for (const r of sorted) {
       const key = r.rawEvent?.groupId || r.eventId;
@@ -119,21 +185,15 @@ export default function ReportsOcupacion({ onClose }) {
   }, [rows, events]);
 
   const summary = useMemo(() => {
-    // totalEvents: cuenta slots (se ven en la week strip, un slot por día por reserva)
     const totalEvents = rows.length;
     const confirmed = rows.filter(r => r.status === STATUS.CONFIRMADO).length;
     const pre = rows.filter(r => r.status === STATUS.PRERESERVA).length;
-    // pax: deduplicado por reserva (no se duplica entre slots del mismo evento)
     const pax = uniqueReservationRows.reduce((a, r) => a + Math.max(0, r.pax), 0);
-    // totalRevenue: deduplicado por reserva
     const totalRevenue = uniqueReservationRows.reduce((a, r) => a + r.total, 0);
     const activeDays = new Set(rows.map(r => r.eventDate).filter(Boolean)).size;
     return { totalEvents, confirmed, pre, pax, totalRevenue, activeDays, confirmedPct: totalEvents ? Math.round((confirmed / totalEvents) * 100) : 0 };
   }, [rows, uniqueReservationRows]);
 
-  // Mapa: reservationKey -> fecha del día de inicio de la serie.
-  // Se usa para mostrar el total cotizado SOLO en el día principal
-  // (los demás días del multi-día no muestran monto para evitar duplicados).
   const seriesStartDate = useMemo(() => {
     const map = new Map();
     for (const r of uniqueReservationRows) {
@@ -148,7 +208,6 @@ export default function ReportsOcupacion({ onClose }) {
   const dayCards = useMemo(() => {
     return weekDays.map(d => {
       const dayRows = rows.filter(r => r.eventDate === d);
-      // Revenue del día: solo contar el total si el día es el día de inicio de esa serie
       const dayRevenue = dayRows.reduce((acc, r) => {
         const key = r.rawEvent?.groupId || r.eventId;
         if (seriesStartDate.get(key) === d && r.total > 0) {
@@ -166,9 +225,7 @@ export default function ReportsOcupacion({ onClose }) {
         revenue: dayRevenue, rows: dayRows,
       };
     });
-  }, [weekDays, rows, uniqueReservationRows, seriesStartDate, currentWeekStart]);
-
-  const formatMoneyGT = (v) => 'Q ' + Number(v||0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }, [weekDays, rows, seriesStartDate]);
 
   const handlePrevWeek = () => {
     const s = new Date(currentWeekStart + 'T00:00:00');
@@ -189,16 +246,14 @@ export default function ReportsOcupacion({ onClose }) {
     setCurrentWeekStart(getLocalDateString(new Date(t.setDate(diff))));
   };
 
-  // ── Bento KPI data ──
   const kpiCards = [
-    { label: 'Eventos', value: summary.totalEvents, accent: '#2563eb', meta: `${summary.activeDays} día(s) activo(s)` },
-    { label: 'Confirmados', value: summary.confirmed, accent: '#16a34a', meta: `${summary.confirmedPct}% del total` },
-    { label: 'Pre Reserva', value: summary.pre, accent: '#d97706', meta: `${100 - summary.confirmedPct}% pendiente` },
-    { label: 'PAX Totales', value: summary.pax.toLocaleString(), accent: '#7c3aed', meta: 'personas' },
-    { label: 'Total Venta', value: formatMoneyGT(summary.totalRevenue), accent: '#0d9488', meta: 'valor cotizado' },
+    { label: 'Eventos (Slots)', value: summary.totalEvents, accent: '#2563eb', bg: '#eff6ff', Icon: IconCalendar, meta: `${summary.activeDays} día(s) activo(s)` },
+    { label: 'Confirmados', value: summary.confirmed, accent: '#16a34a', bg: '#ecfdf5', Icon: IconCheckCircle, meta: `${summary.confirmedPct}% del total` },
+    { label: 'Pre Reserva', value: summary.pre, accent: '#d97706', bg: '#fffbeb', Icon: IconClock, meta: `${100 - summary.confirmedPct}% en proceso` },
+    { label: 'PAX Totales', value: summary.pax.toLocaleString(), accent: '#7c3aed', bg: '#f5f3ff', Icon: IconUsers, meta: 'personas en el ciclo' },
+    { label: 'Total Cotizado', value: formatMoneyGT(summary.totalRevenue), accent: '#0d9488', bg: '#f0fdfa', Icon: IconDollar, meta: 'ingresos proyectados' },
   ];
 
-  // Restore occupancyDaysStrip scroll position after re-renders (useLayoutEffect for no visual flash)
   useLayoutEffect(() => {
     if (stripRef.current && stripScrollPosRef.current > 0) {
       stripRef.current.scrollLeft = stripScrollPosRef.current;
@@ -207,7 +262,7 @@ export default function ReportsOcupacion({ onClose }) {
 
   return (
     <div className="reports-page-container">
-      {/* Header */}
+      {/* ── Header Ejecutivo ── */}
       <div className="reports-page-header">
         <div className="reports-brand-header">
           <div className="reports-brand-badge">
@@ -216,45 +271,25 @@ export default function ReportsOcupacion({ onClose }) {
           <div>
             <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Reporte de Ocupación</div>
-            <div className="reports-subtitle">Semana {weekDays[0]} a {weekDays[6]} (Lunes a Domingo)</div>
+            <div className="reports-subtitle">Semana del {weekDays[0]} al {weekDays[6]} (Lunes a Domingo)</div>
           </div>
         </div>
         <ReportInfo reportKey="ocupacion" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <IconChevronLeft size={16} />
           Volver
         </button>
       </div>
 
-      <div className="reports-page-body">
-        {/* ── Hero + Bento KPIs ── */}
+      <div className="reports-page-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* ── Toolbar ── */}
         <section className="reports-hero-panel">
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Vista ejecutiva semanal</span>
-              <h3 className="reports-section-title">Lectura de ocupación y rentabilidad</h3>
-              <p className="reports-section-text">Filtra la semana, identifica días críticos y baja al detalle operativo.</p>
-            </div>
-          </div>
-
-          {/* Bento KPI Grid */}
-          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-            {kpiCards.map((k, i) => (
-              <div key={i} className="bento-tile reports-kpi-tile" style={{ borderTop: `4px solid ${k.accent}` }}>
-                <span className="reports-eyebrow">{k.label}</span>
-                <strong>{k.value}</strong>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{k.meta}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Toolbar */}
-          <div className="reports-toolbar">
-            <label className="field">
-              <span>Semana (desde lunes)</span>
+          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <label className="field" style={{ flex: '0 0 160px' }}>
+              <span>Semana (lunes)</span>
               <input type="date" value={currentWeekStart} onChange={e => setCurrentWeekStart(getMonday(e.target.value))} />
             </label>
-            <div className="field">
+            <div className="field" style={{ minWidth: 220 }}>
               <MultiSelect
                 selected={statusFilter}
                 onChange={setStatusFilter}
@@ -263,22 +298,112 @@ export default function ReportsOcupacion({ onClose }) {
                 emptyLabel="Todos los estados"
               />
             </div>
-            <div className="reports-actions">
-              <button type="button" onClick={handlePrevWeek}>‹ Anterior</button>
-              <button type="button" onClick={handleNextWeek}>Siguiente ›</button>
-              <button type="button" onClick={handleGoToday}>Hoy</button>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={handlePrevWeek}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                <IconChevronLeft size={14} /> Anterior
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={handleGoToday}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={handleNextWeek}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Siguiente <IconChevronRight size={14} />
+              </button>
             </div>
           </div>
         </section>
-        <section id="occupancyWeekStrip" className="reports-hero-panel" style={{ gap: '8px' }}>
+
+        {/* ── KPI Grid Ejecutivo ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+        }}>
+          {kpiCards.map((k, i) => {
+            const CardIcon = k.Icon;
+            return (
+              <div
+                key={i}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '16px',
+                  padding: '18px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {k.label}
+                  </span>
+                  <div style={{
+                    width: '32px', height: '32px', borderRadius: '10px',
+                    background: k.bg, color: k.accent,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <CardIcon size={18} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                  {k.value}
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                  {k.meta}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Daily Strip ── */}
+        <section id="occupancyWeekStrip" className="reports-hero-panel" style={{ gap: '12px' }}>
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Comportamiento diario</span>
               <h3 className="reports-section-title">Distribución y ritmo de eventos</h3>
+              <p className="reports-section-text">Haz clic en cualquier evento para editar su reserva</p>
             </div>
           </div>
 
           <div className="occupancyDaysStrip" ref={stripRef}
+            style={{
+              display: 'flex',
+              overflowX: 'auto',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              background: '#ffffff',
+            }}
             onScroll={() => {
               if (stripRef.current) stripScrollPosRef.current = stripRef.current.scrollLeft;
             }}>
@@ -292,8 +417,8 @@ export default function ReportsOcupacion({ onClose }) {
                 <div onClick={() => setSelectedDay(d.date)}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 0', borderBottom: '1px solid #e2e8f0', cursor: 'pointer',
-                    margin: '0 -10px', paddingLeft: '10px', paddingRight: '10px',
+                    padding: '12px 0', borderBottom: '1px solid #e2e8f0', cursor: 'pointer',
+                    margin: '0 -10px', paddingLeft: '12px', paddingRight: '12px',
                   }}>
                   <div>
                     <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{d.dayName}</div>
@@ -318,10 +443,8 @@ export default function ReportsOcupacion({ onClose }) {
                 </div>
 
                 {/* Events */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px', flex: 1 }}>
                   {d.rows.length ? d.rows.map(r => {
-                    // Mostrar el total SOLO en el día de inicio de la serie
-                    // (para no duplicar el monto en cada día de un evento multi-día)
                     const seriesKey = r.rawEvent?.groupId || r.eventId;
                     const isSeriesStart = seriesStartDate.get(seriesKey) === d.date;
                     return (
@@ -329,14 +452,15 @@ export default function ReportsOcupacion({ onClose }) {
                         onClick={() => navigate(`/reserva/${r.eventId}`)}
                         title="Click para abrir el editor de reserva"
                         style={{
-                          padding: '8px', borderRadius: '10px', border: '1px solid #e2e8f0',
+                          padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0',
                           borderLeft: `4px solid ${r.statusColor}`,
                           background: '#ffffff', cursor: 'pointer',
                           display: 'flex', flexDirection: 'column', gap: '3px',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
                           transition: 'all 0.15s ease',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.transform = 'none'; }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#94a3b8' }}>
                           <span style={{ fontWeight: 700 }}>{r.startTime}</span>

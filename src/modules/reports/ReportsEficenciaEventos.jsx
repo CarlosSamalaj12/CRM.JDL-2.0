@@ -3,6 +3,63 @@ import { useOutletContext } from 'react-router-dom';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 
+// ── Minimalist Vector Icons ──
+function IconCalendar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconTrendingUp({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
+function IconTarget({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IconAward({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="7" />
+      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function IconInbox({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  );
+}
+
 function getLocalDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -220,6 +277,23 @@ export default function ReportsEficenciaEventos({ onClose }) {
     setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
   };
 
+  const setPreset = (preset) => {
+    const n = new Date();
+    if (preset === 'thisMonth') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth(), 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() + 1, 0)));
+    } else if (preset === 'lastMonth') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() - 1, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth(), 0)));
+    } else if (preset === 'last3Months') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() - 2, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() + 1, 0)));
+    } else if (preset === 'year') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), 0, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), 11, 31)));
+    }
+  };
+
   const sectionStyle = (delay) => ({
     opacity: animationPhase === 'initial' ? 0 : 1,
     transform: animationPhase === 'initial' ? 'translateY(20px)' : 'translateY(0)',
@@ -239,59 +313,198 @@ export default function ReportsEficenciaEventos({ onClose }) {
           </div>
           <div>
             <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">📊 Eficiencia de Eventos por Estado</div>
+            <div className="reports-title">Eficiencia de Eventos por Estado</div>
             <div className="reports-subtitle">Distribución porcentual mensual de eventos por estado · 100% = total de eventos del mes</div>
           </div>
         </div>
         <ReportInfo reportKey="eficienciaEventos" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <IconChevronLeft size={16} />
           Volver
         </button>
       </div>
 
       <div className="reports-page-body">
-        {/* ── Hero ── */}
-        <section className="reports-hero-panel" style={sectionStyle(50)}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Eficiencia por estado</span>
-              <h3 className="reports-section-title">% de eventos por estado cada mes</h3>
-              <p className="reports-section-text">
-                Cada barra representa un mes y está dividida en segmentos por estado. Pasa el mouse sobre cada segmento para ver detalles.
-                El ancho de cada segmento representa el % de eventos en ese estado respecto al total del mes.
-              </p>
+        {/* ── 4 Tarjetas KPI Ejecutivas ── */}
+        <section className="reports-hero-panel" style={{ gap: '16px', ...sectionStyle(50) }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '14px',
+            width: '100%',
+          }}>
+            {/* Card 1: Total Eventos */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total Eventos
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTrendingUp size={16} color="#2563eb" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {totalEvents} <span style={{ fontSize: '15px', color: '#64748b', fontWeight: 600 }}>eventos</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {totalVisibleEvents} visibles en {totalMonths} {totalMonths === 1 ? 'mes' : 'meses'}
+              </div>
+            </div>
+
+            {/* Card 2: Estado Dominante */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Estado Predominante
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTarget size={16} color="#059669" />
+                </div>
+              </div>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {topStatus.key ? (STATUS_META.find(s => s.key === topStatus.key)?.label || topStatus.key) : 'Sin datos'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {topStatus.count} eventos ({totalEvents > 0 ? Math.round((topStatus.count / totalEvents) * 100) : 0}% del volumen)
+              </div>
+            </div>
+
+            {/* Card 3: Confirmados */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Confirmados
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconAward size={16} color="#059669" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#059669', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {statusTotals['Confirmado'] || 0} <span style={{ fontSize: '15px', color: '#64748b', fontWeight: 600 }}>eventos</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {totalEvents > 0 ? (((statusTotals['Confirmado'] || 0) / totalEvents) * 100).toFixed(1) : 0}% tasa de confirmación
+              </div>
+            </div>
+
+            {/* Card 4: Periodo */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Rango Temporal
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconCalendar size={16} color="#475569" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {totalMonths} <span style={{ fontSize: '15px', color: '#64748b', fontWeight: 600 }}>{totalMonths === 1 ? 'Mes' : 'Meses'}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Del {fromDate} al {toDate}
+              </div>
             </div>
           </div>
 
           {/* ── Toolbar ── */}
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px' }}>
-            <label className="field" style={{ flex: '0 0 148px' }}>
+          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('thisMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Este Mes
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('lastMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Mes Anterior
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('last3Months')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Últimos 3M
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('year')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Año
+              </button>
+            </div>
+
+            <div style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 4px' }} />
+
+            <label className="field" style={{ flex: '0 0 142px' }}>
               <span>Desde</span>
               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
             </label>
-            <label className="field" style={{ flex: '0 0 148px' }}>
+            <label className="field" style={{ flex: '0 0 142px' }}>
               <span>Hasta</span>
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </label>
-            <div className="reports-actions" style={{ gap: '8px' }}>
-              <button type="button" onClick={handleReset}>Mes Actual</button>
-            </div>
-
-            {/* Mini KPI chips */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📅 <strong style={{ color: '#0f172a' }}>{totalMonths}</strong> {totalMonths === 1 ? 'mes' : 'meses'}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📋 <strong style={{ color: '#0f172a' }}>{totalEvents}</strong> eventos
-              </span>
-              {topStatus.key && (
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  🏆 <strong style={{ color: '#0f172a' }}>{STATUS_META.find(s => s.key === topStatus.key)?.label || topStatus.key}</strong> {Math.round((topStatus.count / totalEvents) * 100)}%
-                </span>
-              )}
-            </div>
           </div>
         </section>
 
@@ -395,7 +608,7 @@ export default function ReportsEficenciaEventos({ onClose }) {
                     fontSize: '13px', fontWeight: 700, color: '#94a3b8',
                     flexDirection: 'column', gap: '8px',
                   }}>
-                    <span style={{ fontSize: '32px' }}>📭</span>
+                    <IconInbox size={32} color="#94a3b8" />
                     <span>No hay eventos en este período</span>
                   </div>
                 ) : chartData.map((monthData, monthIdx) => {
@@ -504,14 +717,14 @@ export default function ReportsEficenciaEventos({ onClose }) {
                     }} />
                     <strong style={{ fontSize: '13px', color: seg.color }}>{seg.label}</strong>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', fontSize: '10px', color: '#cbd5e1' }}>
-                    <span style={{ color: '#94a3b8' }}>📋 Eventos</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: '11px', color: '#cbd5e1' }}>
+                    <span style={{ color: '#94a3b8' }}>Eventos:</span>
                     <span style={{ fontWeight: 700, color: '#fff' }}>{seg.count}</span>
-                    <span style={{ color: '#94a3b8' }}>📊 Porcentaje</span>
+                    <span style={{ color: '#94a3b8' }}>Porcentaje:</span>
                     <span style={{ fontWeight: 800, color: seg.color }}>{Math.round(seg.visiblePct)}%</span>
-                    <span style={{ color: '#94a3b8' }}>📅 Mes</span>
+                    <span style={{ color: '#94a3b8' }}>Mes:</span>
                     <span style={{ fontWeight: 700, color: '#fff' }}>{month.monthName} {month.year}</span>
-                    <span style={{ color: '#94a3b8' }}>📋 Total mes</span>
+                    <span style={{ color: '#94a3b8' }}>Total mes:</span>
                     <span style={{ fontWeight: 700, color: '#fff' }}>{month.visibleTotal} {month.visibleTotal === 1 ? 'evento' : 'eventos'} visibles</span>
                   </div>
                 </div>

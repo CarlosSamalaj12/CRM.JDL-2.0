@@ -184,6 +184,10 @@ const AVATAR_COLORS = [
   '#dc2626', // Red
 ];
 
+function formatMoneyGT(v) {
+  return 'Q ' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function ReportsDashboard({ onClose }) {
   const navigate = useNavigate();
   const { events, users } = useOutletContext();
@@ -215,7 +219,6 @@ export default function ReportsDashboard({ onClose }) {
     })();
   }, []);
 
-  const formatMoneyGT = (v) => 'Q ' + Number(v||0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const getMonthName = (m) => ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m-1] || '';
   const getRoleLabel = (r) => r === USER_ROLES.SELLER ? 'Vendedor' : 'Recepcionista';
 

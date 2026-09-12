@@ -134,7 +134,8 @@ export function evaluateUpdate(serverInfo) {
     } catch (_) {}
   }
 
-  if (cmp < 0 || (serverInfo.forceLogout && cmp !== 0)) {
+  // Solo hay actualización si la versión del server es mayor a la local (cmp < 0)
+  if (cmp < 0) {
     return {
       needsUpdate: true,
       reason: serverInfo.forceLogout ? 'force-logout' : 'outdated',
@@ -145,7 +146,7 @@ export function evaluateUpdate(serverInfo) {
   }
 
   // Si el server marca como required, clientes por debajo de minVersion también fuerzan
-  if (serverInfo.required) {
+  if (serverInfo.required && serverInfo.minVersion) {
     const minCmp = compareVersions(CURRENT_VERSION, serverInfo.minVersion);
     if (minCmp < 0) {
       return {

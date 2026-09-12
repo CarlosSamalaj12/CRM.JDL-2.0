@@ -10,6 +10,30 @@ import ReportInfo from './components/ReportInfo';
 import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 import MultiSelect from './components/MultiSelect';
 
+// ── Minimalist Vector Icons ──
+function IconCalendar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function formatMoney(amount) {
+  return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
+}
+
 export default function ReportsContabilidad({ onClose }) {
   const { events, users, handleAddEvent } = useOutletContext();
   const navigate = useNavigate();
@@ -50,10 +74,6 @@ export default function ReportsContabilidad({ onClose }) {
       .catch(() => {});
     return () => { active = false; };
   }, []);
-
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
-  };
 
   const normalizeQuoteAdvancesForSnapshot = (rawAdvances) => {
     const list = Array.isArray(rawAdvances) ? rawAdvances : [];
@@ -681,8 +701,8 @@ th.right{text-align:right}</style></head><body>
           </div>
         </div>
         <ReportInfo reportKey="contabilidad" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <IconChevronLeft size={16} />
           Volver
         </button>
       </div>
@@ -885,7 +905,7 @@ th.right{text-align:right}</style></head><body>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#475569', fontWeight: 600 }}>
-                          <span style={{ color: '#64748b' }}>📅</span>
+                          <IconCalendar size={12} color="#64748b" />
                           <span>{acc.lastAdvanceDate || '-'}</span>
                           {acc.advancesCount > 0 && <span style={{ color: '#94a3b8', fontWeight: 600 }}>({acc.advancesCount})</span>}
                         </div>

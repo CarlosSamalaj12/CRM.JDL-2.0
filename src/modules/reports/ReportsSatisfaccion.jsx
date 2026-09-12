@@ -42,6 +42,16 @@ function fmtMonth(yyyymm) {
   return `${MONTH_SHORT[parseInt(m, 10) - 1]} '${y.slice(2)}`;
 }
 
+function IconAlertTriangle({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
 // ─── Helper: Generar PDF individual por evento ───
 async function downloadEventDetailPdf(ev, isOperativa) {
   if (!ev) return;
@@ -1886,7 +1896,8 @@ export default function ReportsSatisfaccion({ onClose }) {
                                   alignItems: 'center',
                                   gap: '4px',
                                 }}>
-                                  ⚠️ "{criticalComment.text.length > 40 ? criticalComment.text.substring(0, 40) + '…' : criticalComment.text}"
+                                  <IconAlertTriangle size={13} color="#c2410c" />
+                                  <span>"{criticalComment.text.length > 40 ? criticalComment.text.substring(0, 40) + '…' : criticalComment.text}"</span>
                                 </span>
                               ) : ev.comments.length > 0 ? (
                                 <div>
@@ -2174,7 +2185,7 @@ function OperativaView({ operativaData, operativaMetrics, operativaBySection, on
                         ✓ {ev.distribution.cumplido}
                       </span>
                       <span style={{ background: '#fffbeb', color: '#d97706', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
-                        ⏳ {ev.distribution.en_proceso}
+                        ● {ev.distribution.en_proceso}
                       </span>
                       <span style={{ background: '#fef2f2', color: '#dc2626', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
                         ● {ev.distribution.pendiente}

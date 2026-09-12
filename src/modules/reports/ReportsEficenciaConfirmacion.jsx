@@ -5,21 +5,86 @@ import { getEquipos } from '../../services/api.js';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 
+// ── Minimalist Vector Icons ──
+function IconTrendingUp({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
+function IconUsers({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function IconClock({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconTarget({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IconAward({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="7" />
+      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
 const PENDING_STATUSES = [
   'Reserva sin Cotizacion', '1er Cotizacion', 'Seguimiento',
   'Lista de Espera', 'Pre reserva'
 ];
 const PENDING_STATUS_SET = new Set(PENDING_STATUSES);
 
-// Temas de color para equipos
+// Temas vectoriales limpios para equipos
 const TEAM_THEMES = [
-  { color: '#10b981', bg: '#dcfce7', textColor: '#065f46', icon: '💼' },
-  { color: '#3b82f6', bg: '#dbeafe', textColor: '#1e40af', icon: '📞' },
-  { color: '#8b5cf6', bg: '#ede9fe', textColor: '#5b21b6', icon: '👑' },
-  { color: '#f59e0b', bg: '#fef3c7', textColor: '#92400e', icon: '⭐' },
-  { color: '#ec4899', bg: '#fce7f3', textColor: '#9d174d', icon: '🌟' },
-  { color: '#06b6d4', bg: '#cffafe', textColor: '#155e75', icon: '💎' },
+  { color: '#10b981', bg: '#dcfce7', textColor: '#065f46', icon: 'trending-up' },
+  { color: '#3b82f6', bg: '#dbeafe', textColor: '#1e40af', icon: 'users' },
+  { color: '#8b5cf6', bg: '#ede9fe', textColor: '#5b21b6', icon: 'award' },
+  { color: '#f59e0b', bg: '#fef3c7', textColor: '#92400e', icon: 'target' },
+  { color: '#ec4899', bg: '#fce7f3', textColor: '#9d174d', icon: 'clock' },
+  { color: '#06b6d4', bg: '#cffafe', textColor: '#155e75', icon: 'users' },
 ];
+
+function TeamThemeIcon({ icon, size = 20, color = 'currentColor' }) {
+  if (icon === 'trending-up') return <IconTrendingUp size={size} color={color} />;
+  if (icon === 'award') return <IconAward size={size} color={color} />;
+  if (icon === 'target') return <IconTarget size={size} color={color} />;
+  if (icon === 'clock') return <IconClock size={size} color={color} />;
+  return <IconUsers size={size} color={color} />;
+}
 
 function getLocalDateStr(d) {
   const y = d.getFullYear();
@@ -265,6 +330,23 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
     setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
   };
 
+  const setPreset = (preset) => {
+    const n = new Date();
+    if (preset === 'thisMonth') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth(), 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() + 1, 0)));
+    } else if (preset === 'lastMonth') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() - 1, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth(), 0)));
+    } else if (preset === 'last3Months') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() - 2, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth() + 1, 0)));
+    } else if (preset === 'year') {
+      setFromDate(getLocalDateStr(new Date(n.getFullYear(), 0, 1)));
+      setToDate(getLocalDateStr(new Date(n.getFullYear(), 11, 31)));
+    }
+  };
+
   const getBarColor = (pct) => {
     if (pct >= 40) return '#10b981';
     if (pct >= 20) return '#3b82f6';
@@ -293,41 +375,199 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
           </div>
           <div>
             <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">📊 Eficiencia de Confirmación de Eventos</div>
+            <div className="reports-title">Eficiencia de Confirmación de Eventos</div>
             <div className="reports-subtitle">Eventos confirmados por vendedor · Montos en Quetzales · Porcentajes</div>
           </div>
         </div>
         <ReportInfo reportKey="eficienciaConfirmacion" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <IconChevronLeft size={16} />
           Volver
         </button>
       </div>
 
       <div className="reports-page-body">
-        {/* ── Hero KPIs ── */}
-        <section className="reports-hero-panel" style={sectionStyle(50)}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Confirmación por vendedor</span>
-              <h3 className="reports-section-title">Eventos Confirmados × Vendedor</h3>
+        {/* ── 4 Tarjetas KPI Ejecutivas ── */}
+        <section className="reports-hero-panel" style={{ gap: '16px', ...sectionStyle(50) }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '14px',
+            width: '100%',
+          }}>
+            {/* Card 1: Confirmados */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Confirmados
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTrendingUp size={16} color="#059669" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#059669', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {formatMoney(totalAmount)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {totalConfirmedEvents} eventos cerrados
+              </div>
+            </div>
+
+            {/* Card 2: Pendientes */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Pendientes (Pipeline)
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconClock size={16} color="#d97706" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#d97706', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {formatMoney(totalPendingAmount)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {totalPendingEvents} eventos en seguimiento
+              </div>
+            </div>
+
+            {/* Card 3: Tasa de Cierre */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Tasa de Cierre
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTarget size={16} color="#2563eb" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#2563eb', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {(totalAmount + totalPendingAmount) > 0 ? ((totalAmount / (totalAmount + totalPendingAmount)) * 100).toFixed(1) : '0.0'}%
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Conversión sobre monto cotizado
+              </div>
+            </div>
+
+            {/* Card 4: Fuerza de Ventas */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Fuerza Comercial
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconUsers size={16} color="#7c3aed" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {teamData.reduce((s, t) => s + t.userCount, 0)} <span style={{ fontSize: '15px', color: '#64748b', fontWeight: 600 }}>vendedores</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                En {teamData.length} equipo{teamData.length !== 1 ? 's' : ''}
+              </div>
             </div>
           </div>
 
           {/* Toolbar */}
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px', flexWrap: 'wrap' }}>
-            <label className="field" style={{ flex: '0 0 148px' }}>
+          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('thisMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Este Mes
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('lastMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Mes Anterior
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('last3Months')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Últimos 3M
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('year')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Año
+              </button>
+            </div>
+
+            <div style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 4px' }} />
+
+            <label className="field" style={{ flex: '0 0 142px' }}>
               <span>Desde</span>
               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
             </label>
-            <label className="field" style={{ flex: '0 0 148px' }}>
+            <label className="field" style={{ flex: '0 0 142px' }}>
               <span>Hasta</span>
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </label>
-            <div className="reports-actions">
-              <button type="button" onClick={handleReset}>Mes Actual</button>
-            </div>
-            <label className="field" style={{ flex: '0 0 160px' }}>
+            <label className="field" style={{ flex: '0 0 150px' }}>
               <span>Ordenar por</span>
               <select value={sortBy} onChange={e => setSortBy(e.target.value)}
                 style={{ fontSize: '11px', fontWeight: 700, padding: '6px 8px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>
@@ -336,7 +576,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
                 <option value="name">Nombre</option>
               </select>
             </label>
-            <div className="field" style={{ flex: '0 0 240px' }}>
+            <div className="field" style={{ flex: '1 1 200px', minWidth: '180px' }}>
               <MultiSelect
                 selected={userFilter}
                 onChange={setUserFilter}
@@ -348,31 +588,14 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
               />
             </div>
           </div>
-
-          {/* KPIs Globales */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', padding: '0 20px 16px' }}>
-            <div style={{ background: '#dcfce7', borderRadius: '12px', padding: '14px 18px', border: '1px solid #bbf7d0' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', marginBottom: '4px' }}>💚 Confirmados</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#065f46' }}>{totalConfirmedEvents}</div>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#059669' }}>{formatMoney(totalAmount)}</div>
-            </div>
-            <div style={{ background: '#fef3c7', borderRadius: '12px', padding: '14px 18px', border: '1px solid #fde68a' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', marginBottom: '4px' }}>🟡 Pendientes</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#92400e' }}>{totalPendingEvents}</div>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#d97706' }}>{formatMoney(totalPendingAmount)}</div>
-            </div>
-            <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px 18px', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>👥 Equipos</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>{teamData.length}</div>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>{teamData.reduce((s, t) => s + t.userCount, 0)} vendedores</div>
-            </div>
-          </div>
         </section>
 
         {/* ── Secciones por Equipo ── */}
         {teamData.length === 0 ? (
           <section className="reports-hero-panel" style={{ padding: 60, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <IconUsers size={40} color="#94a3b8" />
+            </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b' }}>
               No hay datos de confirmación en este período
             </div>
@@ -382,7 +605,9 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
             <section key={team.id} className="reports-hero-panel" style={{ gap: '12px', ...sectionStyle(100 + teamIdx * 50) }}>
               {/* Header del equipo */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: team.theme.bg, borderRadius: '10px', border: `1px solid ${team.theme.color}30` }}>
-                <span style={{ fontSize: '24px' }}>{team.theme.icon}</span>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+                  <TeamThemeIcon icon={team.theme.icon} size={20} color={team.theme.color} />
+                </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: team.theme.textColor }}>{team.name}</div>
                   <div style={{ fontSize: '11px', fontWeight: 600, color: team.theme.color }}>{team.userCount} vendedor(es) · {team.totalConfirmed} confirmados · {team.totalPending} pendientes</div>

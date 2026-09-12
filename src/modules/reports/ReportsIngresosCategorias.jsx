@@ -3,6 +3,88 @@ import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import ReportInfo from './components/ReportInfo';
 
+// ── Minimalist Vector Icons ──
+function IconDollar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="1" x2="12" y2="23" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+
+function IconTrendingUp({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
+function IconAward({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="7" />
+      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+  );
+}
+
+function IconTarget({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IconUtensils({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 2v20M21 2v4a3 3 0 0 1-3 3M18 9a3 3 0 0 1-3-3V2M6 2v6a3 3 0 0 0 3 3 3 3 0 0 0 3-3V2M9 11v11" />
+    </svg>
+  );
+}
+
+function IconHotel({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1" />
+    </svg>
+  );
+}
+
+function IconHome({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
+function IconPackage({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
 function getLocalDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -19,10 +101,10 @@ function daysInMonth(year, month) {
 }
 
 const CATEGORIES = [
-  { key: 'alimentosBebidas', label: 'Alimentos & Bebidas', icon: '🍽️', color: '#3b82f6' },
-  { key: 'hospedajeJdl', label: 'Hospedaje JDL', icon: '🏨', color: '#8b5cf6' },
-  { key: 'hospedajeTerceros', label: 'Hospedaje de Terceros', icon: '🏡', color: '#f59e0b' },
-  { key: 'miscelaneos', label: 'Misceláneos', icon: '📦', color: '#10b981' },
+  { key: 'alimentosBebidas', label: 'Alimentos & Bebidas', Icon: IconUtensils, color: '#3b82f6' },
+  { key: 'hospedajeJdl', label: 'Hospedaje JDL', Icon: IconHotel, color: '#8b5cf6' },
+  { key: 'hospedajeTerceros', label: 'Hospedaje de Terceros', Icon: IconHome, color: '#f59e0b' },
+  { key: 'miscelaneos', label: 'Misceláneos', Icon: IconPackage, color: '#10b981' },
 ];
 
 // Solo eventos confirmados para reflejar ingresos reales cerrados
@@ -37,6 +119,23 @@ export default function ReportsIngresosCategorias({ onClose }) {
 
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
+
+  const setPreset = (preset) => {
+    const t = new Date();
+    if (preset === 'thisMonth') {
+      setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth(), 1)));
+      setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
+    } else if (preset === 'lastMonth') {
+      setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() - 1, 1)));
+      setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth(), 0)));
+    } else if (preset === 'last3Months') {
+      setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() - 2, 1)));
+      setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
+    } else if (preset === 'year') {
+      setFromDate(getLocalDateStr(new Date(t.getFullYear(), 0, 1)));
+      setToDate(getLocalDateStr(new Date(t.getFullYear(), 11, 31)));
+    }
+  };
 
   const monthList = useMemo(() => {
     const months = [];
@@ -57,12 +156,6 @@ export default function ReportsIngresosCategorias({ onClose }) {
     }
     return months;
   }, [fromDate, toDate]);
-
-  const CAT_ITEM_MAP = [
-    { key: 'alimentosBebidas', patterns: ['alimentos', 'bebidas', 'comida', 'catering', 'menu', 'bar', 'coctel'] },
-    { key: 'hospedajeJdl',     patterns: ['hospedaje jdl', 'hospedaje propio'] },
-    { key: 'hospedajeTerceros', patterns: ['hospedaje de terceros', 'hospedaje terceros', 'hospedaje 3ros'] },
-  ];
 
   const mapCategoryToBucket = (cat, itemName) => {
     // First, try to match from the service category
@@ -88,7 +181,6 @@ export default function ReportsIngresosCategorias({ onClose }) {
   const chartData = useMemo(() => {
     if (!events || !monthList.length) return { categoryData: [], monthlyData: [], grandTotal: 0 };
 
-    // Usar las fechas directas del estado para filtrar con precisión de día
     const from = fromDate;
     const to = toDate;
 
@@ -109,11 +201,9 @@ export default function ReportsIngresosCategorias({ onClose }) {
       const monthKey = d.substring(0, 7);
       const quoteItems = ev.quote?.items || [];
       
-      // Usar quote.total para el monto total (igual que Metas)
       const quoteTotal = Math.max(0, Number(ev.quote?.total || 0));
       if (quoteTotal <= 0) continue;
       
-      // Clasificar el evento completo por la categoría dominante de sus items
       let dominantBucket = 'miscelaneos';
       let maxItemTotal = 0;
       for (const item of quoteItems) {
@@ -145,7 +235,7 @@ export default function ReportsIngresosCategorias({ onClose }) {
         monthKey: m.key, monthName: m.monthName, monthShort: m.monthShort, year: m.year,
         total: monthTotal,
         categories: CATEGORIES.map(cat => ({
-          key: cat.key, label: cat.label, color: cat.color,
+          key: cat.key, label: cat.label, color: cat.color, Icon: cat.Icon,
           amount: mTotals[cat.key] || 0,
           pct: monthTotal > 0 ? ((mTotals[cat.key] || 0) / monthTotal) * 100 : 0,
         })),
@@ -156,19 +246,12 @@ export default function ReportsIngresosCategorias({ onClose }) {
   }, [events, monthList, fromDate, toDate]);
 
   const { categoryData, grandTotal } = chartData;
-
-  const handleReset = () => {
-    const t = new Date();
-    setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth(), 1)));
-    setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
-  };
-
   const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   const maxAmount = categoryData.length > 0 ? Math.max(...categoryData.map(c => c.totalAmount)) : 0;
 
   return (
     <div className="reports-page-container">
-      {/* Header */}
+      {/* ── Header Ejecutivo ── */}
       <div className="reports-page-header">
         <div className="reports-brand-header">
           <div className="reports-brand-badge">
@@ -176,21 +259,74 @@ export default function ReportsIngresosCategorias({ onClose }) {
           </div>
           <div>
             <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">📊 Ingresos por Categoría de Servicio</div>
+            <div className="reports-title">Ingresos por Categoría de Servicio</div>
             <div className="reports-subtitle">Montos en Quetzales por categoría · Alimentos & Bebidas · Hospedajes · Misceláneos</div>
           </div>
         </div>
         <ReportInfo reportKey="ingresosCategorias" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <IconChevronLeft size={16} />
           Volver
         </button>
       </div>
 
-      <div className="reports-page-body">
-        {/* Filters */}
+      <div className="reports-page-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* ── Filters Toolbar ── */}
         <section className="reports-hero-panel">
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px' }}>
+          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('thisMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Este Mes
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('lastMonth')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Mes Anterior
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('last3Months')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Últimos 3M
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => setPreset('year')}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Año
+              </button>
+            </div>
+
+            <div style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 4px' }} />
+
             <label className="field" style={{ flex: '0 0 148px' }}>
               <span>Desde</span>
               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
@@ -199,30 +335,146 @@ export default function ReportsIngresosCategorias({ onClose }) {
               <span>Hasta</span>
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </label>
-            <button type="button" onClick={handleReset} style={{
-              fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-              borderRadius: '8px', border: '1.5px solid #e2e8f0',
-              background: '#f8fafc', color: '#475569', cursor: 'pointer',
-              marginTop: '16px', transition: 'all 0.15s',
-              flexShrink: 0,
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
-            >Mes Actual</button>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                💰 <strong style={{ color: '#0f172a' }}>{formatMoney(grandTotal)}</strong> total
-              </span>
-            </div>
           </div>
         </section>
 
-        {/* Storytelling */}
+        {/* ── KPI Grid ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '16px',
+        }}>
+          {/* Total Ingresos */}
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '16px',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Ingresos Confirmados
+              </span>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '10px',
+                background: '#eff6ff', color: '#2563eb',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <IconDollar size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              {formatMoney(grandTotal)}
+            </div>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+              Período del {fromDate} al {toDate}
+            </span>
+          </div>
+
+          {/* Categoría Principal */}
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '16px',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Categoría Líder
+              </span>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '10px',
+                background: '#ecfdf5', color: '#059669',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <IconAward size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {categoryData[0]?.totalAmount > 0 ? categoryData[0].label : '—'}
+            </div>
+            <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>
+              {categoryData[0]?.totalAmount > 0 ? `${formatMoney(categoryData[0].totalAmount)} (${Math.round(categoryData[0].pct)}%)` : 'Sin ingresos'}
+            </span>
+          </div>
+
+          {/* Promedio Mensual */}
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '16px',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Promedio Mensual
+              </span>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '10px',
+                background: '#f5f3ff', color: '#7c3aed',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <IconTrendingUp size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              {formatMoney(monthList.length > 0 ? grandTotal / monthList.length : 0)}
+            </div>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+              En {monthList.length} {monthList.length === 1 ? 'mes' : 'meses'}
+            </span>
+          </div>
+
+          {/* Líneas Activas */}
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '16px',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Líneas Activas
+              </span>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '10px',
+                background: '#fffbeb', color: '#d97706',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <IconTarget size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              {categoryData.filter(c => c.totalAmount > 0).length} / {CATEGORIES.length}
+            </div>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+              Categorías con facturación
+            </span>
+          </div>
+        </div>
+
+        {/* ── Storytelling ── */}
         <div className="reports-storytelling-card">
           <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Análisis del período</span>
           <p className="reports-story-text">
-            Del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> se generaron <strong className="highlight-green">{formatMoney(grandTotal)}</strong> en ingresos.
-            {categoryData.map(c => ` ${c.icon} ${c.label}: ${formatMoney(c.totalAmount)} (${Math.round(c.pct)}%)`).join(' · ')}
+            Del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> se generaron <strong className="highlight-green">{formatMoney(grandTotal)}</strong> en ingresos confirmados.
+            {categoryData.map(c => ` ${c.label}: ${formatMoney(c.totalAmount)} (${Math.round(c.pct)}%)`).join(' · ')}
           </p>
         </div>
 
@@ -242,35 +494,37 @@ export default function ReportsIngresosCategorias({ onClose }) {
               </div>
             ) : categoryData.map(cat => {
               const pct = maxAmount > 0 ? (cat.totalAmount / maxAmount) * 100 : 0;
+              const CatIcon = cat.Icon;
               return (
                 <div key={cat.key} style={{
-                  background: '#ffffff', borderRadius: '12px', padding: '14px 18px',
+                  background: '#ffffff', borderRadius: '14px', padding: '16px 20px',
                   border: '1px solid #e2e8f0',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{
-                        width: '36px', height: '36px', borderRadius: '10px',
+                        width: '38px', height: '38px', borderRadius: '10px',
                         background: `${cat.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '18px',
-                      }}>{cat.icon}</div>
+                        color: cat.color, flexShrink: 0
+                      }}>
+                        <CatIcon size={20} color={cat.color} />
+                      </div>
                       <div>
                         <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>{cat.label}</div>
-                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{Math.round(cat.pct)}% del total</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{Math.round(cat.pct)}% del total general</div>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.02em' }}>{formatMoney(cat.totalAmount)}</div>
                     </div>
                   </div>
-                  <div style={{ height: '10px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}>
+                  <div style={{ height: '8px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden' }}>
                     <div style={{
                       height: '100%', borderRadius: '999px',
-                      background: `linear-gradient(90deg, ${cat.color}, ${cat.color}bb)`,
-                      width: `${Math.max(2, pct)}%`,
+                      background: `linear-gradient(90deg, ${cat.color}, ${cat.color}dd)`,
+                      width: `${Math.max(1, pct)}%`,
                       transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
-                      boxShadow: `0 0 6px ${cat.color}30`,
                     }} />
                   </div>
                 </div>
@@ -294,12 +548,17 @@ export default function ReportsIngresosCategorias({ onClose }) {
                 <tr>
                   <th>Mes</th>
                   <th style={{ textAlign: 'right' }}>Total</th>
-                  {CATEGORIES.map(cat => (
-                    <th key={cat.key} style={{ textAlign: 'center', fontSize: '10px', padding: '8px 6px' }}>
-                      <span style={{ fontSize: '14px' }}>{cat.icon}</span>
-                      <div style={{ fontWeight: 700, marginTop: '2px' }}>{cat.label}</div>
-                    </th>
-                  ))}
+                  {CATEGORIES.map(cat => {
+                    const CatIcon = cat.Icon;
+                    return (
+                      <th key={cat.key} style={{ textAlign: 'center', fontSize: '10px', padding: '8px 6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                          <CatIcon size={14} color={cat.color} />
+                          <span style={{ fontWeight: 700 }}>{cat.label}</span>
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>

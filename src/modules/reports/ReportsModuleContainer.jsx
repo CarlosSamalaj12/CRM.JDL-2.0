@@ -5,6 +5,15 @@ import ReportsVentas from './ReportsVentas';
 import ReportsContabilidad from './ReportsContabilidad';
 import ReportsInstitucion from './ReportsInstitucion';
 import ReportsEventosAsignados from './ReportsEventosAsignados';
+import ReportsOcupacion from './ReportsOcupacion';
+import ReportsOcupacionBarras from './ReportsOcupacionBarras';
+import ReportsSatisfaccion from './ReportsSatisfaccion';
+import ReportsEficenciaEventos from './ReportsEficenciaEventos';
+import ReportsEficenciaConfirmacion from './ReportsEficenciaConfirmacion';
+import ReportsIngresosCategorias from './ReportsIngresosCategorias';
+import ReportsSeguimientosPendientes from './ReportsSeguimientosPendientes';
+import ReportsComisiones from './ReportsComisiones';
+import ReportsProyeccionMetas from './ReportsProyeccionMetas';
 import './reports.css';
 
 const REPORT_TYPES = {
@@ -14,20 +23,20 @@ const REPORT_TYPES = {
 
 // Catálogo completo: se usa para la bento grid (desktop) y para los chips / cards (móvil)
 const ALL_REPORTS = [
-  { id: REPORT_TYPES.sales,        label: 'Reporte de Ventas',           meta: 'Resumen comercial, cotizaciones y montos del pipeline', badge: 'Ventas • Cotizaciones • Comisiones',       icon: '📊', variant: 'blue',   category: 'Ventas',    featured: true },
-  { id: REPORT_TYPES.accounting,   label: 'Estado de Cuenta',            meta: 'Ventas netas, cobros y control financiero por empresa', badge: 'Contabilidad • Cartera • Pagos',            icon: '💳', variant: 'green',  category: 'Finanzas'                    },
-  { id: 'ocupacion',               label: 'Ocupación',                   meta: 'Uso de salones, disponibilidad y operación semanal',  badge: 'Salones • PAX • Ocupación',                icon: '📅', variant: 'purple', category: 'Operación'                   },
-  { id: REPORT_TYPES.dashboard,    label: 'Dashboard',                   meta: 'KPIs, metas comerciales y rendimiento ejecutivo',       badge: 'KPIs • Metas • Rendimiento',               icon: '📈', variant: 'amber',  category: 'KPIs',      featured: true },
-  { id: REPORT_TYPES.institution,  label: 'Por Institución',             meta: 'Dashboard detallado por cliente, consumo e historial', badge: 'Clientes • Historial • Análisis',          icon: '🏢', variant: 'rose',   category: 'Clientes'                   },
-  { id: 'satisfaccion',            label: 'Satisfacción',                meta: 'Ratings de servicio, evaluación por evento y tendencias', badge: 'Calidad • Ratings • Clientes',           icon: '⭐', variant: 'teal',   category: 'Calidad',   featured: true },
-  { id: 'ocupacionBarras',         label: 'Porcentaje Ocupación',        meta: 'Gráfico mensual de ocupación PAX vs capacidad de salones', badge: 'Barras • % Ocupación • Mensual',       icon: '📊', variant: 'indigo', category: 'Operación', featured: true },
-  { id: 'eficenciaEventos',        label: 'Eficiencia por Estado',       meta: 'Distribución porcentual mensual de eventos por estado', badge: 'Estados • % • Apilado',                  icon: '📈', variant: 'teal',   category: 'Operación', featured: true },
-  { id: 'seguimientosPendientes',  label: 'Seguimientos Pendientes',     meta: 'Eventos en pipeline comercial por vendedor',          badge: 'Pipeline • Vendedores • Estados',          icon: '📋', variant: 'amber',  category: 'Pipeline',  featured: true },
-  { id: 'eventosAsignados',        label: 'Eventos Asignados',           meta: 'Fechas de asignación, tiempo de respuesta y distribución por vendedor', badge: 'Asignaciones • Respuesta • Vendedores', icon: '🤝', variant: 'teal',  category: 'Pipeline',  featured: true },
-  { id: 'eficenciaConfirmacion',   label: 'Eficiencia de Confirmación',  meta: 'Eventos confirmados por vendedor · Montos en Quetzales', badge: 'Confirmados • Montos • Vendedores',     icon: '✅', variant: 'green',  category: 'KPIs',      featured: true },
-  { id: 'ingresosCategorias',      label: 'Ingresos por Categoría',      meta: 'Montos generados por categoría de servicio',          badge: 'Categorías • Montos • Servicios',          icon: '💰', variant: 'indigo', category: 'Finanzas',  featured: true },
-  { id: 'comisiones',              label: 'Comisiones',                  meta: 'Ventas vs niveles de meta · Cálculo de comisiones',    badge: 'Comisiones • Metas • %',                   icon: '🏆', variant: 'purple', category: 'Ventas',    featured: true },
-  { id: 'proyeccionMetas',         label: 'Proyección de Metas',         meta: 'Proyección de ventas por vendedor',                    badge: 'Proyección • Metas • Gaps',                icon: '🎯', variant: 'amber',  category: 'KPIs',      featured: true },
+  { id: REPORT_TYPES.sales,        label: 'Reporte de Ventas',           meta: 'Resumen comercial, cotizaciones y montos del pipeline', badge: 'Ventas • Cotizaciones • Comisiones',       iconName: 'trending-up', variant: 'blue',   category: 'Ventas',    featured: true },
+  { id: REPORT_TYPES.accounting,   label: 'Estado de Cuenta',            meta: 'Ventas netas, cobros y control financiero por empresa', badge: 'Contabilidad • Cartera • Pagos',            iconName: 'wallet', variant: 'green',  category: 'Finanzas'                    },
+  { id: 'ocupacion',               label: 'Ocupación Semanal',           meta: 'Uso de salones, disponibilidad y operación semanal',  badge: 'Salones • PAX • Ocupación',                iconName: 'calendar', variant: 'purple', category: 'Operación'                   },
+  { id: REPORT_TYPES.dashboard,    label: 'Dashboard Principal',         meta: 'KPIs, metas comerciales y rendimiento ejecutivo',       badge: 'KPIs • Metas • Rendimiento',               iconName: 'target', variant: 'amber',  category: 'KPIs',      featured: true },
+  { id: REPORT_TYPES.institution,  label: 'Por Institución',             meta: 'Dashboard detallado por cliente, consumo e historial', badge: 'Clientes • Historial • Análisis',          iconName: 'building', variant: 'rose',   category: 'Clientes'                   },
+  { id: 'satisfaccion',            label: 'Satisfacción',                meta: 'Ratings de servicio, evaluación por evento y tendencias', badge: 'Calidad • Ratings • Clientes',           iconName: 'star', variant: 'teal',   category: 'Calidad',   featured: true },
+  { id: 'ocupacionBarras',         label: 'Porcentaje Ocupación',        meta: 'Gráfico mensual de ocupación PAX vs capacidad de salones', badge: 'Barras • % Ocupación • Mensual',       iconName: 'bar-chart', variant: 'indigo', category: 'Operación', featured: true },
+  { id: 'eficenciaEventos',        label: 'Eficiencia por Estado',       meta: 'Distribución porcentual mensual de eventos por estado', badge: 'Estados • % • Apilado',                  iconName: 'stacked-bars', variant: 'teal',   category: 'Operación', featured: true },
+  { id: 'seguimientosPendientes',  label: 'Seguimientos Pendientes',     meta: 'Eventos en pipeline comercial por vendedor',          badge: 'Pipeline • Vendedores • Estados',          iconName: 'clipboard', variant: 'amber',  category: 'Pipeline',  featured: true },
+  { id: 'eventosAsignados',        label: 'Eventos Asignados',           meta: 'Fechas de asignación, tiempo de respuesta y distribución por vendedor', badge: 'Asignaciones • Respuesta • Vendedores', iconName: 'users', variant: 'teal',  category: 'Pipeline',  featured: true },
+  { id: 'eficenciaConfirmacion',   label: 'Eficiencia de Confirmación',  meta: 'Eventos confirmados por vendedor · Montos en Quetzales', badge: 'Confirmados • Montos • Vendedores',     iconName: 'check-circle', variant: 'green',  category: 'KPIs',      featured: true },
+  { id: 'ingresosCategorias',      label: 'Ingresos por Categoría',      meta: 'Montos generados por categoría de servicio',          badge: 'Categorías • Montos • Servicios',          iconName: 'dollar', variant: 'indigo', category: 'Finanzas',  featured: true },
+  { id: 'comisiones',              label: 'Comisiones',                  meta: 'Ventas vs niveles de meta · Cálculo de comisiones',    badge: 'Comisiones • Metas • %',                   iconName: 'award', variant: 'purple', category: 'Ventas',    featured: true },
+  { id: 'proyeccionMetas',         label: 'Proyección de Metas',         meta: 'Proyección de ventas por vendedor',                    badge: 'Proyección • Metas • Gaps',                iconName: 'target', variant: 'amber',  category: 'KPIs',      featured: true },
 ];
 
 const ICON_BG = {
@@ -37,14 +46,14 @@ const ICON_BG = {
 
 // Categorías que aparecen como chips de filtro
 const FILTER_CHIPS = [
-  { id: 'all',        label: 'Todos',      icon: '✦' },
-  { id: 'Ventas',     label: 'Ventas',     icon: '📊' },
-  { id: 'Finanzas',   label: 'Finanzas',   icon: '💳' },
-  { id: 'Operación',  label: 'Operación',  icon: '📅' },
-  { id: 'KPIs',       label: 'KPIs',       icon: '📈' },
-  { id: 'Clientes',   label: 'Clientes',   icon: '🏢' },
-  { id: 'Calidad',    label: 'Calidad',    icon: '⭐' },
-  { id: 'Pipeline',   label: 'Pipeline',   icon: '📋' },
+  { id: 'all',        label: 'Todos',      iconName: 'sparkles' },
+  { id: 'Ventas',     label: 'Ventas',     iconName: 'trending-up' },
+  { id: 'Finanzas',   label: 'Finanzas',   iconName: 'wallet' },
+  { id: 'Operación',  label: 'Operación',  iconName: 'calendar' },
+  { id: 'KPIs',       label: 'KPIs',       iconName: 'target' },
+  { id: 'Clientes',   label: 'Clientes',   iconName: 'building' },
+  { id: 'Calidad',    label: 'Calidad',    iconName: 'star' },
+  { id: 'Pipeline',   label: 'Pipeline',   iconName: 'clipboard' },
 ];
 
 // Items del bottom nav (estilo YouTube: Home, Shorts, +, Subs, Library)
@@ -56,18 +65,14 @@ const BOTTOM_NAV = [
   { id: 'more',     label: 'Más',      icon: 'menu' },
 ];
 
-// ─── Iconos SVG inline (estilo YouTube, finos y consistentes) ───
-const Icon = ({ name, size = 22, stroke = 'currentColor' }) => {
-  const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
+// ─── Iconos SVG inline finos y minimalistas ───
+const Icon = ({ name, size = 20, stroke = 'currentColor' }) => {
+  const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
   switch (name) {
     case 'search':
       return <svg {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
     case 'bell':
       return <svg {...props}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>;
-    case 'cast':
-      return <svg {...props}><path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" /><path d="M2 12h3a3 3 0 0 1 3 3v3" /><path d="M2 18h1" /></svg>;
-    case 'avatar':
-      return <svg {...props}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>;
     case 'home':
       return <svg {...props}><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10" /></svg>;
     case 'chart':
@@ -82,11 +87,33 @@ const Icon = ({ name, size = 22, stroke = 'currentColor' }) => {
       return <svg {...props}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>;
     case 'x':
       return <svg {...props}><path d="M18 6 6 18M6 6l12 12" /></svg>;
-    case 'clock':
-      return <svg {...props}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
-    case 'check':
-      return <svg {...props}><path d="m5 12 5 5 9-11" /></svg>;
-    case 'spark':
+    case 'trending-up':
+      return <svg {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>;
+    case 'wallet':
+      return <svg {...props}><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>;
+    case 'calendar':
+      return <svg {...props}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
+    case 'target':
+      return <svg {...props}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;
+    case 'building':
+      return <svg {...props}><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="9" y1="22" x2="9" y2="2" /><line x1="15" y1="22" x2="15" y2="2" /><line x1="4" y1="12" x2="20" y2="12" /></svg>;
+    case 'star':
+      return <svg {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>;
+    case 'bar-chart':
+      return <svg {...props}><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>;
+    case 'stacked-bars':
+      return <svg {...props}><rect x="4" y="14" width="16" height="6" rx="1" /><rect x="4" y="8" width="16" height="4" rx="1" /><rect x="4" y="4" width="16" height="2" rx="1" /></svg>;
+    case 'clipboard':
+      return <svg {...props}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>;
+    case 'users':
+      return <svg {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
+    case 'check-circle':
+      return <svg {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
+    case 'dollar':
+      return <svg {...props}><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>;
+    case 'award':
+      return <svg {...props}><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></svg>;
+    case 'sparkles':
       return <svg {...props}><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></svg>;
     default:
       return null;
@@ -286,7 +313,9 @@ export default function ReportsModuleContainer() {
                 className={`reports-chip ${activeChip === chip.id ? 'reports-chip--active' : ''}`}
                 onClick={() => setActiveChip(chip.id)}
               >
-                <span className="reports-chip__icon">{chip.icon}</span>
+                <span className="reports-chip__icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <Icon name={chip.iconName} size={14} />
+                </span>
                 <span>{chip.label}</span>
               </button>
             ))}
@@ -310,7 +339,9 @@ export default function ReportsModuleContainer() {
 
           {filteredReports.length === 0 ? (
             <div className="reports-empty">
-              <div className="reports-empty__icon">🔍</div>
+              <div className="reports-empty__icon">
+                <Icon name="search" size={40} stroke="#94a3b8" />
+              </div>
               <div className="reports-empty__title">Sin resultados</div>
               <div className="reports-empty__text">Probá con otro término o cambiá el filtro.</div>
               <button
@@ -329,20 +360,22 @@ export default function ReportsModuleContainer() {
                     type="button"
                     className={`reports-mobile-card reports-mobile-card--${r.variant}`}
                     onClick={() => setActiveReport(r.id)}
-                    onMouseEnter={() => {}}
-                    onMouseLeave={() => {}}
                   >
                     <div
                       className="reports-mobile-card__icon"
-                      style={{ background: ICON_BG[r.variant] || ICON_BG.blue }}
+                      style={{ background: ICON_BG[r.variant] || ICON_BG.blue, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
-                      {r.icon}
+                      <Icon name={r.iconName} size={20} stroke="#ffffff" />
                     </div>
 
                     <div className="reports-mobile-card__body">
                       <div className="reports-mobile-card__title-row">
                         <span className="reports-mobile-card__title">{r.label}</span>
-                        {r.featured && <span className="reports-mobile-card__pin" title="Destacado">★</span>}
+                        {r.featured && (
+                          <span className="reports-mobile-card__pin" title="Destacado" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Icon name="star" size={12} stroke="#f59e0b" />
+                          </span>
+                        )}
                       </div>
                       <div className="reports-mobile-card__meta">{r.meta}</div>
                       <div className="reports-mobile-card__foot">
@@ -397,11 +430,13 @@ export default function ReportsModuleContainer() {
   }
 
   // ────────────── VISTA SUB-REPORTE (mantiene la estética actual) ──────────────
+  const handleCloseSubReport = () => setActiveReport(REPORT_TYPES.hub);
+
   return (
     <div className="reports-page-container">
       <div className="reports-page-header">
         <div className="reports-brand-header">
-          <button onClick={() => setActiveReport(REPORT_TYPES.hub)} className="reports-back-btn" type="button">
+          <button onClick={handleCloseSubReport} className="reports-back-btn" type="button">
             <Icon name="arrow-left" size={16} />
             Volver a Reportes
           </button>
@@ -412,15 +447,19 @@ export default function ReportsModuleContainer() {
       </div>
       <div className="reports-page-body">
         {activeReport === REPORT_TYPES.dashboard && <ReportsModule />}
-        {activeReport === REPORT_TYPES.sales && <ReportsVentas />}
-        {activeReport === REPORT_TYPES.accounting && <ReportsContabilidad />}
-        {activeReport === REPORT_TYPES.institution && <ReportsInstitucion />}
-        {activeReport === 'eventosAsignados' && <ReportsEventosAsignados onClose={() => setActiveReport(REPORT_TYPES.hub)} />}
-        {![REPORT_TYPES.dashboard, REPORT_TYPES.sales, REPORT_TYPES.accounting, REPORT_TYPES.institution, 'eventosAsignados'].includes(activeReport) && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px' }}>
-            Reporte en construcción…
-          </div>
-        )}
+        {activeReport === REPORT_TYPES.sales && <ReportsVentas onClose={handleCloseSubReport} />}
+        {activeReport === REPORT_TYPES.accounting && <ReportsContabilidad onClose={handleCloseSubReport} />}
+        {activeReport === REPORT_TYPES.institution && <ReportsInstitucion onClose={handleCloseSubReport} />}
+        {activeReport === 'eventosAsignados' && <ReportsEventosAsignados onClose={handleCloseSubReport} />}
+        {activeReport === 'ocupacion' && <ReportsOcupacion onClose={handleCloseSubReport} />}
+        {activeReport === 'ocupacionBarras' && <ReportsOcupacionBarras onClose={handleCloseSubReport} />}
+        {activeReport === 'satisfaccion' && <ReportsSatisfaccion onClose={handleCloseSubReport} />}
+        {activeReport === 'eficenciaEventos' && <ReportsEficenciaEventos onClose={handleCloseSubReport} />}
+        {activeReport === 'eficenciaConfirmacion' && <ReportsEficenciaConfirmacion onClose={handleCloseSubReport} />}
+        {activeReport === 'ingresosCategorias' && <ReportsIngresosCategorias onClose={handleCloseSubReport} />}
+        {activeReport === 'seguimientosPendientes' && <ReportsSeguimientosPendientes onClose={handleCloseSubReport} />}
+        {activeReport === 'comisiones' && <ReportsComisiones onClose={handleCloseSubReport} />}
+        {activeReport === 'proyeccionMetas' && <ReportsProyeccionMetas onClose={handleCloseSubReport} />}
       </div>
     </div>
   );

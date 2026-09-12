@@ -5,6 +5,72 @@ import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 
+// ── Minimalist Vector Icons ──
+function IconCalendar({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconTrendingUp({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
+function IconAward({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="7" />
+      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+  );
+}
+
+function IconTarget({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IconStar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
+function IconDownload({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
 function getLocalDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -355,126 +421,301 @@ th.right{text-align:right}</style></head><body>
   }, [userRows]);
 
   return (
-    <div className="reports-page-container" ref={reportRef}>
-      <style>{`@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-      {/* Header */}
-      <div className="reports-page-header">
-        <div className="reports-brand-header">
-          <div className="reports-brand-badge">
-            <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+    <div className="reports-page-container" ref={reportRef} style={{ background: '#f8fafc' }}>
+      <style>{`
+        @keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .comm-card {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03);
+          transition: all 0.2s ease;
+        }
+        .comm-card:hover {
+          box-shadow: 0 4px 12px rgba(0,0,0,0.06), 0 12px 24px -6px rgba(0,0,0,0.04);
+        }
+        .preset-btn {
+          font-size: 11px;
+          font-weight: 700;
+          padding: 6px 12px;
+          border-radius: 8px;
+          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          color: #475569;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+        }
+        .preset-btn:hover {
+          background: #f1f5f9;
+          border-color: #cbd5e1;
+          color: #0f172a;
+          transform: translateY(-1px);
+        }
+      `}</style>
+
+      {/* ── Header Principal ── */}
+      <div className="reports-page-header" style={{
+        background: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
+        padding: '16px 28px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px',
+        flexWrap: 'wrap'
+      }}>
+        <div className="reports-brand-header" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            border: '1px solid #bfdbfe',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(59,130,246,0.1)'
+          }}>
+            <img src="/Oficial_JDL_acua.png" alt="Logo" style={{ width: '30px', height: '30px', objectFit: 'contain' }} />
           </div>
           <div>
-            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">🏆 Reporte de Comisiones</div>
-            <div className="reports-subtitle">Ventas vs Niveles de Meta · Cálculo de comisiones · Progreso hacia siguiente nivel</div>
+            <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7c3aed', marginBottom: '2px' }}>
+              EMS Reservas · Jardines del Lago
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Reporte de Comisiones
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 800,
+                padding: '3px 8px',
+                borderRadius: '6px',
+                background: '#f5f3ff',
+                color: '#7c3aed',
+                border: '1px solid #ddd6fe',
+                letterSpacing: '0.02em'
+              }}>
+                Metas & Comisiones
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+              Ventas vs niveles de meta · Cálculo de comisiones por vendedor · Progreso hacia siguiente nivel
+            </div>
           </div>
         </div>
-        <ReportInfo reportKey="comisiones" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-          Volver
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            disabled={pdfLoading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: '1px solid #fca5a5',
+              background: pdfLoading ? '#fee2e2' : '#ffffff',
+              color: '#dc2626',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: pdfLoading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <IconDownload size={14} color="#dc2626" />
+            {pdfLoading ? 'Generando PDF...' : 'Exportar PDF'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: '1px solid #a7f3d0',
+              background: '#ffffff',
+              color: '#059669',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <IconDownload size={14} color="#059669" />
+            Exportar CSV
+          </button>
+
+          <ReportInfo reportKey="comisiones" />
+
+          <button
+            className="btn-exit"
+            type="button"
+            onClick={onClose}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              background: '#f8fafc',
+              color: '#334155',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <IconChevronLeft size={14} />
+            Volver
+          </button>
+        </div>
       </div>
 
-      <div className="reports-page-body">
-        {/* ── Hero ── */}
-        <section className="reports-hero-panel" style={sectionStyle(50)}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Comisiones por vendedor</span>
-              <h3 className="reports-section-title">Comisiones × Vendedor</h3>
-              <p className="reports-section-text">
-                Cada barra representa un vendedor. La barra izquierda (verde) muestra sus <strong>ventas totales</strong>,
-                la barra derecha (azul) muestra la <strong>comisión</strong> generada según el nivel de meta alcanzado.
-              </p>
-            </div>
-          </div>
+      <div className="reports-page-body" style={{ padding: '24px 28px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        
+        {/* ── Toolbar de Filtros ── */}
+        <section className="comm-card" style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '8px' }}>
+                <IconCalendar size={14} color="#64748b" />
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Mes:</span>
+                <input
+                  type="month"
+                  value={monthKey}
+                  onChange={e => handleMonthChange(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '12px', fontWeight: 700, color: '#0f172a', outline: 'none' }}
+                />
+              </div>
 
-          {/* ── Toolbar ── */}
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px', alignItems: 'center' }}>
-            {/* Grupo izquierdo: filtro por mes + Mes Actual juntos */}
-            <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <label className="field" style={{ flex: '0 0 160px', marginBottom: 0 }}>
-                <span>Mes</span>
-                <input type="month" value={monthKey} onChange={e => handleMonthChange(e.target.value)} />
-              </label>
-              <button type="button" className="btnPrimary" onClick={handleReset} style={{ height: '36px' }}>
-                Mes Actual
-              </button>
-            </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <button type="button" className="preset-btn" onClick={handleReset}>
+                  Mes Actual
+                </button>
+                <button
+                  type="button"
+                  className="preset-btn"
+                  onClick={() => {
+                    const [y, m] = monthKey.split('-').map(Number);
+                    const prev = new Date(y, m - 2, 1);
+                    const k = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+                    handleMonthChange(k);
+                  }}
+                >
+                  Mes Anterior
+                </button>
+              </div>
 
-            {/* User filter */}
-            <div className="field" style={{ flex: '0 0 240px' }}>
-              <MultiSelect
-                selected={userFilter}
-                onChange={setUserFilter}
-                options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || u.username }))}
-                placeholder="Vendedor"
-                emptyLabel="Todos"
-                searchable
-                width="100%"
-              />
-            </div>
-
-            {/* Grupo derecho: botones de exportar (alineados a la derecha) */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
-                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-                borderRadius: '8px', border: '1.5px solid #dc2626',
-                background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#fff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '5px',
-                transition: 'all 0.15s ease',
-                opacity: pdfLoading ? 0.7 : 1,
-              }}
-                onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.borderColor = '#b91c1c'; }}}
-                onMouseLeave={e => { if (!pdfLoading) { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}}
-              >
-                <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-                  <path d="M5 8l4 4 4-4" />
-                  <path d="M9 12V2" />
-                </svg>
-                {pdfLoading ? 'Generando...' : 'Exportar PDF'}
-              </button>
-
-              <button type="button" onClick={handleExportExcel} style={{
-                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-                borderRadius: '8px', border: '1.5px solid #16a34a',
-                background: '#16a34a', color: '#fff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '5px',
-                transition: 'all 0.15s ease',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.borderColor = '#15803d'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.borderColor = '#16a34a'; }}
-              >
-                <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-                  <path d="M5 8l4 4 4-4" />
-                  <path d="M9 12V2" />
-                </svg>
-                Exportar CSV
-              </button>
+              <div style={{ minWidth: '220px' }}>
+                <MultiSelect
+                  selected={userFilter}
+                  onChange={setUserFilter}
+                  options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || u.username }))}
+                  placeholder="Vendedor"
+                  emptyLabel="Todos los vendedores"
+                  searchable
+                  width="100%"
+                />
+              </div>
             </div>
 
-            {/* Mini KPI chips */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                💰 <strong style={{ color: '#0f172a' }}>{formatMoney(totalSales)}</strong> en ventas
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                {userFilter.size > 0 ? `Filtrando: ${userFilter.size} vendedor(es)` : 'Todos los vendedores evaluados'}
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                🏆 <strong style={{ color: '#059669' }}>{formatMoney(totalCommission)}</strong> en comisiones
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                👤 <strong style={{ color: '#0f172a' }}>{totalUsersWithTiers}</strong> con metas
-              </span>
-              {topByCommission && topByCommission.commissionAmount > 0 && (
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  🥇 <strong style={{ color: '#0f172a' }}>{topByCommission.name}</strong> {formatMoney(topByCommission.commissionAmount)}
-                </span>
-              )}
             </div>
           </div>
         </section>
+
+        {/* ── 4 Tarjetas KPI Ejecutivas ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+          {/* KPI 1: Ventas Totales */}
+          <div className="comm-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
+                Ventas del Período
+              </span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconTrendingUp size={16} color="#059669" />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', lineHeight: 1.1 }}>
+                {formatMoney(totalSales)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Total eventos confirmados
+              </div>
+            </div>
+          </div>
+
+          {/* KPI 2: Comisiones Generadas */}
+          <div className="comm-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
+                Comisiones Generadas
+              </span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconAward size={16} color="#7c3aed" />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#7c3aed', lineHeight: 1.1 }}>
+                {formatMoney(totalCommission)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Tasa efectiva: <strong style={{ color: '#0f172a' }}>{totalSales > 0 ? ((totalCommission / totalSales) * 100).toFixed(2) : '0'}%</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* KPI 3: Vendedores con Metas */}
+          <div className="comm-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
+                Vendedores Evaluados
+              </span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconTarget size={16} color="#2563eb" />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', lineHeight: 1.1 }}>
+                {totalUsersWithTiers}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                {userRows.filter(r => r.reachedTier).length} han alcanzado nivel de meta
+              </div>
+            </div>
+          </div>
+
+          {/* KPI 4: Líder en Comisión */}
+          <div className="comm-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
+                Mayor Comisión
+              </span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconStar size={16} color="#d97706" />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', lineHeight: 1.1 }}>
+                {topByCommission && topByCommission.commissionAmount > 0 ? formatMoney(topByCommission.commissionAmount) : 'Q 0.00'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {topByCommission && topByCommission.commissionAmount > 0 ? topByCommission.name : 'Sin comisiones en período'}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* ── Storytelling ── */}
         <div className="reports-storytelling-card" style={sectionStyle(200)}>
@@ -706,21 +947,21 @@ th.right{text-align:right}</style></head><body>
                     {r.name}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px', color: '#cbd5e1' }}>
-                    <span style={{ color: '#94a3b8' }}>💰 Ventas</span>
+                    <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ventas</span>
                     <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(r.salesAmount)}</span>
-                    <span style={{ color: '#94a3b8' }}>🏆 Comisión</span>
+                    <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Comisión</span>
                     <span style={{ fontWeight: 800, color: '#60a5fa' }}>{formatMoney(r.commissionAmount)}</span>
                     {r.hasTiers ? (
                       <>
-                        <span style={{ color: '#94a3b8' }}>🎯 Tier alcanzado</span>
+                        <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nivel</span>
                         <span style={{ fontWeight: 700, color: r.reachedTier ? '#f59e0b' : '#94a3b8' }}>
-                          {r.reachedTier ? `${r.reachedTier.name} (${r.reachedTier.percentage}%)` : 'Ninguno'}
+                          {r.reachedTier ? `${r.reachedTier.name} (${r.reachedTier.percentage}%)` : 'Sin alcanzar'}
                         </span>
-                        <span style={{ color: '#94a3b8' }}>📊 Siguiente meta</span>
+                        <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Siguiente meta</span>
                         <span style={{ fontWeight: 700, color: '#fff' }}>
                           {r.nextTier ? `${r.nextTier.name} (Q ${r.nextTier.amount.toLocaleString()})` : '—'}
                         </span>
-                        <span style={{ color: '#94a3b8' }}>📈 Progreso</span>
+                        <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Progreso</span>
                         <span style={{ fontWeight: 800, color: '#60a5fa' }}>{Math.round(r.progressToNext)}%</span>
                       </>
                     ) : (

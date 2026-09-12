@@ -9,7 +9,7 @@
 //   {updateState && <ForceUpdateModal {...updateState} onUpdate={reload} />}
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { fetchServerVersion, evaluateUpdate, forcePurgeAndLogout, CURRENT_VERSION } from '../services/versionService';
+import { fetchServerVersion, evaluateUpdate, forcePurgeAndLogout, compareVersions, CURRENT_VERSION } from '../services/versionService';
 
 const DEFAULT_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 horas
 
@@ -72,7 +72,6 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     // Listener del Service Worker: cuando se activa una versión nueva,
-    // Listener del Service Worker: cuando se activa una versión nueva,
     // el SW manda un mensaje { type: 'SW_ACTIVATED', version: '...' }.
     // Disparamos un check inmediato para mostrar el modal sin esperar al polling de 3h.
     const onSwMessage = (event) => {
@@ -90,6 +89,7 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
     const onSystemForceLogout = (e) => {
       const data = e.detail || {};
       if (CURRENT_VERSION === '0.0.0-dev' || CURRENT_VERSION.startsWith('0.0.0-')) return;
+      if (data.version && compareVersions(CURRENT_VERSION, data.version) >= 0) return;
       setServerVersion(data.version || 'nueva');
       setUpdateState({
         needsUpdate: true,

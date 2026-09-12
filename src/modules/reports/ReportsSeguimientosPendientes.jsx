@@ -2,18 +2,81 @@ import { useState, useMemo, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import ReportInfo from './components/ReportInfo';
 
+// ── Minimalist Vector Icons ──
+function IconClock({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconTrendingUp({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
+function IconUsers({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function IconTarget({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IconCalendar({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
 const PENDING_STATUSES = [
-  { key: 'Reserva sin Cotizacion', label: 'Reserva sin Cot.', color: '#00A3FF', icon: '📝' },
-  { key: '1er Cotizacion', label: '1ra Cotización', color: '#007A64', icon: '💰' },
-  { key: 'Seguimiento', label: 'Negociación', color: '#FF8C00', icon: '🤝' },
-  { key: 'Lista de Espera', label: 'Lista Espera', color: '#FFD700', icon: '⏳' },
-  { key: 'Pre reserva', label: 'Pre-Reserva', color: '#FF00CC', icon: '📌' },
+  { key: 'Reserva sin Cotizacion', label: 'Reserva sin Cot.', color: '#00A3FF' },
+  { key: '1er Cotizacion', label: '1ra Cotización', color: '#007A64' },
+  { key: 'Seguimiento', label: 'Negociación', color: '#FF8C00' },
+  { key: 'Lista de Espera', label: 'Lista Espera', color: '#eab308' },
+  { key: 'Pre reserva', label: 'Pre-Reserva', color: '#ec4899' },
 ];
 
 const STATUS_SET = new Set(PENDING_STATUSES.map(s => s.key));
 
 function getStatusMeta(key) {
   return PENDING_STATUSES.find(s => s.key === key);
+}
+
+function formatMoneyGT(v) {
+  return 'Q ' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function ReportsSeguimientosPendientes({ onClose }) {
@@ -133,6 +196,27 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
     setMonthKey(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`);
   };
 
+  const navigateMonth = (direction) => {
+    const [yr, mo] = monthKey.split('-').map(Number);
+    const d = new Date(yr, mo - 1 + direction, 1);
+    const newMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    setMonthKey(newMonth);
+    setUserIdFilter(null);
+  };
+
+  const dominantStatus = useMemo(() => {
+    let top = null;
+    let max = -1;
+    for (const s of PENDING_STATUSES) {
+      const c = statusTotals[s.key] || 0;
+      if (c > max) {
+        max = c;
+        top = s;
+      }
+    }
+    return top && max > 0 ? { ...top, count: max, money: formatMoneyGT(moneyByStatus[top.key] || 0) } : null;
+  }, [statusTotals, moneyByStatus]);
+
   // Click en un evento → abre el formulario de edición de reserva
   const handleEventClick = useCallback((ev) => {
     if (!ev || !ev.id) return;
@@ -150,8 +234,6 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
     return evs[hoveredEvent.evIdx] || null;
   }, [hoveredEvent, userData]);
 
-  const formatMoneyGT = (v) => 'Q ' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   const sectionStyle = { opacity: 1, transform: 'translateY(0)', transition: 'opacity 0.5s ease' };
 
   return (
@@ -164,75 +246,196 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
           </div>
           <div>
             <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-            <div className="reports-title">📋 Seguimientos Pendientes</div>
+            <div className="reports-title">Seguimientos Pendientes</div>
             <div className="reports-subtitle">Eventos en pipeline comercial por vendedor · Pre-Reserva · Negociación · 1ra Cotización · Reserva sin Cot. · Lista Espera</div>
           </div>
         </div>
         <ReportInfo reportKey="seguimientos" />
-        <button className="btn-exit" type="button" onClick={onClose}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <IconChevronLeft size={16} />
           Volver
         </button>
       </div>
 
       <div className="reports-page-body">
-        {/* ── Hero ── */}
-        <section className="reports-hero-panel" style={sectionStyle}>
-          <div className="reports-section-intro">
-            <div>
-              <span className="reports-eyebrow">Pipeline comercial</span>
-              <h3 className="reports-section-title">Eventos pendientes por vendedor</h3>
-              <p className="reports-section-text">
-                Eventos en estados de seguimiento comercial agrupados por usuario. Pasa el mouse sobre cada evento para ver detalles.
-              </p>
+        {/* ── 4 Tarjetas KPI Ejecutivas ── */}
+        <section className="reports-hero-panel" style={{ gap: '16px', ...sectionStyle }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '14px',
+            width: '100%',
+          }}>
+            {/* Card 1: Total Pendientes */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total Pendientes
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconClock size={16} color="#2563eb" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {totalPending} <span style={{ fontSize: '15px', color: '#64748b', fontWeight: 600 }}>eventos</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Prospectos activos en pipeline
+              </div>
+            </div>
+
+            {/* Card 2: Monto en Juego */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Monto en Juego
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTrendingUp size={16} color="#059669" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#059669', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {formatMoneyGT(totalMoneyAtStake)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Total cotizado en seguimiento
+              </div>
+            </div>
+
+            {/* Card 3: Vendedores con Pipeline */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Vendedores
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconUsers size={16} color="#7c3aed" />
+                </div>
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {totalUsers} <span style={{ fontSize: '15px', color: '#64748b', fontWeight: 600 }}>{totalUsers === 1 ? 'vendedor' : 'vendedores'}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Gestionando prospectos este mes
+              </div>
+            </div>
+
+            {/* Card 4: Etapa Dominante */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 16px -4px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Etapa Dominante
+                </span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTarget size={16} color="#d97706" />
+                </div>
+              </div>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: dominantStatus?.color || '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                {dominantStatus ? dominantStatus.label : 'Sin pendientes'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {dominantStatus ? `${dominantStatus.count} eventos (${dominantStatus.money})` : 'Pipeline al día'}
+              </div>
             </div>
           </div>
 
-          {/* ── Toolbar ── */}
-          <div className="reports-toolbar" style={{ gap: '16px', padding: '16px 20px', alignItems: 'center' }}>
-            {/* Grupo izquierdo: controles juntos */}
-            <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <label className="field" style={{ flex: '0 0 160px', marginBottom: 0 }}>
-                <span>Mes</span>
-                <input type="month" value={monthKey} onChange={e => handleMonthChange(e.target.value)} />
-              </label>
-              <label className="field" style={{ flex: '0 0 220px', marginBottom: 0 }}>
-                <span>Vendedor</span>
-                <select value={userIdFilter || ''} onChange={e => setUserIdFilter(e.target.value || null)}>
-                  <option value="">Todos los vendedores</option>
-                  {allVendors.map(v => {
-                    const pendingCount = userData.find(u => u.userId === String(v.id))?.total || 0;
-                    return (
-                      <option key={v.id} value={String(v.id)}>
-                        {(v.fullName || v.name)}{pendingCount > 0 ? ` (${pendingCount})` : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </label>
-              <button type="button" className="btnPrimary" onClick={() => { handleReset(); setUserIdFilter(null); }} style={{ height: '36px' }}>
+          {/* ── Toolbar con Presets ── */}
+          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => navigateMonth(-1)}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Mes Anterior
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => { handleReset(); setUserIdFilter(null); }}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
                 Mes Actual
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => navigateMonth(1)}
+                style={{
+                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
+                  borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#ffffff', color: '#334155', cursor: 'pointer'
+                }}
+              >
+                Próximo Mes
               </button>
             </div>
 
-            {/* Grupo derecho: KPI chips */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                📋 <strong style={{ color: '#0f172a' }}>{totalPending}</strong> pendientes
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                👥 <strong style={{ color: '#0f172a' }}>{totalUsers}</strong> {totalUsers === 1 ? 'vendedor' : 'vendedores'}
-              </span>
-              {PENDING_STATUSES.map(s => {
-                const c = statusTotals[s.key] || 0;
-                return c > 0 ? (
-                  <span key={s.key} style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <span style={{ width: '7px', height: '7px', borderRadius: '2px', background: s.color, display: 'inline-block' }} />
-                    {c}
-                  </span>
-                ) : null;
-              })}
-            </div>
+            <div style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 4px' }} />
+
+            <label className="field" style={{ flex: '0 0 150px', marginBottom: 0 }}>
+              <span>Mes</span>
+              <input type="month" value={monthKey} onChange={e => handleMonthChange(e.target.value)} />
+            </label>
+            <label className="field" style={{ flex: '0 0 220px', marginBottom: 0 }}>
+              <span>Vendedor</span>
+              <select value={userIdFilter || ''} onChange={e => setUserIdFilter(e.target.value || null)}>
+                <option value="">Todos los vendedores</option>
+                {allVendors.map(v => {
+                  const pendingCount = userData.find(u => u.userId === String(v.id))?.total || 0;
+                  return (
+                    <option key={v.id} value={String(v.id)}>
+                      {(v.fullName || v.name)}{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
           </div>
         </section>
 
@@ -241,9 +444,9 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
           <div style={{ display: 'flex', gap: '8px', fontSize: '10px', fontWeight: 700, color: '#64748b', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, marginRight: '4px' }}>ESTADOS:</span>
             {PENDING_STATUSES.map(s => (
-              <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '999px', background: `${s.color}15`, border: `1.5px solid ${s.color}40` }}>
+              <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', background: `${s.color}15`, border: `1.5px solid ${s.color}40` }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color, display: 'inline-block' }} />
-                {s.icon} {s.label} <strong style={{ color: '#0f172a' }}>{statusTotals[s.key] || 0}</strong>
+                {s.label} <strong style={{ color: '#0f172a' }}>{statusTotals[s.key] || 0}</strong>
               </span>
             ))}
           </div>
@@ -269,7 +472,9 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
               background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
               display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap',
             }}>
-              <div style={{ fontSize: '36px' }}>💰</div>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconTrendingUp size={22} color="#059669" />
+              </div>
               <div style={{ flex: 1, minWidth: '180px' }}>
                 <div className="reports-eyebrow">Total en juego este mes</div>
                 <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', lineHeight: 1, marginTop: '2px' }}>
@@ -299,7 +504,7 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '18px' }}>{s.icon}</span>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color, display: 'inline-block' }} />
                         <span style={{ fontSize: '11px', fontWeight: 800, color: s.color, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{s.label}</span>
                       </div>
                       <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', background: '#f1f5f9', borderRadius: '999px', padding: '2px 8px' }}>{count} ev.</span>
@@ -324,7 +529,9 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
         {filteredUserData.length === 0 ? (
           <section className="reports-hero-panel">
             <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-              <div style={{ fontSize: '40px', marginBottom: '8px' }}>📭</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                <IconClock size={40} color="#94a3b8" />
+              </div>
               <div style={{ fontWeight: 700, fontSize: '15px', color: '#64748b' }}>{userIdFilter ? 'No hay eventos para este vendedor' : 'No hay eventos pendientes'}</div>
               <div style={{ fontSize: '12px', marginTop: '4px' }}>{userIdFilter ? 'El vendedor seleccionado no tiene eventos en estados de seguimiento para ' : 'Ningún evento en estados de seguimiento para '}{monthKey}</div>
             </div>
@@ -372,7 +579,7 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                       <h3 className="reports-section-title" style={{ fontSize: '16px', margin: '1px 0 0' }}>{user.name}</h3>
                       {user.totalMoney > 0 && (
                         <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
-                          💰 {formatMoneyGT(user.totalMoney)} en juego
+                          {formatMoneyGT(user.totalMoney)} en juego
                         </div>
                       )}
                     </div>
@@ -454,7 +661,7 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                               flex: '0 1 auto',
                               minWidth: '160px',
                             }}>
-                              <span style={{ fontSize: '16px' }}>{s.icon}</span>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color, display: 'inline-block' }} />
                               <div>
                                 <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{s.label}</div>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
@@ -487,7 +694,7 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                               <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: s.color, display: 'inline-block' }} />
                               <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                                {s.icon} {s.label}
+                                {s.label}
                               </span>
                               <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>{evs.length}</span>
                             </div>
@@ -570,13 +777,13 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
                   <strong style={{ fontSize: '13px', color: statusMeta?.color || '#fff' }}>{tooltipEvent.name}</strong>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 8px', fontSize: '10px', color: '#cbd5e1' }}>
-                  <span style={{ color: '#94a3b8' }}>📅 Fecha</span>
+                  <span style={{ color: '#94a3b8' }}>Fecha</span>
                   <span style={{ fontWeight: 700, color: '#fff' }}>{tooltipEvent.date}</span>
-                  <span style={{ color: '#94a3b8' }}>📍 Salón</span>
+                  <span style={{ color: '#94a3b8' }}>Salón</span>
                   <span style={{ fontWeight: 700, color: '#fff' }}>{tooltipEvent.salon || '—'}</span>
-                  <span style={{ color: '#94a3b8' }}>📌 Estado</span>
+                  <span style={{ color: '#94a3b8' }}>Estado</span>
                   <span style={{ fontWeight: 700, color: statusMeta?.color || '#fff' }}>{statusMeta?.label || tooltipEvent.status}</span>
-                  <span style={{ color: '#94a3b8' }}>👤 Vendedor</span>
+                  <span style={{ color: '#94a3b8' }}>Vendedor</span>
                   <span style={{ fontWeight: 700, color: '#fff' }}>{userData.find(u => u.userId === hoveredEvent.userId)?.name || '—'}</span>
                 </div>
               </div>

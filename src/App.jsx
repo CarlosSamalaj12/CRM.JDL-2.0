@@ -15,7 +15,7 @@ import ReportsLayout from './modules/informes/components/ReportsLayout';
 import { AuthProvider } from './modules/informes/context/AuthContext';
 import { ToastProvider } from './modules/informes/context/ToastContext';
 import { SocketProvider } from './modules/informes/context/SocketContext';
-import { CURRENT_VERSION, forcePurgeAndLogout } from './services/versionService';
+import { CURRENT_VERSION, forcePurgeAndLogout, compareVersions } from './services/versionService';
 
 const Login = lazy(() => import('./modules/auth/Login'));
 const Calendar = lazy(() => import('./modules/calendar/Calendar'));
@@ -90,15 +90,18 @@ function App() {
       const savedVersion = localStorage.getItem('crm_installed_version');
       const hasSession = !!localStorage.getItem('token');
 
-      if (savedVersion && savedVersion !== CURRENT_VERSION) {
+      // Si ya estamos en login o ruta pública, no hay nada que purgar ni redirigir
+      if (isLoginPage || isPublicRoute) {
+        localStorage.setItem('crm_installed_version', CURRENT_VERSION);
+        return;
+      }
+
+      // Solo purga si hay sesión previa activa y la versión del bundle es estrictamente mayor
+      if (hasSession && savedVersion && compareVersions(CURRENT_VERSION, savedVersion) > 0) {
         console.warn(`[App] Nueva versión instalada (${CURRENT_VERSION} vs ${savedVersion}). Cerrando sesión para renovar app.`);
         forcePurgeAndLogout(CURRENT_VERSION);
-      } else if (!savedVersion) {
+      } else {
         localStorage.setItem('crm_installed_version', CURRENT_VERSION);
-        if (hasSession && !isPublicRoute && !isLoginPage) {
-          console.warn('[App] Sesión anterior detectada sin versión registrada. Purgando para asegurar consistencia.');
-          forcePurgeAndLogout(CURRENT_VERSION);
-        }
       }
     }
   }, []);

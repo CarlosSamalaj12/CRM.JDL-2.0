@@ -1,4 +1,5 @@
 import api from './api';
+import { CURRENT_VERSION } from './versionService';
 
 api.setOnUnauthorized(() => {
   if (window.location.pathname === '/login') {
@@ -84,6 +85,9 @@ export const authService = {
     if (token) {
       localStorage.setItem('token', token);
     }
+    if (CURRENT_VERSION && CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
+      localStorage.setItem('crm_installed_version', CURRENT_VERSION);
+    }
   },
 
   // Get current logged-in user from localStorage
@@ -91,7 +95,6 @@ export const authService = {
     const token = localStorage.getItem('token');
     const rawUser = localStorage.getItem('user');
     if (!rawUser || !token) {
-      this.clearSession();
       return null;
     }
     try {
