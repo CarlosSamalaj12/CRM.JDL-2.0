@@ -1,5 +1,6 @@
 // versionService.js
 // Servicio para consultar la versión actual del server y compararla con la del bundle local.
+// Updated for version sync and logout purge.
 
 const apiUrl = import.meta.env.VITE_API_URL || '';
 

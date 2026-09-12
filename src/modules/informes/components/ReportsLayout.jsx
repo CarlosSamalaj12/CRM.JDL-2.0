@@ -309,9 +309,9 @@ export default function ReportsLayout() {
                           <span className="material-symbols-outlined">mail</span>
                           sistema@jardinesdellago.com
                         </a>
-                        <a href="tel:+50256325547" className="qp-support-phone">
+                        <a href="tel:+50254140195" className="qp-support-phone">
                           <span className="material-symbols-outlined">call</span>
-                          +502 56325547
+                          +502 54140195
                         </a>
                       </div>
                     </div>

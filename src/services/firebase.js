@@ -30,6 +30,14 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
+export function isMobileDevice() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(ua);
+  const isTouchScreen = Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && window.innerWidth <= 1024);
+  return isMobileUA || isTouchScreen;
+}
+
 export const firebaseService = {
   auth,
 
@@ -44,16 +52,38 @@ export const firebaseService = {
   },
 
   async loginWithGoogle() {
+    // En móviles y tablets táctiles, los navegadores (Chrome Mobile, Safari iOS) bloquean popups por defecto.
+    // Usamos signInWithRedirect directamente para abrir la ventana nativa de selección de cuentas de Google.
+    if (isMobileDevice()) {
+      try {
+        sessionStorage.setItem('pending_google_redirect', '1');
+        await signInWithRedirect(auth, googleProvider);
+        return null; // El navegador redirigirá a Google
+      } catch (err) {
+        sessionStorage.removeItem('pending_google_redirect');
+        console.error("Firebase Google redirect login error on mobile:", err);
+        throw err;
+      }
+    }
+
     try {
       const result = await signInWithPopup(auth, googleProvider);
       return result.user;
     } catch (error) {
-      const shouldRedirect =
+      // Fallback a redirect en escritorio si el navegador bloquea la ventana emergente
+      const isPopupFailure =
         error?.code === 'auth/popup-blocked' ||
+        error?.code === 'auth/popup-closed-by-user' ||
+        error?.code === 'auth/cancelled-popup-request' ||
         error?.code === 'auth/operation-not-supported' ||
-        error?.message?.includes('Cross-Origin-Opener-Policy');
+        error?.code === 'auth/web-storage-unsupported' ||
+        error?.message?.includes('popup') ||
+        error?.message?.includes('Cross-Origin-Opener-Policy') ||
+        error?.message?.includes('closed');
 
-      if (shouldRedirect) {
+      if (isPopupFailure) {
+        console.warn('[Firebase] Popup bloqueado o cerrado, usando redirección a Google...');
+        sessionStorage.setItem('pending_google_redirect', '1');
         await signInWithRedirect(auth, googleProvider);
         return null;
       }
@@ -65,8 +95,10 @@ export const firebaseService = {
   async getGoogleRedirectUser() {
     try {
       const result = await getRedirectResult(auth);
+      sessionStorage.removeItem('pending_google_redirect');
       return result?.user || null;
     } catch (error) {
+      sessionStorage.removeItem('pending_google_redirect');
       console.error("Firebase Google redirect login error:", error);
       throw error;
     }

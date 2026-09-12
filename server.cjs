@@ -2689,7 +2689,7 @@ async function ensureDefaultUserCarlos() {
         username,
         "Carlos Roberto Samalaj",
         "sistemas@jardinesdellago.com",
-        "56325547",
+        "54140195",
         passwordHash,
       ]
     );
