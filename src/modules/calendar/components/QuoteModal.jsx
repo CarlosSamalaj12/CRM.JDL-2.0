@@ -3,6 +3,32 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
+import {
+  Copy,
+  ArrowUp,
+  ArrowDown,
+  X,
+  Check,
+  Building2,
+  FileText,
+  Search,
+  Plus,
+  Sparkles,
+  Lock,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Calendar,
+  AlertTriangle,
+  Trash2,
+  CreditCard,
+  Printer,
+  Save,
+  ShoppingCart,
+  Pencil,
+  Info,
+  UserPlus
+} from 'lucide-react';
 import authService from '../../../services/authService';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
@@ -344,35 +370,32 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const draft = loadDraft(event);
     if (draft && draft.items && draft.items.length > 0) {
       const timer = setTimeout(() => {
-        // Leer el `quote` ACTUAL (no el del primer render) para no pisar lo que
-        // el usuario haya seleccionado mientras tanto. Tambien descartamos el
-        // draft si el usuario ya empezo a trabajar: solo lo restauramos cuando
-        // el quote actual esta "vacio" (sin empresa, sin items y sin folio).
         const current = quoteRef.current || {};
-        const currentHasContent =
-          !!current.companyId
-          || !!current.items?.length
-          || !!current.folio
-          || !!current.contact
-          || !!current.email;
+        const currentItemCount = current.items?.length || 0;
+        const draftItemCount = draft.items?.length || 0;
 
-        if (currentHasContent) {
-          // El usuario ya empezo: no pisar nada. Solo actualizar el snapshot
-          // para que la deteccion de "cambios sin guardar" no se active.
+        // Si la cotización en memoria ya tiene al menos los mismos ítems, no pisar
+        if (currentItemCount >= draftItemCount && currentItemCount > 0) {
           savedQuoteSnapshotRef.current = quoteSnapshot(current);
           return;
         }
 
+        // Si el borrador tiene ítems no guardados, restaurar preservando datos de empresa actuales
         const restored = {
           ...current,
           ...draft,
+          companyId: draft.companyId || current.companyId,
+          companyName: draft.companyName || current.companyName,
+          contact: draft.contact || current.contact,
+          email: draft.email || current.email,
+          phone: draft.phone || current.phone,
           items: draft.items.map(item => ({
             ...item,
             rowId: item.rowId || 'row_' + Math.random().toString(36).substr(2, 8)
           }))
         };
         setQuote(restored);
-        toast.success('Borrador recuperado. Haz clic en "Guardar cotización" para sincronizar con el servidor.');
+        toast.success(`Borrador recuperado (${draftItemCount} servicios). Recuerda guardar tus cambios.`, { duration: 5000 });
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -1349,7 +1372,44 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     } catch (err) {
       console.error('Error al guardar cotización:', err);
       setSaving(false);
-      localSwal({ icon: 'error', title: 'Error', text: 'Hubo un problema al aplicar la cotización.' });
+
+      const errorMsg = err?.responseBody?.detail || err?.responseBody?.message || err?.message || 'Error de conexión con el servidor.';
+
+      const errorResult = await localSwal({
+        icon: 'error',
+        title: 'Error al guardar cotización',
+        html: `
+          <div style="text-align: left; font-size: 13px; line-height: 1.5; color: #334155;">
+            <p style="margin-bottom: 8px;"><strong>Detalle del error:</strong></p>
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px; color: #991b1b; font-family: monospace; font-size: 12px; word-break: break-word; margin-bottom: 12px;">
+              ${errorMsg}
+            </div>
+            <p style="color: #047857; font-weight: 600; margin-bottom: 4px;">🛡️ Tus datos no se han perdido:</p>
+            <p style="margin: 0; color: #64748b; font-size: 12px;">Esta ventana permanecerá abierta para que no pierdas ningún dato. Puedes reintentar guardar o copiar un respaldo de emergencia al portapapeles.</p>
+          </div>
+        `,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: '🔄 Reintentar guardar',
+        denyButtonText: '📋 Copiar respaldo JSON',
+        cancelButtonText: 'Continuar editando',
+        confirmButtonColor: '#2563eb',
+        denyButtonColor: '#059669',
+        cancelButtonColor: '#64748b',
+        allowOutsideClick: false,
+      });
+
+      if (errorResult.isConfirmed) {
+        handleSaveQuote();
+      } else if (errorResult.isDenied) {
+        try {
+          const backupData = JSON.stringify(quote, null, 2);
+          await navigator.clipboard.writeText(backupData);
+          toast.success('¡Respaldo copiado al portapapeles! Tus datos están protegidos.');
+        } catch (_) {
+          toast.error('No se pudo copiar automáticamente. Tus datos continúan intactos en pantalla.');
+        }
+      }
     }
   };
 
@@ -1930,7 +1990,32 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
         <button className="btn" type="button" onClick={() => { resetAdvanceForm(); onClose?.(); }} style={{ padding: '8px 18px', fontSize: '11px', fontWeight: 700, borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>Cancelar</button>
-        <button className="btnPrimary" type="button" onClick={() => { onSave?.(quote); onClose?.(); }} style={{ padding: '8px 18px', fontSize: '11px', fontWeight: 800, borderRadius: '7px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer' }}>Guardar y salir</button>
+        <button
+          className="btnPrimary"
+          type="button"
+          disabled={saving}
+          onClick={async () => {
+            try {
+              setSaving(true);
+              if (typeof onSave === 'function') {
+                await onSave(quote);
+              }
+              onClose?.();
+            } catch (saveErr) {
+              console.error('Error al guardar anticipos:', saveErr);
+              localSwal({
+                icon: 'error',
+                title: 'Error al guardar',
+                text: 'No se pudieron guardar los anticipos: ' + (saveErr?.message || 'Error de conexión')
+              });
+            } finally {
+              setSaving(false);
+            }
+          }}
+          style={{ padding: '8px 18px', fontSize: '11px', fontWeight: 800, borderRadius: '7px', border: 'none', background: '#2563eb', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? 'Guardando...' : 'Guardar y salir'}
+        </button>
       </div>
     </div>
   ) : (
@@ -4141,13 +4226,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     color: selectedItemIds.size > 0 ? '#15803d' : '#334155',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 5,
                     boxSizing: 'border-box',
                     whiteSpace: 'nowrap',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <span>📋</span>
+                  <Copy size={13} strokeWidth={2} />
                   <span>Duplicar</span>
                 </button>
                 <button
@@ -4165,12 +4250,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 2,
+                    gap: 4,
                     boxSizing: 'border-box',
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  ↑ Subir
+                  <ArrowUp size={13} strokeWidth={2.2} />
+                  <span>Subir</span>
                 </button>
                 <button
                   className="qp-btn"
@@ -4187,12 +4273,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 2,
+                    gap: 4,
                     boxSizing: 'border-box',
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  ↓ Bajar
+                  <ArrowDown size={13} strokeWidth={2.2} />
+                  <span>Bajar</span>
                 </button>
                 {selectedItemIds.size > 0 && (
                   <button
@@ -4201,7 +4288,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     title="Deseleccionar todo"
                     style={{
                       height: 32,
-                      padding: '0 6px',
+                      padding: '0 7px',
                       background: '#fef2f2',
                       border: '1px solid #fecaca',
                       borderRadius: 6,
@@ -4211,11 +4298,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
+                      gap: 4,
                       boxSizing: 'border-box',
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    ✕ Limpiar
+                    <X size={13} strokeWidth={2.2} />
+                    <span>Limpiar</span>
                   </button>
                 )}
               </div>
@@ -4240,14 +4329,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         border: `1.5px solid ${checked ? '#16a34a' : '#cbd5e1'}`,
                         background: checked ? '#f0fdf4' : '#ffffff',
                         color: checked ? '#166534' : '#334155',
-                        transition: 'all 0.12s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                        transition: 'all 0.12s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                         boxShadow: checked ? '0 0 0 1px #16a34a' : 'none',
                         boxSizing: 'border-box',
                         fontWeight: 700, fontSize: 11
                       }}
                     >
-                      {checked && '✓ '}
-                      {tpl.name}
+                      {checked && <Check size={13} strokeWidth={2.5} />}
+                      <span>{tpl.name}</span>
                     </button>
                   );
                 })}
@@ -4294,11 +4383,15 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     background: showDocPanel ? '#3b82f6' : undefined,
                     color: showDocPanel ? '#ffffff' : undefined,
                     borderColor: showDocPanel ? '#2563eb' : undefined,
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5
                   }} 
                   onClick={() => setShowDocPanel(p => !p)}
                 >
-                  Datos empresa
+                  <Building2 size={13} strokeWidth={2} />
+                  <span>Datos empresa</span>
                 </button>
                 {event?.id && (
                   <button 
@@ -4312,14 +4405,18 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       background: '#10b981',
                       color: '#ffffff',
                       borderColor: '#059669',
-                      boxSizing: 'border-box'
+                      boxSizing: 'border-box',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5
                     }} 
                     onClick={() => {
                       const evDate = event?.date || event?.eventDateStart || new Date().toISOString().split('T')[0];
                       navigate(`/kanban?highlightEvento=${event.id}&date=${evDate.slice(0, 10)}`);
                     }}
                   >
-                    📋 Informe
+                    <FileText size={13} strokeWidth={2} />
+                    <span>Informe</span>
                   </button>
                 )}
               </div>
@@ -4370,7 +4467,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 borderBottom: '1px solid #e2e8f0',
                 background: '#f8fafc'
               }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>📄 Datos de la Cotización / Empresa</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <Building2 size={18} strokeWidth={2} style={{ color: '#2563eb' }} />
+                  <span>Datos de la Cotización / Empresa</span>
+                </div>
                 <button 
                   type="button" 
                   className="qp-close-btn" 
@@ -4430,7 +4530,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                               onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
                               title="Editar datos de la empresa en el catálogo"
                             >
-                              ✏️ Editar
+                              <Pencil size={12} strokeWidth={2} />
+                              <span>Editar</span>
                             </button>
                           )}
                           <button
@@ -4456,7 +4557,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
                             title="Crear una nueva empresa única en el catálogo"
                           >
-                            + Nueva
+                            <Plus size={12} strokeWidth={2.2} />
+                            <span>Nueva</span>
                           </button>
                         </div>
                       </div>
@@ -4486,21 +4588,24 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                 e.preventDefault();
                                 openCreateCompanyModal();
                               }}
-                              style={{ padding: '10px 14px', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 13, borderTop: filteredCompanies.length > 0 ? '1px solid #e2e8f0' : 'none' }}
+                              style={{ padding: '10px 14px', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 13, borderTop: filteredCompanies.length > 0 ? '1px solid #e2e8f0' : 'none', display: 'flex', alignItems: 'center', gap: 6 }}
                             >
-                              ➕ Crear nueva empresa "{companySearchQuery.trim()}"
+                              <Plus size={13} strokeWidth={2.2} />
+                              <span>Crear nueva empresa "{companySearchQuery.trim()}"</span>
                             </div>
                           </div>
                         )}
                       </div>
                       {selectedQuoteCompany ? (
                         <div style={{ marginTop: 4, fontSize: 11.5, color: '#059669', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
-                          <span>✓ Vinculada a:</span>
+                          <Check size={12} strokeWidth={2.5} />
+                          <span>Vinculada a:</span>
                           <span style={{ color: '#0f172a' }}>{selectedQuoteCompany.name}</span>
                         </div>
                       ) : quote.companyName ? (
                         <div style={{ marginTop: 4, fontSize: 11.5, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
-                          <span>⚠️ Asignada:</span>
+                          <AlertTriangle size={12} strokeWidth={2.2} />
+                          <span>Asignada:</span>
                           <span style={{ color: '#0f172a' }}>{quote.companyName}</span>
                           <button
                             type="button"
@@ -4584,7 +4689,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         alignItems: 'flex-start',
                         gap: 8
                       }}>
-                        <span style={{ fontSize: 14, lineHeight: 1 }}>ℹ️</span>
+                        <Info size={16} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} />
                         <div style={{ flex: 1 }}>
                           Esta empresa no tiene encargados registrados. Escribe el nombre del encargado directamente en el campo <strong>Contacto</strong> debajo.
                           <button
@@ -4603,10 +4708,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                               padding: '4px 10px',
                               borderRadius: 6,
                               cursor: 'pointer',
-                              display: 'block'
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
                             }}
                           >
-                            + Agregar encargado a {selectedQuoteCompany.name}
+                            <Plus size={12} strokeWidth={2.2} />
+                            <span>Agregar encargado a {selectedQuoteCompany.name}</span>
                           </button>
                         </div>
                       </div>
@@ -4925,15 +5033,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               type="button"
               className={`qp-mobile-tab-btn ${mobileTab === 'carrito' ? 'active' : ''}`}
               onClick={() => setMobileTab('carrito')}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
             >
-              🛒 Carrito ({quote.items?.length || 0}) • {moneyGT(totals.total, quote.currency)}
+              <ShoppingCart size={13} strokeWidth={2} />
+              <span>Carrito ({quote.items?.length || 0}) • {moneyGT(totals.total, quote.currency)}</span>
             </button>
             <button
               type="button"
               className={`qp-mobile-tab-btn ${mobileTab === 'agregar' ? 'active' : ''}`}
               onClick={() => setMobileTab('agregar')}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
             >
-              ➕ Catálogo / Plantillas
+              <Plus size={13} strokeWidth={2.2} />
+              <span>Catálogo / Plantillas</span>
             </button>
           </div>
 
@@ -4957,7 +5069,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
               {!quote.templateIds?.length ? (
                 <div style={{ ...card, textAlign: 'center', padding: '36px 16px' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 10, background: '#f1f5f9', color: '#64748b', margin: '0 auto 10px' }}>
+                    <FileText size={22} strokeWidth={1.8} />
+                  </div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Selecciona un contrato</div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>Elige Servihosp o Jardines en la barra superior para comenzar a agregar servicios.</div>
                 </div>
@@ -4968,9 +5082,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div className="eyebrow">Catálogo</div>
                 <div className="section-title">Agregar servicio</div>
                 <div style={{ position: 'relative', marginBottom: 8 }}>
+                  <Search size={14} strokeWidth={2} color="#94a3b8" style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
                   <input
                     id="quoteServiceSearchInput"
-                    style={{ ...fieldInput, paddingRight: selectedCatalogService ? '30px' : '9px' }}
+                    style={{ ...fieldInput, paddingLeft: '28px', paddingRight: selectedCatalogService ? '30px' : '9px' }}
                     value={serviceSearch}
                     onChange={e => {
                       setServiceSearch(e.target.value);
@@ -5004,11 +5119,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         border: 'none',
                         color: '#94a3b8',
                         cursor: 'pointer',
-                        fontSize: 14,
-                        padding: 0
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 2
                       }}
+                      title="Limpiar búsqueda"
                     >
-                      ✕
+                      <X size={13} strokeWidth={2.2} />
                     </button>
                   )}
                   {filteredServices.length > 0 && (
@@ -5066,15 +5184,37 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button 
                     className="qp-btn" 
-                    style={{ flex: 1, background: selectedCatalogService ? '#10b981' : '#cbd5e1', color: selectedCatalogService ? '#fff' : '#64748b', cursor: selectedCatalogService ? 'pointer' : 'not-allowed' }} 
+                    style={{ 
+                      flex: 1, 
+                      background: selectedCatalogService ? '#10b981' : '#cbd5e1', 
+                      color: selectedCatalogService ? '#fff' : '#64748b', 
+                      cursor: selectedCatalogService ? 'pointer' : 'not-allowed',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 4
+                    }} 
                     type="button" 
                     disabled={!selectedCatalogService}
                     onClick={() => addServiceItem(selectedCatalogService)}
                   >
-                    Agregar servicio
+                    <Plus size={13} strokeWidth={2.2} />
+                    <span>Agregar servicio</span>
                   </button>
-                  <button className="qp-btn" style={{ flex: 1 }} type="button" onClick={() => setShowCreateServiceModal(true)}>
-                    + Crear nuevo servicio
+                  <button 
+                    className="qp-btn" 
+                    style={{ 
+                      flex: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 4
+                    }} 
+                    type="button" 
+                    onClick={() => setShowCreateServiceModal(true)}
+                  >
+                    <Plus size={13} strokeWidth={2.2} />
+                    <span>Crear nuevo servicio</span>
                   </button>
                 </div>
               </div>
@@ -5087,8 +5227,20 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   <option value="">— Seleccionar —</option>
                   {quickTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <button className="qp-btn" style={{ width: '100%' }} type="button" onClick={handleApplyTemplate}>
-                  Aplicar plantilla
+                <button 
+                  className="qp-btn" 
+                  style={{ 
+                    width: '100%',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5
+                  }} 
+                  type="button" 
+                  onClick={handleApplyTemplate}
+                >
+                  <Sparkles size={13} strokeWidth={2} />
+                  <span>Aplicar plantilla</span>
                 </button>
               </div>
 
@@ -5124,12 +5276,18 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             onClick={async () => {
                               setAuthLoading(true);
                               try {
+                                const user = authService.getCurrentUser() || curUser;
+                                const solicitanteId = user?.id || '';
+                                if (!solicitanteId) {
+                                  toast.error('No se pudo identificar tu usuario. Por favor recarga la página o inicia sesión.');
+                                  return;
+                                }
                                 const eventoId = event?.id || event?.code || '';
                                 if (!eventoId) { toast.error('ID de evento no disponible'); return; }
                                 await api.post('/api/discount-auth/solicitar', {
                                   eventoId, cotizacionId: quote.code || null,
                                   tipoDescuento: quote.discountType, valorDescuento: Number(quote.discountValue),
-                                  montoDescuento: totals.discountAmount, solicitanteId: curUser?.id || '',
+                                  montoDescuento: totals.discountAmount, solicitanteId,
                                   eventoNombre: event?.name || '', eventoCliente: quote.companyName || '',
                                   eventoFecha: event?.date || quote.eventDate || '', eventoSalon: event?.salon || quote.venue || '',
                                   eventoTotal: totals.total,
@@ -5140,24 +5298,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                 toast.error('Error al solicitar autorización: ' + (err.message || ''));
                               } finally { setAuthLoading(false); }
                             }}
-                            style={{ width: '100%', padding: '5px 0', fontSize: 11, fontWeight: 700, border: '1px solid #f59e0b', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer' }}
+                            style={{ width: '100%', padding: '6px 0', fontSize: 11, fontWeight: 700, border: '1px solid #f59e0b', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
                           >
-                            {authLoading ? 'Enviando...' : '🔒 Solicitar autorización'}
+                            <Lock size={12} strokeWidth={2.2} />
+                            <span>{authLoading ? 'Enviando...' : 'Solicitar autorización'}</span>
                           </button>
                         )}
                         {isPending && (
-                          <span style={{ display: 'block', textAlign: 'center', padding: '4px 0', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 700 }}>
-                            ⏳ Autorización pendiente
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 700 }}>
+                            <Clock size={12} strokeWidth={2.2} />
+                            <span>Autorización pendiente</span>
                           </span>
                         )}
                         {isApproved && (
-                          <span style={{ display: 'block', textAlign: 'center', padding: '4px 0', borderRadius: 6, background: '#d1fae5', color: '#065f46', fontSize: 11, fontWeight: 700 }}>
-                            ✅ Descuento autorizado
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#d1fae5', color: '#065f46', fontSize: 11, fontWeight: 700 }}>
+                            <CheckCircle2 size={13} strokeWidth={2.2} />
+                            <span>Descuento autorizado</span>
                           </span>
                         )}
                         {isRejected && (
-                          <span style={{ display: 'block', textAlign: 'center', padding: '4px 0', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 700 }} title={discountAuth.respuestaMotivo || ''}>
-                            ❌ Descuento rechazado{discountAuth.respuestaMotivo ? `: ${discountAuth.respuestaMotivo}` : ''}
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 700 }} title={discountAuth.respuestaMotivo || ''}>
+                            <XCircle size={13} strokeWidth={2.2} />
+                            <span>Descuento rechazado{discountAuth.respuestaMotivo ? `: ${discountAuth.respuestaMotivo}` : ''}</span>
                           </span>
                         )}
                       </div>
@@ -5239,12 +5401,17 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div className="qp-cart-items-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingRight: 4, paddingBottom: 4 }}>
                   {!quote.templateIds?.length ? (
                     <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff', flexShrink: 0 }}>
-                      <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 10, background: '#f1f5f9', color: '#64748b', margin: '0 auto 10px' }}>
+                        <FileText size={22} strokeWidth={1.8} />
+                      </div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Selecciona un contrato</div>
                       <div style={{ fontSize: 11, color: '#94a3b8' }}>Para agregar servicios, primero elige Servihosp o Jardines en la barra superior.</div>
                     </div>
                   ) : quote.items.length === 0 ? (
                     <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff', flexShrink: 0 }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 10, background: '#f1f5f9', color: '#94a3b8', margin: '0 auto 10px' }}>
+                        <ShoppingCart size={22} strokeWidth={1.8} />
+                      </div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Tu carrito aún está vacío</div>
                       <div style={{ fontSize: 11, color: '#cbd5e1' }}>Busca un servicio en el panel izquierdo</div>
                     </div>
@@ -5277,14 +5444,18 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             gap: 8
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 13, fontWeight: 900, color: isOutOfEvent ? '#b45309' : '#0f172a' }}>📅 {date}</span>
+                              <span style={{ fontSize: 13, fontWeight: 900, color: isOutOfEvent ? '#b45309' : '#0f172a', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                <Calendar size={13} strokeWidth={2} style={{ color: isOutOfEvent ? '#b45309' : '#64748b' }} />
+                                <span>{date}</span>
+                              </span>
                               {isOutOfEvent && (
                                 <span style={{
                                   background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
                                   fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
                                   display: 'inline-flex', alignItems: 'center', gap: 4
                                 }}>
-                                  ⚠️ Fecha fuera del evento actual
+                                  <AlertTriangle size={11} strokeWidth={2.2} />
+                                  <span>Fecha fuera del evento actual</span>
                                 </span>
                               )}
                               <span style={{ background: isOutOfEvent ? '#fde68a' : '#e2e8f0', color: isOutOfEvent ? '#92400e' : '#334155', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
@@ -5318,7 +5489,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                   >
                                     <option value="" disabled>Seleccionar fecha...</option>
                                     {availableServiceDates.map(d => (
-                                      <option key={d} value={d}>📅 {d}</option>
+                                      <option key={d} value={d}>{d}</option>
                                     ))}
                                   </select>
                                 </div>
@@ -5376,7 +5547,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                             }}
                                           >
                                             {itemOutOfEvent && (
-                                              <option value={currentItemDate}>⚠️ {currentItemDate} (Fuera del evento)</option>
+                                              <option value={currentItemDate}>{currentItemDate} (Fuera del evento)</option>
                                             )}
                                             {availableServiceDates.map(d => <option key={d} value={d}>{d}</option>)}
                                           </select>
@@ -5398,8 +5569,26 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                         </td>
                                         <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{moneyGT(lineTotal, quote.currency)}</td>
                                         <td style={{ textAlign: 'center' }}>
-                                          <button onClick={() => removeServiceItem(item.rowId)} title="Eliminar servicio" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
-                                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#ef4444' }}>delete</span>
+                                          <button 
+                                            type="button"
+                                            onClick={() => removeServiceItem(item.rowId)} 
+                                            title="Eliminar servicio" 
+                                            style={{ 
+                                              background: 'none', 
+                                              border: 'none', 
+                                              cursor: 'pointer', 
+                                              display: 'inline-flex', 
+                                              alignItems: 'center', 
+                                              justifyContent: 'center', 
+                                              padding: '5px',
+                                              borderRadius: '6px',
+                                              color: '#ef4444',
+                                              transition: 'all 0.15s ease'
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                          >
+                                            <Trash2 size={15} strokeWidth={1.8} />
                                           </button>
                                         </td>
                                       </tr>
@@ -5470,8 +5659,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         Saldo pendiente: <strong>{moneyGT(saldoPendiente, quote.currency)}</strong>
                       </span>
                     ) : (
-                      <span style={{ color: '#10b981', fontWeight: 700 }}>
-                        ✓ Pagado
+                      <span style={{ color: '#10b981', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <Check size={13} strokeWidth={2.5} /> Pagado
                       </span>
                     )}
                   </div>
@@ -5521,17 +5710,37 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               type="button"
               onClick={handleOpenAdvances}
               onMouseDown={e => e.stopPropagation()}
-              style={{ background: '#ecfdf5', borderColor: '#8fd8b4', color: '#0f766e', boxShadow: '0 6px 14px rgba(15,118,110,.10)' }}
+              style={{ 
+                background: '#ecfdf5', 
+                borderColor: '#8fd8b4', 
+                color: '#0f766e', 
+                boxShadow: '0 6px 14px rgba(15,118,110,.10)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontWeight: 700
+              }}
             >
-              Anticipos
+              <CreditCard size={14} strokeWidth={2} />
+              <span>Anticipos</span>
             </button>
             <button
               className="qp-btn"
               type="button"
               onClick={handleReimprimir}
-              style={{ background: '#f8f3ff', borderColor: '#c8b6ea', color: '#5b3b91', boxShadow: '0 6px 14px rgba(91,59,145,.10)' }}
+              style={{ 
+                background: '#f8f3ff', 
+                borderColor: '#c8b6ea', 
+                color: '#5b3b91', 
+                boxShadow: '0 6px 14px rgba(91,59,145,.10)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontWeight: 700
+              }}
             >
-              Imprimir
+              <Printer size={14} strokeWidth={2} />
+              <span>Imprimir</span>
             </button>
             <button 
               className="qp-btn-primary" 
@@ -5541,10 +5750,15 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               style={{ 
                 boxShadow: '0 8px 18px rgba(15,23,42,.18)',
                 opacity: saving ? 0.5 : 1,
-                cursor: saving ? 'not-allowed' : 'pointer'
+                cursor: saving ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontWeight: 700
               }}
             >
-              {saving ? 'Guardando...' : 'Guardar cotización'}
+              <Save size={14} strokeWidth={2} />
+              <span>{saving ? 'Guardando...' : 'Guardar cotización'}</span>
             </button>
           </div>
         </div>
@@ -5560,7 +5774,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           <div onClick={e => e.stopPropagation()} style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(1180px, 98vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#ffffff', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 22 }}>{companyDraftId ? '✏️' : '➕'}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, background: companyDraftId ? '#f1f5f9' : '#eff6ff', color: companyDraftId ? '#475569' : '#2563eb' }}>
+                    {companyDraftId ? <Pencil size={17} strokeWidth={2} /> : <Plus size={18} strokeWidth={2.2} />}
+                  </span>
                   <div>
                     <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a' }}>{companyDraftId ? 'Editar empresa' : 'Nueva empresa'}</div>
                     <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
@@ -5720,8 +5936,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 type="button"
                 disabled={savingQuickManager || !quickManagerDraft.name.trim()}
                 onClick={handleSaveQuickManager}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
               >
-                {savingQuickManager ? 'Guardando...' : '✓ Guardar y asignar'}
+                {savingQuickManager ? 'Guardando...' : (
+                  <>
+                    <Check size={14} strokeWidth={2.5} />
+                    <span>Guardar y asignar</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

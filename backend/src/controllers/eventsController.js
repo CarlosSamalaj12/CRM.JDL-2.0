@@ -354,3 +354,294 @@ export async function getEventStats(req, res, next) {
     next(error);
   }
 }
+
+export async function updateEventQuote(req, res, next) {
+  const { id } = req.params;
+  const { quote, status } = req.body;
+
+  if (!quote || typeof quote !== 'object') {
+    return res.status(400).json({ message: 'Objeto quote requerido' });
+  }
+
+  const rawId = String(id || '').trim();
+  if (!rawId) {
+    return res.status(400).json({ message: 'ID de evento requerido' });
+  }
+
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  const q = quote;
+
+  const items = Array.isArray(q.items) ? q.items : [];
+  const subtotal = items.reduce((acc, x) => acc + Number(x?.qty || 0) * Number(x?.price || 0), 0);
+  const discountType = String(q.discountType || 'AMOUNT').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT';
+  const discountValue = Math.max(0, Number(q.discountValue || 0));
+  const discountAmount = discountType === 'PERCENT'
+    ? Math.max(0, Math.min(subtotal, (subtotal * Math.min(100, discountValue)) / 100))
+    : Math.max(0, Math.min(subtotal, discountValue));
+  const total = Math.max(0, subtotal - discountAmount);
+  const currentVersion = Math.max(1, Number(q.version || 1));
+
+  const asDate = (val) => {
+    if (!val) return null;
+    const s = String(val).trim().slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  };
+  const str = (val) => String(val || '').trim();
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // 1. Actualizar eventos: cotizacion_json y estado (para baseId y slots)
+    const quoteClean = { ...q, advances: undefined };
+    const quoteJson = JSON.stringify(quoteClean);
+
+    if (status) {
+      await conn.query(
+        `UPDATE eventos SET cotizacion_json = ?, estado = ? WHERE id = ? OR id_grupo = ? OR id LIKE CONCAT(?, '_%')`,
+        [quoteJson, status, baseId, baseId, baseId]
+      );
+    } else {
+      await conn.query(
+        `UPDATE eventos SET cotizacion_json = ? WHERE id = ? OR id_grupo = ? OR id LIKE CONCAT(?, '_%')`,
+        [quoteJson, baseId, baseId, baseId]
+      );
+    }
+
+    // 2. UPSERT en cotizaciones_evento
+    await conn.query(
+      `INSERT INTO cotizaciones_evento
+        (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         id_empresa = VALUES(id_empresa),
+         id_encargado = VALUES(id_encargado),
+         nombre_empresa = VALUES(nombre_empresa),
+         nombre_encargado = VALUES(nombre_encargado),
+         contacto = VALUES(contacto),
+         correo = VALUES(correo),
+         facturar_a = VALUES(facturar_a),
+         direccion = VALUES(direccion),
+         tipo_evento = VALUES(tipo_evento),
+         lugar = VALUES(lugar),
+         horario_texto = VALUES(horario_texto),
+         codigo = VALUES(codigo),
+         fecha_documento = VALUES(fecha_documento),
+         telefono = VALUES(telefono),
+         nit = VALUES(nit),
+         personas = VALUES(personas),
+         fecha_evento = VALUES(fecha_evento),
+         folio = VALUES(folio),
+         fecha_fin = VALUES(fecha_fin),
+         fecha_max_pago = VALUES(fecha_max_pago),
+         tipo_pago = VALUES(tipo_pago),
+         notas_internas = VALUES(notas_internas),
+         notas = VALUES(notas),
+         version_actual = VALUES(version_actual),
+         subtotal = VALUES(subtotal),
+         descuento_tipo = VALUES(descuento_tipo),
+         descuento_valor = VALUES(descuento_valor),
+         descuento_monto = VALUES(descuento_monto),
+         total_neto = VALUES(total_neto),
+         cotizado_en_iso = VALUES(cotizado_en_iso),
+         json_crudo = VALUES(json_crudo)`,
+      [
+        baseId,
+        str(q.companyId) || null,
+        str(q.managerId) || null,
+        str(q.companyName) || null,
+        str(q.managerName) || null,
+        str(q.contact) || null,
+        str(q.email) || null,
+        str(q.billTo) || null,
+        str(q.address) || null,
+        str(q.eventType) || null,
+        str(q.venue) || null,
+        str(q.schedule) || null,
+        str(q.code) || null,
+        asDate(q.docDate),
+        str(q.phone) || null,
+        str(q.nit) || null,
+        q.people === null || q.people === undefined || q.people === '' ? null : Math.max(0, Number(q.people)),
+        asDate(q.eventDate),
+        str(q.folio) || null,
+        asDate(q.endDate),
+        asDate(q.dueDate),
+        str(q.paymentType) || null,
+        str(q.internalNotes) || null,
+        str(q.notes) || null,
+        currentVersion,
+        Number(subtotal || 0),
+        discountType,
+        Number(discountValue || 0),
+        Number(discountAmount || 0),
+        Number(total || 0),
+        str(q.quotedAt) || null,
+        JSON.stringify(q)
+      ]
+    );
+
+    // 3. Diff delete e inserción de ítems en items_cotizacion_evento
+    const incomingItemIds = [];
+    const itemParams = [];
+    const itemPlaceholders = [];
+
+    for (let idx = 0; idx < items.length; idx++) {
+      const it = items[idx];
+      const rowKey = str(it?.rowId) || `row_${idx + 1}`;
+      const itemId = `${baseId.slice(0, 80)}__${rowKey.slice(0, 40)}__${idx + 1}`.slice(0, 200);
+      incomingItemIds.push(itemId);
+      itemPlaceholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      itemParams.push(
+        itemId,
+        baseId,
+        str(it?.serviceId) || null,
+        asDate(it?.serviceDate),
+        Number(it?.qty || 0),
+        Number(it?.price || 0),
+        Number(it?.unitPrice || it?.price || 0),
+        str(it?.quantityMode || 'MANUAL'),
+        Number(it?.qty || 0) * Number(it?.price || 0),
+        str(it?.name || it?.description || '(sin nombre)'),
+        str(it?.description) || null
+      );
+    }
+
+    const [existingItems] = await conn.query('SELECT id FROM items_cotizacion_evento WHERE id_evento = ?', [baseId]);
+    const incomingSet = new Set(incomingItemIds);
+    const toDelete = existingItems.map(r => String(r.id)).filter(eid => !incomingSet.has(eid));
+
+    if (toDelete.length > 0) {
+      const placeholders = toDelete.map(() => '?').join(',');
+      await conn.query(
+        `DELETE FROM items_cotizacion_evento WHERE id_evento = ? AND id IN (${placeholders})`,
+        [baseId, ...toDelete]
+      );
+    }
+
+    if (itemPlaceholders.length > 0) {
+      await conn.query(
+        `INSERT INTO items_cotizacion_evento
+          (id, id_evento, id_servicio, fecha_servicio, cantidad, precio, precio_unitario, modo_cantidad, total_linea, nombre, descripcion)
+         VALUES ${itemPlaceholders.join(',')}
+         ON DUPLICATE KEY UPDATE
+           id_servicio = VALUES(id_servicio),
+           fecha_servicio = VALUES(fecha_servicio),
+           cantidad = VALUES(cantidad),
+           precio = VALUES(precio),
+           precio_unitario = VALUES(precio_unitario),
+           modo_cantidad = VALUES(modo_cantidad),
+           total_linea = VALUES(total_linea),
+           nombre = VALUES(nombre),
+           descripcion = VALUES(descripcion)`,
+        itemParams
+      );
+    }
+
+    // 4. Versiones: cotizacion_versiones_evento
+    const rawVersions = Array.isArray(q.versions) ? q.versions : [];
+    const versionRows = [];
+    for (const v of rawVersions) {
+      if (!v || typeof v !== 'object') continue;
+      const vNum = Math.max(1, Number(v.version || 0));
+      versionRows.push({ version: vNum, snapshot: { ...v, version: vNum, versions: [] } });
+    }
+    if (!versionRows.some(x => Number(x.version) === currentVersion)) {
+      versionRows.push({ version: currentVersion, snapshot: { ...q, version: currentVersion, versions: [] } });
+    }
+    versionRows.sort((a, b) => Number(a.version) - Number(b.version));
+
+    if (versionRows.length > 0) {
+      const vValues = [];
+      const vParams = [];
+      for (const v of versionRows) {
+        const vItems = Array.isArray(v.snapshot?.items) ? v.snapshot.items : [];
+        const vSub = vItems.reduce((acc, x) => acc + Number(x?.qty || 0) * Number(x?.price || 0), 0);
+        const vDisType = String(v.snapshot?.discountType || 'AMOUNT').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT';
+        const vDisVal = Math.max(0, Number(v.snapshot?.discountValue || 0));
+        const vDisAmt = vDisType === 'PERCENT'
+          ? Math.max(0, Math.min(vSub, (vSub * Math.min(100, vDisVal)) / 100))
+          : Math.max(0, Math.min(vSub, vDisVal));
+        const vTot = Math.max(0, vSub - vDisAmt);
+
+        vValues.push('(?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        vParams.push(
+          baseId,
+          Number(v.version),
+          Number(vSub || 0),
+          vDisType,
+          Number(vDisVal || 0),
+          Number(vDisAmt || 0),
+          Number(vTot || 0),
+          str(v.snapshot?.quotedAt) || null,
+          JSON.stringify(v.snapshot)
+        );
+      }
+      await conn.query(
+        `INSERT INTO cotizacion_versiones_evento
+          (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
+         VALUES ${vValues.join(',')}
+         ON DUPLICATE KEY UPDATE
+           subtotal = VALUES(subtotal),
+           descuento_tipo = VALUES(descuento_tipo),
+           descuento_valor = VALUES(descuento_valor),
+           descuento_monto = VALUES(descuento_monto),
+           total_neto = VALUES(total_neto),
+           cotizado_en_iso = VALUES(cotizado_en_iso),
+           json_crudo = VALUES(json_crudo)`,
+        vParams
+      );
+    }
+
+    // 5. Anticipos si vienen incluidos
+    if (Array.isArray(q.advances) && q.advances.length > 0) {
+      for (const adv of q.advances) {
+        const advId = str(adv.id) || `adv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        await conn.query(
+          `INSERT INTO anticipos_evento
+            (id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, creado_en_iso)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+            fecha_anticipo = VALUES(fecha_anticipo),
+            monto = VALUES(monto),
+            tipo_pago = VALUES(tipo_pago),
+            descripcion = VALUES(descripcion),
+            numero_boleta = VALUES(numero_boleta),
+            nombre_evidencia = VALUES(nombre_evidencia),
+            tipo_evidencia = VALUES(tipo_evidencia)`,
+          [
+            advId,
+            baseId,
+            asDate(adv.date) || asDate(new Date()),
+            Math.max(0, Number(adv.amount || 0)),
+            str(adv.paymentType || 'Efectivo'),
+            str(adv.description) || null,
+            str(adv.voucherNumber) || null,
+            str(adv.createdByUserId) || null,
+            str(adv.createdByName) || null,
+            str(adv.evidenceName) || null,
+            str(adv.evidenceType) || null,
+            str(adv.createdAt) || new Date().toISOString()
+          ]
+        );
+      }
+    }
+
+    await conn.commit();
+
+    emitChange(req, 'quote', 'updated', { id: baseId, quote: q, status });
+    if (req.io) {
+      req.io.emit('state-updated', { timestamp: Date.now() });
+    }
+
+    res.json({ ok: true, id: baseId, quote: q, status });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    next(err);
+  } finally {
+    if (conn) conn.release();
+  }
+}

@@ -1,5 +1,6 @@
-import { loadState, saveState } from './stateService';
+import { loadState, saveState, invalidateStateCache } from './stateService';
 import conflictService from './conflictService';
+import api from './api';
 
 export const EVENT_STATUS = {
   PRE_RESERVA: 'Pre reserva',
@@ -217,7 +218,12 @@ async getAll() {
             updatedAt: new Date().toISOString()
           };
         });
-        savedEvent = updatedEvents.find(e => String(e.id) === String(id));
+        const matched = updatedEvents.find(e => String(e.id) === String(id));
+        const groupSlots = updatedEvents.filter(e => String(e.groupId || '') === String(existingEvent.groupId));
+        savedEvent = {
+          ...(matched || existingEvent),
+          _allExpanded: groupSlots.length > 0 ? groupSlots : [matched || existingEvent]
+        };
       } else {
         updatedEvents = events.map(e => String(e.id) === String(id) ? { ...e, ...eventData, updatedAt: new Date().toISOString() } : e);
         savedEvent = updatedEvents.find(e => String(e.id) === String(id));
@@ -227,6 +233,29 @@ async getAll() {
     } catch (err) {
       console.error('Error actualizando en el servidor:', err);
       throw err;
+    }
+  },
+
+  async saveQuote(id, quoteData, status = null) {
+    const rawId = String(id || '').trim();
+    if (!rawId) throw new Error('ID de evento requerido para guardar cotización');
+
+    try {
+      // 1. Guardado atómico rápido en endpoint dedicado (<80ms sin bloquear el CRM entero)
+      const res = await api.put(`/api/events/${encodeURIComponent(rawId)}/quote`, {
+        quote: quoteData,
+        status: status || undefined
+      });
+      invalidateStateCache();
+      return res?.quote || quoteData;
+    } catch (err) {
+      console.warn('[eventService.saveQuote] Endpoint atómico falló, usando fallback de actualización de estado:', err);
+      // Fallback transparente al método tradicional
+      const updated = await this.update(rawId, {
+        quote: quoteData,
+        ...(status ? { status } : {})
+      });
+      return updated?.quote || quoteData;
     }
   },
 

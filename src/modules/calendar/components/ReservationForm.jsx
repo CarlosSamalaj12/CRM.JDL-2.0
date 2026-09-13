@@ -4,6 +4,7 @@ import { useOutletContext, useNavigate, useParams, useSearchParams, useLocation 
 import { STATUS_META_LIST, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
+import eventService from '../../../services/eventService';
 import conflictService from '../../../services/conflictService';
 import api from '../../../services/api';
 import { loadState as loadCrmState } from '../../../services/stateService';
@@ -1193,24 +1194,42 @@ export default function ReservationForm() {
   const handleQuoteSave = async (quoteData, options = {}) => {
     try {
       setSaving(true);
-      const currentEvent = events.find(ev => String(ev.id) === String(id));
-      const previousQuote = currentEvent?.quote || null;
+      const currentEvent = events.find(ev => String(ev.id) === String(id))
+        || formData
+        || { id, ...formData };
+      const previousQuote = currentEvent?.quote || formData.quote || null;
       const quoteChanged = JSON.stringify(previousQuote || null) !== JSON.stringify(quoteData || null);
       const shouldFollowUp = previousQuote
         && quoteChanged
         && ['Reserva sin Cotizacion', '1er Cotizacion'].includes(currentEvent?.status);
       
+      const newStatus = shouldFollowUp
+        ? 'Seguimiento'
+        : currentEvent?.status === 'Reserva sin Cotizacion'
+        ? '1er Cotizacion'
+        : (currentEvent?.status || formData.status);
+
       const updatedEvent = {
+        ...formData,
         ...currentEvent,
+        id: id || currentEvent.id,
+        slots: Array.isArray(slots) && slots.length > 0 ? slots : currentEvent?.slots,
         quote: quoteData,
-        status: shouldFollowUp
-          ? 'Seguimiento'
-          : currentEvent?.status === 'Reserva sin Cotizacion'
-          ? '1er Cotizacion'
-          : (currentEvent?.status || formData.status)
+        status: newStatus
       };
 
-      await handleAddEvent(updatedEvent);
+      // Guardar con eventService.saveQuote (atómico rápido) o handleAddEvent como respaldo
+      if (typeof eventService?.saveQuote === 'function' && (id || currentEvent.id)) {
+        const targetId = id || currentEvent.id;
+        await eventService.saveQuote(targetId, quoteData, newStatus);
+        try {
+          await handleAddEvent(updatedEvent);
+        } catch (_) {
+          // Si handleAddEvent falla por recarga de estado, la cotización ya está a salvo en MariaDB
+        }
+      } else {
+        await handleAddEvent(updatedEvent);
+      }
 
       setFormData(prev => ({
         ...prev,
@@ -1234,7 +1253,10 @@ export default function ReservationForm() {
           logMsg += ' • Estado cambiado a "1er Cotizacion"';
         }
 
-        await historyService.add(id, logMsg);
+        // Historial no bloqueante (desacoplado para evitar colisiones y deadlocks en MariaDB)
+        historyService.add(id || currentEvent.id, logMsg).catch(histErr => {
+          console.warn('[handleQuoteSave] Advertencia registrando en historial:', histErr);
+        });
       }
 
       setSaving(false);

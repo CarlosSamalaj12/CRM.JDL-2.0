@@ -11,6 +11,12 @@ require("dotenv").config();
 const { createGoogleEvent, createUserReminder, deleteUserReminder } = require("./googleCalendar.cjs");
 const webpush = require('web-push');
 
+// Serialización segura de BigInt para respuestas Express JSON y Socket.io
+BigInt.prototype.toJSON = function () {
+  const num = Number(this);
+  return Number.isSafeInteger(num) ? num : this.toString();
+};
+
 // VAPID keys para Web Push
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
@@ -5211,7 +5217,13 @@ app.put("/api/state", async (req, res) => {
 // Solicitar autorización de descuento
 app.post("/api/discount-auth/solicitar", async (req, res) => {
   const { eventoId, cotizacionId, tipoDescuento, valorDescuento, montoDescuento, solicitanteId, eventoNombre, eventoCliente, eventoFecha, eventoSalon, eventoTotal } = req.body;
-  if (!eventoId || !solicitanteId) return res.status(400).json({ message: "Faltan datos requeridos" });
+  if (!eventoId || !solicitanteId) return res.status(400).json({ message: "Faltan datos requeridos (eventoId y solicitanteId)" });
+
+  const cleanNum = (val) => {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   let conn;
   try {
     conn = await pool.getConnection();
@@ -5219,31 +5231,47 @@ app.post("/api/discount-auth/solicitar", async (req, res) => {
       `INSERT INTO solicitudes_autorizacion
         (evento_id, cotizacion_id, solicitante_id, tipo_descuento, valor_descuento, monto_descuento, estado, evento_nombre, evento_cliente, evento_fecha, evento_salon, evento_total)
        VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?, ?)`,
-      [eventoId, cotizacionId || null, solicitanteId, tipoDescuento || 'AMOUNT', valorDescuento || 0, montoDescuento || 0, eventoNombre || '', eventoCliente || '', eventoFecha || '', eventoSalon || '', eventoTotal || 0]
+      [
+        str(eventoId).slice(0, 120),
+        str(cotizacionId).slice(0, 120) || null,
+        str(solicitanteId).slice(0, 120),
+        str(tipoDescuento || 'AMOUNT').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT',
+        cleanNum(valorDescuento),
+        cleanNum(montoDescuento),
+        str(eventoNombre).slice(0, 200) || '',
+        str(eventoCliente).slice(0, 200) || '',
+        str(eventoFecha).slice(0, 20) || '',
+        str(eventoSalon).slice(0, 100) || '',
+        cleanNum(eventoTotal)
+      ]
     );
-    const solicitudId = result.insertId;
+    const solicitudId = Number(result.insertId);
 
     // Notificar a todos los usuarios autorizadores vía socket
     if (io) {
-      const autorizadores = await conn.query(
-        "SELECT id, nombre_completo FROM usuarios WHERE puede_autorizar_descuento = 1 AND activo = 1 AND id != ?",
-        [solicitanteId]
-      );
-      for (const auth of autorizadores) {
-        io.emit('discount-auth-request', {
-          solicitudId,
-          eventoId,
-          solicitanteId,
-          tipoDescuento,
-          valorDescuento,
-          montoDescuento,
-          eventoNombre,
-          eventoCliente,
-          eventoFecha,
-          eventoSalon,
-          eventoTotal,
-          autorizadorId: str(auth.id),
-        });
+      try {
+        const autorizadores = await conn.query(
+          "SELECT id, nombre_completo FROM usuarios WHERE puede_autorizar_descuento = 1 AND activo = 1 AND id != ?",
+          [str(solicitanteId)]
+        );
+        for (const auth of autorizadores) {
+          io.emit('discount-auth-request', {
+            solicitudId,
+            eventoId: str(eventoId),
+            solicitanteId: str(solicitanteId),
+            tipoDescuento: str(tipoDescuento || 'AMOUNT'),
+            valorDescuento: cleanNum(valorDescuento),
+            montoDescuento: cleanNum(montoDescuento),
+            eventoNombre: str(eventoNombre || ''),
+            eventoCliente: str(eventoCliente || ''),
+            eventoFecha: str(eventoFecha || ''),
+            eventoSalon: str(eventoSalon || ''),
+            eventoTotal: cleanNum(eventoTotal),
+            autorizadorId: str(auth.id),
+          });
+        }
+      } catch (socketErr) {
+        console.warn('[DISCOUNT-AUTH] Advertencia emitiendo socket discount-auth-request:', socketErr.message);
       }
     }
 
