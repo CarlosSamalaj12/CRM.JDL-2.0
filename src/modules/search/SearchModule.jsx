@@ -324,13 +324,9 @@ export default function SearchModule() {
     const nowStr = now.toISOString().split('T')[0];
 
     try {
-      // Carga dinámica de ExcelJS para optimizar rendimiento de carga inicial
-      let ExcelJSModule;
-      try {
-        ExcelJSModule = await import('exceljs');
-      } catch {
-        ExcelJSModule = await import('exceljs/dist/exceljs.min.js');
-      }
+      // Carga dinámica del bundle de navegador declarado por ExcelJS.
+      // Vite resuelve todos los imports durante el análisis, incluso dentro de un catch.
+      const ExcelJSModule = await import('exceljs/dist/exceljs.min.js');
       const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 
       const workbook = new ExcelJS.Workbook();

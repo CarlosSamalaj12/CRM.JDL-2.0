@@ -1076,64 +1076,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
   };
 
-  const handleDuplicateSingle = (rowId) => {
-    let newId = null;
-    setQuote(prev => {
-      const next = [];
-      for (const item of prev.items) {
-        next.push(item);
-        if (item.rowId === rowId) {
-          newId = uid();
-          next.push({ ...item, rowId: newId });
-        }
-      }
-      return { ...prev, items: next };
-    });
-    if (newId) {
-      triggerRowFeedback(newId, 'Servicio duplicado');
-    }
-  };
-
-  const handleMoveSingle = (rowId, dir) => {
-    setQuote(prev => {
-      const norm = (s) => String(s || '').trim().slice(0, 10);
-      const items = [...prev.items];
-      const datesOrder = [];
-      const itemsByDate = new Map();
-      for (const item of items) {
-        const d = norm(item.serviceDate || item.date || item.eventDate);
-        if (!itemsByDate.has(d)) {
-          itemsByDate.set(d, []);
-          datesOrder.push(d);
-        }
-        itemsByDate.get(d).push(item);
-      }
-
-      let moved = false;
-      for (const group of itemsByDate.values()) {
-        const idx = group.findIndex(it => it.rowId === rowId);
-        if (idx !== -1) {
-          if (dir === 'up' && idx > 0) {
-            [group[idx - 1], group[idx]] = [group[idx], group[idx - 1]];
-            moved = true;
-          } else if (dir === 'down' && idx < group.length - 1) {
-            [group[idx], group[idx + 1]] = [group[idx + 1], group[idx]];
-            moved = true;
-          }
-          break;
-        }
-      }
-
-      if (!moved) return prev;
-      const next = [];
-      for (const d of datesOrder) {
-        next.push(...itemsByDate.get(d));
-      }
-      return { ...prev, items: next };
-    });
-    triggerRowFeedback(rowId, dir === 'up' ? 'Servicio subido' : 'Servicio bajado');
-  };
-
   const handleDuplicateSelected = () => {
     if (!selectedItemIds.size) return;
     const duplicatedIds = [];
@@ -2195,12 +2137,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
         /* Botones de acción directa por fila */
         .qp-row-action-btn {
-          width: 25px;
-          height: 25px;
+          width: 28px;
+          min-width: 28px;
+          height: 28px;
           border-radius: 5px;
-          border: 1px solid #e2e8f0;
-          background: #ffffff;
-          color: #64748b;
+          border: 0;
+          background: transparent;
+          color: #ef4444;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -2209,20 +2152,32 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           padding: 0;
         }
         .qp-row-action-btn:hover:not(:disabled) {
-          background: #f1f5f9;
-          color: #0f172a;
-          border-color: #cbd5e1;
+          background: #fee2e2;
+          color: #dc2626;
         }
-        .qp-row-action-btn:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-          border-color: #f1f5f9;
-          background: #fafafa;
+        .qp-row-action-btn:focus-visible {
+          outline: 2px solid #dc2626;
+          outline-offset: 2px;
+        }
+        #qp-root .qp-row-action-btn.btn-del::after { display: none !important; }
+        #qp-root .qp-row-action-btn .qp-delete-icon {
+          display: block !important;
+          width: 16px !important;
+          height: 16px !important;
+          min-width: 16px !important;
+          flex: 0 0 16px !important;
+          color: #dc2626 !important;
+          stroke: #dc2626 !important;
+          fill: none !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          position: relative !important;
+          z-index: 2 !important;
+          pointer-events: none;
         }
         .qp-row-action-btn.btn-del:hover {
           background: #fee2e2;
           color: #dc2626;
-          border-color: #fca5a5;
         }
 
         /* Barra flotante de selección múltiple */
@@ -2275,62 +2230,59 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         .qp-tbl tbody tr { cursor: pointer; transition: background 0.15s ease; }
         .qp-tbl tbody tr:hover td { background: #f8fafc; }
         
-        body:not(.informes-theme) #qp-root .qp-tbl tbody tr.sel td { background: #f0f7ff !important; }
-        body:not(.informes-theme) #qp-root .qp-tbl tbody tr.sel:hover td { background: #e0f0fe !important; }
+        body:not(.informes-theme) #qp-root .qp-tbl tbody tr.sel td { background: #dbeafe !important; border-top: 1px solid #93c5fd; border-bottom: 1px solid #93c5fd; }
+        body:not(.informes-theme) #qp-root .qp-tbl tbody tr.sel:hover td { background: #bfdbfe !important; }
+        body:not(.informes-theme) #qp-root .qp-tbl tbody tr.sel td:first-child { box-shadow: inset 4px 0 #2563eb !important; }
 
-        /* Checkbox en tabla de escritorio */
-        body:not(.informes-theme) #qp-root .qp-checkbox,
-        body:not(.informes-theme) #qp-root input[type="checkbox"].qp-checkbox {
-          appearance: none !important;
-          -webkit-appearance: none !important;
-          width: 18px !important;
-          height: 18px !important;
-          min-width: 18px !important;
-          max-width: 18px !important;
-          min-height: 18px !important;
-          max-height: 18px !important;
-          border: 1.5px solid #cbd5e1 !important;
-          border-radius: 4px !important;
-          cursor: pointer !important;
-          position: relative !important;
-          margin: 0 auto !important;
-          padding: 0 !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          background-color: #ffffff !important;
-          background-image: none !important;
-          vertical-align: middle !important;
-          box-shadow: none !important;
-          box-sizing: border-box !important;
+        /* Checkbox visible controlado: el input nativo conserva foco y accesibilidad. */
+        .qp-checkbox-control {
+          position: relative;
+          width: 20px;
+          height: 20px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          vertical-align: middle;
         }
-        body:not(.informes-theme) #qp-root .qp-checkbox:hover {
-          border-color: #0f4c81 !important;
-          box-shadow: 0 0 0 2px rgba(15, 76, 129, 0.15) !important;
-        }
-        body:not(.informes-theme) #qp-root .qp-checkbox:checked {
-          background-color: #0f4c81 !important;
-          background-image: none !important;
-          border-color: #0b3b64 !important;
-        }
-        body:not(.informes-theme) #qp-root .qp-checkbox::after {
-          content: '' !important;
+        #qp-root .qp-checkbox-control .qp-checkbox {
           position: absolute !important;
-          width: 4px !important;
-          height: 8px !important;
-          border: solid #ffffff !important;
-          border-width: 0 2px 2px 0 !important;
-          transform: rotate(45deg) scale(0) !important;
+          inset: 0 !important;
+          z-index: 2 !important;
+          width: 20px !important;
+          height: 20px !important;
+          margin: 0 !important;
+          padding: 0 !important;
           opacity: 0 !important;
-          transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-          top: 2px !important;
-          left: 5.5px !important;
-          box-sizing: border-box !important;
+          cursor: pointer !important;
         }
-        body:not(.informes-theme) #qp-root .qp-checkbox:checked::after {
-          transform: rotate(45deg) scale(1) !important;
-          opacity: 1 !important;
+        .qp-checkbox-indicator {
+          width: 20px;
+          height: 20px;
+          border: 1.5px solid #cbd5e1;
+          border-radius: 4px;
+          background: #ffffff;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          pointer-events: none;
+          box-sizing: border-box;
+          transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
         }
+        .qp-checkbox-control:hover .qp-checkbox-indicator {
+          border-color: #0f4c81;
+          box-shadow: 0 0 0 2px rgba(15, 76, 129, 0.15);
+        }
+        .qp-checkbox-control.is-checked .qp-checkbox-indicator {
+          background: #10b981;
+          border-color: #059669;
+          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+        }
+        .qp-checkbox-control .qp-checkbox:focus-visible + .qp-checkbox-indicator {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
+        }
+        .qp-checkbox-check { display: block; }
 
         /* Cantidad en tabla Desktop */
         body:not(.informes-theme) #qp-root .qp-input-qty {
@@ -6463,145 +6415,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: 0 }}>Servicios y productos agregados</div>
                     <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>Control cronológico, cantidades, precios y cómputo de subtotales.</div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: selectedItemIds.size > 0 ? '#166534' : '#64748b',
-                        background: selectedItemIds.size > 0 ? '#dcfce7' : '#f1f5f9',
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        border: `1px solid ${selectedItemIds.size > 0 ? '#bbf7d0' : '#e2e8f0'}`
-                      }}>
-                        {selectedItemIds.size} {selectedItemIds.size === 1 ? 'seleccionado' : 'seleccionados'}
-                      </span>
-
-                      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 2px' }} />
-
-                      <button
-                        className="qp-btn"
-                        type="button"
-                        disabled={selectedItemIds.size === 0}
-                        onClick={handleDuplicateSelected}
-                        title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para duplicar' : `Duplicar ${selectedItemIds.size} ítem(s) seleccionado(s)`}
-                        style={{
-                          height: 30,
-                          padding: '0 9px',
-                          fontSize: 11.5,
-                          fontWeight: 700,
-                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
-                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                          background: '#ffffff',
-                          borderColor: '#cbd5e1',
-                          color: '#334155',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          borderRadius: 6
-                        }}
-                      >
-                        <Copy size={13} strokeWidth={2} />
-                        <span>Duplicar</span>
-                      </button>
-
-                      <button
-                        className="qp-btn"
-                        type="button"
-                        disabled={selectedItemIds.size === 0}
-                        onClick={() => handleMoveSelected('up')}
-                        title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para subir' : 'Subir en la lista de su fecha'}
-                        style={{
-                          height: 30,
-                          padding: '0 8px',
-                          fontSize: 11.5,
-                          fontWeight: 700,
-                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
-                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                          background: '#ffffff',
-                          borderColor: '#cbd5e1',
-                          color: '#334155',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          borderRadius: 6
-                        }}
-                      >
-                        <ArrowUp size={13} strokeWidth={2.2} />
-                        <span>Subir</span>
-                      </button>
-
-                      <button
-                        className="qp-btn"
-                        type="button"
-                        disabled={selectedItemIds.size === 0}
-                        onClick={() => handleMoveSelected('down')}
-                        title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para bajar' : 'Bajar en la lista de su fecha'}
-                        style={{
-                          height: 30,
-                          padding: '0 8px',
-                          fontSize: 11.5,
-                          fontWeight: 700,
-                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
-                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                          background: '#ffffff',
-                          borderColor: '#cbd5e1',
-                          color: '#334155',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          borderRadius: 6
-                        }}
-                      >
-                        <ArrowDown size={13} strokeWidth={2.2} />
-                        <span>Bajar</span>
-                      </button>
-
-                      <button
-                        className="qp-btn"
-                        type="button"
-                        disabled={selectedItemIds.size === 0}
-                        onClick={() => setSelectedItemIds(new Set())}
-                        title="Limpiar selección"
-                        style={{
-                          height: 30,
-                          padding: '0 8px',
-                          fontSize: 11.5,
-                          fontWeight: 700,
-                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
-                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                          background: '#ffffff',
-                          borderColor: selectedItemIds.size > 0 ? '#fecaca' : '#cbd5e1',
-                          color: selectedItemIds.size > 0 ? '#dc2626' : '#94a3b8',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          borderRadius: 6
-                        }}
-                      >
-                        <X size={13} strokeWidth={2.2} />
-                        <span>Limpiar</span>
-                      </button>
-                    </div>
-
-                    {selectedItemIds.size > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedItemIds(new Set())}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#64748b',
-                          fontSize: 11,
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          padding: '1px 2px'
-                        }}
-                      >
-                        Deseleccionar todo
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 {menuMontajeSummary.count > 0 && (
@@ -6771,17 +6584,25 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                 <thead>
                                   <tr>
                                     <th style={{ width: 36, textAlign: 'center' }}>
-                                      <input type="checkbox" className="qp-checkbox"
-                                        checked={isAllDaySelected}
-                                        onChange={() => handleSelectAllDayToggle(date)}
-                                      />
+                                      <label className={`qp-checkbox-control ${isAllDaySelected ? 'is-checked' : ''}`}>
+                                        <input
+                                          type="checkbox"
+                                          className="qp-checkbox"
+                                          checked={isAllDaySelected}
+                                          onChange={() => handleSelectAllDayToggle(date)}
+                                          aria-label={`Seleccionar todos los servicios del ${date}`}
+                                        />
+                                        <span className="qp-checkbox-indicator" aria-hidden="true">
+                                          {isAllDaySelected && <Check className="qp-checkbox-check" size={14} strokeWidth={3} />}
+                                        </span>
+                                      </label>
                                     </th>
                                     <th style={{ width: 135 }}>Fecha</th>
                                     <th style={{ width: 65, textAlign: 'center' }}>Cant.</th>
                                     <th style={{ minWidth: 200 }}>Servicio / Concepto</th>
                                     <th style={{ width: 110, textAlign: 'right' }}>Precio unitario</th>
                                     <th style={{ width: 105, textAlign: 'right' }}>Total</th>
-                                    <th style={{ width: 125, textAlign: 'center' }}>Acciones</th>
+                                    <th style={{ width: 64, textAlign: 'center' }}>Acciones</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -6796,9 +6617,21 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                         id={`quote-row-${item.rowId}`}
                                         className={`${selectedItemIds.has(item.rowId) ? 'sel' : ''} ${isRowHighlighted ? 'qp-row-highlight-pulse' : ''}`}
                                         style={{ background: itemOutOfEvent ? '#fffbeb20' : undefined }}
+                                        aria-selected={selectedItemIds.has(item.rowId)}
                                       >
                                         <td style={{ textAlign: 'center', width: 36 }}>
-                                          <input type="checkbox" className="qp-checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
+                                          <label className={`qp-checkbox-control ${selectedItemIds.has(item.rowId) ? 'is-checked' : ''}`}>
+                                            <input
+                                              type="checkbox"
+                                              className="qp-checkbox"
+                                              checked={selectedItemIds.has(item.rowId)}
+                                              onChange={() => handleSelectRowToggle(item.rowId)}
+                                              aria-label={`Seleccionar servicio ${item.name || `fila ${itemIdx + 1}`}`}
+                                            />
+                                            <span className="qp-checkbox-indicator" aria-hidden="true">
+                                              {selectedItemIds.has(item.rowId) && <Check className="qp-checkbox-check" size={14} strokeWidth={3} />}
+                                            </span>
+                                          </label>
                                         </td>
                                         <td style={{ width: 135 }}>
                                           <select
@@ -6839,41 +6672,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                           </div>
                                         </td>
                                         <td style={{ width: 105, textAlign: 'right', fontWeight: 800, color: '#0f4c81', whiteSpace: 'nowrap' }}>{moneyGT(lineTotal, quote.currency)}</td>
-                                        <td style={{ textAlign: 'center', width: 125, whiteSpace: 'nowrap' }}>
-                                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                                            <button
-                                              type="button"
-                                              className="qp-row-action-btn"
-                                              onClick={() => handleMoveSingle(item.rowId, 'up')}
-                                              disabled={itemIdx === 0}
-                                              title={itemIdx === 0 ? 'Primer servicio del día' : 'Subir un lugar en este día'}
-                                            >
-                                              <ArrowUp size={12} strokeWidth={2.2} />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="qp-row-action-btn"
-                                              onClick={() => handleMoveSingle(item.rowId, 'down')}
-                                              disabled={itemIdx === dayItems.length - 1}
-                                              title={itemIdx === dayItems.length - 1 ? 'Último servicio del día' : 'Bajar un lugar en este día'}
-                                            >
-                                              <ArrowDown size={12} strokeWidth={2.2} />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="qp-row-action-btn"
-                                              onClick={() => handleDuplicateSingle(item.rowId)}
-                                              title="Duplicar este servicio"
-                                            >
-                                              <Copy size={12} strokeWidth={2} />
-                                            </button>
+                                        <td style={{ textAlign: 'center', width: 64, whiteSpace: 'nowrap' }}>
+                                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <button
                                               type="button"
                                               className="qp-row-action-btn btn-del"
                                               onClick={() => removeServiceItem(item.rowId)}
                                               title="Eliminar servicio"
+                                              aria-label={`Eliminar servicio ${item.name || `fila ${itemIdx + 1}`}`}
                                             >
-                                              <Trash2 size={13} strokeWidth={1.8} />
+                                              <Trash2 className="qp-delete-icon" size={16} strokeWidth={2.4} aria-hidden="true" />
                                             </button>
                                           </div>
                                         </td>
