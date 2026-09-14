@@ -13,7 +13,7 @@ import {
   IconEye, IconUsers, IconAlertCircle
 } from './Icons.jsx';
 
-export default function ColaboracionPanel({ informeId, diaId, highlightComentarioId }) {
+export default function ColaboracionPanel({ informeId, diaId, highlightComentarioId, isMobile = false, onClose }) {
   const [activeTab, setActiveTab] = useState('comentarios');
   const [comentarios, setComentarios] = useState([]);
   const [lecturas, setLecturas] = useState([]);
@@ -25,10 +25,9 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
   const [showMenciones, setShowMenciones] = useState(false);
   const [mencionFilter, setMencionFilter] = useState('');
   const [loading, setLoading] = useState(false);
-
   const [userLeido, setUserLeido] = useState(false);
-  const [reactingTo, setReactingTo] = useState(null);
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
+  const [selectedDiaFilter, setSelectedDiaFilter] = useState(null);
   const [respondiendoA, setRespondiendoA] = useState(null);
   const [textoRespuesta, setTextoRespuesta] = useState('');
   const comentarioRef = useRef(null);
@@ -123,10 +122,13 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
       });
   }, [informeId, highlightComentarioId]);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   useEffect(() => {
-    if (!socketConnected) return;
+    if (!socketConnected || !informeId) return;
+    joinRoom(`informe_${informeId}`);
     
     const handler = (data) => {
       if (String(data.informe_id) === String(informeId)) {
@@ -136,7 +138,7 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
     
     const cleanup = onEvent('comentario:created', handler);
     return cleanup;
-  }, [socketConnected, informeId, loadAll, onEvent]);
+  }, [socketConnected, informeId, loadAll, onEvent, joinRoom]);
 
   const handleComentar = async () => {
     if (!nuevoComentario.trim()) return;
@@ -177,9 +179,36 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
   const handleEnterado = async () => {
     try {
       await marcarInformeLeido(informeId);
+      setUserLeido(true);
+      loadAll();
     } catch { /* ignore */ }
-    setUserLeido(true);
-    loadAll();
+  };
+
+  const handleReaccionar = async (comentarioId, emoji) => {
+    try {
+      await addReaccion(informeId, comentarioId, emoji);
+      loadAll();
+    } catch { /* ignore */ }
+  };
+
+  const handleMencionInput = (e) => {
+    const val = e.target.value;
+    setNuevoComentario(val);
+    const lastAt = val.lastIndexOf('@');
+    if (lastAt !== -1 && lastAt === val.length - 1) {
+      setShowMenciones(true);
+      setMencionFilter('');
+    } else if (lastAt !== -1 && lastAt < val.length - 1) {
+      const query = val.slice(lastAt + 1);
+      if (!query.includes(' ')) {
+        setShowMenciones(true);
+        setMencionFilter(query);
+      } else {
+        setShowMenciones(false);
+      }
+    } else {
+      setShowMenciones(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -251,24 +280,130 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
 
   return (
     <div className="colab-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
-      {/* ─── PESTAÑAS SEGMENTADAS TIPO CÁPSULA ─── */}
+      {/* ─── HEADER DE COLABORACIÓN CON ESTADO DE LECTURA ─── */}
+      <div className="colab-sidebar-header" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: isMobile ? '10px 16px 12px' : '10px 14px',
+        borderBottom: '1px solid var(--border, #e2e8f0)',
+        background: 'var(--bg-card, #ffffff)',
+        gap: '8px',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '8px', minWidth: 0 }}>
+          <div style={{
+            width: isMobile ? '32px' : '28px',
+            height: isMobile ? '32px' : '28px',
+            borderRadius: isMobile ? '10px' : '8px',
+            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+            flexShrink: 0,
+          }}>
+            <IconMessageCircle size={isMobile ? 18 : 15} />
+          </div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: isMobile ? '15px' : '14px',
+              fontWeight: 800,
+              color: 'var(--text, #0f172a)',
+              letterSpacing: '-0.01em',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              lineHeight: 1.2,
+            }}>
+              {isMobile ? 'Colaboración & Notas' : 'Colaboración'}
+            </h3>
+            {isMobile && (
+              <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', fontWeight: 500 }}>
+                Canal interno del evento
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* Botón Enterado / Leído — completamente visible, sin desbordar */}
+          <button
+            type="button"
+            onClick={handleEnterado}
+            title={userLeido ? 'Ya marcaste este informe como leído' : 'Marcar como leído / enterado'}
+            style={{
+              height: '30px',
+              padding: '0 10px',
+              borderRadius: '20px',
+              border: '1px solid',
+              borderColor: userLeido ? '#86efac' : '#cbd5e1',
+              background: userLeido ? '#ecfdf5' : '#ffffff',
+              color: userLeido ? '#059669' : '#475569',
+              fontSize: '11.5px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: userLeido ? '0 1px 3px rgba(22, 163, 74, 0.12)' : '0 1px 2px rgba(0,0,0,0.05)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <IconCheckCircle size={14} style={{ color: userLeido ? '#10b981' : '#94a3b8' }} />
+            <span>{userLeido ? 'Leído' : 'Enterado'}</span>
+          </button>
+
+          {onClose && (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={onClose}
+              title="Cerrar colaboración"
+              style={{
+                width: '30px',
+                height: '30px',
+                minWidth: '30px',
+                borderRadius: '50%',
+                background: '#f1f5f9',
+                color: '#64748b',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                padding: 0,
+                transition: 'background 0.15s ease',
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ─── PESTAÑAS SEGMENTADAS TIPO CÁPSULA (100% ANCHO) ─── */}
       <div className="colab-tabs" style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '6px 12px',
+        padding: '8px 12px',
         background: '#f8fafc',
         borderBottom: '1px solid #e2e8f0',
-        gap: '6px',
         flexShrink: 0,
       }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '3px',
+          gap: '4px',
           background: '#e2e8f0',
           padding: '3px',
           borderRadius: '10px',
-          flex: 1,
+          width: '100%',
         }}>
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -282,17 +417,17 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                 style={{
                   flex: 1,
                   height: '32px',
-                  padding: '0 8px',
+                  padding: '0 6px',
                   borderRadius: '7px',
                   border: 'none',
                   background: isActive ? '#ffffff' : 'transparent',
                   color: isActive ? '#4f46e5' : '#64748b',
-                  fontSize: '12px',
+                  fontSize: '11.5px',
                   fontWeight: isActive ? 700 : 600,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '5px',
+                  gap: '4px',
                   cursor: 'pointer',
                   boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   transition: 'all 0.15s ease',
@@ -305,7 +440,7 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
                   <span style={{
                     fontSize: '10px',
                     fontWeight: 800,
-                    padding: '1px 6px',
+                    padding: '1px 5px',
                     borderRadius: '999px',
                     background: isActive ? '#eef2ff' : '#cbd5e1',
                     color: isActive ? '#4f46e5' : '#475569',
@@ -318,34 +453,6 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
             );
           })}
         </div>
-
-        {/* Enterado / Leído pill button */}
-        <button
-          type="button"
-          onClick={handleEnterado}
-          title={userLeido ? 'Ya marcaste este informe como leído' : 'Marcar como leído / enterado'}
-          style={{
-            height: '32px',
-            padding: '0 10px',
-            borderRadius: '8px',
-            border: '1px solid',
-            borderColor: userLeido ? '#a7f3d0' : '#cbd5e1',
-            background: userLeido ? '#ecfdf5' : '#ffffff',
-            color: userLeido ? '#059669' : '#475569',
-            fontSize: '11.5px',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            cursor: 'pointer',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <IconCheckCircle size={14} style={{ color: userLeido ? '#10b981' : '#94a3b8' }} />
-          <span>{userLeido ? 'Leído' : 'Enterado'}</span>
-        </button>
       </div>
 
       <div className="colab-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: 0 }}>

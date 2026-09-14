@@ -26,6 +26,7 @@ import { emitOpenEventChecklist } from '../../../utils/appEvents';
 import OrdenTiemposEditor from '../components/OrdenTiemposEditor.jsx';
 import { TIEMPOS_COMIDA, TIEMPO_COMIDA_ORDER } from '../constants/tiemposComida.js';
 import { loadState as loadCrmState } from '../../../services/stateService.js';
+import ImageLightboxModal from '../components/ImageLightboxModal.jsx';
 import '../styles.css';
 
 // ═══════════════════════════════════════════════════════════════
@@ -114,7 +115,7 @@ const MONTAJE_CAMPOS = [
   { key: 'observaciones', label: 'Comentarios', type: 'textarea' },
 ];
 
-const compressImage = (file, maxW = 600, maxH = 600) => {
+const compressImage = (file, maxW = 1200, maxH = 1200) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -135,20 +136,36 @@ const compressImage = (file, maxW = 600, maxH = 600) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
+        // Intentar compresión a WebP (calidad 0.75 para máxima nitidez y poco peso)
         canvas.toBlob(
           (blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
-                type: 'image/jpeg',
+            if (blob && (blob.type === 'image/webp' || blob.type.includes('webp'))) {
+              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", {
+                type: 'image/webp',
                 lastModified: Date.now()
               });
               resolve(compressedFile);
             } else {
-              reject(new Error('Canvas compression failed'));
+              // Fallback automático a JPEG si el navegador no soporta codificación WebP en canvas
+              canvas.toBlob(
+                (jpegBlob) => {
+                  if (jpegBlob) {
+                    const compressedFile = new File([jpegBlob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                      type: 'image/jpeg',
+                      lastModified: Date.now()
+                    });
+                    resolve(compressedFile);
+                  } else {
+                    reject(new Error('Canvas compression failed'));
+                  }
+                },
+                'image/jpeg',
+                0.7
+              );
             }
           },
-          'image/jpeg',
-          0.5
+          'image/webp',
+          0.75
         );
       };
       img.onerror = () => reject(new Error('Image load failed'));
@@ -275,6 +292,8 @@ export default function ConstructorInforme() {
 
   // Imágenes
   const [imagenes, setImagenes] = useState([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [urlInput, setUrlInput] = useState('');
   const [imagenDesc, setImagenDesc] = useState('');
   const [uploadingImg, setUploadingImg] = useState(false);
@@ -1895,13 +1914,24 @@ export default function ConstructorInforme() {
               <div className="pos-comentarios-panel">
                 {imagenes.length === 0 && <p className="pos-empty-msg">Sin imágenes de referencia aún</p>}
                 <div style={{display:'flex',flexWrap:'wrap',gap:'0.5rem'}}>
-                  {imagenes.map(img => (
+                  {imagenes.map((img, idx) => (
                     <div key={img.id} style={{
                       width:'250px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)',
                       background:'var(--bg-card)', position:'relative', display:'flex', flexDirection:'column'
                     }}>
                       {/* Contenedor cuadrado fijo 250x250 — imagen completa sin recorte */}
-                      <div style={{width:'250px', height:'250px', borderRadius:'var(--radius-sm) var(--radius-sm) 0 0', overflow:'hidden', background:'var(--bg-elevated)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
+                      <div
+                        onClick={() => {
+                          setLightboxIndex(idx);
+                          setLightboxOpen(true);
+                        }}
+                        title="Toca para ver en grande (carrusel)"
+                        style={{
+                          width:'250px', height:'250px', borderRadius:'var(--radius-sm) var(--radius-sm) 0 0',
+                          overflow:'hidden', background:'var(--bg-elevated)', display:'flex', alignItems:'center',
+                          justifyContent:'center', flexShrink:0, cursor:'pointer'
+                        }}
+                      >
                         <img src={imagenUrl(img.url)} alt={img.descripcion || ''}
                           style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain', display:'block'}}
                           onError={e => { e.target.style.display='none'; }}
@@ -2204,6 +2234,14 @@ export default function ConstructorInforme() {
       )}
 
       <SettingsChecklist />
+
+      {/* ─── VISOR CARRUSEL LIGHTBOX (Móvil y Desktop) ─── */}
+      <ImageLightboxModal
+        images={imagenes}
+        initialIndex={lightboxIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
     </div>
   );
 }

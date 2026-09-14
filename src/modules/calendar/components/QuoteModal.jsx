@@ -36,6 +36,7 @@ import api from '../../../services/api';
 import socketService from '../../../services/socketService';
 import { useAutoSave, loadDraft, clearDraft } from '../../../hooks/useAutoSave';
 import LoadingSpinner from '../../../components/LoadingSpinner';
+import { compressEvidenceFile } from '../../../utils/imageUtils';
 
 
 const uid = () => `row_${Math.random().toString(36).substr(2, 8)}`;
@@ -1638,18 +1639,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     let evidenceName = '';
     let evidenceType = '';
     if (advanceEvidenceFile) {
-      const maxBytes = 6 * 1024 * 1024;
+      const maxBytes = 10 * 1024 * 1024;
       if (Number(advanceEvidenceFile.size || 0) > maxBytes) {
-        localSwal('Error', 'Evidencia: el archivo supera 6 MB.', 'error');
+        localSwal('Error', 'Evidencia: el archivo supera 10 MB.', 'error');
         return;
       }
-      evidenceDataUrl = await readFileAsDataUrl(advanceEvidenceFile);
+      const processed = await compressEvidenceFile(advanceEvidenceFile);
+      evidenceDataUrl = processed.dataUrl;
       if (!evidenceDataUrl) {
         localSwal('Error', 'No se pudo leer el archivo de evidencia.', 'error');
         return;
       }
-      evidenceName = String(advanceEvidenceFile.name || 'evidencia').trim();
-      evidenceType = String(advanceEvidenceFile.type || '').trim();
+      evidenceName = String(processed.name || 'evidencia').trim();
+      evidenceType = String(processed.type || '').trim();
     }
 
     const actor = getCurrentActor();

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 import ColaboracionPanel from '../components/ColaboracionPanel.jsx';
+import ImageLightboxModal from '../components/ImageLightboxModal.jsx';
 import { 
   IconArrowLeft, 
   IconPrinter, 
@@ -81,6 +82,8 @@ export default function InformeView() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   const [imagenes, setImagenes] = useState([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [editingNotaId, setEditingNotaId] = useState(null);
   const [editingNotaValue, setEditingNotaValue] = useState('');
   const [savingNotaId, setSavingNotaId] = useState(null);
@@ -1619,8 +1622,17 @@ export default function InformeView() {
           {/* ─── IMÁGENES DE REFERENCIA (al final de todos los días) ─── */}
           {imagenes.length > 0 && (
             <section className="iv-imagenes" style={{marginTop:'1.5rem'}}>
-              {imagenes.map(img => (
-                <div key={img.id} className="iv-imagen-item">
+              {imagenes.map((img, idx) => (
+                <div
+                  key={img.id}
+                  className="iv-imagen-item"
+                  onClick={() => {
+                    setLightboxIndex(idx);
+                    setLightboxOpen(true);
+                  }}
+                  title="Toca para ver en grande"
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="iv-imagen-thumb">
                     <img src={imagenUrl(img.url)} alt={img.descripcion || ''} />
                   </div>
@@ -1692,79 +1704,13 @@ export default function InformeView() {
                   />
                 </div>
 
-                <div
-                  className="colab-sidebar-header"
-                  style={{
-                    padding: '8px 16px 12px 16px',
-                    borderBottom: '1px solid var(--border, #e2e8f0)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '10px',
-                        background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                        color: '#ffffff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
-                      }}
-                    >
-                      <IconMessageCircle size={18} />
-                    </div>
-                    <div>
-                      <h3
-                        style={{
-                          margin: 0,
-                          fontSize: '15px',
-                          fontWeight: 800,
-                          color: '#0f172a',
-                          letterSpacing: '-0.01em',
-                        }}
-                      >
-                        Colaboración & Notas
-                      </h3>
-                      <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500 }}>
-                        Canal interno del evento
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={() => setColabOpen(false)}
-                    title="Cerrar colaboración"
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      minWidth: '32px',
-                      borderRadius: '50%',
-                      background: '#f1f5f9',
-                      color: '#64748b',
-                      border: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      padding: 0,
-                      transition: 'background 0.15s ease',
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-                  <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} isMobile={true} />
+                  <ColaboracionPanel
+                    informeId={informe?.id}
+                    highlightComentarioId={highlightComentarioId}
+                    isMobile={true}
+                    onClose={() => setColabOpen(false)}
+                  />
                 </div>
               </aside>
             </>,
@@ -1772,11 +1718,12 @@ export default function InformeView() {
           )
         ) : (
           <aside className="colab-sidebar">
-            <div className="colab-sidebar-header">
-              <h3><IconMessageCircle size={16} /> Colaboración</h3>
-              <button className="btn-ghost btn-sm" onClick={() => setColabOpen(false)} title="Cerrar">✕</button>
-            </div>
-            <ColaboracionPanel informeId={informe?.id} highlightComentarioId={highlightComentarioId} />
+            <ColaboracionPanel
+              informeId={informe?.id}
+              highlightComentarioId={highlightComentarioId}
+              isMobile={false}
+              onClose={() => setColabOpen(false)}
+            />
           </aside>
         )
       )}
@@ -1957,6 +1904,14 @@ export default function InformeView() {
         </div>,
         document.body
       )}
+
+      {/* ─── VISOR CARRUSEL LIGHTBOX (Móvil y Desktop) ─── */}
+      <ImageLightboxModal
+        images={imagenes}
+        initialIndex={lightboxIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
     </div>
   );
 }

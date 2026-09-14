@@ -9,6 +9,7 @@ import { STATUS_META } from '../calendar/constants';
 import ReportInfo from './components/ReportInfo';
 import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
 import MultiSelect from './components/MultiSelect';
+import { compressEvidenceFile } from '../../utils/imageUtils';
 
 // ── Minimalist Vector Icons ──
 function IconCalendar({ size = 16, color = 'currentColor' }) {
@@ -388,10 +389,11 @@ export default function ReportsContabilidad({ onClose }) {
     let evidenceName = '';
     let evidenceType = '';
     if (advanceEvidenceFile) {
-      if (Number(advanceEvidenceFile.size || 0) > 6 * 1024 * 1024) { toast.error('La evidencia supera 6 MB.'); return; }
-      evidenceDataUrl = await readFileAsDataUrl(advanceEvidenceFile);
-      evidenceName = String(advanceEvidenceFile.name || '').trim();
-      evidenceType = String(advanceEvidenceFile.type || '').trim();
+      if (Number(advanceEvidenceFile.size || 0) > 10 * 1024 * 1024) { toast.error('La evidencia supera 10 MB.'); return; }
+      const processed = await compressEvidenceFile(advanceEvidenceFile);
+      evidenceDataUrl = processed.dataUrl;
+      evidenceName = String(processed.name || '').trim();
+      evidenceType = String(processed.type || '').trim();
     }
 
     const actor = getCurrentActor();

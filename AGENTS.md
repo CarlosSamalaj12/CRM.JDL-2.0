@@ -33,6 +33,21 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 
+### Botón "Leído / Enterado" cortado en panel de Colaboración de Informes (2026-09-13)
+- Problema: En el panel de Colaboración de `InformeView`, el botón verde de "Leído / Enterado" estaba ubicado dentro de la misma fila que las 3 pestañas (`Comentarios`, `Actividad`, `Lectores`). Dado que el sidebar tiene un ancho fijo de 360px (interior ~336px) y las 3 pestañas requieren ~300px, el botón de "Leído" se desbordaba por la derecha, quedando cortado a la mitad (solo se apreciaba el check verde y el texto "Leído" desaparecía por `overflow: hidden`).
+- Solución:
+  1. Reubicado el botón de "Leído / Enterado" en el header superior del panel de colaboración ([ColaboracionPanel.jsx](file:///c:/Users/samal/Desktop/CRM/CRM.JDL-2.0/src/modules/informes/components/ColaboracionPanel.jsx)), situándolo a la par del botón de cierre `✕`. En esta fila hay más de 120px de espacio libre disponible, garantizando que el botón se muestre 100% completo, con bordes redondeados, ícono y texto íntegros.
+  2. La barra de pestañas segmentadas (`colab-tabs`) ahora utiliza el 100% del ancho para las 3 pestañas de navegación con `flex: 1` cada una, ofreciendo una apariencia simétrica y sin compresiones.
+  3. Eliminado el header duplicado en [InformeView.jsx](file:///c:/Users/samal/Desktop/CRM/CRM.JDL-2.0/src/modules/informes/pages/InformeView.jsx), unificando el control tanto en versión móvil como de escritorio.
+
+### Visor Carrusel Lightbox para imágenes en móviles y compresión WebP (2026-09-13)
+- Requerimiento: En dispositivos móviles, las miniaturas de 200px en los informes de eventos resultaban muy pequeñas para apreciar detalles de montajes, flores y vajilla. Se solicitó que al tocar una imagen se abriera en grande en un carrusel navegable con soporte para gestos táctiles (swipe), preservando las notas/comentarios individuales por foto, sin alterar la maquetación actual del documento y optimizando el formato con WebP.
+- Solución:
+  1. Creado `src/modules/informes/components/ImageLightboxModal.jsx`: Modal carrusel a pantalla completa con React Portal, backdrop blur (`rgba(10, 15, 29, 0.94)`), navegación por gestos táctiles (deslizar izquierda/derecha para cambiar foto, deslizar abajo para cerrar), botones flotantes `‹` y `›`, navegación por teclado en PC (`←`, `→`, `Escape`), contador de fotos (`📷 2 de 4`) e indicador inferior con la nota/descripción de la imagen actual (`img.descripcion`). Marcado con `.no-print` para evitar interferencias al imprimir o generar PDF.
+  2. Integrado en `InformeView.jsx` y `ConstructorInforme.jsx`: miniaturas con cursor pointer y hover sutil, abriendo el carrusel en el índice de la foto seleccionada.
+  3. Compresión WebP en `ConstructorInforme.jsx`: resolución máxima aumentada a 1200px con compresión `image/webp` a calidad 0.75 (y fallback automático a `image/jpeg`). Reduce el peso en BD entre un 30% y 40% con mayor nitidez.
+  4. Módulo `src/utils/imageUtils.js`: compresión automática de fotos de comprobantes bancarios (`anticipos_evento`) a WebP (1600px) en `QuoteModal.jsx` y `ReportsContabilidad.jsx`, manteniendo los archivos PDF vectoriales 100% intactos.
+
 ### Unificación de suscripciones Web Push y corrección del envío de notificaciones (2026-09-13)
 - Problema: Existían dos tablas paralelas para Web Push (`push_subscriptions` y `usuarios_push_subscriptions`). El servicio general del CRM (`webPushService.js` vía `/api/webpush/save-subscription`) guardaba las suscripciones de los navegadores en `usuarios_push_subscriptions` (536 registros). Sin embargo, el helper de envío de notificaciones (`webPushHelper.js`) consultaba exclusivamente `push_subscriptions` (129 registros antiguos). Como consecuencia, a más de 480 dispositivos de vendedores y recepcionistas nunca les llegaban las notificaciones push al asignarles posibles ventas, tareas o menciones en notas.
 - Solución:
