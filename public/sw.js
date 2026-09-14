@@ -159,6 +159,9 @@ self.addEventListener('fetch', (event) => {
             cache.put(request, responseToCache);
           });
           return networkResponse;
+        }).catch(() => {
+          // Si la petición a la red falla o fue abortada por el navegador, intentar servir de caché
+          return caches.match(request) || caches.match('/offline-shell') || caches.match('/index.html');
         });
       })
     );

@@ -252,7 +252,7 @@ export default function ReportsLayout() {
                     onClick={() => { setIsMobileOpen(false); navigate('/settings'); }}
                   >
                     <span className="material-symbols-outlined">settings_applications</span>
-                    <span>Configuraciones CRM</span>
+                    <span>Configuraciones EMS</span>
                   </button>
                 </>
               )}
@@ -430,7 +430,7 @@ export default function ReportsLayout() {
                 type="button"
                 onClick={handleExitReports}
                 className="btn-exit"
-                data-tooltip="Volver al CRM"
+                data-tooltip="Volver al EMS"
               >
                 <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="16" height="16" className="crm-icon-x">
                   <path d="M4 4l10 10M14 4l-10 10" />

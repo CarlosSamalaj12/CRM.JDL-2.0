@@ -40,10 +40,25 @@ const writeSetToSession = (key, set) => {
   else sessionStorage.setItem(key, JSON.stringify([...set]));
 };
 
+const formatCurrency = (val) => {
+  const num = Number(val || 0);
+  return 'Q ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 export default function SearchModule() {
   const navigate = useNavigate();
   const outlet = useOutletContext() || {};
   const { events = [], users = [], salones = [] } = outlet;
+
+  // Responsividad móvil
+  const [isMobileView, setIsMobileView] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobileView(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Estados de filtros
   const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '');
@@ -54,8 +69,12 @@ export default function SearchModule() {
   const [dateFrom, setDateFrom] = useState(() => sessionStorage.getItem('search_date_from') || '');
   const [dateTo, setDateTo] = useState(() => sessionStorage.getItem('search_date_to') || '');
 
-  // UI & Paginación
-  const [viewMode, setViewMode] = useState(() => sessionStorage.getItem('search_view_mode') || 'list');
+  // UI & Paginación (en móvil por defecto cards/grid si no hay preferencia en sesión)
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = sessionStorage.getItem('search_view_mode');
+    if (saved) return saved;
+    return (typeof window !== 'undefined' && window.innerWidth <= 768) ? 'grid' : 'list';
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' | 'asc'
@@ -297,38 +316,258 @@ export default function SearchModule() {
   };
 
   // Exportar a Excel
-  const handleExportExcel = () => {
+  // Exportar a Excel con encabezados estilizados, bordes y formato profesional
+  const handleExportExcel = async () => {
     if (!filteredEvents.length) return;
 
-    const data = filteredEvents.map(ev => {
-      const assignedUser = users?.find(u => String(u.id) === String(ev.userId));
-      const docCode = ev.quote?.code || ev.id || '-';
-      return {
-        'No. Doc': docCode,
-        'Nombre del Evento': ev.name || '',
-        'Cliente': ev.clientName || '',
-        'Teléfono': ev.clientPhone || '',
-        'Vendedor / Responsable': assignedUser?.fullName || assignedUser?.name || 'Sin asignar',
-        'Salón(es)': ev._salonList.join(', ') || ev.salon || 'Según Disponibilidad',
-        'Fecha Inicio': ev._dateStart || '',
-        'Fecha Fin': ev._dateEnd || '',
-        'Horario': `${ev.startTime || ''} - ${ev.endTime || ''}`,
-        'Estado': ev.status || '',
-        'Total Cotización (Q)': ev.quote?.total || ''
-      };
-    });
+    const now = new Date();
+    const nowStr = now.toISOString().split('T')[0];
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Eventos');
-    const nowStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `Eventos_CRM_JDL_${nowStr}.xlsx`);
+    try {
+      // Carga dinámica de ExcelJS para optimizar rendimiento de carga inicial
+      let ExcelJSModule;
+      try {
+        ExcelJSModule = await import('exceljs');
+      } catch {
+        ExcelJSModule = await import('exceljs/dist/exceljs.min.js');
+      }
+      const ExcelJS = ExcelJSModule.default || ExcelJSModule;
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Jardines EMS';
+      workbook.created = now;
+
+      const worksheet = workbook.addWorksheet('Eventos', {
+        views: [{ showGridLines: true }]
+      });
+
+      // ── 1. Banner Superior de Título ──
+      worksheet.mergeCells('A1:K1');
+      const titleCell = worksheet.getCell('A1');
+      titleCell.value = 'JARDINES EMS — REPORTE DE EVENTOS Y RESERVAS';
+      titleCell.font = { name: 'Segoe UI', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
+      titleCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1E293B' } // Slate 800
+      };
+      titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      worksheet.getRow(1).height = 32;
+
+      // ── 2. Metadatos del Reporte ──
+      worksheet.mergeCells('A2:K2');
+      const subCell = worksheet.getCell('A2');
+      const fechaGen = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      const filterSegments = [];
+      if (query) filterSegments.push(`Búsqueda: "${query}"`);
+      if (statusFilter.size > 0) filterSegments.push(`Estados: ${[...statusFilter].join(', ')}`);
+      if (salonFilter !== 'all') filterSegments.push(`Salón: ${salonFilter}`);
+      if (userFilter !== 'all') {
+        const u = users?.find(user => String(user.id) === String(userFilter));
+        filterSegments.push(`Vendedor: ${u?.fullName || u?.name || 'Vendedor'}`);
+      }
+      if (dateFrom || dateTo) filterSegments.push(`Fechas: ${dateFrom || 'Inicio'} a ${dateTo || 'Fin'}`);
+      const filtrosStr = filterSegments.length > 0 ? filterSegments.join('  |  ') : 'Todos los eventos (sin filtros)';
+
+      subCell.value = `Generado el: ${fechaGen}   •   Total de registros: ${filteredEvents.length}   •   ${filtrosStr}`;
+      subCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FF475569' } };
+      subCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' } // Slate 100
+      };
+      subCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      worksheet.getRow(2).height = 20;
+
+      // Fila 3 en blanco
+      worksheet.getRow(3).height = 8;
+
+      // ── 3. Encabezados de Columnas ──
+      const columnsDef = [
+        { header: 'No. Doc', key: 'doc', width: 16, align: 'center' },
+        { header: 'Nombre del Evento', key: 'name', width: 34, align: 'left' },
+        { header: 'Cliente', key: 'client', width: 28, align: 'left' },
+        { header: 'Teléfono', key: 'phone', width: 15, align: 'center' },
+        { header: 'Vendedor / Responsable', key: 'seller', width: 26, align: 'left' },
+        { header: 'Salón(es)', key: 'salon', width: 26, align: 'left' },
+        { header: 'Fecha Inicio', key: 'dateStart', width: 14, align: 'center' },
+        { header: 'Fecha Fin', key: 'dateEnd', width: 14, align: 'center' },
+        { header: 'Horario', key: 'time', width: 18, align: 'center' },
+        { header: 'Estado', key: 'status', width: 22, align: 'center' },
+        { header: 'Total Cotización (Q)', key: 'total', width: 22, align: 'right' }
+      ];
+
+      const headerRow = worksheet.getRow(4);
+      headerRow.height = 28;
+
+      columnsDef.forEach((col, idx) => {
+        const cell = headerRow.getCell(idx + 1);
+        cell.value = col.header;
+        cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF2563EB' } // Azul corporativo JDL
+        };
+        cell.alignment = { vertical: 'middle', horizontal: col.align };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF1D4ED8' } },
+          bottom: { style: 'medium', color: { argb: 'FF1D4ED8' } },
+          left: { style: 'thin', color: { argb: 'FF93C5FD' } },
+          right: { style: 'thin', color: { argb: 'FF93C5FD' } }
+        };
+        worksheet.getColumn(idx + 1).width = col.width;
+      });
+
+      // ── 4. Filas de Datos con Bordes y Colores ──
+      const thinCellBorder = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      };
+
+      filteredEvents.forEach((ev, rowIdx) => {
+        const assignedUser = users?.find(u => String(u.id) === String(ev.userId));
+        const docCode = ev.quote?.code || ev.id || '-';
+        const totalNum = typeof ev.quote?.total === 'number'
+          ? ev.quote.total
+          : Number(String(ev.quote?.total || '0').replace(/[^0-9.-]+/g, '')) || 0;
+
+        const row = worksheet.addRow([
+          docCode,
+          ev.name || '',
+          ev.clientName || '',
+          ev.clientPhone || '',
+          assignedUser?.fullName || assignedUser?.name || 'Sin asignar',
+          ev._salonList?.join(', ') || ev.salon || 'Según Disponibilidad',
+          ev._dateStart || '',
+          ev._dateEnd || '',
+          `${ev.startTime || ''} - ${ev.endTime || ''}`,
+          ev.status || '',
+          totalNum
+        ]);
+
+        row.height = 22;
+        const isEven = rowIdx % 2 === 0;
+        const bgArgb = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = thinCellBorder;
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: bgArgb }
+          };
+          cell.font = { name: 'Segoe UI', size: 9.5, color: { argb: 'FF0F172A' } };
+
+          const colDef = columnsDef[colNumber - 1];
+          cell.alignment = { vertical: 'middle', horizontal: colDef?.align || 'left' };
+
+          if (colNumber === 1) { // No. Doc
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF2563EB' } };
+          } else if (colNumber === 2) { // Nombre Evento
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF0F172A' } };
+          } else if (colNumber === 10) { // Estado
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF334155' } };
+          } else if (colNumber === 11) { // Total (Q)
+            cell.numFmt = '"Q"#,##0.00';
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF0F172A' } };
+          }
+        });
+      });
+
+      // ── 5. Fila de Total General ──
+      const totalRowIndex = 4 + filteredEvents.length + 1;
+      const totalRow = worksheet.getRow(totalRowIndex);
+      totalRow.height = 26;
+
+      worksheet.mergeCells(`A${totalRowIndex}:J${totalRowIndex}`);
+      const totalLabelCell = worksheet.getCell(`A${totalRowIndex}`);
+      totalLabelCell.value = 'TOTAL GENERAL:';
+      totalLabelCell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+      totalLabelCell.alignment = { vertical: 'middle', horizontal: 'right' };
+      totalLabelCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' }
+      };
+
+      for (let c = 1; c <= 10; c++) {
+        worksheet.getCell(totalRowIndex, c).border = {
+          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          bottom: { style: 'double', color: { argb: 'FF0F172A' } }
+        };
+      }
+
+      const totalValCell = worksheet.getCell(`K${totalRowIndex}`);
+      totalValCell.value = { formula: `SUM(K5:K${totalRowIndex - 1})` };
+      totalValCell.numFmt = '"Q"#,##0.00';
+      totalValCell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FF1D4ED8' } };
+      totalValCell.alignment = { vertical: 'middle', horizontal: 'right' };
+      totalValCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEFF6FF' }
+      };
+      totalValCell.border = {
+        top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        bottom: { style: 'double', color: { argb: 'FF1D4ED8' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      };
+
+      // ── 6. Autofiltros en Encabezados ──
+      worksheet.autoFilter = {
+        from: { row: 4, column: 1 },
+        to: { row: 4, column: 11 }
+      };
+
+      // ── 7. Descarga directa en navegador ──
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = downloadUrl;
+      downloadAnchor.download = `Eventos_EMS_JDL_${nowStr}.xlsx`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.warn('Error al exportar con ExcelJS, usando fallback básico:', err);
+      // Fallback de seguridad con XLSX tradicional
+      const data = filteredEvents.map(ev => {
+        const assignedUser = users?.find(u => String(u.id) === String(ev.userId));
+        const docCode = ev.quote?.code || ev.id || '-';
+        return {
+          'No. Doc': docCode,
+          'Nombre del Evento': ev.name || '',
+          'Cliente': ev.clientName || '',
+          'Teléfono': ev.clientPhone || '',
+          'Vendedor / Responsable': assignedUser?.fullName || assignedUser?.name || 'Sin asignar',
+          'Salón(es)': ev._salonList?.join(', ') || ev.salon || 'Según Disponibilidad',
+          'Fecha Inicio': ev._dateStart || '',
+          'Fecha Fin': ev._dateEnd || '',
+          'Horario': `${ev.startTime || ''} - ${ev.endTime || ''}`,
+          'Estado': ev.status || '',
+          'Total Cotización (Q)': ev.quote?.total || ''
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Eventos');
+      XLSX.writeFile(wb, `Eventos_EMS_JDL_${nowStr}.xlsx`);
+    }
   };
 
   const getStatusColor = (status) => STATUS_META[status]?.color || '#64748b';
 
   // Verificar si hay algún filtro activo
   const hasActiveFilters = query || statusFilter.size > 0 || salonFilter !== 'all' || userFilter !== 'all' || dateFrom || dateTo;
+  const activeFiltersCount = (statusFilter.size > 0 ? 1 : 0) + (salonFilter !== 'all' ? 1 : 0) + (userFilter !== 'all' ? 1 : 0) + ((dateFrom || dateTo) ? 1 : 0);
 
   return (
     <div className="search-page-saas">
@@ -346,7 +585,6 @@ export default function SearchModule() {
             <div className="search-title-group">
               <div className="search-title-row">
                 <h1 className="search-main-title">Buscar Eventos</h1>
-                <span className="search-badge-saas">SaaS v2.4</span>
               </div>
               <p className="search-subtitle-saas">
                 Encuentra y gestiona reservas por nombre, cliente, salón, No. Doc y más
@@ -384,7 +622,7 @@ export default function SearchModule() {
         </header>
 
         {/* ── 2. FILTERS CARD ── */}
-        <section className="search-filters-card">
+        <section className={`search-filters-card ${isMobileView && !showMobileFilters ? 'mobile-filters-collapsed' : ''}`}>
           <div className="search-filters-grid">
 
             {/* Input Buscador con Ctrl+K */}
@@ -416,6 +654,25 @@ export default function SearchModule() {
               )}
               <span className="search-ctrl-badge" title="Presiona Ctrl + K para enfocar">Ctrl K</span>
             </div>
+
+            {/* Botón de alternancia de filtros avanzados en móvil */}
+            {isMobileView && (
+              <div className="search-mobile-filter-bar">
+                <button
+                  type="button"
+                  className={`btn-toggle-mobile-filters ${showMobileFilters ? 'is-active' : ''} ${activeFiltersCount > 0 ? 'has-active' : ''}`}
+                  onClick={() => setShowMobileFilters(prev => !prev)}
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  </svg>
+                  <span>{showMobileFilters ? 'Ocultar filtros avanzados' : 'Filtros avanzados'}</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="mobile-filter-count-badge">{activeFiltersCount}</span>
+                  )}
+                </button>
+              </div>
+            )}
 
             {/* Dropdown ESTADO (Popover) */}
             <div className="search-filter-field" ref={statusPopoverRef}>
@@ -743,6 +1000,19 @@ export default function SearchModule() {
           ) : viewMode === 'list' ? (
             /* ── VISTA LISTA (TABLA ESTILO REFERENCIA) ── */
             <div className="search-table-scroll-container">
+              {isMobileView && (
+                <div className="search-table-mobile-hint">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                    <polyline points="9 18 3 12 9 6" />
+                  </svg>
+                  <span>Desliza para ver más columnas (Fecha, Salón, Estado...)</span>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                    <polyline points="15 18 21 12 15 6" />
+                  </svg>
+                </div>
+              )}
               <table className="search-saas-table">
                 <thead>
                   <tr>
@@ -940,11 +1210,22 @@ export default function SearchModule() {
                 const assignedUser = users?.find(u => String(u.id) === String(ev.userId));
                 const docCode = ev.quote?.code || ev.id?.substring(0, 12) || '-';
                 const statusColor = getStatusColor(ev.status);
+                const paxCount = ev.pax || ev.Pax || ev.guests || 0;
+                const totalNum = typeof ev.quote?.total === 'number'
+                  ? ev.quote.total
+                  : Number(String(ev.quote?.total || '0').replace(/[^0-9.-]+/g, '')) || 0;
 
                 return (
                   <div key={ev.id} className="search-card-item">
                     <div className="card-top-row">
-                      <span className="doc-pill-badge">{docCode}</span>
+                      <span
+                        className="doc-pill-badge"
+                        onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search' } })}
+                        style={{ cursor: 'pointer' }}
+                        title="Ver detalles de la reserva"
+                      >
+                        {docCode}
+                      </span>
                       <span
                         className="status-pill-saas"
                         style={{
@@ -959,6 +1240,16 @@ export default function SearchModule() {
                     </div>
 
                     <h4 className="card-event-name">{ev.name || 'Sin Título'}</h4>
+
+                    {ev.clientName && ev.clientName !== ev.name && (
+                      <div className="card-client-row">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        <span>{ev.clientName}</span>
+                      </div>
+                    )}
 
                     <div className="card-meta-list">
                       <div className="card-meta-item">
@@ -984,21 +1275,101 @@ export default function SearchModule() {
                           <line x1="8" y1="2" x2="8" y2="6" />
                           <line x1="3" y1="10" x2="21" y2="10" />
                         </svg>
-                        <span>{ev._dateStart} ({ev.startTime || '00:00'} - {ev.endTime || '00:00'})</span>
+                        <span>{ev._dateStart}{ev._dateStart !== ev._dateEnd && ev._dateEnd ? ` al ${ev._dateEnd}` : ''} ({ev.startTime || '00:00'} - {ev.endTime || '00:00'})</span>
                       </div>
+
+                      {paxCount > 0 && (
+                        <div className="card-meta-item">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#94a3b8" strokeWidth="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                          <span><strong>{paxCount}</strong> personas</span>
+                        </div>
+                      )}
+
+                      {totalNum > 0 && (
+                        <div className="card-meta-item card-meta-amount">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#16a34a" strokeWidth="2">
+                            <line x1="12" y1="1" x2="12" y2="23" />
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                          </svg>
+                          <span className="card-amount-val">Total: <strong>{formatCurrency(totalNum)}</strong></span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="card-footer-row">
-                      <button
-                        type="button"
-                        className="btn-card-view"
-                        onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search' } })}
-                      >
-                        <span>Ver Reserva</span>
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </button>
+                      <div className="card-actions-row">
+                        <button
+                          type="button"
+                          className="btn-card-view"
+                          onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search' } })}
+                        >
+                          <span>Ver Reserva</span>
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </button>
+
+                        <div className="action-menu-relative" ref={activeActionMenu === `card-${ev.id}` ? actionMenuRef : null}>
+                          <button
+                            type="button"
+                            className={`btn-action-dots ${activeActionMenu === `card-${ev.id}` ? 'is-active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveActionMenu(activeActionMenu === `card-${ev.id}` ? null : `card-${ev.id}`);
+                            }}
+                            title="Más opciones"
+                            aria-label="Más opciones"
+                          >
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                              <circle cx="12" cy="5" r="2.2" />
+                              <circle cx="12" cy="12" r="2.2" />
+                              <circle cx="12" cy="19" r="2.2" />
+                            </svg>
+                          </button>
+
+                          {activeActionMenu === `card-${ev.id}` && (
+                            <div className="action-dropdown-popover">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveActionMenu(null);
+                                  navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`);
+                                }}
+                              >
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                <span>Editar Reserva</span>
+                              </button>
+                              {ev.quote?.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveActionMenu(null);
+                                    navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}?tab=quote`);
+                                  }}
+                                >
+                                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                                  <span>Ver Cotización</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveActionMenu(null);
+                                  navigator.clipboard.writeText(docCode);
+                                }}
+                              >
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                <span>Copiar No. Doc</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );

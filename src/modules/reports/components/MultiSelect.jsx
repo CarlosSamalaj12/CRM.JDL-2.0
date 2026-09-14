@@ -25,6 +25,7 @@ export default function MultiSelect({
   triggerStyle = {},
   wrapperStyle = {},
   className = '',
+  hideLabel = false,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -226,9 +227,11 @@ export default function MultiSelect({
 
   return (
     <div ref={wrapperRef} className={`multiselect-wrapper ${className}`} style={{ minWidth, position: 'relative', width, ...wrapperStyle }}>
-      <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
-        {placeholder}
-      </span>
+      {!hideLabel && placeholder && (
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+          {placeholder}
+        </span>
+      )}
       <div
         ref={triggerRef}
         onClick={handleTriggerClick}

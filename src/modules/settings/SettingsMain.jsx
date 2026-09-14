@@ -40,7 +40,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Solo accessible por administradores</div>
             </div>
@@ -163,7 +163,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Administración de salones y áreas</div>
             </div>
@@ -189,7 +189,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Metas globales de ventas</div>
             </div>
@@ -215,7 +215,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Gestión de servicios, categorías y subcategorías</div>
             </div>
@@ -241,7 +241,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Plantillas rápidas de servicios para cotizaciones</div>
             </div>
@@ -267,7 +267,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Configura qué plantilla HTML va con cada tipo de contrato</div>
             </div>
@@ -293,7 +293,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Formas de pago disponibles en cotizaciones y anticipos</div>
             </div>
@@ -329,7 +329,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Define el tipo de cambio USD a GTQ para conversión de cotizaciones</div>
             </div>
@@ -355,7 +355,7 @@ export default function SettingsMain() {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Plantillas de checklists para eventos</div>
             </div>
@@ -392,7 +392,7 @@ export default function SettingsMain() {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Panel de Configuración</div>
             <div className="reports-subtitle">Ajustes generales, estructura de salones, catálogos y migración de datos</div>
           </div>

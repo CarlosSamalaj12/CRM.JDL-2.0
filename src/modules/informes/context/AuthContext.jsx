@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
   };
 
   const register = async () => {
-    throw new Error('El registro desde Informes está deshabilitado. Use el acceso del CRM.');
+    throw new Error('El registro desde Informes está deshabilitado. Use el acceso de Jardines EMS.');
   };
 
   const logout = () => {

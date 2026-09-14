@@ -1,0 +1,1211 @@
+/* ==========================================================================
+   RESERVATION FORM — REDISEÑO MÓVIL EJECUTIVO Y FORMAL (<= 768px)
+   Paleta Institucional Corporativa (Executive Slate & Navy Blue):
+   - Color Primario Ejecutivo: #0f4c81 (Navy Corporativo JDL)
+   - Color Primario Oscuro: #0b3b64 (Deep Navy para hover/active)
+   - Color Primario Suave: #e8f1fb (Fondo de acento formal)
+   - Bordes de Precisión: #e2e8f0 / #c7d8ea / #cbd5e1
+   - Textos de Alto Contraste: #0f172a (Títulos) / #334155 / #64748b
+   - Acento VIP Salón Principal: #d97706 (Ámbar / Oro corporativo)
+   - Botón Guardar: #0f4c81 con terminación satinada y tipografía de precisión
+   - Barra Inferior: Botones estructurados, limpios y de estilo ERP empresarial
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .res-mobile-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background: #f8fafc;
+    position: relative;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── 1. Header Superior ── */
+  .res-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+    z-index: 20;
+  }
+
+  .res-mobile-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .res-mobile-title-block {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .res-mobile-brand-tag {
+    font-size: 10.5px;
+    font-weight: 800;
+    color: #0f4c81;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+  }
+
+  .res-mobile-main-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .res-mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── 2. Contenedor de Scroll ── */
+  .res-mobile-scroll-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 14px 115px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-sizing: border-box;
+  }
+
+  /* ── 3. Tarjeta Hero del Evento ── */
+  .res-mobile-hero-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+
+  .res-mobile-hero-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .res-mobile-hero-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .res-mobile-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    border: 1px solid transparent;
+    line-height: 1.2;
+  }
+
+  .res-mobile-status-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  .res-mobile-id-pill {
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 2px 7px;
+    border-radius: 6px;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+  }
+
+  .res-mobile-type-icon-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #e8f1fb;
+    color: #0f4c81;
+    border: 1px solid #c7d8ea;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .res-mobile-hero-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 600;
+  }
+
+  .res-mobile-hero-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .res-mobile-hero-seller-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 2px;
+  }
+
+  .res-mobile-seller-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .res-mobile-seller-label-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #475569;
+    flex-shrink: 0;
+  }
+
+  .res-mobile-seller-select {
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+    cursor: pointer;
+    outline: none;
+    width: 100%;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* ── 4. Stepper del Proceso (Formal Corporate) ── */
+  .res-mobile-stepper-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 12px 14px 10px 14px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+  }
+
+  .res-mobile-stepper-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .res-mobile-stepper-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+  }
+
+  .res-mobile-stepper-count {
+    font-size: 11px;
+    font-weight: 800;
+    color: #0f4c81;
+    background: #e8f1fb;
+    padding: 2px 7px;
+    border-radius: 6px;
+    border: 1px solid #c7d8ea;
+  }
+
+  .res-mobile-stepper-track {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .res-mobile-stepper-line-bg {
+    position: absolute;
+    top: 13px;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: #e2e8f0;
+    z-index: 1;
+  }
+
+  .res-mobile-stepper-line-fill {
+    position: absolute;
+    top: 13px;
+    left: 10%;
+    height: 2px;
+    background: #0f4c81;
+    z-index: 2;
+    transition: width 0.3s ease;
+  }
+
+  .res-mobile-stepper-step {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    flex: 1;
+    user-select: none;
+  }
+
+  .res-mobile-step-node {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid #cbd5e1;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .res-mobile-stepper-step.is-completed .res-mobile-step-node {
+    background: #0f4c81;
+    border-color: #0f4c81;
+    color: #ffffff;
+  }
+
+  .res-mobile-stepper-step.is-active .res-mobile-step-node {
+    background: #0f4c81;
+    border-color: #0f4c81;
+    color: #ffffff;
+    box-shadow: 0 0 0 4px rgba(15, 76, 129, 0.18);
+    transform: scale(1.08);
+  }
+
+  .res-mobile-step-text {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #64748b;
+    text-align: center;
+    line-height: 1.15;
+  }
+
+  .res-mobile-stepper-step.is-active .res-mobile-step-text {
+    color: #0f4c81;
+    font-weight: 800;
+  }
+
+  .res-mobile-stepper-step.is-completed .res-mobile-step-text {
+    color: #1e293b;
+  }
+
+  /* ── 5. Salones y Horarios ── */
+  .res-mobile-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+  }
+
+  .res-mobile-section-title {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .res-mobile-salon-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 12px 14px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all 0.15s ease;
+  }
+
+  .res-mobile-salon-card.is-principal {
+    border-color: #0f4c81;
+    border-width: 1.5px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 76, 129, 0.08);
+  }
+
+  .res-mobile-salon-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .res-mobile-salon-card-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .res-mobile-salon-select {
+    width: 100%;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 5px 8px;
+    background: #ffffff;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .res-mobile-salon-grid-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .res-mobile-field-cell {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-sizing: border-box;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .res-mobile-field-cell-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Contenedor del Horario Bloqueado */
+  .res-mobile-time-range-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .res-mobile-time-sep {
+    font-size: 12px;
+    font-weight: 800;
+    color: #94a3b8;
+    flex-shrink: 0;
+    padding: 0 1px;
+  }
+
+  .res-mobile-salon-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 4px;
+    font-size: 11.5px;
+    color: #475569;
+    font-weight: 600;
+  }
+
+  .res-mobile-salon-footer-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .res-mobile-turn-pill {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #0f4c81;
+    background: #e8f1fb;
+    border: 1px solid #c7d8ea;
+    padding: 2px 7px;
+    border-radius: 6px;
+  }
+
+  /* ── 6. Configuración de Capacidad (PAX) ── */
+  .res-mobile-pax-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .res-mobile-pax-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .res-mobile-pax-count-block {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .res-mobile-pax-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+  }
+
+  .res-mobile-pax-number {
+    font-size: 26px;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1.1;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    letter-spacing: -0.02em;
+  }
+
+  .res-mobile-pax-number span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .res-mobile-pax-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #e8f1fb;
+    color: #0f4c81;
+    border: 1px solid #c7d8ea;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .res-mobile-pax-toggle-bar {
+    display: flex;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .res-mobile-pax-info-callout {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 3.5px solid #0f4c81;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11.5px;
+    color: #334155;
+    line-height: 1.45;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .res-mobile-pax-info-callout svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: #0f4c81;
+  }
+
+  /* ── 7. Vigencia y Límites de la Reserva ── */
+  .res-mobile-vigencia-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .res-mobile-date-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .res-mobile-date-input-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── 8. Notas y Requerimientos ── */
+  .res-mobile-notes-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .res-mobile-notes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .res-mobile-private-tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #64748b;
+  }
+
+  .res-mobile-notes-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 4px;
+    font-size: 11px;
+    color: #64748b;
+  }
+
+  .res-mobile-notes-auto-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+  }
+
+  /* ── 9. Tarjetas de Acceso Rápido (Citas y Cotización) ── */
+  .res-mobile-action-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .res-mobile-action-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+  }
+
+  .res-mobile-action-card:active {
+    background: #f8fafc;
+    transform: scale(0.98);
+  }
+
+  .res-mobile-action-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .res-mobile-action-card.is-appointment .res-mobile-action-card-icon {
+    background: #e8f1fb;
+    color: #0f4c81;
+    border: 1px solid #c7d8ea;
+  }
+
+  .res-mobile-action-card.is-quote .res-mobile-action-card-icon {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+  }
+
+  .res-mobile-action-card-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .res-mobile-action-card-title {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+
+  .res-mobile-action-card-subtitle {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #64748b;
+    line-height: 1.2;
+    margin-top: 1px;
+  }
+
+  /* ── 10. Barra Inferior Fija de Acciones (Toolbar Formal de Alta Precisión) ── */
+  .res-mobile-bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    padding: 10px 14px 14px 14px;
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+  }
+
+  .res-mobile-bottom-main-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .res-mobile-bottom-sub-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  /* Popover flotante del menú de opciones */
+  .res-mobile-more-popover {
+    position: absolute;
+    bottom: 60px;
+    right: 14px;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    z-index: 10000;
+    animation: popoverFadeIn 0.15s ease-out;
+  }
+
+  .res-mobile-more-popover button {
+    border: none !important;
+    background: transparent !important;
+    padding: 10px 12px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    text-align: left !important;
+    width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .res-mobile-more-popover button:hover,
+  .res-mobile-more-popover button:active {
+    background: #f8fafc !important;
+  }
+
+  .res-mobile-more-popover button.is-delete {
+    color: #dc2626 !important;
+  }
+
+  .res-mobile-more-popover button.is-delete:hover,
+  .res-mobile-more-popover button.is-delete:active {
+    background: #fef2f2 !important;
+  }
+
+  @keyframes popoverFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* ==========================================================================
+   RESETEO DE ALTA ESPECIFICIDAD CONTRA HOJAS GLOBALES (SCOPED OVERRIDES)
+   Destruye gradientes oscuros en inputs/textareas y estiliza los botones
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  /* Reseteo maestro de inputs */
+  body:not(.informes-theme) .res-mobile-root input:not([type="checkbox"]):not([type="radio"]) {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    font-family: inherit !important;
+  }
+
+  /* Nombre del evento */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-hero-title-input {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 8px 12px !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    font-size: 15.5px !important;
+    font-weight: 800 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    transition: all 0.15s ease !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-hero-title-input:focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+    background: #ffffff !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-hero-title-input::placeholder {
+    color: #94a3b8 !important;
+    font-weight: 500 !important;
+  }
+
+  /* Inputs de Horario Bloqueado (Nativo compacto sin desborde) */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-time-native-input {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    background: #f8fafc !important;
+    background-image: none !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    color: #0f172a !important;
+    color-scheme: light !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    text-align: center !important;
+    padding: 2px 2px !important;
+    outline: none !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-time-native-input:focus {
+    border-color: #0f4c81 !important;
+    background: #ffffff !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-time-native-input::-webkit-calendar-picker-indicator {
+    display: none !important;
+    -webkit-appearance: none !important;
+  }
+
+  /* Inputs de Fecha nativos (Vigencia) */
+  body:not(.informes-theme) .res-mobile-root input[type="date"] {
+    background: transparent !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    color-scheme: light !important;
+    border: none !important;
+    box-shadow: none !important;
+    min-height: auto !important;
+    height: 38px !important;
+    padding: 0 !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    width: 100% !important;
+    outline: none !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-date-input-box {
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 0 12px !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    transition: border-color 0.15s ease !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-date-input-box:focus-within {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+  }
+
+  /* Textarea de Notas */
+  body:not(.informes-theme) .res-mobile-root textarea,
+  body:not(.informes-theme) .res-mobile-root .res-mobile-notes-textarea {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #1e293b !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    min-height: 90px !important;
+    padding: 10px 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    resize: none !important;
+    outline: none !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root textarea::placeholder,
+  body:not(.informes-theme) .res-mobile-root .res-mobile-notes-textarea::placeholder {
+    color: #94a3b8 !important;
+    font-weight: 400 !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root textarea:focus,
+  body:not(.informes-theme) .res-mobile-root .res-mobile-notes-textarea:focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+    background: #ffffff !important;
+  }
+
+  /* Celdas de Cuadrícula 2x2 en Salón */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-field-cell {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    padding: 6px 10px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-field-cell input {
+    background: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-height: auto !important;
+    height: 24px !important;
+    width: 100% !important;
+    outline: none !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-field-cell input[type="number"] {
+    color: #0f172a !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-field-cell input[type="date"] {
+    color: #0f172a !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    height: 22px !important;
+  }
+
+  /* Selects */
+  body:not(.informes-theme) .res-mobile-root select {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    min-height: auto !important;
+  }
+
+  /* Reseteo de Botones contra design-system-scoped.css y responsive-mobile.css */
+  body:not(.informes-theme) .res-mobile-root button {
+    background-image: none !important;
+    box-shadow: none;
+    font-family: inherit !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-close {
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-header-icon-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  /* Botón Agregar Salón (Executive Navy Tint) */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-add-salon {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 4px 12px !important;
+    border-radius: 8px !important;
+    background: #e8f1fb !important;
+    border: 1px solid #c7d8ea !important;
+    color: #0f4c81 !important;
+    font-size: 11.5px !important;
+    font-weight: 800 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    transition: all 0.15s ease !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-add-salon:active {
+    background: #0f4c81 !important;
+    color: #ffffff !important;
+  }
+
+  /* Botón Estrella Salón Principal (Oro Ámbar Ejecutivo) */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-star {
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #94a3b8 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.15s ease !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-star.is-active {
+    background: #fffbeb !important;
+    border-color: #fde68a !important;
+    color: #d97706 !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-delete-slot {
+    width: 26px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    max-height: 26px !important;
+    min-width: 26px !important;
+    max-width: 26px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    color: #dc2626 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Toggle de Capacidad Segmentado */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-pax-toggle-btn {
+    flex: 1 !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+    background: transparent !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 0 8px !important;
+    transition: all 0.15s ease !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-pax-toggle-btn.is-active-shared,
+  body:not(.informes-theme) .res-mobile-root .res-mobile-pax-toggle-btn.is-active-individual {
+    background: #0f4c81 !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    box-shadow: 0 2px 6px rgba(15, 76, 129, 0.25) !important;
+  }
+
+  /* Botón Principal Guardar Cambios: Executive Corporate Navy */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-save-cta {
+    flex: 1 1 auto !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    border-radius: 10px !important;
+    background: #0f4c81 !important;
+    color: #ffffff !important;
+    border: 1px solid #0b3b64 !important;
+    box-shadow: 0 4px 14px rgba(15, 76, 129, 0.30) !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    opacity: 1 !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-save-cta:active {
+    background: #0b3b64 !important;
+    transform: scale(0.98) !important;
+  }
+
+  /* Botón Más Opciones (3 Puntos) */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-more-dots {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #334155 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  body:not(.informes-theme) .res-mobile-root .res-mobile-btn-more-dots:active {
+    background: #f1f5f9 !important;
+  }
+
+  /* Fila Secundaria de Botones Estructurados */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-sub-action-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 0 8px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Mantenimiento (Gris neutro de precisión formal) */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-sub-action-btn.is-maintenance {
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #475569 !important;
+  }
+  body:not(.informes-theme) .res-mobile-root .res-mobile-sub-action-btn.is-maintenance:active {
+    background: #f1f5f9 !important;
+  }
+
+  /* Cotización (Azul formal corporativo) */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-sub-action-btn.is-quote {
+    background: #eff6ff !important;
+    border: 1.5px solid #bfdbfe !important;
+    color: #1d4ed8 !important;
+  }
+  body:not(.informes-theme) .res-mobile-root .res-mobile-sub-action-btn.is-quote:active {
+    background: #dbeafe !important;
+  }
+
+  /* Descartar (Rojo sobrio) */
+  body:not(.informes-theme) .res-mobile-root .res-mobile-sub-action-btn.is-danger {
+    background: #ffffff !important;
+    border: 1.5px solid #fecaca !important;
+    color: #dc2626 !important;
+  }
+  body:not(.informes-theme) .res-mobile-root .res-mobile-sub-action-btn.is-danger:active {
+    background: #fee2e2 !important;
+  }
+}

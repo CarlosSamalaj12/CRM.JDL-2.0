@@ -10,7 +10,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
-  padding: 20px 24px;
+  padding: 20px 24px 32px 24px;
   background: #f8fafc;
 }
 
@@ -22,6 +22,7 @@
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
+  padding-bottom: 12px;
 }
 
 /* ── 1. Header ── */
@@ -32,6 +33,7 @@
   gap: 16px;
   flex-wrap: wrap;
   padding-bottom: 2px;
+  flex-shrink: 0;
 }
 
 .search-header-left {
@@ -176,6 +178,7 @@ body:not(.informes-theme) .search-page-saas .search-btn-new-quote:hover,
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex-shrink: 0;
 }
 
 .search-filters-grid {
@@ -404,16 +407,22 @@ body:not(.informes-theme) .search-page-saas select.search-saas-select:focus,
 /* Rango de fechas */
 .date-range-field {
   flex: 1.4 1 200px;
+  min-width: 0;
 }
 
 .date-inputs-pair {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .date-single-wrap {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
 }
 
 .search-saas-date-input,
@@ -852,10 +861,11 @@ body:not(.informes-theme) .search-page-saas .view-toggle-btn.active,
 
 /* ── 4. Table / Content Area ── */
 .search-content-area {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: auto;
+  width: 100%;
 }
 
 .search-table-scroll-container {
@@ -1362,6 +1372,8 @@ body:not(.informes-theme) .search-page-saas .empty-reset-btn:hover,
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .footer-left {
@@ -1508,10 +1520,84 @@ body:not(.informes-theme) .search-page-saas .page-num-btn.active,
   font-weight: bold;
 }
 
+/* ── Estilos de Tarjeta Enriquecida (Grid Card) ── */
+.card-client-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #475569;
+  font-weight: 600;
+  margin-top: -4px;
+}
+
+.card-meta-amount {
+  color: #15803d !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+}
+
+.card-meta-amount strong {
+  color: #16a34a;
+}
+
+.card-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.card-actions-row .btn-card-view {
+  flex: 1;
+}
+
+.search-mobile-filter-bar {
+  display: none;
+  width: 100%;
+}
+
+.btn-toggle-mobile-filters {
+  width: 100%;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-toggle-mobile-filters.is-active,
+.btn-toggle-mobile-filters.has-active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #2563eb;
+}
+
+.mobile-filter-count-badge {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.search-table-mobile-hint {
+  display: none;
+}
+
 /* ── Responsive Media Queries ── */
 @media (max-width: 900px) {
   .search-page-saas {
-    padding: 14px;
+    padding: 14px 14px 75px 14px;
   }
   .search-filters-grid {
     gap: 10px;
@@ -1519,30 +1605,206 @@ body:not(.informes-theme) .search-page-saas .page-num-btn.active,
 }
 
 @media (max-width: 768px) {
+  .search-page-saas {
+    padding: 10px 10px 85px 10px !important;
+  }
+
+  .search-saas-container {
+    gap: 12px;
+    padding-bottom: 20px;
+  }
+
   .search-saas-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 12px;
   }
+
+  .search-header-left {
+    gap: 10px;
+  }
+
+  .search-brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .search-main-title {
+    font-size: 20px;
+  }
+
+  .search-subtitle-saas {
+    font-size: 12px;
+  }
+
   .search-header-actions {
     width: 100%;
+    display: flex;
+    gap: 8px;
   }
-  .search-btn-export,
-  .search-btn-new-quote {
-    flex: 1;
+
+  .search-header-actions .search-btn-export,
+  .search-header-actions .search-btn-new-quote {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 8px !important;
+    font-size: 12px !important;
+    justify-content: center !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  /* Barra de búsqueda y botón de filtros en móvil */
+  .search-mobile-filter-bar {
+    display: block;
+    margin-top: 2px;
+  }
+
+  .search-filters-card {
+    padding: 12px 14px;
+    border-radius: 14px;
+    gap: 10px;
+  }
+
+  .search-ctrl-badge {
+    display: none !important;
+  }
+
+  .search-bar-wrap {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  /* Si los filtros avanzados están colapsados en móvil */
+  .search-filters-card.mobile-filters-collapsed .search-filter-field {
+    display: none;
+  }
+
+  .search-filter-field {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .date-range-field {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+
+  .date-inputs-pair {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
+  }
+
+  .date-single-wrap {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .search-saas-date-input,
+  body:not(.informes-theme) .search-page-saas input[type="date"],
+  body:not(.informes-theme) .search-page-saas .search-saas-date-input,
+  .search-page-saas input[type="date"].search-saas-date-input {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 0 6px !important;
+    font-size: 11.5px !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+  }
+
+  .date-separator {
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  /* Vista Cuadrícula (Cards) optimizada a 1 columna en móvil */
+  .search-grid-container {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .search-card-item {
+    padding: 14px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .card-event-name {
+    font-size: 14px !important;
+  }
+
+  /* Aviso visual en modo tabla para móvil */
+  .search-table-scroll-container {
+    border-radius: 12px;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .search-table-mobile-hint {
+    display: flex !important;
+    align-items: center;
     justify-content: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 11px;
+    font-weight: 600;
+    border-bottom: 1px solid #dbeafe;
   }
+
   .search-subbar-row {
     flex-direction: column;
     align-items: flex-start;
+    gap: 10px;
   }
+
+  .search-applied-filters {
+    width: 100%;
+  }
+
+  .applied-chips-list {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
   .search-view-controls {
     width: 100%;
+    display: flex;
+    align-items: center;
     justify-content: space-between;
+    padding-top: 4px;
+    border-top: 1px solid #f1f5f9;
   }
+
   .search-saas-footer {
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    padding: 14px 12px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+
+  .footer-left {
+    justify-content: center;
+    flex-wrap: wrap;
+    font-size: 12px;
+  }
+
+  .footer-pagination-nav {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
   }
 }
 

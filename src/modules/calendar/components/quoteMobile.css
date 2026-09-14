@@ -1,0 +1,1407 @@
+/* ==========================================================================
+   QUOTE MODAL — REDISEÑO MÓVIL EJECUTIVO Y FORMAL (<= 768px)
+   Paleta Institucional Corporativa (Executive Slate & Navy Blue):
+   - Primario Corporativo: #0f4c81 (Navy Institucional CRM JDL)
+   - Primario Oscuro: #0b3b64
+   - Primario Suave / Fondo Acento: #e8f1fb
+   - Bordes de Precisión: #cbd5e1 / #e2e8f0 / #c7d8ea
+   - Textos de Alto Contraste: #0f172a (Títulos) / #334155 / #64748b
+   - Acento Plantillas / VIP: #d97706 (Ámbar / Oro corporativo)
+   - Botón Guardar: #0f4c81 con terminación satinada y tipografía de precisión
+   - Pestañas Ejecutivas: Catálogo vs Carrito táctil
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .quote-mobile-root {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background: #f8fafc;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── 1. Header Superior Móvil ── */
+  .quote-mobile-header {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px 10px 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  }
+
+  .quote-mobile-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .quote-mobile-header-title-block {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .quote-mobile-brand-tag {
+    font-size: 10px;
+    font-weight: 800;
+    color: #0f4c81;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    margin-bottom: 1px;
+  }
+
+  .quote-mobile-main-title {
+    font-size: 16px;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1.2;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .quote-mobile-subtitle {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #475569;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    margin-top: 1px;
+  }
+
+  .quote-mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  /* ── 2. Fila Horizontal de Chips de Configuración Global ── */
+  .quote-mobile-chips-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .quote-mobile-chips-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .quote-mobile-chip-label {
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    margin-right: 2px;
+  }
+
+  .quote-mobile-contract-group {
+    display: flex;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .quote-mobile-contract-btn {
+    border: none !important;
+    background: transparent !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    white-space: nowrap !important;
+    transition: all 0.15s ease !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    line-height: 1 !important;
+  }
+
+  .quote-mobile-contract-btn.is-active {
+    background: #0f4c81 !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    box-shadow: 0 1px 3px rgba(15, 76, 129, 0.25) !important;
+  }
+
+  .quote-mobile-pill-select {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f172a;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    flex-shrink: 0;
+  }
+
+  .quote-mobile-header-pill-btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 9px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+
+  .quote-mobile-header-pill-btn.is-info {
+    background: #eff6ff !important;
+    border-color: #bfdbfe !important;
+    color: #1d4ed8 !important;
+  }
+
+  /* ── 3. Pestañas Ejecutivas Segmentadas ── */
+  .quote-mobile-tabs-container {
+    background: #ffffff;
+    padding: 0 14px 8px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+  }
+
+  .quote-mobile-tabs-bar {
+    display: flex;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .quote-mobile-tab-btn {
+    flex: 1 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+    background: transparent !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 7px 8px !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    transition: all 0.15s ease !important;
+    white-space: nowrap !important;
+  }
+
+  .quote-mobile-tab-btn.is-active {
+    background: #0f4c81 !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    box-shadow: 0 2px 6px rgba(15, 76, 129, 0.25) !important;
+  }
+
+  .quote-mobile-tab-badge {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #e8f1fb;
+    color: #0f4c81;
+  }
+
+  .quote-mobile-tab-btn.is-active .quote-mobile-tab-badge {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+  }
+
+  /* ── 4. Contenedor de Contenido Desplazable ── */
+  .quote-mobile-scroll-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 14px 135px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+  }
+
+  /* ── 5. Tarjetas Ejecutivas ── */
+  .quote-mobile-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+  }
+
+  .quote-mobile-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .quote-mobile-card-eyebrow {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #0f4c81;
+  }
+
+  .quote-mobile-card-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  /* Buscador de Servicio en Catálogo */
+  .quote-mobile-search-box {
+    position: relative;
+    width: 100%;
+  }
+
+  .quote-mobile-search-input {
+    width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 0 34px 0 36px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .quote-mobile-search-input:focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.15) !important;
+  }
+
+  /* Grid Cantidad + Fecha en Catálogo */
+  .quote-mobile-qty-date-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 8px;
+  }
+
+  .quote-mobile-field-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .quote-mobile-field-label {
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.03em;
+  }
+
+  /* Stepper táctil compacto */
+  .quote-mobile-stepper-control {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    height: 38px;
+    overflow: hidden;
+  }
+
+  .quote-mobile-stepper-btn {
+    width: 34px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border: none !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .quote-mobile-stepper-btn:active {
+    background: #e2e8f0 !important;
+  }
+
+  .quote-mobile-stepper-val {
+    flex: 1;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+  }
+
+  .quote-mobile-select-date {
+    height: 38px;
+    min-height: 38px;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #0f172a;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Botones de acción del catálogo */
+  .quote-mobile-catalog-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .quote-mobile-btn-add-item {
+    flex: 1.4 !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    background: #0f4c81 !important;
+    border: 1px solid #0b3b64 !important;
+    color: #ffffff !important;
+    font-size: 13.5px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(15, 76, 129, 0.22) !important;
+  }
+
+  .quote-mobile-btn-add-item:active {
+    background: #0b3b64 !important;
+    transform: scale(0.98) !important;
+  }
+
+  .quote-mobile-btn-add-item:disabled {
+    background: #cbd5e1 !important;
+    border-color: #cbd5e1 !important;
+    color: #94a3b8 !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+  }
+
+  .quote-mobile-btn-new-svc {
+    flex: 1 !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #334155 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+
+  /* Plantillas Rápidas */
+  .quote-mobile-template-select {
+    height: 42px;
+    min-height: 42px;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .quote-mobile-btn-apply-tpl {
+    height: 42px !important;
+    min-height: 42px !important;
+    border-radius: 10px !important;
+    background: #fffbeb !important;
+    border: 1.5px solid #fde68a !important;
+    color: #d97706 !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    cursor: pointer !important;
+    width: 100% !important;
+  }
+
+  .quote-mobile-btn-apply-tpl:active {
+    background: #fef3c7 !important;
+  }
+
+  /* ── 6. Pestaña Carrito: Tarjetas Táctiles de Servicio ── */
+  .quote-mobile-date-group-header {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .quote-mobile-date-group-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: #0f172a;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .quote-mobile-date-group-subtotal {
+    font-size: 12px;
+    font-weight: 800;
+    color: #0f4c81;
+  }
+
+  .quote-mobile-item-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+    transition: border-color 0.15s ease;
+  }
+
+  .quote-mobile-item-card.is-selected {
+    border-color: #0f4c81;
+    background: #f8fbff;
+  }
+
+  .quote-mobile-item-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .quote-mobile-item-name {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.25;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .quote-mobile-item-category {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 1px;
+  }
+
+  .quote-mobile-item-card-mid {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 4px;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .quote-mobile-item-price-block {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .quote-mobile-item-unit-price {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .quote-mobile-item-total {
+    font-size: 16px;
+    font-weight: 900;
+    color: #0f4c81;
+    letter-spacing: -0.01em;
+  }
+
+  .quote-mobile-item-card-bot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 4px;
+  }
+
+  .quote-mobile-item-date-select {
+    height: 30px;
+    min-height: 30px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    outline: none;
+    flex: 1;
+    max-width: 170px;
+  }
+
+  .quote-mobile-btn-trash {
+    width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    border: 1px solid #fecaca !important;
+    background: #fff5f5 !important;
+    color: #dc2626 !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+  }
+
+  .quote-mobile-btn-trash:active {
+    background: #fee2e2 !important;
+  }
+
+  /* Descuentos & Control Financiero */
+  .quote-mobile-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+    color: #475569;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .quote-mobile-summary-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .quote-mobile-summary-row.is-total {
+    font-size: 16px;
+    font-weight: 900;
+    color: #0f172a;
+    border-top: 1.5px solid #e2e8f0;
+    padding-top: 8px;
+    margin-top: 2px;
+  }
+
+  .quote-mobile-summary-row.is-balance {
+    font-size: 14px;
+    font-weight: 900;
+    color: #0f4c81;
+    background: #e8f1fb;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 4px;
+  }
+
+  /* ── 7. Barra Inferior Fija de Alto Impacto (Sticky Bottom) ── */
+  .quote-mobile-bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    padding: 10px 14px max(12px, env(safe-area-inset-bottom)) 14px;
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+  }
+
+  .quote-mobile-bottom-financial-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .quote-mobile-bottom-total-col {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .quote-mobile-bottom-total-label {
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.04em;
+  }
+
+  .quote-mobile-bottom-total-val {
+    font-size: 18px;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .quote-mobile-bottom-balance-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .quote-mobile-bottom-balance-label {
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.04em;
+  }
+
+  .quote-mobile-bottom-balance-val {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f4c81;
+    line-height: 1.1;
+  }
+
+  .quote-mobile-bottom-main-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .quote-mobile-btn-save-cta {
+    flex: 1 1 auto !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    border-radius: 10px !important;
+    background: #0f4c81 !important;
+    border: 1px solid #0b3b64 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(15, 76, 129, 0.30) !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    opacity: 1 !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .quote-mobile-btn-save-cta:active {
+    background: #0b3b64 !important;
+    transform: scale(0.98) !important;
+  }
+
+  .quote-mobile-bottom-sub-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .quote-mobile-sub-pill-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 0 8px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #475569 !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .quote-mobile-sub-pill-btn:active {
+    background: #f1f5f9 !important;
+  }
+
+  .quote-mobile-sub-pill-btn.is-advances {
+    background: #e8f1fb !important;
+    border-color: #c7d8ea !important;
+    color: #0f4c81 !important;
+  }
+
+  .quote-mobile-sub-pill-btn.is-advances:active {
+    background: #d8e6f7 !important;
+  }
+
+  /* ── 8. Reseteo de Alta Especificidad contra global-scoped.css y design-system-scoped.css ── */
+  body:not(.informes-theme) .quote-mobile-root input {
+    background-image: none !important;
+    color: #0f172a !important;
+    color-scheme: light !important;
+    font-family: inherit !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root input[type="text"],
+  body:not(.informes-theme) .quote-mobile-root input[type="number"],
+  body:not(.informes-theme) .quote-mobile-root input[type="date"] {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root input[type="date"] {
+    color-scheme: light !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root input:focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root select {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+    font-family: inherit !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root select:focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root button {
+    background-image: none !important;
+    font-family: inherit !important;
+    box-shadow: none;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-stepper-btn {
+    min-height: 34px !important;
+    max-height: 34px !important;
+    height: 34px !important;
+    width: 32px !important;
+    min-width: 32px !important;
+    max-width: 32px !important;
+    padding: 0 !important;
+    background: #f8fafc !important;
+    border: none !important;
+    color: #334155 !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-contract-btn {
+    min-height: 28px !important;
+    max-height: 28px !important;
+    height: 28px !important;
+    padding: 0 10px !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-contract-btn.is-active {
+    background: #0f4c81 !important;
+    border-color: #0b3b64 !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    box-shadow: 0 2px 6px rgba(15, 76, 129, 0.25) !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-tab-btn {
+    min-height: 36px !important;
+    max-height: 36px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    background: transparent !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-tab-btn.is-active {
+    background: #ffffff !important;
+    color: #0f4c81 !important;
+    font-weight: 800 !important;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-pill-select {
+    min-height: 28px !important;
+    max-height: 28px !important;
+    height: 28px !important;
+    padding: 0 8px !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-header-pill-btn {
+    min-height: 28px !important;
+    max-height: 28px !important;
+    height: 28px !important;
+    padding: 0 10px !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-header-pill-btn.is-info {
+    background: #eff6ff !important;
+    border-color: #bfdbfe !important;
+    color: #1d4ed8 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-btn-trash {
+    min-height: 30px !important;
+    max-height: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    width: 30px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    color: #dc2626 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-btn-add-item {
+    min-height: 40px !important;
+    max-height: 40px !important;
+    height: 40px !important;
+    padding: 0 16px !important;
+    border-radius: 8px !important;
+    background: #0f4c81 !important;
+    border: 1px solid #0b3b64 !important;
+    color: #ffffff !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    box-shadow: 0 2px 8px rgba(15, 76, 129, 0.25) !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-btn-create-service {
+    min-height: 40px !important;
+    max-height: 40px !important;
+    height: 40px !important;
+    padding: 0 14px !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #0f4c81 !important;
+    font-size: 12.5px !important;
+    font-weight: 800 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-btn-apply-template {
+    min-height: 40px !important;
+    max-height: 40px !important;
+    height: 40px !important;
+    padding: 0 16px !important;
+    border-radius: 8px !important;
+    background: #fffbeb !important;
+    border: 1.5px solid #fde68a !important;
+    color: #b45309 !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-btn-save-cta {
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    border-radius: 10px !important;
+    background: #0f4c81 !important;
+    border: 1px solid #0b3b64 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(15, 76, 129, 0.30) !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-sub-pill-btn {
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #475569 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-root .quote-mobile-sub-pill-btn.is-advances {
+    background: #e8f1fb !important;
+    border-color: #c7d8ea !important;
+    color: #0f4c81 !important;
+  }
+
+  /* ── 9. Modales Móviles Dedicados (Datos Empresa, Crear Servicio, Crear Empresa) ── */
+  .quote-mobile-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999999;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .quote-mobile-modal-header {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-shrink: 0;
+    z-index: 20;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  }
+
+  .quote-mobile-modal-title-block {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .quote-mobile-modal-title {
+    font-size: 16px;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1.2;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .quote-mobile-modal-subtitle {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .quote-mobile-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 14px 95px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .quote-mobile-modal-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    padding: 10px 14px max(12px, env(safe-area-inset-bottom)) 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 30;
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+  }
+
+  /* Subpestañas segmentadas en modal */
+  .quote-mobile-subtabs {
+    display: flex;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 10px;
+    gap: 4px;
+    border: 1px solid #e2e8f0;
+    flex-shrink: 0;
+  }
+
+  .quote-mobile-subtab-btn {
+    flex: 1;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .quote-mobile-subtab-btn.is-active {
+    background: #ffffff;
+    color: #0f4c81;
+    font-weight: 800;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  }
+
+  /* Tarjetas de servicios del catálogo */
+  .quote-mobile-service-item-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  }
+
+  .quote-mobile-service-item-card:hover {
+    border-color: #cbd5e1;
+  }
+
+  /* Dropdown móvil de compañías */
+  .quote-mobile-company-drop {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  }
+
+  .quote-mobile-company-drop-item {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #1e293b;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .quote-mobile-company-drop-item:active {
+    background: #e8f1fb;
+  }
+
+  /* Reseteo de alta especificidad para los modales móviles */
+  body:not(.informes-theme) .quote-mobile-modal-overlay input:not([type="checkbox"]),
+  body:not(.informes-theme) #quickManagerBackdrop input:not([type="checkbox"]) {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    color-scheme: light !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    font-family: inherit !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-overlay input:not([type="checkbox"]):focus,
+  body:not(.informes-theme) #quickManagerBackdrop input:not([type="checkbox"]):focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+  }
+
+  /* ── 9.1 Switch / Toggle Táctil Móvil ── */
+  .quote-mobile-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+    padding: 2px 0;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .quote-mobile-switch input[type="checkbox"] {
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    pointer-events: none !important;
+  }
+
+  .quote-mobile-switch-track {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    min-height: 24px !important;
+    max-height: 24px !important;
+    border-radius: 999px;
+    background: #cbd5e1;
+    transition: background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+
+  .quote-mobile-switch-track.is-active {
+    background: #10b981;
+  }
+
+  .quote-mobile-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.22), 0 1px 1px rgba(0, 0, 0, 0.1);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .quote-mobile-switch-track.is-active .quote-mobile-switch-thumb {
+    transform: translateX(20px);
+  }
+
+  .quote-mobile-switch-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    transition: color 0.15s ease;
+  }
+
+  .quote-mobile-switch-label.is-active {
+    color: #0f766e;
+    font-weight: 800;
+  }
+
+  /* ── 9.2 Normalización de Botones en Footer de Modales Móviles ── */
+  body:not(.informes-theme) .quote-mobile-modal-footer button {
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    border-radius: 9px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    cursor: pointer !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-footer .quote-mobile-sub-pill-btn {
+    flex: 1 !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    border-radius: 9px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #475569 !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-footer .quote-mobile-sub-pill-btn:active {
+    background: #f1f5f9 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-footer .quote-mobile-btn-save-cta {
+    flex: 1 !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    border-radius: 9px !important;
+    background: #0f4c81 !important;
+    border: 1px solid #0b3b64 !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    box-shadow: 0 2px 8px rgba(15, 76, 129, 0.25) !important;
+    gap: 7px !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-footer .quote-mobile-btn-save-cta:active {
+    background: #0b3b64 !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-overlay select,
+  body:not(.informes-theme) #quickManagerBackdrop select {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    font-family: inherit !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-overlay select:focus,
+  body:not(.informes-theme) #quickManagerBackdrop select:focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-overlay textarea,
+  body:not(.informes-theme) #quickManagerBackdrop textarea {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    font-family: inherit !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: 70px !important;
+    resize: vertical !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-overlay textarea:focus,
+  body:not(.informes-theme) #quickManagerBackdrop textarea:focus {
+    border-color: #0f4c81 !important;
+    box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+  }
+
+  body:not(.informes-theme) .quote-mobile-modal-overlay button,
+  body:not(.informes-theme) #quickManagerBackdrop button {
+    background-image: none !important;
+    font-family: inherit !important;
+    box-shadow: none;
+  }
+}
+
+

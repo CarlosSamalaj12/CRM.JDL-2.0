@@ -386,7 +386,7 @@ export default function SettingsPlantillas({ inline, onBack }) {
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
             <div className="reports-title">Panel de Configuración</div>
             <div className="reports-subtitle">Gestión de plantillas de cotización</div>
           </div>

@@ -341,7 +341,7 @@ export default function SettingsServicios({ inline, onBack }) {
               <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
             </div>
             <div>
-              <div className="reports-eyebrow">CRM Reservas | Jardines del Lago</div>
+              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
               <div className="reports-subtitle">Catálogo de servicios, categorías y subcategorías</div>
             </div>

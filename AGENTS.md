@@ -33,6 +33,126 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 
+### Rediseño Escritorio Ejecutivo: Carrito Operativo y Control Financiero (`QuoteModal.jsx`) (2026-09-14)
+- Requerimiento: Resolver la sobreposición / desfasamiento del encabezado flotante `.qp-cart-sticky-header` que tapaba el contenido de fechas y filas al hacer scroll; reestructurar la vista de escritorio de **Cotizar Evento** (`QuoteModal.jsx`) según mockup de referencia de alta fidelidad y protocolo `/grill-me`, adoptando la barra de herramientas integrada en el carrito, tarjetas para días vacíos, desglose de totales y tarjetas KPI en Control Financiero.
+- Causa raíz:
+  1. `.qp-cart-sticky-header` tenía `position: sticky !important; top: 0 !important;` y márgenes negativos (`margin: -14px -16px 12px -16px !important;`) con sombra `box-shadow`. Al hacer scroll dentro del modal `#qp-body`, el encabezado flotaba como una caja desprendida por encima de los encabezados de fecha (`📅 2026-09-10`) y las filas de la tabla.
+  2. Los botones de acción por lote (`Duplicar`, `Subir`, `Bajar`, `Limpiar`) estaban ubicados de forma redundante y apretada en la barra superior del modal (`#qp-header`), en lugar de pertenecer al contexto del carrito de servicios.
+  3. Los días del evento sin servicios asignados mostraban un mensaje simple o se ocultaban en el carrito en lugar de ofrecer una tarjeta limpia interactiva.
+  4. El estado de cuenta mostraba un texto apilado simple en vez de las 3 tarjetas de indicadores clave.
+- Solución:
+  1. Normalizado `.qp-cart-sticky-header` a `position: static !important; background: transparent !important; margin: 0 0 16px 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important;`, eliminando la sobreposición y flotación errática.
+  2. Integrada la barra de herramientas directamente en el encabezado del carrito a la derecha:
+     - Badge `{N} seleccionado(s)` en verde menta (`#dcfce7`, `#166534`, borde `#bbf7d0`).
+     - Separador vertical.
+     - Botones `[📋 Duplicar]`, `[⌃ Subir]`, `[⌄ Bajar]`, `[✕ Limpiar]`.
+     - Enlace inferior `Deseleccionar todo`.
+  3. Removido el contenedor `.qp-header-selection-tools` de la barra superior `#qp-header`, dejándola limpia y profesional como en la referencia.
+  4. Tarjetas de día estructuradas:
+     - Días con servicios: Encabezado con `📅 {fecha}`, badge `{N} servicios` en verde y a la derecha `Subtotal día: {monto}`.
+     - Días sin servicios: Tarjeta limpia con icono `⊕`, texto `Sin servicios asignados a este día.` y botón interactivo `+ Agregar servicio a este día` (asigna la fecha a `selectedServiceDate` y hace foco en el buscador `#quoteServiceSearchInput`).
+     - Columnas de tabla alineadas (`Sel.`, `Fecha`, `Cant.` 65px centrado, `Servicio / Concepto`, `Precio unitario` con prefijo monetario, `Total` y `🗑`).
+  5. Desglose de Descuento y Totales:
+     - Lado izquierdo: `Tipo Descuento` y `Valor Descuento` con prefijo de divisa o porcentaje.
+     - Lado derecho: `Subtotal`, `Descuento aplicado: - Q XX.XX` en rojo y `Total cotización: Q XX.XX` en tipografía grande (24px, `#005954`).
+  6. Tarjetas KPI en "Control Financiero / Estado de cuenta":
+     - Badge de estado superior derecho (`Pago pendiente` en ámbar `#fef3c7`, `Saldo a favor` o `Pagado`).
+     - Grid de 3 tarjetas KPI: `Total Cotizado` (`totals.total`), `Total Abonado` (`abonosTotal`) y `Saldo Pendiente` (`saldoPendiente` en fondo/borde rojizo `#fee2e2`).
+  7. Accesibilidad de Acciones en Cotizaciones Extensas (Solución a pérdida de visibilidad al hacer scroll):
+     - Botones de acción directa integrados en cada fila (`[⌃ Subir]`, `[⌄ Bajar]`, `[📋 Duplicar]` y `[🗑 Eliminar]`), permitiendo reordenar o duplicar cualquier ítem en 1 solo clic sin tener que seleccionarlo ni desplazarse.
+     - Barra Flotante de Selección múltiple (`.qp-floating-selection-bar`): cuando se marcan checkboxes (`selectedItemIds.size > 0`), aparece una barra flotante fija sobre el footer en la parte inferior central (`[✓ {N} seleccionados | 📋 Duplicar | ⌃ Subir | ⌄ Bajar | ✕ Limpiar]`), acompañando al usuario por cualquier día del evento.
+     - Feedback visual animado (`@keyframes qpRowPulse` / `.qp-row-highlight-pulse`) con destello azul suave y auto-enfoque con `scrollIntoView({ behavior: 'smooth', block: 'nearest' })` en la fila que acaba de subir, bajar o duplicarse, junto con notificaciones toast inmediatas.
+  8. Validación de compilación de producción limpia con `npx vite build` (código de salida 0 en 2.83s).
+
+### Rediseño Móvil Formal y Ejecutivo: Cotizar Evento (`QuoteModal.jsx` y `quoteMobile.css`) (2026-09-13)
+- Requerimiento: Rediseñar integralmente la experiencia táctil en pantallas móviles (`<= 768px`) para la creación y edición de cotizaciones en **Cotizar Evento** (`QuoteModal.jsx`) según imagen de referencia y protocolo `/grill-me`, adoptando la paleta institucional formal (Navy Corporativo `#0f4c81` / `#0b3b64` y Slate `#0f172a` / `#475569`) y preservando el 100% del layout de escritorio.
+- Solución:
+  1. Detección de vista móvil reactiva (`window.innerWidth <= 768`) en `QuoteModal.jsx`, aislando la renderización móvil (`.quote-mobile-root`) y manteniendo intacto el contenedor `#qp-root` de escritorio.
+  2. Header superior compacto con etiqueta de marca del salón, título `Cotizar evento`, subtítulo del cliente y fecha, botón de cierre `✕`, y barra horizontal deslizable de chips:
+     - Selector segmentado de Contrato (`Jardines` vs `ServiHosp` con checkmark y activo en Navy `#0f4c81`).
+     - Selector de Moneda (`Q` / `$`).
+     - Selector de Versión (`V1 (act.)`, `V2`).
+     - Píldoras de acción rápida para `🏢 Datos` e `📄 Informe`.
+  3. Pestañas ejecutivas segmentadas (`quote-mobile-tabs-bar`):
+     - `[ 📦 Catálogo y Servicios ]`: Buscador de servicios táctil con autocompletado en bottom sheet, inputs de cantidad táctiles, selector de fecha, botón `+ Agregar servicio`, botón delineado `Crear nuevo servicio` y bloque de plantillas rápidas de banquetes con botón ámbar formal (`★ Aplicar plantilla`).
+     - `[ 🛒 Carrito ]`: Muestra el listado de servicios agregados con badge numérico interactivo, organizados por fecha en tarjetas táctiles independientes (`.quote-mobile-item-card`).
+  4. Tarjetas táctiles de servicios en el carrito:
+     - Nombre del servicio en negrita `#0f172a`.
+     - Control stepper de cantidad táctil: `[ − ]  [ Qty ]  [ + ]` de 34px de altura.
+     - Precios unitarios y subtotales calculados dinámicamente en moneda formal.
+     - Selector táctil para reasignar la fecha de servicio del ítem individual.
+     - Botón de eliminación directa `🗑` con confirmación inmediata.
+  5. Descuento comercial táctil (monto fijo o porcentaje) y desglose de Control Financiero (subtotal, descuento, total de la cotización, anticipos/abonos registrados y saldo pendiente por cobrar en callout azul institucional `#e8f1fb`).
+  6. Barra inferior fija (Sticky Bottom) con resumen financiero en vivo (`Total Cotización: Q XX,XXX.00` y `Saldo Pendiente: Q XX,XXX.00`), CTA principal `✓ Guardar Cotización` en Navy Corporativo `#0f4c81` y píldoras secundarias estructuradas (`💳 Anticipos`, `🖨 Imprimir`, `🏢 Datos Empresa`).
+  7. Reseteo de especificidad absoluta contra `global-scoped.css` y `design-system-scoped.css` (`body:not(.informes-theme) .quote-mobile-root ... !important` y `body:not(.informes-theme) .quote-mobile-modal-overlay ... !important`) para inputs, botones, selects y textareas, impidiendo que se tiñan de gradientes oscuros o se deformen en cápsulas grises.
+  8. Modal móvil "Datos de la Empresa" (`showDocPanel`): Desplegable a pantalla completa en móvil con buscador táctil reactivo con autocompletado, alta rápida de empresa (`+ Nueva Empresa`), vinculación con checkmark, edición de datos fiscales en 1 columna y botón de confirmación inferior.
+  9. Modal móvil "Crear Nuevo Servicio" (`showCreateServiceModal`): Pestañas segmentadas `[ + Nuevo Servicio ]` (formulario táctil en 1 columna) y `[ 📋 Registrados ]` (tarjetas táctiles con buscador y botón editar), eliminando la tabla ancha desbordada.
+  10. Modal móvil "Crear / Editar Empresa" (`showCreateCompanyModal`): Formulario estructurado en tarjetas a 1 columna (Organización, Facturación y Encargados) con botón inferior fijo en Navy `#0f4c81`.
+  11. Switch / Toggle Táctil (`.quote-mobile-switch`): Excluido `input[type="checkbox"]` del selector genérico que forzaba `min-height: 40px` en pantallas móviles (el cual convertía el switch en un cuadro verde deforme con el botón desalineado). Se construyó un toggle táctil nativo con riel píldora de 44x24px, botón circular de 20x20px con desplazamiento suave de 20px, fondo verde esmeralda institucional (`#10b981`) al activarse y gris neutro (`#cbd5e1`) al desactivarse.
+  12. Normalización de Botones de Pie de Página en Modales Móviles: Unificada la altura de los botones `Cancelar` y `Guardar` a 44px exactos (`height: 44px; min-height: 44px; max-height: 44px;`), bordes redondeados de 9px y distribución proporcional balanceada 50% / 50% (`flex: 1`), eliminando la disparidad de tamaño y asimetría visual.
+  13. Restauración y Blindaje de la Versión de Escritorio (Desktop `#qp-root`): Reseteo maestro contra `global-scoped.css` (línea 838) que teñía los campos de texto (`SERVICIO`) con degradado oscuro y `design-system-scoped.css` (línea 260) que estiraba los inputs a 40px; estandarización de columnas en la tabla `.qp-tbl` (Cant 60px, Servicio fluido blanco seminegrita, Precio 88px derecha, Fecha 135px); checkmarks `.qp-checkbox` con dimensiones fijas de 18x18px con check blanco nítido sobre `#0f4c81` y fila en `#f0f7ff`; y reemplazo del pie flotante por una barra inferior fija dockada (`.qp-docked-footer`) evitando la transposición o solapamiento sobre la tarjeta de Notas internas.
+
+### Rediseño Móvil Integral: Editar Reserva (`ReservationForm.jsx` y `reservationMobile.css`) (2026-09-13)
+- Requerimiento: Reestructuración y rediseño completo de la vista móvil de edición y creación de reservas según mockup visual de referencia de alta fidelidad, reemplazando la tabla no responsiva de salones y adaptando todos los campos a una experiencia táctil fluida sin alterar la versión de escritorio.
+- Solución:
+  1. Detección de vista móvil dinámica (`window.innerWidth <= 768`) en `ReservationForm.jsx`, aislando la renderización móvil (`.res-mobile-root`) y preservando el 100% del layout de escritorio original.
+  2. Implementación de los 9 bloques del mockup:
+     - Header móvil con botón `✕`, marca del salón, título dinámico, acceso a historial (`🕒`), selector de fecha y avatar de usuario.
+     - Tarjeta Hero con estado en vivo (`• En Gestión`, `• Confirmado`), ID del evento, botón festivo (`🎉`), edición rápida del título del evento, metadatos estructurados (salón, fecha, horario) y chip de vendedor asignado (`👤`).
+     - Stepper interactivo de etapas (`ETAPA DEL PROCESO`, `Paso X de 5`) con 5 fases (`Contacto`, `Cotizado`, `Seguimiento`, `Pre-Reserva`, `Confirmado`) con cambio de estado al toque directo.
+     - Bloque "Salones y Horarios" con botón `+ Agregar Salón` y tarjetas de salón táctiles: selector de estrella (`★`) para salón principal, selector de salón, cuadrícula 2x2 (PAX con sufijo `pers.`, selector de horas `TimeSelect`, fecha Desde y fecha Hasta) y etiqueta de turno dinámico (`Turno Vespertino / Nocturno`, duración en horas).
+     - Configuración de Capacidad: PAX total acumulado, toggle segmentado `PAX Compartido` vs `No Compartido` y callout explicativo `ⓘ`.
+     - Vigencia y Límites con inputs de fecha y píldoras rápidas (`Mismo Día`, `Fin de Semana Completo`, `+ Desmontaje Día Siguiente`).
+     - Notas y Requerimientos con etiqueta `Privado interno` y footer de autoguardado.
+     - Accesos directos táctiles para `📅 Agendar Cita` y `📄 Cotización`.
+     - Barra de navegación y acción inferior fija (`sticky bottom`) con CTA principal `✓ Guardar Cambios`, menú desplegable `⋮` y fila secundaria (`Mantenimiento`, `Cotización`, `Descartar`).
+  3. Hoja de estilos `src/modules/calendar/components/reservationMobile.css` dedicada con variables de color institucional `#005954`, tipografía legible y resguardo inferior para navegadores móviles.
+  4. Reseteo de especificidad absoluta contra `global-scoped.css` y `design-system-scoped.css` (`body:not(.informes-theme) .res-mobile-root ... !important`) para eliminar fondos con gradientes oscuros en inputs/textareas y evitar que botones se distorsionen en cápsulas grises.
+  5. Reemplazo sistemático de emojis del sistema operativo (`🎉`, `📍`, `📅`, `⏰`, `👤`, `🏢`, `🗒️`, `🔧`, `📄`, `✕`) por iconos vectoriales SVG limpios y minimalistas (trazo sutil de 2.0-2.2px).
+  6. Horario Bloqueado optimizado para pantallas móviles estrechas usando selectores de tiempo nativos fluidos (`HH:MM`) con separador `–`, eliminando el desbordamiento horizontal provocado por el componente de escritorio.
+  7. Eliminados chips redundantes de preset de fechas ("Mismo Día", "Fin de semana...") y botón de "Adjuntar Minuta".
+  8. Paleta formal corporativa ejecutiva (`#0f4c81` / `#0b3b64` / `#e8f1fb` / `#0f172a`): Reemplazados los tonos menta/teal informales por la identidad formal del sistema de diseño (Navy Corporativo). Botón principal "Guardar Cambios" en azul marino ejecutivo con sombra sobria, estrella de salón principal en oro/ámbar formal (`#d97706` sobre `#fffbeb`), callout con borde institucional lateral de 3.5px en navy, y barra secundaria de acciones en píldoras con bordes de precisión (Mantenimiento, Cotización, Descartar).
+
+
+
+
+### Optimización Móvil Integral: Embudo de Ventas y Buscar Eventos (2026-09-13)
+- Problema:
+  1. En Buscar Eventos (`SearchModule.jsx` y `search.css`), los campos de "RANGO DE FECHAS" se desbordaban por fuera del borde derecho de la tarjeta blanca; el atajo "Ctrl K" estorbaba en pantallas táctiles; la vista por defecto abría la tabla de >900px cortando 6 columnas en móviles; y el botón flotante de menú cubría el contenido inferior.
+  2. En Embudo de Ventas (`CustomersModule.jsx` y `customers.css`), el listón de KPIs cortaba los montos ("EN NEGOCIAC... Q 6,446,0..."); los inputs de fecha se desbordaban a la derecha; los filtros apilados ocupaban todo el alto de la pantalla; y las 7 columnas del Kanban se presentaban en una fila rígida de 2000px donde solo se veía la columna "Nuevo" sin forma ágil de cambiar de etapa.
+- Causa raíz:
+  1. Falta de `min-width: 0` y `flex: 1 1 0` en `.date-single-wrap` e inputs de fecha; falta de media queries con adaptación para pantallas `<= 768px`; y predeterminación de vista a `list` (tabla grande) en lugar de tarjetas móviles.
+  2. En `customers.css`, `.customers-date-input` forzaba `width: 108px !important;` y los KPIs usaban `min-width: 170px;` en flex horizontal; `.customers-kanban-board` limitaba la altura a `max-height: 480px;` sin un selector de etapas segmentado para móvil.
+- Solución:
+  1. En `SearchModule.jsx` y `search.css`:
+     - Inputs de fechas con `min-width: 0`, `flex: 1 1 0`, `width: 100% !important;` y padding reducido en móvil para evitar cualquier desbordamiento.
+     - Ocultado el badge "Ctrl K" en dispositivos táctiles (`display: none;`).
+     - Predeterminación inteligente de vista: en móviles (`<= 768px`) abre por defecto en modo tarjeta (`grid`) con cliente, PAX, monto total de cotización y menú de 3 puntos integrado. En modo tabla se añade aviso táctil y scroll horizontal suave.
+     - Botón "Filtros avanzados" colapsable en móvil para recuperar espacio de visualización.
+     - Separación inferior (`padding-bottom: 85px`) para resguardo del botón menú hamburguesa flotante.
+  2. En `CustomersModule.jsx` y `customers.css`:
+     - Listón de KPIs en cuadrícula 2x2 optimizado: valores formateados con `formatKpiCurrency` (sin decimales redundantes para montos >= 1,000, ej. `Q 14,954,144` y `Q 6,446,047`, con tooltip que preserva los centavos exactos); etiquetas con `white-space: normal` para evitar truncamiento en "CONFIRMADO / GANADO"; y números con `letter-spacing: -0.02em`.
+     - Eliminada la barra intermedia redundante `mobile-stage-quick-nav` ("Nuevo (1 de 7)") que ocupaba ~45px verticales y duplicaba el encabezado.
+     - Botón "Ver todas" integrado directamente como píldora (`toggle-all-pill`) en la barra de etapas deslizante horizontal (`customers-mobile-stages-bar`).
+     - Auto-desplazamiento horizontal automático (`scrollIntoView`) de la pestaña activa en la barra superior al cambiar de etapa.
+     - Flechas de navegación rápida táctil `‹` y `›` integradas directamente en el encabezado de cada columna (`customers-col-arrow-btn`).
+     - Descripción de etapa (`.customers-stage-desc`) con texto fluido (`white-space: normal`, `max-width: none`) para evitar truncamiento ("Lead recién ingresado sin cotización").
+     - Separación y resguardo inferior de seguridad (`padding-bottom: 95px` y espaciador de 48px) en el cuerpo de las columnas para evitar colisión con el botón flotante verde de menú (`.mobile-hamburger-btn`).
+
+### Buscar Eventos: Selector de página traspuesto sobre tarjetas, badge SaaS v2.4 y Excel estilizado (2026-09-13)
+- Problema:
+  1. En el módulo Buscar Eventos (`SearchModule.jsx` y `search.css`), al hacer scroll hacia abajo, la barra inferior de paginación (`.search-saas-footer`: "Mostrando 10 de 812 eventos...") aparecía atravesada y montada directamente encima de la 3ra fila de tarjetas de eventos ("se traspone").
+  2. En el encabezado aparecía un badge `SaaS v2.4` confuso.
+  3. La exportación a Excel generaba un archivo plano sin encabezado institucional, sin bordes en celdas, sin formateo de moneda y con texto truncado.
+- Causa raíz:
+  1. En `search.css`, `.search-content-area` tenía `flex: 1; min-height: 0;` dentro de `.search-saas-container` (`min-height: 100%`). Al tener `min-height: 0` y no contar con `overflow-y: auto` interno, flexbox colapsaba su altura a ~430px (el espacio disponible inicial en viewport). Las tarjetas (10 tarjetas en cuadrícula de 3 columnas = ~950px de alto) se desbordaban visualmente fuera de `.search-content-area`, mientras que el footer se posicionaba al final del contenedor colapsado (en ~600px). Por ello, el footer quedaba flotando a mitad de la lista, cortando las tarjetas 7, 8 y 9.
+  2. El badge `SaaS v2.4` era un indicador interno del rediseño UI.
+  3. La exportación previa utilizaba `XLSX.utils.json_to_sheet` sin estilos de celda ni anchos configurados.
+- Solución:
+  1. En `search.css`: Actualizado `.search-content-area` con `flex: 1 0 auto; min-height: auto; width: 100%;` para permitir que crezca dinámicamente con el tamaño real de las tarjetas o filas de la tabla. Añadido `flex-shrink: 0;` a `.search-saas-header`, `.search-filters-card` y `.search-saas-footer`, con `margin-top: auto;` en el footer para empujarlo al final de la página cuando hay pocos resultados y mantenerlo al final del contenido cuando hay muchos.
+  2. En `SearchModule.jsx`: Removido el elemento `<span className="search-badge-saas">SaaS v2.4</span>`.
+  3. En `SearchModule.jsx`: Reimplementada la función `handleExportExcel` con `ExcelJS` (y fallback a `XLSX`): banner de título en azul marino institucional, fila de metadatos (fecha, total registros, filtros aplicados), encabezados de columnas estilizados en azul corporativo con texto en negrita blanca, bordes delgados en todas las celdas de datos, alternancia de filas (zebra striping `#ffffff` y `#f8fafc`), formato contable para moneda (`"Q"#,##0.00`), fila de Total General con fórmula `=SUM(...)`, autofiltros nativos en Excel y anchos de columna automáticos.
+
 ### Buscar Eventos SaaS v2.4: Fechas oscuras y botón de 3 puntos / toggle como cápsulas vacías (2026-09-13)
 - Problema: En el módulo rediseñado Buscar Eventos (`SearchModule.jsx` y `search.css`):
   1. Los campos de fecha ("RANGO DE FECHAS") aparecían con fondo negro / degradado oscuro.

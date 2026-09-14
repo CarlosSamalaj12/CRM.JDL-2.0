@@ -23,6 +23,7 @@
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
     "express": "^4.22.1",
     "firebase": "^12.13.0",
     "flatpickr": "^4.6.13",

@@ -27,7 +27,8 @@ import {
   ShoppingCart,
   Pencil,
   Info,
-  UserPlus
+  UserPlus,
+  PlusCircle
 } from 'lucide-react';
 import authService from '../../../services/authService';
 import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
@@ -37,6 +38,7 @@ import socketService from '../../../services/socketService';
 import { useAutoSave, loadDraft, clearDraft } from '../../../hooks/useAutoSave';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import { compressEvidenceFile } from '../../../utils/imageUtils';
+import './quoteMobile.css';
 
 
 const uid = () => `row_${Math.random().toString(36).substr(2, 8)}`;
@@ -213,6 +215,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [companySearchQuery, setCompanySearchQuery] = useState(() => String(event?.quote?.companyName || event?.quote?.empresa || event?.empresa || '').trim());
   const [showCompanyResults, setShowCompanyResults] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState(new Set());
+  const [highlightedRowIds, setHighlightedRowIds] = useState(new Set());
   const [showDocPanel, setShowDocPanel] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
   const [showCreateServiceModal, setShowCreateServiceModal] = useState(false);
@@ -228,6 +231,27 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [editingManagerId, setEditingManagerId] = useState('');
   const [creatingCompany, setCreatingCompany] = useState(false);
   const [mobileTab, setMobileTab] = useState('carrito');
+  const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+  const [serviceModalTab, setServiceModalTab] = useState('nuevo');
+  const [registeredServiceSearch, setRegisteredServiceSearch] = useState('');
+
+  useEffect(() => {
+    const handleResize = () => setIsMobileView(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleStepItemQty = (rowId, delta) => {
+    setQuote(p => ({
+      ...p,
+      items: p.items.map(i => {
+        if (i.rowId !== rowId) return i;
+        const cur = Math.max(1, Number(i.qty || 1));
+        const next = Math.max(1, cur + delta);
+        return { ...i, qty: next };
+      })
+    }));
+  };
   const [serviceDraft, setServiceDraft] = useState(emptyServiceDraft);
 
   const [showAdvancesModal, setShowAdvancesModal] = useState(false);
@@ -1031,17 +1055,104 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     setSelectedItemIds(prev => { const n = new Set(prev); n.has(rowId) ? n.delete(rowId) : n.add(rowId); return n; });
   };
 
-  const handleDuplicateSelected = () => {
-    if (!selectedItemIds.size) return;
+  const triggerRowFeedback = (rowIds, msg) => {
+    const ids = Array.isArray(rowIds) ? rowIds : [rowIds];
+    if (!ids.length) return;
+    setHighlightedRowIds(new Set(ids));
+    setTimeout(() => {
+      const targetId = ids[0];
+      if (targetId) {
+        const el = document.getElementById(`quote-row-${targetId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    }, 40);
+    setTimeout(() => {
+      setHighlightedRowIds(new Set());
+    }, 1600);
+    if (msg) {
+      toast.success(msg, { id: 'quote-row-feedback', duration: 1500 });
+    }
+  };
+
+  const handleDuplicateSingle = (rowId) => {
+    let newId = null;
     setQuote(prev => {
-      const next = []; const ns = new Set(selectedItemIds);
+      const next = [];
       for (const item of prev.items) {
         next.push(item);
-        if (selectedItemIds.has(item.rowId)) { const id = uid(); next.push({ ...item, rowId: id }); ns.add(id); }
+        if (item.rowId === rowId) {
+          newId = uid();
+          next.push({ ...item, rowId: newId });
+        }
+      }
+      return { ...prev, items: next };
+    });
+    if (newId) {
+      triggerRowFeedback(newId, 'Servicio duplicado');
+    }
+  };
+
+  const handleMoveSingle = (rowId, dir) => {
+    setQuote(prev => {
+      const norm = (s) => String(s || '').trim().slice(0, 10);
+      const items = [...prev.items];
+      const datesOrder = [];
+      const itemsByDate = new Map();
+      for (const item of items) {
+        const d = norm(item.serviceDate || item.date || item.eventDate);
+        if (!itemsByDate.has(d)) {
+          itemsByDate.set(d, []);
+          datesOrder.push(d);
+        }
+        itemsByDate.get(d).push(item);
+      }
+
+      let moved = false;
+      for (const group of itemsByDate.values()) {
+        const idx = group.findIndex(it => it.rowId === rowId);
+        if (idx !== -1) {
+          if (dir === 'up' && idx > 0) {
+            [group[idx - 1], group[idx]] = [group[idx], group[idx - 1]];
+            moved = true;
+          } else if (dir === 'down' && idx < group.length - 1) {
+            [group[idx], group[idx + 1]] = [group[idx + 1], group[idx]];
+            moved = true;
+          }
+          break;
+        }
+      }
+
+      if (!moved) return prev;
+      const next = [];
+      for (const d of datesOrder) {
+        next.push(...itemsByDate.get(d));
+      }
+      return { ...prev, items: next };
+    });
+    triggerRowFeedback(rowId, dir === 'up' ? 'Servicio subido' : 'Servicio bajado');
+  };
+
+  const handleDuplicateSelected = () => {
+    if (!selectedItemIds.size) return;
+    const duplicatedIds = [];
+    setQuote(prev => {
+      const next = [];
+      const ns = new Set(selectedItemIds);
+      for (const item of prev.items) {
+        next.push(item);
+        if (selectedItemIds.has(item.rowId)) {
+          const id = uid();
+          next.push({ ...item, rowId: id });
+          ns.add(id);
+          duplicatedIds.push(id);
+        }
       }
       setTimeout(() => setSelectedItemIds(ns), 0);
       return { ...prev, items: next };
     });
+    triggerRowFeedback(duplicatedIds, `${selectedItemIds.size} servicio(s) duplicado(s)`);
   };
 
   const handleMoveSelected = (dir) => {
@@ -1086,6 +1197,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       }
       return { ...prev, items: next };
     });
+    triggerRowFeedback(Array.from(selectedItemIds), dir === 'up' ? 'Servicios subidos' : 'Servicios bajados');
   };
 
   const handleSaveQuote = async () => {
@@ -2061,6 +2173,100 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           cursor: pointer; white-space: nowrap; transition: background .12s;
         }
         .qp-btn-primary:hover { background: #1e293b; }
+
+        /* Destello y animación al mover o duplicar filas */
+        @keyframes qpRowPulse {
+          0% {
+            background-color: #dbeafe !important;
+            box-shadow: inset 0 0 0 2px #2563eb, 0 4px 14px rgba(37, 99, 235, 0.2) !important;
+          }
+          40% {
+            background-color: #eff6ff !important;
+            box-shadow: inset 0 0 0 1.5px #3b82f6 !important;
+          }
+          100% {
+            background-color: transparent !important;
+            box-shadow: none !important;
+          }
+        }
+        .qp-row-highlight-pulse {
+          animation: qpRowPulse 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+        }
+
+        /* Botones de acción directa por fila */
+        .qp-row-action-btn {
+          width: 25px;
+          height: 25px;
+          border-radius: 5px;
+          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          color: #64748b;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.12s ease;
+          padding: 0;
+        }
+        .qp-row-action-btn:hover:not(:disabled) {
+          background: #f1f5f9;
+          color: #0f172a;
+          border-color: #cbd5e1;
+        }
+        .qp-row-action-btn:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+          border-color: #f1f5f9;
+          background: #fafafa;
+        }
+        .qp-row-action-btn.btn-del:hover {
+          background: #fee2e2;
+          color: #dc2626;
+          border-color: #fca5a5;
+        }
+
+        /* Barra flotante de selección múltiple */
+        .qp-floating-selection-bar {
+          position: fixed;
+          bottom: 72px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          border-radius: 999px;
+          background: #0f172a;
+          color: #ffffff;
+          box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.35), 0 4px 12px rgba(0, 0, 0, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          animation: qpFloatPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes qpFloatPop {
+          from { opacity: 0; transform: translate(-50%, 14px) scale(0.95); }
+          to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        /* ─── Reseteo Maestro de Especificidad para Desktop (#qp-root) ─── */
+        body:not(.informes-theme) #qp-root input:not([type="checkbox"]),
+        body:not(.informes-theme) #qp-root select,
+        body:not(.informes-theme) #qp-root textarea {
+          background-color: #ffffff !important;
+          background-image: none !important;
+          color: #0f172a !important;
+          color-scheme: light !important;
+          border: 1px solid #cbd5e1 !important;
+          box-shadow: none !important;
+        }
+
+        body:not(.informes-theme) #qp-root input:focus,
+        body:not(.informes-theme) #qp-root select:focus,
+        body:not(.informes-theme) #qp-root textarea:focus {
+          border-color: #0f4c81 !important;
+          box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.16) !important;
+          outline: none !important;
+        }
+
         .qp-tbl { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 540px; }
         .qp-tbl thead tr { background: #f1f5f9; }
         .qp-tbl th { padding: 9px 10px; text-align: left; font-size: 10px; font-weight: 800; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-transform: uppercase; letter-spacing: .3px; }
@@ -2068,18 +2274,142 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         .qp-tbl tbody tr:last-child td { border-bottom: none; }
         .qp-tbl tbody tr { cursor: pointer; transition: background 0.15s ease; }
         .qp-tbl tbody tr:hover td { background: #f8fafc; }
-        .qp-tbl tbody tr.sel td { background: #f0fdf4; }
-        .qp-tbl tbody tr.sel:hover td { background: #e6f7ea; }
-        .qp-tbl .qp-checkbox { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; min-width: 18px; border: 2px solid #cbd5e1; border-radius: 5px; cursor: pointer; position: relative; transition: all 0.2s ease; margin: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: #ffffff; vertical-align: middle; }
-        .qp-tbl .qp-checkbox:hover { border-color: #94a3b8; box-shadow: 0 0 0 3px rgba(148,163,184,0.15); }
-        .qp-tbl .qp-checkbox:checked { background: #10b981; border-color: #059669; }
-        .qp-tbl .qp-checkbox:checked:hover { box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
-        .qp-tbl .qp-checkbox::after { content: ''; position: absolute; width: 5px; height: 9px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg) scale(0); opacity: 0; transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); top: 50%; left: 50%; margin: -5px 0 0 -2.5px; }
-        .qp-tbl .qp-checkbox:checked::after { transform: rotate(45deg) scale(1); opacity: 1; }
-        .qp-tbl input[type="number"] { width: 72px; font-size: 12px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 5px; background: #f8fafc; color: #0f172a; }
-        .qp-tbl input[type="text"]  { width: 100%; font-size: 12px; padding: 4px 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #0f172a; }
-        .qp-tbl input[type="text"]:hover  { border-color: #e2e8f0; background: #f8fafc; }
-        .qp-tbl select { font-size: 11px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 5px; background: #f8fafc; color: #0f172a; }
+        
+        body:not(.informes-theme) #qp-root .qp-tbl tbody tr.sel td { background: #f0f7ff !important; }
+        body:not(.informes-theme) #qp-root .qp-tbl tbody tr.sel:hover td { background: #e0f0fe !important; }
+
+        /* Checkbox en tabla de escritorio */
+        body:not(.informes-theme) #qp-root .qp-checkbox,
+        body:not(.informes-theme) #qp-root input[type="checkbox"].qp-checkbox {
+          appearance: none !important;
+          -webkit-appearance: none !important;
+          width: 18px !important;
+          height: 18px !important;
+          min-width: 18px !important;
+          max-width: 18px !important;
+          min-height: 18px !important;
+          max-height: 18px !important;
+          border: 1.5px solid #cbd5e1 !important;
+          border-radius: 4px !important;
+          cursor: pointer !important;
+          position: relative !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background-color: #ffffff !important;
+          background-image: none !important;
+          vertical-align: middle !important;
+          box-shadow: none !important;
+          box-sizing: border-box !important;
+        }
+        body:not(.informes-theme) #qp-root .qp-checkbox:hover {
+          border-color: #0f4c81 !important;
+          box-shadow: 0 0 0 2px rgba(15, 76, 129, 0.15) !important;
+        }
+        body:not(.informes-theme) #qp-root .qp-checkbox:checked {
+          background-color: #0f4c81 !important;
+          background-image: none !important;
+          border-color: #0b3b64 !important;
+        }
+        body:not(.informes-theme) #qp-root .qp-checkbox::after {
+          content: '' !important;
+          position: absolute !important;
+          width: 4px !important;
+          height: 8px !important;
+          border: solid #ffffff !important;
+          border-width: 0 2px 2px 0 !important;
+          transform: rotate(45deg) scale(0) !important;
+          opacity: 0 !important;
+          transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+          top: 2px !important;
+          left: 5.5px !important;
+          box-sizing: border-box !important;
+        }
+        body:not(.informes-theme) #qp-root .qp-checkbox:checked::after {
+          transform: rotate(45deg) scale(1) !important;
+          opacity: 1 !important;
+        }
+
+        /* Cantidad en tabla Desktop */
+        body:not(.informes-theme) #qp-root .qp-input-qty {
+          width: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+          height: 32px !important;
+          min-height: 32px !important;
+          max-height: 32px !important;
+          padding: 2px 6px !important;
+          font-size: 12.5px !important;
+          font-weight: 700 !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 6px !important;
+          background-color: #ffffff !important;
+          background-image: none !important;
+          color: #0f172a !important;
+          text-align: center !important;
+          box-sizing: border-box !important;
+        }
+
+        /* Servicio / Descripción en tabla Desktop */
+        body:not(.informes-theme) #qp-root .qp-input-service {
+          width: 100% !important;
+          height: 32px !important;
+          min-height: 32px !important;
+          max-height: 32px !important;
+          padding: 4px 10px !important;
+          font-size: 12.5px !important;
+          font-weight: 600 !important;
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 6px !important;
+          background-color: #ffffff !important;
+          background-image: none !important;
+          color: #0f172a !important;
+          box-sizing: border-box !important;
+        }
+        body:not(.informes-theme) #qp-root .qp-input-service:hover,
+        body:not(.informes-theme) #qp-root .qp-input-service:focus {
+          border-color: #0f4c81 !important;
+          background-color: #ffffff !important;
+          box-shadow: 0 0 0 2px rgba(15, 76, 129, 0.15) !important;
+        }
+
+        /* Precio en tabla Desktop */
+        body:not(.informes-theme) #qp-root .qp-input-price {
+          width: 88px !important;
+          min-width: 88px !important;
+          max-width: 88px !important;
+          height: 32px !important;
+          min-height: 32px !important;
+          max-height: 32px !important;
+          padding: 2px 8px !important;
+          font-size: 12.5px !important;
+          font-weight: 700 !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 6px !important;
+          background-color: #ffffff !important;
+          background-image: none !important;
+          color: #0f172a !important;
+          text-align: right !important;
+          box-sizing: border-box !important;
+        }
+
+        /* Selector de fecha en tabla Desktop */
+        body:not(.informes-theme) #qp-root .qp-select-date {
+          width: 100% !important;
+          height: 32px !important;
+          min-height: 32px !important;
+          max-height: 32px !important;
+          padding: 2px 6px !important;
+          font-size: 11.5px !important;
+          font-weight: 600 !important;
+          border-radius: 6px !important;
+          background-color: #ffffff !important;
+          background-image: none !important;
+          color: #0f172a !important;
+          box-sizing: border-box !important;
+        }
         .qp-company-drop { position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 300; background: #fff; border: 1px solid #cbd5e1; border-radius: 7px; max-height: 150px; overflow-y: auto; box-shadow: 0 6px 18px rgba(0,0,0,.1); }
         .qp-company-drop div { padding: 7px 11px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; color: #334155; }
         .qp-company-drop div:last-child { border-bottom: none; }
@@ -2091,22 +2421,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         #qp-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         
         .qp-cart-sticky-header {
-          position: sticky !important;
-          top: 0 !important;
-          z-index: 25 !important;
-          background: #ffffff !important;
-          margin: -14px -16px 12px -16px !important;
-          padding: 12px 16px !important;
-          border-top-left-radius: 10px !important;
-          border-top-right-radius: 10px !important;
-          border-bottom: 1px solid #e2e8f0 !important;
-          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+          position: static !important;
+          background: transparent !important;
+          margin: 0 0 16px 0 !important;
+          padding: 0 !important;
+          border: none !important;
+          box-shadow: none !important;
         }
         .qp-cart-items-scroll {
-          max-height: min(680px, calc(100vh - 320px)) !important;
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-          scrollbar-width: thin !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 16px !important;
+          overflow: visible !important;
+          max-height: none !important;
         }
         .qp-cart-items-scroll > * {
           flex-shrink: 0 !important;
@@ -3916,12 +4243,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             width: 100% !important;
           }
           .qp-cart-sticky-header {
-            top: 42px !important;
-            margin: -14px -16px 10px -16px !important;
-            padding: 10px 12px !important;
+            position: static !important;
+            margin: 0 0 12px 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
           }
           .qp-cart-items-scroll {
-            max-height: calc(100vh - 290px) !important;
+            max-height: none !important;
+            overflow: visible !important;
           }
           .qp-floating-footer {
             position: sticky !important;
@@ -4091,7 +4420,921 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         }
       `}</style>
 
-      {/* ══════════ CONTENEDOR RAÍZ ══════════ */}
+      {/* ══════════ CONTENEDOR MÓVIL O ESCRITORIO ══════════ */}
+      {isMobileView ? (
+        <div className="quote-mobile-root">
+          {/* 1. Header Superior Móvil */}
+          <header className="quote-mobile-header">
+            <div className="quote-mobile-header-top">
+              <div className="quote-mobile-header-title-block">
+                <span className="quote-mobile-brand-tag">
+                  {quote.venue || 'EMS / RESERVAS / COTIZACIÓN'}
+                </span>
+                <h1 className="quote-mobile-main-title">Cotizar evento</h1>
+                <div className="quote-mobile-subtitle">
+                  {event?.name || quote.companyName || 'Nuevo Evento'} {quote.eventDate ? `• ${quote.eventDate}` : ''}
+                </div>
+              </div>
+              <div className="quote-mobile-header-actions">
+                <button
+                  type="button"
+                  className="qp-close-btn"
+                  onClick={handleRequestClose}
+                  aria-label="Cerrar"
+                  style={{
+                    width: 36, height: 36, minHeight: 36, maxHeight: 36, minWidth: 36, maxWidth: 36,
+                    padding: 0, borderRadius: 8, background: '#ffffff', border: '1px solid #cbd5e1',
+                    color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                >
+                  <X size={18} strokeWidth={2.4} />
+                </button>
+              </div>
+            </div>
+
+            {/* Fila Horizontal de Chips de Configuración Global */}
+            <div className="quote-mobile-chips-bar">
+              {/* Contrato */}
+              <div className="quote-mobile-contract-group">
+                {contractTemplates.map(tpl => {
+                  const checked = quote.templateIds.includes(tpl.id);
+                  return (
+                    <button
+                      type="button"
+                      key={tpl.id}
+                      className={`quote-mobile-contract-btn ${checked ? 'is-active' : ''}`}
+                      onClick={() => setQuote(p => ({
+                        ...p,
+                        templateIds: checked ? [] : [tpl.id]
+                      }))}
+                    >
+                      {checked && <Check size={11} strokeWidth={2.5} />}
+                      <span>{tpl.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Moneda */}
+              <select
+                className="quote-mobile-pill-select"
+                value={quote.currency || 'GTQ'}
+                onChange={e => setQuote(p => ({ ...p, currency: e.target.value }))}
+                title="Moneda de la cotización"
+              >
+                <option value="GTQ">Q (GTQ)</option>
+                <option value="USD">$ (USD)</option>
+              </select>
+
+              {/* Versión */}
+              <select
+                className="quote-mobile-pill-select"
+                value={quote.version}
+                onChange={e => {
+                  const selected = Number(e.target.value);
+                  const vData = quote.versions?.find(v => Number(v.version) === selected);
+                  if (vData) handleLoadVersion(vData);
+                }}
+                title="Versión de cotización"
+              >
+                {quote.versions?.length > 0 ? (
+                  [...quote.versions]
+                    .sort((a, b) => Number(b.version || 0) - Number(a.version || 0))
+                    .map((v) => {
+                      const vNum = Number(v.version || 1);
+                      return <option key={vNum} value={vNum}>V{vNum}{vNum === Number(quote.version) ? ' (act.)' : ''}</option>;
+                    })
+                ) : (
+                  <option value={quote.version || 1}>V{quote.version || 1}</option>
+                )}
+              </select>
+
+              {/* Acciones Rápidas */}
+              <button
+                type="button"
+                className="quote-mobile-header-pill-btn"
+                onClick={() => setShowDocPanel(true)}
+              >
+                <Building2 size={12} strokeWidth={2} />
+                <span>Datos</span>
+              </button>
+
+              {event?.id && (
+                <button
+                  type="button"
+                  className="quote-mobile-header-pill-btn is-info"
+                  onClick={() => {
+                    const evDate = event?.date || event?.eventDateStart || new Date().toISOString().split('T')[0];
+                    navigate(`/kanban?highlightEvento=${event.id}&date=${evDate.slice(0, 10)}`);
+                  }}
+                >
+                  <FileText size={12} strokeWidth={2} />
+                  <span>Informe</span>
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* 2. Pestañas Ejecutivas Segmentadas */}
+          <div className="quote-mobile-tabs-container">
+            <div className="quote-mobile-tabs-bar">
+              <button
+                type="button"
+                className={`quote-mobile-tab-btn ${mobileTab === 'agregar' ? 'is-active' : ''}`}
+                onClick={() => setMobileTab('agregar')}
+              >
+                <Plus size={13} strokeWidth={2.4} />
+                <span>Catálogo y Servicios</span>
+              </button>
+              <button
+                type="button"
+                className={`quote-mobile-tab-btn ${mobileTab === 'carrito' ? 'is-active' : ''}`}
+                onClick={() => setMobileTab('carrito')}
+              >
+                <ShoppingCart size={13} strokeWidth={2} />
+                <span>Carrito</span>
+                <span className="quote-mobile-tab-badge">{quote.items?.length || 0}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Contenedor de Scroll */}
+          <div className="quote-mobile-scroll-body">
+            {mobileTab === 'agregar' ? (
+              <>
+                {!quote.templateIds?.length ? (
+                  <div className="quote-mobile-card" style={{ textAlign: 'center', padding: '32px 16px' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 10, background: '#e8f1fb', color: '#0f4c81', margin: '0 auto 10px' }}>
+                      <FileText size={22} strokeWidth={2} />
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Selecciona un Contrato</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>Elige <strong>Jardines</strong> o <strong>ServiHosp</strong> en la barra superior para habilitar el catálogo de servicios.</div>
+                  </div>
+                ) : (
+                  <>
+                    {/* A. Catálogo de Servicios */}
+                    <div className="quote-mobile-card">
+                      <div className="quote-mobile-card-header">
+                        <div>
+                          <div className="quote-mobile-card-eyebrow">Catálogo</div>
+                          <h2 className="quote-mobile-card-title">Agregar servicio</h2>
+                        </div>
+                      </div>
+
+                      {/* Buscador de Servicio */}
+                      <div className="quote-mobile-search-box">
+                        <Search size={16} strokeWidth={2.2} color="#64748b" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                        <input
+                          type="text"
+                          className="quote-mobile-search-input"
+                          placeholder="Buscar servicio en el catálogo..."
+                          value={serviceSearch}
+                          onChange={e => {
+                            setServiceSearch(e.target.value);
+                            if (selectedCatalogService && selectedCatalogService.name !== e.target.value) {
+                              setSelectedCatalogService(null);
+                            }
+                          }}
+                        />
+                        {selectedCatalogService && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCatalogService(null);
+                              setServiceSearch('');
+                            }}
+                            style={{
+                              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                              background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4
+                            }}
+                          >
+                            <X size={14} strokeWidth={2.4} />
+                          </button>
+                        )}
+
+                        {/* Desplegable de sugerencias */}
+                        {filteredServices.length > 0 && (
+                          <div style={{
+                            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                            background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: 10,
+                            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)', zIndex: 100, maxHeight: 220, overflowY: 'auto'
+                          }}>
+                            {filteredServices.map(s => (
+                              <div
+                                key={s.id}
+                                onMouseDown={e => {
+                                  e.preventDefault();
+                                  setSelectedCatalogService(s);
+                                  setServiceSearch(s.name);
+                                }}
+                                style={{
+                                  padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer',
+                                  display: 'flex', flexDirection: 'column', gap: 2
+                                }}
+                              >
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{s.name}</div>
+                                <div style={{ fontSize: 11, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>{s.category || 'General'}</span>
+                                  <strong style={{ color: '#0f4c81' }}>{moneyGT(s.price, quote.currency)}</strong>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Cantidad y Fecha */}
+                      <div className="quote-mobile-qty-date-grid">
+                        <div className="quote-mobile-field-wrap">
+                          <span className="quote-mobile-field-label">Cantidad</span>
+                          <div className="quote-mobile-stepper-control">
+                            <button
+                              type="button"
+                              className="quote-mobile-stepper-btn"
+                              onClick={() => setServiceQty(prev => Math.max(1, (Number(prev) || 1) - 1))}
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              className="quote-mobile-stepper-val"
+                              min="1"
+                              value={serviceQty}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setServiceQty(val === '' ? '' : Math.max(1, parseInt(val) || 1));
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="quote-mobile-stepper-btn"
+                              onClick={() => setServiceQty(prev => (Number(prev) || 1) + 1)}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="quote-mobile-field-wrap">
+                          <span className="quote-mobile-field-label">Fecha Servicio</span>
+                          <select
+                            className="quote-mobile-select-date"
+                            value={selectedServiceDate}
+                            onChange={e => setSelectedServiceDate(e.target.value)}
+                          >
+                            {availableServiceDates.map(d => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Botones de acción del catálogo */}
+                      <div className="quote-mobile-catalog-actions">
+                        <button
+                          type="button"
+                          className="quote-mobile-btn-add-item"
+                          disabled={!selectedCatalogService}
+                          onClick={() => {
+                            if (selectedCatalogService) {
+                              addServiceItem(selectedCatalogService);
+                              toast.success(`Agregado: ${selectedCatalogService.name}`);
+                            }
+                          }}
+                        >
+                          <Plus size={15} strokeWidth={2.4} />
+                          <span>Agregar al carrito</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="quote-mobile-btn-new-svc"
+                          onClick={() => setShowCreateServiceModal(true)}
+                        >
+                          <span>Crear nuevo</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* B. Plantillas Rápidas */}
+                    <div className="quote-mobile-card">
+                      <div className="quote-mobile-card-header">
+                        <div>
+                          <div className="quote-mobile-card-eyebrow">Plantillas y Paquetes</div>
+                          <h2 className="quote-mobile-card-title">Aplicar plantilla rápida</h2>
+                        </div>
+                      </div>
+
+                      <select
+                        id="quoteMobileTemplateSelect"
+                        className="quote-mobile-template-select"
+                        value={quote.templateId}
+                        onChange={e => setQuote(p => ({ ...p, templateId: e.target.value }))}
+                      >
+                        <option value="">-- Selecciona un paquete o plantilla --</option>
+                        {quickTemplates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name || t.nombre}</option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        className="quote-mobile-btn-apply-tpl"
+                        onClick={handleApplyTemplate}
+                      >
+                        <Sparkles size={14} strokeWidth={2.2} />
+                        <span>Aplicar plantilla al evento</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {/* ── Pestaña 2: Carrito y Totales ── */}
+                {quote.items.length === 0 ? (
+                  <div className="quote-mobile-card" style={{ textAlign: 'center', padding: '36px 16px' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 48, borderRadius: 12, background: '#f1f5f9', color: '#94a3b8', margin: '0 auto 12px' }}>
+                      <ShoppingCart size={24} strokeWidth={1.8} />
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Tu carrito está vacío</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>Aún no has agregado ningún servicio a esta cotización.</div>
+                    <button
+                      type="button"
+                      className="quote-mobile-btn-add-item"
+                      onClick={() => setMobileTab('agregar')}
+                      style={{ margin: '0 auto', minHeight: 40, padding: '0 20px' }}
+                    >
+                      <Plus size={14} strokeWidth={2.4} />
+                      <span>Ir al catálogo a agregar servicios</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Lista de Servicios Agrupados por Fecha */}
+                    {allCartDates.map(date => {
+                      const norm = (s) => String(s || '').trim().slice(0, 10);
+                      const fallbackDate = availableServiceDates[0] || norm(quote.eventDate) || 'sin-fecha';
+                      const dayItems = quote.items.filter(item => (norm(item.serviceDate || item.date || item.eventDate) || fallbackDate) === date);
+                      if (dayItems.length === 0) return null;
+                      const daySubtotal = dayItems.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
+
+                      return (
+                        <div key={date} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div className="quote-mobile-date-group-header">
+                            <span className="quote-mobile-date-group-title">
+                              <Calendar size={13} strokeWidth={2} style={{ color: '#0f4c81' }} />
+                              <span>{date}</span>
+                              <span style={{ fontSize: 10, background: '#e2e8f0', color: '#475569', padding: '1px 6px', borderRadius: 4 }}>
+                                {dayItems.length}
+                              </span>
+                            </span>
+                            <span className="quote-mobile-date-group-subtotal">
+                              {moneyGT(daySubtotal, quote.currency)}
+                            </span>
+                          </div>
+
+                          {dayItems.map(item => {
+                            const lineTotal = Number(item.qty || 0) * Number(item.price || 0);
+                            const itemDate = norm(item.serviceDate || item.date || item.eventDate || date);
+
+                            return (
+                              <div key={item.rowId} className="quote-mobile-item-card">
+                                <div className="quote-mobile-item-card-top">
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div className="quote-mobile-item-name">{item.name}</div>
+                                    <div className="quote-mobile-item-category">{item.category || 'Servicio'}</div>
+                                  </div>
+                                </div>
+
+                                <div className="quote-mobile-item-card-mid">
+                                  {/* Stepper Táctil */}
+                                  <div className="quote-mobile-stepper-control" style={{ width: 110, height: 34 }}>
+                                    <button
+                                      type="button"
+                                      className="quote-mobile-stepper-btn"
+                                      style={{ width: 32, height: 34, minHeight: 34 }}
+                                      onClick={() => handleStepItemQty(item.rowId, -1)}
+                                    >
+                                      −
+                                    </button>
+                                    <span style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                                      {item.qty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="quote-mobile-stepper-btn"
+                                      style={{ width: 32, height: 34, minHeight: 34 }}
+                                      onClick={() => handleStepItemQty(item.rowId, 1)}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  <div className="quote-mobile-item-price-block" style={{ textAlign: 'right' }}>
+                                    <span className="quote-mobile-item-unit-price">{moneyGT(item.price, quote.currency)} c/u</span>
+                                    <span className="quote-mobile-item-total">{moneyGT(lineTotal, quote.currency)}</span>
+                                  </div>
+                                </div>
+
+                                <div className="quote-mobile-item-card-bot">
+                                  {availableServiceDates.length > 1 ? (
+                                    <select
+                                      className="quote-mobile-item-date-select"
+                                      value={itemDate}
+                                      onChange={e => {
+                                        const newDate = e.target.value;
+                                        setQuote(p => ({
+                                          ...p,
+                                          items: p.items.map(i => i.rowId === item.rowId ? { ...i, serviceDate: newDate } : i)
+                                        }));
+                                      }}
+                                    >
+                                      {availableServiceDates.map(d => (
+                                        <option key={d} value={d}>{d}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: '#64748b' }}>Fecha: {itemDate}</span>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    className="quote-mobile-btn-trash"
+                                    title="Eliminar servicio"
+                                    onClick={() => removeServiceItem(item.rowId)}
+                                  >
+                                    <Trash2 size={14} strokeWidth={2.2} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+
+                    {/* Tarjeta de Descuentos */}
+                    <div className="quote-mobile-card">
+                      <div className="quote-mobile-card-header">
+                        <div>
+                          <div className="quote-mobile-card-eyebrow">Descuento Comercial</div>
+                          <h2 className="quote-mobile-card-title">Aplicar descuento</h2>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <select
+                          className="quote-mobile-select-date"
+                          value={quote.discountType}
+                          onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}
+                        >
+                          <option value="AMOUNT">Monto Fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
+                          <option value="PERCENT">Porcentaje (%)</option>
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step={quote.discountType === 'PERCENT' ? '1' : '10'}
+                          className="quote-mobile-search-input"
+                          style={{ padding: '0 12px', height: 38, minHeight: 38 }}
+                          value={quote.discountValue}
+                          onChange={e => setQuote(p => ({ ...p, discountValue: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                          placeholder={quote.discountType === 'PERCENT' ? 'Ej. 10%' : 'Ej. 500'}
+                        />
+                      </div>
+                      {totals.discountAmount > 0 && (
+                        <div style={{ fontSize: 12, color: '#0f4c81', fontWeight: 700, textAlign: 'right' }}>
+                          Descuento aplicado: −{moneyGT(totals.discountAmount, quote.currency)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tarjeta de Resumen Financiero */}
+                    <div className="quote-mobile-card">
+                      <div className="quote-mobile-card-header">
+                        <div>
+                          <div className="quote-mobile-card-eyebrow">Control Financiero</div>
+                          <h2 className="quote-mobile-card-title">Resumen de liquidación</h2>
+                        </div>
+                      </div>
+
+                      <div className="quote-mobile-summary-row">
+                        <span>Subtotal de servicios:</span>
+                        <strong>{moneyGT(totals.subtotal, quote.currency)}</strong>
+                      </div>
+                      {totals.discountAmount > 0 && (
+                        <div className="quote-mobile-summary-row" style={{ color: '#dc2626' }}>
+                          <span>Descuento aplicado:</span>
+                          <strong>−{moneyGT(totals.discountAmount, quote.currency)}</strong>
+                        </div>
+                      )}
+                      <div className="quote-mobile-summary-row is-total">
+                        <span>Total de la Cotización:</span>
+                        <strong style={{ color: '#0f4c81' }}>{moneyGT(totals.total, quote.currency)}</strong>
+                      </div>
+                      <div className="quote-mobile-summary-row">
+                        <span>Anticipos / Abonos recibidos:</span>
+                        <strong style={{ color: '#166534' }}>{moneyGT(abonosTotal, quote.currency)}</strong>
+                      </div>
+                      <div className="quote-mobile-summary-row is-balance">
+                        <span>Saldo Pendiente por Cobrar:</span>
+                        <strong style={{ fontSize: 16 }}>{moneyGT(saldoPendiente, quote.currency)}</strong>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 4. Barra Inferior Fija de Alto Impacto (Sticky Bottom) */}
+          <div className="quote-mobile-bottom-bar">
+            {/* Resumen Financiero en Vivo */}
+            <div className="quote-mobile-bottom-financial-summary">
+              <div className="quote-mobile-bottom-total-col">
+                <span className="quote-mobile-bottom-total-label">Total Cotización</span>
+                <span className="quote-mobile-bottom-total-val">{moneyGT(totals.total, quote.currency)}</span>
+              </div>
+              <div className="quote-mobile-bottom-balance-col">
+                <span className="quote-mobile-bottom-balance-label">Saldo Pendiente</span>
+                <span className="quote-mobile-bottom-balance-val">{moneyGT(saldoPendiente, quote.currency)}</span>
+              </div>
+            </div>
+
+            {/* Fila del Botón Principal */}
+            <div className="quote-mobile-bottom-main-row">
+              <button
+                type="button"
+                className="quote-mobile-btn-save-cta"
+                onClick={handleSaveQuote}
+                disabled={saving}
+              >
+                <Save size={17} strokeWidth={2.4} />
+                <span>{saving ? 'Guardando cotización...' : 'Guardar Cotización'}</span>
+              </button>
+            </div>
+
+            {/* Fila Secundaria de Píldoras */}
+            <div className="quote-mobile-bottom-sub-row">
+              <button
+                type="button"
+                className="quote-mobile-sub-pill-btn is-advances"
+                onClick={handleOpenAdvances}
+              >
+                <CreditCard size={13} strokeWidth={2.2} />
+                <span>Anticipos ({quote.advances?.length || 0})</span>
+              </button>
+              <button
+                type="button"
+                className="quote-mobile-sub-pill-btn"
+                onClick={handleReimprimir}
+              >
+                <Printer size={13} strokeWidth={2.2} />
+                <span>Imprimir</span>
+              </button>
+              <button
+                type="button"
+                className="quote-mobile-sub-pill-btn"
+                onClick={() => setShowDocPanel(true)}
+              >
+                <Building2 size={13} strokeWidth={2.2} />
+                <span>Datos Empresa</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Modal Móvil: Datos de la Empresa / Titular */}
+          {showDocPanel && (
+            <div className="quote-mobile-modal-overlay">
+              <header className="quote-mobile-modal-header">
+                <div className="quote-mobile-modal-title-block">
+                  <span className="quote-mobile-brand-tag">Empresa y Titular</span>
+                  <h2 className="quote-mobile-modal-title">
+                    <Building2 size={18} strokeWidth={2.2} style={{ color: '#0f4c81' }} />
+                    <span>Datos de la Empresa</span>
+                  </h2>
+                  <span className="quote-mobile-modal-subtitle">
+                    {quote.companyName || 'Selecciona o registra una empresa'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="qp-close-btn"
+                  onClick={() => setShowDocPanel(false)}
+                  style={{ width: 36, height: 36, minHeight: 36, maxHeight: 36, minWidth: 36, maxWidth: 36, padding: 0, borderRadius: 8, background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X size={18} strokeWidth={2.4} />
+                </button>
+              </header>
+
+              <div className="quote-mobile-modal-body">
+                {/* Tarjeta 1: Institución / Empresa */}
+                <div className="quote-mobile-card">
+                  <div className="quote-mobile-card-header">
+                    <div>
+                      <div className="quote-mobile-card-eyebrow">Catálogo de Empresas</div>
+                      <h3 className="quote-mobile-card-title">Institución / Organización</h3>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {selectedQuoteCompany && (
+                        <button
+                          type="button"
+                          className="quote-mobile-header-pill-btn"
+                          style={{ height: 32, minHeight: 32 }}
+                          onClick={() => openCreateCompanyModal()}
+                        >
+                          <Pencil size={12} strokeWidth={2} />
+                          <span>Editar</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="quote-mobile-header-pill-btn"
+                        style={{ height: 32, minHeight: 32, background: '#0f4c81', color: '#ffffff', borderColor: '#0b3b64' }}
+                        onClick={() => openCreateCompanyModal()}
+                      >
+                        <Plus size={12} strokeWidth={2.2} />
+                        <span>Nueva</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 42, minHeight: 42, paddingLeft: 12 }}
+                      value={companySearchQuery}
+                      onChange={e => { setCompanySearchQuery(e.target.value); setShowCompanyResults(true); }}
+                      onFocus={() => setShowCompanyResults(true)}
+                      placeholder="Buscar institución en el catálogo..."
+                    />
+                    {showCompanyResults && companySearchQuery.trim() && (
+                      <div className="quote-mobile-company-drop">
+                        {filteredCompanies.map(c => (
+                          <div
+                            key={c.id}
+                            className="quote-mobile-company-drop-item"
+                            onClick={() => {
+                              handleCompanySelect(c);
+                              setShowCompanyResults(false);
+                            }}
+                          >
+                            <span style={{ fontWeight: 800, color: '#0f172a' }}>{c.name}</span>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>{c.owner ? `Encargado: ${c.owner}` : 'Sin encargado'} {c.nit ? `• NIT: ${c.nit}` : ''}</span>
+                          </div>
+                        ))}
+                        <div
+                          className="quote-mobile-company-drop-item"
+                          style={{ color: '#0f4c81', fontWeight: 800, background: '#e8f1fb' }}
+                          onClick={() => {
+                            setShowCompanyResults(false);
+                            openCreateCompanyModal();
+                          }}
+                        >
+                          + Registrar nueva empresa "{companySearchQuery.trim()}"
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedQuoteCompany ? (
+                    <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, background: '#f0fdf4', padding: '6px 10px', borderRadius: 6, border: '1px solid #bbf7d0' }}>
+                      <Check size={14} strokeWidth={2.5} />
+                      <span>Vinculada: <strong>{selectedQuoteCompany.name}</strong></span>
+                    </div>
+                  ) : quote.companyName ? (
+                    <div style={{ fontSize: 12, color: '#b45309', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, background: '#fffbeb', padding: '6px 10px', borderRadius: 6, border: '1px solid #fde68a' }}>
+                      <AlertTriangle size={14} strokeWidth={2.2} />
+                      <span>Asignada: <strong>{quote.companyName}</strong> (No guardada en catálogo)</span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Tarjeta 2: Contacto y Encargado */}
+                <div className="quote-mobile-card">
+                  <div className="quote-mobile-card-header">
+                    <div>
+                      <div className="quote-mobile-card-eyebrow">Contacto Principal</div>
+                      <h3 className="quote-mobile-card-title">Encargado de la Empresa</h3>
+                    </div>
+                  </div>
+
+                  {selectedQuoteCompany && Array.isArray(selectedQuoteCompany.managers) && selectedQuoteCompany.managers.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Seleccionar de catálogo</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickManagerDraft({ name: '', phone: '', email: '', address: '' });
+                            setShowQuickManagerModal(true);
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#0f4c81', fontSize: 11, fontWeight: 800, cursor: 'pointer', padding: 0 }}
+                        >
+                          + Agregar contacto
+                        </button>
+                      </div>
+                      <select
+                        className="quote-mobile-pill-select"
+                        style={{ width: '100%', height: 40, minHeight: 40, fontSize: 13 }}
+                        value={
+                          selectedQuoteCompany.managers.some(m => String(m.id || '') === String(quote.managerId || ''))
+                            ? String(quote.managerId)
+                            : selectedQuoteCompany.managers.some(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())
+                            ? (selectedQuoteCompany.managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())?.id || '')
+                            : (quote.contact ? '__current_custom__' : (selectedQuoteCompany.managers[0]?.id || ''))
+                        }
+                        onChange={e => {
+                          if (e.target.value === '__current_custom__') return;
+                          applyCompanyManager(selectedQuoteCompany, e.target.value);
+                        }}
+                      >
+                        {quote.contact && !selectedQuoteCompany.managers.some(m => String(m.name || '').trim().toLowerCase() === String(quote.contact).trim().toLowerCase()) && (
+                          <option value="__current_custom__">👤 {quote.contact} (Contacto asignado)</option>
+                        )}
+                        {selectedQuoteCompany.managers.map(manager => (
+                          <option key={manager.id || manager.name} value={manager.id || manager.name}>
+                            {manager.name} {manager.phone ? `(${manager.phone})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Nombre del Contacto</span>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={quote.contact || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setQuote(p => ({ ...p, contact: val, managerName: val }));
+                      }}
+                      placeholder="Ej: Lic. Mario Estrada"
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Teléfono</span>
+                      <input
+                        type="text"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40 }}
+                        value={quote.phone || ''}
+                        onChange={e => setQuote(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="Ej: 55554444"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Correo</span>
+                      <input
+                        type="email"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40 }}
+                        value={quote.email || ''}
+                        onChange={e => setQuote(p => ({ ...p, email: e.target.value }))}
+                        placeholder="correo@empresa.com"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tarjeta 3: Facturación Fiscal */}
+                <div className="quote-mobile-card">
+                  <div className="quote-mobile-card-header">
+                    <div>
+                      <div className="quote-mobile-card-eyebrow">Datos Fiscales</div>
+                      <h3 className="quote-mobile-card-title">Facturación</h3>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Facturar A (Razón Social)</span>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={quote.billTo || ''}
+                      onChange={e => setQuote(p => ({ ...p, billTo: e.target.value }))}
+                      placeholder="Nombre o razón social para factura"
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>NIT</span>
+                      <input
+                        type="text"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40 }}
+                        value={quote.nit || ''}
+                        onChange={e => setQuote(p => ({ ...p, nit: e.target.value }))}
+                        placeholder="NIT o CF"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Dirección Fiscal</span>
+                      <input
+                        type="text"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40 }}
+                        value={quote.address || ''}
+                        onChange={e => setQuote(p => ({ ...p, address: e.target.value }))}
+                        placeholder="Ciudad o dirección"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tarjeta 4: Detalles del Evento */}
+                <div className="quote-mobile-card">
+                  <div className="quote-mobile-card-header">
+                    <div>
+                      <div className="quote-mobile-card-eyebrow">Parámetros</div>
+                      <h3 className="quote-mobile-card-title">Detalles del Evento</h3>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Tipo de Evento</span>
+                      <input
+                        type="text"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40, background: '#f1f5f9', cursor: 'not-allowed' }}
+                        value={quote.eventType || 'Social'}
+                        readOnly
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Salón / Espacio</span>
+                      <input
+                        type="text"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40 }}
+                        value={quote.venue || ''}
+                        onChange={e => setQuote(p => ({ ...p, venue: e.target.value }))}
+                        placeholder="Salón asignado"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Comensales (PAX)</span>
+                      <input
+                        type="number"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40 }}
+                        value={quote.people || ''}
+                        onChange={e => setQuote(p => ({ ...p, people: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="Ej: 150"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>No. Folio</span>
+                      <input
+                        type="text"
+                        className="quote-mobile-search-input"
+                        style={{ height: 40, minHeight: 40 }}
+                        value={quote.folio || ''}
+                        onChange={e => setQuote(p => ({ ...p, folio: e.target.value }))}
+                        placeholder="Ej: FOL-001"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Observaciones de la Cotización</span>
+                    <textarea
+                      className="quote-mobile-search-input"
+                      style={{ height: 60, minHeight: 60, padding: '8px 12px' }}
+                      value={quote.notes || ''}
+                      onChange={e => setQuote(p => ({ ...p, notes: e.target.value }))}
+                      placeholder="Notas especiales, requerimientos del cliente..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <footer className="quote-mobile-modal-footer">
+                <button
+                  type="button"
+                  className="quote-mobile-btn-save-cta"
+                  onClick={() => setShowDocPanel(false)}
+                >
+                  <Check size={18} strokeWidth={2.4} />
+                  <span>Aplicar y Guardar Datos</span>
+                </button>
+              </footer>
+            </div>
+          )}
+        </div>
+      ) : (
       <div
         id="qp-root"
         style={{
@@ -4179,137 +5422,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   <option value={quote.version || 1}>V{quote.version || 1} (actual)</option>
                 )}
               </select>
-            </div>
-
-            {/* Acciones de selección de ítems en carrito (Duplicar, Subir, Bajar) */}
-            <div className="qp-header-selection-tools" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{
-                fontSize: 9,
-                fontWeight: 800,
-                color: selectedItemIds.size > 0 ? '#1d4ed8' : '#64748b',
-                textTransform: 'uppercase',
-                letterSpacing: '.3px',
-                whiteSpace: 'nowrap',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}>
-                <span>Acciones selección</span>
-                {selectedItemIds.size > 0 && (
-                  <span style={{
-                    background: '#eff6ff',
-                    color: '#1d4ed8',
-                    border: '1px solid #bfdbfe',
-                    padding: '0 5px',
-                    borderRadius: 4,
-                    fontSize: 9,
-                    fontWeight: 800
-                  }}>
-                    {selectedItemIds.size} sel.
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <button
-                  className="qp-btn"
-                  type="button"
-                  disabled={selectedItemIds.size === 0}
-                  onClick={handleDuplicateSelected}
-                  title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para duplicar' : `Duplicar ${selectedItemIds.size} ítem(s) seleccionado(s)`}
-                  style={{
-                    height: 32,
-                    padding: '0 9px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    opacity: selectedItemIds.size === 0 ? 0.45 : 1,
-                    cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                    background: selectedItemIds.size > 0 ? '#f0fdf4' : '#ffffff',
-                    borderColor: selectedItemIds.size > 0 ? '#86efac' : '#cbd5e1',
-                    color: selectedItemIds.size > 0 ? '#15803d' : '#334155',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    boxSizing: 'border-box',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Copy size={13} strokeWidth={2} />
-                  <span>Duplicar</span>
-                </button>
-                <button
-                  className="qp-btn"
-                  type="button"
-                  disabled={selectedItemIds.size === 0}
-                  onClick={() => handleMoveSelected('up')}
-                  title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para subir' : 'Subir en la lista de su fecha'}
-                  style={{
-                    height: 32,
-                    padding: '0 8px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    opacity: selectedItemIds.size === 0 ? 0.45 : 1,
-                    cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    boxSizing: 'border-box',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <ArrowUp size={13} strokeWidth={2.2} />
-                  <span>Subir</span>
-                </button>
-                <button
-                  className="qp-btn"
-                  type="button"
-                  disabled={selectedItemIds.size === 0}
-                  onClick={() => handleMoveSelected('down')}
-                  title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para bajar' : 'Bajar en la lista de su fecha'}
-                  style={{
-                    height: 32,
-                    padding: '0 8px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    opacity: selectedItemIds.size === 0 ? 0.45 : 1,
-                    cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    boxSizing: 'border-box',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <ArrowDown size={13} strokeWidth={2.2} />
-                  <span>Bajar</span>
-                </button>
-                {selectedItemIds.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedItemIds(new Set())}
-                    title="Deseleccionar todo"
-                    style={{
-                      height: 32,
-                      padding: '0 7px',
-                      background: '#fef2f2',
-                      border: '1px solid #fecaca',
-                      borderRadius: 6,
-                      color: '#b91c1c',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      boxSizing: 'border-box',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <X size={13} strokeWidth={2.2} />
-                    <span>Limpiar</span>
-                  </button>
-                )}
-              </div>
             </div>
 
             {/* Plantillas */}
@@ -5027,7 +6139,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         )}
 
         {/* ── BODY SCROLLABLE ── */}
-        <div id="qp-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 32px' }}>
+        <div id="qp-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 24px' }}>
 
           {/* Selector de pestañas móvil */}
           <div className="qp-mobile-tabs">
@@ -5341,25 +6453,141 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div className="qp-cart-sticky-header" style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   flexWrap: 'wrap',
-                  gap: 8,
-                  marginBottom: 12
+                  gap: 12,
+                  marginBottom: 16
                 }}>
                   <div>
-                    <div className="eyebrow">Carrito operativo</div>
-                    <div className="section-title" style={{ marginBottom: 0 }}>Servicios y productos agregados</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Cantidades, precio, fecha, servicio y total.</div>
+                    <div className="eyebrow" style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>CARRITO OPERATIVO</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: 0 }}>Servicios y productos agregados</div>
+                    <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>Control cronológico, cantidades, precios y cómputo de subtotales.</div>
                   </div>
-                  {selectedItemIds.size > 0 && (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', padding: '4px 10px', borderRadius: 6, border: '1px solid #bfdbfe' }}>
-                        {selectedItemIds.size} {selectedItemIds.size === 1 ? 'ítem seleccionado' : 'ítems seleccionados'}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: selectedItemIds.size > 0 ? '#166534' : '#64748b',
+                        background: selectedItemIds.size > 0 ? '#dcfce7' : '#f1f5f9',
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: `1px solid ${selectedItemIds.size > 0 ? '#bbf7d0' : '#e2e8f0'}`
+                      }}>
+                        {selectedItemIds.size} {selectedItemIds.size === 1 ? 'seleccionado' : 'seleccionados'}
                       </span>
+
+                      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 2px' }} />
+
+                      <button
+                        className="qp-btn"
+                        type="button"
+                        disabled={selectedItemIds.size === 0}
+                        onClick={handleDuplicateSelected}
+                        title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para duplicar' : `Duplicar ${selectedItemIds.size} ítem(s) seleccionado(s)`}
+                        style={{
+                          height: 30,
+                          padding: '0 9px',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
+                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                          background: '#ffffff',
+                          borderColor: '#cbd5e1',
+                          color: '#334155',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          borderRadius: 6
+                        }}
+                      >
+                        <Copy size={13} strokeWidth={2} />
+                        <span>Duplicar</span>
+                      </button>
+
+                      <button
+                        className="qp-btn"
+                        type="button"
+                        disabled={selectedItemIds.size === 0}
+                        onClick={() => handleMoveSelected('up')}
+                        title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para subir' : 'Subir en la lista de su fecha'}
+                        style={{
+                          height: 30,
+                          padding: '0 8px',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
+                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                          background: '#ffffff',
+                          borderColor: '#cbd5e1',
+                          color: '#334155',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          borderRadius: 6
+                        }}
+                      >
+                        <ArrowUp size={13} strokeWidth={2.2} />
+                        <span>Subir</span>
+                      </button>
+
+                      <button
+                        className="qp-btn"
+                        type="button"
+                        disabled={selectedItemIds.size === 0}
+                        onClick={() => handleMoveSelected('down')}
+                        title={selectedItemIds.size === 0 ? 'Selecciona al menos un ítem para bajar' : 'Bajar en la lista de su fecha'}
+                        style={{
+                          height: 30,
+                          padding: '0 8px',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
+                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                          background: '#ffffff',
+                          borderColor: '#cbd5e1',
+                          color: '#334155',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          borderRadius: 6
+                        }}
+                      >
+                        <ArrowDown size={13} strokeWidth={2.2} />
+                        <span>Bajar</span>
+                      </button>
+
+                      <button
+                        className="qp-btn"
+                        type="button"
+                        disabled={selectedItemIds.size === 0}
+                        onClick={() => setSelectedItemIds(new Set())}
+                        title="Limpiar selección"
+                        style={{
+                          height: 30,
+                          padding: '0 8px',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          opacity: selectedItemIds.size === 0 ? 0.45 : 1,
+                          cursor: selectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                          background: '#ffffff',
+                          borderColor: selectedItemIds.size > 0 ? '#fecaca' : '#cbd5e1',
+                          color: selectedItemIds.size > 0 ? '#dc2626' : '#94a3b8',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          borderRadius: 6
+                        }}
+                      >
+                        <X size={13} strokeWidth={2.2} />
+                        <span>Limpiar</span>
+                      </button>
+                    </div>
+
+                    {selectedItemIds.size > 0 && (
                       <button
                         type="button"
                         onClick={() => setSelectedItemIds(new Set())}
-                        title="Deseleccionar todo"
                         style={{
                           background: 'none',
                           border: 'none',
@@ -5367,13 +6595,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           fontSize: 11,
                           cursor: 'pointer',
                           textDecoration: 'underline',
-                          padding: '2px 4px'
+                          padding: '1px 2px'
                         }}
                       >
-                        Limpiar selección
+                        Deseleccionar todo
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {menuMontajeSummary.count > 0 && (
@@ -5409,7 +6637,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Selecciona un contrato</div>
                       <div style={{ fontSize: 11, color: '#94a3b8' }}>Para agregar servicios, primero elige Servihosp o Jardines en la barra superior.</div>
                     </div>
-                  ) : quote.items.length === 0 ? (
+                  ) : (allCartDates.length === 0 && quote.items.length === 0) ? (
                     <div style={{ ...card, padding: '36px 16px', textAlign: 'center', background: '#ffffff', flexShrink: 0 }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 10, background: '#f1f5f9', color: '#94a3b8', margin: '0 auto 10px' }}>
                         <ShoppingCart size={22} strokeWidth={1.8} />
@@ -5436,9 +6664,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           boxShadow: isOutOfEvent ? '0 2px 8px rgba(245, 158, 11, 0.12)' : 'none'
                         }}>
                           <div style={{ 
-                            background: isOutOfEvent ? '#fffbeb' : '#f8fafc', 
+                            background: isOutOfEvent ? '#fffbeb' : '#ffffff', 
                             padding: '10px 14px', 
-                            borderBottom: isOutOfEvent ? '1.5px solid #fef08a' : '1px solid #e2e8f0', 
+                            borderBottom: '1px solid #f1f5f9', 
                             display: 'flex', 
                             justifyContent: 'space-between', 
                             alignItems: 'center',
@@ -5446,8 +6674,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             gap: 8
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 13, fontWeight: 900, color: isOutOfEvent ? '#b45309' : '#0f172a', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                                <Calendar size={13} strokeWidth={2} style={{ color: isOutOfEvent ? '#b45309' : '#64748b' }} />
+                              <span style={{ fontSize: 13, fontWeight: 800, color: isOutOfEvent ? '#b45309' : '#0f172a', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                <Calendar size={14} strokeWidth={2} style={{ color: isOutOfEvent ? '#b45309' : '#64748b' }} />
                                 <span>{date}</span>
                               </span>
                               {isOutOfEvent && (
@@ -5460,7 +6688,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                   <span>Fecha fuera del evento actual</span>
                                 </span>
                               )}
-                              <span style={{ background: isOutOfEvent ? '#fde68a' : '#e2e8f0', color: isOutOfEvent ? '#92400e' : '#334155', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+                              <span style={{
+                                background: dayItems.length > 0 ? '#dcfce7' : '#f1f5f9',
+                                color: dayItems.length > 0 ? '#15803d' : '#64748b',
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 999
+                              }}>
                                 {dayItems.length} {dayItems.length === 1 ? 'servicio' : 'servicios'}
                               </span>
                             </div>
@@ -5496,33 +6731,57 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                   </select>
                                 </div>
                               )}
-                              <div style={{ fontSize: 12, color: isOutOfEvent ? '#b45309' : '#0f172a', fontWeight: 800 }}>
-                                Subtotal: <span style={{ color: isOutOfEvent ? '#b45309' : '#0f172a' }}>{moneyGT(daySubtotal, quote.currency)}</span>
+                              <div style={{ fontSize: 12, color: isOutOfEvent ? '#b45309' : '#475569', fontWeight: 600 }}>
+                                Subtotal día: <strong style={{ color: isOutOfEvent ? '#b45309' : '#0f172a', fontWeight: 800 }}>{moneyGT(daySubtotal, quote.currency)}</strong>
                               </div>
                             </div>
                           </div>
                           
                           {dayItems.length === 0 ? (
-                            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12, fontStyle: 'italic', background: '#ffffff' }}>
-                              Sin servicios asignados a este día.
+                            <div style={{ padding: '28px 16px', textAlign: 'center', background: '#ffffff' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: '#f1f5f9', color: '#64748b', margin: '0 auto 8px' }}>
+                                <PlusCircle size={18} strokeWidth={2} />
+                              </div>
+                              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginBottom: 6 }}>
+                                Sin servicios asignados a este día.
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedServiceDate(date);
+                                  const searchInp = document.getElementById('quoteServiceSearchInput');
+                                  if (searchInp) searchInp.focus();
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#0f766e',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline'
+                                }}
+                              >
+                                + Agregar servicio a este día
+                              </button>
                             </div>
                           ) : (
                             <div style={{ overflowX: 'auto' }}>
                               <table className="qp-tbl">
                                 <thead>
                                   <tr>
-                                    <th style={{ width: 36 }}>
+                                    <th style={{ width: 36, textAlign: 'center' }}>
                                       <input type="checkbox" className="qp-checkbox"
                                         checked={isAllDaySelected}
                                         onChange={() => handleSelectAllDayToggle(date)}
                                       />
                                     </th>
-                                    <th>Fecha</th>
-                                    <th>Cant.</th>
-                                    <th>Servicio</th>
-                                    <th>Precio</th>
-                                    <th>Total</th>
-                                    <th style={{ width: 36 }}></th>
+                                    <th style={{ width: 135 }}>Fecha</th>
+                                    <th style={{ width: 65, textAlign: 'center' }}>Cant.</th>
+                                    <th style={{ minWidth: 200 }}>Servicio / Concepto</th>
+                                    <th style={{ width: 110, textAlign: 'right' }}>Precio unitario</th>
+                                    <th style={{ width: 105, textAlign: 'right' }}>Total</th>
+                                    <th style={{ width: 125, textAlign: 'center' }}>Acciones</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -5530,13 +6789,20 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                     const lineTotal = Number(item.qty || 0) * Number(item.price || 0);
                                     const currentItemDate = norm(item.serviceDate || item.date || item.eventDate || date);
                                     const itemOutOfEvent = !availableServiceDates.includes(currentItemDate);
+                                    const isRowHighlighted = highlightedRowIds.has(item.rowId);
                                     return (
-                                      <tr key={item.rowId || `item_${date}_${itemIdx}`} className={selectedItemIds.has(item.rowId) ? 'sel' : ''} style={{ background: itemOutOfEvent ? '#fffbeb20' : undefined }}>
-                                        <td style={{ textAlign: 'center' }}>
+                                      <tr
+                                        key={item.rowId || `item_${date}_${itemIdx}`}
+                                        id={`quote-row-${item.rowId}`}
+                                        className={`${selectedItemIds.has(item.rowId) ? 'sel' : ''} ${isRowHighlighted ? 'qp-row-highlight-pulse' : ''}`}
+                                        style={{ background: itemOutOfEvent ? '#fffbeb20' : undefined }}
+                                      >
+                                        <td style={{ textAlign: 'center', width: 36 }}>
                                           <input type="checkbox" className="qp-checkbox" checked={selectedItemIds.has(item.rowId)} onChange={() => handleSelectRowToggle(item.rowId)} />
                                         </td>
-                                        <td>
+                                        <td style={{ width: 135 }}>
                                           <select
+                                            className="qp-select-date"
                                             value={currentItemDate}
                                             onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, serviceDate: e.target.value } : i) }))}
                                             style={{
@@ -5554,44 +6820,62 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                             {availableServiceDates.map(d => <option key={d} value={d}>{d}</option>)}
                                           </select>
                                         </td>
-                                        <td>
-                                          <input type="number" value={item.qty} onChange={e => {
+                                        <td style={{ width: 65, textAlign: 'center' }}>
+                                          <input type="number" className="qp-input-qty" value={item.qty} onChange={e => {
                                             const raw = e.target.value;
                                             setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, qty: raw === '' ? '' : parseInt(raw) || 1 } : i) }));
                                           }} />
                                         </td>
                                         <td>
-                                          <input type="text" value={item.name} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, name: e.target.value } : i) }))} />
+                                          <input type="text" className="qp-input-service" value={item.name} onChange={e => setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, name: e.target.value } : i) }))} />
                                         </td>
-                                        <td>
-                                          <input type="number" value={item.price} onChange={e => {
-                                            const raw = e.target.value;
-                                            setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, price: raw === '' ? '' : parseFloat(raw) || 0 } : i) }));
-                                          }} />
+                                        <td style={{ width: 110, textAlign: 'right' }}>
+                                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                                            <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>{quote.currency === 'USD' ? '$' : 'Q'}</span>
+                                            <input type="number" className="qp-input-price" value={item.price} onChange={e => {
+                                              const raw = e.target.value;
+                                              setQuote(p => ({ ...p, items: p.items.map(i => i.rowId === item.rowId ? { ...i, price: raw === '' ? '' : parseFloat(raw) || 0 } : i) }));
+                                            }} />
+                                          </div>
                                         </td>
-                                        <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{moneyGT(lineTotal, quote.currency)}</td>
-                                        <td style={{ textAlign: 'center' }}>
-                                          <button 
-                                            type="button"
-                                            onClick={() => removeServiceItem(item.rowId)} 
-                                            title="Eliminar servicio" 
-                                            style={{ 
-                                              background: 'none', 
-                                              border: 'none', 
-                                              cursor: 'pointer', 
-                                              display: 'inline-flex', 
-                                              alignItems: 'center', 
-                                              justifyContent: 'center', 
-                                              padding: '5px',
-                                              borderRadius: '6px',
-                                              color: '#ef4444',
-                                              transition: 'all 0.15s ease'
-                                            }}
-                                            onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
-                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                          >
-                                            <Trash2 size={15} strokeWidth={1.8} />
-                                          </button>
+                                        <td style={{ width: 105, textAlign: 'right', fontWeight: 800, color: '#0f4c81', whiteSpace: 'nowrap' }}>{moneyGT(lineTotal, quote.currency)}</td>
+                                        <td style={{ textAlign: 'center', width: 125, whiteSpace: 'nowrap' }}>
+                                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                                            <button
+                                              type="button"
+                                              className="qp-row-action-btn"
+                                              onClick={() => handleMoveSingle(item.rowId, 'up')}
+                                              disabled={itemIdx === 0}
+                                              title={itemIdx === 0 ? 'Primer servicio del día' : 'Subir un lugar en este día'}
+                                            >
+                                              <ArrowUp size={12} strokeWidth={2.2} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="qp-row-action-btn"
+                                              onClick={() => handleMoveSingle(item.rowId, 'down')}
+                                              disabled={itemIdx === dayItems.length - 1}
+                                              title={itemIdx === dayItems.length - 1 ? 'Último servicio del día' : 'Bajar un lugar en este día'}
+                                            >
+                                              <ArrowDown size={12} strokeWidth={2.2} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="qp-row-action-btn"
+                                              onClick={() => handleDuplicateSingle(item.rowId)}
+                                              title="Duplicar este servicio"
+                                            >
+                                              <Copy size={12} strokeWidth={2} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="qp-row-action-btn btn-del"
+                                              onClick={() => removeServiceItem(item.rowId)}
+                                              title="Eliminar servicio"
+                                            >
+                                              <Trash2 size={13} strokeWidth={1.8} />
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     );
@@ -5607,64 +6891,99 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 </div>
 
                 {/* Totales / descuento */}
-                <div className="qp-totals" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div className="qp-totals" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <div>
-                      <label style={fieldLabel}>Descuento</label>
-                      <select style={{ ...fieldSelect, width: 120 }} value={quote.discountType} onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}>
-                        <option value="AMOUNT">Monto ({quote.currency === 'USD' ? '$' : 'Q'})</option>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Tipo Descuento</label>
+                      <select style={{ ...fieldSelect, width: 140, height: 38 }} value={quote.discountType} onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}>
+                        <option value="AMOUNT">Monto fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
                         <option value="PERCENT">Porcentaje (%)</option>
                       </select>
                     </div>
                     <div>
-                      <label style={fieldLabel}>Valor descuento</label>
-                      <input style={{ ...fieldInput, width: 110 }} type="number" value={quote.discountValue} onChange={e => {
-                        const raw = e.target.value;
-                        setQuote(p => ({ ...p, discountValue: raw === '' ? '' : parseFloat(raw) || 0 }));
-                      }} min="0" step="0.01" />
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Valor Descuento</label>
+                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                        <span style={{ position: 'absolute', left: 10, fontSize: 12, color: '#64748b', fontWeight: 700 }}>
+                          {quote.discountType === 'PERCENT' ? '%' : (quote.currency === 'USD' ? '$' : 'Q')}
+                        </span>
+                        <input
+                          style={{ ...fieldInput, width: 130, height: 38, paddingLeft: 26, fontSize: 13, fontWeight: 700 }}
+                          type="number"
+                          value={quote.discountValue}
+                          onChange={e => {
+                            const raw = e.target.value;
+                            setQuote(p => ({ ...p, discountValue: raw === '' ? '' : parseFloat(raw) || 0 }));
+                          }}
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                      Subtotal: <strong style={{ color: '#0f172a', marginLeft: 6 }}>{moneyGT(totals.subtotal, quote.currency)}</strong>
+                    </div>
                     {totals.discountAmount > 0 && (
-                      <>
-                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
-                          Subtotal: <strong style={{ color: '#334155' }}>{moneyGT(totals.subtotal, quote.currency)}</strong>
-                        </div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
-                          Descuento: <strong style={{ color: '#334155' }}>{moneyGT(totals.discountAmount, quote.currency)}</strong>
-                        </div>
-                      </>
+                      <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+                        Descuento aplicado: <strong style={{ color: '#dc2626', marginLeft: 6 }}>- {moneyGT(totals.discountAmount, quote.currency)}</strong>
+                      </div>
                     )}
-                    <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>
-                      Total cotización: <span style={{ color: '#0f172a' }}>{moneyGT(totals.total, quote.currency)}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Total cotización:</span>
+                      <span style={{ fontSize: 24, fontWeight: 900, color: '#005954' }}>{moneyGT(totals.total, quote.currency)}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Estado de cuenta */}
-              <div className="qp-financial" style={{ ...card, background: '#f8fafc' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              {/* Estado de cuenta / Control Financiero */}
+              <div className="qp-financial" style={{ ...card, background: '#ffffff', border: '1px solid #e2e8f0', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                   <div>
-                    <div className="eyebrow">Control financiero</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', margin: 0 }}>Estado de cuenta</div>
+                    <div className="eyebrow" style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>CONTROL FINANCIERO</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: 0 }}>Estado de cuenta</div>
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ color: '#475569' }}>Total: <strong>{moneyGT(totals.total, quote.currency)}</strong></span>
-                    <span style={{ color: '#475569' }}>Abonado: <strong>{moneyGT(abonosTotal, quote.currency)}</strong></span>
-                    {saldoAFavor > 0 ? (
-                      <span style={{ color: '#16a34a', fontWeight: 700 }}>
-                        Saldo a favor: <strong>{moneyGT(saldoAFavor, quote.currency)}</strong>
+                  <div>
+                    {saldoPendiente > 0 ? (
+                      <span style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 999 }}>
+                        Pago pendiente
                       </span>
-                    ) : saldoPendiente > 0 ? (
-                      <span style={{ color: '#ef4444', fontWeight: 700 }}>
-                        Saldo pendiente: <strong>{moneyGT(saldoPendiente, quote.currency)}</strong>
+                    ) : saldoAFavor > 0 ? (
+                      <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 999 }}>
+                        Saldo a favor
                       </span>
                     ) : (
-                      <span style={{ color: '#10b981', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        <Check size={13} strokeWidth={2.5} /> Pagado
+                      <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Check size={12} strokeWidth={2.5} /> Pagado
                       </span>
                     )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 4 }}>Total Cotizado</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{moneyGT(totals.total, quote.currency)}</div>
+                  </div>
+
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 4 }}>Total Abonado</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#059669' }}>{moneyGT(abonosTotal, quote.currency)}</div>
+                  </div>
+
+                  <div style={{
+                    background: saldoPendiente > 0 ? '#fffdfd' : '#f0fdf4',
+                    border: `1.5px solid ${saldoPendiente > 0 ? '#fee2e2' : '#bbf7d0'}`,
+                    borderRadius: 8,
+                    padding: '12px 14px'
+                  }}>
+                    <div style={{ fontSize: 11, color: saldoPendiente > 0 ? '#b91c1c' : '#166534', fontWeight: 700, marginBottom: 4 }}>
+                      {saldoAFavor > 0 ? 'Saldo a Favor' : 'Saldo Pendiente'}
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: saldoPendiente > 0 ? '#dc2626' : saldoAFavor > 0 ? '#059669' : '#16a34a' }}>
+                      {saldoAFavor > 0 ? moneyGT(saldoAFavor, quote.currency) : moneyGT(saldoPendiente, quote.currency)}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -5690,40 +7009,42 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         </div>
         {/* fin body */}
 
-        {/* ── FOOTER FLOTANTE FIJO ── */}
-        <div className="qp-floating-footer" style={{
-          position: 'absolute',
-          right: 20,
-          bottom: 14,
-          background: 'transparent',
-          borderTop: 'none',
-          padding: 0,
+        {/* ── FOOTER INFERIOR DOCKADO ── */}
+        <div className="qp-docked-footer" style={{
+          flexShrink: 0,
+          background: '#ffffff',
+          borderTop: '1px solid #cbd5e1',
+          padding: '10px 20px',
           display: 'flex',
           justifyContent: 'flex-end',
           alignItems: 'center',
           gap: 12,
-          boxShadow: 'none',
-          zIndex: 30,
-          pointerEvents: 'none'
+          boxShadow: '0 -4px 14px rgba(15, 23, 42, 0.05)',
+          zIndex: 30
         }}>
-          <div className="qp-floating-footer-inner" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', pointerEvents: 'auto' }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
             <button
               className="qp-btn"
               type="button"
               onClick={handleOpenAdvances}
               onMouseDown={e => e.stopPropagation()}
               style={{ 
+                height: 38,
+                padding: '0 16px',
+                borderRadius: 8,
                 background: '#ecfdf5', 
                 borderColor: '#8fd8b4', 
                 color: '#0f766e', 
-                boxShadow: '0 6px 14px rgba(15,118,110,.10)',
+                boxShadow: '0 2px 6px rgba(15,118,110,.08)',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                fontWeight: 700
+                gap: 6,
+                fontWeight: 700,
+                fontSize: 12.5,
+                cursor: 'pointer'
               }}
             >
-              <CreditCard size={14} strokeWidth={2} />
+              <CreditCard size={15} strokeWidth={2} />
               <span>Anticipos</span>
             </button>
             <button
@@ -5731,17 +7052,22 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               type="button"
               onClick={handleReimprimir}
               style={{ 
+                height: 38,
+                padding: '0 16px',
+                borderRadius: 8,
                 background: '#f8f3ff', 
                 borderColor: '#c8b6ea', 
                 color: '#5b3b91', 
-                boxShadow: '0 6px 14px rgba(91,59,145,.10)',
+                boxShadow: '0 2px 6px rgba(91,59,145,.08)',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                fontWeight: 700
+                gap: 6,
+                fontWeight: 700,
+                fontSize: 12.5,
+                cursor: 'pointer'
               }}
             >
-              <Printer size={14} strokeWidth={2} />
+              <Printer size={15} strokeWidth={2} />
               <span>Imprimir</span>
             </button>
             <button 
@@ -5750,28 +7076,401 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
               onClick={handleSaveQuote} 
               disabled={saving}
               style={{ 
-                boxShadow: '0 8px 18px rgba(15,23,42,.18)',
+                height: 38,
+                padding: '0 20px',
+                borderRadius: 8,
+                background: '#0f4c81',
+                borderColor: '#0b3b64',
+                color: '#ffffff',
+                boxShadow: '0 2px 8px rgba(15,76,129,.25)',
                 opacity: saving ? 0.5 : 1,
                 cursor: saving ? 'not-allowed' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 6,
-                fontWeight: 700
+                gap: 7,
+                fontWeight: 800,
+                fontSize: 13
               }}
             >
-              <Save size={14} strokeWidth={2} />
+              <Save size={15} strokeWidth={2.2} />
               <span>{saving ? 'Guardando...' : 'Guardar cotización'}</span>
             </button>
           </div>
         </div>
 
+        {/* Barra flotante de selección para que nunca se pierda de vista al hacer scroll */}
+        {selectedItemIds.size > 0 && (
+          <div className="qp-floating-selection-bar">
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#86efac', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 9px', borderRadius: 999, background: 'rgba(255,255,255,0.08)' }}>
+              <CheckCircle2 size={13} strokeWidth={2.5} />
+              <span>{selectedItemIds.size} {selectedItemIds.size === 1 ? 'seleccionado' : 'seleccionados'}</span>
+            </span>
+
+            <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.2)', margin: '0 2px' }} />
+
+            <button
+              type="button"
+              onClick={handleDuplicateSelected}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                color: '#ffffff',
+                padding: '5px 12px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <Copy size={13} strokeWidth={2} />
+              <span>Duplicar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleMoveSelected('up')}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                color: '#ffffff',
+                padding: '5px 11px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <ArrowUp size={13} strokeWidth={2.2} />
+              <span>Subir</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleMoveSelected('down')}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                color: '#ffffff',
+                padding: '5px 11px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <ArrowDown size={13} strokeWidth={2.2} />
+              <span>Bajar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedItemIds(new Set())}
+              style={{
+                background: 'rgba(239,68,68,0.22)',
+                border: '1px solid rgba(239,68,68,0.4)',
+                color: '#fca5a5',
+                padding: '5px 11px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              <X size={13} strokeWidth={2.2} />
+              <span>Limpiar</span>
+            </button>
+          </div>
+        )}
+
       </div>
-      {/* fin qp-root */}
+      )}
 
 
 
       {/* ── Modal: Nueva / Editar empresa ── */}
       {showCreateCompanyModal && (
+        isMobileView ? (
+          <div className="quote-mobile-modal-overlay">
+            <header className="quote-mobile-modal-header">
+              <div className="quote-mobile-modal-title-block">
+                <span className="quote-mobile-brand-tag">Catálogo de Empresas</span>
+                <h2 className="quote-mobile-modal-title">
+                  <Building2 size={18} strokeWidth={2.2} style={{ color: '#0f4c81' }} />
+                  <span>{companyDraftId ? 'Editar Empresa' : 'Nueva Empresa'}</span>
+                </h2>
+                <span className="quote-mobile-modal-subtitle">
+                  {companyDraftId
+                    ? `Editando: ${companies.find(c => String(c.id) === String(companyDraftId))?.name || ''}`
+                    : 'Registra una nueva empresa para usarla en cotizaciones'}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="qp-close-btn"
+                onClick={resetCreateCompanyModal}
+                style={{ width: 36, height: 36, minHeight: 36, maxHeight: 36, minWidth: 36, maxWidth: 36, padding: 0, borderRadius: 8, background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={18} strokeWidth={2.4} />
+              </button>
+            </header>
+
+            <div className="quote-mobile-modal-body">
+              {/* Tarjeta 1: Datos Generales */}
+              <div className="quote-mobile-card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Datos de la Organización</span>
+                  <label className="quote-mobile-switch">
+                    <span className={`quote-mobile-switch-label ${companyDraftActive ? 'is-active' : ''}`}>
+                      {companyDraftActive ? 'Empresa activa' : 'Inactiva'}
+                    </span>
+                    <div className={`quote-mobile-switch-track ${companyDraftActive ? 'is-active' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={companyDraftActive}
+                        onChange={e => setCompanyDraftActive(e.target.checked)}
+                      />
+                      <div className="quote-mobile-switch-thumb" />
+                    </div>
+                  </label>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Nombre de la Organización *</span>
+                  <input
+                    type="text"
+                    className="quote-mobile-search-input"
+                    style={{ height: 42, minHeight: 42 }}
+                    value={companyDraft.name}
+                    onChange={e => setCompanyDraft(p => ({ ...p, name: e.target.value }))}
+                    placeholder="Ej: Eventos del Lago, S.A."
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Encargado Principal</span>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 42, minHeight: 42 }}
+                      value={companyDraft.owner}
+                      onChange={e => setCompanyDraft(p => ({ ...p, owner: e.target.value }))}
+                      placeholder="Nombre completo"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Tipo de Evento</span>
+                    <select
+                      className="quote-mobile-pill-select"
+                      style={{ width: '100%', height: 42, minHeight: 42, fontSize: 12.5 }}
+                      value={companyDraft.eventType}
+                      onChange={e => setCompanyDraft(p => ({ ...p, eventType: e.target.value }))}
+                    >
+                      <option value="Social">Social</option>
+                      <option value="Corporativo">Corporativo</option>
+                      <option value="Individual">Individual</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tarjeta 2: Facturación & Contacto */}
+              <div className="quote-mobile-card">
+                <div className="quote-mobile-card-header">
+                  <div>
+                    <div className="quote-mobile-card-eyebrow">Datos Fiscales</div>
+                    <h3 className="quote-mobile-card-title">Facturación y Contacto</h3>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Facturar A (Razón Social)</span>
+                  <input
+                    type="text"
+                    className="quote-mobile-search-input"
+                    style={{ height: 40, minHeight: 40 }}
+                    value={companyDraft.businessName}
+                    onChange={e => setCompanyDraft(p => ({ ...p, businessName: e.target.value }))}
+                    placeholder="Nombre para facturación"
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>NIT</span>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={companyDraft.nit}
+                      onChange={e => setCompanyDraft(p => ({ ...p, nit: e.target.value }))}
+                      placeholder="NIT"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Teléfono</span>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={companyDraft.phone}
+                      onChange={e => setCompanyDraft(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }))}
+                      placeholder="Teléfono"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Correo</span>
+                    <input
+                      type="email"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={companyDraft.email}
+                      onChange={e => setCompanyDraft(p => ({ ...p, email: e.target.value }))}
+                      placeholder="correo@empresa.com"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Dirección</span>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={companyDraft.address}
+                      onChange={e => setCompanyDraft(p => ({ ...p, address: e.target.value }))}
+                      placeholder="Dirección sede"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Observación</span>
+                  <textarea
+                    className="quote-mobile-search-input"
+                    style={{ height: 50, minHeight: 50, padding: '8px 12px' }}
+                    value={companyDraft.notes}
+                    onChange={e => setCompanyDraft(p => ({ ...p, notes: e.target.value }))}
+                    placeholder="Notas sobre la empresa..."
+                  />
+                </div>
+              </div>
+
+              {/* Tarjeta 3: Encargados Adicionales */}
+              <div className="quote-mobile-card">
+                <div className="quote-mobile-card-header">
+                  <div>
+                    <div className="quote-mobile-card-eyebrow">Contactos</div>
+                    <h3 className="quote-mobile-card-title">Encargados de la Empresa</h3>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <input
+                    type="text"
+                    className="quote-mobile-search-input"
+                    style={{ height: 38, minHeight: 38 }}
+                    value={managerDraft.name}
+                    onChange={e => setManagerDraft(p => ({ ...p, name: e.target.value }))}
+                    placeholder="Nombre del nuevo encargado *"
+                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 38, minHeight: 38 }}
+                      value={managerDraft.phone}
+                      onChange={e => setManagerDraft(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }))}
+                      placeholder="Teléfono"
+                    />
+                    <input
+                      type="email"
+                      className="quote-mobile-search-input"
+                      style={{ height: 38, minHeight: 38 }}
+                      value={managerDraft.email}
+                      onChange={e => setManagerDraft(p => ({ ...p, email: e.target.value }))}
+                      placeholder="Correo"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="quote-mobile-header-pill-btn"
+                    style={{ height: 36, minHeight: 36, background: '#e8f1fb', color: '#0f4c81', borderColor: '#c7d8ea', justifyContent: 'center' }}
+                    onClick={handleAddOrUpdateManagerDraft}
+                  >
+                    {editingManagerId ? '✓ Actualizar Encargado' : '+ Agregar Encargado'}
+                  </button>
+                </div>
+
+                {/* Lista de Encargados Registrados */}
+                {companyManagersDraft.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                    {companyManagersDraft.map(manager => (
+                      <div key={manager.id || manager.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                        <div>
+                          <div style={{ fontSize: 12.5, fontWeight: 800, color: '#0f172a' }}>{manager.name}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>{manager.phone || '-'} • {manager.email || '-'}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            type="button"
+                            className="quote-mobile-header-pill-btn"
+                            style={{ height: 28, minHeight: 28, padding: '0 8px' }}
+                            onClick={() => handleEditManagerDraft(manager)}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="quote-mobile-header-pill-btn"
+                            style={{ height: 28, minHeight: 28, padding: '0 8px', color: '#dc2626', borderColor: '#fecaca', background: '#fff1f2' }}
+                            onClick={() => handleRemoveManagerDraft(manager.id)}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <footer className="quote-mobile-modal-footer">
+              <button
+                type="button"
+                className="quote-mobile-sub-pill-btn"
+                style={{ flex: 1 }}
+                onClick={resetCreateCompanyModal}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="quote-mobile-btn-save-cta"
+                style={{ flex: 1 }}
+                disabled={creatingCompany || !companyDraft.name.trim()}
+                onClick={handleCreateCompany}
+              >
+                <Save size={16} strokeWidth={2.4} />
+                <span>{creatingCompany ? 'Guardando...' : 'Guardar Empresa'}</span>
+              </button>
+            </footer>
+          </div>
+        ) : (
         <div id="companyCreateBackdrop" onClick={e => e.preventDefault()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(1180px, 98vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#ffffff', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -5876,7 +7575,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             </div>
           </div>
         </div>
+        )
       )}
+
 
       {/* ── Modal Rápido: + Agregar Encargado a Empresa Existente ── */}
       {showQuickManagerModal && selectedQuoteCompany && (
@@ -5954,6 +7655,264 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       {/* Modal: Crear servicio */}
       {showCreateServiceModal && (
+        isMobileView ? (
+          <div className="quote-mobile-modal-overlay">
+            <header className="quote-mobile-modal-header">
+              <div className="quote-mobile-modal-title-block">
+                <span className="quote-mobile-brand-tag">Catálogo de Servicios</span>
+                <h2 className="quote-mobile-modal-title">
+                  <Plus size={18} strokeWidth={2.2} style={{ color: '#0f4c81' }} />
+                  <span>{serviceDraft.id ? 'Editar Servicio' : 'Nuevo Servicio'}</span>
+                </h2>
+                <span className="quote-mobile-modal-subtitle">
+                  {serviceDraft.id ? `Editando: ${serviceDraft.name}` : 'Se agregará al catálogo de cotización'}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="qp-close-btn"
+                onClick={() => { setShowCreateServiceModal(false); resetServiceDraft(); }}
+                style={{ width: 36, height: 36, minHeight: 36, maxHeight: 36, minWidth: 36, maxWidth: 36, padding: 0, borderRadius: 8, background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={18} strokeWidth={2.4} />
+              </button>
+            </header>
+
+            {/* Pestañas Segmentadas: Formulario vs Servicios Registrados */}
+            <div style={{ padding: '10px 14px 0 14px', background: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+              <div className="quote-mobile-subtabs">
+                <button
+                  type="button"
+                  className={`quote-mobile-subtab-btn ${serviceModalTab === 'nuevo' ? 'is-active' : ''}`}
+                  onClick={() => setServiceModalTab('nuevo')}
+                >
+                  <Plus size={13} strokeWidth={2.4} />
+                  <span>{serviceDraft.id ? 'Editar Servicio' : 'Nuevo Servicio'}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`quote-mobile-subtab-btn ${serviceModalTab === 'registrados' ? 'is-active' : ''}`}
+                  onClick={() => setServiceModalTab('registrados')}
+                >
+                  <ShoppingCart size={13} strokeWidth={2.2} />
+                  <span>Registrados ({catalogServices.length})</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="quote-mobile-modal-body">
+              {serviceModalTab === 'nuevo' ? (
+                <div className="quote-mobile-card">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Parámetros del Servicio</span>
+                    <label className="quote-mobile-switch">
+                      <span className={`quote-mobile-switch-label ${serviceDraft.active ? 'is-active' : ''}`}>
+                        {serviceDraft.active ? 'Activo' : 'Inactivo'}
+                      </span>
+                      <div className={`quote-mobile-switch-track ${serviceDraft.active ? 'is-active' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={serviceDraft.active}
+                          onChange={e => setServiceDraft(p => ({ ...p, active: e.target.checked }))}
+                        />
+                        <div className="quote-mobile-switch-thumb" />
+                      </div>
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Nombre del Servicio *</span>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 42, minHeight: 42 }}
+                      value={serviceDraft.name}
+                      onChange={e => setServiceDraft(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Ej: Banquete 3 Tiempos Gourmet"
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Precio Base ({quote.currency === 'USD' ? '$' : 'Q'}) *</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="quote-mobile-search-input"
+                        style={{ height: 42, minHeight: 42 }}
+                        value={serviceDraft.price}
+                        onChange={e => setServiceDraft(p => ({ ...p, price: e.target.value }))}
+                        placeholder="Ej: 150.00"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Modo Cantidad</span>
+                      <select
+                        className="quote-mobile-pill-select"
+                        style={{ width: '100%', height: 42, minHeight: 42, fontSize: 12.5 }}
+                        value={serviceDraft.quantityMode}
+                        onChange={e => setServiceDraft(p => ({ ...p, quantityMode: e.target.value }))}
+                      >
+                        <option value="MANUAL">MANUAL (Editable)</option>
+                        <option value="PAX">PAX (Por comensales)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Categoría</span>
+                    <input
+                      list="quoteServiceCategories"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={serviceDraft.category}
+                      onChange={e => setServiceDraft(p => ({ ...p, category: e.target.value, subcategory: '' }))}
+                      placeholder="Ej: Alimentos & Bebidas"
+                    />
+                    <datalist id="quoteServiceCategories">
+                      {serviceCategories.map(category => <option key={category} value={category} />)}
+                    </datalist>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Subcategoría</span>
+                    <input
+                      list="quoteServiceSubcategories"
+                      className="quote-mobile-search-input"
+                      style={{ height: 40, minHeight: 40 }}
+                      value={serviceDraft.subcategory}
+                      onChange={e => setServiceDraft(p => ({ ...p, subcategory: e.target.value }))}
+                      placeholder="Seleccione o escriba subcategoría"
+                    />
+                    <datalist id="quoteServiceSubcategories">
+                      {serviceSubcategories.map(subcategory => <option key={subcategory} value={subcategory} />)}
+                    </datalist>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Descripción</span>
+                    <textarea
+                      className="quote-mobile-search-input"
+                      style={{ height: 60, minHeight: 60, padding: '8px 12px' }}
+                      value={serviceDraft.description}
+                      onChange={e => setServiceDraft(p => ({ ...p, description: e.target.value }))}
+                      placeholder="Detalle o especificación técnica del servicio..."
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Buscador de Servicios Registrados */}
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      className="quote-mobile-search-input"
+                      style={{ height: 42, minHeight: 42, paddingLeft: 12 }}
+                      value={registeredServiceSearch}
+                      onChange={e => setRegisteredServiceSearch(e.target.value)}
+                      placeholder="Buscar entre servicios registrados..."
+                    />
+                  </div>
+
+                  {/* Listado de Tarjetas */}
+                  {catalogServices
+                    .filter(s => {
+                      if (!registeredServiceSearch.trim()) return true;
+                      const q = registeredServiceSearch.toLowerCase();
+                      return (
+                        s.name?.toLowerCase().includes(q) ||
+                        s.category?.toLowerCase().includes(q) ||
+                        s.subcategory?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map(service => (
+                      <div key={service.id} className="quote-mobile-service-item-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{service.name}</span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
+                            background: service.active === false ? '#fee2e2' : '#dcfce7',
+                            color: service.active === false ? '#991b1b' : '#166534'
+                          }}>
+                            {service.active === false ? 'Inactivo' : 'Activo'}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          {service.category || 'Sin categoría'} {service.subcategory ? `• ${service.subcategory}` : ''}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                          <span style={{ fontSize: 14, fontWeight: 900, color: '#0f4c81' }}>
+                            {moneyGT(service.price, quote.currency)}
+                          </span>
+                          <button
+                            type="button"
+                            className="quote-mobile-header-pill-btn"
+                            style={{ height: 30, minHeight: 30, padding: '0 10px', background: '#e8f1fb', color: '#0f4c81', borderColor: '#c7d8ea' }}
+                            onClick={() => {
+                              handleEditServiceDraft(service);
+                              setServiceModalTab('nuevo');
+                            }}
+                          >
+                            <Pencil size={11} strokeWidth={2} />
+                            <span>Editar</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            <footer className="quote-mobile-modal-footer">
+              {serviceModalTab === 'nuevo' ? (
+                <>
+                  {serviceDraft.id && (
+                    <button
+                      type="button"
+                      className="quote-mobile-sub-pill-btn"
+                      style={{ flex: 1, borderColor: serviceDraft.active ? '#fecaca' : '#bbf7d0', color: serviceDraft.active ? '#dc2626' : '#16a34a' }}
+                      onClick={handleToggleServiceActive}
+                    >
+                      {serviceDraft.active ? 'Inhabilitar' : 'Reactivar'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="quote-mobile-sub-pill-btn"
+                    style={{ flex: 1 }}
+                    onClick={() => { setShowCreateServiceModal(false); resetServiceDraft(); }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="quote-mobile-btn-save-cta"
+                    style={{ flex: 1 }}
+                    onClick={handleSaveServiceDraft}
+                  >
+                    <Save size={16} strokeWidth={2.4} />
+                    <span>Guardar</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="quote-mobile-btn-save-cta"
+                  onClick={() => {
+                    resetServiceDraft();
+                    setServiceModalTab('nuevo');
+                  }}
+                >
+                  <Plus size={16} strokeWidth={2.4} />
+                  <span>+ Crear Nuevo Servicio</span>
+                </button>
+              )}
+            </footer>
+          </div>
+        ) : (
         <div id="serviceCreateBackdrop" onClick={e => e.preventDefault()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#f6f9fd', borderRadius: 16, border: '1px solid #bcd0e8', boxShadow: '0 24px 60px rgba(15,23,42,.28)', width: 'min(900px, 96vw)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #cbdced', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -5980,7 +7939,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             <div style={{ padding: '14px 18px', borderTop: '1px solid #cbdced', background: '#f8fbff', display: 'flex', justifyContent: 'space-between', gap: 8 }}><button className="qp-btn" type="button" disabled={!serviceDraft.id} onClick={handleToggleServiceActive}>{serviceDraft.active ? 'Inhabilitar' : 'Reactivar'}</button><div style={{ display: 'flex', gap: 8 }}><button className="qp-btn" type="button" onClick={() => { setShowCreateServiceModal(false); resetServiceDraft(); }}>Cancelar</button><button className="qp-btn-primary" type="button" onClick={handleSaveServiceDraft}>Guardar servicio</button></div></div>
           </div>
         </div>
+        )
       )}
+
 
       {/* ── Modal: Anticipos ── */}
       {showAdvancesModal && createPortal(

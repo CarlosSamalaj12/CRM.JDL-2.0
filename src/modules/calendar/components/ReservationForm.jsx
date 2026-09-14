@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { STATUS_META_LIST, isAutoStatus } from '../constants';
+import { STATUS_META_LIST, STATUS_META, isAutoStatus } from '../constants';
 import authService from '../../../services/authService';
 import historyService from '../../../services/historyService';
 import eventService from '../../../services/eventService';
@@ -17,6 +17,7 @@ import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
 import LoadingSpinner from '../../../components/LoadingSpinner';
+import './reservationMobile.css';
 
 const pastEventEditAuthorizedKeys = new Set();
 
@@ -493,6 +494,58 @@ export default function ReservationForm() {
   const [salonCapacities, setSalonCapacities] = useState({});
   const [pastEventEditGraceDays, setPastEventEditGraceDays] = useState(null);
   const [pastEventCheckDone, setPastEventCheckDone] = useState(false);
+
+  // Responsividad Móvil
+  const [isMobileView, setIsMobileView] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
+  const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobileView(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleDatePreset = (preset) => {
+    if (!formData.date) return;
+    const start = new Date(formData.date + 'T00:00:00');
+    if (isNaN(start.getTime())) return;
+
+    if (preset === 'same_day') {
+      setFormData(prev => ({ ...prev, endDate: prev.date }));
+      setSlots(prev => prev.map(s => ({ ...s, dateStart: formData.date, dateEnd: formData.date })));
+    } else if (preset === 'weekend') {
+      const end = new Date(start);
+      end.setDate(end.getDate() + 2);
+      const endStr = end.toISOString().slice(0, 10);
+      setFormData(prev => ({ ...prev, endDate: endStr }));
+      setSlots(prev => prev.map(s => ({ ...s, dateStart: formData.date, dateEnd: endStr })));
+    } else if (preset === 'teardown') {
+      const curEnd = formData.endDate ? new Date(formData.endDate + 'T00:00:00') : new Date(start);
+      curEnd.setDate(curEnd.getDate() + 1);
+      const endStr = curEnd.toISOString().slice(0, 10);
+      setFormData(prev => ({ ...prev, endDate: endStr }));
+    }
+  };
+
+  const getDurationHours = (start, end) => {
+    if (!start || !end) return null;
+    const [sh, sm] = String(start).split(':').map(Number);
+    const [eh, em] = String(end).split(':').map(Number);
+    if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return null;
+    let diffMin = (eh * 60 + em) - (sh * 60 + sm);
+    if (diffMin < 0) diffMin += 24 * 60;
+    const hours = Math.round((diffMin / 60) * 10) / 10;
+    return hours;
+  };
+
+  const getShiftLabel = (startTime) => {
+    if (!startTime) return 'Turno General';
+    const [h] = String(startTime).split(':').map(Number);
+    if (isNaN(h)) return 'Turno General';
+    if (h < 12) return 'Turno Matutino';
+    if (h < 17) return 'Turno Vespertino';
+    return 'Turno Vespertino / Nocturno';
+  };
 
   // Datos de la posible venta a convertir (solo para reservas nuevas)
   const [pvLead, setPvLead] = useState(null);
@@ -1416,6 +1469,677 @@ export default function ReservationForm() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
       {saving && <LoadingSpinner mensaje={!id && !createdEventId ? "Creando reserva..." : "Guardando cambios..."} />}
+
+      {isMobileView ? (
+        <div className="res-mobile-root">
+          {/* 1. Header */}
+          <header className="res-mobile-header">
+            <div className="res-mobile-header-left">
+              <button
+                type="button"
+                className="res-mobile-btn-close"
+                onClick={handleBack}
+                aria-label="Cerrar"
+                title="Cerrar"
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+              <div className="res-mobile-title-block">
+                <span className="res-mobile-brand-tag">
+                  {slots[0]?.salon || 'TRES VOLCANES'}
+                </span>
+                <h1 className="res-mobile-main-title">
+                  {id ? 'Editar Reserva' : 'Nueva Reserva'}
+                </h1>
+              </div>
+            </div>
+
+            <div className="res-mobile-header-actions">
+              {id && (
+                <button
+                  type="button"
+                  className="res-mobile-header-icon-btn"
+                  onClick={handleOpenHistory}
+                  title="Historial de cambios"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </button>
+              )}
+              {id && (
+                <button
+                  type="button"
+                  className="res-mobile-header-icon-btn"
+                  onClick={handleOpenAppointments}
+                  title="Agendar Cita / Visita Técnica"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* 2. Scrollable Body */}
+          <div className="res-mobile-scroll-body">
+            {/* Validation errors alert */}
+            {validationErrors.length > 0 && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '12px', fontSize: '12px' }}>
+                <div style={{ color: '#dc2626', fontWeight: '800', marginBottom: '4px' }}>⚠️ Faltan datos por completar:</div>
+                <ul style={{ margin: 0, paddingLeft: '18px', color: '#991b1b', lineHeight: 1.4 }}>
+                  {validationErrors.slice(0, 4).map((err, i) => <li key={i}>{err}</li>)}
+                  {validationErrors.length > 4 && <li>...y {validationErrors.length - 4} más</li>}
+                </ul>
+              </div>
+            )}
+
+            {/* A. Hero Event Card */}
+            <div className="res-mobile-hero-card">
+              <div className="res-mobile-hero-top-row">
+                <div className="res-mobile-hero-badges">
+                  <span
+                    className="res-mobile-status-pill"
+                    style={{
+                      color: STATUS_META[formData.status]?.color || '#0f4c81',
+                      background: `${STATUS_META[formData.status]?.color || '#0f4c81'}14`,
+                      borderColor: `${STATUS_META[formData.status]?.color || '#0f4c81'}30`
+                    }}
+                  >
+                    <span className="dot" />
+                    {formData.status}
+                  </span>
+                  <span className="res-mobile-id-pill">
+                    ID #{id ? String(id).slice(-8).toUpperCase() : 'NUEVA'}
+                  </span>
+                </div>
+                <div className="res-mobile-type-icon-badge" title="Tipo de evento">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0f4c81" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Event Title input */}
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Nombre del evento (ej. Boda Cabrera Szejner) *"
+                className="res-mobile-hero-title-input"
+              />
+
+              {/* Client Name & Phone if present */}
+              {(formData.clientName || formData.clientPhone) && (
+                <div className="res-mobile-hero-meta-row" style={{ color: '#475569', fontSize: 12 }}>
+                  {formData.clientName && (
+                    <span className="res-mobile-hero-meta-item">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      {formData.clientName}
+                    </span>
+                  )}
+                  {formData.clientPhone && (
+                    <span className="res-mobile-hero-meta-item">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                      {formData.clientPhone}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Metadata row */}
+              <div className="res-mobile-hero-meta-row">
+                <span className="res-mobile-hero-meta-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  {slots[0]?.salon || 'Sin salón asignado'}
+                </span>
+                <span>•</span>
+                <span className="res-mobile-hero-meta-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  {formData.date || 'Sin fecha'}
+                </span>
+                <span>•</span>
+                <span className="res-mobile-hero-meta-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  {slots[0]?.startTime || formData.startTime || '10:00'} - {slots[0]?.endTime || formData.endTime || '12:00'} hrs
+                </span>
+              </div>
+
+              {/* Seller / Encargado chip bar */}
+              <div className="res-mobile-hero-seller-bar">
+                <div className="res-mobile-seller-chip">
+                  <span className="res-mobile-seller-label-wrap">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Vendedor:
+                  </span>
+                  <select
+                    name="userId"
+                    value={formData.userId}
+                    onChange={handleChange}
+                    className="res-mobile-seller-select"
+                  >
+                    <option value="">-- Sin Encargado --</option>
+                    {users?.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* B. Stepper del Proceso */}
+            <div className="res-mobile-stepper-card">
+              <div className="res-mobile-stepper-header">
+                <span className="res-mobile-stepper-label">Etapa del Proceso</span>
+                <span className="res-mobile-stepper-count">
+                  Paso {currentIdx + 1} de {PIPELINE_STEPS.length}
+                </span>
+              </div>
+
+              <div className="res-mobile-stepper-track">
+                <div className="res-mobile-stepper-line-bg" />
+                <div
+                  className="res-mobile-stepper-line-fill"
+                  style={{
+                    width: `${currentIdx === 0 ? 0 : (currentIdx / (PIPELINE_STEPS.length - 1)) * 80}%`
+                  }}
+                />
+
+                {PIPELINE_STEPS.map((step, idx) => {
+                  const isCompleted = idx < currentIdx;
+                  const isActive = idx === currentIdx;
+                  return (
+                    <div
+                      key={step.key}
+                      onClick={() => handleStepClick(step.key)}
+                      className={`res-mobile-stepper-step ${isCompleted ? 'is-completed' : ''} ${isActive ? 'is-active' : ''}`}
+                    >
+                      <div className="res-mobile-step-node">
+                        {isCompleted ? '✓' : idx + 1}
+                      </div>
+                      <span className="res-mobile-step-text">
+                        {step.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* C. Salones y Horarios */}
+            <div className="res-mobile-section-header">
+              <span className="res-mobile-section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f4c81" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+                  <line x1="9" y1="22" x2="9" y2="2"/>
+                  <line x1="15" y1="22" x2="15" y2="2"/>
+                  <line x1="4" y1="12" x2="20" y2="12"/>
+                </svg>
+                Salones y Horarios
+              </span>
+              <button
+                type="button"
+                className="res-mobile-btn-add-salon"
+                onClick={addSlotRow}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agregar Salón
+              </button>
+            </div>
+
+            {slotConflicts.length > 0 && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '10px', fontSize: '11.5px' }}>
+                <div style={{ fontWeight: '800', color: '#dc2626', marginBottom: '4px' }}>⚠️ Conflictos de salón detectados:</div>
+                {slotConflicts.map((r, i) => (
+                  <div key={i} style={{ color: '#991b1b', marginBottom: '2px' }}>
+                    Salón {r.index + 1}: {r.message || r.hint}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Tarjetas de Salón */}
+            {slots.map((slot, index) => {
+              const isPrincipal = slot.isPrincipal === true;
+              const durationHours = getDurationHours(slot.startTime, slot.endTime);
+              const shiftLabel = getShiftLabel(slot.startTime);
+
+              return (
+                <div
+                  key={index}
+                  className={`res-mobile-salon-card ${isPrincipal ? 'is-principal' : ''}`}
+                >
+                  <div className="res-mobile-salon-card-header">
+                    <div className="res-mobile-salon-card-left">
+                      <button
+                        type="button"
+                        onClick={() => setPrincipalSlot(index)}
+                        className={`res-mobile-btn-star ${isPrincipal ? 'is-active' : ''}`}
+                        title={isPrincipal ? 'Salón principal asignado' : 'Marcar como salón principal'}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill={isPrincipal ? '#d97706' : 'none'} stroke={isPrincipal ? '#d97706' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </button>
+                      <select
+                        value={slot.salon}
+                        onChange={e => handleSlotChange(index, 'salon', e.target.value)}
+                        className="res-mobile-salon-select"
+                      >
+                        <option value="">Seleccionar salón</option>
+                        {salones?.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                    {slots.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSlotRow(index)}
+                        className="res-mobile-btn-delete-slot"
+                        title="Eliminar salón"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Cuadrícula 2x2 táctil */}
+                  <div className="res-mobile-salon-grid-2x2">
+                    <div className="res-mobile-field-cell">
+                      <span className="res-mobile-field-cell-label">Invitados (PAX)</span>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          disabled={isMaintenanceStatus(slot.status || formData.status)}
+                          value={isMaintenanceStatus(slot.status || formData.status) ? '' : slot.pax}
+                          onChange={e => handleSlotChange(index, 'pax', e.target.value)}
+                          placeholder="150"
+                          className="res-mobile-field-cell-input"
+                        />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>pers.</span>
+                      </div>
+                    </div>
+
+                    <div className="res-mobile-field-cell">
+                      <span className="res-mobile-field-cell-label">Horario Bloqueado</span>
+                      <div className="res-mobile-time-range-row">
+                        <input
+                          type="time"
+                          value={slot.startTime || '10:00'}
+                          onChange={e => handleSlotChange(index, 'startTime', e.target.value)}
+                          className="res-mobile-time-native-input"
+                          title="Hora de inicio"
+                        />
+                        <span className="res-mobile-time-sep">–</span>
+                        <input
+                          type="time"
+                          value={slot.endTime || '12:00'}
+                          onChange={e => handleSlotChange(index, 'endTime', e.target.value)}
+                          className="res-mobile-time-native-input"
+                          title="Hora de finalización"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="res-mobile-field-cell">
+                      <span className="res-mobile-field-cell-label">Desde</span>
+                      <input
+                        type="date"
+                        value={slot.dateStart}
+                        onChange={e => handleSlotChange(index, 'dateStart', e.target.value)}
+                        className="res-mobile-field-cell-input"
+                      />
+                    </div>
+
+                    <div className="res-mobile-field-cell">
+                      <span className="res-mobile-field-cell-label">Hasta</span>
+                      <input
+                        type="date"
+                        value={slot.dateEnd}
+                        onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)}
+                        className="res-mobile-field-cell-input"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Footer del salón: Horas + Turno */}
+                  <div className="res-mobile-salon-footer-row">
+                    <span className="res-mobile-salon-footer-item">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0f4c81" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      {durationHours ? `${durationHours} Horas contratadas` : 'Horario asignado'}
+                    </span>
+                    <span className="res-mobile-turn-pill">{shiftLabel}</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* D. Configuración de Capacidad (PAX) */}
+            <div className="res-mobile-pax-card">
+              <div className="res-mobile-pax-top-row">
+                <div className="res-mobile-pax-count-block">
+                  <span className="res-mobile-pax-label">Configuración de Capacidad</span>
+                  <div className="res-mobile-pax-number">
+                    {isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)}
+                    <span>PAX Total Acumulado</span>
+                  </div>
+                </div>
+                <div className="res-mobile-pax-icon-wrap">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Conmutador segmentado */}
+              <div className="res-mobile-pax-toggle-bar">
+                <button
+                  type="button"
+                  className={`res-mobile-pax-toggle-btn ${formData.paxCompartido === true ? 'is-active-shared' : ''}`}
+                  onClick={() => {
+                    const defaultPax = slots.find(s => Number(s.pax) > 0)?.pax || formData.pax || '';
+                    setFormData(prev => ({ ...prev, paxCompartido: true, pax: defaultPax }));
+                    setSlots(prev => prev.map(s => ({ ...s, pax: defaultPax })));
+                  }}
+                >
+                  {formData.paxCompartido === true && '✓ '}
+                  PAX Compartido
+                </button>
+                <button
+                  type="button"
+                  className={`res-mobile-pax-toggle-btn ${formData.paxCompartido === false ? 'is-active-individual' : ''}`}
+                  onClick={() => {
+                    const total = slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+                    setFormData(prev => ({ ...prev, paxCompartido: false, pax: total > 0 ? total : '' }));
+                  }}
+                >
+                  {formData.paxCompartido === false && '✓ '}
+                  No Compartido
+                </button>
+              </div>
+
+              {/* Callout explicativo */}
+              <div className="res-mobile-pax-info-callout">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <div>
+                  <strong>{formData.paxCompartido === false ? 'Modo No Compartido' : 'Modo Compartido'}: </strong>
+                  {formData.paxCompartido === false
+                    ? 'Cada salón asignado cuenta con su propio cupo de comensales y se suman para el total del evento.'
+                    : `El cupo de ${formData.pax || 'comensales'} aplica a todos los salones asignados al evento y unifica la cotización del banquete.`}
+                </div>
+              </div>
+            </div>
+
+            {/* E. Vigencia y Límites de la Reserva */}
+            <div className="res-mobile-vigencia-card">
+              <span className="res-mobile-section-title" style={{ fontSize: 13, marginBottom: 2 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f4c81" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                  <path d="m9 16 2 2 4-4"/>
+                </svg>
+                Vigencia y Límites de la Reserva
+              </span>
+
+              <div className="res-mobile-date-input-wrap">
+                <span className="res-mobile-date-input-label">Fecha Inicial del Evento *</span>
+                <div className="res-mobile-date-input-box">
+                  <input
+                    type="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                    className="res-mobile-date-native-input"
+                  />
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, pointerEvents: 'none' }}>
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div className="res-mobile-date-input-wrap">
+                <span className="res-mobile-date-input-label">Fecha Final del Evento *</span>
+                <div className="res-mobile-date-input-box">
+                  <input
+                    type="date"
+                    name="endDate"
+                    value={formData.endDate}
+                    onChange={handleChange}
+                    className="res-mobile-date-native-input"
+                  />
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, pointerEvents: 'none' }}>
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* F. Notas y Requerimientos */}
+            <div className="res-mobile-notes-card">
+              <div className="res-mobile-notes-header">
+                <span className="res-mobile-section-title" style={{ fontSize: 13 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f4c81" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                  Notas y Requerimientos
+                </span>
+                <span className="res-mobile-private-tag">Privado interno</span>
+              </div>
+              <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Requieren montaje, requerimientos especiales, pruebas de degustación..."
+                className="res-mobile-notes-textarea"
+              />
+              <div className="res-mobile-notes-footer">
+                <span className="res-mobile-notes-auto-save">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                    <polyline points="9 15 12 18 15 15"/>
+                  </svg>
+                  Autoguardado interno
+                </span>
+              </div>
+            </div>
+
+            {/* G. Tarjetas de Acceso Rápido (Citas y Cotización) */}
+            {id && (
+              <div className="res-mobile-action-cards-grid">
+                <div
+                  className="res-mobile-action-card is-appointment"
+                  onClick={handleOpenAppointments}
+                >
+                  <div className="res-mobile-action-card-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </div>
+                  <div className="res-mobile-action-card-info">
+                    <span className="res-mobile-action-card-title">Agendar Cita</span>
+                    <span className="res-mobile-action-card-subtitle">Visita técnica</span>
+                  </div>
+                </div>
+
+                <div
+                  className="res-mobile-action-card is-quote"
+                  onClick={handleOpenQuote}
+                >
+                  <div className="res-mobile-action-card-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
+                  </div>
+                  <div className="res-mobile-action-card-info">
+                    <span className="res-mobile-action-card-title">Cotización</span>
+                    <span className="res-mobile-action-card-subtitle">Ver / PDF</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Barra Inferior Fija de Acciones */}
+          <div className="res-mobile-bottom-bar">
+            {/* Popover Más Opciones */}
+            {showMobileMoreMenu && (
+              <div className="res-mobile-more-popover" onClick={e => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileMoreMenu(false);
+                    if (formData.status === 'Mantenimiento') handleReleaseMaintenance();
+                    else handleMaintenance();
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  {formData.status === 'Mantenimiento' ? 'Liberar Mantenimiento' : 'Poner en Mantenimiento'}
+                </button>
+                {id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMobileMoreMenu(false);
+                      handleOpenQuote();
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Abrir Cotización
+                  </button>
+                )}
+                {id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMobileMoreMenu(false);
+                      handleOpenHistory();
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Ver Historial
+                  </button>
+                )}
+                {id && (
+                  <button
+                    type="button"
+                    className="is-delete"
+                    onClick={() => {
+                      setShowMobileMoreMenu(false);
+                      handleCancelEventClick();
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    Cancelar / Eliminar Reserva
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileMoreMenu(false);
+                    handleBack();
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  Descartar y Volver
+                </button>
+              </div>
+            )}
+
+            <div className="res-mobile-bottom-main-row">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="res-mobile-btn-save-cta"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {saving ? 'Guardando cambios...' : 'Guardar Cambios'}
+              </button>
+
+              <button
+                type="button"
+                className="res-mobile-btn-more-dots"
+                onClick={() => setShowMobileMoreMenu(prev => !prev)}
+                title="Más opciones"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="5" r="2.2" />
+                  <circle cx="12" cy="12" r="2.2" />
+                  <circle cx="12" cy="19" r="2.2" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="res-mobile-bottom-sub-row">
+              <button
+                type="button"
+                className="res-mobile-sub-action-btn is-maintenance"
+                onClick={formData.status === 'Mantenimiento' ? handleReleaseMaintenance : handleMaintenance}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                {formData.status === 'Mantenimiento' ? 'Liberar' : 'Mantenimiento'}
+              </button>
+              {id && (
+                <button
+                  type="button"
+                  className="res-mobile-sub-action-btn is-quote"
+                  onClick={handleOpenQuote}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  Cotización
+                </button>
+              )}
+              <button
+                type="button"
+                className="res-mobile-sub-action-btn is-danger"
+                onClick={handleBack}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                Descartar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* Header bar with title and Cerrar button */}
       <div style={{
         display: 'flex',
@@ -2178,6 +2902,9 @@ export default function ReservationForm() {
           }
         }
       `}</style>
+      </>
+      )}
+
 
       {showAppointmentModal && id && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
