@@ -5,6 +5,7 @@ import { toast, modernConfirm } from '../../utils/toast';
 import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
 import { isEventSeriesInPast } from '../../utils/eventSeriesInPast';
 import authService from '../../services/authService';
+import api from '../../services/api';
 
 const XIcon = () => (
   <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -797,6 +798,13 @@ export default function SettingsChecklist() {
       setEvtData(eventFound || null);
 
       let raw = checklists[id] || checklists[String(id)] || eventFound?.checklist;
+      try {
+        const atomicRes = await api.get(`/api/events/${encodeURIComponent(id)}/checklist`);
+        if (atomicRes?.checklist) {
+          raw = atomicRes.checklist;
+        }
+      } catch (_) {}
+
       // Migrate old format (single checklist with mixed items) to new format (operativa/evaluacion)
       if (raw && !raw[TAB_OPERATIVA] && !raw[TAB_EVALUACION] && Array.isArray(raw.items)) {
         const opItems = raw.items.filter(i => i.sectionType !== TAB_EVALUACION);
@@ -806,7 +814,12 @@ export default function SettingsChecklist() {
           [TAB_EVALUACION]: { templateId: null, notes: '', items: evItems, history: [] },
         };
         // Persist migration immediately
-        await saveCrmState({ ...state, eventChecklists: { ...checklists, [id]: raw } });
+        try {
+          await api.put(`/api/events/${encodeURIComponent(id)}/checklist`, { checklist: raw });
+          invalidateStateCache();
+        } catch (_) {
+          await saveCrmState({ ...state, eventChecklists: { ...checklists, [id]: raw } });
+        }
       }
 
       const op = raw?.[TAB_OPERATIVA] || {};
@@ -1407,10 +1420,19 @@ export default function SettingsChecklist() {
       const tabData = tab === TAB_OPERATIVA
         ? { templateIds: opTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: opTplIds[0] ? Number(opTplIds[0]) : null, notes: opNotes, items: opItems, history: [...opHistory, entry] }
         : { templateIds: evTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: evTplIds[0] ? Number(evTplIds[0]) : null, notes: evNotes, items: evItems, history: [...evHistory, entry] };
-      await saveCrmState({
-        ...state,
-        eventChecklists: { ...cur, [evtId]: { ...existing, [tab]: tabData } }
-      });
+      const fullChecklist = { ...existing, [tab]: tabData };
+      try {
+        await api.put(`/api/events/${encodeURIComponent(evtId)}/checklist`, {
+          checklist: fullChecklist
+        });
+        invalidateStateCache();
+      } catch (apiErr) {
+        console.warn('[SettingsChecklist] Falló endpoint atómico de checklist, guardando vía saveCrmState:', apiErr);
+        await saveCrmState({
+          ...state,
+          eventChecklists: { ...cur, [evtId]: fullChecklist }
+        });
+      }
       if (tab === TAB_OPERATIVA) setOpHistory(prev => [...prev, entry]);
       else setEvHistory(prev => [...prev, entry]);
       toast(`Check list ${tab === TAB_OPERATIVA ? 'Operativa' : 'Evaluación'} guardado ✓`);

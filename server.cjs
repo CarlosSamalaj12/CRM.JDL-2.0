@@ -246,6 +246,26 @@ async function ensureAppStateExtraStructure() {
         PRIMARY KEY (clave)
       )
     `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS checklists_evento (
+        id_evento VARCHAR(120) NOT NULL PRIMARY KEY,
+        checklist_json LONGTEXT NOT NULL,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_checklist_actualizado (actualizado_en)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS checklist_links_publicos (
+        id VARCHAR(120) NOT NULL PRIMARY KEY,
+        token VARCHAR(120) NOT NULL UNIQUE,
+        id_evento VARCHAR(120) NOT NULL,
+        datos_json LONGTEXT NOT NULL,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_clp_token (token),
+        INDEX idx_clp_evento (id_evento)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
   } finally {
     if (conn) conn.release();
   }
@@ -1880,8 +1900,19 @@ async function readStateFromTables() {
       }
     }
     try {
-      const parsed = JSON.parse(str(eventChecklistsRow?.valor_json) || "{}");
-      state.eventChecklists = (parsed && typeof parsed === "object") ? parsed : {};
+      const chRows = await conn.query("SELECT id_evento, checklist_json FROM checklists_evento");
+      if (chRows && chRows.length > 0) {
+        const map = {};
+        for (const r of chRows) {
+          try {
+            map[r.id_evento] = typeof r.checklist_json === 'string' ? JSON.parse(r.checklist_json) : r.checklist_json;
+          } catch (_) {}
+        }
+        state.eventChecklists = map;
+      } else {
+        const parsed = JSON.parse(str(eventChecklistsRow?.valor_json) || "{}");
+        state.eventChecklists = (parsed && typeof parsed === "object") ? parsed : {};
+      }
     } catch (_) {
       state.eventChecklists = {};
     }
@@ -2630,6 +2661,195 @@ async function ensurePerformanceIndexes() {
   }
 }
 
+async function ensureOcupacionPerformanceIndexes() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // 1. Index on idocupacion for event_notas
+    try {
+      await conn.query("CREATE INDEX IF NOT EXISTS idx_event_notas_idocupacion ON event_notas (idocupacion)");
+    } catch (_) {
+      const existing = await conn.query(
+        "SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'event_notas' AND index_name = 'idx_event_notas_idocupacion' LIMIT 1",
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query("CREATE INDEX idx_event_notas_idocupacion ON event_notas (idocupacion)");
+      }
+    }
+
+    // 2. Index on id_ocupacion for informes_eventos
+    try {
+      await conn.query("CREATE INDEX IF NOT EXISTS idx_informes_eventos_id_ocupacion ON informes_eventos (id_ocupacion)");
+    } catch (_) {
+      const existing = await conn.query(
+        "SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'informes_eventos' AND index_name = 'idx_informes_eventos_id_ocupacion' LIMIT 1",
+        [DB_NAME]
+      );
+      if (existing.length === 0) {
+        await conn.query("CREATE INDEX idx_informes_eventos_id_ocupacion ON informes_eventos (id_ocupacion)");
+      }
+    }
+
+    // 3. Eliminar columna residual Columna 19 de eventos si existe
+    try {
+      await conn.query("ALTER TABLE eventos DROP COLUMN IF EXISTS `Columna 19`");
+    } catch (_) {
+      const colCheck = await conn.query(
+        "SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = 'eventos' AND column_name = 'Columna 19' LIMIT 1",
+        [DB_NAME]
+      );
+      if (colCheck.length > 0) {
+        await conn.query("ALTER TABLE eventos DROP COLUMN `Columna 19`");
+      }
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function ensureUnifyPushSubscriptions() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    // 1. Asegurar tabla canónica push_subscriptions
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        usuario_id VARCHAR(120) NOT NULL,
+        endpoint TEXT NOT NULL,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        user_agent VARCHAR(500) DEFAULT NULL,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_push_endpoint (endpoint(255)),
+        KEY idx_push_subscriptions_usuario (usuario_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 2. Si usuarios_push_subscriptions existe, migrar datos no duplicados
+    const tblCheck = await conn.query(
+      "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = 'usuarios_push_subscriptions' LIMIT 1",
+      [DB_NAME]
+    );
+    if (tblCheck.length > 0) {
+      const rows = await conn.query("SELECT usuario_id, endpoint, p256dh, auth, creado_en FROM usuarios_push_subscriptions");
+      let count = 0;
+      for (const r of rows) {
+        if (!r.endpoint) continue;
+        await conn.query(
+          `INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth, creado_en)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             usuario_id = VALUES(usuario_id),
+             p256dh = VALUES(p256dh),
+             auth = VALUES(auth)`,
+          [String(r.usuario_id).trim(), String(r.endpoint).trim(), String(r.p256dh).trim(), String(r.auth).trim(), r.creado_en]
+        );
+        count++;
+      }
+      // 3. Eliminar la tabla duplicada una vez migrados
+      await conn.query("DROP TABLE IF EXISTS usuarios_push_subscriptions");
+      console.log(`[MIGRATION] ✅ ${count} suscripciones push migradas y usuarios_push_subscriptions eliminada`);
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function ensureChecklistsEventoTableAndMigration() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    // 1. Asegurar tabla checklists_evento
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS checklists_evento (
+        id_evento VARCHAR(120) NOT NULL PRIMARY KEY,
+        checklist_json LONGTEXT NOT NULL,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_checklist_actualizado (actualizado_en)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 2. Asegurar tabla checklist_links_publicos
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS checklist_links_publicos (
+        id VARCHAR(120) NOT NULL PRIMARY KEY,
+        token VARCHAR(120) NOT NULL UNIQUE,
+        id_evento VARCHAR(120) NOT NULL,
+        datos_json LONGTEXT NOT NULL,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_clp_token (token),
+        INDEX idx_clp_evento (id_evento)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 3. Migrar automáticamente datos desde app_state_kv si checklists_evento está vacía
+    const countRows = await conn.query("SELECT COUNT(*) AS total FROM checklists_evento");
+    const currentCount = Number(countRows[0]?.total || 0);
+
+    if (currentCount === 0) {
+      const kvRows = await conn.query("SELECT valor_json FROM app_state_kv WHERE clave = 'eventChecklists' LIMIT 1");
+      if (kvRows && kvRows.length > 0 && kvRows[0].valor_json) {
+        try {
+          const map = JSON.parse(kvRows[0].valor_json);
+          const entries = Object.entries(map || {});
+          for (const [evtId, val] of entries) {
+            if (!evtId || !val) continue;
+            const jsonStr = typeof val === 'object' ? JSON.stringify(val) : String(val);
+            await conn.query(
+              `INSERT INTO checklists_evento (id_evento, checklist_json)
+               VALUES (?, ?)
+               ON DUPLICATE KEY UPDATE checklist_json = VALUES(checklist_json)`,
+              [String(evtId).trim(), jsonStr]
+            );
+          }
+          console.log(`[MIGRATION] ✅ ${entries.length} checklists migrados automáticamente a checklists_evento`);
+          await conn.query("UPDATE app_state_kv SET valor_json = '{}' WHERE clave = 'eventChecklists'");
+        } catch (pErr) {
+          console.warn('[MIGRATION] Error migrando checklists:', pErr.message);
+        }
+      }
+    }
+
+    // 4. Migrar automáticamente links públicos si checklist_links_publicos está vacía
+    const countLinkRows = await conn.query("SELECT COUNT(*) AS total FROM checklist_links_publicos");
+    const currentLinkCount = Number(countLinkRows[0]?.total || 0);
+
+    if (currentLinkCount === 0) {
+      const linkKvRows = await conn.query("SELECT valor_json FROM app_state_kv WHERE clave = 'checklistPublicLinks' LIMIT 1");
+      if (linkKvRows && linkKvRows.length > 0 && linkKvRows[0].valor_json) {
+        try {
+          const linksMap = JSON.parse(linkKvRows[0].valor_json);
+          let linkCount = 0;
+          for (const link of Object.values(linksMap || {})) {
+            if (!link || !link.id || !link.token) continue;
+            await conn.query(
+              `INSERT INTO checklist_links_publicos (id, token, id_evento, datos_json)
+               VALUES (?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE token = VALUES(token), id_evento = VALUES(id_evento), datos_json = VALUES(datos_json)`,
+              [link.id, link.token, String(link.eventoId || '').trim(), JSON.stringify(link)]
+            );
+            linkCount++;
+          }
+          console.log(`[MIGRATION] ✅ ${linkCount} links públicos migrados automáticamente a checklist_links_publicos`);
+          await conn.query("UPDATE app_state_kv SET valor_json = '{}' WHERE clave = 'checklistPublicLinks'");
+        } catch (linkErr) {
+          console.warn('[MIGRATION] Error migrando links públicos:', linkErr.message);
+        }
+      }
+    }
+
+    // 5. Eliminar claves huérfanas legacy de app_state_kv
+    await conn.query("DELETE FROM app_state_kv WHERE clave IN ('checklistTemplateItems', 'checklistTemplateSections')");
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 /**
  * Asegura que la columna comentario_id exista en la tabla notificaciones.
  * Limpia notificaciones obsoletas de tipo "informe" que ya no se emiten.
@@ -2651,21 +2871,9 @@ async function ensurePushSubscriptionsTable() {
   let conn;
   try {
     conn = await pool.getConnection();
-    // Limpiar tabla antigua de FCM
+    // Limpiar tabla antigua de FCM y tabla duplicada obsoleta
     await conn.query("DROP TABLE IF EXISTS usuarios_fcm_tokens");
-    
-    // Crear tabla para suscripciones push nativas
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS usuarios_push_subscriptions (
-        usuario_id VARCHAR(100) NOT NULL,
-        endpoint VARCHAR(500) NOT NULL,
-        p256dh VARCHAR(255) NOT NULL,
-        auth VARCHAR(255) NOT NULL,
-        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (usuario_id, endpoint),
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
+    await conn.query("DROP TABLE IF EXISTS usuarios_push_subscriptions");
   } finally {
     if (conn) conn.release();
   }
@@ -3767,13 +3975,23 @@ function isEventUnchanged(e, oldEvent) {
         ),
       ]
     );
+    if (eventChecklists && typeof eventChecklists === 'object' && Object.keys(eventChecklists).length > 0) {
+      for (const [eventoId, data] of Object.entries(eventChecklists)) {
+        if (!eventoId || !data) continue;
+        await conn.query(
+          `INSERT INTO checklists_evento (id_evento, checklist_json)
+           VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE checklist_json = VALUES(checklist_json)`,
+          [eventoId, typeof data === 'string' ? data : JSON.stringify(data)]
+        );
+      }
+    }
     await conn.query(
       `
         INSERT INTO app_state_kv (clave, valor_json)
-        VALUES ('eventChecklists', ?)
-        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
-      `,
-      [JSON.stringify(eventChecklists)]
+        VALUES ('eventChecklists', '{}')
+        ON DUPLICATE KEY UPDATE valor_json = '{}'
+      `
     );
     await conn.query(
       `
@@ -5850,6 +6068,9 @@ const MIGRATIONS = [
   { name: 'PosiblesVentasNotificacionesRenombradas', fn: ensurePosiblesVentasNotificacionesRenombradas },
   { name: 'HistorialPosiblesVentas', fn: ensureHistorialPosiblesVentas },
   { name: 'PerformanceIndexes', fn: ensurePerformanceIndexes },
+  { name: 'ChecklistsEventoTableAndMigration', fn: ensureChecklistsEventoTableAndMigration },
+  { name: 'OcupacionPerformanceIndexes', fn: ensureOcupacionPerformanceIndexes },
+  { name: 'UnifyPushSubscriptions', fn: ensureUnifyPushSubscriptions },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -5886,6 +6107,9 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePosiblesVentasNotificacionesRenombradas',
   'ensureHistorialPosiblesVentas',
   'ensurePerformanceIndexes',
+  'ensureChecklistsEventoTableAndMigration',
+  'ensureOcupacionPerformanceIndexes',
+  'ensureUnifyPushSubscriptions',
 ]);
 
 /**
@@ -6255,26 +6479,95 @@ async function start() {
       }
     }
 
-    // Helper: leer y mergear eventChecklists preservando claves no tocadas
+    // Helper: leer y mergear eventChecklists leyendo desde checklists_evento
     async function readEventChecklists() {
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT id_evento, checklist_json FROM checklists_evento");
+        if (rows && rows.length > 0) {
+          const map = {};
+          for (const r of rows) {
+            try {
+              map[r.id_evento] = typeof r.checklist_json === 'string' ? JSON.parse(r.checklist_json) : r.checklist_json;
+            } catch (_) {}
+          }
+          return map;
+        }
+      } catch (_) {} finally {
+        if (conn) conn.release();
+      }
       const cur = await readKv('eventChecklists', {});
       return (cur && typeof cur === 'object' && !Array.isArray(cur)) ? cur : {};
     }
     async function writeEventChecklists(all) {
       await writeKv('eventChecklists', all || {});
+      if (all && typeof all === 'object') {
+        let conn;
+        try {
+          conn = await pool.getConnection();
+          for (const [evtId, val] of Object.entries(all)) {
+            if (!evtId || !val) continue;
+            await conn.query(
+              `INSERT INTO checklists_evento (id_evento, checklist_json)
+               VALUES (?, ?)
+               ON DUPLICATE KEY UPDATE checklist_json = VALUES(checklist_json)`,
+              [String(evtId).trim(), typeof val === 'object' ? JSON.stringify(val) : String(val)]
+            );
+          }
+        } catch (_) {} finally {
+          if (conn) conn.release();
+        }
+      }
     }
 
-    // Helper: leer checklistTemplates / checklistTemplateItems / sections
+    // Helper: leer y guardar links públicos en tabla dedicada checklist_links_publicos
+    async function readPublicLinksMap() {
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT id, token, id_evento, datos_json FROM checklist_links_publicos");
+        if (rows && rows.length > 0) {
+          const map = {};
+          for (const r of rows) {
+            try {
+              map[r.id] = typeof r.datos_json === 'string' ? JSON.parse(r.datos_json) : r.datos_json;
+            } catch (_) {}
+          }
+          return map;
+        }
+      } catch (_) {} finally {
+        if (conn) conn.release();
+      }
+      const all = await readKv('checklistPublicLinks', {});
+      return (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+    }
+
+    async function savePublicLinkRow(link) {
+      if (!link || !link.id) return;
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        await conn.query(
+          `INSERT INTO checklist_links_publicos (id, token, id_evento, datos_json)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE token = VALUES(token), id_evento = VALUES(id_evento), datos_json = VALUES(datos_json)`,
+          [link.id, link.token, String(link.eventoId || '').trim(), JSON.stringify(link)]
+        );
+      } catch (err) {
+        console.warn('[PUBLIC-LINK] Error guardando link en DB:', err.message);
+      } finally {
+        if (conn) conn.release();
+      }
+    }
+
+    // Helper: leer checklistTemplates
     async function readChecklistTemplates() {
-      const [tpls, items, secs] = await Promise.all([
-        readKv('checklistTemplates', []),
-        readKv('checklistTemplateItems', []),
-        readKv('checklistTemplateSections', ['General']),
-      ]);
+      const tpls = await readKv('checklistTemplates', []);
       return {
         templates: Array.isArray(tpls) ? tpls : [],
-        items: Array.isArray(items) ? items : [],
-        sections: Array.isArray(secs) ? secs : ['General'],
+        items: [],
+        sections: ['General'],
       };
     }
 
@@ -6404,9 +6697,8 @@ async function start() {
       const days = Math.max(1, Math.min(365, Number(req.body?.expiresInDays) || 30));
       const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
-      // Cargar links existentes y mergear
-      const all = await readKv('checklistPublicLinks', {});
-      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      // Cargar links existentes y guardar
+      const map = await readPublicLinksMap();
       map[id] = {
         id,
         token,
@@ -6425,7 +6717,7 @@ async function start() {
         submitterContacto: null,
         submitterNotas: null,
       };
-      await writeKv('checklistPublicLinks', map);
+      await savePublicLinkRow(map[id]);
 
       const base = publicBaseUrl(req);
       return res.status(201).json({
@@ -6443,8 +6735,7 @@ async function start() {
     app.get('/api/events/:eventoId/checklist-public-links', authenticateChecklistJWT, async (req, res) => {
       const eventoId = str(req.params.eventoId).trim();
       if (!eventoId) return res.status(400).json({ message: 'eventoId requerido' });
-      const all = await readKv('checklistPublicLinks', {});
-      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      const map = await readPublicLinksMap();
       const list = Object.values(map)
         .filter(l => String(l.eventoId) === String(eventoId))
         .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
@@ -6476,16 +6767,14 @@ async function start() {
     app.delete('/api/checklist-public-links/:id', authenticateChecklistJWT, async (req, res) => {
       const id = str(req.params.id).trim();
       if (!id) return res.status(400).json({ message: 'id requerido' });
-      const all = await readKv('checklistPublicLinks', {});
-      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
+      const map = await readPublicLinksMap();
       const link = map[id];
       if (!link) return res.status(404).json({ message: 'Link no encontrado' });
       if (link.revokedAt) return res.json({ ok: true, id, revokedAt: link.revokedAt });
       link.revokedAt = new Date().toISOString();
       link.revokedByUserId = str(req.user?.id || '');
       link.revokedByUserNombre = str(req.user?.nombre || req.user?.fullName || '');
-      map[id] = link;
-      await writeKv('checklistPublicLinks', map);
+      await savePublicLinkRow(link);
       return res.json({ ok: true, id, revokedAt: link.revokedAt });
     });
 
@@ -6505,9 +6794,21 @@ async function start() {
       const token = str(req.params.token).trim();
       if (!token || token.length < 16) return res.status(400).json({ message: 'Token inválido' });
 
-      const all = await readKv('checklistPublicLinks', {});
-      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
-      const link = Object.values(map).find(l => l.token === token);
+      let link = null;
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT datos_json FROM checklist_links_publicos WHERE token = ? LIMIT 1", [token]);
+        if (rows && rows.length > 0 && rows[0].datos_json) {
+          link = typeof rows[0].datos_json === 'string' ? JSON.parse(rows[0].datos_json) : rows[0].datos_json;
+        }
+      } catch (_) {} finally {
+        if (conn) conn.release();
+      }
+      if (!link) {
+        const map = await readPublicLinksMap();
+        link = Object.values(map).find(l => l.token === token);
+      }
       if (!link) return res.status(404).json({ message: 'Link no encontrado o ya no está disponible.' });
 
       const now = Date.now();
@@ -6569,9 +6870,21 @@ async function start() {
         return res.status(429).json({ message: 'Demasiados intentos. Espera un momento y vuelve a intentar.' });
       }
 
-      const all = await readKv('checklistPublicLinks', {});
-      const map = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
-      const link = Object.values(map).find(l => l.token === token);
+      let link = null;
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT datos_json FROM checklist_links_publicos WHERE token = ? LIMIT 1", [token]);
+        if (rows && rows.length > 0 && rows[0].datos_json) {
+          link = typeof rows[0].datos_json === 'string' ? JSON.parse(rows[0].datos_json) : rows[0].datos_json;
+        }
+      } catch (_) {} finally {
+        if (conn) conn.release();
+      }
+      if (!link) {
+        const map = await readPublicLinksMap();
+        link = Object.values(map).find(l => l.token === token);
+      }
       if (!link) return res.status(404).json({ message: 'Link no encontrado o ya no está disponible.' });
       if (link.revokedAt) return res.status(410).json({ message: 'Este link fue revocado y ya no acepta respuestas.' });
       if (link.expiresAt && Date.parse(link.expiresAt) < Date.now()) {
@@ -6700,8 +7013,7 @@ async function start() {
       link.submitterNombre = submitterNombre;
       link.submitterContacto = submitterContacto || null;
       link.submitterNotas = notas || null;
-      map[link.id] = link;
-      await writeKv('checklistPublicLinks', map);
+      await savePublicLinkRow(link);
 
       // Notificar vía socket al staff conectado (no rompe nada si no hay io)
       try {

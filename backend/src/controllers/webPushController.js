@@ -30,17 +30,20 @@ export async function guardarSuscripcion(req, res) {
     conn = await pool.getConnection();
 
     await conn.query(`
-      INSERT INTO usuarios_push_subscriptions (usuario_id, endpoint, p256dh, auth)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth, user_agent)
+      VALUES (?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
+        usuario_id = VALUES(usuario_id),
         p256dh = VALUES(p256dh),
         auth = VALUES(auth),
-        creado_en = CURRENT_TIMESTAMP
+        user_agent = VALUES(user_agent),
+        actualizado_en = CURRENT_TIMESTAMP
     `, [
       usuarioId,
       subscription.endpoint,
       subscription.keys.p256dh,
-      subscription.keys.auth
+      subscription.keys.auth,
+      req.headers['user-agent'] || null
     ]);
 
     return res.status(200).json({ message: 'Suscripción push guardada con éxito' });

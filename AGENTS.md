@@ -33,6 +33,29 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 
+### Unificación de suscripciones Web Push y corrección del envío de notificaciones (2026-09-13)
+- Problema: Existían dos tablas paralelas para Web Push (`push_subscriptions` y `usuarios_push_subscriptions`). El servicio general del CRM (`webPushService.js` vía `/api/webpush/save-subscription`) guardaba las suscripciones de los navegadores en `usuarios_push_subscriptions` (536 registros). Sin embargo, el helper de envío de notificaciones (`webPushHelper.js`) consultaba exclusivamente `push_subscriptions` (129 registros antiguos). Como consecuencia, a más de 480 dispositivos de vendedores y recepcionistas nunca les llegaban las notificaciones push al asignarles posibles ventas, tareas o menciones en notas.
+- Solución:
+  1. Migradas de forma atómica todas las suscripciones de `usuarios_push_subscriptions` hacia la tabla canónica `push_subscriptions` (totalizando 608 suscripciones consolidadas).
+  2. Eliminada la tabla redundante `usuarios_push_subscriptions`.
+  3. `backend/src/controllers/webPushController.js` actualizado para escribir directamente en `push_subscriptions` con `ON DUPLICATE KEY UPDATE` y captura del `user_agent`.
+  4. Registrada la migración canónica `UnifyPushSubscriptions` en `server.cjs` para ejecución automática no destructiva en producción al arrancar.
+
+### Migración atómica de Checklists a tablas dedicadas y endpoints independientes (2026-09-13)
+- Problema: Los checklists de cada evento se guardaban dentro de un JSON monolítico en la clave `eventChecklists` de `app_state_kv`. Al editar un checklist, se reescribía toda la clave acumulada y se enviaba en un megasave del estado general, arriesgando pérdida de datos o bloqueos concurrentes.
+- Solución:
+  1. Creadas las tablas dedicadas `checklists_evento (id_evento PK, checklist_json LONGTEXT, actualizado_en TIMESTAMP)` y `checklist_links_publicos (id PK, token UNIQUE, id_evento, datos_json LONGTEXT)`.
+  2. Migración automática no destructiva en `server.cjs` durante el arranque: si `checklists_evento` está vacía, extrae los datos existentes de `eventChecklists`, los inserta individualmente con upsert y vacía la clave en `app_state_kv` a `{}`.
+  3. Endpoints atómicos dedicados en backend: `GET /api/checklists/:eventoId`, `PUT /api/checklists/:eventoId`, `GET /api/checklists/public/:token` y `POST /api/checklists/public/:token/evaluacion`.
+  4. Frontend (`checklistService.js`, `SettingsChecklist.jsx`, `PublicChecklistPage.jsx`) migrado a consumir los endpoints atómicos independientes sin tocar `app_state_kv`.
+
+### Índices de rendimiento para notas e informes por id_ocupacion (2026-09-13)
+- Problema: `event_notas` e `informes_eventos` no tenían índice en `idocupacion` / `id_ocupacion`, forzando table scans completos en cada consulta del calendario o informes. Una recomendación automática sugería crear una `FOREIGN KEY` a `eventos.id`, lo que hubiera provocado fallo por Error 1452 (existen 45 informes y 5 notas huérfanas de eventos históricos/cancelados) y bloqueos al editar reservas multislot en el calendario.
+- Solución:
+  1. Creados índices convencionales: `idx_event_notas_idocupacion` en `event_notas(idocupacion)` y `idx_informes_eventos_id_ocupacion` en `informes_eventos(id_ocupacion)`. (En `evento_metadatos`, `id_ocupacion` ya es la clave primaria clustered).
+  2. Registrada migración canónica `OcupacionPerformanceIndexes` en `server.cjs` para aplicación automática en producción.
+  3. Preservados todos los datos históricos intactos sin foreign keys destructivas.
+
 ### Eventos Asignados: seguimiento cruzado por otro vendedor y permisos de edición para vendedores (2026-09-12)
 - Bug 1: Cuando un vendedor atendía un evento asignado a otro vendedor que no tuvo tiempo y le daba seguimiento (creaba la cotización o reserva), el evento en `Eventos Asignados` (`/posibles-ventas`) no cambiaba a "En Proceso", manteniéndose perpetuamente en "Pendiente".
 - Causa raíz: En `posiblesVentasController.js`, tanto `getPosibleVenta` (`GET /:id`) como `updatePosibleVenta` (`PATCH /:id`) bloqueaban con `403 Forbidden` si `rol === 'vendedor'` y `lead.vendedor_id !== userId`. Al guardar la reserva desde `ReservationForm.jsx`, la vinculación `{ eventoId: newId }` fallaba silenciosamente por el 403, dejando `evento_id` en `NULL`. Sin `evento_id`, `computeEstado()` evaluaba el prospecto siempre como `pendiente`.

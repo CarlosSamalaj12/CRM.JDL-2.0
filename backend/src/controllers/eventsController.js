@@ -645,3 +645,477 @@ export async function updateEventQuote(req, res, next) {
     if (conn) conn.release();
   }
 }
+
+// ── Helpers para Eventos CRUD ──
+const asSafeDate = (val) => {
+  if (!val) return '1970-01-01';
+  const s = String(val).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '1970-01-01';
+};
+const asSafeTime = (val) => {
+  if (!val) return '00:00:00';
+  const s = String(val).trim();
+  if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+  if (/^\d{2}:\d{2}$/.test(s)) return `${s}:00`;
+  return '00:00:00';
+};
+const toStr = (val) => String(val || '').trim();
+
+async function upsertEventSlot(conn, e) {
+  const id = toStr(e?.id);
+  if (!id) return;
+
+  await conn.query(
+    `INSERT INTO eventos
+      (id, id_grupo, nombre, nombre_salon, salon_principal, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      id_grupo = VALUES(id_grupo),
+      nombre = VALUES(nombre),
+      nombre_salon = VALUES(nombre_salon),
+      salon_principal = VALUES(salon_principal),
+      fecha_evento = VALUES(fecha_evento),
+      fecha_inicio_reserva = VALUES(fecha_inicio_reserva),
+      fecha_fin_reserva = VALUES(fecha_fin_reserva),
+      hora_inicio = VALUES(hora_inicio),
+      hora_fin = VALUES(hora_fin),
+      estado = VALUES(estado),
+      id_usuario = VALUES(id_usuario),
+      pax = VALUES(pax),
+      pax_compartido = VALUES(pax_compartido),
+      slot_pax = VALUES(slot_pax),
+      notas = VALUES(notas),
+      cotizacion_json = VALUES(cotizacion_json)`,
+    [
+      id,
+      toStr(e?.groupId) || id,
+      toStr(e?.name) || '(sin nombre)',
+      toStr(e?.salon) || '(sin salon)',
+      toStr(e?.mainSalon) || toStr(e?.salon) || null,
+      asSafeDate(e?.date),
+      asSafeDate(e?.eventDateStart || e?.date),
+      asSafeDate(e?.eventDateEnd || e?.endDate || e?.eventDateStart || e?.date),
+      asSafeTime(e?.startTime),
+      asSafeTime(e?.endTime),
+      toStr(e?.status) || 'Reserva sin Cotizacion',
+      toStr(e?.userId) || null,
+      e?.pax === null || e?.pax === undefined || e?.pax === '' ? null : Math.max(0, Number(e.pax)),
+      e?.paxCompartido === true || Number(e?.paxCompartido) === 1 ? 1 : 0,
+      e?.slotPax === null || e?.slotPax === undefined || e?.slotPax === '' ? null : Math.max(0, Number(e.slotPax)),
+      toStr(e?.notes) || null,
+      e?.quote && typeof e.quote === 'object' ? JSON.stringify(Object.assign({}, e.quote, { advances: undefined })) : e?.quote ? JSON.stringify(e.quote) : null
+    ]
+  );
+}
+
+// ── POST /api/events ──
+export async function createEvent(req, res, next) {
+  const eventData = req.body?.event || req.body;
+  const expanded = Array.isArray(req.body?.expandedEvents) && req.body.expandedEvents.length > 0
+    ? req.body.expandedEvents
+    : Array.isArray(eventData?._allExpanded) && eventData._allExpanded.length > 0
+      ? eventData._allExpanded
+      : [eventData];
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    for (const slot of expanded) {
+      await upsertEventSlot(conn, slot);
+    }
+
+    await conn.commit();
+
+    const savedEvent = expanded[0] || eventData;
+    emitChange(req, 'events', 'created', savedEvent);
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'events', id: savedEvent.id, timestamp: Date.now() });
+    }
+
+    res.status(201).json({ ok: true, event: savedEvent, expandedEvents: expanded });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    next(err);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// ── PUT /api/events/:id ──
+export async function updateEvent(req, res, next) {
+  const { id } = req.params;
+  const eventData = req.body?.event || req.body;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  const groupId = toStr(eventData?.groupId || baseId);
+
+  const expanded = Array.isArray(req.body?.expandedEvents) && req.body.expandedEvents.length > 0
+    ? req.body.expandedEvents
+    : Array.isArray(eventData?._allExpanded) && eventData._allExpanded.length > 0
+      ? eventData._allExpanded
+      : [eventData];
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    if (expanded.length > 0) {
+      const incomingIds = expanded.map(s => toStr(s?.id)).filter(Boolean);
+      if (incomingIds.length > 0) {
+        const placeholders = incomingIds.map(() => '?').join(',');
+        await conn.query(
+          `DELETE FROM eventos WHERE (id_grupo = ? OR id = ?) AND id NOT IN (${placeholders})`,
+          [groupId, groupId, ...incomingIds]
+        );
+      }
+    }
+
+    for (const slot of expanded) {
+      await upsertEventSlot(conn, slot);
+    }
+
+    await conn.commit();
+
+    const savedEvent = expanded.find(s => toStr(s?.id) === rawId) || expanded[0] || eventData;
+    emitChange(req, 'events', 'updated', savedEvent);
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'events', id: rawId, timestamp: Date.now() });
+    }
+
+    res.json({ ok: true, event: savedEvent, expandedEvents: expanded });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    next(err);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// ── DELETE /api/events/:id ──
+export async function deleteEvent(req, res, next) {
+  const { id } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const deleteGroup = req.query?.deleteGroup === 'true' || rawId === baseId;
+    if (deleteGroup) {
+      await conn.query(`DELETE FROM eventos WHERE id = ? OR id_grupo = ? OR id LIKE CONCAT(?, '_%')`, [rawId, baseId, baseId]);
+      await conn.query(`DELETE FROM cotizaciones_evento WHERE id_evento = ?`, [baseId]);
+      await conn.query(`DELETE FROM items_cotizacion_evento WHERE id_evento = ?`, [baseId]);
+      await conn.query(`DELETE FROM historial_evento WHERE clave_evento = ? OR clave_evento LIKE CONCAT(?, '_%')`, [baseId, baseId]);
+      await conn.query(`DELETE FROM recordatorios_evento WHERE clave_evento = ? OR clave_evento LIKE CONCAT(?, '_%')`, [baseId, baseId]);
+      await conn.query(`DELETE FROM anticipos_evento WHERE id_evento = ?`, [baseId]);
+    } else {
+      await conn.query(`DELETE FROM eventos WHERE id = ?`, [rawId]);
+    }
+
+    await conn.commit();
+
+    emitChange(req, 'events', 'deleted', { id: rawId });
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'events', id: rawId, timestamp: Date.now() });
+    }
+
+    res.json({ ok: true, id: rawId });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    next(err);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// ── GET /api/events/:id/history ──
+export async function getEventHistory(req, res, next) {
+  const { id } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, clave_evento, cambiado_en_iso, id_usuario_actor, nombre_actor, cambio_texto
+       FROM historial_evento
+       WHERE clave_evento = ? OR clave_evento = ? OR clave_evento LIKE CONCAT(?, '_%')
+       ORDER BY id ASC`,
+      [rawId, baseId, baseId]
+    );
+    const history = rows.map(r => ({
+      id: String(r.id),
+      at: r.cambiado_en_iso,
+      actorUserId: r.id_usuario_actor ? String(r.id_usuario_actor) : 'unknown',
+      actorName: r.nombre_actor || 'Usuario',
+      change: r.cambio_texto
+    }));
+    res.json(history);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /api/events/:id/history ──
+export async function createEventHistory(req, res, next) {
+  const { id } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  const { change, changeDescription, actorUserId, actorName } = req.body;
+  const text = toStr(change || changeDescription);
+  if (!text) {
+    return res.status(400).json({ message: 'Descripción del cambio requerida' });
+  }
+  const iso = new Date().toISOString();
+  try {
+    const [resInsert] = await pool.query(
+      `INSERT INTO historial_evento (clave_evento, cambiado_en_iso, cambiado_en, id_usuario_actor, nombre_actor, cambio_texto)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        baseId || rawId,
+        iso,
+        iso.slice(0, 19).replace('T', ' '),
+        actorUserId ? String(actorUserId) : null,
+        actorName ? String(actorName) : null,
+        text
+      ]
+    );
+    const entry = {
+      id: String(resInsert?.insertId || `hist_${Date.now()}`),
+      at: iso,
+      actorUserId: actorUserId || 'unknown',
+      actorName: actorName || 'Usuario',
+      change: text
+    };
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'history', eventId: baseId, timestamp: Date.now() });
+    }
+    res.status(201).json({ ok: true, entry });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GET /api/events/:id/reminders ──
+export async function getEventReminders(req, res, next) {
+  const { id } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  try {
+    const [rows] = await pool.query(
+      `SELECT r.id, r.clave_evento, r.fecha_recordatorio, r.hora_recordatorio, r.medio, r.notas, r.creado_en_iso, r.id_usuario_creador, r.finalizado,
+              COALESCE(u.nombre_completo, u.nombre, 'Usuario') AS nombre_creador
+       FROM recordatorios_evento r
+       LEFT JOIN usuarios u ON r.id_usuario_creador = u.id
+       WHERE r.clave_evento = ? OR r.clave_evento = ? OR r.clave_evento LIKE CONCAT(?, '_%')
+       ORDER BY r.fecha_recordatorio ASC, r.hora_recordatorio ASC`,
+      [rawId, baseId, baseId]
+    );
+    const reminders = rows.map(r => ({
+      id: String(r.id),
+      eventId: r.clave_evento,
+      date: r.fecha_recordatorio ? String(r.fecha_recordatorio).slice(0, 10) : '',
+      time: r.hora_recordatorio ? String(r.hora_recordatorio).slice(0, 5) : '',
+      channel: r.medio || 'whatsapp',
+      notes: r.notas || '',
+      createdAt: r.creado_en_iso,
+      createdBy: r.id_usuario_creador ? String(r.id_usuario_creador) : 'unknown',
+      creatorName: r.nombre_creador || 'Usuario',
+      finalizado: Number(r.finalizado) === 1
+    }));
+    res.json(reminders);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /api/events/:id/reminders ──
+export async function createEventReminder(req, res, next) {
+  const { id } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  const { date, time, channel, notes, createdBy } = req.body;
+  const remId = String(req.body.id || `rem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
+  const iso = new Date().toISOString();
+  try {
+    await pool.query(
+      `INSERT INTO recordatorios_evento
+        (id, clave_evento, fecha_recordatorio, hora_recordatorio, medio, notas, creado_en_iso, creado_en, id_usuario_creador, finalizado)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        fecha_recordatorio = VALUES(fecha_recordatorio),
+        hora_recordatorio = VALUES(hora_recordatorio),
+        medio = VALUES(medio),
+        notas = VALUES(notas),
+        finalizado = VALUES(finalizado)`,
+      [
+        remId,
+        baseId || rawId,
+        date ? String(date).slice(0, 10) : null,
+        time ? String(time).slice(0, 8) : null,
+        channel || 'whatsapp',
+        notes || '',
+        iso,
+        iso.slice(0, 19).replace('T', ' '),
+        createdBy ? String(createdBy) : null,
+        0
+      ]
+    );
+    const reminder = {
+      id: remId,
+      eventId: baseId || rawId,
+      date,
+      time,
+      channel: channel || 'whatsapp',
+      notes: notes || '',
+      createdAt: iso,
+      createdBy: createdBy || 'unknown',
+      finalizado: false
+    };
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'reminders', eventId: baseId, timestamp: Date.now() });
+    }
+    res.status(201).json({ ok: true, reminder });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── DELETE /api/events/:id/reminders/:reminderId ──
+export async function deleteEventReminder(req, res, next) {
+  const { reminderId } = req.params;
+  try {
+    await pool.query(`DELETE FROM recordatorios_evento WHERE id = ?`, [reminderId]);
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'reminders', timestamp: Date.now() });
+    }
+    res.json({ ok: true, id: reminderId });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── PATCH /api/events/:id/reminders/:reminderId/toggle ──
+export async function toggleEventReminder(req, res, next) {
+  const { reminderId } = req.params;
+  const { finalizado } = req.body;
+  try {
+    await pool.query(
+      `UPDATE recordatorios_evento SET finalizado = ? WHERE id = ?`,
+      [finalizado ? 1 : 0, reminderId]
+    );
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'reminders', timestamp: Date.now() });
+    }
+    res.json({ ok: true, id: reminderId, finalizado: !!finalizado });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GET /api/events/:id/checklist ──
+export async function getEventChecklist(req, res, next) {
+  const { id } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  try {
+    // 1. Consulta directa y rápida por clave primaria a la tabla dedicada checklists_evento
+    const [rows] = await pool.query(
+      `SELECT checklist_json FROM checklists_evento WHERE id_evento = ? OR id_evento = ? LIMIT 1`,
+      [rawId, baseId]
+    );
+
+    if (rows.length > 0 && rows[0].checklist_json) {
+      const parsed = typeof rows[0].checklist_json === 'string'
+        ? JSON.parse(rows[0].checklist_json)
+        : rows[0].checklist_json;
+      return res.json({ ok: true, checklist: parsed });
+    }
+
+    // 2. Fallback de compatibilidad a app_state_kv
+    const [kvRows] = await pool.query(
+      `SELECT valor_json FROM app_state_kv WHERE clave = 'eventChecklists' LIMIT 1`
+    );
+    const map = kvRows.length > 0 && kvRows[0].valor_json ? JSON.parse(kvRows[0].valor_json) : {};
+    const checklist = map[baseId] || map[rawId] || null;
+    res.json({ ok: true, checklist });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── PUT /api/events/:id/checklist ──
+export async function saveEventChecklist(req, res, next) {
+  const { id } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+  const { checklist } = req.body;
+  if (!checklist || typeof checklist !== 'object') {
+    return res.status(400).json({ message: 'Objeto checklist requerido' });
+  }
+  const jsonStr = JSON.stringify(checklist);
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // 1. Guardado individual y atómico en checklists_evento por id_evento
+    const targetId = baseId || rawId;
+    await conn.query(
+      `INSERT INTO checklists_evento (id_evento, checklist_json)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE checklist_json = VALUES(checklist_json)`,
+      [targetId, jsonStr]
+    );
+    if (rawId && rawId !== targetId) {
+      await conn.query(
+        `INSERT INTO checklists_evento (id_evento, checklist_json)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE checklist_json = VALUES(checklist_json)`,
+        [rawId, jsonStr]
+      );
+    }
+
+    // 2. Sincronización secundaria en app_state_kv para mantener compatibilidad con reportes globales
+    try {
+      const [kvRows] = await conn.query(
+        `SELECT valor_json FROM app_state_kv WHERE clave = 'eventChecklists' FOR UPDATE`
+      );
+      const map = kvRows.length > 0 && kvRows[0].valor_json ? JSON.parse(kvRows[0].valor_json) : {};
+      map[targetId] = checklist;
+      if (rawId !== targetId) {
+        map[rawId] = checklist;
+      }
+      await conn.query(
+        `INSERT INTO app_state_kv (clave, valor_json)
+         VALUES ('eventChecklists', ?)
+         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+        [JSON.stringify(map)]
+      );
+    } catch (_) {}
+
+    await conn.commit();
+
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'eventChecklists', eventoId: targetId, timestamp: Date.now() });
+    }
+
+    res.json({ ok: true, checklist });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    next(err);
+  } finally {
+    if (conn) conn.release();
+  }
+}

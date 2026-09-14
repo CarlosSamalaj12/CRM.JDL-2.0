@@ -158,9 +158,16 @@ async getAll() {
         throw new Error(`Conflicto en tiempo real: ${hardConflicts[0].message}`);
       }
 
-      const updatedState = { ...currentState, events: [...events, ...expandedEvents] };
-      await saveState(updatedState);
-      return expandedEvents[0] || newEvent;
+      try {
+        const res = await api.post('/api/events', { event: newEvent, expandedEvents });
+        invalidateStateCache();
+        return res?.event || expandedEvents[0] || newEvent;
+      } catch (apiErr) {
+        console.warn('[eventService.create] Endpoint atómico falló, recurriendo a saveState fallback:', apiErr);
+        const updatedState = { ...currentState, events: [...events, ...expandedEvents] };
+        await saveState(updatedState);
+        return expandedEvents[0] || newEvent;
+      }
     } catch (err) {
       console.error('Error guardando en el servidor:', err);
       throw err;
@@ -228,8 +235,19 @@ async getAll() {
         updatedEvents = events.map(e => String(e.id) === String(id) ? { ...e, ...eventData, updatedAt: new Date().toISOString() } : e);
         savedEvent = updatedEvents.find(e => String(e.id) === String(id));
       }
-      await saveState({ ...currentState, events: updatedEvents });
-      return savedEvent;
+
+      try {
+        const res = await api.put(`/api/events/${encodeURIComponent(id)}`, {
+          event: savedEvent,
+          expandedEvents: savedEvent?._allExpanded || (hasSlots ? expandedEvents : undefined)
+        });
+        invalidateStateCache();
+        return res?.event || savedEvent;
+      } catch (apiErr) {
+        console.warn('[eventService.update] Endpoint atómico falló, recurriendo a saveState fallback:', apiErr);
+        await saveState({ ...currentState, events: updatedEvents });
+        return savedEvent;
+      }
     } catch (err) {
       console.error('Error actualizando en el servidor:', err);
       throw err;
@@ -261,14 +279,22 @@ async getAll() {
 
   async delete(id) {
     try {
-      const currentState = await loadState();
-      const events = currentState.events || [];
-      await saveState({ ...currentState, events: events.filter(e => e.id !== id) });
+      const rawId = String(id || '').trim();
+      try {
+        await api.delete(`/api/events/${encodeURIComponent(rawId)}`);
+        invalidateStateCache();
+        return true;
+      } catch (apiErr) {
+        console.warn('[eventService.delete] Endpoint atómico falló, recurriendo a saveState fallback:', apiErr);
+        const currentState = await loadState();
+        const events = currentState.events || [];
+        await saveState({ ...currentState, events: events.filter(e => e.id !== id) });
+        return true;
+      }
     } catch (err) {
       console.error('Error eliminando en el servidor:', err);
       throw err;
     }
-    return true;
   },
 
   async updateStatus(id, status) {

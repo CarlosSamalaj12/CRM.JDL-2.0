@@ -816,68 +816,146 @@ function LeadCard({
           justifyContent: 'center',
           alignItems: 'stretch',
           gap: '8px',
-          minWidth: '125px',
+          minWidth: (canEdit || canDelete) ? '190px' : '130px',
           flexShrink: 0,
         }}
       >
-        {lead.eventoId ? (
-          <button
-            type="button"
-            onClick={onVerReserva}
-            title="Ver reserva vinculada"
-            style={{
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: '8px',
-              color: '#334155',
-              fontSize: '12px',
-              fontWeight: 600,
-              height: '34px',
-              padding: '0 12px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              transition: 'all 0.12s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-          >
-            <Icon name="eye" size={13} color="#475569" strokeWidth={2.2} />
-            Ver reserva
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onConvert}
-            title="Ver detalle / convertir en reserva"
-            style={{
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: '8px',
-              color: '#334155',
-              fontSize: '12px',
-              fontWeight: 600,
-              height: '34px',
-              padding: '0 12px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              transition: 'all 0.12s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-          >
-            <Icon name="eye" size={13} color="#475569" strokeWidth={2.2} />
-            Ver detalle
-          </button>
-        )}
+        {/* Fila de acción principal + Editar + Eliminar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {lead.eventoId ? (
+            <button
+              type="button"
+              onClick={onVerReserva}
+              title="Ver reserva vinculada en Calendario"
+              style={{
+                flex: 1,
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                color: '#334155',
+                fontSize: '12px',
+                fontWeight: 600,
+                height: '34px',
+                padding: '0 10px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                transition: 'all 0.12s',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+            >
+              <Icon name="eye" size={13} color="#475569" strokeWidth={2.2} />
+              Ver reserva
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onConvert}
+              title="Ver detalle / convertir en reserva"
+              style={{
+                flex: 1,
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                color: '#334155',
+                fontSize: '12px',
+                fontWeight: 600,
+                height: '34px',
+                padding: '0 10px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                transition: 'all 0.12s',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+            >
+              <Icon name="eye" size={13} color="#475569" strokeWidth={2.2} />
+              Ver detalle
+            </button>
+          )}
 
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              title="Editar prospecto"
+              style={{
+                width: '34px',
+                height: '34px',
+                flexShrink: 0,
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                color: '#475569',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                transition: 'all 0.12s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#f1f5f9';
+                e.currentTarget.style.borderColor = '#94a3b8';
+                e.currentTarget.style.color = '#0f172a';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = '#ffffff';
+                e.currentTarget.style.borderColor = '#cbd5e1';
+                e.currentTarget.style.color = '#475569';
+              }}
+            >
+              <Icon name="pencil" size={13} strokeWidth={2.2} />
+            </button>
+          )}
+
+          {canDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              title="Eliminar prospecto pendiente"
+              style={{
+                width: '34px',
+                height: '34px',
+                flexShrink: 0,
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                color: '#64748b',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                transition: 'all 0.12s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#fef2f2';
+                e.currentTarget.style.borderColor = '#fca5a5';
+                e.currentTarget.style.color = '#dc2626';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = '#ffffff';
+                e.currentTarget.style.borderColor = '#cbd5e1';
+                e.currentTarget.style.color = '#64748b';
+              }}
+            >
+              <Icon name="trash" size={13} strokeWidth={2.2} />
+            </button>
+          )}
+        </div>
+
+        {/* Fila secundaria: Reactivar o Mensaje */}
         {lead.estado === 'perdida' ? (
           <button
             type="button"
@@ -938,61 +1016,6 @@ function LeadCard({
           )
         )}
       </div>
-
-      {/* Controles secundarios (Editar / Eliminar) */}
-      {(canEdit || canDelete) && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '8px',
-            right: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '2px',
-          }}
-        >
-          {canEdit && (
-            <button
-              type="button"
-              onClick={onEdit}
-              title="Editar"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-                padding: '4px',
-                borderRadius: '4px',
-                display: 'inline-flex',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.background = '#f1f5f9'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
-            >
-              <Icon name="pencil" size={12} strokeWidth={2.2} />
-            </button>
-          )}
-          {canDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              title="Eliminar"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-                padding: '4px',
-                borderRadius: '4px',
-                display: 'inline-flex',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fef2f2'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
-            >
-              <Icon name="trash" size={12} strokeWidth={2.2} />
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

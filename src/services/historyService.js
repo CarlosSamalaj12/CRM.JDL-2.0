@@ -1,5 +1,6 @@
 import authService from './authService';
 import { loadState, saveState } from './stateService';
+import api from './api';
 
 export const historyService = {
   async getAll() {
@@ -13,10 +14,22 @@ export const historyService = {
   },
 
   async getByEventId(eventId) {
+    const rawId = String(eventId || '').trim();
+    if (!rawId) return [];
+
+    try {
+      const items = await api.get(`/api/events/${encodeURIComponent(rawId)}/history`);
+      if (Array.isArray(items)) {
+        return items;
+      }
+    } catch (apiErr) {
+      console.warn('[historyService.getByEventId] Falló endpoint atómico, recurriendo a estado local:', apiErr);
+    }
+
     try {
       const state = await loadState({ cacheBust: false });
       const events = state?.events || [];
-      const targetEvent = events.find(e => String(e.id) === String(eventId));
+      const targetEvent = events.find(e => String(e.id) === rawId);
       
       const groupId = targetEvent?.groupId ? String(targetEvent.groupId).trim() : null;
       const history = state?.changeHistory || {};
@@ -49,7 +62,7 @@ export const historyService = {
         return consolidated;
       }
       
-      return history[eventId] || [];
+      return history[rawId] || [];
     } catch (err) {
       console.error('Error al obtener historial consolidado por eventId:', err);
       return [];
@@ -57,23 +70,37 @@ export const historyService = {
   },
 
   async add(eventId, changeDescription) {
-    const currentHistory = await this.getAll();
-    const eventHistory = currentHistory[eventId] || [];
-    
+    const rawId = String(eventId || '').trim();
     const currentUser = authService.getCurrentUser();
+    const actorUserId = currentUser?.id || 'unknown';
+    const actorName = currentUser?.fullName || currentUser?.name || 'Usuario';
+
+    try {
+      const res = await api.post(`/api/events/${encodeURIComponent(rawId)}/history`, {
+        change: changeDescription,
+        actorUserId,
+        actorName
+      });
+      if (res?.entry) return res.entry;
+    } catch (apiErr) {
+      console.warn('[historyService.add] Falló endpoint atómico, recurriendo a saveState fallback:', apiErr);
+    }
+
+    const currentHistory = await this.getAll();
+    const eventHistory = currentHistory[rawId] || [];
     
     const newEntry = {
       id: `hist_${Date.now()}`,
       at: new Date().toISOString(),
-      actorUserId: currentUser?.id || 'unknown',
-      actorName: currentUser?.fullName || currentUser?.name || 'Usuario',
+      actorUserId,
+      actorName,
       avatarDataUrl: currentUser?.avatarDataUrl || '',
       change: changeDescription
     };
 
     const updatedHistory = {
       ...currentHistory,
-      [eventId]: [...eventHistory, newEntry]
+      [rawId]: [...eventHistory, newEntry]
     };
 
     try {

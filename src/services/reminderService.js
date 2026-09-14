@@ -1,5 +1,6 @@
 import authService from './authService';
 import { loadState, saveState } from './stateService';
+import api from './api';
 
 export const reminderService = {
   async getAll() {
@@ -13,10 +14,27 @@ export const reminderService = {
   },
 
   async getByEventId(eventId) {
-    const reminders = await this.getAll();
-    const allForEvent = reminders[eventId] || [];
-    
+    const rawId = String(eventId || '').trim();
     const currentUser = authService.getCurrentUser();
+
+    if (rawId) {
+      try {
+        const items = await api.get(`/api/events/${encodeURIComponent(rawId)}/reminders`);
+        if (Array.isArray(items)) {
+          if (currentUser?.role === 'admin') return items;
+          return items.filter(r => {
+            const creatorId = r.createdBy || r.createdByUserId;
+            return !creatorId || creatorId === currentUser?.id;
+          });
+        }
+      } catch (apiErr) {
+        console.warn('[reminderService.getByEventId] Falló endpoint atómico, recurriendo a estado local:', apiErr);
+      }
+    }
+
+    const reminders = await this.getAll();
+    const allForEvent = reminders[rawId] || [];
+    
     // Los administradores ven todas las citas del evento.
     // Los demás roles solo ven las que ellos crearon.
     if (currentUser?.role === 'admin') return allForEvent;
@@ -27,8 +45,28 @@ export const reminderService = {
   },
 
   async add(eventId, reminderData) {
+    const rawId = String(eventId || '').trim();
+    const currentUser = authService.getCurrentUser();
+    const createdBy = currentUser?.id || 'unknown';
+    const creatorName = currentUser?.name || currentUser?.email || 'Usuario';
+
+    try {
+      const res = await api.post(`/api/events/${encodeURIComponent(rawId)}/reminders`, {
+        date: reminderData.date,
+        time: reminderData.time,
+        channel: reminderData.channel || 'whatsapp',
+        notes: reminderData.notes || '',
+        createdBy
+      });
+      if (res?.reminder) {
+        return { ...res.reminder, creatorName };
+      }
+    } catch (apiErr) {
+      console.warn('[reminderService.add] Falló endpoint atómico, recurriendo a saveState fallback:', apiErr);
+    }
+
     const currentReminders = await this.getAll();
-    const eventReminders = currentReminders[eventId] || [];
+    const eventReminders = currentReminders[rawId] || [];
     
     const newReminder = {
       id: `rem_${Date.now()}`,
@@ -37,14 +75,14 @@ export const reminderService = {
       channel: reminderData.channel || 'whatsapp',
       notes: reminderData.notes || '',
       createdAt: new Date().toISOString(),
-      createdBy: authService.getCurrentUser()?.id || 'unknown',
-      creatorName: authService.getCurrentUser()?.name || authService.getCurrentUser()?.email || 'Usuario',
+      createdBy,
+      creatorName,
       finalizado: false
     };
 
     const updatedReminders = {
       ...currentReminders,
-      [eventId]: [...eventReminders, newReminder]
+      [rawId]: [...eventReminders, newReminder]
     };
 
     try {
@@ -58,12 +96,22 @@ export const reminderService = {
   },
 
   async delete(eventId, reminderId) {
+    const rawId = String(eventId || '').trim();
+    const remId = String(reminderId || '').trim();
+
+    try {
+      await api.delete(`/api/events/${encodeURIComponent(rawId)}/reminders/${encodeURIComponent(remId)}`);
+      return true;
+    } catch (apiErr) {
+      console.warn('[reminderService.delete] Falló endpoint atómico, recurriendo a saveState fallback:', apiErr);
+    }
+
     const currentReminders = await this.getAll();
-    const eventReminders = currentReminders[eventId] || [];
+    const eventReminders = currentReminders[rawId] || [];
     
     const updatedReminders = {
       ...currentReminders,
-      [eventId]: eventReminders.filter(r => r.id !== reminderId)
+      [rawId]: eventReminders.filter(r => r.id !== remId)
     };
 
     try {
@@ -77,11 +125,23 @@ export const reminderService = {
   },
 
   async markAsFinalizado(eventId, reminderId) {
+    const rawId = String(eventId || '').trim();
+    const remId = String(reminderId || '').trim();
+
+    try {
+      await api.patch(`/api/events/${encodeURIComponent(rawId)}/reminders/${encodeURIComponent(remId)}/toggle`, {
+        finalizado: true
+      });
+      return true;
+    } catch (apiErr) {
+      console.warn('[reminderService.markAsFinalizado] Falló endpoint atómico, recurriendo a saveState fallback:', apiErr);
+    }
+
     const currentReminders = await this.getAll();
-    const eventReminders = currentReminders[eventId] || [];
+    const eventReminders = currentReminders[rawId] || [];
 
     const updatedRemindersList = eventReminders.map(rem => {
-      if (rem.id === reminderId) {
+      if (rem.id === remId) {
         return { ...rem, finalizado: true };
       }
       return rem;
@@ -89,7 +149,7 @@ export const reminderService = {
 
     const updatedReminders = {
       ...currentReminders,
-      [eventId]: updatedRemindersList
+      [rawId]: updatedRemindersList
     };
 
     try {
