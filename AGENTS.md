@@ -33,6 +33,40 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 
+### Buscar Eventos SaaS v2.4: Fechas oscuras y botón de 3 puntos / toggle como cápsulas vacías (2026-09-13)
+- Problema: En el módulo rediseñado Buscar Eventos (`SearchModule.jsx` y `search.css`):
+  1. Los campos de fecha ("RANGO DE FECHAS") aparecían con fondo negro / degradado oscuro.
+  2. A la par del botón `👁️ Ver` en cada fila de la tabla aparecía un rectángulo blanco redondeado vacío ("un cuadro raro").
+  3. Los botones de alternar vista (tabla / tarjetas) aparecían también estirados como cápsulas vacías.
+- Causa raíz:
+  1. `global-scoped.css` (línea 839) aplica `background: linear-gradient(180deg, rgba(30, 41, 59, 0.78), rgba(15, 23, 42, 0.72))` a `body:not(.informes-theme) input:not(.search-input-naked)`. Al tener mayor especificidad que `.search-saas-date-input`, teñía los campos de fecha de oscuro.
+  2. `design-system-scoped.css` (línea 103) aplica `min-height: 40px`, `padding: 0 14px`, `background: var(--ui-surface-muted)` a `body:not(.informes-theme) button`, estirando los botones `.btn-action-dots` y `.view-toggle-btn` a cápsulas de 40px con padding horizontal.
+  3. En `SearchModule.jsx`, el SVG de los 3 puntos usaba `<circle r="1" fill="none" stroke="currentColor" strokeWidth="2.5" />`, resultando en trazos casi invisibles dentro de la cápsula estirada.
+- Solución:
+  1. En `SearchModule.jsx`: Reemplazado el SVG de `.btn-action-dots` por círculos sólidos `<circle cx="12" cy="..." r="2.2" fill="currentColor" />` y agregada clase `is-active` cuando el menú desplegable está abierto.
+  2. En `search.css`: Añadido scoping de alta especificidad con `!important` para `input[type="date"]`, forzando `background: #ffffff !important`, `background-image: none !important`, `color: #0f172a !important`, `color-scheme: light !important`, y estilizado el indicador de calendario.
+  3. En `search.css`: Agregado reseteo y dimensiones fijas con `!important` para `.btn-action-dots` (32x32px), `.view-toggle-btn` (32x32px), `.btn-action-view` (32px alto), botones del popover de acciones (`.action-dropdown-popover button`), botones de paginación (`.page-nav-btn`, `.page-num-btn`) y botones de filtro.
+
+### ReferenceError: reactingTo is not defined en ColaboracionPanel (2026-09-13)
+- Problema: Al abrir un informe que contiene comentarios, la aplicación se rompía con `ReferenceError: reactingTo is not defined at ColaboracionPanel.jsx:593:43` en el ErrorBoundary.
+- Causa raíz: En `ColaboracionPanel.jsx`, el botón de reaccionar a comentarios (`+`) y el selector de emojis consumían la variable de estado `reactingTo` y su setter `setReactingTo`, pero `const [reactingTo, setReactingTo] = useState(null)` no había sido declarado en el componente. En informes sin comentarios el mapeo no se ejecutaba y no fallaba; pero al existir comentarios, lanzaba el ReferenceError. Además, en `SearchBar.jsx` existía una advertencia de React por mezclar shorthand `border` en CSS con `borderColor` en inline style.
+- Solución:
+  1. Declarado `const [reactingTo, setReactingTo] = useState(null)` en [ColaboracionPanel.jsx](file:///c:/Users/samal/Desktop/CRM/CRM.JDL-2.0/src/modules/informes/components/ColaboracionPanel.jsx).
+  2. En [SearchBar.jsx](file:///c:/Users/samal/Desktop/CRM/CRM.JDL-2.0/src/modules/informes/components/SearchBar.jsx), removido el `borderColor` inline en favor de la clase CSS `.header-search-box.is-focused`, eliminando la advertencia de React.
+
+### Campos de búsqueda con aspecto anidado ("control dentro de otro control") (2026-09-13)
+- Problema: Al hacer clic o escribir en la barra de búsqueda del Calendario (`Topbar.jsx`), en Informes (`SearchBar.jsx`), en el módulo Buscar Eventos (`SearchModule.jsx`) o en el buscador móvil de `Kanban.jsx`, aparecía un segundo rectángulo interior con fondo lavanda/celeste, esquinas redondeadas y un borde/anillo resplandeciente (`box-shadow: 0 0 0 3px ...`), dando la impresión visual de tener un input de texto flotando dentro de otra caja contenedora.
+- Causa raíz:
+  1. En `src/main.jsx`, las hojas de estilo cargadas en tiempo de ejecución son `global-scoped.css`, `design-system-scoped.css` y `responsive-mobile.css` (no `global.css`).
+  2. En `design-system-scoped.css` (línea 271) existía la regla de alta especificidad `body:not(.informes-theme) input:focus` que forzaba `border-color: #2d6ea8 !important` y `box-shadow: 0 0 0 3px rgba(45, 110, 168, 0.15) !important`.
+  3. En `responsive-mobile.css` (línea 275) `body:not(.informes-theme) input` forzaba `min-height: 44px !important`, y en `global-scoped.css` (líneas 153-155 y 838-842) `input` aplicaba `padding: 10px 12px`, `border: 1px solid ...` y `border-radius: 12px`.
+  4. Dado que los estilos inline de React (`style={{ ... }}`) no pueden controlar pseudo-clases CSS como `:focus` o `:hover`, al hacer clic en el input de `Topbar.jsx`, el navegador aplicaba la regla `:focus` de `design-system-scoped.css`, dibujando el rectángulo azul interior con sombra.
+- Solución:
+  1. En `design-system-scoped.css`, `global-scoped.css` y `responsive-mobile.css`: Agregada la exclusión `:not(.search-input-naked)` a todos los selectores genéricos de `input` e `input:focus` (`body:not(.informes-theme) input:not(.search-input-naked)`).
+  2. En las 3 hojas de estilo activas: Incorporado el bloque maestro de reseteo universal con `!important` para `.search-input-naked`, `.topbar-search input` y `.search-input-wrap input` (`border: none !important`, `background: transparent !important`, `box-shadow: none !important`, `min-height: 0 !important`, `padding: 0 4px !important`).
+  3. En `Topbar.jsx`: Implementado estado `isSearchFocused`, `:focus-within` en el label envolvente (`.topbar-search-box`) con borde `#2563eb` y sombra sutil `rgba(37, 99, 235, 0.14)`, cambio de color del ícono a `#2563eb` y botón `✕` de limpieza rápida cuando hay texto escrito.
+  4. En `SearchBar.jsx` (Informes): Diseño píldora (`border-radius: 20px`), `:focus-within` dinámico con `var(--primary-glow)` en el contenedor padre, cambio de color del ícono `IconSearch` al enfocar y botón `✕` de limpieza optimizado.
+
 ### Botón "Leído / Enterado" cortado en panel de Colaboración de Informes (2026-09-13)
 - Problema: En el panel de Colaboración de `InformeView`, el botón verde de "Leído / Enterado" estaba ubicado dentro de la misma fila que las 3 pestañas (`Comentarios`, `Actividad`, `Lectores`). Dado que el sidebar tiene un ancho fijo de 360px (interior ~336px) y las 3 pestañas requieren ~300px, el botón de "Leído" se desbordaba por la derecha, quedando cortado a la mitad (solo se apreciaba el check verde y el texto "Leído" desaparecía por `overflow: hidden`).
 - Solución:

@@ -9461,3 +9461,41 @@ body div.swal2-container div.swal2-popup.swal2-modal {
     font-size: 14px !important;
   }
 }
+
+/* ==========================================================================
+   RESET UNIVERSAL PARA BUSCADORES COMPUESTOS DEL CRM
+   Evita el efecto de "caja dentro de otra caja" al hacer foco
+   ========================================================================== */
+.topbar-search input,
+.topbar-search .search-input-naked,
+.search-input-wrap input,
+.search-input-wrap .search-input-naked {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+.topbar-search input:hover,
+.topbar-search input:focus,
+.topbar-search .search-input-naked:hover,
+.topbar-search .search-input-naked:focus,
+.search-input-wrap input:hover,
+.search-input-wrap input:focus,
+.search-input-wrap .search-input-naked:hover,
+.search-input-wrap .search-input-naked:focus {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+}
+
+.topbar-search label:focus-within,
+.topbar-search .topbar-search-box:focus-within {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+}

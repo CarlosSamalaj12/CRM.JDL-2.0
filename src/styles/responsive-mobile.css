@@ -272,7 +272,7 @@ body:not(.informes-theme) #appShell.lum-calendar {
     height: 44px !important;
   }
 
-  body:not(.informes-theme) input,
+  body:not(.informes-theme) input:not(.search-input-naked),
   body:not(.informes-theme) select,
   body:not(.informes-theme) textarea {
     min-height: 44px !important;
@@ -1760,3 +1760,72 @@ body:not(.informes-theme) #appShell.lum-calendar {
 
 }
 
+/*=== RESET UNIVERSAL PARA INPUTS EN BUSCADORES COMPUESTOS (CALENDARIO, BÚSQUEDA, ETC.) ===*/
+body:not(.informes-theme) input.search-input-naked,
+body:not(.informes-theme) .search-input-naked,
+body:not(.informes-theme) .topbar-search input,
+body:not(.informes-theme) .topbar-search .search-input-naked,
+body:not(.informes-theme) .topbar-search-box input,
+body:not(.informes-theme) .topbar-search-box .search-input-naked,
+body:not(.informes-theme) .search-input-wrap input,
+body:not(.informes-theme) .search-input-wrap .search-input-naked {
+  border: none !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 4px !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: 100% !important;
+  line-height: normal !important;
+}
+
+body:not(.informes-theme) input.search-input-naked:hover,
+body:not(.informes-theme) input.search-input-naked:focus,
+body:not(.informes-theme) input.search-input-naked:focus-visible,
+body:not(.informes-theme) input.search-input-naked:active,
+body:not(.informes-theme) .search-input-naked:hover,
+body:not(.informes-theme) .search-input-naked:focus,
+body:not(.informes-theme) .search-input-naked:focus-visible,
+body:not(.informes-theme) .search-input-naked:active,
+body:not(.informes-theme) .topbar-search input:hover,
+body:not(.informes-theme) .topbar-search input:focus,
+body:not(.informes-theme) .topbar-search input:focus-visible,
+body:not(.informes-theme) .topbar-search input:active,
+body:not(.informes-theme) .topbar-search-box input:hover,
+body:not(.informes-theme) .topbar-search-box input:focus,
+body:not(.informes-theme) .topbar-search-box input:focus-visible,
+body:not(.informes-theme) .topbar-search-box input:active,
+body:not(.informes-theme) .search-input-wrap input:hover,
+body:not(.informes-theme) .search-input-wrap input:focus,
+body:not(.informes-theme) .search-input-wrap input:focus-visible,
+body:not(.informes-theme) .search-input-wrap input:active {
+  border: none !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 4px !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+}
+
+body:not(.informes-theme) .topbar-search-box:focus-within,
+body:not(.informes-theme) .topbar-search label:focus-within {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14) !important;
+}

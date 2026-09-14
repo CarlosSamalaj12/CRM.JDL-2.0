@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { STATUS_META } from '../../../modules/calendar/constants';
 
 const views = [
@@ -29,6 +29,7 @@ export default function Topbar({
   setSellerFilter,
   users
 }) {
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const isFilterActive = isCalendarView && (viewMode === 'month' || viewMode === 'week' || viewMode === 'timeline');
 
   return (
@@ -275,25 +276,33 @@ export default function Topbar({
 
       {/* 5. SEARCH */}
       <div className="topbar-search" style={{ flex: '1 1 180px', minWidth: '120px' }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          height: '34px',
-          padding: '0 10px',
-          borderRadius: '8px',
-          border: '1px solid #e2e8f0',
-          background: '#ffffff',
-          transition: 'border-color 0.15s ease',
-        }}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <label
+          className="topbar-search-box"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            height: '34px',
+            padding: '0 10px',
+            borderRadius: '8px',
+            border: isSearchFocused ? '1px solid #2563eb' : '1px solid #e2e8f0',
+            boxShadow: isSearchFocused ? '0 0 0 3px rgba(37, 99, 235, 0.14)' : 'none',
+            background: '#ffffff',
+            transition: 'all 0.15s ease',
+            cursor: 'text',
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke={isSearchFocused ? '#2563eb' : '#94a3b8'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s ease' }}>
             <circle cx="11" cy="11" r="7" />
             <path d="m16 16 4 4" />
           </svg>
           <input
             type="text"
+            className="search-input-naked"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
             placeholder="Buscar evento..."
             style={{
               fontSize: '12px',
@@ -304,9 +313,41 @@ export default function Topbar({
               color: '#0f172a',
               width: '100%',
               fontWeight: 500,
+              padding: '0 4px',
+              margin: 0,
+              height: '100%',
+              minHeight: 0,
             }}
             autoComplete="off"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSearchQuery('');
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '18px',
+                height: '18px',
+                borderRadius: '50%',
+                border: 'none',
+                background: '#e2e8f0',
+                color: '#64748b',
+                cursor: 'pointer',
+                fontSize: '10px',
+                lineHeight: 1,
+                padding: 0,
+                flexShrink: 0,
+              }}
+              title="Limpiar búsqueda"
+            >
+              ✕
+            </button>
+          )}
         </label>
       </div>
     </header>

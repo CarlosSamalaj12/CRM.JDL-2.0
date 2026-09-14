@@ -30,6 +30,7 @@ export default function ColaboracionPanel({ informeId, diaId, highlightComentari
   const [selectedDiaFilter, setSelectedDiaFilter] = useState(null);
   const [respondiendoA, setRespondiendoA] = useState(null);
   const [textoRespuesta, setTextoRespuesta] = useState('');
+  const [reactingTo, setReactingTo] = useState(null);
   const comentarioRef = useRef(null);
   const respuestaRef = useRef(null);
   const commentListRef = useRef(null);

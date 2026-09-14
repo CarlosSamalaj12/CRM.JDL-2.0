@@ -47,21 +47,24 @@ export default function SearchBar() {
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', width: '100%', minWidth: '110px' }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '0.4rem 0.7rem',
-        background: 'var(--bg-elevated)',
-        borderRadius: 'var(--radius-sm)',
-        border: '1.5px solid var(--border)',
-        transition: 'all 0.2s var(--ease)'
-      }}>
-        <IconSearch size={14} style={{ flexShrink: 0 }} />
+      <div
+        className={`header-search-box ${focused ? 'is-focused' : ''}`}
+        onClick={() => inputRef.current?.focus()}
+      >
+        <IconSearch
+          size={14}
+          style={{
+            flexShrink: 0,
+            color: focused ? 'var(--primary)' : 'var(--text-muted)',
+            transition: 'color 0.2s ease'
+          }}
+        />
         <input
           ref={inputRef}
           type="text"
+          className="search-input-naked"
           value={query}
+          placeholder="Buscar evento..."
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
           style={{
@@ -69,6 +72,7 @@ export default function SearchBar() {
             border: 'none',
             background: 'transparent',
             outline: 'none',
+            boxShadow: 'none',
             fontSize: '0.82rem',
             minWidth: 0,
             padding: 0,
@@ -78,12 +82,14 @@ export default function SearchBar() {
         {query && (
           <button
             type="button"
-            onClick={() => { setQuery(''); setResults([]); inputRef.current?.focus(); }}
-            style={{
-              background: 'none', border: 'none', color: 'var(--text-muted)',
-              cursor: 'pointer', padding: '2px', fontSize: '0.85rem', lineHeight: 1,
-              flexShrink: 0
+            className="search-clear-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setQuery('');
+              setResults([]);
+              inputRef.current?.focus();
             }}
+            title="Limpiar búsqueda"
           >
             ✕
           </button>

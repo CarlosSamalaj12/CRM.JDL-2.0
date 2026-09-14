@@ -1592,19 +1592,24 @@ export default function Kanban() {
 
           {/* 2. Barra de búsqueda rápida en móvil */}
           {showMobileSearch && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: '#ffffff',
-              padding: '6px 12px',
-              borderRadius: '10px',
-              border: '1px solid #cbd5e1',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-            }}>
+            <div
+              className="kanban-search-box"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: '#ffffff',
+                padding: '6px 12px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                transition: 'all 0.2s ease',
+              }}
+            >
               <IconSearch size={14} color="#64748b" strokeWidth={2.2} />
               <input
                 type="text"
+                className="search-input-naked"
                 placeholder="Buscar por institución, salón o asesor..."
                 value={mobileSearch}
                 onChange={e => setMobileSearch(e.target.value)}

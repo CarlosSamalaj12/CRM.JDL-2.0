@@ -241,7 +241,9 @@ input, select, textarea, button {
   font-size: inherit;
 }
 
-input, select, textarea {
+.informes-shell input, .informes-shell select, .informes-shell textarea,
+.pos-constructor input, .pos-constructor select, .pos-constructor textarea,
+.informes-theme-root input, .informes-theme-root select, .informes-theme-root textarea {
   width: 100%;
   padding: 0.7rem 1rem;
   background: var(--bg-input);
@@ -267,15 +269,113 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
-input:hover, select:hover, textarea:hover {
+.informes-shell input:hover, .informes-shell select:hover, .informes-shell textarea:hover,
+.pos-constructor input:hover, .pos-constructor select:hover, .pos-constructor textarea:hover,
+.informes-theme-root input:hover, .informes-theme-root select:hover, .informes-theme-root textarea:hover {
   border-color: var(--border-light);
   background: var(--bg-input-hover);
 }
 
-input:focus, select:focus, textarea:focus {
+.informes-shell input:focus, .informes-shell select:focus, .informes-shell textarea:focus,
+.pos-constructor input:focus, .pos-constructor select:focus, .pos-constructor textarea:focus,
+.informes-theme-root input:focus, .informes-theme-root select:focus, .informes-theme-root textarea:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px var(--primary-glow);
   background: var(--bg-input-hover);
+}
+
+/* ============================================
+   RESET PARA INPUTS EN CAJAS DE BÚSQUEDA COMPUESTAS
+   Evita el efecto de "control dentro de otro control"
+   ============================================ */
+.header-search-container input,
+.header-search-box input,
+.kanban-search-box input,
+.search-input-wrap input,
+.pos-search-input-wrap input,
+.pos-elem-search input,
+.menu-search-input-wrap input,
+.config-tab-search input,
+.search-input-naked {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+.header-search-container input:hover,
+.header-search-container input:focus,
+.header-search-box input:hover,
+.header-search-box input:focus,
+.kanban-search-box input:hover,
+.kanban-search-box input:focus,
+.search-input-wrap input:hover,
+.search-input-wrap input:focus,
+.pos-search-input-wrap input:hover,
+.pos-search-input-wrap input:focus,
+.pos-elem-search input:hover,
+.pos-elem-search input:focus,
+.menu-search-input-wrap input:hover,
+.menu-search-input-wrap input:focus,
+.config-tab-search input:hover,
+.config-tab-search input:focus,
+.search-input-naked:hover,
+.search-input-naked:focus {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+.header-search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.38rem 0.75rem;
+  background: var(--bg-elevated);
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  transition: all 0.2s var(--ease);
+  cursor: text;
+}
+
+.header-search-box:hover {
+  border-color: var(--border-light);
+}
+
+.header-search-box.is-focused,
+.header-search-box:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  background: var(--bg-card);
+}
+
+.header-search-box .search-clear-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.82rem;
+  line-height: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.header-search-box .search-clear-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-input-hover);
+}
+
+.kanban-search-box:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-glow) !important;
 }
 
 input::placeholder, textarea::placeholder {
