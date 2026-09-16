@@ -854,17 +854,17 @@ export default function MobileSalonesCalendar({
           className={`ms-kpi-card ms-kpi-libres ${activeFilter === 'libres' ? 'ms-kpi-active' : ''}`}
           onClick={() => setActiveFilter(prev => prev === 'libres' ? 'todas' : 'libres')}
         >
-          <div className="ms-kpi-icon-wrap ms-icon-libres">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </div>
-          <div className="ms-kpi-info">
-            <div className="ms-kpi-label">LIBRES</div>
-            <div className="ms-kpi-value">
-              <span className="ms-kpi-number">{kpiCounts.libres}</span>
-              <span className="ms-kpi-unit">salones</span>
+          <div className="ms-kpi-top">
+            <div className="ms-kpi-icon-wrap ms-icon-libres">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
             </div>
+            <span className="ms-kpi-number">{kpiCounts.libres}</span>
+          </div>
+          <div className="ms-kpi-bottom">
+            <span className="ms-kpi-label">Libres</span>
+            <span className="ms-kpi-unit">salones</span>
           </div>
         </button>
 
@@ -873,20 +873,20 @@ export default function MobileSalonesCalendar({
           className={`ms-kpi-card ms-kpi-ocupados ${activeFilter === 'ocupados' ? 'ms-kpi-active' : ''}`}
           onClick={() => setActiveFilter(prev => prev === 'ocupados' ? 'todas' : 'ocupados')}
         >
-          <div className="ms-kpi-icon-wrap ms-icon-ocupados">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-          </div>
-          <div className="ms-kpi-info">
-            <div className="ms-kpi-label">OCUPADOS</div>
-            <div className="ms-kpi-value">
-              <span className="ms-kpi-number">{kpiCounts.ocupados}</span>
-              <span className="ms-kpi-unit">salones</span>
+          <div className="ms-kpi-top">
+            <div className="ms-kpi-icon-wrap ms-icon-ocupados">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
             </div>
+            <span className="ms-kpi-number">{kpiCounts.ocupados}</span>
+          </div>
+          <div className="ms-kpi-bottom">
+            <span className="ms-kpi-label">Ocupados</span>
+            <span className="ms-kpi-unit">salones</span>
           </div>
         </button>
 
@@ -895,17 +895,17 @@ export default function MobileSalonesCalendar({
           className={`ms-kpi-card ms-kpi-mant ${activeFilter === 'mantenimiento' ? 'ms-kpi-active' : ''}`}
           onClick={() => setActiveFilter(prev => prev === 'mantenimiento' ? 'todas' : 'mantenimiento')}
         >
-          <div className="ms-kpi-icon-wrap ms-icon-mant">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-            </svg>
-          </div>
-          <div className="ms-kpi-info">
-            <div className="ms-kpi-label">MANT.</div>
-            <div className="ms-kpi-value">
-              <span className="ms-kpi-number">{kpiCounts.mantenimiento}</span>
-              <span className="ms-kpi-unit">área</span>
+          <div className="ms-kpi-top">
+            <div className="ms-kpi-icon-wrap ms-icon-mant">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
             </div>
+            <span className="ms-kpi-number">{kpiCounts.mantenimiento}</span>
+          </div>
+          <div className="ms-kpi-bottom">
+            <span className="ms-kpi-label">Mantenim.</span>
+            <span className="ms-kpi-unit">salones</span>
           </div>
         </button>
       </div>
@@ -922,13 +922,13 @@ export default function MobileSalonesCalendar({
           className={`ms-chip ${activeFilter === 'libres' ? 'active' : ''}`}
           onClick={() => setActiveFilter('libres')}
         >
-          Solo Libres ({kpiCounts.libres})
+          Libres ({kpiCounts.libres})
         </button>
         <button
           className={`ms-chip ${activeFilter === 'parcial' ? 'active' : ''}`}
           onClick={() => setActiveFilter('parcial')}
         >
-          Ocupación Parcial ({kpiCounts.parcial})
+          Parcial ({kpiCounts.parcial})
         </button>
         <button
           className={`ms-chip ${activeFilter === 'ocupados' ? 'active' : ''}`}
@@ -940,7 +940,7 @@ export default function MobileSalonesCalendar({
           className={`ms-chip ${activeFilter === 'grandes' ? 'active' : ''}`}
           onClick={() => setActiveFilter('grandes')}
         >
-          Salones Grandes (&gt;150)
+          Grandes (&gt;150)
         </button>
         {kpiCounts.mantenimiento > 0 && (
           <button
@@ -983,8 +983,11 @@ export default function MobileSalonesCalendar({
                   </svg>
                   <span className="ms-tl-title">Timeline Diario — 6 Bloques</span>
                 </div>
-                <div className="ms-tl-badge-date">
-                  {isTodaySelected ? 'HOY' : formattedHeaderDate}
+                <div className="ms-tl-header-right">
+                  <span className="ms-tl-swipe-hint">↔ Desliza horas</span>
+                  <div className="ms-tl-badge-date">
+                    {isTodaySelected ? 'HOY' : formattedHeaderDate}
+                  </div>
                 </div>
               </div>
 
@@ -1026,7 +1029,11 @@ export default function MobileSalonesCalendar({
                           <div
                             className={`ms-tl-pill ms-tl-pill-${block.pillVariant || block.status}`}
                             title={`${s.salonName} • ${block.blockTitle}: ${block.status === 'free' ? 'Libre' : (block.event?.name || 'Ocupado')}`}
-                          />
+                          >
+                            {block.status !== 'free' && (
+                              <span className="ms-tl-pill-dot" />
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2306,20 +2313,21 @@ export default function MobileSalonesCalendar({
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 8px;
-          padding: 12px 14px 4px;
+          padding: 10px 14px 4px;
         }
 
         .ms-kpi-card {
           background: #ffffff;
           border: 1px solid #e2e8f0;
           border-radius: 12px;
-          padding: 8px 6px;
+          padding: 8px 8px;
           display: flex;
-          align-items: center;
-          gap: 6px;
+          flex-direction: column;
+          gap: 4px;
           cursor: pointer;
           text-align: left;
           transition: all 0.15s ease;
+          min-width: 0;
         }
 
         .ms-kpi-active {
@@ -2328,10 +2336,16 @@ export default function MobileSalonesCalendar({
           box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
         }
 
+        .ms-kpi-top {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
         .ms-kpi-icon-wrap {
-          width: 28px;
-          height: 28px;
-          border-radius: 8px;
+          width: 24px;
+          height: 24px;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2342,40 +2356,38 @@ export default function MobileSalonesCalendar({
         .ms-icon-ocupados { background: #ede9fe; }
         .ms-icon-mant { background: #e0f2fe; }
 
-        .ms-kpi-info {
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
+        .ms-kpi-number {
+          font-size: 16px;
+          font-weight: 900;
+          color: #0f172a;
+          line-height: 1;
         }
 
-        .ms-kpi-label {
-          font-size: 9px;
-          font-weight: 800;
-          color: #64748b;
-          letter-spacing: 0.03em;
-        }
-
-        .ms-kpi-value {
+        .ms-kpi-bottom {
           display: flex;
           align-items: baseline;
           gap: 3px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
-        .ms-kpi-number {
-          font-size: 15px;
-          font-weight: 900;
-          color: #0f172a;
-          line-height: 1.1;
+        .ms-kpi-label {
+          font-size: 11px;
+          font-weight: 800;
+          color: #475569;
+          letter-spacing: -0.01em;
         }
 
         .ms-kpi-unit {
-          font-size: 10px;
-          color: #059669;
-          font-weight: 700;
+          font-size: 9.5px;
+          color: #94a3b8;
+          font-weight: 600;
         }
 
-        .ms-kpi-ocupados .ms-kpi-unit { color: #4338ca; }
-        .ms-kpi-mant .ms-kpi-unit { color: #0284c7; }
+        .ms-kpi-libres .ms-kpi-label { color: #059669; }
+        .ms-kpi-ocupados .ms-kpi-label { color: #4338ca; }
+        .ms-kpi-mant .ms-kpi-label { color: #0284c7; }
 
         /* ─── CHIPS DE FILTRO ─── */
         .ms-chips-scroller {
@@ -2385,12 +2397,19 @@ export default function MobileSalonesCalendar({
           overflow-x: auto !important;
           overflow-y: hidden !important;
           -webkit-overflow-scrolling: touch !important;
-          padding: 8px 14px !important;
+          padding: 6px 14px 8px !important;
+          scroll-padding: 0 14px !important;
           width: 100% !important;
           max-width: 100% !important;
           box-sizing: border-box !important;
           scrollbar-width: none !important;
           -ms-overflow-style: none !important;
+        }
+
+        .ms-chips-scroller::after {
+          content: '' !important;
+          display: block !important;
+          flex: 0 0 10px !important;
         }
 
         .ms-chips-scroller::-webkit-scrollbar {
@@ -2971,12 +2990,14 @@ export default function MobileSalonesCalendar({
           margin-bottom: 12px !important;
           padding-bottom: 10px !important;
           border-bottom: 1px solid #f1f5f9 !important;
+          gap: 8px !important;
         }
 
         .ms-tl-title-wrap {
           display: flex !important;
           align-items: center !important;
           gap: 8px !important;
+          min-width: 0 !important;
         }
 
         .ms-tl-icon {
@@ -2984,10 +3005,33 @@ export default function MobileSalonesCalendar({
         }
 
         .ms-tl-title {
-          font-size: 14px !important;
+          font-size: 13.5px !important;
           font-weight: 800 !important;
           color: #0f172a !important;
           letter-spacing: 0.01em !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .ms-tl-header-right {
+          display: flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          flex-shrink: 0 !important;
+        }
+
+        .ms-tl-swipe-hint {
+          font-size: 9.5px !important;
+          font-weight: 700 !important;
+          color: #6366f1 !important;
+          background: #eef2ff !important;
+          padding: 2px 6px !important;
+          border-radius: 999px !important;
+          white-space: nowrap !important;
+          letter-spacing: 0.01em !important;
+          display: inline-flex !important;
+          align-items: center !important;
         }
 
         .ms-tl-badge-date {
@@ -3005,10 +3049,12 @@ export default function MobileSalonesCalendar({
           width: 100% !important;
           overflow-x: auto !important;
           -webkit-overflow-scrolling: touch !important;
+          position: relative !important;
+          border-radius: 8px !important;
         }
 
         .ms-tl-grid {
-          min-width: 320px !important;
+          min-width: 390px !important;
           width: 100% !important;
           display: flex !important;
           flex-direction: column !important;
@@ -3017,7 +3063,7 @@ export default function MobileSalonesCalendar({
 
         .ms-tl-row {
           display: grid !important;
-          grid-template-columns: 86px repeat(6, 1fr) !important;
+          grid-template-columns: 82px repeat(6, minmax(46px, 1fr)) !important;
           gap: 5px !important;
           align-items: center !important;
           padding: 2px 0 !important;
@@ -3039,6 +3085,7 @@ export default function MobileSalonesCalendar({
           align-items: center !important;
           justify-content: center !important;
           gap: 2px !important;
+          white-space: nowrap !important;
         }
 
         .ms-tl-header-cell:first-child {
@@ -3059,15 +3106,29 @@ export default function MobileSalonesCalendar({
           margin-left: 1px !important;
         }
 
+        .ms-tl-col-salon {
+          position: sticky !important;
+          left: 0 !important;
+          z-index: 4 !important;
+          background: #ffffff !important;
+          box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        .ms-tl-header-row .ms-tl-col-salon {
+          background: #ffffff !important;
+          z-index: 5 !important;
+        }
+
         .ms-tl-salon-cell {
           display: flex !important;
           flex-direction: column !important;
           justify-content: center !important;
           min-width: 0 !important;
+          padding-right: 4px !important;
         }
 
         .ms-tl-salon-name {
-          font-size: 12px !important;
+          font-size: 11.5px !important;
           font-weight: 700 !important;
           color: #1e293b !important;
           white-space: nowrap !important;
@@ -3084,19 +3145,30 @@ export default function MobileSalonesCalendar({
 
         .ms-tl-pill {
           width: 100% !important;
-          height: 24px !important;
-          border-radius: 5px !important;
+          height: 28px !important;
+          border-radius: 7px !important;
           cursor: pointer !important;
           transition: transform 0.1s ease, filter 0.1s ease !important;
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(15, 23, 42, 0.05) !important;
           border-bottom: 1.5px solid rgba(0, 0, 0, 0.12) !important;
           border-left: 1px solid rgba(0, 0, 0, 0.06) !important;
           border-right: 1px solid rgba(0, 0, 0, 0.06) !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
         }
 
         .ms-tl-pill:active {
           transform: scale(0.92) !important;
           filter: brightness(0.95) !important;
+        }
+
+        .ms-tl-pill-dot {
+          width: 5px !important;
+          height: 5px !important;
+          border-radius: 50% !important;
+          background: currentColor !important;
+          opacity: 0.7 !important;
         }
 
         /* Pills en paleta armonizada al CRM */
