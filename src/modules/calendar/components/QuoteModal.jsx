@@ -31,7 +31,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import authService from '../../../services/authService';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../../services/stateService';
+import { loadState as loadCrmState, saveState as saveCrmState, saveCompanyApi, saveQuickManagerApi } from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
 import api from '../../../services/api';
 import socketService from '../../../services/socketService';
@@ -598,7 +598,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         || managers.find(m => String(m.name || '').trim().toLowerCase() === String(quote.contact || quote.managerName || '').trim().toLowerCase())
         || null;
     }
-    if (!manager && managers.length > 0 && !quote.contact) {
+    if (!manager && managers.length > 0) {
       manager = managers[0] || null;
     }
 
@@ -613,8 +613,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       billTo: company.businessName || company.billTo || company.name || prev.billTo || '',
       address: company.address || prev.address || '',
       eventType: company.eventType || prev.eventType || 'Social',
-      managerId: manager?.id || (manager ? manager.name : (prev.managerId || '')),
-      managerName: manager?.name || prev.managerName || (manager ? manager.name : prev.contact || ''),
+      managerId: manager?.id || (manager ? manager.name : (company.owner ? `mgr_${company.owner}` : '')),
+      managerName: manager?.name || company.owner || (prev.managerName || ''),
       dueDate: prev.eventDate ? calculateDueDate(prev.eventDate) : prev.dueDate
     }));
   };
@@ -696,13 +696,6 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
     setSavingQuickManager(true);
     try {
-      const currentState = await loadCrmState({ cacheBust: true });
-      const currentCompanies = Array.isArray(currentState.companies) ? currentState.companies : [];
-      const compIdx = currentCompanies.findIndex(c => String(c.id).trim() === String(targetComp.id).trim());
-      if (compIdx < 0) {
-        toast.error('No se encontró la empresa en el catálogo.');
-        return;
-      }
       const newManager = {
         id: `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         name,
@@ -710,16 +703,15 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         email: quickManagerDraft.email.trim(),
         address: quickManagerDraft.address.trim()
       };
-      const existingManagers = Array.isArray(currentCompanies[compIdx].managers) ? currentCompanies[compIdx].managers : [];
+      const savedManager = await saveQuickManagerApi(targetComp.id, newManager);
+      const existingManagers = Array.isArray(targetComp.managers) ? targetComp.managers : [];
       const updatedComp = {
-        ...currentCompanies[compIdx],
-        owner: currentCompanies[compIdx].owner || name,
-        managers: [...existingManagers, newManager]
+        ...targetComp,
+        owner: targetComp.owner || name,
+        managers: [...existingManagers.filter(m => String(m.id) !== String(savedManager.id)), savedManager]
       };
-      const nextCompanies = currentCompanies.map((c, i) => i === compIdx ? updatedComp : c);
-      await saveCrmState({ ...currentState, companies: nextCompanies });
-      setCompanies(nextCompanies);
-      applyCompanyManager(updatedComp, newManager.id);
+      setCompanies(prev => prev.map(c => String(c.id).trim() === String(targetComp.id).trim() ? updatedComp : c));
+      applyCompanyManager(updatedComp, savedManager.id);
       setShowQuickManagerModal(false);
       setQuickManagerDraft({ name: '', phone: '', email: '', address: '' });
       toast.success(`Encargado "${name}" agregado a ${updatedComp.name}`);
@@ -815,15 +807,40 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       localSwal({ icon: 'warning', title: 'Falta empresa', text: 'Escriba el nombre de la empresa.' });
       return;
     }
-    if (!companyManagersDraft.length) {
-      localSwal({ icon: 'warning', title: 'Falta encargado', text: 'Agregue al menos un encargado para la empresa.' });
+
+    // Recopilar managers del borrador con fallbacks automáticos
+    let effectiveManagers = [...companyManagersDraft];
+
+    // Fallback 1: Si hay algo escrito en los inputs de encargado borrador pero no hizo clic en "+ Encargado"
+    if (managerDraft.name && managerDraft.name.trim()) {
+      effectiveManagers.push({
+        id: editingManagerId || `mgr_${Date.now()}`,
+        name: managerDraft.name.trim(),
+        phone: managerDraft.phone.trim(),
+        email: managerDraft.email.trim(),
+        address: managerDraft.address.trim()
+      });
+    }
+
+    // Fallback 2: Si no hay encargados en la lista pero escribió "Encargado de la Organización" / "Encargado Principal"
+    if (!effectiveManagers.length && clean.owner) {
+      effectiveManagers.push({
+        id: `mgr_${Date.now()}`,
+        name: clean.owner,
+        phone: clean.phone || '',
+        email: clean.email || '',
+        address: clean.address || ''
+      });
+    }
+
+    if (!effectiveManagers.length) {
+      localSwal({ icon: 'warning', title: 'Falta encargado', text: 'Escriba el nombre del encargado o contacto principal.' });
       return;
     }
 
     setCreatingCompany(true);
     try {
-      const currentState = await loadCrmState({ cacheBust: true });
-      const currentCompanies = Array.isArray(currentState.companies) ? currentState.companies : [];
+      const currentCompanies = Array.isArray(companies) ? companies : [];
 
       // 1. Coincidencia estricta por ID SOLO si existe companyDraftId explícito (edición)
       let existingIndex = -1;
@@ -840,7 +857,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       // Generar SIEMPRE ID único nuevo si es empresa nueva para prevenir colisiones
       const targetCompanyId = baseCompany?.id || companyDraftId || `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-      const savedManagers = companyManagersDraft.map((manager, index) => ({
+      const savedManagers = effectiveManagers.map((manager, index) => ({
         id: String(manager.id || `mgr_${Date.now()}_${index}`).trim(),
         name: String(manager.name || '').trim(),
         phone: String(manager.phone || '').trim(),
@@ -854,15 +871,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         name: clean.name,
         owner: clean.owner || savedManagers[0]?.name || '',
         email: clean.email,
-        nit: clean.nit,
+        nit: clean.nit || 'CF',
         businessName: clean.businessName || clean.name,
         billTo: clean.businessName || clean.name,
         eventType: clean.eventType || 'Social',
         address: clean.address,
         phone: clean.phone,
         notes: clean.notes,
-        managers: savedManagers
+        managers: savedManagers,
+        active: companyDraftActive
       };
+
+      // Guardado atómico <1KB (Inmune a error 413)
+      const persistedCompany = await saveCompanyApi(savedCompany);
 
       // Conservar el encargado que se estaba editando o el que ya estaba en la cotización
       const preferredManagerId = editingManagerId || quote.managerId;
@@ -872,17 +893,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         || null;
 
       const nextCompanies = existingIndex >= 0
-        ? currentCompanies.map((item, idx) => idx === existingIndex ? savedCompany : item)
-        : [...currentCompanies, savedCompany];
-      const nextDisabledCompanies = new Set(Array.isArray(currentState.disabledCompanies) ? currentState.disabledCompanies.map(String) : []);
-      if (companyDraftActive) nextDisabledCompanies.delete(String(savedCompany.id));
-      else nextDisabledCompanies.add(String(savedCompany.id));
-
-      await saveCrmState({ ...currentState, companies: nextCompanies, disabledCompanies: Array.from(nextDisabledCompanies) });
+        ? currentCompanies.map((item, idx) => idx === existingIndex ? persistedCompany : item)
+        : [...currentCompanies, persistedCompany];
 
       setCompanies(nextCompanies);
-      applyCompanyManager(savedCompany, matchedManager?.id || matchedManager?.name || '');
-      setCompanySearchQuery(savedCompany.name);
+      applyCompanyManager(persistedCompany, matchedManager?.id || matchedManager?.name || '');
+      setCompanySearchQuery(persistedCompany.name);
       setShowCompanyResults(false);
       resetCreateCompanyModal();
       localSwal({
@@ -894,7 +910,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       });
     } catch (err) {
       console.error('Error creando/actualizando empresa:', err);
-      localSwal({ icon: 'error', title: 'Error', text: 'No se pudo guardar la empresa.' });
+      localSwal({ icon: 'error', title: 'Error', text: err.message || 'No se pudo guardar la empresa.' });
     } finally {
       setCreatingCompany(false);
     }

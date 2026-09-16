@@ -1,4 +1,4 @@
-import { loadState, saveState } from '../../services/stateService';
+import { loadState, saveState, saveCompanyApi, saveQuickManagerApi, deleteCompanyApi } from '../../services/stateService';
 
 export const IMPORT_EVENT_COLUMNS = [
   'evento_id',
@@ -125,6 +125,18 @@ export async function loadCrmState() {
 
 export async function saveCrmState(state) {
   return saveState(state);
+}
+
+export async function saveCompany(company) {
+  return saveCompanyApi(company);
+}
+
+export async function saveQuickCompanyManager(companyId, manager) {
+  return saveQuickManagerApi(companyId, manager);
+}
+
+export async function deleteCompany(companyId) {
+  return deleteCompanyApi(companyId);
 }
 
 export function csvEscapeCell(value) {

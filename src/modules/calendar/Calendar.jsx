@@ -7,7 +7,7 @@ import DesktopTimelineView from './components/DesktopTimelineView';
 import { toast } from '../../utils/toast';
 import '../../styles/tooltips.css';
 
-const HOUR_HEIGHT = 56;
+const HOUR_HEIGHT = 84;
 const HOUR_START = 6;
 const HOUR_END = 24;
 
@@ -567,444 +567,679 @@ export default function Calendar() {
 
 
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const renderWeekView = () => {
+    // Calcular eventos en el rango semanal para estadísticas de barra inferior
+    const startStr = formatDate(weekDates[0]);
+    const endStr = formatDate(weekDates[6]);
+    const visibleWeekEvents = (filteredEvents || []).filter(e => e.date && e.date >= startStr && e.date <= endStr);
+    const totalQuotedInWeek = visibleWeekEvents.reduce((acc, ev) => acc + Number(ev?.quote?.total || 0), 0);
 
-  const renderWeekView = () => {
     return (
       <div className="cal-week-view" style={weekViewStyle}>
         {/* Contenedor Desplazable que contiene tanto cabecera como cuerpo */}
-        <div className="cal-week-scroll-container" style={weekScrollContainerStyle}>
+        <div className="cal-week-scroll-container" style={{ ...weekScrollContainerStyle, background: '#f8fafc' }}>
           
-          {/* Cabecera Pinned */}
-          <div className="cal-week-header" style={weekHeaderStyle}>
-            {/* Espaciador de horas con etiqueta "HORA" */}
-            <div className="cal-week-hour-column" style={weekHourColumnStyle}>
-              HORA
+          {/* Cabecera Pinned / Sticky */}
+          <div className="cal-week-header" style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 20,
+            backgroundColor: 'rgba(255, 255, 255, 0.96)',
+            backdropFilter: 'blur(8px)',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            minWidth: '1240px',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)'
+          }}>
+            {/* Espaciador de horas con etiqueta "HORA" y GMT-6 */}
+            <div className="cal-week-hour-column" style={{
+              width: '80px',
+              flexShrink: 0,
+              borderRight: '1px solid rgba(226, 232, 240, 0.8)',
+              padding: '12px 8px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              backgroundColor: 'rgba(248, 250, 252, 0.7)',
+              position: 'sticky',
+              left: 0,
+              zIndex: 25
+            }}>
+              <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: '#94a3b8', textTransform: 'uppercase', fontFamily: 'monospace' }}>HORA</span>
+              <span style={{ fontSize: '9px', fontFamily: 'monospace', color: '#94a3b8', backgroundColor: '#ffffff', border: '1px solid rgba(226, 232, 240, 0.9)', padding: '2px 6px', borderRadius: '999px', marginTop: '3px', boxShadow: '0 1px 1px rgba(0,0,0,0.02)' }}>GMT-6</span>
             </div>
             
-            {/* Encabezados de días */}
-            <div className="cal-week-header-days" style={weekHeaderDaysStyle}>
-            {weekDates.map((day, idx) => {
-              const dateStr = formatDate(day);
-              const isToday = dateStr === todayStr;
-              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-              
-              return (
-                <div key={idx} ref={isToday ? todayRef : null} className="cal-week-header-day" style={{ 
-                  flex: 1, 
-                  minWidth: '220px',
-                  height: '68px',
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  borderLeft: idx > 0 ? '1px solid #e2e8f0' : 'none',
-                  borderBottom: '2px solid #cbd5e1',
-                  background: isToday ? '#f0f7ff' : '#ffffff',
-                  transition: 'background 0.2s'
-                }}>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    fontWeight: '800', 
-                    color: isToday ? '#2563eb' : isWeekend ? '#e11d48' : '#64748b', 
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    {day.toLocaleDateString('es-ES', { weekday: 'short' })}
-                  </div>
-                  <div style={{ 
-                    width: '32px', 
-                    height: '32px', 
-                    borderRadius: '50%', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    background: isToday ? '#2563eb' : 'transparent',
-                    color: isToday ? 'white' : isWeekend ? '#e11d48' : '#0f172a',
-                    fontSize: '15px', 
-                    fontWeight: '800',
-                    marginTop: '2px'
-                  }}>
-                    {day.getDate()}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+            {/* 7 Columnas de Días Estilizadas */}
+            <div className="cal-week-header-days" style={{ flex: 1, display: 'flex', backgroundColor: '#ffffff' }}>
+              {weekDates.map((day, idx) => {
+                const dateStr = formatDate(day);
+                const isToday = dateStr === todayStr;
+                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                const dayEvents = getEventsForDay(dateStr);
+                const count = dayEvents.length;
 
-        {/* Cuerpo */}
-        <div className="cal-week-body" style={{ display: 'flex', position: 'relative' }}>
-          {/* Columna de etiquetas de horas */}
-          <div className="cal-week-hour-column" style={{ 
-            width: '70px', 
-            flexShrink: 0, 
-            background: '#f8fafc', 
-            borderRight: '1px solid #e2e8f0',
-            position: 'sticky',
-            left: 0,
-            zIndex: 10
-          }}>
-            {hourSlots.map(hour => (
-              <div key={hour} style={{ 
-                height: HOUR_HEIGHT, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                borderBottom: '1px solid #dbe4f0'
-              }}>
-                <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#7c8ea5', lineHeight: 1 }}>
-                  {formatHour(hour)}
-                </span>
-              </div>
-            ))}
-            <div style={{ 
-              height: HOUR_HEIGHT, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              borderBottom: '1px solid #dbe4f0',
-              background: '#f8fafc'
-            }}>
-              <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#7c8ea5', lineHeight: 1 }}>
-                {formatHour(HOUR_END)}
-              </span>
+                const weekdayShort = day.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
+                const weekdayCap = weekdayShort.charAt(0).toUpperCase() + weekdayShort.slice(1);
+                const monthShort = day.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+                const monthFull = day.toLocaleDateString('es-ES', { month: 'long' });
+                const monthFullCap = monthFull.charAt(0).toUpperCase() + monthFull.slice(1);
+
+                const primaryStatus = dayEvents[0]?.status;
+                const dotColor = primaryStatus ? (STATUS_META[primaryStatus]?.color || '#10b981') : '#94a3b8';
+
+                return isToday ? (
+                  /* Columna HOY Destacada (Estilo Jardines EMS) */
+                  <div key={idx} ref={todayRef} className="cal-week-header-day cal-week-header-today" style={{
+                    flex: 1,
+                    minWidth: '160px',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    backgroundColor: 'rgba(236, 253, 245, 0.45)',
+                    borderLeft: idx > 0 ? '1px solid rgba(226, 232, 240, 0.8)' : 'none',
+                    borderBottom: '2px solid #10b981',
+                    cursor: 'pointer',
+                    position: 'relative'
+                  }} onClick={() => handleDayClick(dateStr)}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#047857', textTransform: 'capitalize' }}>
+                          {weekdayCap}
+                        </span>
+                        <span style={{
+                          padding: '1px 6px',
+                          borderRadius: '999px',
+                          fontSize: '9px',
+                          fontWeight: 800,
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
+                          letterSpacing: '0.05em',
+                          textTransform: 'uppercase'
+                        }}>
+                          Hoy
+                        </span>
+                      </div>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        backgroundColor: 'rgba(209, 250, 229, 0.8)',
+                        color: '#065f46',
+                        border: '1px solid rgba(167, 243, 208, 0.7)'
+                      }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                        {count === 1 ? '1 activo' : `${count} activos`}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          backgroundColor: '#059669',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                        }}>
+                          {day.getDate()}
+                        </span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#065f46' }}>
+                          {monthFullCap}
+                        </span>
+                      </div>
+                      <span className="cal-today-dot-pulse" style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Columna Normal de Día */
+                  <div key={idx} className="cal-week-header-day" style={{
+                    flex: 1,
+                    minWidth: '160px',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    backgroundColor: '#ffffff',
+                    borderLeft: idx > 0 ? '1px solid rgba(226, 232, 240, 0.8)' : 'none',
+                    borderBottom: '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s ease'
+                  }} onClick={() => handleDayClick(dateStr)}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(248, 250, 252, 0.7)'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: isWeekend ? '#64748b' : '#64748b', textTransform: 'capitalize' }}>
+                        {weekdayCap}
+                      </span>
+                      {count > 0 ? (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          backgroundColor: (count >= 3 || isWeekend) ? '#ecfdf5' : '#f1f5f9',
+                          color: (count >= 3 || isWeekend) ? '#065f46' : '#475569',
+                          border: (count >= 3 || isWeekend) ? '1px solid #a7f3d0' : 'none'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: dotColor }}></span>
+                          {(count >= 3 || isWeekend) ? 'Alta ocupación' : `${count} evento${count > 1 ? 's' : ''}`}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 500 }}>Libre</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '6px' }}>
+                      <span style={{ fontSize: '20px', fontWeight: 600, color: isWeekend ? '#334155' : '#0f172a', letterSpacing: '-0.02em' }}>
+                        {day.getDate()}
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: 500, color: '#94a3b8' }}>
+                        {monthShort}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Cuadrícula de columnas de días */}
-          <div className="cal-week-body-days" style={{ flex: 1, display: 'flex', minWidth: 0 }}>
-            {weekDates.map((day, idx) => {
-              const dateStr = formatDate(day);
-              const dayEvents = getEventsForDay(dateStr);
-              const layouts = computeEventLayouts(dayEvents);
-              
-              return (
-                <div key={idx} className="cal-week-body-day" style={{ 
-                  flex: 1, 
-                  minWidth: '220px',
-                  borderLeft: idx > 0 ? '1px solid #e2e8f0' : 'none', 
-                  position: 'relative',
-                  zIndex: 1,
-                  background: 'white',
-                  overflow: 'hidden'
+          {/* Cuerpo */}
+          <div className="cal-week-body" style={{ display: 'flex', position: 'relative', minWidth: '1240px', backgroundColor: '#ffffff' }}>
+            {/* Columna de etiquetas de horas */}
+            <div className="cal-week-hour-column" style={{ 
+              width: '80px', 
+              flexShrink: 0, 
+              backgroundColor: '#ffffff', 
+              borderRight: '1px solid rgba(226, 232, 240, 0.9)',
+              position: 'sticky',
+              left: 0,
+              zIndex: 10,
+              userSelect: 'none'
+            }}>
+              {hourSlots.map(hour => (
+                <div key={hour} className="calendar-hour-slot" style={{ 
+                  height: HOUR_HEIGHT, 
+                  minHeight: HOUR_HEIGHT,
+                  display: 'flex', 
+                  alignItems: 'flex-start', 
+                  justifyContent: 'center', 
+                  paddingTop: '10px',
+                  borderBottom: '1px solid #f1f5f9',
+                  boxSizing: 'border-box'
                 }}>
-                  {/* Líneas horizontales de horas */}
-                  {hourSlots.map(hour => {
-                    const isSelected = selectionActive && selectionStart && selectionCurrent && (() => {
-                      const minDate = selectionStart.dateStr <= selectionCurrent.dateStr ? selectionStart.dateStr : selectionCurrent.dateStr;
-                      const maxDate = selectionStart.dateStr <= selectionCurrent.dateStr ? selectionCurrent.dateStr : selectionStart.dateStr;
-                      const minHour = Math.min(selectionStart.hour, selectionCurrent.hour);
-                      const maxHour = Math.max(selectionStart.hour, selectionCurrent.hour);
-                      return dateStr >= minDate && dateStr <= maxDate && hour >= minHour && hour <= maxHour;
-                    })();
+                  <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 500, color: '#94a3b8' }}>
+                    {formatHour(hour)}
+                  </span>
+                </div>
+              ))}
+              <div style={{ 
+                height: HOUR_HEIGHT, 
+                minHeight: HOUR_HEIGHT,
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                justifyContent: 'center', 
+                paddingTop: '10px',
+                borderBottom: '1px solid #f1f5f9',
+                backgroundColor: '#ffffff',
+                boxSizing: 'border-box'
+              }}>
+                <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 500, color: '#94a3b8' }}>
+                  {formatHour(HOUR_END)}
+                </span>
+              </div>
+            </div>
 
-                    const minDate = selectionStart?.dateStr <= selectionCurrent?.dateStr ? selectionStart?.dateStr : selectionCurrent?.dateStr;
-                    const maxDate = selectionStart?.dateStr <= selectionCurrent?.dateStr ? selectionCurrent?.dateStr : selectionStart?.dateStr;
+            {/* Cuadrícula de columnas de días */}
+            <div className="cal-week-body-days" style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+              {weekDates.map((day, idx) => {
+                const dateStr = formatDate(day);
+                const isToday = dateStr === todayStr;
+                const dayEvents = getEventsForDay(dateStr);
+                const layouts = computeEventLayouts(dayEvents);
+                
+                return (
+                  <div key={idx} className="cal-week-body-day" style={{ 
+                    flex: 1, 
+                    minWidth: '160px',
+                    borderLeft: idx > 0 ? '1px solid rgba(226, 232, 240, 0.8)' : 'none', 
+                    position: 'relative',
+                    zIndex: 1,
+                    backgroundColor: isToday ? 'rgba(240, 253, 244, 0.15)' : '#ffffff',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Líneas horizontales de horas */}
+                    {hourSlots.map(hour => {
+                      const isSelected = selectionActive && selectionStart && selectionCurrent && (() => {
+                        const minDate = selectionStart.dateStr <= selectionCurrent.dateStr ? selectionStart.dateStr : selectionCurrent.dateStr;
+                        const maxDate = selectionStart.dateStr <= selectionCurrent.dateStr ? selectionCurrent.dateStr : selectionStart.dateStr;
+                        const minHour = Math.min(selectionStart.hour, selectionCurrent.hour);
+                        const maxHour = Math.max(selectionStart.hour, selectionCurrent.hour);
+                        return dateStr >= minDate && dateStr <= maxDate && hour >= minHour && hour <= maxHour;
+                      })();
 
-                    const isLeftMost = dateStr === minDate;
-                    const isRightMost = dateStr === maxDate;
-                    const isTopCell = isSelected && hour === Math.min(selectionStart.hour, selectionCurrent.hour);
-                    const isBottomCell = isSelected && hour === Math.max(selectionStart.hour, selectionCurrent.hour);
+                      const minDate = selectionStart?.dateStr <= selectionCurrent?.dateStr ? selectionStart?.dateStr : selectionCurrent?.dateStr;
+                      const maxDate = selectionStart?.dateStr <= selectionCurrent?.dateStr ? selectionCurrent?.dateStr : selectionStart?.dateStr;
 
-                    return (
-                      <div 
-                        key={hour} 
-                        className="cal-hour-cell"
-                        data-date={dateStr}
-                        data-hour={hour}
-                        style={{ 
-                          height: HOUR_HEIGHT, 
-                          boxSizing: 'border-box',
-                          userSelect: 'none',
-                          cursor: 'cell',
-                          background: isSelected ? 'rgba(37, 99, 235, 0.12)' : 'transparent',
-                          borderLeft: isSelected && isLeftMost ? '1.5px solid #2563eb' : 'none',
-                          borderRight: isSelected && isRightMost ? '1.5px solid #2563eb' : 'none',
-                          borderTop: isSelected && isTopCell ? '1.5px solid #2563eb' : 'none',
-                          borderBottom: isSelected && isBottomCell ? '1.5px solid #2563eb' : '1px solid #dbe4f0',
-                          boxShadow: isSelected ? 'inset 0 0 0 1px rgba(37,99,235,0.08)' : 'none',
-                        }}
-                        onMouseDown={(e) => {
-                          if (e.button !== 0) return; // solo click izquierdo
-                          if (dateStr < todayStr) {
-                            toast('No se pueden programar eventos en fechas anteriores a hoy.');
-                            return;
-                          }
-                          setSelectionStart({ dateStr, hour });
-                          setSelectionCurrent({ dateStr, hour });
-                          setSelectionActive(true);
-                        }}
-                        onDoubleClick={(e) => {
-                          if (e.button !== 0) return;
-                          if (dateStr < todayStr) {
-                            toast('No se pueden programar eventos en fechas anteriores a hoy.');
-                            return;
-                          }
-                          navigate(`/nueva-reserva?date=${dateStr}&endDate=${dateStr}&start=${formatTime(hour)}&end=${formatTime(hour + 1)}`);
-                        }}
-                        onMouseEnter={() => {
-                          if (selectionActive) {
-                            if (dateStr < todayStr) return; // No permitir arrastrar a fechas pasadas
-                            setSelectionCurrent({ dateStr, hour });
-                          }
-                        }}
-                        onTouchStart={(e) => handleCellTouchStart(e, dateStr, hour)}
-                        onTouchMove={handleCellTouchMove}
-                        onTouchEnd={handleCellTouchEnd}
-                      />
-                    );
-                  })}
-                  <div style={{
-                    height: HOUR_HEIGHT,
-                    boxSizing: 'border-box',
-                    borderBottom: '1px solid #dbe4f0',
-                    background: 'transparent'
-                  }} />
-                  
-                  {/* Eventos */}
-                  {(() => {
-                    return dayEvents.map((ev) => {
-                      const layout = layouts[ev.id];
-                      if (!layout) return null;
-                      const top = timeToY(ev.startTime);
-                      const height = Math.max(42, timeToY(ev.endTime) - top);
-                      const color = STATUS_META[ev.status]?.color || '#64748b';
-                      const seriesBadge = getEventSeriesBadge(ev, events);
-                      
-                      const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
-                      const normalBg = isMaint
-                        ? `repeating-linear-gradient(45deg, ${color}12, ${color}12 8px, ${color}20 8px, ${color}20 16px) #ffffff`
-                        : `linear-gradient(0deg, ${color}12, ${color}12) #ffffff`;
-                      const hoverBg = isMaint
-                        ? `repeating-linear-gradient(45deg, ${color}20, ${color}20 8px, ${color}30 8px, ${color}30 16px) #ffffff`
-                        : `linear-gradient(0deg, ${color}25, ${color}25) #ffffff`;
-
-                      const lane = layout.lane;
-                      const totalLanes = layout.totalLanes;
-                      
-                      const leftPct = (lane * 100) / totalLanes;
-                      const widthPct = 100 / totalLanes;
-                      
-                      const seller = users?.find(u => String(u.id) === String(ev.userId));
-                      const sellerName = seller?.fullName || seller?.name || 'Sistemas Admin';
-                      const showFullDetails = height >= 140;
-                      const isCompactHeight = height <= 72;
-
-                      const formatMoneyGT = (val) => {
-                        return 'Cot Q ' + Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                      };
+                      const isLeftMost = dateStr === minDate;
+                      const isRightMost = dateStr === maxDate;
+                      const isTopCell = isSelected && hour === Math.min(selectionStart.hour, selectionCurrent.hour);
+                      const isBottomCell = isSelected && hour === Math.max(selectionStart.hour, selectionCurrent.hour);
 
                       return (
-                      <div
-                        key={ev.id}
-                        onClick={(e) => { e.stopPropagation(); handleEventClick(ev.id); }}
-                        style={{
-                          position: 'absolute',
-                          top: `${top}px`,
-                          left: `calc(${leftPct}% + 4px)`,
-                          width: `calc(${widthPct}% - 8px)`,
-                          height: `${height - 2}px`,
-                          background: normalBg,
-                          borderLeft: `4px solid ${color}`,
-                          borderRadius: '10px',
-                          padding: '7px 9px',
-                          cursor: 'pointer',
-                          zIndex: 1 + lane,
-                          boxShadow: '0 3px 10px rgba(15, 23, 42, 0.08)',
-                          transition: 'background 0.2s',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '3px',
-                          overflow: 'hidden'
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = hoverBg;
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setEventTooltip({
-                            x: r.left + r.width / 2,
-                            y: r.top,
-                            name: ev.name,
-                            status: ev.status,
-                            startTime: ev.startTime,
-                            endTime: ev.endTime,
-                            salon: ev.salon,
-                            seller: sellerName,
-                            pax: ev.pax || ev.quote?.people || 0,
-                            quote: ev.quote?.total || 0,
-                            notes: ev.notes || ''
-                          });
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = normalBg;
-                          setEventTooltip(null);
-                        }}
-                      >
-                        {showFullDetails ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', height: '100%' }}>
-                            {/* Header row: Status and Badge */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
-                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
-                                <span style={{ fontSize: '10px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.status}</span>
-                              </div>
-                              <span style={{
-                                width: '28px',
-                                height: '16px',
-                                borderRadius: '4px',
-                                backgroundColor: '#cbd5e1',
-                                color: '#1e293b',
-                                fontSize: '10px',
-                                fontWeight: '900',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifySelf: 'flex-end',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                              }}>
-                                {getStatusAbbreviation(ev.status)}
-                              </span>
-                            </div>
+                        <div 
+                          key={hour} 
+                          className="cal-hour-cell calendar-hour-slot"
+                          data-date={dateStr}
+                          data-hour={hour}
+                          style={{ 
+                            height: HOUR_HEIGHT, 
+                            minHeight: HOUR_HEIGHT,
+                            boxSizing: 'border-box',
+                            userSelect: 'none',
+                            cursor: 'cell',
+                            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                            borderLeft: isSelected && isLeftMost ? '2px solid #10b981' : 'none',
+                            borderRight: isSelected && isRightMost ? '2px solid #10b981' : 'none',
+                            borderTop: isSelected && isTopCell ? '2px solid #10b981' : 'none',
+                            borderBottom: isSelected && isBottomCell ? '2px solid #10b981' : '1px solid #f1f5f9',
+                            boxShadow: isSelected ? 'inset 0 0 0 1px rgba(16, 185, 129, 0.1)' : 'none',
+                          }}
+                          onMouseDown={(e) => {
+                            if (e.button !== 0) return; // solo click izquierdo
+                            if (dateStr < todayStr) {
+                              toast('No se pueden programar eventos en fechas anteriores a hoy.');
+                              return;
+                            }
+                            setSelectionStart({ dateStr, hour });
+                            setSelectionCurrent({ dateStr, hour });
+                            setSelectionActive(true);
+                          }}
+                          onDoubleClick={(e) => {
+                            if (e.button !== 0) return;
+                            if (dateStr < todayStr) {
+                              toast('No se pueden programar eventos en fechas anteriores a hoy.');
+                              return;
+                            }
+                            navigate(`/nueva-reserva?date=${dateStr}&endDate=${dateStr}&start=${formatTime(hour)}&end=${formatTime(hour + 1)}`);
+                          }}
+                          onMouseEnter={() => {
+                            if (selectionActive) {
+                              if (dateStr < todayStr) return;
+                              setSelectionCurrent({ dateStr, hour });
+                            }
+                          }}
+                          onTouchStart={(e) => handleCellTouchStart(e, dateStr, hour)}
+                          onTouchMove={handleCellTouchMove}
+                          onTouchEnd={handleCellTouchEnd}
+                        />
+                      );
+                    })}
+                    <div style={{
+                      height: HOUR_HEIGHT,
+                      minHeight: HOUR_HEIGHT,
+                      boxSizing: 'border-box',
+                      borderBottom: '1px solid #f1f5f9',
+                      backgroundColor: 'transparent'
+                    }} />
+                    
+                    {/* Tarjetas de Eventos Ejecutivas */}
+                    {(() => {
+                      return dayEvents.map((ev) => {
+                        const layout = layouts[ev.id];
+                        if (!layout) return null;
+                        const top = timeToY(ev.startTime);
+                        const height = Math.max(48, timeToY(ev.endTime) - top);
+                        const color = STATUS_META[ev.status]?.color || '#64748b';
+                        const abbrev = getStatusAbbreviation(ev.status);
+                        const seriesBadge = getEventSeriesBadge(ev, events);
 
-                            {/* Event Title */}
-                            <div style={{ 
-                              fontSize: '13px', 
-                              fontWeight: '800', 
-                              color: '#0f172a', 
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
+                        const lane = layout.lane;
+                        const totalLanes = layout.totalLanes;
+                        const isNarrow = totalLanes > 1;
+                        
+                        const leftPct = (lane * 100) / totalLanes;
+                        const widthPct = 100 / totalLanes;
+                        
+                        const seller = users?.find(u => String(u.id) === String(ev.userId));
+                        const sellerName = seller?.fullName || seller?.name || 'Sistemas Admin';
+
+                        const isMaint = ev.status === 'Mantenimiento' || ev.status === 'Mantenimiento Realizado';
+                        const normalBg = isMaint
+                          ? `repeating-linear-gradient(45deg, ${color}10, ${color}10 8px, ${color}1a 8px, ${color}1a 16px) #ffffff`
+                          : `linear-gradient(180deg, #ffffff 0%, ${color}0c 100%)`;
+                        const hoverBg = isMaint
+                          ? `repeating-linear-gradient(45deg, ${color}1a, ${color}1a 8px, ${color}28 8px, ${color}28 16px) #ffffff`
+                          : `linear-gradient(180deg, #ffffff 0%, ${color}18 100%)`;
+
+                        return (
+                          <div
+                            key={ev.id}
+                            onClick={(e) => { e.stopPropagation(); handleEventClick(ev.id); }}
+                            style={{
+                              position: 'absolute',
+                              top: `${top}px`,
+                              left: `calc(${leftPct}% + 4px)`,
+                              width: `calc(${widthPct}% - 8px)`,
+                              height: `${height - 4}px`,
+                              backgroundColor: '#ffffff',
+                              background: normalBg,
+                              borderLeft: `4px solid ${color}`,
+                              borderTop: '1px solid #e2e8f0',
+                              borderRight: '1px solid #e2e8f0',
+                              borderBottom: '1px solid #e2e8f0',
+                              borderRadius: '12px',
+                              padding: isNarrow ? '8px 8px' : '10px 12px',
+                              cursor: 'pointer',
+                              zIndex: 1 + lane,
+                              boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)',
+                              transition: 'all 0.15s ease',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
                               overflow: 'hidden',
-                              lineHeight: '1.2'
-                            }}>
-                              {ev.status === 'Mantenimiento' ? 'Mantenimiento: ' : ev.status === 'Mantenimiento Realizado' ? 'Mantenimiento realizado: ' : ''}{ev.name}
-                            </div>
-
-                            {/* Horario */}
-                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Horario</span>
-                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.startTime} - {ev.endTime}</span>
-                            </div>
-
-                            {/* Salon */}
-                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Salón</span>
-                              <span style={{ fontSize: '11px', fontWeight: '700', color: color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.salon}</span>
-                            </div>
-
-                            {/* Vendedor */}
-                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Vendedor</span>
-                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sellerName}</span>
-                            </div>
-
-                            {/* PAX */}
-                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>PAX</span>
-                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>{ev.pax || ev.quote?.people || 0}</span>
-                            </div>
-
-                            {/* Cotizacion */}
-                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Cot.</span>
-                              <span style={{ fontSize: '11px', fontWeight: '700', color: '#334155' }}>{formatMoneyGT(ev.quote?.total || 0)}</span>
-                            </div>
-
-                            {seriesBadge && <div style={{ marginTop: 'auto' }}><SeriesBadge label={seriesBadge} color={color} compact /></div>}
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: isCompactHeight ? '2px' : '2px', height: '100%' }}>
-                            {isCompactHeight && (
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
-                                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />
-                                  <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {ev.status}
-                                  </span>
-                                </div>
+                              boxSizing: 'border-box'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = hoverBg;
+                              e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.09)';
+                              e.currentTarget.style.borderColor = `${color}66`;
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setEventTooltip({
+                                x: r.left + r.width / 2,
+                                y: r.top,
+                                name: ev.name,
+                                status: ev.status,
+                                startTime: ev.startTime,
+                                endTime: ev.endTime,
+                                salon: ev.salon,
+                                seller: sellerName,
+                                pax: ev.pax || ev.quote?.people || 0,
+                                quote: ev.quote?.total || 0,
+                                notes: ev.notes || ''
+                              });
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = normalBg;
+                              e.currentTarget.style.boxShadow = '0 1px 3px rgba(15, 23, 42, 0.05)';
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                              e.currentTarget.style.borderLeft = `4px solid ${color}`;
+                              setEventTooltip(null);
+                            }}
+                          >
+                            {/* Parte Superior: Estado, Código, Título, Horario, Salón, Vendedor */}
+                            <div>
+                              {/* Row 1: Chip de Estado y Badge de Código */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '4px' }}>
                                 <span style={{
-                                  width: '22px',
-                                  height: '14px',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#cbd5e1',
-                                  color: '#1e293b',
-                                  fontSize: '9px',
-                                  fontWeight: '900',
-                                  display: 'flex',
+                                  display: 'inline-flex',
                                   alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0
+                                  gap: '4px',
+                                  fontSize: isNarrow ? '9px' : '10px',
+                                  fontWeight: 700,
+                                  color: color,
+                                  backgroundColor: `${color}15`,
+                                  padding: '2px 6px',
+                                  borderRadius: '6px',
+                                  border: `1px solid ${color}30`,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
                                 }}>
-                                  {getStatusAbbreviation(ev.status)}
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.status}</span>
+                                </span>
+                                {abbrev && (
+                                  <span style={{
+                                    fontSize: '9px',
+                                    fontFamily: 'monospace',
+                                    fontWeight: 700,
+                                    color: '#475569',
+                                    backgroundColor: '#f1f5f9',
+                                    padding: '1px 5px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #e2e8f0',
+                                    flexShrink: 0
+                                  }}>
+                                    {abbrev}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Título de Evento */}
+                              <h4 style={{
+                                fontSize: isNarrow ? '11px' : '12px',
+                                fontWeight: 800,
+                                color: '#0f172a',
+                                textTransform: 'uppercase',
+                                letterSpacing: '-0.01em',
+                                lineHeight: 1.2,
+                                margin: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitLineClamp: isNarrow ? 1 : 2,
+                                WebkitBoxOrient: 'vertical'
+                              }}>
+                                {ev.status === 'Mantenimiento' ? 'Mantenimiento: ' : ev.status === 'Mantenimiento Realizado' ? 'Mantenimiento realizado: ' : ''}{ev.name}
+                              </h4>
+
+                              {/* Píldora de Horario */}
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginTop: '4px',
+                                fontSize: '10px',
+                                fontFamily: 'monospace',
+                                fontWeight: 500,
+                                color: '#475569',
+                                backgroundColor: '#f1f5f9',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                width: 'fit-content'
+                              }}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                                <span>{isNarrow ? `${ev.startTime} - ...` : `${ev.startTime} - ${ev.endTime}`}</span>
+                              </div>
+
+                              {/* Salón Asignado */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                                <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Salón:</span>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  color: color,
+                                  backgroundColor: `${color}15`,
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  border: `1px solid ${color}30`,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {ev.salon || 'Por asignar'}
                                 </span>
                               </div>
-                            )}
-                            <div style={{ 
-                              fontSize: isCompactHeight ? '11px' : '12px',
-                              fontWeight: '800', 
-                              color: '#0f172a', 
-                              overflow: 'hidden', 
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 1,
-                              WebkitBoxOrient: 'vertical',
-                              lineHeight: isCompactHeight ? '1.15' : '1.15',
-                              minHeight: isCompactHeight ? '14px' : '14px'
+
+                              {/* Vendedor (si hay altura suficiente y no es carril estrecho) */}
+                              {height >= 170 && !isNarrow && (
+                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <span style={{ color: '#94a3b8' }}>Vendedor: </span>
+                                  <span style={{ fontWeight: 600, color: '#334155' }}>{sellerName}</span>
+                                </div>
+                              )}
+
+                              {/* Notas de reserva (si la tarjeta es muy alta) */}
+                              {height >= 260 && !isNarrow && ev.notes && (
+                                <div style={{
+                                  padding: '6px 8px',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#f8fafc',
+                                  border: '1px solid #e2e8f0',
+                                  fontSize: '10px',
+                                  color: '#64748b',
+                                  marginTop: '6px',
+                                  overflow: 'hidden',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  lineHeight: 1.3
+                                }}>
+                                  {ev.notes}
+                                </div>
+                              )}
+
+                              {/* Series Badge */}
+                              {seriesBadge && (
+                                <div style={{ marginTop: '4px' }}>
+                                  <SeriesBadge label={seriesBadge} color={color} compact />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Footer de Tarjeta: PAX y Total Cotizado */}
+                            <div style={{
+                              paddingTop: '6px',
+                              borderTop: '1px solid #f1f5f9',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '10px',
+                              marginTop: 'auto'
                             }}>
-                              {ev.status === 'Mantenimiento' ? 'Mantenimiento: ' : ev.status === 'Mantenimiento Realizado' ? 'Mantenimiento realizado: ' : ''}{ev.name}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#64748b' }}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.2">
+                                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                  <circle cx="9" cy="7" r="4" />
+                                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                </svg>
+                                <span>PAX:</span> <strong style={{ color: '#0f172a' }}>{ev.pax || ev.quote?.people || 0}</strong>
+                              </span>
+                              {Number(ev.quote?.total || 0) > 0 ? (
+                                <span style={{
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  color: '#047857',
+                                  backgroundColor: '#ecfdf5',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #a7f3d0'
+                                }}>
+                                  Q {Number(ev.quote.total).toLocaleString('en-US', { minimumFractionDigits: isNarrow ? 0 : 2, maximumFractionDigits: isNarrow ? 0 : 2 })}
+                                </span>
+                              ) : (
+                                <span style={{
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  color: '#64748b',
+                                  backgroundColor: '#f1f5f9',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px'
+                                }}>
+                                  Cot Q 0.00
+                                </span>
+                              )}
                             </div>
-                            <div style={{ fontSize: isCompactHeight ? '9.5px' : '10.5px', fontWeight: isCompactHeight ? '600' : '600', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              Horario: {ev.startTime} - {ev.endTime}
-                            </div>
-                            {!isCompactHeight && (
-                              <div style={{ fontSize: '10.5px', fontWeight: '700', color: color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                Salón: {ev.salon}
-                              </div>
-                            )}
-                            {!isCompactHeight && seriesBadge && <SeriesBadge label={seriesBadge} color={color} compact />}
                           </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-                {layouts['__overflow__'] && (() => {
-                  const ov = layouts['__overflow__'];
-                  return (
-                    <div
-                      onClick={() => { setCurrentDate(new Date(weekDates[idx])); setViewMode('day'); }}
-                      style={{
-                        position: 'absolute',
-                        top: `${ov.top}px`,
-                        left: '4px',
-                        right: '4px',
-                        height: `${ov.height - 2}px`,
-                        borderRadius: '8px',
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        backdropFilter: 'blur(4px)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        zIndex: 20,
-                        color: 'white',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        border: '1px dashed rgba(255,255,255,0.4)'
-                      }}
-                    >
-                      +{ov.count} más
-                    </div>
-                  );
-                })()}
-              </div>
-            );
-          })}
+                        );
+                      });
+                    })()}
+                    
+                    {layouts['__overflow__'] && (() => {
+                      const ov = layouts['__overflow__'];
+                      return (
+                        <div
+                          onClick={() => { setCurrentDate(new Date(weekDates[idx])); setViewMode('day'); }}
+                          style={{
+                            position: 'absolute',
+                            top: `${ov.top}px`,
+                            left: '4px',
+                            right: '4px',
+                            height: `${ov.height - 2}px`,
+                            borderRadius: '8px',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            backdropFilter: 'blur(4px)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            zIndex: 20,
+                            color: 'white',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            border: '1px dashed rgba(255,255,255,0.4)'
+                          }}
+                        >
+                          +{ov.count} más
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
+
+        {/* BEGIN: QuickFooterStatusBar */}
+        <footer className="calendar-footer-statusbar" style={{
+          height: '32px',
+          minHeight: '32px',
+          backgroundColor: '#f8fafc',
+          borderTop: '1px solid #e2e8f0',
+          padding: '0 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '11px',
+          color: '#64748b',
+          flexShrink: 0,
+          userSelect: 'none',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>Zona horaria: <strong style={{ color: '#334155', fontWeight: 600 }}>America/Guatemala (GMT-6)</strong></span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>Eventos en rango: <strong style={{ color: '#0f172a', fontFamily: 'monospace', fontWeight: 700 }}>{visibleWeekEvents.length}</strong></span>
+            <span style={{ color: '#cbd5e1' }}>|</span>
+            <span style={{
+              fontWeight: 800,
+              color: '#047857',
+              backgroundColor: '#ecfdf5',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              border: '1px solid #a7f3d0',
+              fontFamily: 'monospace',
+              fontSize: '11px'
+            }}>
+              Total Cotizado: Q {totalQuotedInWeek.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        </footer>
+        {/* END: QuickFooterStatusBar */}
       </div>
-    </div>
-  </div>
-);
-};
+    );
+  };
 
   const renderMonthView = () => {
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -1767,16 +2002,28 @@ export default function Calendar() {
       onTouchEnd={handleTouchEnd}
       style={{ 
         flex: 1, 
-        margin: '0 0 20px 0',
+        margin: viewMode === 'timeline' ? '0' : '0 0 20px 0',
         display: 'flex', 
         flexDirection: 'column', 
-        background: 'white',
-        border: '1.5px solid #e2e8f0',
-        borderRadius: '16px',
+        background: viewMode === 'timeline' ? '#f8fafc' : 'white',
+        border: viewMode === 'timeline' ? 'none' : '1.5px solid #e2e8f0',
+        borderRadius: viewMode === 'timeline' ? '0' : '16px',
         overflow: 'hidden',
-        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)'
+        boxShadow: viewMode === 'timeline' ? 'none' : '0 4px 12px rgba(15, 23, 42, 0.04)'
       }}>
       <style>{`
+        @keyframes calPulsePing {
+          0% { transform: scale(0.95); opacity: 0.8; }
+          50% { transform: scale(1.6); opacity: 0; }
+          100% { transform: scale(0.95); opacity: 0; }
+        }
+        .cal-pulse-ring {
+          animation: calPulsePing 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        .cal-today-dot-pulse {
+          animation: calPulsePing 1.8s ease-in-out infinite;
+        }
+
         /* ============================================================
            CALENDARIO RESPONSIVE — Estilos correctamente orientados
            ============================================================ */

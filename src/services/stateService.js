@@ -184,10 +184,91 @@ export async function updateState(updater, options = {}) {
   return nextState;
 }
 
+export async function saveCompanyApi(companyData) {
+  if (!companyData || typeof companyData !== 'object') {
+    throw new Error('Datos de empresa inválidos');
+  }
+  const res = await api.post('/api/companies', { company: companyData });
+  const savedCompany = res?.company || companyData;
+
+  // Actualizar la caché local en memoria para no requerir descargar los 17MB de nuevo
+  if (cachedState && Array.isArray(cachedState.companies)) {
+    const idx = cachedState.companies.findIndex(c => String(c.id) === String(savedCompany.id));
+    if (idx >= 0) {
+      cachedState.companies[idx] = savedCompany;
+    } else {
+      cachedState.companies.push(savedCompany);
+    }
+    if (companyData.active !== undefined && Array.isArray(cachedState.disabledCompanies)) {
+      const idStr = String(savedCompany.id);
+      if (companyData.active === false && !cachedState.disabledCompanies.includes(idStr)) {
+        cachedState.disabledCompanies.push(idStr);
+      } else if (companyData.active === true) {
+        cachedState.disabledCompanies = cachedState.disabledCompanies.filter(x => String(x) !== idStr);
+      }
+    }
+  }
+
+  // Notificar al resto de la app
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'company', action: 'saved', data: savedCompany }
+    }));
+  }
+
+  return savedCompany;
+}
+
+export async function saveQuickManagerApi(companyId, managerData) {
+  if (!companyId || !managerData || !managerData.name) {
+    throw new Error('ID de empresa y nombre de encargado requeridos');
+  }
+  const res = await api.post(`/api/companies/${companyId}/managers`, { manager: managerData });
+  const savedManager = res?.manager || managerData;
+
+  // Actualizar caché local
+  if (cachedState && Array.isArray(cachedState.companies)) {
+    const comp = cachedState.companies.find(c => String(c.id) === String(companyId));
+    if (comp) {
+      if (!Array.isArray(comp.managers)) comp.managers = [];
+      const mIdx = comp.managers.findIndex(m => String(m.id) === String(savedManager.id));
+      if (mIdx >= 0) comp.managers[mIdx] = savedManager;
+      else comp.managers.push(savedManager);
+      if (!comp.owner) comp.owner = savedManager.name;
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'manager', action: 'saved', data: { companyId, manager: savedManager } }
+    }));
+  }
+
+  return savedManager;
+}
+
+export async function deleteCompanyApi(companyId) {
+  if (!companyId) return null;
+  const res = await api.request(`/api/companies/${companyId}`, { method: 'DELETE' });
+  if (cachedState && Array.isArray(cachedState.companies)) {
+    cachedState.companies = cachedState.companies.filter(c => String(c.id) !== String(companyId));
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'company', action: 'deleted', data: { id: companyId } }
+    }));
+  }
+  return res;
+}
+
 const stateService = {
   loadState,
   saveState,
   updateState,
+  saveCompanyApi,
+  saveQuickManagerApi,
+  deleteCompanyApi,
 };
 
 export default stateService;
+

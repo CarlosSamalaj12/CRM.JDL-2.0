@@ -405,12 +405,30 @@ export default function MainLayout() {
       const cap = (str) => str.charAt(0).toUpperCase() + str.slice(1).replace('.', '');
       return `${cap(weekday)} ${day} ${cap(month)} ${year}`;
     } else if (viewMode === 'week') {
-      const start = new Date(currentDate);
-      
+      const d = new Date(currentDate);
+      const day = d.getDay();
+      const diff = d.getDate() - day;
+      const start = new Date(d.setDate(diff));
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       
-      return `${start.toLocaleDateString('es-ES', options)} - ${end.toLocaleDateString('es-ES', options)} ${end.getFullYear()}`;
+      const sDay = start.getDate();
+      const sMonth = start.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+      const eDay = end.getDate();
+      const eMonth = end.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+      const year = end.getFullYear();
+
+      const target = new Date(start.valueOf());
+      const dayNr = (start.getDay() + 6) % 7;
+      target.setDate(target.getDate() - dayNr + 3);
+      const firstThursday = target.valueOf();
+      target.setMonth(0, 1);
+      if (target.getDay() !== 4) {
+        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+      }
+      const weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
+
+      return `${sDay} ${sMonth} — ${eDay} ${eMonth} ${year} S${weekNum}`;
     } else if (viewMode === 'year') {
       return currentDate.getFullYear().toString();
     } else if (viewMode === 'agenda') {
@@ -453,6 +471,8 @@ export default function MainLayout() {
               viewMode={viewMode} 
               setViewMode={handleViewModeChange} 
               dateLabel={customTitle || dateRangeLabel}
+              currentDate={currentDate}
+              setCurrentDate={setCurrentDate}
               onToday={handleGoToday}
               onPrev={handlePrev}
               onNext={handleNext}
@@ -468,7 +488,27 @@ export default function MainLayout() {
               setSellerFilter={setSellerFilter}
               users={users}
             />
-            {viewMode !== 'timeline' && <Legend />}
+            {viewMode !== 'timeline' && (
+              <Legend 
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                events={events}
+                currentDate={currentDate}
+                viewMode={viewMode}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                roomFilter={roomFilter}
+                setRoomFilter={setRoomFilter}
+                sellerFilter={sellerFilter}
+                setSellerFilter={setSellerFilter}
+                onResetFilters={() => {
+                  setStatusFilter('all');
+                  setRoomFilter('all');
+                  setSellerFilter('all');
+                  setSearchQuery('');
+                }}
+              />
+            )}
           </>
         )}
         

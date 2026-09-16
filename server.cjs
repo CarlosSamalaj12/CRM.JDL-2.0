@@ -1308,6 +1308,41 @@ async function ensureEncargadosEmpresaColumnSize() {
   }
 }
 
+async function ensureEmpresasColumnSize() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
+    const cols = await conn.query(
+      `SELECT column_name, character_maximum_length FROM information_schema.columns WHERE table_schema = ? AND table_name = 'empresas' AND column_name = 'id'`,
+      [DB_NAME]
+    );
+    for (const col of cols) {
+      const currentLen = Number(col.character_maximum_length);
+      if (currentLen < 100) {
+        try {
+          try { await conn.query("ALTER TABLE encargados_empresa DROP FOREIGN KEY fk_encargados_empresa"); } catch (_) {}
+          await conn.query("ALTER TABLE empresas MODIFY COLUMN id VARCHAR(200) NOT NULL");
+          await conn.query("ALTER TABLE encargados_empresa MODIFY COLUMN id_empresa VARCHAR(200) NOT NULL");
+          try {
+            await conn.query("ALTER TABLE encargados_empresa ADD CONSTRAINT fk_encargados_empresa FOREIGN KEY (id_empresa) REFERENCES empresas(id) ON DELETE CASCADE ON UPDATE CASCADE");
+          } catch (_) {}
+          console.log("[MIGRACIÓN] ✅ empresas.id ampliado a VARCHAR(200)");
+        } catch (alterErr) {
+          console.warn("[MIGRACIÓN] No se pudo alterar empresas.id:", alterErr.message);
+        }
+      }
+    }
+  } finally {
+    if (conn) {
+      try {
+        await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+      } catch (_) {}
+      conn.release();
+    }
+  }
+}
+
 async function ensureCotizacionesEventoColumnSize() {
   let conn;
   try {
@@ -1668,10 +1703,11 @@ async function readStateFromTables() {
         email: str(c.correo),
         nit: str(c.nit) || "CF",
         businessName: str(c.razon_social) || str(c.nombre),
+        billTo: str(c.razon_social) || str(c.nombre),
         eventType: str(c.tipo_evento) || "Social",
         address: str(c.direccion),
         phone: str(c.telefono),
-        notes: str(c.notes),
+        notes: str(c.notas || c.notes),
         managers: managersByCompany.get(str(c.id)) || [],
       })),
       services: dbServicesList,
@@ -4405,6 +4441,248 @@ app.post("/api/import/managers", async (req, res) => {
   }
 });
 
+// ==========================================
+// DEDICATED COMPANY & MANAGER REST ROUTES
+// (Guarda de forma atómica <1KB sin enviar los 17MB de state)
+// ==========================================
+
+app.post("/api/companies", async (req, res) => {
+  const c = req.body && req.body.company;
+  if (!c || typeof c !== "object") {
+    return res.status(400).json({ message: "Se requiere un objeto de empresa válido." });
+  }
+
+  const id = str(c.id).trim() || `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const name = str(c.name).trim();
+  if (!name) {
+    return res.status(400).json({ message: "El nombre de la empresa es obligatorio." });
+  }
+
+  const managers = Array.isArray(c.managers) ? c.managers : [];
+  const primaryOwner = str(c.owner).trim() || (managers[0] ? str(managers[0].name).trim() : null);
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    await conn.query(
+      `INSERT INTO empresas
+        (id, nombre, encargado_principal, correo, nit, razon_social, tipo_evento, direccion, telefono, notas)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        nombre = VALUES(nombre),
+        encargado_principal = VALUES(encargado_principal),
+        correo = VALUES(correo),
+        nit = VALUES(nit),
+        razon_social = VALUES(razon_social),
+        tipo_evento = VALUES(tipo_evento),
+        direccion = VALUES(direccion),
+        telefono = VALUES(telefono),
+        notas = VALUES(notas)`,
+      [
+        id,
+        name,
+        primaryOwner,
+        str(c.email).trim() || null,
+        str(c.nit).trim() || "CF",
+        str(c.businessName || c.billTo).trim() || name,
+        str(c.eventType).trim() || "Social",
+        str(c.address).trim() || null,
+        str(c.phone).trim() || null,
+        str(c.notes).trim() || null,
+      ]
+    );
+
+    // Actualizar managers de esta empresa
+    await conn.query('DELETE FROM encargados_empresa WHERE id_empresa = ?', [id]);
+    const savedManagers = [];
+    for (let i = 0; i < managers.length; i++) {
+      const m = managers[i];
+      const mId = str(m.id).trim() || `mgr_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+      const mName = str(m.name).trim();
+      if (!mName) continue;
+      const mPhone = str(m.phone).trim() || null;
+      const mEmail = str(m.email).trim() || null;
+      const mAddress = str(m.address).trim() || null;
+
+      await conn.query(
+        `INSERT INTO encargados_empresa (id, id_empresa, nombre, telefono, correo, direccion)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+          nombre = VALUES(nombre),
+          telefono = VALUES(telefono),
+          correo = VALUES(correo),
+          direccion = VALUES(direccion)`,
+        [mId, id, mName, mPhone, mEmail, mAddress]
+      );
+      savedManagers.push({ id: mId, name: mName, phone: mPhone || '', email: mEmail || '', address: mAddress || '' });
+    }
+
+    // Si active !== undefined, actualizar app_state_kv disabledCompanies
+    if (c.active !== undefined) {
+      const kvRows = await conn.query("SELECT valor_json FROM app_state_kv WHERE clave = 'disabledCompanies' LIMIT 1");
+      let disabled = [];
+      try {
+        if (kvRows.length > 0 && kvRows[0].valor_json) {
+          disabled = JSON.parse(kvRows[0].valor_json);
+          if (!Array.isArray(disabled)) disabled = [];
+        }
+      } catch (_) {}
+      const disabledSet = new Set(disabled.map(String));
+      if (c.active === false) disabledSet.add(String(id));
+      else disabledSet.delete(String(id));
+      await conn.query(
+        `INSERT INTO app_state_kv (clave, valor_json) VALUES ('disabledCompanies', ?)
+         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+        [JSON.stringify(Array.from(disabledSet))]
+      );
+    }
+
+    await conn.commit();
+
+    const companyResponse = {
+      id,
+      name,
+      owner: primaryOwner || '',
+      email: str(c.email).trim() || '',
+      nit: str(c.nit).trim() || 'CF',
+      businessName: str(c.businessName || c.billTo).trim() || name,
+      billTo: str(c.businessName || c.billTo).trim() || name,
+      eventType: str(c.eventType).trim() || 'Social',
+      address: str(c.address).trim() || '',
+      phone: str(c.phone).trim() || '',
+      notes: str(c.notes).trim() || '',
+      managers: savedManagers,
+      active: c.active !== false
+    };
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: 'company', id });
+    }
+    emitServerChange('empresa', 'upsert', { id, name });
+
+    console.log(`[${new Date().toLocaleTimeString()}] ✅ Empresa guardada de forma atómica (<1KB): "${name}" (${id}) con ${savedManagers.length} encargados.`);
+    return res.json({ ok: true, company: companyResponse });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en POST /api/companies:`, err);
+    return res.status(500).json({ message: "Error al guardar empresa.", detail: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.post("/api/companies/:id/managers", async (req, res) => {
+  const companyId = str(req.params.id).trim();
+  const m = req.body && req.body.manager;
+  if (!companyId || !m || !str(m.name).trim()) {
+    return res.status(400).json({ message: "ID de empresa y nombre de encargado requeridos." });
+  }
+
+  const managerId = str(m.id).trim() || `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const managerName = str(m.name).trim();
+  const phone = str(m.phone).trim() || null;
+  const email = str(m.email).trim() || null;
+  const address = str(m.address).trim() || null;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const compRows = await conn.query("SELECT id, nombre, encargado_principal FROM empresas WHERE id = ?", [companyId]);
+    if (!compRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ message: "Empresa no encontrada." });
+    }
+
+    await conn.query(
+      `INSERT INTO encargados_empresa (id, id_empresa, nombre, telefono, correo, direccion)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        nombre = VALUES(nombre),
+        telefono = VALUES(telefono),
+        correo = VALUES(correo),
+        direccion = VALUES(direccion)`,
+      [managerId, companyId, managerName, phone, email, address]
+    );
+
+    if (!compRows[0].encargado_principal) {
+      await conn.query("UPDATE empresas SET encargado_principal = ? WHERE id = ?", [managerName, companyId]);
+    }
+
+    await conn.commit();
+
+    const savedManager = { id: managerId, name: managerName, phone: phone || '', email: email || '', address: address || '' };
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: 'manager', id: managerId, companyId });
+    }
+    emitServerChange('encargado_empresa', 'create', { id: managerId, companyId, name: managerName });
+
+    console.log(`[${new Date().toLocaleTimeString()}] ✅ Encargado rápido guardado (<1KB): "${managerName}" para empresa ${companyId}`);
+    return res.json({ ok: true, manager: savedManager });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en POST /api/companies/:id/managers:`, err);
+    return res.status(500).json({ message: "Error al guardar encargado.", detail: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.delete("/api/companies/:id", async (req, res) => {
+  const companyId = str(req.params.id).trim();
+  if (!companyId) return res.status(400).json({ message: "ID de empresa requerido." });
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    await conn.query("DELETE FROM encargados_empresa WHERE id_empresa = ?", [companyId]);
+    await conn.query("DELETE FROM empresas WHERE id = ?", [companyId]);
+
+    // Remover de disabledCompanies
+    const kvRows = await conn.query("SELECT valor_json FROM app_state_kv WHERE clave = 'disabledCompanies' LIMIT 1");
+    let disabled = [];
+    try {
+      if (kvRows.length > 0 && kvRows[0].valor_json) {
+        disabled = JSON.parse(kvRows[0].valor_json);
+        if (!Array.isArray(disabled)) disabled = [];
+      }
+    } catch (_) {}
+    const disabledFiltered = disabled.filter(id => String(id) !== companyId);
+    await conn.query(
+      `INSERT INTO app_state_kv (clave, valor_json) VALUES ('disabledCompanies', ?)
+       ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+      [JSON.stringify(disabledFiltered)]
+    );
+
+    await conn.commit();
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: 'company', id: companyId, action: 'deleted' });
+    }
+    emitServerChange('empresa', 'delete', { id: companyId });
+
+    console.log(`[${new Date().toLocaleTimeString()}] 🗑️ Empresa eliminada: ${companyId}`);
+    return res.json({ ok: true, id: companyId });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+    }
+    console.error(`[${new Date().toLocaleTimeString()}] ❌ Error en DELETE /api/companies/:id:`, err);
+    return res.status(500).json({ message: "Error al eliminar empresa.", detail: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 app.get("/api/state", async (req, res) => {
   res.setHeader("Cache-Control", "no-cache, must-revalidate");
   console.log(`[${new Date().toLocaleTimeString()}] 🔍 GET /api/state - Consultando base de datos MariaDB...`);
@@ -6048,6 +6326,7 @@ const MIGRATIONS = [
   { name: 'QuoteItemPKColSize', fn: ensureQuoteItemPrimaryKeyColumnSize },
   { name: 'QuoteItemNombreColSize', fn: ensureQuoteItemNombreColumnSize },
   { name: 'EncargadosEmpresaColSize', fn: ensureEncargadosEmpresaColumnSize },
+  { name: 'EmpresasColSize', fn: ensureEmpresasColumnSize },
   { name: 'CotizacionesEventoColSize', fn: ensureCotizacionesEventoColumnSize },
   { name: 'RequiredTables', fn: ensureRequiredTables },
   { name: 'DefaultUserCarlos', fn: ensureDefaultUserCarlos },
@@ -6087,6 +6366,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureQuoteItemPrimaryKeyColumnSize',
   'ensureQuoteItemNombreColumnSize',
   'ensureEncargadosEmpresaColumnSize',
+  'ensureEmpresasColumnSize',
   'ensureCotizacionesEventoColumnSize',
   'ensureRequiredTables',
   'ensureDefaultUserCarlos',

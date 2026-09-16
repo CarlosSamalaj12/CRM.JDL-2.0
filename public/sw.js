@@ -123,11 +123,19 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then(cache => cache.put('/offline-shell', clone));
           return response;
         })
-        .catch(() => {
+        .catch(async () => {
           // Offline: servir la última copia conocida
-          return caches.match('/offline-shell')
-            || caches.match('/index.html')
-            || caches.match('/');
+          const offlineShell = await caches.match('/offline-shell');
+          if (offlineShell) return offlineShell;
+          const indexHtml = await caches.match('/index.html');
+          if (indexHtml) return indexHtml;
+          const rootMatch = await caches.match('/');
+          if (rootMatch) return rootMatch;
+          return new Response('Offline', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
         })
     );
     return;

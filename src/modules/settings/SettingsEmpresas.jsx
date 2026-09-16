@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { loadCrmState, normalizeCompanyRecord, saveCrmState, uid } from './settingsDataUtils';
+import { loadCrmState, normalizeCompanyRecord, saveCrmState, saveCompany, deleteCompany, uid } from './settingsDataUtils';
 import { toast, modernConfirm } from '../../utils/toast';
 
 const emptyCompany = {
@@ -158,75 +158,108 @@ export default function SettingsEmpresas({ inline, onBack }) {
     event.preventDefault();
     if (saving) return;
 
+    // Recopilar encargados con detección automática de borradores
     const effectiveManagers = (() => {
-      if (managers.length) return managers;
+      let base = [...managers];
+      // Si hay un encargado escrito en los inputs pero no se presionó "+ Agregar encargado"
+      if (managerDraft.name && managerDraft.name.trim()) {
+        base.push({
+          id: editingManagerId || uid('mgr'),
+          name: managerDraft.name.trim(),
+          phone: managerDraft.phone.trim() || '',
+          email: managerDraft.email.trim() || '',
+          address: managerDraft.address.trim() || ''
+        });
+      }
+      if (base.length) return base;
       const owner = company.owner.trim();
-      if (!owner) return managers;
-      return [{
-        id: uid('mgr'),
-        name: owner,
-        phone: company.phone.trim() || '',
-        email: company.email.trim() || '',
-        address: company.address.trim() || ''
-      }];
+      if (owner) {
+        return [{
+          id: uid('mgr'),
+          name: owner,
+          phone: company.phone.trim() || '',
+          email: company.email.trim() || '',
+          address: company.address.trim() || ''
+        }];
+      }
+      return [];
     })();
+
+    const effectiveOwner = company.owner.trim() || effectiveManagers[0]?.name || '';
 
     const payload = normalizeCompanyRecord({
       ...company,
       id: selectedId || uid('cmp'),
       name: company.name.trim(),
-      owner: company.owner.trim(),
+      owner: effectiveOwner,
       email: company.email.trim(),
-      nit: company.nit.trim(),
-      businessName: company.businessName.trim(),
-      billTo: company.businessName.trim(),
-      eventType: company.eventType,
+      nit: company.nit.trim() || 'CF',
+      businessName: company.businessName.trim() || company.name.trim(),
+      billTo: company.businessName.trim() || company.name.trim(),
+      eventType: company.eventType || 'Social',
       address: company.address.trim(),
       phone: company.phone.trim(),
       notes: company.notes.trim(),
       managers: effectiveManagers,
+      active: companyActive,
     });
 
-    if (!payload.name || !payload.owner || !payload.email || !payload.nit || !payload.businessName || !payload.eventType || !payload.address || !payload.phone) {
-      toast('Completa todos los campos obligatorios de empresa.');
+    if (!payload.name) {
+      toast('El nombre de la empresa u organización es obligatorio.');
       return;
     }
-    if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(payload.email)) {
+    if (!payload.owner && !payload.managers.length) {
+      toast('Indica al menos un encargado o contacto para la empresa.');
+      return;
+    }
+    if (payload.email && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(payload.email)) {
       toast('Correo de empresa inválido.');
       return;
     }
 
     setSaving(true);
     try {
-      const freshState = await loadCrmState({ cacheBust: true });
-      const nextState = { ...freshState };
-      const currentCompanies = Array.isArray(nextState.companies) ? nextState.companies : [];
+      // Validar duplicidad de nombre en la lista cargada
       const nameLower = (payload.name || '').trim().toLowerCase();
       const companyExists = selectedId
-        ? currentCompanies.some(c => String(c.name || '').trim().toLowerCase() === nameLower && String(c.id || '') !== String(payload.id || ''))
-        : currentCompanies.some(c => String(c.name || '').trim().toLowerCase() === nameLower);
-      if (companyExists) { toast('Ya existe una empresa con ese nombre'); setSaving(false); return; }
-      const idx = currentCompanies.findIndex((item) => String(item.id || '') === String(payload.id || ''));
-      nextState.companies = idx >= 0
-        ? currentCompanies.map((item, itemIdx) => itemIdx === idx ? payload : item)
-        : [...currentCompanies, payload];
+        ? companies.some(c => String(c.name || '').trim().toLowerCase() === nameLower && String(c.id || '') !== String(payload.id || ''))
+        : companies.some(c => String(c.name || '').trim().toLowerCase() === nameLower);
+      if (companyExists) {
+        toast('Ya existe una empresa con ese nombre');
+        setSaving(false);
+        return;
+      }
 
-      const nextDisabledCompanies = new Set(Array.isArray(nextState.disabledCompanies) ? nextState.disabledCompanies.map(String) : []);
-      if (companyActive) nextDisabledCompanies.delete(String(payload.id));
-      else nextDisabledCompanies.add(String(payload.id));
-      nextState.disabledCompanies = Array.from(nextDisabledCompanies);
-
-      const nextDisabledManagers = new Set(Array.isArray(nextState.disabledManagers) ? nextState.disabledManagers.map(String) : []);
-      payload.managers.forEach((manager) => nextDisabledManagers.delete(String(manager.id || '')));
-      nextState.disabledManagers = Array.from(nextDisabledManagers);
-
-      await saveCrmState(nextState);
+      // Guardado atómico <1KB (Inmune al error 413)
+      await saveCompany(payload);
       toast(selectedId ? 'Empresa actualizada ✓' : 'Empresa agregada ✓');
       await reloadData();
       setViewMode('list');
     } catch (err) {
       console.error('Error guardando empresa:', err);
       toast(err.message || 'No se pudo guardar la empresa.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCompany = async () => {
+    if (!selectedId) return;
+    const ok = await modernConfirm({
+      title: 'Eliminar Empresa',
+      message: `¿Está seguro de eliminar "${company.name}" y todos sus encargados? Esta acción no se puede deshacer.`
+    });
+    if (!ok) return;
+
+    setSaving(true);
+    try {
+      await deleteCompany(selectedId);
+      toast('Empresa eliminada ✓');
+      await reloadData();
+      setViewMode('list');
+    } catch (err) {
+      console.error('Error eliminando empresa:', err);
+      toast(err.message || 'No se pudo eliminar la empresa.');
     } finally {
       setSaving(false);
     }
@@ -529,6 +562,17 @@ export default function SettingsEmpresas({ inline, onBack }) {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {selectedId && (
+                  <button
+                    type="button"
+                    className="settings-secondary-btn"
+                    onClick={handleDeleteCompany}
+                    disabled={saving}
+                    style={{ padding: '6px 12px', fontSize: '12px', color: '#dc2626', borderColor: '#fca5a5' }}
+                  >
+                    🗑️ Eliminar
+                  </button>
+                )}
                 <button type="button" className="settings-secondary-btn" onClick={handleBackToList} style={{ padding: '6px 12px', fontSize: '12px' }}>
                   Cancelar
                 </button>
@@ -561,35 +605,35 @@ export default function SettingsEmpresas({ inline, onBack }) {
 
             <div className="settings-field-group">
               <label className="settings-modern-field">
-                <span>Nombre de la Organización</span>
+                <span>Nombre de la Organización *</span>
                 <input type="text" value={company.name} onChange={(e) => handleCompanyChange('name', e.target.value)} placeholder="Ej: Eventos del Lago" required />
               </label>
               <label className="settings-modern-field">
                 <span>Encargado de la Organización</span>
-                <input type="text" value={company.owner} onChange={(e) => handleCompanyChange('owner', e.target.value)} placeholder="Nombre del encargado principal" required />
+                <input type="text" value={company.owner} onChange={(e) => handleCompanyChange('owner', e.target.value)} placeholder="Nombre del encargado principal" />
               </label>
             </div>
 
             <div className="settings-field-group">
               <label className="settings-modern-field">
                 <span>Correo</span>
-                <input type="email" value={company.email} onChange={(e) => handleCompanyChange('email', e.target.value)} placeholder="correo@empresa.com" required autoComplete="off" />
+                <input type="email" value={company.email} onChange={(e) => handleCompanyChange('email', e.target.value)} placeholder="correo@empresa.com" autoComplete="off" />
               </label>
               <label className="settings-modern-field">
                 <span>NIT</span>
-                <input type="text" value={company.nit} onChange={(e) => handleCompanyChange('nit', e.target.value)} placeholder="NIT" required />
+                <input type="text" value={company.nit} onChange={(e) => handleCompanyChange('nit', e.target.value)} placeholder="NIT (o CF)" />
               </label>
             </div>
 
             <div className="settings-field-group">
               <label className="settings-modern-field">
                 <span>Facturar A</span>
-                <input type="text" value={company.businessName} onChange={(e) => handleCompanyChange('businessName', e.target.value)} placeholder="Nombre para facturación" required />
+                <input type="text" value={company.businessName} onChange={(e) => handleCompanyChange('businessName', e.target.value)} placeholder="Nombre para facturación" />
               </label>
               <label className="settings-modern-field">
                 <span>Tipo Evento</span>
-                <select value={company.eventType} onChange={(e) => handleCompanyChange('eventType', e.target.value)} required>
-                  <option value="">Selecciona tipo</option>
+                <select value={company.eventType} onChange={(e) => handleCompanyChange('eventType', e.target.value)}>
+                  <option value="">Selecciona tipo (por defecto Social)</option>
                   <option value="Social">Social</option>
                   <option value="Corporativo">Corporativo</option>
                   <option value="Individual">Individual</option>
@@ -600,11 +644,11 @@ export default function SettingsEmpresas({ inline, onBack }) {
             <div className="settings-field-group">
               <label className="settings-modern-field">
                 <span>Dirección</span>
-                <input type="text" value={company.address} onChange={(e) => handleCompanyChange('address', e.target.value)} placeholder="Dirección" required />
+                <input type="text" value={company.address} onChange={(e) => handleCompanyChange('address', e.target.value)} placeholder="Dirección (opcional)" />
               </label>
               <label className="settings-modern-field">
                 <span>Teléfono</span>
-                <input type="text" value={company.phone} onChange={(e) => handleCompanyChange('phone', e.target.value)} placeholder="Teléfono" required />
+                <input type="text" value={company.phone} onChange={(e) => handleCompanyChange('phone', e.target.value)} placeholder="Teléfono (opcional)" />
               </label>
             </div>
 

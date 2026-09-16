@@ -33,6 +33,51 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 
+### Rediseño Ejecutivo: Vista de Calendario Semanal y Cuadrícula Horaria (`Calendar.jsx`, `Topbar.jsx`, `Legend.jsx`) (2026-09-15)
+- Requerimiento: Rediseñar integralmente la pantalla de **Calendario** (Vista `Semana` y estructura ejecutiva) según el código HTML de referencia y mockup visual de alta fidelidad "Jardines EMS — Sistema de Gestión y Calendario de Eventos", eliminando la apariencia tosca y desproporcionada sin remover ninguna función existente (arrastre para reserva, doble clic, clics en eventos, filtros y tooltips).
+- Solución:
+  1. Topbar ejecutiva de 2 filas sincronizada:
+     - Fila 1: Botón `[📅 Hoy]`, chevrons integrados `[ ‹ | › ]`, badge de rango semanal (`13 sept — 19 sept 2026 S37 ⌵`), selector segmentado de vistas con `Semana` activa en esmeralda institucional (`text-emerald-700 bg-white shadow-xs`), e indicador pulsante `● En vivo`.
+     - Fila 2: Selector de Salones (`Todos los Salones (N)`), Selector de Vendedores (`Todos los Vendedores`) y barra OmniSearch con atajo `⌘K`.
+  2. Barra de Estados / Filtros interactiva (`Legend.jsx`):
+     - Encabezado con icono `FILTROS`.
+     - Chip activo `● Todos {N}` en negro carbón (`#0f172a`) con punto esmeralda.
+     - 10 chips cromáticos por cada estado (Sin Cotización, Pre-reserva, Confirmado, 1er Cotización, Seguimiento, Lista de Espera, Perdido, Cancelado, Mantenimiento, Mantenimiento Realizado) con conteo dinámico de eventos en el rango visible.
+     - Botón `✕ Limpiar filtros` y badge `{N} eventos` en monospace.
+     - Interactividad instantánea: el clic en cualquier chip filtra la vista y recalcula de inmediato los totales.
+  3. Encabezados Sticky de Días (`cal-week-header`):
+     - Columna `HORA` (80px) con texto monospace y cápsula `GMT-6`.
+     - 7 columnas de días con nombre del día, badges dinámicos de ocupación (`Alta ocupación`, `{N} eventos`, `Libre`), número de día (20px) y mes abreviado.
+     - Columna de **Hoy** destacada en verde esmeralda (`bg-emerald-50/40 border-b-2 border-emerald-500`), número en círculo verde esmeralda `15`, texto de mes completo `Septiembre`, badge `HOY` y punto verde pulsante.
+  4. Cuadrícula Horaria y Tarjetas de Eventos Ejecutivas:
+     - Altura de slot ajustada a 84px exactos (`HOUR_HEIGHT = 84`), con marcas de tiempo en monospace de `06:00` a `24:00`.
+     - Tarjetas de eventos con borde izquierdo de 4px en el color del estado, fondo en degradado sutil (`bg-gradient-to-b from-white to-.../12`), chip de estado con código abreviado (`P`, `PR`, `1C`, `CAN`), título en negrita ejecutiva, píldora de horario con reloj SVG, badge de salón, vendedor, PAX y cotización monetaria formal (`Q 11,450.00` o `Cot Q 0.00`).
+     - Distribución limpia en carriles paralelos (`lane`) para eventos simultáneos.
+     - Conservadas todas las funcionalidades originales: clic para navegar a `/reserva/:id`, selección por arrastre de celdas para `/nueva-reserva`, doble clic y tooltip flotante con información completa.
+  5. Barra de estado inferior (`QuickFooterStatusBar`):
+     - Barra de 32px con punto pulsante de conexión al servidor principal, zona horaria `America/Guatemala (GMT-6)`, conteo de eventos en rango y total cotizado en quetzales acumulado.
+  6. Compilación de producción validada con `npx vite build` (código 0 en 2.65s). Verificación visual e interactiva confirmada con `browser_subagent`.
+
+### Rediseño Ejecutivo: Gestor de Espacios & Timeline (`DesktopTimelineView.jsx` y `Topbar.jsx`) (2026-09-15)
+- Requerimiento: Rediseñar integralmente la pantalla de **Timeline** (`Calendar` -> Vista `Timeline`) según el código HTML de referencia y mockup ejecutivo de alta fidelidad "Jardines EMS | Gestor de Espacios & Timeline".
+- Solución:
+  1. Topbar ejecutiva de 2 filas exactas en `Topbar.jsx`:
+     - Fila 1: Botón `[📅 Hoy]`, bloque integrado de fecha con chevrons y reloj `[ ‹ | 🕒 date | › ]`, selector segmentado de vistas (`Día`, `Semana`, `Mes`, `Año`, `Agenda`, `Timeline` en púrpura `#4f46e5`), y selectores estilizados de Estados y Vendedores (`[Todos los Estados ⌵]`, `[Todos los Vendedores ⌵]`).
+     - Fila 2: Selector de Salones de ancho fijo `w-56` (224px) `[Todos los Salones (N) ⌵]` y barra de búsqueda horizontal amplia fluida con icono de lupa SVG `#94a3b8`.
+     - Reseteo contra `design-system-scoped.css` para evitar que botones y selects se convirtieran en cápsulas grises de 40px.
+  2. Cinta semanal y filtros KPI en `DesktopTimelineView.jsx`:
+     - Tira de 7 días con botones chevron de 28x28px (`border: 1px solid #e2e8f0`); día activo en índigo `#4f46e5` con texto blanco y destello pulsante; fines de semana en rojo coral; días con eventos con punto cromático de estado.
+     - Píldoras de KPI a la derecha en contenedor `#f1f5f9/90`: `Todos {N}` en negro carbón con cápsula gris `#334155`, `● Libres` (#047857), `● Parcial` (#4338ca), `● Ocupados` (#be123c) y `>150 PAX`.
+     - Selector segmentado de modo de visualización `[ ☷ Matriz ]` vs `[ ☰ Tarjetas ]`.
+  3. Matriz de Salones y Bloques (CSS Grid de 12 Columnas):
+     - Contenedor con `min-width: 1240px` sobre fondo `#f8fafc`.
+     - Encabezado `grid grid-cols-12`: `col-span-3` para `SALÓN / ÁREA` con icono arquitectónico y badge `{N} ÁREAS`; `col-span-9 grid-cols-6` con las 6 columnas horarias (`10H`, `12H`, `14H`, `16H`, `18H ACTUAL` en púrpura destacada, `20H`).
+     - Fila de salón `grid grid-cols-12`: `col-span-3` con nombre en negrita 14px, badge `Cap. {N} PAX`, punto de estado dinámico (`● Libre día`, `● Parcial`) y botón `+ Todo el día` (#f1f5f9 / #e2e8f0); `col-span-9 grid-cols-6` con celdas horarias.
+     - Celdas libres: Botón con checkmark `✓ Libre + Reservar` (`#ecfdf5`, borde `#a7f3d0`, texto `#065f46`, hover `#d1fae5`).
+     - Celdas ocupadas / cotizadas / pre-reserva: Tarjetas ejecutivas en 2 filas con icono temático, estado, badge de código `#EV-XX` / `PR-XX` y nombre del evento/PAX truncado limpiamente.
+  4. Barra de estado inferior: `Código de Estados:` con 5 puntos cromáticos (Libre, Confirmado, Cotizado, Pre-reserva, Mantenimiento), indicador `Zona Horaria: GMT-6 (Guatemala)` y punto pulsante con texto `✓ Sincronizado en tiempo real`.
+  5. Compilación validada limpiamente con `npx vite build` (código 0 en 3.29s). Verificación visual en navegador confirmada con subagente de navegación.
+
 ### Rediseño Escritorio Ejecutivo: Carrito Operativo y Control Financiero (`QuoteModal.jsx`) (2026-09-14)
 - Requerimiento: Resolver la sobreposición / desfasamiento del encabezado flotante `.qp-cart-sticky-header` que tapaba el contenido de fechas y filas al hacer scroll; reestructurar la vista de escritorio de **Cotizar Evento** (`QuoteModal.jsx`) según mockup de referencia de alta fidelidad y protocolo `/grill-me`, adoptando la barra de herramientas integrada en el carrito, tarjetas para días vacíos, desglose de totales y tarjetas KPI en Control Financiero.
 - Causa raíz:
