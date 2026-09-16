@@ -32,6 +32,23 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Estandarización VAPID RFC 8292 y Diagnóstico / Corrección Integral para Web Push en iOS (`webPushService.js`, `public/sw.js`, `SocketContext.jsx`, `.env`) (2026-09-16)
+- Requerimiento: Eliminar la variable legacy `VITE_FIREBASE_VAPID_KEY` para usar únicamente el par de claves VAPID estándar (`VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`), resolver por qué no aparecían las notificaciones push en iOS (iPhone/iPad) y clarificar la configuración requerida.
+- Causa raíz:
+  1. En `public/sw.js`, existía una verificación `if (data.data?.autorId && activeUserId && String(data.data.autorId) === String(activeUserId)) return;` que descartaba silenciosamente la notificación sin llamar a `showNotification()`. Al realizar pruebas mencionándose a sí mismo o con la misma cuenta entre computadora y teléfono, la notificación era recibida de Apple APNs pero eliminada en el dispositivo.
+  2. En `src/services/webPushService.js`, cada vez que se ejecutaba la función se llamaba `existingSub.unsubscribe()`. En iOS Safari/PWA, desuscribirse y luego suscribirse en un `useEffect` (sin gesto físico del usuario) fallaba o generaba acumulación masiva de suscripciones obsoletas (más de 40 por usuario).
+  3. En `src/modules/informes/context/SocketContext.jsx`, la función `showBrowserNotif` invocaba `new Notification()`, lo cual arroja un `TypeError` fatal en WebKit iOS porque Apple solo soporta `ServiceWorkerRegistration.showNotification()`.
+  4. En iOS (iOS 16.4+), Apple impone tres requisitos mandatorios de plataforma:
+     - La app DEBE estar agregada a la Pantalla de Inicio (modo PWA Standalone). En pestañas normales de Safari el PushManager está deshabilitado por Apple.
+     - La solicitud de permisos (`Notification.requestPermission()`) DEBE ocurrir en respuesta a un gesto físico del usuario (toque en pantalla/botón).
+     - En Ajustes de iOS > Notificaciones > [CRM JDL], los permisos deben estar concedidos.
+- Solución:
+  1. En `.env`, se eliminó completamente `VITE_FIREBASE_VAPID_KEY` y se estandarizó en `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VITE_VAPID_PUBLIC_KEY`.
+  2. En `src/services/webPushService.js`, se eliminó `VITE_FIREBASE_VAPID_KEY`, se blindó la reutilización de suscripciones activas existentes sin desuscribir innecesariamente, y se modularizó `saveSubscriptionToBackend`.
+  3. En `public/sw.js`, se eliminó el bloqueo de autoría propia para garantizar que las notificaciones siempre se muestren en el dispositivo destino.
+  4. En `SocketContext.jsx`, se blindó `showBrowserNotif` con verificación de Service Worker y captura de excepciones para prevenir fallos en iOS.
+  5. Se probó el envío directo a Apple APNs (`https://web.push.apple.com/...`), confirmando respuesta HTTP 201 Created con el par de claves VAPID actual.
+  6. Validado con 23 pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia con `npm run build` (versión 2.1.122).
 ### Solución: Apertura Masiva de Tarjetas por Mención y Notificaciones Web Push Móviles (`Kanban.jsx`, `EventCard.jsx`, `webPushService.js`, `webPushHelper.js`, `sw.js`) (2026-09-16)
 - Requerimiento: Al pulsar una notificación de mención ("Te mencionaron en una nota"), todas las tarjetas del tablero Kanban se abrían simultáneamente con el formulario "Escribe una nota... Enviar". Adicionalmente, las notificaciones push no llegaban a dispositivos móviles (Android / iOS).
 - Causa raíz:

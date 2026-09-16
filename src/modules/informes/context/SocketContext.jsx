@@ -15,8 +15,19 @@ function requestNotifPermission() {
 }
 
 function showBrowserNotif(title, body) {
-  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-    new Notification(title, { body, icon: '/favicon.ico' });
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission === 'granted' && document.hidden) {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, { body, icon: '/favicon.ico' });
+      }).catch(() => {
+        try { new Notification(title, { body, icon: '/favicon.ico' }); } catch {}
+      });
+    } else {
+      try {
+        new Notification(title, { body, icon: '/favicon.ico' });
+      } catch {}
+    }
   }
 }
 

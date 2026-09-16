@@ -17,14 +17,50 @@ function urlB64ToUint8Array(base64String) {
 }
 
 /**
- * Solicita permisos de notificación y suscribe el Service Worker al servicio Push del navegador.
+ * Helper para sincronizar el payload de suscripción con los endpoints del backend.
  */
-export async function requestNotificationPermissionAndSubscribe() {
+async function saveSubscriptionToBackend(subscription) {
+  const sessionToken = localStorage.getItem('token') || sessionStorage.getItem('token');
+  if (!sessionToken || !subscription) return false;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${sessionToken}`
+  };
+  const subJson = subscription.toJSON ? subscription.toJSON() : subscription;
+
+  try {
+    await Promise.allSettled([
+      fetch(`${import.meta.env.VITE_API_URL || ''}/api/webpush/save-subscription`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ subscription: subJson })
+      }),
+      fetch(`${import.meta.env.VITE_API_URL || ''}/api/push/subscribe`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ subscription: subJson })
+      })
+    ]);
+    console.log('[WebPush] Suscripción sincronizada con éxito en el servidor.');
+    return true;
+  } catch (err) {
+    console.warn('[WebPush] Error enviando suscripción al servidor:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Solicita permisos de notificación y suscribe el Service Worker al servicio Push del navegador.
+ * @param {object} options
+ * @param {boolean} options.forceRenew - Si es true, fuerza desuscripción y recrea la suscripción Push.
+ */
+export async function requestNotificationPermissionAndSubscribe({ forceRenew = false } = {}) {
   if (typeof window === 'undefined') return null;
 
   // Verificar soporte en el navegador
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.warn('[WebPush] Este navegador no soporta notificaciones Push nativas.');
+    console.warn('[WebPush] Este navegador no soporta notificaciones Push nativas (requiere iOS 16.4+ agregado a pantalla de inicio).');
     return null;
   }
 
@@ -35,11 +71,13 @@ export async function requestNotificationPermissionAndSubscribe() {
   }
 
   try {
-    // Solicitar permiso al usuario
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      console.log('[WebPush] Permiso de notificaciones denegado por el usuario.');
-      return null;
+    // Solicitar permiso al usuario si está en 'default'
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        console.log('[WebPush] Permiso de notificaciones denegado por el usuario.');
+        return null;
+      }
     }
 
     // Obtener la registración del Service Worker de la PWA (sw.js)
@@ -49,7 +87,8 @@ export async function requestNotificationPermissionAndSubscribe() {
       return null;
     }
 
-    let vapidPublicKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || import.meta.env.VITE_VAPID_PUBLIC_KEY;
+    // Clave VAPID pública: 우선 dinámicamente del backend, fallback a VITE_VAPID_PUBLIC_KEY
+    let vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
     try {
       const vapidResp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/push/vapid-public-key`);
       if (vapidResp.ok) {
@@ -69,9 +108,14 @@ export async function requestNotificationPermissionAndSubscribe() {
 
     // Verificar si ya existía una suscripción previa
     const existingSub = await registration.pushManager.getSubscription();
-    if (existingSub) {
+    if (existingSub && !forceRenew) {
+      // Preservar la suscripción activa (evita romper APNs en iOS al recargar la app)
+      await saveSubscriptionToBackend(existingSub);
+      return existingSub;
+    }
+
+    if (existingSub && forceRenew) {
       try {
-        // Renovar suscripción para garantizar concordancia de clave VAPID actual
         await existingSub.unsubscribe();
       } catch (unsubErr) {
         console.warn('[WebPush] No se pudo desuscribir sub previa:', unsubErr.message);
@@ -85,37 +129,14 @@ export async function requestNotificationPermissionAndSubscribe() {
     });
 
     if (subscription) {
-      // Enviar la suscripción completa al backend
-      const sessionToken = localStorage.getItem('token') || sessionStorage.getItem('token');
-      if (sessionToken) {
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
-        };
-        const subJson = subscription.toJSON ? subscription.toJSON() : subscription;
-
-        await Promise.allSettled([
-          fetch(`${import.meta.env.VITE_API_URL || ''}/api/webpush/save-subscription`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ subscription: subJson })
-          }),
-          fetch(`${import.meta.env.VITE_API_URL || ''}/api/push/subscribe`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ subscription: subJson })
-          })
-        ]);
-
-        console.log('[WebPush] Suscripción sincronizada con éxito en el servidor.');
-      }
+      await saveSubscriptionToBackend(subscription);
       return subscription;
     }
 
     return null;
   } catch (error) {
     if (error.name === 'AbortError' || error.message?.includes('Registration failed') || error.message?.includes('push service error')) {
-      console.warn('[WebPush] El servicio Push del navegador no está disponible temporalmente (posible bloqueo de notificaciones en el sistema operativo o problemas de conexión de Chrome con los servidores de Google FCM).');
+      console.warn('[WebPush] El servicio Push del navegador no está disponible temporalmente (posible bloqueo en SO o conexión con FCM/APNs).');
     } else {
       console.error('[WebPush] Error al solicitar permisos o suscribirse a push:', error);
     }
@@ -123,8 +144,20 @@ export async function requestNotificationPermissionAndSubscribe() {
   }
 }
 
+export function isPushSupported() {
+  return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+export function getNotificationPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
+
 export const webPushService = {
-  requestNotificationPermissionAndSubscribe
+  requestNotificationPermissionAndSubscribe,
+  saveSubscriptionToBackend,
+  isPushSupported,
+  getNotificationPermission
 };
 
 export default webPushService;

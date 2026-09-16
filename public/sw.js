@@ -211,12 +211,6 @@ self.addEventListener('push', (event) => {
         }
       }
 
-      // Si el autor de la mención es el mismo usuario logueado en este navegador, NO notificar
-      if (data.data?.autorId && activeUserId && String(data.data.autorId) === String(activeUserId)) {
-        console.log('[SW] Ignorando notificacion push de autoria propia.');
-        return;
-      }
-
       const title = data.title || 'Jardines del Lago';
       const targetUrl = data.data?.url || data.url || '/';
       const options = {

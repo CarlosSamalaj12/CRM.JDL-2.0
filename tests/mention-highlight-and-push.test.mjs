@@ -41,11 +41,12 @@ test('webPushHelper.js incluye objeto data con url en el payload push y usa pool
   assert.doesNotMatch(source, /err\.statusCode === 401/);
 });
 
-test('webPushService.js consulta clave VAPID dinámica en el backend', async () => {
+test('webPushService.js consulta clave VAPID dinámica en el backend y no usa clave legacy de firebase', async () => {
   const source = await readFile(webPushServicePath, 'utf8');
 
   assert.match(source, /\/api\/push\/vapid-public-key/);
   assert.match(source, /existingSub\.unsubscribe\(\)/);
+  assert.doesNotMatch(source, /VITE_FIREBASE_VAPID_KEY/);
 });
 
 test('public/sw.js protege la propiedad vibrate para compatibilidad con iOS Safari/PWA', async () => {
