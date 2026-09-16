@@ -31,7 +31,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import authService from '../../../services/authService';
-import { loadState as loadCrmState, saveState as saveCrmState, saveCompanyApi, saveQuickManagerApi } from '../../../services/stateService';
+import { loadState as loadCrmState, saveState as saveCrmState, saveCompanyApi, saveQuickManagerApi, saveServiceApi } from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
 import api from '../../../services/api';
 import socketService from '../../../services/socketService';
@@ -1543,15 +1543,16 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         quantityMode: serviceDraft.quantityMode || 'MANUAL'
       };
       const exists = currentServices.some(service => String(service.id || '') === String(savedService.id));
+      const resService = await saveServiceApi(savedService);
+      const finalService = { ...savedService, ...resService };
       const nextServices = exists
-        ? currentServices.map(service => String(service.id || '') === String(savedService.id) ? savedService : service)
-        : [...currentServices, savedService];
-      await saveCrmState({ ...currentState, services: nextServices });
+        ? currentServices.map(service => String(service.id || '') === String(savedService.id) ? finalService : service)
+        : [...currentServices, finalService];
       setCatalogServices(nextServices);
       
       // Seleccionar automáticamente el servicio creado o editado
-      setSelectedCatalogService(savedService);
-      setServiceSearch(savedService.name);
+      setSelectedCatalogService(finalService);
+      setServiceSearch(finalService.name);
       
       resetServiceDraft();
       setShowCreateServiceModal(false);
@@ -1563,28 +1564,38 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     if (!serviceDraft.id) return;
     const nextDraft = { ...serviceDraft, active: !serviceDraft.active };
     setServiceDraft(nextDraft);
-    const currentState = await loadCrmState();
-    const currentServices = currentState?.services || [];
-    const nextServices = currentServices.map(service => String(service.id || '') === String(serviceDraft.id)
-      ? { ...service, active: nextDraft.active }
-      : service);
-    await saveCrmState({ ...currentState, services: nextServices });
-    setCatalogServices(nextServices);
+    try {
+      await saveServiceApi(nextDraft);
+      const currentState = await loadCrmState();
+      const currentServices = currentState?.services || [];
+      const nextServices = currentServices.map(service => String(service.id || '') === String(serviceDraft.id)
+        ? { ...service, active: nextDraft.active }
+        : service);
+      setCatalogServices(nextServices);
+    } catch {
+      localSwal('Error', 'No se pudo actualizar el estado del servicio', 'error');
+    }
   };
 
   const handleApplyTemplate = () => {
     const template = quickTemplates.find(t => String(t.id) === quote.templateId);
     if (!template?.items?.length) { localSwal('Info', 'Plantilla sin items', 'info'); return; }
-    const templateItems = template.items.map(item => ({
-      rowId: uid(),
-      serviceId: item.serviceId || item.id || 'manual',
-      name: item.name || 'Item de plantilla',
-      qty: Number(item.qty) || 1,
-      price: Number(item.price) || 0,
-      quantityMode: item.quantityMode || 'MANUAL',
-      category: item.category || '',
-      serviceDate: item.serviceDate || availableServiceDates[0]
-    }));
+    const templateItems = template.items.map(item => {
+      const svcId = String(item.serviceId || item.id || '').trim();
+      const svcName = (item.name || '').trim().toLowerCase();
+      const svc = (svcId && catalogServices.find(s => String(s.id).trim() === svcId)) ||
+                  (svcName && catalogServices.find(s => (s.name || '').trim().toLowerCase() === svcName));
+      return {
+        rowId: uid(),
+        serviceId: svc ? String(svc.id) : (item.serviceId || item.id || 'manual'),
+        name: svc ? svc.name : (item.name || 'Item de plantilla'),
+        qty: Number(item.qty) || 1,
+        price: svc && (svc.price !== null && svc.price !== undefined) ? Number(svc.price) : Number(item.price || 0),
+        quantityMode: svc ? (svc.quantityMode || 'MANUAL') : (item.quantityMode || 'MANUAL'),
+        category: svc ? (svc.category || '') : (item.category || ''),
+        serviceDate: item.serviceDate || availableServiceDates[0]
+      };
+    });
     setQuote(prev => ({ ...prev, items: [...prev.items, ...templateItems] }));
     localSwal('Éxito', `Plantilla "${template.name}" aplicada`, 'success');
   };

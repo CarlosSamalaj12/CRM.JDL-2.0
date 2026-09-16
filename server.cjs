@@ -596,6 +596,298 @@ async function ensureServiceCatalogStructure() {
         await conn.query("ALTER TABLE servicios ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1");
       }
     } catch (_) {}
+    // Ensure id column is VARCHAR(255)
+    try {
+      await conn.query("ALTER TABLE servicios MODIFY COLUMN id VARCHAR(255) NOT NULL");
+    } catch (_) {}
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function ensurePlantillasStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    // 1. Tabla plantillas_cotizacion
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS plantillas_cotizacion (
+        id VARCHAR(255) NOT NULL,
+        nombre VARCHAR(255) NOT NULL,
+        activo TINYINT(1) NOT NULL DEFAULT 1,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 2. Tabla plantillas_cotizacion_items
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS plantillas_cotizacion_items (
+        id VARCHAR(255) NOT NULL,
+        id_plantilla VARCHAR(255) NOT NULL,
+        id_servicio VARCHAR(255) NULL,
+        nombre_servicio VARCHAR(300) NULL,
+        cantidad DECIMAL(12,2) NOT NULL DEFAULT 1.00,
+        precio_unitario DECIMAL(12,2) NULL,
+        modo_cantidad VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
+        orden INT NOT NULL DEFAULT 0,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_pci_plantilla (id_plantilla),
+        KEY idx_pci_servicio (id_servicio),
+        CONSTRAINT fk_pci_plantilla FOREIGN KEY (id_plantilla) REFERENCES plantillas_cotizacion (id) ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT fk_pci_servicio FOREIGN KEY (id_servicio) REFERENCES servicios (id) ON DELETE SET NULL ON UPDATE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 3. Migracion automatica desde app_state_kv si plantillas_cotizacion esta vacia
+    const existingRows = await conn.query("SELECT COUNT(*) AS total FROM plantillas_cotizacion");
+    const totalCount = Number(existingRows?.[0]?.total || 0);
+    if (totalCount === 0) {
+      const kvRows = await conn.query(
+        "SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('quoteServiceTemplates', 'quickTemplates') ORDER BY CASE WHEN clave = 'quoteServiceTemplates' THEN 1 ELSE 2 END"
+      );
+      let legacyTemplates = [];
+      for (const r of kvRows) {
+        if (r.valor_json) {
+          try {
+            const parsed = JSON.parse(r.valor_json);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              legacyTemplates = parsed;
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (legacyTemplates.length > 0) {
+        console.log(`[MIGRACIÓN] Migrando ${legacyTemplates.length} plantillas hacia tablas relacionales...`);
+        for (const tpl of legacyTemplates) {
+          const tplId = str(tpl.id).trim() || ('tpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+          const tplName = str(tpl.name || 'Plantilla').trim();
+          await conn.query(
+            "INSERT INTO plantillas_cotizacion (id, nombre, activo) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE nombre = VALUES(nombre)",
+            [tplId, tplName]
+          );
+
+          const items = Array.isArray(tpl.items) ? tpl.items : [];
+          for (let idx = 0; idx < items.length; idx++) {
+            const it = items[idx];
+            const rawServiceId = str(it.serviceId || it.id || '').trim();
+            const rawName = str(it.name || '').trim();
+            let resolvedServiceId = null;
+
+            if (rawServiceId) {
+              const svcById = await conn.query("SELECT id FROM servicios WHERE id = ? LIMIT 1", [rawServiceId]);
+              if (svcById.length > 0) {
+                resolvedServiceId = str(svcById[0].id);
+              }
+            }
+            if (!resolvedServiceId && rawName) {
+              const svcByName = await conn.query("SELECT id FROM servicios WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?)) LIMIT 1", [rawName]);
+              if (svcByName.length > 0) {
+                resolvedServiceId = str(svcByName[0].id);
+              }
+            }
+
+            const itemId = it.id && it.id !== rawServiceId ? str(it.id).trim() : `${tplId}_item_${idx + 1}_${Math.random().toString(36).slice(2, 6)}`;
+            await conn.query(
+              `INSERT INTO plantillas_cotizacion_items
+                 (id, id_plantilla, id_servicio, nombre_servicio, cantidad, precio_unitario, modo_cantidad, orden)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE
+                 id_servicio = VALUES(id_servicio),
+                 nombre_servicio = VALUES(nombre_servicio),
+                 cantidad = VALUES(cantidad),
+                 precio_unitario = VALUES(precio_unitario),
+                 modo_cantidad = VALUES(modo_cantidad),
+                 orden = VALUES(orden)`,
+              [
+                itemId,
+                tplId,
+                resolvedServiceId,
+                rawName || null,
+                Number(it.qty) || 1,
+                it.price !== undefined && it.price !== null ? Number(it.price) : null,
+                String(it.quantityMode || 'MANUAL').trim(),
+                idx + 1
+              ]
+            );
+          }
+        }
+        console.log(`[MIGRACIÓN] Plantillas migradas exitosamente a plantillas_cotizacion y plantillas_cotizacion_items.`);
+      }
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function readPlantillasFromTables(conn) {
+  const query = `
+    SELECT
+      p.id AS plantilla_id,
+      p.nombre AS plantilla_nombre,
+      p.activo AS plantilla_activo,
+      i.id AS item_id,
+      i.id_plantilla,
+      i.id_servicio,
+      i.nombre_servicio,
+      i.cantidad,
+      i.precio_unitario,
+      i.modo_cantidad AS item_modo_cantidad,
+      i.orden,
+      s.nombre AS servicio_nombre,
+      s.precio AS servicio_precio,
+      s.modo_cantidad AS servicio_modo_cantidad,
+      s.activo AS servicio_activo,
+      c.nombre AS cat_nombre,
+      sc.nombre AS sub_nombre
+    FROM plantillas_cotizacion p
+    LEFT JOIN plantillas_cotizacion_items i ON i.id_plantilla = p.id
+    LEFT JOIN servicios s ON s.id = i.id_servicio
+    LEFT JOIN categorias_servicio c ON c.id = s.id_categoria
+    LEFT JOIN subcategorias_servicio sc ON sc.id = s.id_subcategoria
+    ORDER BY p.creado_en, p.id, i.orden, i.id
+  `;
+  const rows = await conn.query(query);
+  const map = new Map();
+  for (const r of rows) {
+    const pid = String(r.plantilla_id);
+    if (!map.has(pid)) {
+      map.set(pid, {
+        id: pid,
+        name: str(r.plantilla_nombre).trim(),
+        active: Number(r.plantilla_activo) !== 0,
+        items: []
+      });
+    }
+    if (r.item_id) {
+      const serviceId = str(r.id_servicio || '').trim();
+      // Nombre y precio dinamico: si el servicio existe en la tabla servicios, tomar siempre sus valores actuales
+      const displayName = str(r.servicio_nombre || r.nombre_servicio || 'Servicio').trim();
+      const displayPrice = (r.servicio_precio !== null && r.servicio_precio !== undefined)
+        ? Number(r.servicio_precio)
+        : Number(r.precio_unitario || 0);
+      const displayMode = String(r.servicio_modo_cantidad || r.item_modo_cantidad || 'MANUAL').trim();
+      const displayCategory = str(r.cat_nombre || 'General').trim();
+      const displaySubcategory = str(r.sub_nombre || '').trim();
+      const serviceActive = r.servicio_activo !== null ? Number(r.servicio_activo) !== 0 : true;
+
+      map.get(pid).items.push({
+        id: str(r.item_id),
+        serviceId: serviceId,
+        name: displayName,
+        qty: Number(r.cantidad || 1),
+        price: displayPrice,
+        quantityMode: displayMode,
+        category: displayCategory,
+        subcategory: displaySubcategory,
+        serviceActive: serviceActive,
+        orden: Number(r.orden || 0)
+      });
+    }
+  }
+  return Array.from(map.values());
+}
+
+async function createOrUpdatePlantillaInTable(tpl) {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const tplId = str(tpl.id).trim() || ('tpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+    const tplName = str(tpl.name || 'Nueva plantilla').trim();
+    const activo = tpl.active !== false ? 1 : 0;
+
+    await conn.query(
+      `INSERT INTO plantillas_cotizacion (id, nombre, activo)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         nombre = VALUES(nombre),
+         activo = VALUES(activo)`,
+      [tplId, tplName, activo]
+    );
+
+    // Reemplazar items de esta plantilla
+    await conn.query("DELETE FROM plantillas_cotizacion_items WHERE id_plantilla = ?", [tplId]);
+
+    const items = Array.isArray(tpl.items) ? tpl.items : [];
+    for (let idx = 0; idx < items.length; idx++) {
+      const it = items[idx];
+      const rawServiceId = str(it.serviceId || it.id || '').trim();
+      const rawName = str(it.name || '').trim();
+      let resolvedServiceId = null;
+
+      if (rawServiceId) {
+        const svcById = await conn.query("SELECT id, nombre, precio, modo_cantidad FROM servicios WHERE id = ? LIMIT 1", [rawServiceId]);
+        if (svcById.length > 0) {
+          resolvedServiceId = str(svcById[0].id);
+        }
+      }
+      if (!resolvedServiceId && rawName) {
+        const svcByName = await conn.query("SELECT id, nombre, precio, modo_cantidad FROM servicios WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?)) LIMIT 1", [rawName]);
+        if (svcByName.length > 0) {
+          resolvedServiceId = str(svcByName[0].id);
+        }
+      }
+
+      const itemId = str(it.id).trim() || `${tplId}_item_${idx + 1}_${Math.random().toString(36).slice(2, 6)}`;
+      await conn.query(
+        `INSERT INTO plantillas_cotizacion_items
+           (id, id_plantilla, id_servicio, nombre_servicio, cantidad, precio_unitario, modo_cantidad, orden)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          itemId,
+          tplId,
+          resolvedServiceId,
+          rawName || null,
+          Number(it.qty) || 1,
+          it.price !== undefined && it.price !== null ? Number(it.price) : null,
+          String(it.quantityMode || 'MANUAL').trim(),
+          idx + 1
+        ]
+      );
+    }
+
+    await conn.commit();
+
+    const allTemplates = await readPlantillasFromTables(conn);
+    await conn.query(
+      `INSERT INTO app_state_kv (clave, valor_json) VALUES ('quickTemplates', ?), ('quoteServiceTemplates', ?)
+       ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+      [JSON.stringify(allTemplates), JSON.stringify(allTemplates)]
+    ).catch(() => null);
+
+    emitServerChange('plantilla', 'updated', { id: tplId });
+    const saved = allTemplates.find(t => t.id === tplId);
+    return saved || { id: tplId, name: tplName, items };
+  } catch (err) {
+    if (conn) await conn.rollback();
+    throw err;
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+async function deletePlantillaFromTable(id) {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const pid = str(id).trim();
+    await conn.query("DELETE FROM plantillas_cotizacion WHERE id = ?", [pid]);
+    const allTemplates = await readPlantillasFromTables(conn);
+    await conn.query(
+      `INSERT INTO app_state_kv (clave, valor_json) VALUES ('quickTemplates', ?), ('quoteServiceTemplates', ?)
+       ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+      [JSON.stringify(allTemplates), JSON.stringify(allTemplates)]
+    ).catch(() => null);
+
+    emitServerChange('plantilla', 'deleted', { id: pid });
+    return { ok: true, id: pid };
   } finally {
     if (conn) conn.release();
   }
@@ -1492,6 +1784,19 @@ async function readStateFromTables() {
         }
       } catch (__) {}
     }
+
+    let dbPlantillasList = [];
+    try {
+      dbPlantillasList = await readPlantillasFromTables(conn);
+    } catch (_) {
+      try {
+        const tplRow = appStateRows.find((r) => str(r.clave) === "quickTemplates" || str(r.clave) === "quoteServiceTemplates");
+        if (tplRow?.valor_json) {
+          const parsed = JSON.parse(tplRow.valor_json);
+          if (Array.isArray(parsed)) dbPlantillasList = parsed;
+        }
+      } catch (__) {}
+    }
     const bebidasCatalog = [];
 
     const hasData = salones.length || usuarios.length || empresas.length || eventos.length;
@@ -1711,8 +2016,8 @@ async function readStateFromTables() {
         managers: managersByCompany.get(str(c.id)) || [],
       })),
       services: dbServicesList,
-      quickTemplates: [],
-      quoteServiceTemplates: [],
+      quickTemplates: dbPlantillasList,
+      quoteServiceTemplates: dbPlantillasList,
       contractTemplates: [],
       disabledCompanies: [],
       disabledServices: [],
@@ -1813,23 +2118,33 @@ async function readStateFromTables() {
     }
 
     const contractTemplatesRow = appStateRows.find((r) => str(r.clave) === "contractTemplates");
-    const quickTemplatesRow = appStateRows.find((r) => str(r.clave) === "quickTemplates");
-    const quoteServiceTemplatesRow = appStateRows.find((r) => str(r.clave) === "quoteServiceTemplates");
-    if (quickTemplatesRow?.valor_json) {
-      try {
-        const parsed = JSON.parse(quickTemplatesRow.valor_json);
-        state.quickTemplates = Array.isArray(parsed) ? parsed : [];
-      } catch (_) {
-        state.quickTemplates = [];
+    if (!state.quickTemplates || state.quickTemplates.length === 0) {
+      const quickTemplatesRow = appStateRows.find((r) => str(r.clave) === "quickTemplates");
+      if (quickTemplatesRow?.valor_json) {
+        try {
+          const parsed = JSON.parse(quickTemplatesRow.valor_json);
+          state.quickTemplates = Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          state.quickTemplates = [];
+        }
       }
     }
-    if (quoteServiceTemplatesRow?.valor_json) {
-      try {
-        const parsed = JSON.parse(quoteServiceTemplatesRow.valor_json);
-        state.quoteServiceTemplates = Array.isArray(parsed) ? parsed : [];
-      } catch (_) {
-        state.quoteServiceTemplates = [];
+    if (!state.quoteServiceTemplates || state.quoteServiceTemplates.length === 0) {
+      const quoteServiceTemplatesRow = appStateRows.find((r) => str(r.clave) === "quoteServiceTemplates");
+      if (quoteServiceTemplatesRow?.valor_json) {
+        try {
+          const parsed = JSON.parse(quoteServiceTemplatesRow.valor_json);
+          state.quoteServiceTemplates = Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          state.quoteServiceTemplates = [];
+        }
       }
+    }
+    if ((!state.quoteServiceTemplates || state.quoteServiceTemplates.length === 0) && state.quickTemplates?.length > 0) {
+      state.quoteServiceTemplates = state.quickTemplates;
+    }
+    if ((!state.quickTemplates || state.quickTemplates.length === 0) && state.quoteServiceTemplates?.length > 0) {
+      state.quickTemplates = state.quoteServiceTemplates;
     }
     if (contractTemplatesRow?.valor_json) {
       try {
@@ -2353,11 +2668,61 @@ async function readServiciosFromTables() {
   }
 }
 
+async function resolveCategoryAndSubcategoryIds(conn, catName, subName, explicitCatId = null, explicitSubId = null) {
+  let catId = explicitCatId ? Number(explicitCatId) : null;
+  let subId = explicitSubId ? Number(explicitSubId) : null;
+
+  const cleanCat = str(catName || "").trim();
+  if (!catId && cleanCat) {
+    const existingCat = await conn.query(
+      "SELECT id FROM categorias_servicio WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?)) LIMIT 1",
+      [cleanCat]
+    );
+    if (existingCat.length > 0) {
+      catId = Number(existingCat[0].id);
+    } else {
+      const catRes = await conn.query(
+        "INSERT INTO categorias_servicio (nombre, activo) VALUES (?, 1)",
+        [cleanCat]
+      );
+      catId = Number(catRes.insertId);
+      emitServerChange('categoria_servicio', 'created', { id: catId, nombre: cleanCat });
+    }
+  }
+
+  const cleanSub = str(subName || "").trim();
+  if (!subId && cleanSub && catId) {
+    const existingSub = await conn.query(
+      "SELECT id FROM subcategorias_servicio WHERE id_categoria = ? AND LOWER(TRIM(nombre)) = LOWER(TRIM(?)) LIMIT 1",
+      [catId, cleanSub]
+    );
+    if (existingSub.length > 0) {
+      subId = Number(existingSub[0].id);
+    } else {
+      const subRes = await conn.query(
+        "INSERT INTO subcategorias_servicio (id_categoria, nombre, activo) VALUES (?, ?, 1)",
+        [catId, cleanSub]
+      );
+      subId = Number(subRes.insertId);
+      emitServerChange('subcategoria_servicio', 'created', { id: subId, id_categoria: catId, nombre: cleanSub });
+    }
+  }
+
+  return { catId, subId };
+}
+
 async function createServicioInTable(svc) {
   let conn;
   try {
     conn = await pool.getConnection();
     const svcId = str(svc.id).trim() || ("svc_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7));
+    const { catId, subId } = await resolveCategoryAndSubcategoryIds(
+      conn,
+      svc.category,
+      svc.subcategory,
+      svc.id_categoria,
+      svc.id_subcategoria
+    );
     await conn.query(
       "INSERT INTO servicios (id, nombre, precio, descripcion, id_categoria, id_subcategoria, modo_cantidad, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       [
@@ -2365,14 +2730,25 @@ async function createServicioInTable(svc) {
         str(svc.name || "Sin nombre").trim(),
         Number(svc.price || 0),
         str(svc.description || "").trim() || null,
-        svc.id_categoria ? Number(svc.id_categoria) : null,
-        svc.id_subcategoria ? Number(svc.id_subcategoria) : null,
+        catId,
+        subId,
         String(svc.quantityMode || "MANUAL").trim(),
         svc.active !== false ? 1 : 0,
       ]
     );
     emitServerChange('servicio', 'created', { id: svcId });
-    return { id: svcId, ...svc };
+    return {
+      id: svcId,
+      name: str(svc.name || "Sin nombre").trim(),
+      price: Number(svc.price || 0),
+      description: str(svc.description || "").trim(),
+      category: str(svc.category || "General").trim(),
+      subcategory: str(svc.subcategory || "").trim(),
+      quantityMode: String(svc.quantityMode || "MANUAL").trim(),
+      id_categoria: catId,
+      id_subcategoria: subId,
+      active: svc.active !== false,
+    };
   } finally {
     if (conn) conn.release();
   }
@@ -2382,21 +2758,69 @@ async function updateServicioInTable(svc) {
   let conn;
   try {
     conn = await pool.getConnection();
+    const svcId = str(svc.id).trim();
+    if (!svcId) {
+      throw new Error("ID de servicio requerido para actualizar");
+    }
+    const existing = await conn.query("SELECT id FROM servicios WHERE id = ?", [svcId]);
+    if (existing.length === 0) {
+      return await createServicioInTable(svc);
+    }
+    const { catId, subId } = await resolveCategoryAndSubcategoryIds(
+      conn,
+      svc.category,
+      svc.subcategory,
+      svc.id_categoria,
+      svc.id_subcategoria
+    );
     await conn.query(
       "UPDATE servicios SET nombre = ?, precio = ?, descripcion = ?, id_categoria = ?, id_subcategoria = ?, modo_cantidad = ?, activo = ? WHERE id = ?",
       [
         str(svc.name || "Sin nombre").trim(),
         Number(svc.price || 0),
         str(svc.description || "").trim() || null,
-        svc.id_categoria ? Number(svc.id_categoria) : null,
-        svc.id_subcategoria ? Number(svc.id_subcategoria) : null,
+        catId,
+        subId,
         String(svc.quantityMode || "MANUAL").trim(),
         svc.active !== false ? 1 : 0,
-        str(svc.id).trim(),
+        svcId,
       ]
     );
-    emitServerChange('servicio', 'updated', { id: str(svc.id).trim() });
-    return { ...svc };
+
+    // Sincronizar en plantillas_cotizacion_items y actualizar caché de plantillas
+    try {
+      await conn.query(
+        `UPDATE plantillas_cotizacion_items
+         SET nombre_servicio = ?, modo_cantidad = ?
+         WHERE id_servicio = ?`,
+        [
+          str(svc.name || "Sin nombre").trim(),
+          String(svc.quantityMode || "MANUAL").trim(),
+          svcId
+        ]
+      );
+      const allTemplates = await readPlantillasFromTables(conn);
+      await conn.query(
+        `INSERT INTO app_state_kv (clave, valor_json) VALUES ('quickTemplates', ?), ('quoteServiceTemplates', ?)
+         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+        [JSON.stringify(allTemplates), JSON.stringify(allTemplates)]
+      ).catch(() => null);
+    } catch (_) {}
+
+    emitServerChange('servicio', 'updated', { id: svcId });
+    emitServerChange('plantilla', 'updated', { serviceId: svcId });
+    return {
+      id: svcId,
+      name: str(svc.name || "Sin nombre").trim(),
+      price: Number(svc.price || 0),
+      description: str(svc.description || "").trim(),
+      category: str(svc.category || "General").trim(),
+      subcategory: str(svc.subcategory || "").trim(),
+      quantityMode: String(svc.quantityMode || "MANUAL").trim(),
+      id_categoria: catId,
+      id_subcategoria: subId,
+      active: svc.active !== false,
+    };
   } finally {
     if (conn) conn.release();
   }
@@ -2406,8 +2830,18 @@ async function deleteServicioFromTable(id) {
   let conn;
   try {
     conn = await pool.getConnection();
-    await conn.query("DELETE FROM servicios WHERE id = ?", [str(id).trim()]);
-    emitServerChange('servicio', 'deleted', { id: str(id).trim() });
+    const svcId = str(id).trim();
+    await conn.query("DELETE FROM servicios WHERE id = ?", [svcId]);
+    try {
+      const allTemplates = await readPlantillasFromTables(conn);
+      await conn.query(
+        `INSERT INTO app_state_kv (clave, valor_json) VALUES ('quickTemplates', ?), ('quoteServiceTemplates', ?)
+         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+        [JSON.stringify(allTemplates), JSON.stringify(allTemplates)]
+      ).catch(() => null);
+    } catch (_) {}
+    emitServerChange('servicio', 'deleted', { id: svcId });
+    emitServerChange('plantilla', 'updated', { deletedServiceId: svcId });
     return { deleted: true };
   } finally {
     if (conn) conn.release();
@@ -2533,6 +2967,9 @@ async function ensurePushSubscriptionsTable() {
   let conn;
   try {
     conn = await pool.getConnection();
+    // Limpiar tabla antigua de FCM y tabla duplicada obsoleta
+    await conn.query("DROP TABLE IF EXISTS usuarios_fcm_tokens");
+    await conn.query("DROP TABLE IF EXISTS usuarios_push_subscriptions");
     await conn.query(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -2898,18 +3335,6 @@ async function ensureNotificacionesComentarioId() {
     try {
       await conn.query("ALTER TABLE notificaciones ADD COLUMN comentario_id VARCHAR(80) NULL AFTER idocupacion");
     } catch { /* ya existe */ }
-  } finally {
-    if (conn) conn.release();
-  }
-}
-
-async function ensurePushSubscriptionsTable() {
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    // Limpiar tabla antigua de FCM y tabla duplicada obsoleta
-    await conn.query("DROP TABLE IF EXISTS usuarios_fcm_tokens");
-    await conn.query("DROP TABLE IF EXISTS usuarios_push_subscriptions");
   } finally {
     if (conn) conn.release();
   }
@@ -5369,11 +5794,15 @@ app.patch("/api/subcategorias-servicio/:id/activo", async (req, res) => {
   }
 });
 
-// ==================== ELIMINAR SUBCATEGORIA DIRECTAMENTE EN app_state_kv ====================
+// ==================== ELIMINAR SUBCATEGORIA DIRECTAMENTE EN app_state_kv Y TABLA ====================
 
 app.delete("/api/categorias-servicio/:catId/subcategorias/:subId", async (req, res) => {
   let conn;
   try {
+    const subId = String(req.params.subId || '');
+    if (subId) {
+      await deleteSubcategoriaServicioFromTable(subId).catch(() => null);
+    }
     conn = await pool.getConnection();
     const rows = await conn.query(
       "SELECT valor_json FROM app_state_kv WHERE clave = 'serviceCategories' LIMIT 1"
@@ -5388,7 +5817,6 @@ app.delete("/api/categorias-servicio/:catId/subcategorias/:subId", async (req, r
       }
     }
     const catId = String(req.params.catId || '');
-    const subId = String(req.params.subId || '');
     let found = false;
     const updated = categories.map(c => {
       if (String(c.id) !== catId) return c;
@@ -5397,20 +5825,29 @@ app.delete("/api/categorias-servicio/:catId/subcategorias/:subId", async (req, r
       if (filtered.length !== subs.length) found = true;
       return { ...c, subcategories: filtered };
     });
-    if (!found) {
-      return res.status(404).json({ message: "Subcategoria no encontrada." });
+    if (found) {
+      await conn.query(
+        `INSERT INTO app_state_kv (clave, valor_json) VALUES ('serviceCategories', ?)
+         ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+        [JSON.stringify(updated)]
+      );
     }
-    await conn.query(
-      `INSERT INTO app_state_kv (clave, valor_json) VALUES ('serviceCategories', ?)
-       ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
-      [JSON.stringify(updated)]
-    );
     emitServerChange('subcategoria_servicio', 'deleted', { id: Number(subId) });
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ message: "Error al eliminar subcategoria.", detail: error.message });
   } finally {
     if (conn) conn.release();
+  }
+});
+
+app.delete("/api/subcategorias-servicio/:id", async (req, res) => {
+  try {
+    const subId = req.params.id;
+    await deleteSubcategoriaServicioFromTable(subId);
+    return res.json({ ok: true, message: "Subcategoria eliminada correctamente." });
+  } catch (error) {
+    return res.status(500).json({ message: "Error al eliminar subcategoria.", detail: error.message });
   }
 });
 
@@ -5427,7 +5864,8 @@ app.get("/api/servicios", async (_req, res) => {
 
 app.post("/api/servicios", async (req, res) => {
   try {
-    const svc = await createServicioInTable(req.body);
+    const payload = req.body?.servicio || req.body?.service || req.body;
+    const svc = await createServicioInTable(payload);
     return res.json({ ok: true, servicio: svc });
   } catch (error) {
     return res.status(400).json({ message: "No se pudo crear el servicio.", detail: error.message });
@@ -5436,7 +5874,8 @@ app.post("/api/servicios", async (req, res) => {
 
 app.put("/api/servicios/:id", async (req, res) => {
   try {
-    const svc = await updateServicioInTable({ ...req.body, id: req.params.id });
+    const payload = req.body?.servicio || req.body?.service || req.body;
+    const svc = await updateServicioInTable({ ...payload, id: req.params.id });
     return res.json({ ok: true, servicio: svc });
   } catch (error) {
     return res.status(400).json({ message: "No se pudo actualizar el servicio.", detail: error.message });
@@ -5449,6 +5888,108 @@ app.delete("/api/servicios/:id", async (req, res) => {
     return res.json({ ok: true, message: "Servicio eliminado correctamente." });
   } catch (error) {
     return res.status(500).json({ message: "Error al eliminar servicio.", detail: error.message });
+  }
+});
+
+app.post("/api/servicios/batch", async (req, res) => {
+  let conn;
+  try {
+    const rawList = req.body?.servicios || req.body?.services || (Array.isArray(req.body) ? req.body : []);
+    if (!Array.isArray(rawList) || rawList.length === 0) {
+      return res.status(400).json({ message: "Lista de servicios vacía o inválida." });
+    }
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const savedList = [];
+    for (const item of rawList) {
+      const svcId = str(item.id).trim() || ("svc_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7));
+      const { catId, subId } = await resolveCategoryAndSubcategoryIds(
+        conn,
+        item.category,
+        item.subcategory,
+        item.id_categoria,
+        item.id_subcategoria
+      );
+      await conn.query(
+        `INSERT INTO servicios (id, nombre, precio, descripcion, id_categoria, id_subcategoria, modo_cantidad, activo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           nombre = VALUES(nombre),
+           precio = VALUES(precio),
+           descripcion = VALUES(descripcion),
+           id_categoria = VALUES(id_categoria),
+           id_subcategoria = VALUES(id_subcategoria),
+           modo_cantidad = VALUES(modo_cantidad),
+           activo = VALUES(activo)`,
+        [
+          svcId,
+          str(item.name || "Sin nombre").trim(),
+          Number(item.price || 0),
+          str(item.description || "").trim() || null,
+          catId,
+          subId,
+          String(item.quantityMode || "MANUAL").trim(),
+          item.active !== false ? 1 : 0
+        ]
+      );
+      savedList.push({
+        id: svcId,
+        name: str(item.name || "Sin nombre").trim(),
+        price: Number(item.price || 0),
+        category: str(item.category || "General").trim(),
+        subcategory: str(item.subcategory || "").trim(),
+        description: str(item.description || "").trim(),
+        quantityMode: String(item.quantityMode || "MANUAL").trim(),
+        id_categoria: catId,
+        id_subcategoria: subId,
+        active: item.active !== false
+      });
+    }
+    await conn.commit();
+    emitServerChange('servicio', 'batch', { count: savedList.length });
+    return res.json({ ok: true, count: savedList.length, servicios: savedList });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ message: "Error al importar servicios en lote.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// ==================== PLANTILLAS CRUD ATÓMICOS ====================
+
+app.get("/api/plantillas", async (_req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const plantillas = await readPlantillasFromTables(conn);
+    return res.json({ ok: true, plantillas });
+  } catch (error) {
+    return res.status(500).json({ message: "Error al obtener plantillas.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.post("/api/plantillas", async (req, res) => {
+  try {
+    const payload = req.body?.plantilla || req.body?.template || req.body;
+    if (!payload || !payload.name) {
+      return res.status(400).json({ message: "Nombre de plantilla requerido." });
+    }
+    const saved = await createOrUpdatePlantillaInTable(payload);
+    return res.json({ ok: true, plantilla: saved });
+  } catch (error) {
+    return res.status(500).json({ message: "Error al guardar plantilla.", detail: error.message });
+  }
+});
+
+app.delete("/api/plantillas/:id", async (req, res) => {
+  try {
+    const result = await deletePlantillaFromTable(req.params.id);
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ message: "Error al eliminar plantilla.", detail: error.message });
   }
 });
 
@@ -6316,6 +6857,7 @@ const MIGRATIONS = [
   { name: 'MigrationLog', fn: ensureMigrationLogTable },
   { name: 'AppStateExtra', fn: ensureAppStateExtraStructure },
   { name: 'ServiceCatalog', fn: ensureServiceCatalogStructure },
+  { name: 'PlantillasStructure', fn: ensurePlantillasStructure },
   { name: 'QuoteVersion', fn: ensureQuoteVersionStructure },
   { name: 'EventDateRange', fn: ensureEventDateRangeStructure },
   { name: 'Advances', fn: ensureAdvancesStructure },
@@ -6356,6 +6898,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureMigrationLogTable',
   'ensureAppStateExtraStructure',
   'ensureServiceCatalogStructure',
+  'ensurePlantillasStructure',
   'ensureQuoteVersionStructure',
   'ensureEventDateRangeStructure',
   'ensureAdvancesStructure',

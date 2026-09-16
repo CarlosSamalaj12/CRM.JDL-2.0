@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import {
+  loadState as loadCrmState,
+  saveServiceApi,
+  deleteServiceApi,
+  batchImportServicesApi,
+  saveCategoryApi,
+  deleteCategoryApi,
+  saveSubcategoryApi,
+  deleteSubcategoryApi,
+} from '../../services/stateService';
 import api from '../../services/api';
 import { toast, modernConfirm } from '../../utils/toast';
 import { useDataSyncMulti } from '../../hooks/useDataSync.js';
@@ -89,26 +98,7 @@ export default function SettingsServicios({ inline, onBack }) {
     return [...new Set([...managed.map(s => s.name), ...fromServices])].sort();
   }, [categories, services, subcategoryFilterCategory]);
 
-  const saveAll = async (nextServices, nextCategories) => {
-    setSaving(true);
-    try {
-      const state = await loadCrmState();
-      await saveCrmState({
-        ...state,
-        services: nextServices ?? services,
-        serviceCategories: nextCategories ?? categories,
-      });
-      if (nextServices) setServices(nextServices);
-      if (nextCategories) setCategories(nextCategories);
-      toast('Guardado correctamente');
-    } catch (err) {
-      console.error(err);
-      toast('Error al guardar');
-    }
-    setSaving(false);
-  };
-
-  // ── Service CRUD ──
+  // ── Service CRUD Atómico ──
   const openNewService = () => { setServiceDraft(emptyService); setShowServiceModal(true); };
   const openEditService = (svc) => {
     setServiceDraft({
@@ -141,26 +131,52 @@ export default function SettingsServicios({ inline, onBack }) {
       description: serviceDraft.description || '',
       active: serviceDraft.active !== false,
     };
-    const idx = services.findIndex(s => String(s.id) === String(saved.id));
-    const next = [...services];
-    if (idx >= 0) next[idx] = saved;
-    else next.push(saved);
-    await saveAll(next, null);
-    setShowServiceModal(false);
-    setServiceDraft(emptyService);
+    setSaving(true);
+    try {
+      const result = await saveServiceApi(saved);
+      const next = [...services];
+      const idx = next.findIndex(s => String(s.id) === String(saved.id));
+      if (idx >= 0) next[idx] = { ...saved, ...result };
+      else next.push({ ...saved, ...result });
+      setServices(next);
+      setShowServiceModal(false);
+      setServiceDraft(emptyService);
+      toast('Servicio guardado correctamente');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Error al guardar servicio');
+    } finally {
+      setSaving(false);
+    }
   };
   const handleDeleteService = async (svc) => {
     const ok = await modernConfirm('Eliminar servicio', `Eliminar "${svc.name}"?`);
     if (!ok) return;
-    const next = services.filter(s => String(s.id) !== String(svc.id));
-    await saveAll(next, null);
+    setSaving(true);
+    try {
+      await deleteServiceApi(svc.id);
+      setServices(prev => prev.filter(s => String(s.id) !== String(svc.id)));
+      toast('Servicio eliminado correctamente');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Error al eliminar servicio');
+    } finally {
+      setSaving(false);
+    }
   };
   const toggleServiceActive = async (svc) => {
-    const next = services.map(s => String(s.id) === String(svc.id) ? { ...s, active: s.active === false ? true : false } : s);
-    await saveAll(next, null);
+    const updated = { ...svc, active: svc.active === false };
+    try {
+      await saveServiceApi(updated);
+      setServices(prev => prev.map(s => String(s.id) === String(svc.id) ? updated : s));
+      toast(updated.active ? 'Servicio activado' : 'Servicio desactivado');
+    } catch (err) {
+      console.error(err);
+      toast('Error al cambiar estado del servicio');
+    }
   };
 
-  // ── Category CRUD ──
+  // ── Category CRUD Atómico ──
   const openNewCategory = () => { setCategoryDraft(emptyCategory); setShowCategoryModal(true); };
   const openEditCategory = (cat) => {
     setCategoryDraft({ id: cat.id, name: cat.name });
@@ -174,28 +190,46 @@ export default function SettingsServicios({ inline, onBack }) {
       String(c.id) !== String(categoryDraft.id)
     );
     if (duplicate) { toast('Ya existe una categoría con ese nombre'); return; }
-    const saved = { id: categoryDraft.id || `cat_${Date.now()}`, name, subcategories: [] };
-    const idx = categories.findIndex(c => String(c.id) === String(saved.id));
-    const next = [...categories];
-    if (idx >= 0) next[idx] = saved;
-    else next.push(saved);
-    await saveAll(null, next);
-    setShowCategoryModal(false);
-    setCategoryDraft(emptyCategory);
+    setSaving(true);
+    try {
+      const saved = await saveCategoryApi({ id: categoryDraft.id, name });
+      const next = [...categories];
+      const idx = next.findIndex(c => String(c.id) === String(categoryDraft.id));
+      if (idx >= 0) next[idx] = { ...next[idx], ...saved, name };
+      else next.push({ id: saved.id || `cat_${Date.now()}`, name, subcategories: [] });
+      setCategories(next);
+      setShowCategoryModal(false);
+      setCategoryDraft(emptyCategory);
+      toast('Categoría guardada correctamente');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Error al guardar categoría');
+    } finally {
+      setSaving(false);
+    }
   };
   const handleDeleteCategory = async (cat) => {
-    const ok = await modernConfirm('Eliminar categoria', `Eliminar "${cat.name}"? Los servicios con esta categoria pasaran a "General".`);
+    const ok = await modernConfirm('Eliminar categoría', `Eliminar "${cat.name}"? Los servicios con esta categoría pasarán a "General".`);
     if (!ok) return;
-    const nextCategories = categories.filter(c => String(c.id) !== String(cat.id));
-    const nextServices = services.map(s => ({
-      ...s,
-      category: String(s.category || 'General') === cat.name ? 'General' : s.category,
-      subcategory: String(s.category || 'General') === cat.name ? '' : s.subcategory,
-    }));
-    await saveAll(nextServices, nextCategories);
+    setSaving(true);
+    try {
+      await deleteCategoryApi(cat.id);
+      setCategories(prev => prev.filter(c => String(c.id) !== String(cat.id)));
+      setServices(prev => prev.map(s => ({
+        ...s,
+        category: String(s.category || 'General') === cat.name ? 'General' : s.category,
+        subcategory: String(s.category || 'General') === cat.name ? '' : s.subcategory,
+      })));
+      toast('Categoría eliminada correctamente');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Error al eliminar categoría');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ── Subcategory CRUD ──
+  // ── Subcategory CRUD Atómico ──
   const openNewSubcategory = () => {
     const firstCat = categories[0];
     setSubcategoryDraft({ ...emptySubcategory, categoryId: firstCat?.id || '' });
@@ -209,7 +243,7 @@ export default function SettingsServicios({ inline, onBack }) {
     const name = subcategoryDraft.name.trim();
     if (!name) { toast('El nombre es obligatorio'); return; }
     const catId = subcategoryDraft.categoryId;
-    if (!catId) { toast('Seleccione una categoria'); return; }
+    if (!catId) { toast('Seleccione una categoría'); return; }
     const cat = categories.find(c => String(c.id) === String(catId));
     const existingSubs = cat ? (cat.subcategories || []) : [];
     const duplicate = existingSubs.some(s =>
@@ -217,40 +251,50 @@ export default function SettingsServicios({ inline, onBack }) {
       String(s.id) !== String(subcategoryDraft.id)
     );
     if (duplicate) { toast('Ya existe una subcategoría con ese nombre en esta categoría'); return; }
-    const saved = { id: subcategoryDraft.id || `sub_${Date.now()}`, name };
-    const next = categories.map(c => {
-      if (String(c.id) !== String(catId)) return c;
-      const subs = Array.isArray(c.subcategories) ? [...c.subcategories] : [];
-      const idx = subs.findIndex(s => String(s.id) === String(saved.id));
-      if (idx >= 0) subs[idx] = saved;
-      else subs.push(saved);
-      return { ...c, subcategories: subs };
-    });
-    await saveAll(null, next);
-    if (subcategoryDraft.id) {
-      setShowSubcategoryModal(false);
-      setSubcategoryDraft(emptySubcategory);
-    } else {
-      setSubcategoryDraft(prev => ({ ...prev, name: '' }));
+    setSaving(true);
+    try {
+      const saved = await saveSubcategoryApi(catId, { id: subcategoryDraft.id, name });
+      const next = categories.map(c => {
+        if (String(c.id) !== String(catId)) return c;
+        const subs = Array.isArray(c.subcategories) ? [...c.subcategories] : [];
+        const idx = subs.findIndex(s => String(s.id) === String(subcategoryDraft.id));
+        if (idx >= 0) subs[idx] = { ...subs[idx], ...saved, name };
+        else subs.push({ id: saved.id || `sub_${Date.now()}`, name });
+        return { ...c, subcategories: subs };
+      });
+      setCategories(next);
+      if (subcategoryDraft.id) {
+        setShowSubcategoryModal(false);
+        setSubcategoryDraft(emptySubcategory);
+      } else {
+        setSubcategoryDraft(prev => ({ ...prev, name: '' }));
+      }
+      toast('Subcategoría guardada correctamente');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Error al guardar subcategoría');
+    } finally {
+      setSaving(false);
     }
   };
   const handleDeleteSubcategory = async (cat, sub) => {
-    const ok = await modernConfirm('Eliminar subcategoria', `Eliminar "${sub.name}"?`);
+    const ok = await modernConfirm('Eliminar subcategoría', `Eliminar "${sub.name}"?`);
     if (!ok) return;
     setSaving(true);
     try {
-      await api.delete(`/api/categorias-servicio/${encodeURIComponent(cat.id)}/subcategorias/${encodeURIComponent(sub.id)}`);
+      await deleteSubcategoryApi(sub.id, cat.id);
       const next = categories.map(c => {
         if (String(c.id) !== String(cat.id)) return c;
         return { ...c, subcategories: (c.subcategories || []).filter(s => String(s.id) !== String(sub.id)) };
       });
       setCategories(next);
-      toast('Subcategoria eliminada correctamente');
+      toast('Subcategoría eliminada correctamente');
     } catch (err) {
       console.error(err);
-      toast(err.message || 'Error al eliminar subcategoria');
+      toast(err.message || 'Error al eliminar subcategoría');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   // ── Import / Export ──
@@ -304,17 +348,17 @@ export default function SettingsServicios({ inline, onBack }) {
       if (imported.length === 0) { toast('No se encontraron datos validos'); return; }
       const ok = await modernConfirm('Importar servicios', `Se importaran ${imported.length} servicio(s). Continuar?`);
       if (!ok) return;
-      const existingIds = new Set(services.map(s => s.id));
-      const merged = [...services];
-      for (const s of imported) {
-        if (s.id && existingIds.has(s.id)) {
-          const idx = merged.findIndex(x => String(x.id) === String(s.id));
-          if (idx >= 0) merged[idx] = s;
-        } else {
-          merged.push(s);
-        }
+      setSaving(true);
+      try {
+        await batchImportServicesApi(imported);
+        await loadData();
+        toast(`Se importaron ${imported.length} servicio(s) correctamente`);
+      } catch (err) {
+        console.error(err);
+        toast(err.message || 'Error al importar servicios');
+      } finally {
+        setSaving(false);
       }
-      await saveAll(merged, null);
     };
     input.click();
   };
@@ -567,10 +611,38 @@ export default function SettingsServicios({ inline, onBack }) {
 
       {/* ── MODAL: Service ── */}
       {showServiceModal && (
-        <div onClick={() => setShowServiceModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '14px', maxWidth: '500px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: '24px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(2px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ position: 'relative', background: '#fff', borderRadius: '14px', maxWidth: '500px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', padding: '24px' }}>
+            <button
+              type="button"
+              onClick={() => setShowServiceModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '5px',
+                borderRadius: '50%',
+                color: '#64748b',
+                transition: 'background-color 0.2s, color 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+              title="Cerrar"
+              aria-label="Cerrar modal"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               {serviceDraft.id ? 'Editar servicio' : 'Nuevo servicio'}
             </div>
             <div style={{ display: 'grid', gap: '10px' }}>
@@ -638,9 +710,37 @@ export default function SettingsServicios({ inline, onBack }) {
 
       {/* ── MODAL: Category ── */}
       {showCategoryModal && (
-        <div onClick={() => setShowCategoryModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '14px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: '24px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginBottom: '16px' }}>
+        <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(2px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ position: 'relative', background: '#fff', borderRadius: '14px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', padding: '24px' }}>
+            <button
+              type="button"
+              onClick={() => setShowCategoryModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '5px',
+                borderRadius: '50%',
+                color: '#64748b',
+                transition: 'background-color 0.2s, color 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+              title="Cerrar"
+              aria-label="Cerrar modal"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '16px' }}>
               {categoryDraft.id ? 'Editar categoría' : 'Nueva categoría'}
             </div>
             <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569', display: 'block' }}>Nombre <span style={{ color: '#dc2626' }}>*</span>
@@ -658,8 +758,8 @@ export default function SettingsServicios({ inline, onBack }) {
 
       {/* ── MODAL: Subcategory ── */}
       {showSubcategoryModal && (
-        <div onClick={() => setShowSubcategoryModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: '#fff', borderRadius: '14px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: '24px' }}>
+        <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(2px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ position: 'relative', background: '#fff', borderRadius: '14px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', padding: '24px' }}>
             <button
               onClick={() => setShowSubcategoryModal(false)}
               style={{
@@ -675,10 +775,10 @@ export default function SettingsServicios({ inline, onBack }) {
                 padding: '4px',
                 borderRadius: '50%',
                 color: '#64748b',
-                transition: 'background-color 0.2s',
+                transition: 'background-color 0.2s, color 0.2s',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
               title="Cerrar"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -686,7 +786,7 @@ export default function SettingsServicios({ inline, onBack }) {
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
             </button>
-            <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginBottom: '16px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '16px' }}>
               {subcategoryDraft.id ? 'Editar subcategoría' : 'Nueva subcategoría'}
             </div>
             <div style={{ display: 'grid', gap: '10px' }}>

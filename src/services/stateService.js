@@ -261,6 +261,233 @@ export async function deleteCompanyApi(companyId) {
   return res;
 }
 
+export async function saveServiceApi(serviceData) {
+  if (!serviceData || typeof serviceData !== 'object') {
+    throw new Error('Datos de servicio inválidos');
+  }
+  const isEdit = Boolean(serviceData.id);
+  const endpoint = isEdit ? `/api/servicios/${encodeURIComponent(serviceData.id)}` : '/api/servicios';
+  const method = isEdit ? 'put' : 'post';
+
+  const res = await api[method](endpoint, serviceData);
+  const savedService = res?.servicio || serviceData;
+
+  // Actualizar la caché local en memoria
+  if (cachedState && Array.isArray(cachedState.services)) {
+    const idx = cachedState.services.findIndex(s => String(s.id) === String(savedService.id));
+    if (idx >= 0) {
+      cachedState.services[idx] = savedService;
+    } else {
+      cachedState.services.push(savedService);
+    }
+  }
+
+  // Notificar al resto de la app
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'servicio', action: isEdit ? 'updated' : 'created', data: savedService }
+    }));
+  }
+
+  return savedService;
+}
+
+export async function deleteServiceApi(serviceId) {
+  if (!serviceId) return null;
+  const res = await api.delete(`/api/servicios/${encodeURIComponent(serviceId)}`);
+
+  // Actualizar caché local
+  if (cachedState && Array.isArray(cachedState.services)) {
+    cachedState.services = cachedState.services.filter(s => String(s.id) !== String(serviceId));
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'servicio', action: 'deleted', data: { id: serviceId } }
+    }));
+  }
+  return res;
+}
+
+export async function batchImportServicesApi(servicesList) {
+  if (!Array.isArray(servicesList) || servicesList.length === 0) {
+    throw new Error('Lista de servicios vacía');
+  }
+  const res = await api.post('/api/servicios/batch', { servicios: servicesList });
+  const savedList = res?.servicios || servicesList;
+
+  if (cachedState && Array.isArray(cachedState.services)) {
+    const map = new Map(cachedState.services.map(s => [String(s.id), s]));
+    for (const s of savedList) {
+      map.set(String(s.id), s);
+    }
+    cachedState.services = Array.from(map.values());
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'servicio', action: 'batch', data: { count: savedList.length } }
+    }));
+  }
+  return res;
+}
+
+export async function saveCategoryApi(categoryData) {
+  if (!categoryData || !categoryData.name) {
+    throw new Error('Nombre de categoría requerido');
+  }
+  const hasDbId = Boolean(categoryData.id && !String(categoryData.id).startsWith('cat_'));
+  const endpoint = hasDbId ? `/api/categorias-servicio/${encodeURIComponent(categoryData.id)}` : '/api/categorias-servicio';
+  const method = hasDbId ? 'put' : 'post';
+
+  const res = await api[method](endpoint, { nombre: categoryData.name });
+  const savedCat = res?.categoria || categoryData;
+
+  if (cachedState && Array.isArray(cachedState.serviceCategories)) {
+    const idx = cachedState.serviceCategories.findIndex(c => String(c.id) === String(savedCat.id) || c.name === savedCat.name);
+    if (idx >= 0) {
+      cachedState.serviceCategories[idx] = { ...cachedState.serviceCategories[idx], ...savedCat };
+    } else {
+      cachedState.serviceCategories.push({ id: String(savedCat.id), name: savedCat.nombre || savedCat.name, subcategories: [] });
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'categoria_servicio', action: hasDbId ? 'updated' : 'created', data: savedCat }
+    }));
+  }
+  return savedCat;
+}
+
+export async function deleteCategoryApi(categoryId) {
+  if (!categoryId) return null;
+  const res = await api.delete(`/api/categorias-servicio/${encodeURIComponent(categoryId)}`);
+
+  if (cachedState && Array.isArray(cachedState.serviceCategories)) {
+    cachedState.serviceCategories = cachedState.serviceCategories.filter(c => String(c.id) !== String(categoryId));
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'categoria_servicio', action: 'deleted', data: { id: categoryId } }
+    }));
+  }
+  return res;
+}
+
+export async function saveSubcategoryApi(categoryId, subcategoryData) {
+  if (!categoryId || !subcategoryData || !subcategoryData.name) {
+    throw new Error('Categoría y nombre de subcategoría requeridos');
+  }
+  const hasDbId = Boolean(subcategoryData.id && !String(subcategoryData.id).startsWith('sub_'));
+  const endpoint = hasDbId ? `/api/subcategorias-servicio/${encodeURIComponent(subcategoryData.id)}` : '/api/subcategorias-servicio';
+  const method = hasDbId ? 'put' : 'post';
+
+  const res = await api[method](endpoint, { id_categoria: categoryId, nombre: subcategoryData.name });
+  const savedSub = res?.subcategoria || subcategoryData;
+
+  if (cachedState && Array.isArray(cachedState.serviceCategories)) {
+    const cat = cachedState.serviceCategories.find(c => String(c.id) === String(categoryId));
+    if (cat) {
+      if (!Array.isArray(cat.subcategories)) cat.subcategories = [];
+      const sIdx = cat.subcategories.findIndex(s => String(s.id) === String(savedSub.id));
+      if (sIdx >= 0) cat.subcategories[sIdx] = savedSub;
+      else cat.subcategories.push(savedSub);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'subcategoria_servicio', action: hasDbId ? 'updated' : 'created', data: savedSub }
+    }));
+  }
+  return savedSub;
+}
+
+export async function deleteSubcategoryApi(subcategoryId, categoryId = null) {
+  if (!subcategoryId) return null;
+  let res;
+  if (categoryId) {
+    res = await api.delete(`/api/categorias-servicio/${encodeURIComponent(categoryId)}/subcategorias/${encodeURIComponent(subcategoryId)}`).catch(() => null);
+  }
+  if (!res) {
+    res = await api.delete(`/api/subcategorias-servicio/${encodeURIComponent(subcategoryId)}`);
+  }
+
+  if (cachedState && Array.isArray(cachedState.serviceCategories)) {
+    for (const c of cachedState.serviceCategories) {
+      if (Array.isArray(c.subcategories)) {
+        c.subcategories = c.subcategories.filter(s => String(s.id) !== String(subcategoryId));
+      }
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'subcategoria_servicio', action: 'deleted', data: { id: subcategoryId } }
+    }));
+  }
+  return res;
+}
+
+export async function getPlantillasApi() {
+  const res = await api.get('/api/plantillas');
+  const plantillas = res?.plantillas || [];
+  if (cachedState) {
+    cachedState.quickTemplates = plantillas;
+    cachedState.quoteServiceTemplates = plantillas;
+  }
+  return plantillas;
+}
+
+export async function savePlantillaApi(plantillaData) {
+  if (!plantillaData || typeof plantillaData !== 'object') {
+    throw new Error('Datos de plantilla inválidos');
+  }
+  const res = await api.post('/api/plantillas', { plantilla: plantillaData });
+  const saved = res?.plantilla || plantillaData;
+
+  if (cachedState) {
+    const updateList = (list) => {
+      if (!Array.isArray(list)) return [saved];
+      const idx = list.findIndex(t => String(t.id) === String(saved.id));
+      if (idx >= 0) list[idx] = saved;
+      else list.push(saved);
+      return list;
+    };
+    cachedState.quickTemplates = updateList(cachedState.quickTemplates);
+    cachedState.quoteServiceTemplates = updateList(cachedState.quoteServiceTemplates);
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'plantilla', action: 'saved', data: saved }
+    }));
+  }
+  return saved;
+}
+
+export async function deletePlantillaApi(plantillaId) {
+  if (!plantillaId) return null;
+  const res = await api.delete(`/api/plantillas/${encodeURIComponent(plantillaId)}`);
+  if (cachedState) {
+    if (Array.isArray(cachedState.quickTemplates)) {
+      cachedState.quickTemplates = cachedState.quickTemplates.filter(t => String(t.id) !== String(plantillaId));
+    }
+    if (Array.isArray(cachedState.quoteServiceTemplates)) {
+      cachedState.quoteServiceTemplates = cachedState.quoteServiceTemplates.filter(t => String(t.id) !== String(plantillaId));
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'plantilla', action: 'deleted', data: { id: plantillaId } }
+    }));
+  }
+  return res;
+}
+
 const stateService = {
   loadState,
   saveState,
@@ -268,7 +495,18 @@ const stateService = {
   saveCompanyApi,
   saveQuickManagerApi,
   deleteCompanyApi,
+  saveServiceApi,
+  deleteServiceApi,
+  batchImportServicesApi,
+  saveCategoryApi,
+  deleteCategoryApi,
+  saveSubcategoryApi,
+  deleteSubcategoryApi,
+  getPlantillasApi,
+  savePlantillaApi,
+  deletePlantillaApi,
 };
 
 export default stateService;
+
 

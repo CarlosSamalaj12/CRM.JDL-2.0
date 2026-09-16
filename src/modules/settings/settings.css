@@ -1166,18 +1166,54 @@ input:checked + .settings-usr-slider:before {
 }
 
 /* ---------- 16. Input background safeguard ---------- */
-/* Scoped to settings-page only — does NOT affect calendar/quote modals
-   which intentionally use dark glassmorphism inputs from global.css */
+/* Scoped to settings-page and settings cards only — does NOT affect calendar/quote modals
+   which intentionally use dark glassmorphism inputs from global-scoped.css */
+body:not(.informes-theme) .settings-page input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body:not(.informes-theme) .settings-page select,
+body:not(.informes-theme) .settings-page textarea,
+body:not(.informes-theme) .settings-section-card input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body:not(.informes-theme) .settings-section-card select,
+body:not(.informes-theme) .settings-section-card textarea,
+body:not(.informes-theme) .settings-modal input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body:not(.informes-theme) .settings-modal select,
+body:not(.informes-theme) .settings-modal textarea,
 .settings-page .modalBackdrop input:not([type="checkbox"]):not([type="file"]),
 .settings-page .modalBackdrop select,
-.settings-page .modalBackdrop textarea {
-  background: #ffffff;
+.settings-page .modalBackdrop textarea,
+.settings-page .settings-modern-field input:not([type="checkbox"]):not([type="radio"]),
+.settings-page .settings-modern-field select,
+.settings-page .settings-modern-field textarea,
+.settings-page .settings-input-compact,
+.settings-input-compact {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
 }
 
-.settings-page .settings-modern-field input:not([type="checkbox"]):focus,
+body:not(.informes-theme) .settings-page input::placeholder,
+body:not(.informes-theme) .settings-page textarea::placeholder,
+.settings-page .settings-input-compact::placeholder,
+.settings-input-compact::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+body:not(.informes-theme) .settings-page input:focus,
+body:not(.informes-theme) .settings-page select:focus,
+body:not(.informes-theme) .settings-page textarea:focus,
+.settings-page .settings-modern-field input:focus,
 .settings-page .settings-modern-field select:focus,
-.settings-page .settings-modern-field textarea:focus {
-  background: #ffffff;
+.settings-page .settings-modern-field textarea:focus,
+.settings-page .settings-input-compact:focus,
+.settings-input-compact:focus {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border-color: #2563eb !important;
+  color: #0f172a !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
 }
 
 /* ---------- 17. Responsive Modals ---------- */

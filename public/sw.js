@@ -167,9 +167,19 @@ self.addEventListener('fetch', (event) => {
             cache.put(request, responseToCache);
           });
           return networkResponse;
-        }).catch(() => {
+        }).catch(async () => {
           // Si la petición a la red falla o fue abortada por el navegador, intentar servir de caché
-          return caches.match(request) || caches.match('/offline-shell') || caches.match('/index.html');
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          const shell = await caches.match('/offline-shell');
+          if (shell) return shell;
+          const idx = await caches.match('/index.html');
+          if (idx) return idx;
+          return new Response('Offline', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
         });
       })
     );
@@ -208,13 +218,23 @@ self.addEventListener('push', (event) => {
       }
 
       const title = data.title || 'Jardines del Lago';
+      const targetUrl = data.data?.url || data.url || '/';
       const options = {
         body: data.body || 'Nueva notificación recibida',
         icon: '/logo.png',
         badge: '/icons/icon-192.png',
-        vibrate: [100, 50, 100],
-        data: data.data || {}
+        data: {
+          ...(data.data || {}),
+          url: targetUrl
+        }
       };
+
+      // Guardar vibrate solo si está soportado para evitar fallos en iOS Safari/PWA
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          options.vibrate = [100, 50, 100];
+        } catch {}
+      }
 
       return self.registration.showNotification(title, options);
     })

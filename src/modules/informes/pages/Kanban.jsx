@@ -1967,7 +1967,11 @@ export default function Kanban() {
                             setTargetEventId(id);
                             setViewMode('tareas');
                           }}
-                          highlightNotaId={searchParams.get('notaId')}
+                          highlightNotaId={
+                            (eventoResaltado === String(event.Idocupacion) || searchParams.get('highlightEvento') === String(event.Idocupacion))
+                              ? searchParams.get('notaId')
+                              : null
+                          }
                           tareasCount={taskCountsMap[event.Idocupacion] || 0}
                         />
                       ))

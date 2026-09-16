@@ -49,13 +49,36 @@ export async function requestNotificationPermissionAndSubscribe() {
       return null;
     }
 
-    const vapidPublicKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+    let vapidPublicKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || import.meta.env.VITE_VAPID_PUBLIC_KEY;
+    try {
+      const vapidResp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/push/vapid-public-key`);
+      if (vapidResp.ok) {
+        const vapidData = await vapidResp.json();
+        if (vapidData?.publicKey && vapidData.publicKey !== 'MISSING_VAPID_PUBLIC_KEY') {
+          vapidPublicKey = vapidData.publicKey;
+        }
+      }
+    } catch (e) {
+      console.warn('[WebPush] Fallback a clave VAPID estática:', e.message);
+    }
+
     if (!vapidPublicKey) {
-      console.warn('[WebPush] No se detectó la clave pública VAPID (VITE_FIREBASE_VAPID_KEY).');
+      console.warn('[WebPush] No se detectó la clave pública VAPID.');
       return null;
     }
 
-    // Suscribir al servicio Push del navegador
+    // Verificar si ya existía una suscripción previa
+    const existingSub = await registration.pushManager.getSubscription();
+    if (existingSub) {
+      try {
+        // Renovar suscripción para garantizar concordancia de clave VAPID actual
+        await existingSub.unsubscribe();
+      } catch (unsubErr) {
+        console.warn('[WebPush] No se pudo desuscribir sub previa:', unsubErr.message);
+      }
+    }
+
+    // Suscribir al servicio Push del navegador con la clave VAPID sincronizada
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlB64ToUint8Array(vapidPublicKey)
@@ -65,22 +88,26 @@ export async function requestNotificationPermissionAndSubscribe() {
       // Enviar la suscripción completa al backend
       const sessionToken = localStorage.getItem('token') || sessionStorage.getItem('token');
       if (sessionToken) {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/webpush/save-subscription`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionToken}`
-          },
-          body: JSON.stringify({
-            subscription: subscription
-          })
-        });
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        };
+        const subJson = subscription.toJSON ? subscription.toJSON() : subscription;
 
-        if (response.ok) {
-          console.log('[WebPush] Suscripción sincronizada con éxito en el servidor.');
-        } else {
-          console.error('[WebPush] Error al guardar la suscripción en el servidor:', response.statusText);
-        }
+        await Promise.allSettled([
+          fetch(`${import.meta.env.VITE_API_URL || ''}/api/webpush/save-subscription`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ subscription: subJson })
+          }),
+          fetch(`${import.meta.env.VITE_API_URL || ''}/api/push/subscribe`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ subscription: subJson })
+          })
+        ]);
+
+        console.log('[WebPush] Suscripción sincronizada con éxito en el servidor.');
       }
       return subscription;
     }

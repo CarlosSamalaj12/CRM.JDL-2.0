@@ -32,6 +32,83 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Apertura Masiva de Tarjetas por Mención y Notificaciones Web Push Móviles (`Kanban.jsx`, `EventCard.jsx`, `webPushService.js`, `webPushHelper.js`, `sw.js`) (2026-09-16)
+- Requerimiento: Al pulsar una notificación de mención ("Te mencionaron en una nota"), todas las tarjetas del tablero Kanban se abrían simultáneamente con el formulario "Escribe una nota... Enviar". Adicionalmente, las notificaciones push no llegaban a dispositivos móviles (Android / iOS).
+- Causa raíz:
+  1. En `src/modules/informes/pages/Kanban.jsx`, la prop `highlightNotaId={searchParams.get('notaId')}` se enviaba indiscriminadamente a todas las tarjetas de eventos. En `EventCard.jsx`, `useState(() => Boolean(highlightNotaId))` evaluaba a `true` en cada tarjeta, desplegando el cajón de notas y el input en todas las tarjetas de la semana.
+  2. En `.env`, existía una discrepancia entre la clave pública VAPID leída por el frontend (`VITE_FIREBASE_VAPID_KEY=BKl_-3yxf...`) y las claves usadas por el backend (`VAPID_PUBLIC_KEY=BBw5b_6...` y `VAPID_PRIVATE_KEY=wDGjv...`), ocasionando rechazos HTTP 401/403 por Google FCM y Apple WebPush.
+  3. En `backend/src/helpers/webPushHelper.js`, ante un error 401/403 se borraba agresivamente la suscripción de la base de datos (`DELETE FROM push_subscriptions`). Además, el payload no incluía el objeto anidado `data: { url, autorId }`, impidiendo que `public/sw.js` reconociera la URL de destino al hacer clic.
+  4. En `public/sw.js`, la llamada `vibrate: [100, 50, 100]` no estaba resguardada contra navegadores iOS Safari/PWA que no soportan la API Vibration.
+- Solución:
+  1. En `Kanban.jsx`, se condicionó `highlightNotaId` para que solo se pase a la tarjeta que coincida con el ID de ocupación mencionado (`eventoResaltado === String(event.Idocupacion) || searchParams.get('highlightEvento') === String(event.Idocupacion)`), pasando `null` a todas las demás. En `EventCard.jsx`, se añadió un `useEffect` para reaccionar abriendo únicamente la tarjeta correspondiente.
+  2. Se unificaron las claves VAPID en `.env` y se actualizó `src/services/webPushService.js` para consultar dinámicamente la clave pública desde el endpoint del backend `GET /api/push/vapid-public-key` y renovar suscripciones previas obsoletas.
+  3. En `webPushHelper.js`, se utilizó el pool compartido de base de datos (`../config/db.js`), se incluyó `data: { ...data, url: targetUrl }` en el payload y se limitó la eliminación de suscripciones únicamente a códigos 404 y 410.
+  4. En `public/sw.js`, se resguardó la propiedad `vibrate` con `'vibrate' in navigator` y se garantizó la resolución de URLs en el evento `notificationclick`.
+  5. Validado con 23 pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia con `npm run build` (versión 2.1.121).
+
+### Solución: Selector de Vistas Comprimido en Ocupación Semanal (`Kanban.jsx`, `styles.css` y `search.css`) (2026-09-16)
+- Requerimiento: Resolver el error visual en los filtros superiores de Ocupación Semanal (Kanban) donde los botones "Ocupación", "Tabla" y "Tareas" aparecían encogidos, truncados y desfigurados como `Ocupa | Tab | Tare`.
+- Causa raíz:
+  1. En `src/modules/search/search.css` (línea 818), existía un selector no acotado `.view-toggle-btn` (diseñado exclusivamente para la vista de lista/cuadrícula de 32x32px del módulo de búsqueda) con reglas `width: 32px !important; min-width: 32px !important; max-width: 32px !important; padding: 0 !important;`.
+  2. Al tener `!important` y selectores globales, colisionaba con los botones del conmutador de vistas de Kanban (`.kanban-filter .view-toggle-btn`), forzándolos a un ancho fijo diminuto de 32 píxeles y cortando el texto y los iconos.
+- Solución:
+  1. En `src/modules/search/search.css`, se eliminó el selector global descontextualizado y se restringió estrictamente a `.search-page-saas .search-view-toggle .view-toggle-btn`.
+  2. En `src/modules/informes/styles.css`, se reforzó `.kanban-filter .view-toggle` y `.kanban-filter .view-toggle-btn` con ancho flexible automático (`width: auto !important`, `min-width: unset !important`), padding generoso de 10px, borde redondeado de 7px, tipografía nítida y soporte completo para modo claro y modo oscuro.
+  3. Verificado con pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia con `npm run build` (versión 2.1.120).
+
+### Solución: Campos oscuros en Edición de Plantillas y Configuración (`SettingsPlantillas.jsx` y `settings.css`) (2026-09-16)
+- Requerimiento: Resolver por qué los campos de texto "Nombre de la plantilla" y el buscador "Agregar servicio" aparecían con fondo oscuro / negro en la pantalla de editar o crear plantillas de cotización.
+- Causa raíz:
+  1. `src/styles/global-scoped.css` (líneas 153 y 838) define una regla con selector de alta especificidad `body:not(.informes-theme) input:not(.search-input-naked)` que impone un degradado oscuro glassmórfico (`linear-gradient(180deg, rgba(30, 41, 59, 0.78), rgba(15, 23, 42, 0.72))`) y color de texto blanco destinado a los modales del calendario.
+  2. Los selectores de `settings.css` (`.settings-modern-field input` y `.settings-input-compact`) tenían menor especificidad CSS y no utilizaban `!important` para el estado en reposo, siendo sobreescritos por el degradado oscuro.
+  3. En `SettingsPlantillas.jsx`, los inputs carecían de estilos directos de color de fondo y texto.
+- Solución:
+  1. En `src/modules/settings/settings.css` (Sección 16 `Input background safeguard`), se blindaron todos los inputs, selects y textareas dentro de `.settings-page`, `.settings-section-card`, `.settings-modern-field` y `.settings-input-compact` con `background: #ffffff !important`, `color: #0f172a !important`, `border: 1px solid #cbd5e1 !important` y placeholders legibles `#94a3b8 !important`.
+  2. En `src/modules/settings/SettingsPlantillas.jsx`, se agregaron estilos inline directos con fondo `#ffffff`, texto `#0f172a`, bordes nítidos `#cbd5e1` y padding adecuado en los 4 inputs del módulo: "Nombre de la plantilla", "Agregar servicio", y las columnas "Cantidad" y "Precio unitario" de la tabla.
+  3. Verificado con pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia con `npm run build` (versión 2.1.119).
+
+### Solución Integral: Tablas Relacionales para Plantillas de Cotización y Sincronización Automática con Servicios (2026-09-16)
+- Requerimiento: Al editar un servicio en el catálogo (su nombre, precio o modo de cantidad), las plantillas de cotización no se actualizaban porque no tenían relación relacional en la base de datos (se guardaban como JSON monolítico en `app_state_kv`). Crear tablas dedicadas para las plantillas en MariaDB, vincular sus ítems directamente con la tabla `servicios` y sincronizar automáticamente cualquier cambio.
+- Causa raíz:
+  1. Las plantillas se almacenaban serializadas como strings en `app_state_kv.valor_json` (`quickTemplates` y `quoteServiceTemplates`).
+  2. Cada ítem de plantilla guardaba snapshots de texto desconectados sin `JOIN` ni relación foránea con `servicios`.
+  3. Al editar servicios en `SettingsServicios.jsx`, las plantillas conservaban los valores antiguos.
+  4. `SettingsPlantillas.jsx` utilizaba `saveState()` enviando todo el estado del CRM (17 MB), susceptible al error 413.
+- Solución:
+  1. Tablas relacionales en MariaDB creadas en `server.cjs` (`ensurePlantillasStructure`):
+     - `plantillas_cotizacion`: `id VARCHAR(255) PRIMARY KEY`, `nombre`, `activo`, timestamps.
+     - `plantillas_cotizacion_items`: `id VARCHAR(255) PRIMARY KEY`, `id_plantilla` (FK cascade), `id_servicio` (FK set null hacia `servicios`), `nombre_servicio`, `cantidad`, `precio_unitario`, `modo_cantidad`, `orden`, timestamps.
+     - Migración automática en startup que transfiere las plantillas existentes desde `app_state_kv` vinculando cada ítem a su respectivo `servicios.id`.
+  2. Sincronización automática y lectura con `JOIN`:
+     - `readPlantillasFromTables` hace `LEFT JOIN servicios s ON s.id = i.id_servicio`, garantizando que el nombre, precio actual, modo de cantidad y estado activo provengan directamente de `servicios`.
+     - Al editar un servicio en `updateServicioInTable`, se actualizan los ítems vinculados y se emite el evento socket/web `entity:changed` con `plantilla:updated`.
+  3. Endpoints atómicos:
+     - `GET /api/plantillas`, `POST /api/plantillas` y `DELETE /api/plantillas/:id` en `server.cjs`.
+     - Métodos cliente `getPlantillasApi()`, `savePlantillaApi()` y `deletePlantillaApi()` en `src/services/stateService.js`.
+  4. Reactividad en frontend:
+     - `SettingsPlantillas.jsx` resuelve ítems contra `services` con `getResolvedItem`, muestra badge "Sincronizado con catálogo" y escucha eventos `entity:changed`.
+     - `QuoteModal.jsx` resuelve ítems dinámicamente con `catalogServices` en `handleApplyTemplate`.
+  5. Validado con 17 pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia con `npm run build` (código 0).
+
+### Solución Integral: Edición/Creación de Servicios, Cierre de Modales por Clic Afuera y Error 413 (2026-09-16)
+- Requerimiento: Resolver error `413 Payload Too Large` y `ApiError: Error interno del servidor` al crear o editar servicios en el Panel de Configuración (`SettingsServicios.jsx`) y en la Cotización (`QuoteModal.jsx`), evitar que los modales se cierren accidentalmente al hacer clic en el backdrop ("clic falso afuera"), agregar botón explícito `✕` de cierre, y blindar el fallback offline de `sw.js`.
+- Causa raíz:
+  1. `SettingsServicios.jsx` y `QuoteModal.jsx` ejecutaban `saveCrmState()` para guardar servicios individuales, enviando el estado completo de MariaDB (más de 17 MB con eventos, cotizaciones, historial, etc.) en un solo `PUT /api/state`, rechazado con 413 por Nginx.
+  2. El contenedor overlay de los modales de Servicio, Categoría y Subcategoría poseía `onClick={() => setShow...Modal(false)}`. Al arrastrar texto o hacer un clic involuntario en el fondo, el formulario se destruía inmediatamente.
+  3. En `public/sw.js`, el bloque `.catch()` de assets estáticos devolvía promesas encadenadas que resolvían en `undefined`, disparando `TypeError: Failed to convert value to 'Response'`.
+  4. La columna `servicios.id` tenía restricción `VARCHAR(30)` en MariaDB.
+- Solución:
+  1. Endpoints y métodos atómicos: `saveServiceApi`, `deleteServiceApi`, `batchImportServicesApi`, `saveCategoryApi`, `deleteCategoryApi`, `saveSubcategoryApi` y `deleteSubcategoryApi` en `src/services/stateService.js` reduciendo el payload de 17 MB a <1 KB con respuesta en milisegundos.
+  2. `server.cjs` reforzado con:
+     - Inserción/actualización segura (`upsert`) en `createServicioInTable` y `updateServicioInTable`.
+     - Resolución automática de `id_categoria` y `id_subcategoria` a partir de nombres de categoría/subcategoría o IDs explícitos.
+     - Endpoint de importación en lote `POST /api/servicios/batch` y eliminación `DELETE /api/subcategorias-servicio/:id`.
+     - Migración automática al inicio: `ALTER TABLE servicios MODIFY COLUMN id VARCHAR(255) NOT NULL`.
+  3. Blindaje de modales en `SettingsServicios.jsx`: Removido el handler de cierre involuntario en el backdrop de los tres modales e integrados botones de cierre `✕` estilizados y accesibles con soporte `aria-label`.
+  4. `QuoteModal.jsx` migrado a `saveServiceApi` para creación y conmutación de estado activo en catálogo de servicios.
+  5. `public/sw.js` corregido con `async/await` garantizando fallback a `new Response('Offline', { status: 503 })`.
+  6. Validado con 10 pruebas unitarias automatizadas (`node --test tests/*.test.mjs`) y compilación de producción `npx vite build` limpia (código 0).
+
 ### Solución Integral: Creación de Empresas, Encargados, Error 413 y Service Worker (2026-09-15)
 - Requerimiento: Resolver error `413 Payload Too Large` y `TypeError: Failed to convert value to 'Response'` en `sw.js` al crear o editar empresas y encargados, evitar que las observaciones se borren al recargar, flexibilizar validaciones bloqueantes en `QuoteModal.jsx` y `SettingsEmpresas.jsx`, y ampliar la longitud de la clave primaria en la base de datos MariaDB.
 - Causa raíz:

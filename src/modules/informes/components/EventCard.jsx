@@ -65,6 +65,12 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
     getUsuariosCached().then(setUsuarios).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (highlightNotaId) {
+      setNotasOpen(true);
+    }
+  }, [highlightNotaId]);
+
   const lastHighlightRef = useRef(null);
   useEffect(() => {
     if (highlightNotaId && notas.length > 0 && highlightNotaId !== lastHighlightRef.current) {

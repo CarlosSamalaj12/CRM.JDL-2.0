@@ -814,8 +814,9 @@ body:not(.informes-theme) .search-page-saas .status-btn-apply:hover,
   gap: 3px;
 }
 
-body:not(.informes-theme) .search-page-saas .view-toggle-btn,
-.view-toggle-btn {
+body:not(.informes-theme) .search-page-saas .search-view-toggle .view-toggle-btn,
+.search-page-saas .view-toggle-btn,
+.search-view-toggle .view-toggle-btn {
   width: 32px !important;
   min-width: 32px !important;
   max-width: 32px !important;
@@ -840,16 +841,18 @@ body:not(.informes-theme) .search-page-saas .view-toggle-btn,
   filter: none !important;
 }
 
-body:not(.informes-theme) .search-page-saas .view-toggle-btn:hover,
-.view-toggle-btn:hover {
+body:not(.informes-theme) .search-page-saas .search-view-toggle .view-toggle-btn:hover,
+.search-page-saas .view-toggle-btn:hover,
+.search-view-toggle .view-toggle-btn:hover {
   color: #0f172a !important;
   background: rgba(255, 255, 255, 0.6) !important;
   transform: none !important;
   filter: none !important;
 }
 
-body:not(.informes-theme) .search-page-saas .view-toggle-btn.active,
-.view-toggle-btn.active {
+body:not(.informes-theme) .search-page-saas .search-view-toggle .view-toggle-btn.active,
+.search-page-saas .view-toggle-btn.active,
+.search-view-toggle .view-toggle-btn.active {
   background: #ffffff !important;
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;

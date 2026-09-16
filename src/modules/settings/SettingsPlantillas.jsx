@@ -11,6 +11,7 @@ export default function SettingsPlantillas({ inline, onBack }) {
   const [templates, setTemplates] = useState([]);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [draftName, setDraftName] = useState('');
   const [draftItems, setDraftItems] = useState([]);
@@ -18,15 +19,48 @@ export default function SettingsPlantillas({ inline, onBack }) {
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const searchRef = useRef(null);
 
+  const getResolvedItem = useCallback((item, currentServices = services) => {
+    const svcId = String(item.serviceId || item.id || '').trim();
+    const svcName = (item.name || '').trim().toLowerCase();
+    const svc = (svcId && currentServices.find(s => String(s.id).trim() === svcId)) ||
+                (svcName && currentServices.find(s => (s.name || '').trim().toLowerCase() === svcName));
+    return {
+      ...item,
+      serviceId: svc ? String(svc.id) : svcId,
+      name: svc ? svc.name : (item.name || 'Servicio'),
+      price: svc && (svc.price !== null && svc.price !== undefined) ? Number(svc.price) : Number(item.price || 0),
+      quantityMode: svc ? (svc.quantityMode || 'MANUAL') : (item.quantityMode || 'MANUAL'),
+      category: svc ? (svc.category || '') : (item.category || ''),
+      subcategory: svc ? (svc.subcategory || '') : (item.subcategory || ''),
+      isLinked: Boolean(svc),
+    };
+  }, [services]);
+
   const loadData = useCallback(async () => {
     try {
-      const data = await stateService.loadState();
-      setServices(data?.services || []);
-      setTemplates(data?.quoteServiceTemplates || data?.quickTemplates || []);
+      const [data, plantillas] = await Promise.all([
+        stateService.loadState(),
+        stateService.getPlantillasApi().catch(() => null)
+      ]);
+      const currentSvcs = data?.services || [];
+      setServices(currentSvcs);
+      const rawTemplates = plantillas || data?.quoteServiceTemplates || data?.quickTemplates || [];
+      setTemplates(rawTemplates);
     } catch { } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    const handleEntityChanged = (e) => {
+      const ent = e?.detail?.entity;
+      if (ent === 'servicio' || ent === 'plantilla' || ent === 'subcategoria_servicio') {
+        loadData();
+      }
+    };
+    window.addEventListener('entity:changed', handleEntityChanged);
+    return () => window.removeEventListener('entity:changed', handleEntityChanged);
+  }, [loadData]);
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -37,19 +71,6 @@ export default function SettingsPlantillas({ inline, onBack }) {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
-
-  const saveTemplates = async (nextTemplates) => {
-    try {
-      const currentState = await stateService.loadState();
-      const baseState = (currentState && typeof currentState === 'object') ? currentState : {};
-      await stateService.saveState({
-        ...baseState,
-        quickTemplates: nextTemplates,
-        quoteServiceTemplates: nextTemplates,
-      });
-      setTemplates(nextTemplates);
-    } catch { }
-  };
 
   const availableServices = services.filter(s => s.active !== false);
   const filteredServices = availableServices.filter(s =>
@@ -66,7 +87,7 @@ export default function SettingsPlantillas({ inline, onBack }) {
   const startEdit = (tpl) => {
     setEditingId(tpl.id);
     setDraftName(tpl.name);
-    setDraftItems((tpl.items || []).map(item => ({ ...item })));
+    setDraftItems((tpl.items || []).map(item => getResolvedItem(item)));
     setServiceSearch('');
   };
 
@@ -83,6 +104,9 @@ export default function SettingsPlantillas({ inline, onBack }) {
       qty: 1,
       price: Number(service.price) || 0,
       quantityMode: service.quantityMode || 'MANUAL',
+      isLinked: true,
+      category: service.category || '',
+      subcategory: service.subcategory || '',
     }]);
     setServiceSearch('');
     setShowServiceDropdown(false);
@@ -99,53 +123,45 @@ export default function SettingsPlantillas({ inline, onBack }) {
   };
 
   const handleSave = async () => {
-    if (!draftName.trim()) return;
-    if (!draftItems.length) return;
-
-    const now = Date.now();
-    let nextTemplates;
-
-    if (editingId === 'new') {
-      const newTpl = {
-        id: `tpl_${now}_${Math.random().toString(36).slice(2, 5)}`,
+    if (!draftName.trim() || !draftItems.length) return;
+    setSaving(true);
+    try {
+      const now = Date.now();
+      const tplId = editingId === 'new' ? `tpl_${now}_${Math.random().toString(36).slice(2, 6)}` : editingId;
+      const tplPayload = {
+        id: tplId,
         name: draftName.trim(),
-        items: draftItems.map(item => ({
-          serviceId: item.serviceId,
-          name: item.name,
-          qty: Number(item.qty) || 1,
-          price: Number(item.price) || 0,
-          quantityMode: item.quantityMode || 'MANUAL',
-        })),
+        items: draftItems.map(item => {
+          const resolved = getResolvedItem(item);
+          return {
+            serviceId: resolved.serviceId,
+            name: resolved.name,
+            qty: Number(item.qty) || 1,
+            price: item.price !== undefined && item.price !== null ? Number(item.price) : Number(resolved.price || 0),
+            quantityMode: resolved.quantityMode || 'MANUAL',
+          };
+        }),
       };
-      nextTemplates = [...templates, newTpl];
-    } else {
-      nextTemplates = templates.map(t =>
-        t.id === editingId
-          ? {
-              ...t,
-              name: draftName.trim(),
-              items: draftItems.map(item => ({
-                serviceId: item.serviceId,
-                name: item.name,
-                qty: Number(item.qty) || 1,
-                price: Number(item.price) || 0,
-                quantityMode: item.quantityMode || 'MANUAL',
-              })),
-            }
-          : t
-      );
+      await stateService.savePlantillaApi(tplPayload);
+      await loadData();
+      cancelEdit();
+    } catch (err) {
+      console.error('Error guardando plantilla:', err);
+    } finally {
+      setSaving(false);
     }
-
-    await saveTemplates(nextTemplates);
-    cancelEdit();
   };
 
   const handleDelete = async (tplId) => {
-    const next = templates.filter(t => t.id !== tplId);
-    await saveTemplates(next);
+    try {
+      await stateService.deletePlantillaApi(tplId);
+      await loadData();
+    } catch (err) {
+      console.error('Error eliminando plantilla:', err);
+    }
   };
 
-  const cartSubtotal = draftItems.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
+  const cartSubtotal = draftItems.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price || 0)), 0);
 
   if (loading) {
     return (
@@ -182,6 +198,17 @@ export default function SettingsPlantillas({ inline, onBack }) {
               value={draftName}
               onChange={e => setDraftName(e.target.value)}
               placeholder="Ej: Banquete corporativo básico"
+              style={{
+                width: '100%',
+                background: '#ffffff',
+                backgroundColor: '#ffffff',
+                color: '#0f172a',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                padding: '9px 12px',
+                fontSize: '13px',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
 
@@ -193,8 +220,18 @@ export default function SettingsPlantillas({ inline, onBack }) {
               <input
                 type="text"
                 className="settings-input-compact"
-                style={{ width: '100%' }}
-                placeholder="Buscar servicio..."
+                style={{
+                  width: '100%',
+                  background: '#ffffff',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '9px 12px',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                }}
+                placeholder="Buscar servicio en el catálogo..."
                 value={serviceSearch}
                 onChange={e => { setServiceSearch(e.target.value); setShowServiceDropdown(true); }}
                 onFocus={() => setShowServiceDropdown(true)}
@@ -247,12 +284,34 @@ export default function SettingsPlantillas({ inline, onBack }) {
               <tbody>
                 {draftItems.map((item, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 600 }}>{item.name}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      <div>{item.name}</div>
+                      {item.serviceId ? (
+                        <div style={{ fontSize: '10px', color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                          Sincronizado con catálogo {item.category ? `· ${item.category}` : ''}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
+                          Manual
+                        </div>
+                      )}
+                    </td>
                     <td>
                       <input
                         type="number"
                         className="settings-input-compact"
-                        style={{ width: 80 }}
+                        style={{
+                          width: 80,
+                          background: '#ffffff',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          padding: '6px 8px',
+                          textAlign: 'center',
+                          boxSizing: 'border-box',
+                        }}
                         min="1"
                         value={item.qty}
                         onChange={e => updateItem(i, 'qty', e.target.value)}
@@ -262,7 +321,17 @@ export default function SettingsPlantillas({ inline, onBack }) {
                       <input
                         type="number"
                         className="settings-input-compact"
-                        style={{ width: 100 }}
+                        style={{
+                          width: 100,
+                          background: '#ffffff',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          padding: '6px 8px',
+                          textAlign: 'right',
+                          boxSizing: 'border-box',
+                        }}
                         min="0"
                         step="0.01"
                         value={item.price}
@@ -270,7 +339,7 @@ export default function SettingsPlantillas({ inline, onBack }) {
                       />
                     </td>
                     <td style={{ fontWeight: 700 }}>
-                      Q{(Number(item.qty) * Number(item.price)).toFixed(2)}
+                      Q{(Number(item.qty || 1) * Number(item.price || 0)).toFixed(2)}
                     </td>
                     <td>
                       <div className="settings-table-actions">
@@ -307,10 +376,10 @@ export default function SettingsPlantillas({ inline, onBack }) {
             <button
               className="settings-primary-btn"
               type="button"
-              disabled={!draftName.trim() || !draftItems.length}
+              disabled={saving || !draftName.trim() || !draftItems.length}
               onClick={handleSave}
             >
-              {editingId === 'new' ? 'Crear plantilla' : 'Guardar cambios'}
+              {saving ? 'Guardando...' : (editingId === 'new' ? 'Crear plantilla' : 'Guardar cambios')}
             </button>
           </div>
         </div>
@@ -340,11 +409,12 @@ export default function SettingsPlantillas({ inline, onBack }) {
               </thead>
               <tbody>
                 {templates.map(tpl => {
-                  const subtotal = (tpl.items || []).reduce((s, item) => s + (Number(item.qty) * Number(item.price)), 0);
+                  const resolvedItems = (tpl.items || []).map(it => getResolvedItem(it));
+                  const subtotal = resolvedItems.reduce((s, item) => s + (Number(item.qty || 1) * Number(item.price || 0)), 0);
                   return (
                     <tr key={tpl.id}>
                       <td style={{ fontWeight: 700 }}>{tpl.name}</td>
-                      <td>{(tpl.items || []).length} servicio(s)</td>
+                      <td>{resolvedItems.length} servicio(s)</td>
                       <td style={{ fontWeight: 600 }}>Q{subtotal.toFixed(2)}</td>
                       <td className="settings-td-center">
                         <div className="settings-table-actions">

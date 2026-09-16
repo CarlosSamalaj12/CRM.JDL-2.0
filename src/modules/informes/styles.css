@@ -1246,33 +1246,80 @@ button[data-tooltip-bottom]::after {
    VIEW TOGGLE
    ============================================ */
 
-.view-toggle {
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+.view-toggle,
+.kanban-filter .view-toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  background: var(--surface-2, #f1f5f9) !important;
+  border: 1px solid var(--border, #e2e8f0) !important;
+  border-radius: 9px !important;
+  padding: 2px !important;
+  gap: 2px !important;
+  overflow: hidden !important;
+  width: auto !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
 }
 
 .kanban-filter .view-toggle-btn {
-  padding: 0.3rem 0.55rem;
-  font-size: 0.72rem;
-  background: var(--surface-2, #f1f5f9);
-  color: var(--text-main, #0f172a);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  transition: background 0.15s;
+  width: auto !important;
+  min-width: unset !important;
+  max-width: none !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  color: var(--text-muted, #64748b) !important;
+  border: none !important;
+  border-radius: 7px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease !important;
+  line-height: 1 !important;
+}
+
+.kanban-filter .view-toggle-btn:hover:not(.active) {
+  color: var(--text-main, #0f172a) !important;
+  background: rgba(255, 255, 255, 0.65) !important;
 }
 
 .kanban-filter .view-toggle-btn.active {
-  background: var(--primary, #6366f1);
-  color: var(--text-inverse, #ffffff);
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: var(--primary, #4f46e5) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.12), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
 }
 
-.kanban-filter .view-toggle-btn:not(.active):hover {
-  background: var(--border, #e2e8f0);
+[data-theme="dark"] .kanban-filter .view-toggle {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+[data-theme="dark"] .kanban-filter .view-toggle-btn {
+  color: rgba(226, 232, 240, 0.7) !important;
+}
+
+[data-theme="dark"] .kanban-filter .view-toggle-btn:hover:not(.active) {
+  color: #f8fafc !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .kanban-filter .view-toggle-btn.active {
+  background: #4f46e5 !important;
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
 }
 
 /* ============================================
