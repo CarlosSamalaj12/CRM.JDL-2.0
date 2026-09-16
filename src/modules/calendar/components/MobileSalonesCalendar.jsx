@@ -976,18 +976,15 @@ export default function MobileSalonesCalendar({
             <div className="ms-timeline-card">
               <div className="ms-tl-header">
                 <div className="ms-tl-title-wrap">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="ms-tl-icon">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="ms-tl-icon">
                     <line x1="18" y1="20" x2="18" y2="4" />
                     <line x1="12" y1="20" x2="12" y2="4" />
                     <line x1="6" y1="20" x2="6" y2="4" />
                   </svg>
                   <span className="ms-tl-title">Timeline Diario — 6 Bloques</span>
                 </div>
-                <div className="ms-tl-header-right">
-                  <span className="ms-tl-swipe-hint">↔ Desliza horas</span>
-                  <div className="ms-tl-badge-date">
-                    {isTodaySelected ? 'HOY' : formattedHeaderDate}
-                  </div>
+                <div className="ms-tl-badge-date">
+                  {isTodaySelected ? 'HOY' : formattedHeaderDate}
                 </div>
               </div>
 
@@ -1002,7 +999,6 @@ export default function MobileSalonesCalendar({
                         className={`ms-tl-col-block ms-tl-header-cell ${currentBlockId === b.id ? 'ms-tl-active-time' : ''}`}
                       >
                         <span>{b.label}</span>
-                        {currentBlockId === b.id && <span className="ms-tl-caret-down">▲</span>}
                       </div>
                     ))}
                   </div>
@@ -2970,25 +2966,30 @@ export default function MobileSalonesCalendar({
 
         /* ─── VISTA TIMELINE DIARIO (MATRIZ DE 6 BLOQUES ARMONIZADA AL CRM) ─── */
         .ms-timeline-container {
-          padding: 0 14px;
-          margin-bottom: 20px;
+          padding: 0 10px !important;
+          margin-bottom: 20px !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
 
         .ms-timeline-card {
           background: #ffffff !important;
           border: 1px solid #e2e8f0 !important;
           border-radius: 16px !important;
-          padding: 14px 12px !important;
+          padding: 12px 8px !important;
           box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06) !important;
           color: #0f172a !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
         }
 
         .ms-tl-header {
           display: flex !important;
           align-items: center !important;
           justify-content: space-between !important;
-          margin-bottom: 12px !important;
-          padding-bottom: 10px !important;
+          margin-bottom: 10px !important;
+          padding-bottom: 8px !important;
           border-bottom: 1px solid #f1f5f9 !important;
           gap: 8px !important;
         }
@@ -2996,7 +2997,7 @@ export default function MobileSalonesCalendar({
         .ms-tl-title-wrap {
           display: flex !important;
           align-items: center !important;
-          gap: 8px !important;
+          gap: 7px !important;
           min-width: 0 !important;
         }
 
@@ -3014,26 +3015,6 @@ export default function MobileSalonesCalendar({
           text-overflow: ellipsis !important;
         }
 
-        .ms-tl-header-right {
-          display: flex !important;
-          align-items: center !important;
-          gap: 6px !important;
-          flex-shrink: 0 !important;
-        }
-
-        .ms-tl-swipe-hint {
-          font-size: 9.5px !important;
-          font-weight: 700 !important;
-          color: #6366f1 !important;
-          background: #eef2ff !important;
-          padding: 2px 6px !important;
-          border-radius: 999px !important;
-          white-space: nowrap !important;
-          letter-spacing: 0.01em !important;
-          display: inline-flex !important;
-          align-items: center !important;
-        }
-
         .ms-tl-badge-date {
           font-size: 11px !important;
           font-weight: 800 !important;
@@ -3043,80 +3024,83 @@ export default function MobileSalonesCalendar({
           padding: 2px 8px !important;
           border-radius: 6px !important;
           letter-spacing: 0.03em !important;
+          flex-shrink: 0 !important;
         }
 
         .ms-tl-grid-wrap {
           width: 100% !important;
-          overflow-x: auto !important;
-          -webkit-overflow-scrolling: touch !important;
-          position: relative !important;
-          border-radius: 8px !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
         }
 
         .ms-tl-grid {
-          min-width: 390px !important;
           width: 100% !important;
+          min-width: 0 !important;
           display: flex !important;
           flex-direction: column !important;
-          gap: 7px !important;
+          gap: 5px !important;
+          box-sizing: border-box !important;
         }
 
         .ms-tl-row {
           display: grid !important;
-          grid-template-columns: 82px repeat(6, minmax(46px, 1fr)) !important;
-          gap: 5px !important;
+          grid-template-columns: minmax(64px, 76px) repeat(6, 1fr) !important;
+          gap: 3px !important;
           align-items: center !important;
           padding: 2px 0 !important;
           border-bottom: 1px solid #f8fafc !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
 
         .ms-tl-header-row {
-          margin-bottom: 4px !important;
-          padding-bottom: 6px !important;
+          margin-bottom: 3px !important;
+          padding-bottom: 5px !important;
           border-bottom: 1.5px solid #e2e8f0 !important;
         }
 
         .ms-tl-header-cell {
-          font-size: 11px !important;
+          font-size: 10.5px !important;
           font-weight: 700 !important;
           color: #64748b !important;
           text-align: center !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
-          gap: 2px !important;
           white-space: nowrap !important;
+          min-width: 0 !important;
+          padding: 2px 0 !important;
         }
 
         .ms-tl-header-cell:first-child {
           justify-content: flex-start !important;
           padding-left: 2px !important;
           font-weight: 800 !important;
+          font-size: 10.5px !important;
           color: #475569 !important;
         }
 
         .ms-tl-active-time {
           color: #4338ca !important;
           font-weight: 800 !important;
-        }
-
-        .ms-tl-caret-down {
-          font-size: 8px !important;
-          color: #4338ca !important;
-          margin-left: 1px !important;
+          background: #eef2ff !important;
+          border-radius: 4px !important;
         }
 
         .ms-tl-col-salon {
-          position: sticky !important;
-          left: 0 !important;
-          z-index: 4 !important;
-          background: #ffffff !important;
-          box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.05) !important;
+          position: static !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          z-index: auto !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
         }
 
         .ms-tl-header-row .ms-tl-col-salon {
-          background: #ffffff !important;
-          z-index: 5 !important;
+          position: static !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          z-index: auto !important;
         }
 
         .ms-tl-salon-cell {
@@ -3124,11 +3108,11 @@ export default function MobileSalonesCalendar({
           flex-direction: column !important;
           justify-content: center !important;
           min-width: 0 !important;
-          padding-right: 4px !important;
+          padding-right: 2px !important;
         }
 
         .ms-tl-salon-name {
-          font-size: 11.5px !important;
+          font-size: 11px !important;
           font-weight: 700 !important;
           color: #1e293b !important;
           white-space: nowrap !important;
@@ -3141,12 +3125,13 @@ export default function MobileSalonesCalendar({
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
+          min-width: 0 !important;
         }
 
         .ms-tl-pill {
           width: 100% !important;
-          height: 28px !important;
-          border-radius: 7px !important;
+          height: 26px !important;
+          border-radius: 6px !important;
           cursor: pointer !important;
           transition: transform 0.1s ease, filter 0.1s ease !important;
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(15, 23, 42, 0.05) !important;
