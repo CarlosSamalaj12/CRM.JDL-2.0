@@ -32,6 +32,20 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución Integral: Creación de Empresas, Encargados, Error 413 y Service Worker (2026-09-15)
+- Requerimiento: Resolver error `413 Payload Too Large` y `TypeError: Failed to convert value to 'Response'` en `sw.js` al crear o editar empresas y encargados, evitar que las observaciones se borren al recargar, flexibilizar validaciones bloqueantes en `QuoteModal.jsx` y `SettingsEmpresas.jsx`, y ampliar la longitud de la clave primaria en la base de datos MariaDB.
+- Causa raíz:
+  1. `saveCrmState` enviaba todo el estado de la base de datos (16.9 MB) en una sola petición HTTP POST para guardar una empresa, provocando rechazo 413 en Nginx.
+  2. `sw.js` retornaba promesas no resueltas de `caches.match()` en el handler offline en vez de un objeto `Response`.
+  3. `server.cjs` leía `c.notes` en vez de `c.notas`, perdiendo las notas en recarga.
+  4. La columna `empresas.id` tenía restricción `VARCHAR(30)` frente a IDs largos.
+  5. UI exigía 8 campos obligatorios rígidos y bloqueaba si no se hacía clic explícito en `+ Encargado`.
+- Solución:
+  1. Endpoints atómicos en `server.cjs`: `POST /api/companies`, `POST /api/companies/:id/managers` y `DELETE /api/companies/:id` reduciendo el payload de 17MB a <1KB (570 bytes).
+  2. Columna `empresas.id` ampliada a `VARCHAR(200)` en MariaDB preservando la llave foránea `fk_encargados_empresa`, y registrada en las migraciones de inicio.
+  3. `sw.js` y `dist/sw.js` refactorizados con `async/await` y respuesta de respaldo `Response('Offline', { status: 503 })`.
+  4. `QuoteModal.jsx` y `SettingsEmpresas.jsx` migrados a llamadas atómicas con autoguardado de encargados borrador y relajación de campos secundarios.
+  5. Verificado con prueba automatizada y compilación de producción `npx vite build` (código 0).
 
 ### Rediseño Ejecutivo: Vista de Calendario Semanal y Cuadrícula Horaria (`Calendar.jsx`, `Topbar.jsx`, `Legend.jsx`) (2026-09-15)
 - Requerimiento: Rediseñar integralmente la pantalla de **Calendario** (Vista `Semana` y estructura ejecutiva) según el código HTML de referencia y mockup visual de alta fidelidad "Jardines EMS — Sistema de Gestión y Calendario de Eventos", eliminando la apariencia tosca y desproporcionada sin remover ninguna función existente (arrastre para reserva, doble clic, clics en eventos, filtros y tooltips).

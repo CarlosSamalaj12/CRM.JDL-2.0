@@ -696,7 +696,8 @@ export default function DesktopTimelineView({
       </section>
 
       {/* BEGIN: Venue Scheduling Timeline Table (12-column grid) */}
-      <div className="dt-timeline-grid-container" data-purpose="timeline-grid-container">
+      {displayMode === 'timeline' ? (
+        <div className="dt-timeline-grid-container" data-purpose="timeline-grid-container">
         <div className="dt-timeline-card">
           {/* Table Header / Timeline Hours */}
           <div className="dt-grid-12 dt-header-row">
@@ -937,6 +938,179 @@ export default function DesktopTimelineView({
           </div>
         </div>
       </div>
+      ) : (
+        /* ─── VISTA ALTERNATIVA: TARJETAS DETALLADAS CRONOLÓGICAS (GRID MULTI-COLUMNA) ─── */
+        <div className="dt-cards-container" data-purpose="cards-container">
+          {filteredSalones.length === 0 ? (
+            <div className="dt-cards-empty">
+              <div className="dt-cards-empty-card">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <p className="dt-empty-title">No se encontraron áreas bajo los filtros actuales</p>
+                <p className="dt-empty-sub">Prueba cambiando el filtro de estado, vendedor o la búsqueda.</p>
+              </div>
+            </div>
+          ) : (
+            filteredSalones.map(salon => {
+              return (
+                <div
+                  key={salon.salonName}
+                  className="dt-card-salon"
+                  style={{ borderTopColor: salon.accentColor || '#4f46e5' }}
+                >
+                  <div className="dt-cs-header">
+                    <div>
+                      <h3 className="dt-cs-title">{salon.salonName}</h3>
+                      <div className="dt-cs-meta-row">
+                        {salon.capacity > 0 && <span className="dt-cs-cap">CAP. {salon.capacity} PAX</span>}
+                        <span className={`dt-status-pill-small ${salon.badgeClass}`}>{salon.badgeText}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="dt-cs-book-all"
+                      onClick={() => handleBookSalonFull(salon.salonName)}
+                    >
+                      + Todo el día
+                    </button>
+                  </div>
+
+                  {/* Si está en mantenimiento */}
+                  {salon.statusType === 'mantenimiento' ? (
+                    <div className="dt-cs-maint-box">
+                      <div className="dt-cs-maint-header">
+                        <span>🔧 {salon.maintenanceInfo?.title || 'Mantenimiento programado'}</span>
+                        <span className="dt-cs-maint-time">{salon.maintenanceInfo?.hours || '06:00 - 24:00'}</span>
+                      </div>
+                      {salon.maintenanceInfo?.description && (
+                        <p className="dt-cs-maint-desc">{salon.maintenanceInfo.description}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Timeline visualizador de ocupación */}
+                      <div className="dt-cs-timeline-bar">
+                        <div className="dt-cs-timeline-hours">
+                          <span>06:00</span>
+                          <span>12:00</span>
+                          <span>18:00</span>
+                          <span>24:00</span>
+                        </div>
+                        <div className="dt-cs-track">
+                          {(salon.timeline || []).map((item, idx) => {
+                            const startM = timeToMinutes(item.startTime);
+                            const endM = timeToMinutes(item.endTime);
+                            const leftPercent = Math.max(0, ((startM - 360) / 1080) * 100);
+                            const widthPercent = Math.max(1, ((endM - startM) / 1080) * 100);
+
+                            if (item.type === 'free') {
+                              return (
+                                <div
+                                  key={idx}
+                                  className="dt-cs-seg dt-cs-seg-free"
+                                  style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
+                                  title={`Libre: ${item.startTime} - ${item.endTime} (${item.durationHours}h)`}
+                                  onClick={() => handleBookFreeSlot(salon.salonName, item.startTime, item.endTime)}
+                                />
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={idx}
+                                className="dt-cs-seg dt-cs-seg-occupied"
+                                style={{
+                                  left: `${leftPercent}%`,
+                                  width: `${widthPercent}%`,
+                                  backgroundColor: item.statusColor || '#ef4444'
+                                }}
+                                title={`${item.name} (${item.startTime} - ${item.endTime})`}
+                                onClick={() => handleOpenEvent(item.id)}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Desglose de bloques libres y eventos */}
+                      <div className="dt-cs-body-items">
+                        {(salon.timeline || []).map((item, idx) => {
+                          if (item.type === 'free') {
+                            return (
+                              <div key={idx} className="dt-cs-slot-free">
+                                <div className="dt-cs-slot-info">
+                                  <span className="dt-cs-slot-badge-free">DISPONIBLE</span>
+                                  <span className="dt-cs-slot-hours">{item.startTime} - {item.endTime}</span>
+                                  <span className="dt-cs-slot-dur">({item.durationHours}h)</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="dt-cs-slot-btn"
+                                  onClick={() => handleBookFreeSlot(salon.salonName, item.startTime, item.endTime)}
+                                >
+                                  + Reservar
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div
+                              key={idx}
+                              className="dt-cs-event-card"
+                              style={{ borderLeftColor: item.statusColor || '#4f46e5' }}
+                            >
+                              <div className="dt-cs-evt-top">
+                                <span
+                                  className="dt-cs-evt-status"
+                                  style={{
+                                    backgroundColor: `${item.statusColor}18`,
+                                    color: item.statusColor,
+                                    borderColor: `${item.statusColor}40`
+                                  }}
+                                >
+                                  {item.status?.toUpperCase()}
+                                </span>
+                                <span className="dt-cs-evt-hours">{item.startTime} - {item.endTime}</span>
+                              </div>
+                              <h4 className="dt-cs-evt-title">{item.name}</h4>
+                              <div className="dt-cs-evt-details">
+                                {item.pax > 0 && <span>👤 {item.pax} PAX</span>}
+                                {item.seller && <span>🏷️ {item.seller}</span>}
+                                {item.client && <span>🏢 {item.client}</span>}
+                              </div>
+                              <div className="dt-cs-evt-footer">
+                                {item.quoteTotal > 0 ? (
+                                  <span className="dt-cs-evt-quote">
+                                    Cot: Q {Number(item.quoteTotal).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                                  </span>
+                                ) : (
+                                  <span className="dt-cs-evt-quote" style={{ color: '#94a3b8' }}>
+                                    Sin cotización
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  className="dt-cs-evt-link"
+                                  onClick={() => handleOpenEvent(item.id)}
+                                >
+                                  Ver reserva →
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
       {/* BEGIN: Bottom Status Legend Bar */}
       <footer className="dt-status-legend-bar" data-purpose="status-legend-bar">
@@ -1487,6 +1661,355 @@ export default function DesktopTimelineView({
           border: 1px solid rgba(226, 232, 240, 0.9);
           overflow: hidden;
           min-width: 1240px;
+        }
+
+        /* ─── VISTA DE TARJETAS DETALLADAS (GRID MULTI-COLUMNA) ─── */
+        .dt-cards-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+          gap: 16px;
+          overflow-y: auto;
+          flex: 1;
+          padding: 16px 20px;
+          background-color: rgba(241, 245, 249, 0.5);
+          box-sizing: border-box;
+          align-content: start;
+        }
+
+        .dt-cards-empty {
+          grid-column: 1 / -1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 60px 20px;
+        }
+
+        .dt-cards-empty-card {
+          background-color: #ffffff;
+          border: 1px dashed #cbd5e1;
+          border-radius: 12px;
+          padding: 40px 32px;
+          text-align: center;
+          max-width: 480px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .dt-card-salon {
+          background-color: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3.5px solid #4f46e5;
+          border-radius: 12px;
+          padding: 14px 16px;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          box-sizing: border-box;
+          transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+        .dt-card-salon:hover {
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
+          border-color: #cbd5e1;
+        }
+
+        .dt-cs-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .dt-cs-title {
+          font-size: 14.5px;
+          font-weight: 800;
+          color: #0f172a;
+          margin: 0;
+          line-height: 1.25;
+        }
+
+        .dt-cs-meta-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 3px;
+        }
+
+        .dt-cs-cap {
+          font-size: 10px;
+          font-weight: 700;
+          color: #475569;
+          background: #f1f5f9;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .dt-status-pill-small {
+          font-size: 10px;
+          font-weight: 700;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .dt-badge-available {
+          background-color: #ecfdf5;
+          color: #047857;
+        }
+
+        .dt-badge-occupied {
+          background-color: #ffe4e6;
+          color: #be123c;
+        }
+
+        .dt-badge-partial {
+          background-color: #e0e7ff;
+          color: #4338ca;
+        }
+
+        .dt-badge-maintenance {
+          background-color: #f3e8ff;
+          color: #7e22ce;
+        }
+
+        .dt-cs-book-all {
+          border: 1px solid #cbd5e1 !important;
+          background: #ffffff !important;
+          color: #334155 !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          padding: 4px 10px !important;
+          border-radius: 6px !important;
+          cursor: pointer;
+          transition: background 0.15s ease, border-color 0.15s ease;
+          white-space: nowrap;
+        }
+
+        .dt-cs-book-all:hover {
+          background: #f1f5f9 !important;
+          border-color: #94a3b8 !important;
+        }
+
+        .dt-cs-maint-box {
+          background-color: #faf5ff;
+          border: 1px solid #e9d5ff;
+          border-radius: 8px;
+          padding: 10px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .dt-cs-maint-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 11px;
+          font-weight: 800;
+          color: #7e22ce;
+        }
+
+        .dt-cs-maint-time {
+          font-size: 10.5px;
+          color: #9333ea;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+        }
+
+        .dt-cs-maint-desc {
+          font-size: 10.5px;
+          color: #6b21a8;
+          margin: 0;
+          line-height: 1.4;
+        }
+
+        .dt-cs-timeline-bar {
+          background: #f8fafc;
+          border: 1px solid #f1f5f9;
+          border-radius: 8px;
+          padding: 6px 10px;
+        }
+
+        .dt-cs-timeline-hours {
+          display: flex;
+          justify-content: space-between;
+          font-size: 9px;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+          font-weight: 600;
+          color: #94a3b8;
+          margin-bottom: 4px;
+        }
+
+        .dt-cs-track {
+          height: 10px;
+          background: #e2e8f0;
+          border-radius: 5px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .dt-cs-seg {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          cursor: pointer;
+          transition: opacity 0.15s ease;
+        }
+
+        .dt-cs-seg:hover {
+          opacity: 0.85;
+        }
+
+        .dt-cs-seg-free {
+          background: #10b981;
+        }
+
+        .dt-cs-body-items {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-height: 280px;
+          overflow-y: auto;
+          padding-right: 2px;
+        }
+
+        .dt-cs-slot-free {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #ecfdf5;
+          border: 1px dashed #6ee7b7;
+          border-radius: 7px;
+          padding: 6px 10px;
+        }
+
+        .dt-cs-slot-info {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .dt-cs-slot-badge-free {
+          font-size: 9px;
+          font-weight: 800;
+          color: #059669;
+          background: #d1fae5;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .dt-cs-slot-hours {
+          font-size: 11.5px;
+          font-weight: 700;
+          color: #065f46;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+        }
+
+        .dt-cs-slot-dur {
+          font-size: 10.5px;
+          color: #047857;
+        }
+
+        .dt-cs-slot-btn {
+          background: #059669 !important;
+          color: #ffffff !important;
+          border: none !important;
+          padding: 3px 9px !important;
+          border-radius: 5px !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+
+        .dt-cs-slot-btn:hover {
+          background: #047857 !important;
+        }
+
+        .dt-cs-event-card {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-left: 4px solid #4f46e5;
+          border-radius: 8px;
+          padding: 8px 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          transition: all 0.15s ease;
+        }
+
+        .dt-cs-event-card:hover {
+          background: #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .dt-cs-evt-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .dt-cs-evt-status {
+          font-size: 9.5px;
+          font-weight: 800;
+          padding: 2px 6px;
+          border-radius: 4px;
+          border: 1px solid transparent;
+        }
+
+        .dt-cs-evt-hours {
+          font-size: 10.5px;
+          font-weight: 700;
+          color: #475569;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+        }
+
+        .dt-cs-evt-title {
+          font-size: 12.5px;
+          font-weight: 800;
+          color: #0f172a;
+          margin: 0;
+        }
+
+        .dt-cs-evt-details {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          font-size: 11px;
+          color: #64748b;
+        }
+
+        .dt-cs-evt-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: 4px;
+          padding-top: 4px;
+          border-top: 1px solid #f1f5f9;
+        }
+
+        .dt-cs-evt-quote {
+          font-size: 11px;
+          font-weight: 700;
+          color: #4338ca;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+        }
+
+        .dt-cs-evt-link {
+          border: none !important;
+          background: transparent !important;
+          color: #4f46e5 !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          cursor: pointer;
+          padding: 2px 4px !important;
+          border-radius: 4px !important;
+        }
+
+        .dt-cs-evt-link:hover {
+          text-decoration: underline !important;
         }
 
         /* 12-column grid layout */
