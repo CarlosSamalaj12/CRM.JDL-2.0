@@ -145,6 +145,8 @@ export default function ReportsContabilidad({ onClose }) {
     paymentType: 'Transferencia',
     voucherNumber: '',
     description: '',
+    userId: '',
+    userName: '',
     evidenceName: '',
   });
   const [advanceEvidenceFile, setAdvanceEvidenceFile] = useState(null);
@@ -155,6 +157,10 @@ export default function ReportsContabilidad({ onClose }) {
   const advanceFormRef = useRef(null);
 
   const resetAdvanceForm = useCallback(() => {
+    const curUser = authService.getCurrentUser() || {};
+    const defaultUserId = curUser.id ? String(curUser.id) : (activeEventStatementRow?.userId ? String(activeEventStatementRow.userId) : '');
+    const defaultUserName = curUser.fullName || curUser.name || activeEventStatementRow?.userName || 'Usuario Contabilidad';
+
     setAdvanceEditingId('');
     setAdvanceEvidenceFile(null);
     setAdvanceEvidenceInputKey(k => k + 1);
@@ -164,9 +170,11 @@ export default function ReportsContabilidad({ onClose }) {
       paymentType: 'Transferencia',
       voucherNumber: '',
       description: '',
+      userId: defaultUserId,
+      userName: defaultUserName,
       evidenceName: '',
     });
-  }, []);
+  }, [activeEventStatementRow?.userId, activeEventStatementRow?.userName]);
 
   // ── Atajos de Teclado (Ctrl+K para buscar, Escape para cerrar modales) ──
   useEffect(() => {
@@ -196,6 +204,10 @@ export default function ReportsContabilidad({ onClose }) {
   }, [activeEventStatementRow?.id, resetAdvanceForm]);
 
   const handleStartEditAdvance = (adv) => {
+    const curUser = authService.getCurrentUser() || {};
+    const defaultUserId = curUser.id ? String(curUser.id) : (activeEventStatementRow?.userId ? String(activeEventStatementRow.userId) : '');
+    const defaultUserName = curUser.fullName || curUser.name || activeEventStatementRow?.userName || 'Usuario Contabilidad';
+
     setAdvanceEditingId(adv.id);
     setAdvanceForm({
       amount: adv.amount ? String(adv.amount) : '',
@@ -203,6 +215,8 @@ export default function ReportsContabilidad({ onClose }) {
       paymentType: adv.paymentType || 'Transferencia',
       voucherNumber: adv.voucherNumber || '',
       description: adv.description || '',
+      userId: adv.createdByUserId || adv.userId || defaultUserId,
+      userName: adv.createdByName || adv.userName || defaultUserName,
       evidenceName: adv.evidenceName || '',
     });
     setAdvanceEvidenceFile(null);
@@ -277,8 +291,11 @@ export default function ReportsContabilidad({ onClose }) {
     }
 
     const user = authService.getCurrentUser() || {};
-    const actorId = user.id || 'system';
-    const actorName = user.fullName || user.name || 'Usuario Contabilidad';
+    const currentActorId = user.id || 'system';
+    const currentActorName = user.fullName || user.name || 'Usuario Contabilidad';
+
+    const actorId = String(advanceForm.userId || currentActorId).trim();
+    const actorName = String(advanceForm.userName || currentActorName).trim();
 
     const targetEventId = activeEventStatementRow.actionEventId || activeEventStatementRow.id;
     const targetEvent = events?.find(ev => String(ev.id) === String(targetEventId)) ||
@@ -323,12 +340,14 @@ export default function ReportsContabilidad({ onClose }) {
             date,
             voucherNumber,
             description,
+            createdByUserId: actorId || prev.createdByUserId,
+            createdByName: actorName || prev.createdByName,
             evidenceDataUrl: evidenceDataUrl || prev.evidenceDataUrl || '',
             evidenceName: evidenceName || prev.evidenceName || '',
             evidenceType: evidenceType || prev.evidenceType || '',
             updatedAt: new Date().toISOString(),
-            updatedByUserId: actorId,
-            updatedByName: actorName,
+            updatedByUserId: currentActorId,
+            updatedByName: currentActorName,
           };
         } else {
           currentAdvances.push({
@@ -373,11 +392,11 @@ export default function ReportsContabilidad({ onClose }) {
       advanceLogs.push({
         id: `advlog_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         at: new Date().toISOString(),
-        actorName,
-        actorId,
+        actorName: currentActorName,
+        actorId: currentActorId,
         tone: advanceEditingId ? 'edited' : 'added',
         label: advanceEditingId ? 'Editado' : 'Agregado',
-        change: `${advanceEditingId ? 'Editado' : 'Registrado'} abono de Q ${amount.toFixed(2)} (${paymentType} ${voucherNumber ? '#' + voucherNumber : ''}) - ${description}`
+        change: `${advanceEditingId ? 'Editado' : 'Registrado'} abono de Q ${amount.toFixed(2)} (${paymentType} ${voucherNumber ? '#' + voucherNumber : ''}) - Aplicado por: ${actorName} - ${description}`
       });
 
       const updatedQuote = {
@@ -572,8 +591,8 @@ export default function ReportsContabilidad({ onClose }) {
         voucherNumber: String(item?.voucherNumber || item?.boleta || ''),
         description: String(item?.description || ''),
         createdAt: String(item?.createdAt || ''),
-        createdByUserId: String(item?.createdByUserId || ''),
-        createdByName: String(item?.createdByName || ''),
+        createdByUserId: String(item?.createdByUserId || item?.userId || ''),
+        createdByName: String(item?.createdByName || item?.userName || item?.vendedor || item?.user || ''),
         evidenceName: String(item?.evidenceName || ''),
         evidenceType: String(item?.evidenceType || ''),
         evidenceDataUrl: String(item?.evidenceDataUrl || '')
@@ -1394,15 +1413,16 @@ export default function ReportsContabilidad({ onClose }) {
     <span>${advances.length} abono(s) registrado(s)</span>
   </div>
   <table>
-    <thead><tr><th style="width:30px;">#</th><th style="width:85px;">Fecha</th><th style="width:110px;">Forma Pago</th><th style="width:130px;">No. Boleta / Ref</th><th>Concepto</th><th class="right" style="width:120px;">Monto Abonado</th></tr></thead>
+    <thead><tr><th style="width:30px;">#</th><th style="width:85px;">Fecha</th><th style="width:110px;">Forma Pago</th><th style="width:120px;">No. Boleta / Ref</th><th>Concepto</th><th style="width:130px;">Aplicado Por</th><th class="right" style="width:110px;">Monto Abonado</th></tr></thead>
     <tbody>
-      ${advances.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:12px;">No se han registrado anticipos para este evento.</td></tr>` : advances.map((a, i) => `
+      ${advances.length === 0 ? `<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:12px;">No se han registrado anticipos para este evento.</td></tr>` : advances.map((a, i) => `
         <tr>
           <td>${i + 1}</td>
           <td>${a.date || '-'}</td>
           <td><span style="font-weight:600;">${a.paymentType || '-'}</span></td>
           <td><strong style="color:#0369a1;">${a.voucherNumber || 'S/N'}</strong></td>
           <td>${a.description || '-'}</td>
+          <td><span style="font-weight:600;color:#334155;">${a.createdByName || a.userName || row.userName || 'Sistema'}</span></td>
           <td class="right" style="font-weight:800;color:#16a34a;">Q ${Number(a.amount || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         </tr>
       `).join('')}
@@ -2820,8 +2840,8 @@ export default function ReportsContabilidad({ onClose }) {
                         </div>
                       </div>
 
-                      {/* Fila Secundaria: Concepto, Comprobante y Botón Guardar */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.6fr 1fr', gap: '12px', alignItems: 'flex-end' }}>
+                      {/* Fila Secundaria: Concepto, Usuario/Vendedor, Comprobante y Botón Guardar */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.4fr 1.4fr 1fr', gap: '12px', alignItems: 'flex-end' }}>
                         {/* Concepto */}
                         <div>
                           <label style={{ display: 'block', fontSize: '10.5px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
@@ -2838,6 +2858,45 @@ export default function ReportsContabilidad({ onClose }) {
                               boxSizing: 'border-box'
                             }}
                           />
+                        </div>
+
+                        {/* Usuario que aplica el pago */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10.5px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                            Usuario *
+                          </label>
+                          <select
+                            value={advanceForm.userId}
+                            onChange={e => {
+                              const selectedId = e.target.value;
+                              const matchedUser = (users || []).find(u => String(u.id) === String(selectedId)) ||
+                                                  (uniqueSellers || []).find(u => String(u.id) === String(selectedId));
+                              const selectedName = matchedUser?.fullName || matchedUser?.name || e.target.selectedOptions?.[0]?.text || '';
+                              setAdvanceForm(prev => ({
+                                ...prev,
+                                userId: selectedId,
+                                userName: selectedName
+                              }));
+                            }}
+                            style={{
+                              width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px',
+                              border: '1px solid #cbd5e1', fontSize: '11.5px', fontWeight: 600, color: '#0f172a', background: '#ffffff',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            {advanceForm.userId && !users?.some(u => String(u.id) === String(advanceForm.userId)) && (
+                              <option value={advanceForm.userId}>{advanceForm.userName || 'Usuario Actual'}</option>
+                            )}
+                            {users && users.length > 0 ? (
+                              users.map(u => (
+                                <option key={u.id} value={u.id}>
+                                  {u.fullName || u.name} {u.role ? `(${u.role})` : ''}
+                                </option>
+                              ))
+                            ) : (
+                              <option value={advanceForm.userId || '1'}>{advanceForm.userName || 'Usuario'}</option>
+                            )}
+                          </select>
                         </div>
 
                         {/* Comprobante */}
@@ -2902,6 +2961,7 @@ export default function ReportsContabilidad({ onClose }) {
                         <th style={{ padding: '7px 10px', textAlign: 'left', width: '110px' }}>Forma Pago</th>
                         <th style={{ padding: '7px 10px', textAlign: 'left', width: '120px' }}>No. Boleta / Ref</th>
                         <th style={{ padding: '7px 10px', textAlign: 'left' }}>Concepto</th>
+                        <th style={{ padding: '7px 10px', textAlign: 'left', width: '135px' }}>Usuario</th>
                         <th style={{ padding: '7px 10px', textAlign: 'right', width: '110px' }}>Monto</th>
                         <th style={{ padding: '7px 10px', textAlign: 'center', width: '90px' }}>Comprobante</th>
                         <th className="no-print" style={{ padding: '7px 10px', textAlign: 'center', width: '120px' }}>Acciones</th>
@@ -2910,63 +2970,74 @@ export default function ReportsContabilidad({ onClose }) {
                     <tbody>
                       {activeEventStatementRow.advances.length === 0 ? (
                         <tr>
-                          <td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
+                          <td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
                             No hay abonos registrados para este evento.
                           </td>
                         </tr>
                       ) : (
-                        activeEventStatementRow.advances.map((adv, idx) => (
-                          <tr key={adv.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '7px 10px', color: '#64748b' }}>{idx + 1}</td>
-                            <td style={{ padding: '7px 10px', fontWeight: 600 }}>{adv.date || '-'}</td>
-                            <td style={{ padding: '7px 10px', fontWeight: 600, color: '#0f172a' }}>{adv.paymentType}</td>
-                            <td style={{ padding: '7px 10px', fontWeight: 800, color: '#0284c7' }}>
-                              {adv.voucherNumber || 'S/N'}
-                            </td>
-                            <td style={{ padding: '7px 10px', color: '#475569' }}>{adv.description || '-'}</td>
-                            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
-                              Q {Number(adv.amount || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </td>
-                            <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                              {adv.evidenceDataUrl ? (
-                                <button
-                                  type="button"
-                                  className="acct-btn-row-action is-voucher"
-                                  onClick={() => setPreviewVoucher(adv)}
-                                  title="Ver imagen o archivo de la boleta de pago"
-                                >
-                                  <Eye size={12} />
-                                  <span>Ver Boleta</span>
-                                </button>
-                              ) : (
-                                <span style={{ color: '#cbd5e1', fontSize: '10px' }}>Sin adjunto</span>
-                              )}
-                            </td>
-                            <td className="no-print" style={{ padding: '7px 10px', textAlign: 'center' }}>
-                              <div style={{ display: 'inline-flex', gap: '5px' }}>
-                                <button
-                                  type="button"
-                                  className="acct-btn-row-action is-edit"
-                                  onClick={() => handleStartEditAdvance(adv)}
-                                  title="Editar este pago"
-                                >
-                                  <Edit2 size={11} />
-                                  <span>Editar</span>
-                                </button>
+                        activeEventStatementRow.advances.map((adv, idx) => {
+                          const appliedByName = adv.createdByName || adv.userName || (adv.createdByUserId && users?.find(u => String(u.id) === String(adv.createdByUserId))?.name) || activeEventStatementRow.userName || 'Sistema';
+                          return (
+                            <tr key={adv.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '7px 10px', color: '#64748b' }}>{idx + 1}</td>
+                              <td style={{ padding: '7px 10px', fontWeight: 600 }}>{adv.date || '-'}</td>
+                              <td style={{ padding: '7px 10px', fontWeight: 600, color: '#0f172a' }}>{adv.paymentType}</td>
+                              <td style={{ padding: '7px 10px', fontWeight: 800, color: '#0284c7' }}>
+                                {adv.voucherNumber || 'S/N'}
+                              </td>
+                              <td style={{ padding: '7px 10px', color: '#475569' }}>{adv.description || '-'}</td>
+                              <td style={{ padding: '7px 10px', color: '#0f172a' }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                                  <User size={12} color="#0284c7" />
+                                  <span style={{ fontWeight: 600, fontSize: '11px', color: '#1e293b' }}>
+                                    {appliedByName}
+                                  </span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                                Q {Number(adv.amount || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                                {adv.evidenceDataUrl ? (
+                                  <button
+                                    type="button"
+                                    className="acct-btn-row-action is-voucher"
+                                    onClick={() => setPreviewVoucher(adv)}
+                                    title="Ver imagen o archivo de la boleta de pago"
+                                  >
+                                    <Eye size={12} />
+                                    <span>Ver Boleta</span>
+                                  </button>
+                                ) : (
+                                  <span style={{ color: '#cbd5e1', fontSize: '10px' }}>Sin adjunto</span>
+                                )}
+                              </td>
+                              <td className="no-print" style={{ padding: '7px 10px', textAlign: 'center' }}>
+                                <div style={{ display: 'inline-flex', gap: '5px' }}>
+                                  <button
+                                    type="button"
+                                    className="acct-btn-row-action is-edit"
+                                    onClick={() => handleStartEditAdvance(adv)}
+                                    title="Editar este pago"
+                                  >
+                                    <Edit2 size={11} />
+                                    <span>Editar</span>
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  className="acct-btn-row-action is-delete"
-                                  onClick={() => handleDeleteAdvanceInModal(adv.id)}
-                                  title="Eliminar este abono"
-                                >
-                                  <Trash2 size={11} />
-                                  <span>Eliminar</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
+                                  <button
+                                    type="button"
+                                    className="acct-btn-row-action is-delete"
+                                    onClick={() => handleDeleteAdvanceInModal(adv.id)}
+                                    title="Eliminar este abono"
+                                  >
+                                    <Trash2 size={11} />
+                                    <span>Eliminar</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>

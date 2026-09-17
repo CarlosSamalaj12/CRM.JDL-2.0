@@ -223,3 +223,28 @@ test('ReportsContabilidad y reports.css implementan persistencia de abonos edita
   assert.ok(jsxCode.includes('advanceEditingId'), 'Debe gestionar advanceEditingId');
 });
 
+test('ReportsContabilidad y server.cjs registran y muestran el usuario o vendedor que aplica el pago', () => {
+  const jsxPath = path.join(projectRoot, 'src', 'modules', 'reports', 'ReportsContabilidad.jsx');
+  const jsxCode = fs.readFileSync(jsxPath, 'utf8');
+
+  const serverPath = path.join(projectRoot, 'server.cjs');
+  const serverCode = fs.readFileSync(serverPath, 'utf8');
+
+  // 1. Selector de usuario en el formulario de abonos
+  assert.ok(jsxCode.includes('Usuario *'), 'El formulario debe tener selector de usuario');
+  assert.ok(jsxCode.includes('advanceForm.userId'), 'Debe almacenar el ID del usuario en advanceForm');
+  assert.ok(jsxCode.includes('advanceForm.userName'), 'Debe almacenar el nombre del usuario en advanceForm');
+
+  // 2. Columna en la tabla del modal
+  assert.ok(jsxCode.includes('>Usuario</th>'), 'La tabla del modal debe tener la columna Usuario');
+  assert.ok(jsxCode.includes('appliedByName'), 'Debe calcular el usuario aplicado para cada fila');
+
+  // 3. Columna en la hoja formal imprimible
+  assert.ok(jsxCode.includes('Aplicado Por'), 'La hoja imprimible debe contener columna Aplicado Por');
+
+  // 4. Backend persiste y actualiza id_usuario_creador y nombre_usuario_creador
+  assert.ok(serverCode.includes('id_usuario_creador = COALESCE(VALUES(id_usuario_creador), anticipos_evento.id_usuario_creador)'), 'server.cjs debe actualizar id_usuario_creador en duplicados');
+  assert.ok(serverCode.includes('nombre_usuario_creador = COALESCE(VALUES(nombre_usuario_creador), anticipos_evento.nombre_usuario_creador)'), 'server.cjs debe actualizar nombre_usuario_creador en duplicados');
+});
+
+
