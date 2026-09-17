@@ -4,6 +4,7 @@ import { formatMoney } from '../../utils/numberToWords';
 import { getEquipos } from '../../services/api.js';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
+import { getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 // ── Minimalist Vector Icons ──
 function IconTrendingUp({ size = 16, color = 'currentColor' }) {
@@ -181,7 +182,7 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
       if (seenReservations.has(groupKey)) continue;
       seenReservations.add(groupKey);
 
-      const amount = Math.max(0, Number(ev.quote?.total || 0));
+      const amount = Math.max(0, getQuoteTotalGtq(ev.quote));
 
       if (!userAgg[userId]) {
         userAgg[userId] = { count: 0, totalAmount: 0, pendingCount: 0, pendingAmount: 0 };

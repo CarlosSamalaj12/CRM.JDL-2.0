@@ -488,6 +488,184 @@ export async function deletePlantillaApi(plantillaId) {
   return res;
 }
 
+export async function getExchangeRateDataApi() {
+  try {
+    const res = await api.get('/api/exchange-rate');
+    const currentRate = Number(res?.currentRate ?? res?.exchangeRate ?? 7.75);
+    const validRate = Number.isFinite(currentRate) && currentRate > 0 ? currentRate : 7.75;
+    const history = Array.isArray(res?.history) ? res.history : [];
+    if (cachedState) {
+      cachedState.exchangeRate = validRate;
+      cachedState.exchangeRateHistory = history;
+    }
+    return {
+      currentRate: validRate,
+      effectiveDate: res?.effectiveDate || null,
+      history,
+    };
+  } catch (err) {
+    return {
+      currentRate: cachedState?.exchangeRate ? Number(cachedState.exchangeRate) : 7.75,
+      effectiveDate: null,
+      history: Array.isArray(cachedState?.exchangeRateHistory) ? cachedState.exchangeRateHistory : [],
+    };
+  }
+}
+
+export async function addExchangeRateHistoryApi({ fechaVigencia, tasa, notas }) {
+  const rate = Number(tasa);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error('Tipo de cambio inválido. Debe ser un número mayor a 0.');
+  }
+  const dateStr = String(fechaVigencia || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    throw new Error('Fecha de vigencia inválida. Formato requerido: AAAA-MM-DD.');
+  }
+
+  const res = await api.post('/api/exchange-rate/history', {
+    fechaVigencia: dateStr,
+    tasa: rate,
+    notas: notas || '',
+  });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'exchange_rate', action: 'created', data: res?.entry }
+    }));
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+  return res;
+}
+
+export async function updateExchangeRateHistoryApi(id, { fechaVigencia, tasa, notas }) {
+  if (!id) throw new Error('ID de registro histórico requerido.');
+  const rate = Number(tasa);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error('Tipo de cambio inválido. Debe ser un número mayor a 0.');
+  }
+  const dateStr = String(fechaVigencia || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    throw new Error('Fecha de vigencia inválida. Formato requerido: AAAA-MM-DD.');
+  }
+
+  const res = await api.put(`/api/exchange-rate/history/${encodeURIComponent(id)}`, {
+    fechaVigencia: dateStr,
+    tasa: rate,
+    notas: notas || '',
+  });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'exchange_rate', action: 'updated', data: { id, fechaVigencia: dateStr, tasa: rate } }
+    }));
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+  return res;
+}
+
+export async function deleteExchangeRateHistoryApi(id) {
+  if (!id) throw new Error('ID de registro histórico requerido.');
+  const res = await api.delete(`/api/exchange-rate/history/${encodeURIComponent(id)}`);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'exchange_rate', action: 'deleted', data: { id } }
+    }));
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+  return res;
+}
+
+export async function resolveExchangeRateAtDateApi(date) {
+  const dateStr = String(date || '').trim().slice(0, 10);
+  try {
+    const res = await api.get(`/api/exchange-rate/resolve?date=${encodeURIComponent(dateStr)}`);
+    return {
+      rate: Number(res?.rate || 7.75),
+      effectiveDate: res?.effectiveDate || null,
+      notas: res?.notas || '',
+    };
+  } catch (err) {
+    return { rate: 7.75, effectiveDate: null, notas: '' };
+  }
+}
+
+export async function getExchangeRateApi() {
+  try {
+    const res = await api.get('/api/exchange-rate');
+    const rate = Number(res?.currentRate ?? res?.exchangeRate ?? 7.75);
+    const validRate = Number.isFinite(rate) && rate > 0 ? rate : 7.75;
+    if (cachedState) {
+      cachedState.exchangeRate = validRate;
+    }
+    return validRate;
+  } catch (err) {
+    if (cachedState && cachedState.exchangeRate) {
+      return Number(cachedState.exchangeRate);
+    }
+    return 7.75;
+  }
+}
+
+export async function saveExchangeRateApi(rate) {
+  const num = typeof rate === 'number' ? rate : parseFloat(rate);
+  if (!num || num <= 0 || !Number.isFinite(num)) {
+    throw new Error('Tipo de cambio inválido. Debe ser un número mayor a 0.');
+  }
+
+  const res = await api.put('/api/exchange-rate', { exchangeRate: num });
+  const savedRate = Number(res?.exchangeRate ?? num);
+
+  if (cachedState) {
+    cachedState.exchangeRate = savedRate;
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'exchange_rate', action: 'updated', data: { exchangeRate: savedRate } }
+    }));
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+
+  return savedRate;
+}
+
+export async function getSettingApi(key, defaultValue = null) {
+  if (!key) return defaultValue;
+  try {
+    const res = await api.get(`/api/settings/${encodeURIComponent(key)}`);
+    const val = res?.value !== undefined ? res.value : defaultValue;
+    if (cachedState) {
+      cachedState[key] = val;
+    }
+    return val;
+  } catch (err) {
+    if (cachedState && cachedState[key] !== undefined) {
+      return cachedState[key];
+    }
+    return defaultValue;
+  }
+}
+
+export async function saveSettingApi(key, value) {
+  if (!key) throw new Error('Clave de configuración requerida.');
+  const res = await api.put(`/api/settings/${encodeURIComponent(key)}`, { value });
+  const savedVal = res?.value !== undefined ? res.value : value;
+
+  if (cachedState) {
+    cachedState[key] = savedVal;
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'setting', action: 'updated', data: { key, value: savedVal } }
+    }));
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+
+  return savedVal;
+}
+
 const stateService = {
   loadState,
   saveState,
@@ -505,6 +683,15 @@ const stateService = {
   getPlantillasApi,
   savePlantillaApi,
   deletePlantillaApi,
+  getExchangeRateApi,
+  saveExchangeRateApi,
+  getExchangeRateDataApi,
+  addExchangeRateHistoryApi,
+  updateExchangeRateHistoryApi,
+  deleteExchangeRateHistoryApi,
+  resolveExchangeRateAtDateApi,
+  getSettingApi,
+  saveSettingApi,
 };
 
 export default stateService;

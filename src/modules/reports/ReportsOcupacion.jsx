@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useLayoutEffect, useEffect } from 'react';
 import { STATUS_META } from '../calendar/constants';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
+import { getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 // ── Minimalist Vector Icons ──
 function IconCalendar({ size = 16, color = 'currentColor' }) {
@@ -153,7 +154,7 @@ export default function ReportsOcupacion({ onClose }) {
           endTime: String(ev.endTime||''), eventName: String(ev.name||''),
           salon: String(ev.salon||''), company: ev.quote?.companyName||'',
           seller: String(user?.fullName||user?.name||''),
-          pax: Number(ev.pax||ev.quote?.people||0), total: Number(ev.quote?.total||0),
+          pax: Number(ev.pax||ev.quote?.people||0), total: Math.max(0, getQuoteTotalGtq(ev.quote)),
           rawEvent: ev
         };
       })

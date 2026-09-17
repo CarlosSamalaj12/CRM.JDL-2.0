@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import ReportInfo from './components/ReportInfo';
+import { getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 // ── Minimalist Vector Icons ──
 function IconDollar({ size = 16, color = 'currentColor' }) {
@@ -201,7 +202,7 @@ export default function ReportsIngresosCategorias({ onClose }) {
       const monthKey = d.substring(0, 7);
       const quoteItems = ev.quote?.items || [];
       
-      const quoteTotal = Math.max(0, Number(ev.quote?.total || 0));
+      const quoteTotal = Math.max(0, getQuoteTotalGtq(ev.quote));
       if (quoteTotal <= 0) continue;
       
       let dominantBucket = 'miscelaneos';

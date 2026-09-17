@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
 import MultiSelect from '../reports/components/MultiSelect';
+import { getQuoteTotalGtq } from '../reports/components/eventSeriesUtils';
 import './customers.css';
 import '../../styles/tooltips.css';
 
@@ -490,7 +491,7 @@ export default function CustomersModule() {
       let totalPax = 0, totalIncome = 0;
       for (const ev of items) {
         totalPax += Number(ev.pax || 0);
-        totalIncome += Number(ev.quote?.totalGtq || ev.quote?.total || 0);
+        totalIncome += getQuoteTotalGtq(ev.quote);
       }
       stats[stage.key] = { totalPax, totalIncome };
     }
@@ -498,7 +499,7 @@ export default function CustomersModule() {
     let lostPax = 0, lostIncome = 0;
     for (const ev of lostFiltered) {
       lostPax += Number(ev.pax || 0);
-      lostIncome += Number(ev.quote?.totalGtq || ev.quote?.total || 0);
+      lostIncome += getQuoteTotalGtq(ev.quote);
     }
     stats.lost = { totalPax: lostPax, totalIncome: lostIncome };
     return stats;
@@ -902,7 +903,7 @@ export default function CustomersModule() {
                     </div>
                   ) : (
                     items.map(ev => {
-                      const dealAmount = Number(ev.quote?.totalGtq || ev.quote?.total || 0);
+                      const dealAmount = getQuoteTotalGtq(ev.quote);
                       const evType = getEventType(ev);
                       const typeTagClass = evType === 'Social' ? 'is-social' : evType === 'Corporativo' ? 'is-corporativo' : 'is-individual';
 
@@ -1080,7 +1081,7 @@ export default function CustomersModule() {
                     </div>
                   ) : (
                     lostFiltered.map(ev => {
-                      const dealAmount = Number(ev.quote?.totalGtq || ev.quote?.total || 0);
+                      const dealAmount = getQuoteTotalGtq(ev.quote);
                       const evType = getEventType(ev);
 
                       return (

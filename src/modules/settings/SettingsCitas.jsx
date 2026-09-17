@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import { loadState as loadCrmState, saveSettingApi } from '../../services/stateService';
 import { toast } from '../../utils/toast';
 
 export default function SettingsCitas({ inline, onBack }) {
@@ -25,13 +25,10 @@ export default function SettingsCitas({ inline, onBack }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const currentState = await loadCrmState();
-      const newState = {
-        ...currentState,
-        appointmentReminderOffset: Number(reminderOffset),
-        pastEventEditGraceDays: Number(pastEventGraceDays)
-      };
-      await saveCrmState(newState);
+      await Promise.all([
+        saveSettingApi('appointmentReminderOffset', Number(reminderOffset)),
+        saveSettingApi('pastEventEditGraceDays', Number(pastEventGraceDays))
+      ]);
       toast('Configuración de citas guardada ✓');
       window.dispatchEvent(new Event('stateUpdated'));
     } catch (err) {

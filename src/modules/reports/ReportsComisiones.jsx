@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
-import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+import { getEventSeriesFinancialMeta, getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 // ── Minimalist Vector Icons ──
 function IconCalendar({ size = 15, color = 'currentColor' }) {
@@ -193,7 +193,7 @@ export default function ReportsComisiones({ onClose }) {
       const status = String(primaryEvent.status || ev.status || '').trim();
       if (!ACTIVE_STATUSES.has(status)) continue;
 
-      const amount = Math.max(0, Number(primaryEvent.quote?.total || ev.quote?.total || 0));
+      const amount = Math.max(0, getQuoteTotalGtq(primaryEvent.quote || ev.quote));
       if (amount <= 0) continue;
 
       const userId = String(primaryEvent.userId || ev.userId || '').trim();

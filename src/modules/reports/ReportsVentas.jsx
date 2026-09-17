@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
-import { getEventSeries, getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+import { getEventSeries, getEventSeriesFinancialMeta, getQuoteFinancialAmounts } from './components/eventSeriesUtils';
 
 // PAX correcto de una reserva, respetando paxCompartido:
 function getReservationPax(reservation, allEvents) {
@@ -94,6 +94,156 @@ const STATUS_COLORS = {
   'Perdido': { color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
 };
 
+// Columnas configurables por defecto
+const DEFAULT_VISIBLE_COLUMNS = {
+  estado: true,
+  cotizacion: true,
+  folio: true,
+  institucion: true,
+  vendedor: true,
+  fechas: true,
+  salon: true,
+  pax: true,
+  monto: true,
+};
+
+const STORAGE_KEY_VENTAS_COLUMNS = 'crm_reports_ventas_columns_v1';
+
+// Definición enriquecida de columnas para el modal ejecutivo
+const COLUMN_DEFINITIONS = [
+  {
+    key: 'estado',
+    label: 'Estado del Evento',
+    description: 'Etiqueta de avance comercial',
+    iconColor: '#059669',
+    iconBg: '#ecfdf5',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+        <circle cx="7" cy="7" r="1.5" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    key: 'cotizacion',
+    label: 'Código de Cotización',
+    description: 'Identificador único de cotización',
+    iconColor: '#2563eb',
+    iconBg: '#eff6ff',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    key: 'folio',
+    label: 'No. Folio / NOG',
+    description: 'No. de contrato o folio oficial',
+    iconColor: '#4f46e5',
+    iconBg: '#eef2ff',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="4" y1="9" x2="20" y2="9" />
+        <line x1="4" y1="15" x2="20" y2="15" />
+        <line x1="10" y1="3" x2="8" y2="21" />
+        <line x1="16" y1="3" x2="14" y2="21" />
+      </svg>
+    ),
+  },
+  {
+    key: 'institucion',
+    label: 'Institución / Cliente',
+    description: 'Empresa, entidad o cliente',
+    iconColor: '#0284c7',
+    iconBg: '#f0f9ff',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+        <path d="M9 22v-4h6v4" />
+        <line x1="8" y1="6" x2="8.01" y2="6" strokeWidth="2.5" />
+        <line x1="16" y1="6" x2="16.01" y2="6" strokeWidth="2.5" />
+        <line x1="8" y1="10" x2="8.01" y2="10" strokeWidth="2.5" />
+        <line x1="16" y1="10" x2="16.01" y2="10" strokeWidth="2.5" />
+        <line x1="8" y1="14" x2="8.01" y2="14" strokeWidth="2.5" />
+        <line x1="16" y1="14" x2="16.01" y2="14" strokeWidth="2.5" />
+      </svg>
+    ),
+  },
+  {
+    key: 'vendedor',
+    label: 'Vendedor Asignado',
+    description: 'Asesor comercial responsable',
+    iconColor: '#7c3aed',
+    iconBg: '#f5f3ff',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+  {
+    key: 'fechas',
+    label: 'Fechas (Inicio / Fin)',
+    description: 'Calendario de inicio y cierre',
+    iconColor: '#d97706',
+    iconBg: '#fffbeb',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    key: 'salon',
+    label: 'Salón / Espacio',
+    description: 'Área reservada para montaje',
+    iconColor: '#db2777',
+    iconBg: '#fdf2f8',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+  },
+  {
+    key: 'pax',
+    label: 'Número de PAX',
+    description: 'Cantidad total de personas',
+    iconColor: '#0891b2',
+    iconBg: '#ecfeff',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
+    key: 'monto',
+    label: 'Monto Total',
+    description: 'Total proyectado en GTQ / USD',
+    iconColor: '#059669',
+    iconBg: '#ecfdf5',
+    icon: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      </svg>
+    ),
+  },
+];
+
 export default function ReportsVentas({ onClose }) {
   const { events, users, salones } = useOutletContext();
   const navigate = useNavigate();
@@ -118,19 +268,83 @@ export default function ReportsVentas({ onClose }) {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Columnas configurables
-  const [visibleColumns, setVisibleColumns] = useState({
-    estado: true,
-    cotizacion: true,
-    folio: true,
-    institucion: true,
-    vendedor: true,
-    fechas: true,
-    salon: true,
-    pax: true,
-    monto: true,
+  // Columnas configurables con persistencia en localStorage
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_VENTAS_COLUMNS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_VISIBLE_COLUMNS, ...parsed };
+      }
+    } catch (err) {
+      console.error('Error cargando columnas de ventas:', err);
+    }
+    return DEFAULT_VISIBLE_COLUMNS;
   });
   const [showColModal, setShowColModal] = useState(false);
+
+  // Cerrar modal con tecla Escape
+  useEffect(() => {
+    if (!showColModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowColModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showColModal]);
+
+  const saveColumnPreferences = (nextCols) => {
+    setVisibleColumns(nextCols);
+    try {
+      localStorage.setItem(STORAGE_KEY_VENTAS_COLUMNS, JSON.stringify(nextCols));
+    } catch (err) {
+      console.error('Error persistiendo columnas de ventas:', err);
+    }
+  };
+
+  const handleToggleColumn = (key) => {
+    const currentActiveCount = Object.values(visibleColumns).filter(Boolean).length;
+    // Impedir desactivar la última columna para no dejar la tabla en blanco
+    if (visibleColumns[key] && currentActiveCount <= 1) {
+      return;
+    }
+    const next = { ...visibleColumns, [key]: !visibleColumns[key] };
+    saveColumnPreferences(next);
+  };
+
+  const handleSelectAllColumns = () => {
+    const next = {};
+    COLUMN_DEFINITIONS.forEach(c => { next[c.key] = true; });
+    saveColumnPreferences(next);
+  };
+
+  const handleSelectMinimalColumns = () => {
+    const next = {
+      estado: true,
+      cotizacion: false,
+      folio: false,
+      institucion: true,
+      vendedor: false,
+      fechas: true,
+      salon: false,
+      pax: false,
+      monto: true,
+    };
+    saveColumnPreferences(next);
+  };
+
+  const handleResetColumns = () => {
+    saveColumnPreferences(DEFAULT_VISIBLE_COLUMNS);
+  };
+
+  const visibleCount = useMemo(() => {
+    return Object.values(visibleColumns).filter(Boolean).length;
+  }, [visibleColumns]);
+
+  const totalColumns = COLUMN_DEFINITIONS.length;
+  const isAnyHidden = visibleCount < totalColumns;
 
   // Procesamiento canónico de eventos
   const reportData = useMemo(() => {
@@ -149,6 +363,7 @@ export default function ReportsVentas({ onClose }) {
       const primaryEvent = financialMeta.primaryEvent || ev;
       const quote = primaryEvent?.quote || ev?.quote || {};
       const assignedUser = users?.find(u => u.id === (primaryEvent?.userId || ev?.userId));
+      const finAmounts = getQuoteFinancialAmounts(quote);
 
       const slotStartDate = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
       const slotEndDate = String(financialMeta.endDate || primaryEvent?.eventDateEnd || primaryEvent?.endDate || ev?.eventDateEnd || ev?.endDate || slotStartDate).trim();
@@ -170,9 +385,13 @@ export default function ReportsVentas({ onClose }) {
         clientName: ev.clientName || quote?.companyName || quote?.contact || '',
         pax: getReservationPax(ev, events),
         quote: quote,
-        total: quote?.totalGtq || quote?.total || 0,
-        subtotal: quote?.subtotal || 0,
-        discount: quote?.discountValue || 0,
+        total: finAmounts.totalGtq,
+        subtotal: finAmounts.subtotalGtq,
+        discount: finAmounts.discountGtq,
+        isUsd: finAmounts.isUsd,
+        rawTotal: finAmounts.rawTotal,
+        exchangeRate: finAmounts.exchangeRate,
+        exchangeRateDate: finAmounts.exchangeRateDate || quote?.exchangeRateDate || null,
         salones: financialMeta.salones,
         eventType: quote?.eventType || primaryEvent?.name || ev?.name || '',
         statusColor: STATUS_META[primaryEvent?.status || ev?.status]?.color || '#64748b'
@@ -450,6 +669,24 @@ export default function ReportsVentas({ onClose }) {
         }
         .rv-white-input::placeholder {
           color: #94a3b8 !important;
+        }
+        @keyframes rvModalBackdropFade {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes rvModalFadeIn {
+          from { opacity: 0; transform: scale(0.96) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .rv-col-card:hover {
+          border-color: #3b82f6 !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(37,99,235,0.08) !important;
+        }
+        .rv-col-action-btn:hover {
+          background: #f1f5f9 !important;
+          color: #0f172a !important;
+          border-color: #94a3b8 !important;
         }
       `}</style>
 
@@ -1340,16 +1577,19 @@ export default function ReportsVentas({ onClose }) {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
+                gap: '8px',
+                padding: '6px 14px',
                 borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#334155',
+                border: isAnyHidden ? '1px solid #93c5fd' : '1px solid #cbd5e1',
+                background: isAnyHidden ? '#eff6ff' : '#ffffff',
+                color: isAnyHidden ? '#1d4ed8' : '#334155',
                 fontSize: '12px',
                 fontWeight: 600,
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: isAnyHidden ? '0 1px 3px rgba(37, 99, 235, 0.12)' : 'none',
               }}
+              title="Configurar qué columnas se muestran en la tabla"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="21" x2="4" y2="14" />
@@ -1362,7 +1602,17 @@ export default function ReportsVentas({ onClose }) {
                 <line x1="9" y1="8" x2="15" y2="8" />
                 <line x1="17" y1="16" x2="23" y2="16" />
               </svg>
-              Configurar Columnas
+              <span>Columnas</span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '1px 7px',
+                borderRadius: '9999px',
+                background: isAnyHidden ? '#2563eb' : '#f1f5f9',
+                color: isAnyHidden ? '#ffffff' : '#64748b',
+              }}>
+                {visibleCount}/{totalColumns}
+              </span>
             </button>
           </div>
 
@@ -1385,7 +1635,7 @@ export default function ReportsVentas({ onClose }) {
               <tbody>
                 {paginatedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    <td colSpan={visibleCount || 1} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                       Sin eventos registrados para los filtros seleccionados.
                     </td>
                   </tr>
@@ -1509,7 +1759,24 @@ export default function ReportsVentas({ onClose }) {
                         {/* Monto Total */}
                         {visibleColumns.monto && (
                           <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 800, color: '#059669', fontSize: '12.5px' }}>
-                            {formatMoney(r.total)}
+                            <div>{formatMoney(r.total)}</div>
+                            {r.isUsd && (
+                              <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', marginTop: '2px' }}>
+                                <span>${Number(r.rawTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</span>
+                                <span style={{
+                                  fontSize: '9px',
+                                  color: '#0369a1',
+                                  background: '#f0f9ff',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #bae6fd',
+                                  display: 'inline-block',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  TC Q {Number(r.exchangeRate || 7.75).toFixed(2)}{r.exchangeRateDate ? ` (${String(r.exchangeRateDate).slice(8,10)}/${String(r.exchangeRateDate).slice(5,7)}/${String(r.exchangeRateDate).slice(0,4)})` : ''}
+                                </span>
+                              </div>
+                            )}
                           </td>
                         )}
                       </tr>
@@ -1798,74 +2065,384 @@ export default function ReportsVentas({ onClose }) {
 
       </main>
 
-      {/* ── MODAL DE CONFIGURACIÓN DE COLUMNAS ── */}
+      {/* ── MODAL DE CONFIGURACIÓN DE COLUMNAS EJECUTIVO ── */}
       {showColModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 99999,
-          background: 'rgba(15,23,42,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '20px',
-        }}>
-          <div style={{
-            background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0',
-            width: '100%', maxWidth: '420px', padding: '22px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                Configurar Columnas Visibles
-              </h3>
+        <div
+          onClick={() => setShowColModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            background: 'rgba(15,23,42,0.65)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            animation: 'rvModalBackdropFade 0.18s ease-out',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              border: '1px solid rgba(226, 232, 240, 0.95)',
+              width: '100%',
+              maxWidth: '580px',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(15, 23, 42, 0.05)',
+              overflow: 'hidden',
+              animation: 'rvModalFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            {/* Barra superior con degradado */}
+            <div style={{ height: '4px', background: 'linear-gradient(90deg, #2563eb, #38bdf8, #818cf8)' }} />
+
+            {/* Cabecera del modal */}
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                  border: '1px solid #bfdbfe',
+                  color: '#2563eb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.12)',
+                }}>
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3v18" />
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                    <path d="M3 9h18" />
+                    <path d="M3 15h18" />
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                      Configurar Columnas Visibles
+                    </h3>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      background: isAnyHidden ? '#eff6ff' : '#ecfdf5',
+                      color: isAnyHidden ? '#1d4ed8' : '#059669',
+                      border: `1px solid ${isAnyHidden ? '#bfdbfe' : '#a7f3d0'}`,
+                    }}>
+                      {visibleCount} de {totalColumns} visibles
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '12.5px', color: '#64748b', margin: '4px 0 0 0' }}>
+                    Personaliza la visualización de la tabla de operaciones según tu necesidad.
+                  </p>
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowColModal(false)}
-                style={{ background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#94a3b8' }}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#fee2e2';
+                  e.currentTarget.style.color = '#dc2626';
+                  e.currentTarget.style.borderColor = '#fca5a5';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#f8fafc';
+                  e.currentTarget.style.color = '#64748b';
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                }}
+                aria-label="Cerrar modal"
               >
                 ✕
               </button>
             </div>
 
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 16px 0' }}>
-              Selecciona las columnas que deseas mostrar en la tabla de detalle.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {[
-                { key: 'estado', label: 'Estado del Evento' },
-                { key: 'cotizacion', label: 'Código de Cotización' },
-                { key: 'folio', label: 'No. Folio / NOG' },
-                { key: 'institucion', label: 'Institución / Cliente' },
-                { key: 'vendedor', label: 'Vendedor Asignado' },
-                { key: 'fechas', label: 'Fechas (Inicio / Fin)' },
-                { key: 'salon', label: 'Salón / Espacio' },
-                { key: 'pax', label: 'Número de Personas (PAX)' },
-                { key: 'monto', label: 'Monto Total' },
-              ].map(col => (
-                <label key={col.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={visibleColumns[col.key]}
-                    onChange={e => setVisibleColumns(prev => ({ ...prev, [col.key]: e.target.checked }))}
-                  />
-                  {col.label}
-                </label>
-              ))}
+            {/* Barra de acciones rápidas */}
+            <div style={{
+              padding: '10px 24px',
+              background: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Acciones rápidas:
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleSelectAllColumns}
+                  className="rv-col-action-btn"
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '7px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#334155',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Mostrar todas
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectMinimalColumns}
+                  className="rv-col-action-btn"
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '7px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#334155',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  Esenciales
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetColumns}
+                  className="rv-col-action-btn"
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '7px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                  Restablecer
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+            {/* Grid interactivo de Columnas */}
+            <div style={{
+              padding: '16px 24px',
+              overflowY: 'auto',
+              maxHeight: 'calc(92vh - 220px)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '10px',
+            }}>
+              {COLUMN_DEFINITIONS.map(col => {
+                const isChecked = Boolean(visibleColumns[col.key]);
+                return (
+                  <div
+                    key={col.key}
+                    role="switch"
+                    aria-checked={isChecked}
+                    tabIndex={0}
+                    onClick={() => handleToggleColumn(col.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        handleToggleColumn(col.key);
+                      }
+                    }}
+                    className="rv-col-card"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: `1.5px solid ${isChecked ? '#93c5fd' : '#e2e8f0'}`,
+                      background: isChecked ? 'linear-gradient(180deg, #f8faff 0%, #eff6ff 100%)' : '#ffffff',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      boxShadow: isChecked ? '0 2px 8px rgba(37, 99, 235, 0.08)' : '0 1px 2px rgba(0,0,0,0.02)',
+                      transition: 'all 0.16s cubic-bezier(0.4, 0, 0.2, 1)',
+                    }}
+                  >
+                    {/* Icono + Información */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                      <div style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '9px',
+                        background: isChecked ? col.iconBg : '#f1f5f9',
+                        color: isChecked ? col.iconColor : '#94a3b8',
+                        border: `1px solid ${isChecked ? col.iconBg : '#e2e8f0'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        transition: 'all 0.18s ease',
+                      }}>
+                        {col.icon}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{
+                          fontSize: '12.5px',
+                          fontWeight: 700,
+                          color: isChecked ? '#0f172a' : '#64748b',
+                          letterSpacing: '-0.01em',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {col.label}
+                        </div>
+                        <div style={{
+                          fontSize: '10.5px',
+                          color: isChecked ? '#64748b' : '#94a3b8',
+                          marginTop: '1px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {col.description}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Switch Toggle estilizado (Sin inputs crudos de navegador) */}
+                    <div style={{
+                      width: '36px',
+                      height: '22px',
+                      borderRadius: '9999px',
+                      background: isChecked ? '#2563eb' : '#cbd5e1',
+                      position: 'relative',
+                      flexShrink: 0,
+                      transition: 'background 0.2s ease, box-shadow 0.2s ease',
+                      boxShadow: isChecked ? '0 2px 6px rgba(37, 99, 235, 0.35)' : 'none',
+                    }}>
+                      <div style={{
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        background: '#ffffff',
+                        position: 'absolute',
+                        top: '3px',
+                        left: isChecked ? '17px' : '3px',
+                        transition: 'left 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        {isChecked && (
+                          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#2563eb" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pie del modal */}
+            <div style={{
+              padding: '14px 24px',
+              background: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#64748b' }}>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                </svg>
+                <span>Preferencias guardadas automáticamente para futuras visitas.</span>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowColModal(false)}
                 style={{
-                  padding: '8px 18px',
-                  borderRadius: '8px',
-                  background: '#2563eb',
-                  border: 'none',
+                  padding: '8px 22px',
+                  borderRadius: '9px',
+                  background: 'linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%)',
+                  border: '1px solid #1d4ed8',
                   color: '#ffffff',
                   fontSize: '12.5px',
                   fontWeight: 700,
                   cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.28)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.38)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.28)';
                 }}
               >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
                 Listo
               </button>
             </div>

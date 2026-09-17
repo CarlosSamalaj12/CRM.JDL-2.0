@@ -4,7 +4,7 @@ import { formatMoney } from '../../utils/numberToWords';
 import { getEquipos } from '../../services/api.js';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
-import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+import { getEventSeriesFinancialMeta, getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 // ── Minimalist Vector Icons ──
 function IconCalendar({ size = 15, color = 'currentColor' }) {
@@ -302,7 +302,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       if (!usersWithGoalIds.has(userId)) continue;
 
       const quote = primaryEvent?.quote || ev?.quote;
-      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+      const amount = Math.max(0, getQuoteTotalGtq(quote));
       if (amount <= 0) continue;
 
       const status = String(primaryEvent?.status || ev?.status || '').trim();
@@ -477,7 +477,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
       const quote = primaryEvent?.quote || ev?.quote;
-      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+      const amount = Math.max(0, getQuoteTotalGtq(quote));
       if (amount <= 0) continue;
 
       const status = String(primaryEvent?.status || ev?.status || '').trim();
@@ -624,7 +624,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
       const quote = primaryEvent?.quote || ev?.quote;
-      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+      const amount = Math.max(0, getQuoteTotalGtq(quote));
       if (amount <= 0) continue;
 
       const status = String(primaryEvent?.status || ev?.status || '').trim();
@@ -744,7 +744,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
       if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
       const quote = primaryEvent?.quote || ev?.quote;
-      const amount = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+      const amount = Math.max(0, getQuoteTotalGtq(quote));
       if (amount <= 0) continue;
 
       const status = String(primaryEvent?.status || ev?.status || '').trim();

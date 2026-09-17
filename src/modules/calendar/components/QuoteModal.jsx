@@ -31,7 +31,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import authService from '../../../services/authService';
-import { loadState as loadCrmState, saveState as saveCrmState, saveCompanyApi, saveQuickManagerApi, saveServiceApi } from '../../../services/stateService';
+import { loadState as loadCrmState, saveState as saveCrmState, saveCompanyApi, saveQuickManagerApi, saveServiceApi, getExchangeRateApi, resolveExchangeRateAtDateApi } from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
 import api from '../../../services/api';
 import socketService from '../../../services/socketService';
@@ -234,6 +234,31 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
   const [serviceModalTab, setServiceModalTab] = useState('nuevo');
   const [registeredServiceSearch, setRegisteredServiceSearch] = useState('');
+  const [exchangeRateValue, setExchangeRateValue] = useState(() => Number(event?.quote?.exchangeRate || 7.75));
+  const [exchangeRateDate, setExchangeRateDate] = useState(() => event?.quote?.exchangeRateDate || null);
+
+  useEffect(() => {
+    if (event?.quote?.exchangeRate) {
+      setExchangeRateValue(Number(event.quote.exchangeRate));
+      if (event.quote.exchangeRateDate) {
+        setExchangeRateDate(event.quote.exchangeRateDate);
+        return;
+      }
+    }
+    const evDate = event?.date || event?.slotStartDate || (event?.quote?.docDate) || null;
+    if (evDate) {
+      resolveExchangeRateAtDateApi(evDate).then(res => {
+        if (res?.rate) {
+          setExchangeRateValue(res.rate);
+          setExchangeRateDate(res.effectiveDate || null);
+        }
+      }).catch(() => {});
+    } else {
+      getExchangeRateApi().then(rate => {
+        if (Number.isFinite(rate) && rate > 0) setExchangeRateValue(rate);
+      }).catch(() => {});
+    }
+  }, [event?.date, event?.slotStartDate, event?.quote?.exchangeRate, event?.quote?.exchangeRateDate]);
 
   useEffect(() => {
     const handleResize = () => setIsMobileView(window.innerWidth <= 768);
@@ -1236,6 +1261,13 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         newVersionNum = Math.max(0, ...newVersions.map(v => Number(v.version || 0)), newVersionNum) + 1;
       }
 
+      const isUsd = String(quote.currency || '').toUpperCase() === 'USD';
+      const effectiveRate = isUsd ? (Number(quote.exchangeRate || exchangeRateValue) || 7.75) : 1;
+      const effectiveRateDate = isUsd ? (quote.exchangeRateDate || exchangeRateDate || null) : null;
+      const totalGtq = isUsd ? Math.round(Number(totals.total || 0) * effectiveRate * 100) / 100 : Number(totals.total || 0);
+      const subtotalGtq = isUsd ? Math.round(Number(totals.subtotal || 0) * effectiveRate * 100) / 100 : Number(totals.subtotal || 0);
+      const discountAmountGtq = isUsd ? Math.round(Number(totals.discountAmount || 0) * effectiveRate * 100) / 100 : Number(totals.discountAmount || 0);
+
       const currentSnapshot = {
         ...quote,
         versions: undefined,
@@ -1243,6 +1275,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
         total: totals.total,
+        totalGtq,
+        subtotalGtq,
+        discountAmountGtq,
+        exchangeRate: isUsd ? effectiveRate : undefined,
+        exchangeRateDate: isUsd ? (effectiveRateDate || undefined) : undefined,
         savedAt: new Date().toISOString(),
       };
       if (!newVersions.some(v => Number(v.version) === newVersionNum)) {
@@ -1257,6 +1294,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
         total: totals.total,
+        totalGtq,
+        subtotalGtq,
+        discountAmountGtq,
+        exchangeRate: isUsd ? effectiveRate : undefined,
+        exchangeRateDate: isUsd ? (effectiveRateDate || undefined) : undefined,
         quotedAt: new Date().toISOString(),
         templateIds: (() => {
           const ids = Array.isArray(quote.templateIds) && quote.templateIds.length > 0
@@ -5459,6 +5501,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <option value="GTQ">Quetzales (Q)</option>
                 <option value="USD">Dólares ($)</option>
               </select>
+              {quote.currency === 'USD' && (
+                <div style={{ fontSize: 9.5, color: '#0369a1', background: '#f0f9ff', padding: '1px 6px', borderRadius: 4, border: '1px solid #bae6fd', fontWeight: 700, display: 'inline-block', whiteSpace: 'nowrap' }}>
+                  TC Q {Number(exchangeRateValue || 7.75).toFixed(2)}{exchangeRateDate ? ` (${String(exchangeRateDate).slice(8,10)}/${String(exchangeRateDate).slice(5,7)}/${String(exchangeRateDate).slice(0,4)})` : ''}
+                </div>
+              )}
             </div>
 
             {/* Acciones */}

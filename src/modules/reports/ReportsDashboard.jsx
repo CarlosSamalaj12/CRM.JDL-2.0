@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { loadState } from '../../services/stateService';
 import ReportInfo from './components/ReportInfo';
-import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+import { getEventSeriesFinancialMeta, getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 const STATUS = { CONFIRMADO: 'Confirmado', PRERESERVA: 'Pre reserva' };
 const USER_ROLES = { SELLER: 'vendedor', RECEPTIONIST: 'recepcionista' };
@@ -261,7 +261,7 @@ export default function ReportsDashboard({ onClose }) {
       const primaryEvent = financialMeta.primaryEvent || ev;
       const quote = primaryEvent?.quote || ev?.quote || {};
       const typeSrc = (quote?.eventType || primaryEvent?.name || ev?.name || '').toLowerCase();
-      const total = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+      const total = Math.max(0, getQuoteTotalGtq(quote));
 
       rows.push({
         userId: String(primaryEvent?.userId || ev?.userId || ''),
@@ -429,7 +429,7 @@ export default function ReportsDashboard({ onClose }) {
           const financialMeta = getEventSeriesFinancialMeta(ev, events);
           const primaryEvent = financialMeta.primaryEvent || ev;
           const quote = primaryEvent?.quote || ev?.quote || {};
-          const total = Math.max(0, Number(quote?.totalGtq || quote?.total || 0));
+          const total = Math.max(0, getQuoteTotalGtq(quote));
           byStatus[status].amount += total;
         }
       });

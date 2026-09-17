@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import ReportInfo from './components/ReportInfo';
+import { getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 // ── Minimalist Vector Icons ──
 function IconClock({ size = 16, color = 'currentColor' }) {
@@ -115,7 +116,7 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
       if (!uid) continue;
 
       // Calcular dinero cotizado del evento
-      const money = Number(ev.quote?.totalGtq || ev.quote?.total || 0);
+      const money = Math.max(0, getQuoteTotalGtq(ev.quote));
 
       if (!userMap.has(uid)) {
         let user = users.find(u => String(u.id) === uid);

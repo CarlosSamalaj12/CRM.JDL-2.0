@@ -605,6 +605,48 @@ async function ensureServiceCatalogStructure() {
   }
 }
 
+async function ensureExchangeRateHistoryStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS tipo_cambio_historial (
+        id VARCHAR(64) NOT NULL,
+        fecha_vigencia DATE NOT NULL,
+        tasa DECIMAL(10, 4) NOT NULL,
+        notas VARCHAR(255) NULL,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_tch_fecha_vigencia (fecha_vigencia)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    const existingRows = await conn.query("SELECT COUNT(*) AS total FROM tipo_cambio_historial");
+    const total = Number(existingRows?.[0]?.total || 0);
+    if (total === 0) {
+      let initialRate = 7.75;
+      try {
+        const kv = await conn.query("SELECT valor_json FROM app_state_kv WHERE clave = 'exchangeRate' LIMIT 1");
+        if (kv.length > 0 && kv[0].valor_json) {
+          const parsed = Number(JSON.parse(kv[0].valor_json));
+          if (Number.isFinite(parsed) && parsed > 0) initialRate = parsed;
+        }
+      } catch (_) {}
+      const initialId = 'tch_' + Date.now();
+      await conn.query(
+        "INSERT INTO tipo_cambio_historial (id, fecha_vigencia, tasa, notas) VALUES (?, '2024-01-01', ?, 'Tasa base inicial del sistema')",
+        [initialId, initialRate]
+      );
+      console.log(`[ExchangeRate] Tabla tipo_cambio_historial inicializada con tasa Q ${initialRate} (vigente desde 2024-01-01)`);
+    }
+  } catch (err) {
+    console.error('[ExchangeRate] Error en ensureExchangeRateHistoryStructure:', err);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensurePlantillasStructure() {
   let conn;
   try {
@@ -1797,6 +1839,18 @@ async function readStateFromTables() {
         }
       } catch (__) {}
     }
+    let dbExchangeRateHistory = [];
+    try {
+      const tchRows = await conn.query(
+        "SELECT id, fecha_vigencia, tasa, notas, creado_en FROM tipo_cambio_historial ORDER BY fecha_vigencia ASC, creado_en ASC"
+      );
+      dbExchangeRateHistory = tchRows.map((r) => ({
+        id: str(r.id),
+        fechaVigencia: toIsoDate(r.fecha_vigencia) || str(r.fecha_vigencia).slice(0, 10),
+        tasa: Number(r.tasa),
+        notas: str(r.notas || ""),
+      }));
+    } catch (_) {}
     const bebidasCatalog = [];
 
     const hasData = salones.length || usuarios.length || empresas.length || eventos.length;
@@ -2062,6 +2116,35 @@ async function readStateFromTables() {
             createdByName: str(a.nombre_usuario_creador || ""),
           });
         }
+
+        const exchangeRateRow = appStateRows.find((r) => str(r.clave) === "exchangeRate");
+        let activeExchangeRate = 7.75;
+        try {
+          if (exchangeRateRow?.valor_json) {
+            const parsedRate = Number(JSON.parse(exchangeRateRow.valor_json));
+            if (Number.isFinite(parsedRate) && parsedRate > 0) activeExchangeRate = parsedRate;
+          }
+        } catch (_) {}
+
+        function resolveRateForEvent(evDateStr) {
+          if (!dbExchangeRateHistory.length) return { rate: activeExchangeRate, effectiveDate: null };
+          const d = String(evDateStr || "").trim().slice(0, 10);
+          if (!d) {
+            const last = dbExchangeRateHistory[dbExchangeRateHistory.length - 1];
+            return { rate: last.tasa, effectiveDate: last.fechaVigencia };
+          }
+          let match = null;
+          for (const row of dbExchangeRateHistory) {
+            if (row.fechaVigencia <= d) {
+              match = row;
+            } else {
+              break;
+            }
+          }
+          if (!match) match = dbExchangeRateHistory[0];
+          return { rate: match.tasa, effectiveDate: match.fechaVigencia };
+        }
+
         return eventos.map((e) => {
           let quote = null;
           if (e.cotizacion_json) {
@@ -2080,6 +2163,27 @@ async function readStateFromTables() {
               uniqueMap.set(adv.id, adv);
             }
             quote.advances = Array.from(uniqueMap.values());
+          }
+          const eventDateForRate = toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento) || toIsoDate(e.fecha_fin_reserva) || "";
+          const resolvedRate = resolveRateForEvent(eventDateForRate);
+          if (quote && typeof quote === "object") {
+            const isUsd = String(quote.currency || "").trim().toUpperCase() === "USD";
+            const rate = resolvedRate.rate;
+            if (isUsd) {
+              quote.exchangeRate = rate;
+              quote.exchangeRateDate = resolvedRate.effectiveDate;
+              quote.totalGtq = Math.round(Number(quote.total || 0) * rate * 100) / 100;
+              quote.subtotalGtq = Math.round(Number(quote.subtotal || 0) * rate * 100) / 100;
+              if (quote.discountAmount !== undefined && quote.discountAmount !== null) {
+                quote.discountAmountGtq = Math.round(Number(quote.discountAmount || 0) * rate * 100) / 100;
+              }
+            } else {
+              quote.totalGtq = Number(quote.total || 0);
+              quote.subtotalGtq = Number(quote.subtotal || 0);
+              if (quote.discountAmount !== undefined && quote.discountAmount !== null) {
+                quote.discountAmountGtq = Number(quote.discountAmount || 0);
+              }
+            }
           }
           return {
             id: str(e.id),
@@ -2310,6 +2414,7 @@ async function readStateFromTables() {
     } catch (_) {
       state.exchangeRate = 7.75;
     }
+    state.exchangeRateHistory = dbExchangeRateHistory;
 
     const appointmentReminderOffsetRow = appStateRows.find((r) => str(r.clave) === "appointmentReminderOffset");
     try {
@@ -6033,6 +6138,331 @@ app.post("/api/service-catalog/recover", async (req, res) => {
   }
 });
 
+// ==================== TIPO DE CAMBIO HISTÓRICO DEDICADO (USD -> GTQ) ====================
+
+app.get("/api/exchange-rate", async (_req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      "SELECT id, fecha_vigencia, tasa, notas, creado_en FROM tipo_cambio_historial ORDER BY fecha_vigencia DESC, creado_en DESC"
+    );
+    const history = rows.map((r) => ({
+      id: str(r.id),
+      fechaVigencia: toIsoDate(r.fecha_vigencia) || str(r.fecha_vigencia).slice(0, 10),
+      tasa: Number(r.tasa),
+      notas: str(r.notas || ""),
+      creadoEn: str(r.creado_en || ""),
+    }));
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sortedAsc = [...history].sort((a, b) => a.fechaVigencia.localeCompare(b.fechaVigencia));
+    let currentRate = 7.75;
+    let effectiveDate = null;
+    if (sortedAsc.length > 0) {
+      let matched = sortedAsc[0];
+      for (const item of sortedAsc) {
+        if (item.fechaVigencia <= todayStr) {
+          matched = item;
+        } else {
+          break;
+        }
+      }
+      currentRate = matched.tasa;
+      effectiveDate = matched.fechaVigencia;
+    }
+
+    return res.json({ ok: true, currentRate, exchangeRate: currentRate, effectiveDate, history });
+  } catch (error) {
+    console.error("Error al obtener tipo de cambio:", error);
+    return res.status(500).json({ ok: false, message: "Error al obtener tipo de cambio", currentRate: 7.75, exchangeRate: 7.75, history: [] });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.get("/api/exchange-rate/resolve", async (req, res) => {
+  let conn;
+  try {
+    const targetDate = String(req.query.date || "").trim().slice(0, 10);
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      "SELECT id, fecha_vigencia, tasa, notas FROM tipo_cambio_historial ORDER BY fecha_vigencia ASC, creado_en ASC"
+    );
+    if (!rows.length) {
+      return res.json({ ok: true, rate: 7.75, effectiveDate: null, notas: "Tasa por defecto" });
+    }
+    const history = rows.map((r) => ({
+      id: str(r.id),
+      fechaVigencia: toIsoDate(r.fecha_vigencia) || str(r.fecha_vigencia).slice(0, 10),
+      tasa: Number(r.tasa),
+      notas: str(r.notas || ""),
+    }));
+
+    let match = history[0];
+    if (targetDate) {
+      for (const item of history) {
+        if (item.fechaVigencia <= targetDate) {
+          match = item;
+        } else {
+          break;
+        }
+      }
+    }
+    return res.json({ ok: true, date: targetDate, rate: match.tasa, effectiveDate: match.fechaVigencia, notas: match.notas });
+  } catch (error) {
+    console.error("Error al resolver tipo de cambio por fecha:", error);
+    return res.status(500).json({ ok: false, rate: 7.75, message: "Error al resolver tipo de cambio" });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.post("/api/exchange-rate/history", async (req, res) => {
+  let conn;
+  try {
+    const { fechaVigencia, tasa, notas } = req.body || {};
+    const rate = Number(tasa);
+    const dateStr = String(fechaVigencia || "").trim().slice(0, 10);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return res.status(400).json({ ok: false, message: "Fecha de vigencia inválida. Formato requerido: AAAA-MM-DD." });
+    }
+    if (!Number.isFinite(rate) || rate <= 0) {
+      return res.status(400).json({ ok: false, message: "Tipo de cambio inválido. Debe ser un número mayor a 0." });
+    }
+
+    const id = 'tch_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    conn = await pool.getConnection();
+    await conn.query(
+      `INSERT INTO tipo_cambio_historial (id, fecha_vigencia, tasa, notas) VALUES (?, ?, ?, ?)`,
+      [id, dateStr, rate, str(notas || "")]
+    );
+
+    // Actualizar también en app_state_kv para retrocompatibilidad
+    await conn.query(
+      `INSERT INTO app_state_kv (clave, valor_json) VALUES ('exchangeRate', ?) ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+      [JSON.stringify(rate)]
+    );
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: "exchange_rate" });
+    }
+
+    return res.json({
+      ok: true,
+      message: "Registro histórico guardado correctamente.",
+      entry: { id, fechaVigencia: dateStr, tasa: rate, notas: str(notas || "") },
+    });
+  } catch (error) {
+    console.error("Error al agregar registro de tipo de cambio:", error);
+    return res.status(500).json({ ok: false, message: "Error al registrar tipo de cambio.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.put("/api/exchange-rate/history/:id", async (req, res) => {
+  let conn;
+  try {
+    const id = str(req.params.id);
+    const { fechaVigencia, tasa, notas } = req.body || {};
+    const rate = Number(tasa);
+    const dateStr = String(fechaVigencia || "").trim().slice(0, 10);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return res.status(400).json({ ok: false, message: "Fecha de vigencia inválida. Formato requerido: AAAA-MM-DD." });
+    }
+    if (!Number.isFinite(rate) || rate <= 0) {
+      return res.status(400).json({ ok: false, message: "Tipo de cambio inválido. Debe ser un número mayor a 0." });
+    }
+
+    conn = await pool.getConnection();
+    const result = await conn.query(
+      `UPDATE tipo_cambio_historial SET fecha_vigencia = ?, tasa = ?, notas = ? WHERE id = ?`,
+      [dateStr, rate, str(notas || ""), id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: "Registro histórico no encontrado." });
+    }
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: "exchange_rate" });
+    }
+
+    return res.json({ ok: true, message: "Registro histórico actualizado correctamente." });
+  } catch (error) {
+    console.error("Error al actualizar registro de tipo de cambio:", error);
+    return res.status(500).json({ ok: false, message: "Error al actualizar tipo de cambio.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.delete("/api/exchange-rate/history/:id", async (req, res) => {
+  let conn;
+  try {
+    const id = str(req.params.id);
+    conn = await pool.getConnection();
+
+    const countRows = await conn.query("SELECT COUNT(*) as total FROM tipo_cambio_historial");
+    if (Number(countRows[0]?.total || 0) <= 1) {
+      return res.status(400).json({ ok: false, message: "No se puede eliminar el único registro histórico del sistema." });
+    }
+
+    const result = await conn.query("DELETE FROM tipo_cambio_historial WHERE id = ?", [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: "Registro histórico no encontrado." });
+    }
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: "exchange_rate" });
+    }
+
+    return res.json({ ok: true, message: "Registro histórico eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar registro de tipo de cambio:", error);
+    return res.status(500).json({ ok: false, message: "Error al eliminar tipo de cambio.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Endpoint legado para compatibilidad con llamadas existentes (PUT /api/exchange-rate y POST /api/exchange-rate)
+const handleLegacySaveExchangeRate = async (req, res) => {
+  let conn;
+  try {
+    const rawVal = req.body?.exchangeRate ?? req.body?.rate ?? req.body?.value ?? req.body?.tasa;
+    const rate = Number(rawVal);
+    if (!Number.isFinite(rate) || rate <= 0) {
+      return res.status(400).json({ ok: false, message: "Tipo de cambio inválido. Debe ser un número mayor a 0." });
+    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const id = 'tch_' + Date.now();
+
+    conn = await pool.getConnection();
+    await conn.query(
+      `INSERT INTO tipo_cambio_historial (id, fecha_vigencia, tasa, notas) VALUES (?, ?, ?, 'Actualización rápida desde configuración')`,
+      [id, todayStr, rate]
+    );
+    await conn.query(
+      `INSERT INTO app_state_kv (clave, valor_json) VALUES ('exchangeRate', ?) ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)`,
+      [JSON.stringify(rate)]
+    );
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: "exchange_rate" });
+    }
+
+    return res.json({ ok: true, exchangeRate: rate, message: "Tipo de cambio guardado correctamente." });
+  } catch (error) {
+    console.error("Error al guardar tipo de cambio legado:", error);
+    return res.status(500).json({ ok: false, message: "Error al guardar tipo de cambio.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+app.put("/api/exchange-rate", handleLegacySaveExchangeRate);
+app.post("/api/exchange-rate", handleLegacySaveExchangeRate);
+
+// ==================== CONFIGURACIONES ATÓMICAS (app_state_kv) ====================
+
+const ALLOWED_SETTINGS_KEYS = new Set([
+  'exchangeRate',
+  'appointmentReminderOffset',
+  'pastEventEditGraceDays',
+  'maintenanceMode',
+  'globalMonthlyGoals',
+  'disabledSalones',
+  'salonCapacities',
+  'salonOccupancyEnabled',
+  'salonConflictDisabled',
+  'contractTemplates',
+  'informe_tiempos_orden',
+  'informe_tipos_montaje'
+]);
+
+app.get("/api/settings/:key", async (req, res) => {
+  const key = str(req.params.key).trim();
+  if (!ALLOWED_SETTINGS_KEYS.has(key)) {
+    return res.status(400).json({ ok: false, message: `Clave de configuración '${key}' no permitida.` });
+  }
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      "SELECT valor_json FROM app_state_kv WHERE clave = ? LIMIT 1",
+      [key]
+    );
+    let value = null;
+    if (rows.length > 0 && rows[0].valor_json) {
+      try {
+        value = JSON.parse(rows[0].valor_json);
+      } catch (_) {
+        value = rows[0].valor_json;
+      }
+    }
+    return res.json({ ok: true, key, value });
+  } catch (error) {
+    console.error(`Error al obtener configuración '${key}':`, error);
+    return res.status(500).json({ ok: false, message: `Error al obtener configuración '${key}'.`, detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+const handleSaveSetting = async (req, res) => {
+  const key = str(req.params.key).trim();
+  if (!ALLOWED_SETTINGS_KEYS.has(key)) {
+    return res.status(400).json({ ok: false, message: `Clave de configuración '${key}' no permitida.` });
+  }
+  let conn;
+  try {
+    const rawVal = req.body?.value !== undefined ? req.body.value : req.body;
+    let serialized;
+    if (key === 'exchangeRate') {
+      const num = Number(rawVal);
+      if (!Number.isFinite(num) || num <= 0) {
+        return res.status(400).json({ ok: false, message: "Tipo de cambio inválido. Debe ser un número mayor a 0." });
+      }
+      serialized = JSON.stringify(num);
+    } else if (key === 'appointmentReminderOffset' || key === 'pastEventEditGraceDays') {
+      const num = Number(rawVal);
+      serialized = JSON.stringify(Number.isFinite(num) ? num : 0);
+    } else if (key === 'maintenanceMode') {
+      serialized = JSON.stringify(rawVal === true || rawVal === 'true');
+    } else {
+      serialized = JSON.stringify(rawVal);
+    }
+
+    conn = await pool.getConnection();
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [key, serialized]
+    );
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), key });
+    }
+
+    return res.json({ ok: true, key, value: JSON.parse(serialized), message: "Configuración guardada correctamente." });
+  } catch (error) {
+    console.error(`Error al guardar configuración '${key}':`, error);
+    return res.status(500).json({ ok: false, message: `Error al guardar configuración '${key}'.`, detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+app.put("/api/settings/:key", handleSaveSetting);
+app.post("/api/settings/:key", handleSaveSetting);
+
 app.get("/api/menu-catalog/:kind", async (req, res) => {
   try {
     const kind = str(req.params?.kind).trim();
@@ -6857,6 +7287,7 @@ const MIGRATIONS = [
   { name: 'MigrationLog', fn: ensureMigrationLogTable },
   { name: 'AppStateExtra', fn: ensureAppStateExtraStructure },
   { name: 'ServiceCatalog', fn: ensureServiceCatalogStructure },
+  { name: 'ExchangeRateHistoryStructure', fn: ensureExchangeRateHistoryStructure },
   { name: 'PlantillasStructure', fn: ensurePlantillasStructure },
   { name: 'QuoteVersion', fn: ensureQuoteVersionStructure },
   { name: 'EventDateRange', fn: ensureEventDateRangeStructure },
@@ -6898,6 +7329,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureMigrationLogTable',
   'ensureAppStateExtraStructure',
   'ensureServiceCatalogStructure',
+  'ensureExchangeRateHistoryStructure',
   'ensurePlantillasStructure',
   'ensureQuoteVersionStructure',
   'ensureEventDateRangeStructure',

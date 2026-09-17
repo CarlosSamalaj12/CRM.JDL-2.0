@@ -48,3 +48,56 @@ export const getEventSeriesFinancialMeta = (ev, allEvents) => {
     endTime: String(primaryEvent?.endTime || firstEvent?.endTime || "").trim(),
   };
 };
+
+export const getQuoteFinancialAmounts = (quote, fallbackExchangeRate = 7.75) => {
+  if (!quote || typeof quote !== 'object') {
+    return { totalGtq: 0, subtotalGtq: 0, discountGtq: 0, isUsd: false, exchangeRate: 1, rawTotal: 0, rawSubtotal: 0 };
+  }
+  const isUsd = String(quote.currency || '').trim().toUpperCase() === 'USD';
+  const rawTotal = Math.max(0, Number(quote.total || 0));
+  const rawSubtotal = Math.max(0, Number(quote.subtotal || 0));
+  const rawDiscount = Math.max(0, Number(quote.discountAmount ?? quote.discountValue ?? 0));
+  const rate = Number(quote.exchangeRate) > 0 ? Number(quote.exchangeRate) : Number(fallbackExchangeRate || 7.75);
+
+  let totalGtq;
+  if (quote.totalGtq !== undefined && quote.totalGtq !== null && !Number.isNaN(Number(quote.totalGtq))) {
+    totalGtq = Number(quote.totalGtq);
+  } else if (isUsd) {
+    totalGtq = Math.round(rawTotal * rate * 100) / 100;
+  } else {
+    totalGtq = rawTotal;
+  }
+
+  let subtotalGtq;
+  if (quote.subtotalGtq !== undefined && quote.subtotalGtq !== null && !Number.isNaN(Number(quote.subtotalGtq))) {
+    subtotalGtq = Number(quote.subtotalGtq);
+  } else if (isUsd) {
+    subtotalGtq = Math.round(rawSubtotal * rate * 100) / 100;
+  } else {
+    subtotalGtq = rawSubtotal;
+  }
+
+  let discountGtq;
+  if (quote.discountAmountGtq !== undefined && quote.discountAmountGtq !== null && !Number.isNaN(Number(quote.discountAmountGtq))) {
+    discountGtq = Number(quote.discountAmountGtq);
+  } else if (isUsd) {
+    discountGtq = Math.round(rawDiscount * rate * 100) / 100;
+  } else {
+    discountGtq = rawDiscount;
+  }
+
+  return {
+    totalGtq: Math.max(0, totalGtq),
+    subtotalGtq: Math.max(0, subtotalGtq),
+    discountGtq: Math.max(0, discountGtq),
+    isUsd,
+    exchangeRate: isUsd ? rate : 1,
+    exchangeRateDate: quote.exchangeRateDate || null,
+    rawTotal,
+    rawSubtotal,
+  };
+};
+
+export const getQuoteTotalGtq = (quote, fallbackExchangeRate = 7.75) => {
+  return getQuoteFinancialAmounts(quote, fallbackExchangeRate).totalGtq;
+};

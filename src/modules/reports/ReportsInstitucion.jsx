@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { loadState as loadCrmState } from '../../services/stateService';
 import { STATUS_META } from '../calendar/constants';
-import { getEventSeriesFinancialMeta } from './components/eventSeriesUtils';
+import { getEventSeriesFinancialMeta, getQuoteFinancialAmounts } from './components/eventSeriesUtils';
 import ReportInfo from './components/ReportInfo';
 
 const API = '';
@@ -654,9 +654,11 @@ export default function ReportsInstitucion({ onClose }) {
       const compInfo = resolveEventCompany(companies, quote, event, primary);
       const contactInfo = resolveEventContact(quote, event, primary, compInfo.matchedCompany);
 
-      const total = Number(quote.totalGtq || quote.total || 0);
+      const finAmounts = getQuoteFinancialAmounts(quote);
+      const total = finAmounts.totalGtq;
       const advancesList = Array.isArray(quote.advances) ? quote.advances : [];
-      const advancesSum = advancesList.reduce((sum, adv) => sum + Math.max(0, Number(adv.amount || 0)), 0);
+      const rawAdvancesSum = advancesList.reduce((sum, adv) => sum + Math.max(0, Number(adv.amount || 0)), 0);
+      const advancesSum = finAmounts.isUsd ? Math.round(rawAdvancesSum * finAmounts.exchangeRate * 100) / 100 : rawAdvancesSum;
 
       output.push({
         id: primary?.id || event?.id || reservationKey,
@@ -680,7 +682,10 @@ export default function ReportsInstitucion({ onClose }) {
         userName: seller?.fullName || seller?.name || 'Sin asignar',
         pax: Number(primary?.pax || event?.pax || quote.people || 0),
         total,
-        subtotal: Number(quote.subtotalGtq || quote.subtotal || 0),
+        rawTotal: finAmounts.rawTotal,
+        isUsd: finAmounts.isUsd,
+        exchangeRate: finAmounts.exchangeRate,
+        subtotal: finAmounts.subtotalGtq,
         advances: advancesList,
         advancesSum,
         pendingAmount: Math.max(0, total - advancesSum),

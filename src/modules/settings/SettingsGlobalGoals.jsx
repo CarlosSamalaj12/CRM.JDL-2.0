@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import { loadState as loadCrmState, saveSettingApi } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 
 export default function SettingsGlobalGoals({ inline, onBack }) {
@@ -46,8 +46,7 @@ export default function SettingsGlobalGoals({ inline, onBack }) {
 
   const persistGoals = async (updatedGoals) => {
     try {
-      const currentState = await loadCrmState();
-      await saveCrmState({ ...currentState, globalMonthlyGoals: updatedGoals });
+      await saveSettingApi('globalMonthlyGoals', updatedGoals);
     } catch (err) {
       console.error('Error al persistir metas:', err);
       toast('Error al guardar la meta');

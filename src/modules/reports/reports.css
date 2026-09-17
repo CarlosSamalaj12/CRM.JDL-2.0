@@ -3169,3 +3169,724 @@ select.rd-white-input {
   background-color: #e2e8f0 !important;
 }
 
+/* ============================================================
+   ESTADO DE CUENTA CONTABLE — SaaS Executive Design System
+   ============================================================ */
+
+.acct-page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 40px;
+}
+
+.acct-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1200px) {
+  .acct-kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .acct-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.acct-kpi-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.acct-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+.acct-kpi-card--instituciones { border-left: 4px solid #3b82f6; }
+.acct-kpi-card--ventas { border-left: 4px solid #0284c7; }
+.acct-kpi-card--cobrado { border-left: 4px solid #16a34a; }
+.acct-kpi-card--pendiente { border-left: 4px solid #dc2626; }
+.acct-kpi-card--favor { border-left: 4px solid #8b5cf6; }
+
+.acct-diagnostic-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+  color: #1e40af;
+  line-height: 1.5;
+}
+
+.acct-filters-panel {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.acct-search-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.acct-search-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+}
+
+.acct-search-input-wrapper input {
+  width: 100%;
+  padding: 10px 85px 10px 38px !important;
+  border-radius: 10px !important;
+  border: 1px solid #cbd5e1 !important;
+  font-size: 13px !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  min-height: 40px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.acct-search-input-wrapper input:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+  outline: none;
+}
+
+.acct-status-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.acct-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.acct-status-pill:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.acct-status-pill.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.acct-status-pill.active--overdue {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.acct-status-pill.active--due {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.acct-status-pill.active--ok {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.acct-status-pill.active--credit {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+
+.acct-secondary-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.acct-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.acct-filter-group label {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acct-filter-group input,
+.acct-filter-group select {
+  padding: 7px 10px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  font-size: 12px !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  min-height: 36px !important;
+}
+
+.acct-active-tags-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.acct-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.acct-tag-pill button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.acct-table-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.acct-table-card-header {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.acct-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.acct-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.acct-table th {
+  background: #f8fafc;
+  padding: 11px 12px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.acct-table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.acct-table tr:hover td {
+  background: #f8fafc;
+}
+
+.acct-pagination-bar {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Print Sheet Styling */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .printable-event-statement-modal,
+  .printable-event-statement-modal * {
+    visibility: visible !important;
+  }
+  .printable-event-statement-modal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Close button for Accounting Modals (immune to rogue global button paddings/min-heights) */
+body:not(.informes-theme) button.acct-modal-close-btn,
+.acct-modal-close-btn {
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+
+body:not(.informes-theme) button.acct-modal-close-btn:hover,
+.acct-modal-close-btn:hover {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  border-color: #fca5a5 !important;
+  transform: translateY(-1px) !important;
+}
+
+body:not(.informes-theme) button.acct-modal-close-btn svg,
+.acct-modal-close-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  stroke: currentColor !important;
+  stroke-width: 2.5px !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+}
+
+/* ============================================================
+   ESTADOS DE CUENTA: BOTONES DE COBROS Y ACCIONES EJECUTIVAS
+   (Inmunes a herencias de padding y min-height globales)
+   ============================================================ */
+
+/* 1. Botón Abrir/Ocultar Formulario de Abonos */
+body:not(.informes-theme) button.acct-btn-toggle-form,
+.acct-btn-toggle-form {
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 14px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  transition: all 0.2s ease !important;
+}
+
+body:not(.informes-theme) button.acct-btn-toggle-form.is-open,
+.acct-btn-toggle-form.is-open {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border: 1.5px solid #cbd5e1 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+body:not(.informes-theme) button.acct-btn-toggle-form.is-open:hover,
+.acct-btn-toggle-form.is-open:hover {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+body:not(.informes-theme) button.acct-btn-toggle-form.is-closed,
+.acct-btn-toggle-form.is-closed {
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3) !important;
+}
+body:not(.informes-theme) button.acct-btn-toggle-form.is-closed:hover,
+.acct-btn-toggle-form.is-closed:hover {
+  background: linear-gradient(135deg, #15803d, #166534) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* 2. Botón Rápido "Saldar Pendiente" */
+body:not(.informes-theme) button.acct-btn-saldar,
+.acct-btn-saldar {
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border: 1.5px solid #a7f3d0 !important;
+  border-radius: 7px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.1) !important;
+  transition: all 0.15s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-saldar:hover,
+.acct-btn-saldar:hover {
+  background: #d1fae5 !important;
+  border-color: #6ee7b7 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* 3. Botón Cancelar Formulario */
+body:not(.informes-theme) button.acct-btn-cancel-form,
+.acct-btn-cancel-form {
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: #ffffff !important;
+  color: #64748b !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 7px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-cancel-form:hover,
+.acct-btn-cancel-form:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+/* 4. Botón Cuadrado Quitar Comprobante (Neutraliza el bloque rosa deformado) */
+body:not(.informes-theme) button.acct-btn-clear-file,
+.acct-btn-clear-file {
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  border: 1.5px solid #fca5a5 !important;
+  border-radius: 7px !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-clear-file:hover,
+.acct-btn-clear-file:hover {
+  background: #fecaca !important;
+  border-color: #f87171 !important;
+  transform: scale(1.05) !important;
+}
+body:not(.informes-theme) button.acct-btn-clear-file svg,
+.acct-btn-clear-file svg {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  stroke: #dc2626 !important;
+  stroke-width: 2.5px !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+}
+
+/* 5. Botón Guardar / Actualizar Abono */
+body:not(.informes-theme) button.acct-btn-submit-advance,
+.acct-btn-submit-advance {
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 16px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  border: none !important;
+  transition: all 0.2s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-submit-advance.is-create,
+.acct-btn-submit-advance.is-create {
+  background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3) !important;
+}
+body:not(.informes-theme) button.acct-btn-submit-advance.is-create:hover,
+.acct-btn-submit-advance.is-create:hover {
+  background: linear-gradient(135deg, #0369a1, #075985) !important;
+  transform: translateY(-1px) !important;
+}
+body:not(.informes-theme) button.acct-btn-submit-advance.is-edit,
+.acct-btn-submit-advance.is-edit {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3) !important;
+}
+body:not(.informes-theme) button.acct-btn-submit-advance.is-edit:hover,
+.acct-btn-submit-advance.is-edit:hover {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+  transform: translateY(-1px) !important;
+}
+body:not(.informes-theme) button.acct-btn-submit-advance:disabled,
+.acct-btn-submit-advance:disabled {
+  opacity: 0.65 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* 6. Botones de Acción en Tabla de Abonos (Editar, Eliminar, Ver Boleta) */
+body:not(.informes-theme) button.acct-btn-row-action,
+.acct-btn-row-action {
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 9px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-row-action.is-voucher,
+.acct-btn-row-action.is-voucher {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border: 1px solid #bfdbfe !important;
+}
+body:not(.informes-theme) button.acct-btn-row-action.is-voucher:hover,
+.acct-btn-row-action.is-voucher:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+body:not(.informes-theme) button.acct-btn-row-action.is-edit,
+.acct-btn-row-action.is-edit {
+  background: #f0f9ff !important;
+  color: #0369a1 !important;
+  border: 1px solid #bae6fd !important;
+}
+body:not(.informes-theme) button.acct-btn-row-action.is-edit:hover,
+.acct-btn-row-action.is-edit:hover {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+}
+
+body:not(.informes-theme) button.acct-btn-row-action.is-delete,
+.acct-btn-row-action.is-delete {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca !important;
+}
+body:not(.informes-theme) button.acct-btn-row-action.is-delete:hover,
+.acct-btn-row-action.is-delete:hover {
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+}
+
+/* 7. Botones de Acción en Lista Expandida de Empresa */
+body:not(.informes-theme) button.acct-btn-subrow-pay,
+.acct-btn-subrow-pay {
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding: 0 9px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-subrow-pay:hover,
+.acct-btn-subrow-pay:hover {
+  background: #15803d !important;
+}
+
+body:not(.informes-theme) button.acct-btn-subrow-state,
+.acct-btn-subrow-state {
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding: 0 9px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-subrow-state:hover,
+.acct-btn-subrow-state:hover {
+  background: #0369a1 !important;
+}
+
+body:not(.informes-theme) button.acct-btn-print,
+.acct-btn-print {
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 14px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3) !important;
+  transition: all 0.15s ease !important;
+}
+body:not(.informes-theme) button.acct-btn-print:hover,
+.acct-btn-print:hover {
+  background: #0369a1 !important;
+  transform: translateY(-1px) !important;
+}
+
+

@@ -32,6 +32,143 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Persistencia de Abonos en Edición, Explicación de Almacenamiento en MariaDB y Rediseño Ejecutivo de Botones (`ReportsContabilidad.jsx`, `reports.css`, `reports-contabilidad-statement.test.mjs`) (2026-09-17)
+- Requerimiento: Resolver error donde un abono desaparecía de la base de datos al ser editado y actualizado desde el estado de cuenta contable, explicar dónde y cómo se almacenan los abonos en el sistema, y rediseñar todos los botones del panel de pagos y modales contables (corrigiendo el botón rosa deformado de comprobante, botón de saldar, cancelar, guardar/actualizar y acciones de tabla).
+- Causa raíz:
+  1. Almacenamiento de abonos: Los abonos se normalizan en la tabla MariaDB `anticipos_evento` (`id`, `id_evento`, `fecha_anticipo`, `monto`, `tipo_pago`, `descripcion`, `numero_boleta`, `datos_evidencia`, etc.) y se auditan en `historial_anticipos`. En `eventos`, `cotizacion_json.advances` se sincroniza para el frontend. Al sincronizar en `syncEventsToDb`, el backend elimina de `anticipos_evento` cualquier ID que exista en la BD pero no venga en `incomingAdvances`.
+  2. Causa de la desaparición al editar: En `handleSaveAdvanceInModal`, `currentAdvances` se extraía únicamente de `targetEvent.quote.advances` (leído de `events` del contexto). Si el usuario registraba un abono y de inmediato lo editaba antes de que el contexto re-renderizara el evento, `targetEvent.quote.advances` seguía vacío o desactualizado. Al buscar `advanceEditingId`, `findIndex` devolvía `-1`. Como `advanceEditingId` era verdadero pero el índice no existía, el abono no se actualizaba y se enviaba una lista vacía `[]` a `handleAddEvent`, provocando que el backend ejecutara `DELETE FROM anticipos_evento WHERE id IN (...)`, eliminando permanentemente el abono de MariaDB y dejándolo en 0.
+  3. Deformación estética de botones: La regla global `body:not(.informes-theme) button` en `design-system-scoped.css` imponía `min-height: 40px` y `padding: 0 14px`. El botón para remover comprobante (`width: 32px`) quedaba con un área interna útil de 4px (`32px - 28px`), deformándose en un bloque rosa alargado con un punto rojo microscópico. Los botones "Cancelar", "Saldar Pendiente", "Ocultar Formulario" y las acciones de tabla carecían de especificidad alta y estilos SaaS modernos.
+- Solución:
+  1. En `src/modules/reports/ReportsContabilidad.jsx`:
+     - Implementado algoritmo de consolidación multi-origen en `handleSaveAdvanceInModal` y `handleDeleteAdvanceInModal`: unifica anticipos usando `Map` desde `targetEvent.quote.advances`, `activeEventStatementRow.advances` y `activeEventStatementRow.quote.advances`.
+     - Si `advanceEditingId` existe, actualiza el ítem existente y, en caso de cualquier discrepancia de índice, lo añade con su ID intacto (`currentAdvances.push(...)`), garantizando que ningún abono se descarte o borre accidentalmente.
+     - Sincroniza `currentQuote` combinando ambas fuentes y recalcula saldos pendientes y a favor en tiempo real.
+     - Indicador dinámico de estado en el formulario: badge "✏️ Editando Abono Registrado" con "Modo Edición" y botón "Cancelar Edición".
+     - Botón de envío dinámico: "✓ Guardar Pago" (modo creación, gradiente azul) o "✓ Actualizar Abono" (modo edición, gradiente esmeralda).
+  2. En `src/modules/reports/reports.css`:
+     - Creadas clases de alta especificidad que neutralizan la herencia global:
+       * `.acct-btn-toggle-form`: Botón conmutador con soporte para estados abierto/cerrado con borde sutil o gradiente verde.
+       * `.acct-btn-saldar`: Botón esmeralda suave (`#ecfdf5`, `#065f46`, borde `#a7f3d0`) con icono de rayo.
+       * `.acct-btn-cancel-form`: Botón blanco con borde slate y tipografía ejecutiva.
+       * `.acct-btn-clear-file`: Botón cuadrado exacto de 36px × 36px con `padding: 0 !important` e icono X centrado de 16px nítido.
+       * `.acct-btn-submit-advance`: Botón de acción principal con variantes `.is-create` y `.is-edit`.
+       * `.acct-btn-row-action`: Botones compactos (28px) de tabla con variantes `.is-voucher`, `.is-edit` y `.is-delete`.
+       * `.acct-btn-subrow-pay` y `.acct-btn-subrow-state`: Botones ejecutivos para la tabla de eventos de cada institución.
+       * `.acct-btn-print`: Botón azul de impresión de hoja de estado de cuenta.
+  3. Validado con 45 pruebas automatizadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión 2.1.138).
+
+### Solución: Botón X de Cerrar de Alta Visibilidad, Soporte Escape y Restauración de Aplicación de Pagos/Abonos para Eventos Pasados (`ReportsContabilidad.jsx`, `reports.css`, `reports-contabilidad-statement.test.mjs`) (2026-09-17)
+- Requerimiento: Resolver error visual donde el botón `✕` de cerrar en los modales de Estados de Cuenta no se apreciaba con nitidez (aparecía como un bloque alargado con un punto microscópico), y restaurar la sección interactiva de cobros/abonos dentro de la hoja de estado de cuenta para poder registrar, editar y eliminar pagos en eventos cuya fecha ya pasó (los cuales están bloqueados para edición regular en el calendario).
+- Causa raíz:
+  1. En `src/styles/design-system-scoped.css` (línea 103), la regla global `body:not(.informes-theme) button` imponía `min-height: 40px` y `padding: 0 14px` sobre todas las etiquetas `<button>`. Al asignarle al botón de cerrar `width: 32px`, el padding horizontal de 28px (`14px + 14px`) reducía el ancho disponible del contenido interno a solo 4px (`32px - 28px`), comprimiendo el SVG de la `X` a un punto de 4px imperceptible dentro de un bloque blanco alargado.
+  2. No existía soporte para cerrar modales mediante la tecla `Escape`.
+  3. Tras el rediseño formal de la hoja de estado de cuenta, la tabla de anticipos se había dejado como sólo lectura, omitiendo el formulario para registrar y aplicar pagos directamente sobre el evento desde contabilidad (especialmente necesario cuando la fecha del evento ya pasó y los usuarios no pueden ingresar a modificarlo desde el calendario).
+- Solución:
+  1. En `src/modules/reports/reports.css`:
+     - Creada la clase de alta especificidad `.acct-modal-close-btn` con `padding: 0 12px !important`, `height: 34px !important`, `box-sizing: border-box !important` y reglas SVG fijas de `width: 16px !important`, `height: 16px !important`, `stroke-width: 2.5px !important` que neutralizan por completo la herencia global.
+  2. En `src/modules/reports/ReportsContabilidad.jsx`:
+     - Rediseñado el botón con formato ejecutivo `[ ✕ Cerrar ]`: icono nítido de 16px junto con texto legible "Cerrar" en tipografía bold de 12px, fondo blanco sólido `#ffffff`, texto e icono `#0f172a`, borde visible `#cbd5e1`, esquinas redondeadas (8px) y animación de hover en rojo elegante (`#fee2e2` y `#dc2626`).
+     - Agregada barra inferior de acciones rápidas (con clase `no-print`) en el modal con botón "Cerrar" adicional y botón "Imprimir Estado".
+     - Implementado listener global de la tecla `Escape` para cerrar cualquier modal activo (`previewVoucher`, `activeEventStatementRow`, `activeStatementCompanyId`).
+     - Agregado botón directo "💳 Aplicar Pago" en la fila expandida de eventos de cada institución en la tabla general.
+     - Restaurado y optimizado el panel interactivo de cobros/abonos dentro del estado de cuenta del evento:
+       * Permite registrar abonos con Monto, Fecha, Forma de Pago (`Transferencia`, `Depósito`, `Cheque`, `Tarjeta`, `Efectivo`), No. de Boleta / Referencia Bancaria, Concepto / Descripción y Comprobante adjunto comprimido (`compressEvidenceFile`).
+       * Botón rápido "⚡ Saldar Pendiente" para auto-completar el valor exacto adeudado en un clic.
+       * Acciones en la tabla de abonos: "Editar" (carga el pago al formulario para modificarlo) y "Eliminar" (con confirmación de SweetAlert2).
+       * Sincronización inmediata vía `handleAddEvent({ ...event, quote })` que persiste los cambios en MariaDB sin importar si el evento es pasado, y actualiza los saldos y KPIs en tiempo real.
+       * El formulario y los botones de acción cuentan con la clase `no-print`, asegurando que al imprimir sólo salga la hoja formal limpia.
+  3. Validado con 44 pruebas unitarias automatizadas (`node --test tests/*.test.mjs`) y build de producción limpio (versión 2.1.137).
+
+### Solución: Rediseño Ejecutivo de Estados de Cuenta Contables, Buscador Óptimo con Enter y Hoja Formal por Evento con Categorías y Boletas (`ReportsContabilidad.jsx`, `reports.css`, `reports-contabilidad-statement.test.mjs`) (2026-09-17)
+- Requerimiento: Rediseñar integralmente el módulo de Estados de Cuenta Contables en Reportes a partir de maqueta de referencia: barra institucional superior (JL / sincronización bancaria), 5 tarjetas KPI (Instituciones, Venta Neta, Cobrado con % amortización, Saldo Pendiente con contador de mora, Saldo a Favor), banner de diagnóstico de cartera, motor de búsqueda optimizado bajo demanda (disparado con tecla Enter o botón Aplicar para evitar lag en miles de eventos, atajo Ctrl+K, botón de limpiar), pestañas de estado (Todos, Vencidos, Por Vencer, Al Día, Saldo a Favor), tabla con días de vencimiento, contacto con desglose y propuesta de cobro. Adicionalmente, hoja formal de estado de cuenta por evento específico con membrete de Jardines del Lago, desglose de cotización seccionado por categorías (Alimentos & Bebidas, Habitaciones / Hospedaje, Misceláneos & Servicios, Otros), resumen financiero de 4 bloques, tabla cronológica de abonos con No. de Boleta bancaria, visor lightbox de boletas de pago, cuentas bancarias autorizadas y bloque de firmas imprimible.
+- Causa raíz:
+  1. La pantalla anterior de contabilidad carecía de la estructura ejecutiva corporativa solicitada en la maqueta de referencia.
+  2. El filtro de búsqueda ejecutaba filtrados de texto letra por letra sobre miles de eventos provocando congelamientos en el navegador.
+  3. No existía una hoja formal por evento individual con desglose por categorías (Alimentos & Bebidas, Habitaciones, Misceláneos), ni visualizador de comprobantes de pago/boletas adjuntas.
+  4. Contaminación de `companyId: '10'`: Más de 250 cotizaciones históricas clonadas o duplicadas heredaban el identificador residual `companyId: '10'` (asociado a la empresa '60 AÑOS MIRNA CANO'). Al agrupar por `row.companyId`, eventos de otras instituciones (como MAICON IXCOL, THE NATURE CONSERVANCY, COONAGRI, etc.) se acumulaban erróneamente bajo '60 AÑOS MIRNA CANO' inflando la venta a Q 4.7M y 153 eventos.
+- Solución:
+  1. En `src/modules/reports/ReportsContabilidad.jsx`:
+     - Implementado encabezado institucional con badge `JL`, indicador en vivo de sincronización con bancos, botón "Volver" y exportación a Excel en dos hojas (`Cartera por Empresa` y `Detalle de Eventos`).
+     - 5 tarjetas KPI dinámicas y banner `Diagnóstico de Cartera`.
+     - Buscador de alto rendimiento bajo demanda activado con `Enter`, botón "Aplicar Filtros" y atajo `Ctrl + K`.
+     - Pestañas de estado con badges de conteo y filtros secundarios completos.
+     - Expansión de cartera por empresa mediante botón `Detalle`, desplegando la lista de eventos con acceso a la `📄 Hoja Evento`.
+     - Modal de Hoja Formal de Estado de Cuenta por Evento con función de categorización insensible a diacríticos (`categorizeQuoteItems`), resumen financiero, historial de abonos con comprobantes, cuentas bancarias e impresión limpia vía `window.print()` y CSS print.
+     - Lightbox Modal para visualización y ampliación de boletas de pago.
+     - Iconografía minimalista vectorial exclusiva de `lucide-react`.
+     - Corregido `ReferenceError: React is not defined` importando explícitamente `React` y `Fragment` desde `'react'` para compatibilidad plena con la transformación JSX de React 19 y Vite.
+     - Incorporadas funciones canónicas `resolveEventCompany` y `resolveEventContact` con token de empresa único (`companyToken`): si una cotización tiene `companyId: '10'` pero su nombre explícito es otro (ej. "COONAGRI"), valida la coincidencia y rechaza el ID huérfano, agrupando cada evento en su institución legítima.
+     - Filtrado estricto de eventos confirmados: En estados de cuenta contables, la cartera de cobro registra exclusivamente eventos con estado `Confirmado` (descartando prospectos comerciales en `Seguimiento`, `1er Cotización`, `Pre reserva`, etc., evitando falsos pasivos contables).
+     - Descarte de borradores huérfanos con fecha `1970-01-01` y `(sin nombre)`: Se eliminan del cálculo contable los registros fantasma generados por cotizaciones que nunca tuvieron un evento de calendario asignado o que fueron duplicadas residualmente.
+  2. En `src/modules/reports/reports.css`:
+     - Incorporadas clases CSS BEM (`.acct-page-container`, `.acct-kpi-grid`, `.acct-kpi-card`, `.acct-diagnostic-banner`, `.acct-filters-panel`, `.acct-search-row`, `.acct-status-pills`, `.acct-table`, `.acct-pagination-bar`) y estilos de impresión formal `@media print`.
+  3. Validado con 43 pruebas unitarias automatizadas (`node --test tests/*.test.mjs`) y compilación limpia de producción (versión 2.1.135).
+
+### Solución: Endpoints Dedicados de Tipo de Cambio, Historial Cronológico por Fecha de Evento y Corrección de 404/SyntaxError (`server.cjs`, `SettingsTipoCambio.jsx`, `stateService.js`, `QuoteModal.jsx`, Reportes) (2026-09-17)
+- Requerimiento: Resolver error HTTP 404 al consultar y guardar tipo de cambio (`GET/PUT /api/exchange-rate 404 Not Found`), dotar al tipo de cambio de su propia tabla relacional y endpoints atómicos dedicados, y asegurar que cada evento/cotización calcule su tipo de cambio según la fecha del evento sin alterar el valor de eventos pasados cuando la tasa cambie en el futuro.
+- Causa raíz:
+  1. En `server.cjs`, la consulta de base de datos para el historial se había colocado dentro de la función síncrona `events: (() => { ... })()`, disparando un `SyntaxError: await is only valid in async functions`. Esto impedía el arranque del servidor con los nuevos endpoints y provocaba que el proceso Node en ejecución (iniciado antes de las adiciones) continuara devolviendo 404 Not Found.
+  2. El sistema únicamente admitía un valor escalar global para el tipo de cambio; al cambiar de Q 7.75 a Q 7.80, todos los eventos históricos pasados cambiaban retroactivamente alterando los cierres de ventas y balances contables anteriores.
+  3. Las vistas de reportes y cotización no reflejaban la fecha de referencia ni la tasa bajo la cual se calculó la conversión a Quetzales.
+- Solución:
+  1. En `server.cjs`:
+     - Creada tabla relacional `tipo_cambio_historial` (`id`, `fecha_vigencia DATE`, `tasa DECIMAL(10,4)`, `notas`, `creado_en`, `actualizado_en`) registrada en migraciones canónicas.
+     - Implementado algoritmo `resolveRateForEvent(evDateStr)` en `readStateFromTables`: si un evento ocurrió en el pasado (ej. mayo 2024), busca cronológicamente la tasa vigente en esa fecha exacta y asocia `quote.exchangeRate`, `quote.exchangeRateDate`, `quote.totalGtq`, `quote.subtotalGtq` y `quote.discountAmountGtq`.
+     - Endpoints atómicos dedicados: `GET /api/exchange-rate`, `GET /api/exchange-rate/resolve?date=YYYY-MM-DD`, `POST /api/exchange-rate/history`, `PUT /api/exchange-rate/history/:id`, `DELETE /api/exchange-rate/history/:id` y compatibilidad legacy con `PUT /api/exchange-rate`.
+     - Corregido `SyntaxError` moviendo la consulta `conn.query` al ámbito asíncrono superior de `readStateFromTables` y reiniciado el proceso en puerto 3000.
+  2. En `src/services/stateService.js`:
+     - Métodos cliente: `getExchangeRateDataApi()`, `addExchangeRateHistoryApi()`, `updateExchangeRateHistoryApi()`, `deleteExchangeRateHistoryApi()` y `resolveExchangeRateAtDateApi()`.
+  3. En `src/modules/settings/SettingsTipoCambio.jsx`:
+     - Rediseño ejecutivo con tarjeta KPI de tasa activa actual, formulario para agregar/editar tasas de cambio por fecha de vigencia, tabla cronológica de historial con acciones y badges visuales, y guía explicativa.
+  4. En `QuoteModal.jsx`:
+     - Consulta automática de la tasa correspondiente a la fecha del evento con `resolveExchangeRateAtDateApi`, guardado persistente de `exchangeRateDate` y badge visual informativo en el selector de moneda.
+  5. En `ReportsVentas.jsx`, `ReportsContabilidad.jsx` y `eventSeriesUtils.js`:
+     - Badge informativo visible en las columnas de Monto Total: `$1,000.00 USD` con etiqueta `TC Q 7.75 (dd/mm/aaaa)`.
+  6. Validado con 39 pruebas unitarias automatizadas (`node --test tests/*.test.mjs`) y compilación limpia de producción (versión 2.1.128).
+
+### Solución: Rediseño Ejecutivo y Corrección de Checkboxes Gigantes en Configurar Columnas (`ReportsVentas.jsx`) (2026-09-17)
+- Requerimiento: Mejorar el diseño del modal "Configurar Columnas Visibles" en el Reporte de Ventas, donde los checkboxes se mostraban como bloques azules gigantes y desalineados ocupando la pantalla de forma desfigurada.
+- Causa raíz:
+  1. Reglas globales en `design-system-scoped.css` y `global-scoped.css` (`body:not(.informes-theme) input:not(.search-input-naked)`) imponían `min-height: 42px`, `padding: 10px 12px`, y bordes sobre todos los elementos `<input>` sin excluir checkboxes ni radios, inflando los inputs nativos a cajas enormes de más de 40px con texto desalineado.
+  2. El modal carecía de diseño SaaS moderno, soporte de acciones rápidas (mostrar todas, esenciales, restablecer), contador de columnas activas, persistencia de preferencias entre sesiones y cierre por tecla Escape o clic afuera.
+- Solución:
+  1. Eliminados por completo los `<input type="checkbox">` nativos del modal y reemplazados por tarjetas interactivas de alta gama con switches de alternancia estilo iOS encapsulados con SVG e inmunes a cualquier herencia de CSS global.
+  2. Cada columna cuenta con icono vectorial alusivo, paleta cromática identificatoria y descripción explicativa.
+  3. Cuadrícula adaptable de 2 columnas en desktop / 1 columna en móvil, con cabecera ejecutiva con barra de degradado y badge dinámico de conteo en vivo (`X de 9 visibles`).
+  4. Barra de acciones rápidas: "Mostrar todas", "Esenciales" y "Restablecer", junto con protección para impedir apagar la última columna visible.
+  5. Persistencia automática en `localStorage` (`crm_reports_ventas_columns_v1`) y escucha de evento `Escape` y backdrop para cierre intuitivo.
+  6. Actualizado el botón "Columnas" en el encabezado de la tabla para reflejar dinámicamente cuántas columnas están activas (`Columnas X/9`) y destacar si hay filtros activos.
+  7. Validado con 34 pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia de producción (versión 2.1.127).
+
+### Solución: Conversión Integral y Automática de Dólares (USD) a Quetzales (GTQ) en Reportes y Cotizaciones (`server.cjs`, `QuoteModal.jsx`, `eventSeriesUtils.js`, Módulos de Reportes y Clientes) (2026-09-17)
+- Requerimiento: Las cotizaciones en Dólares (USD) no se convertían a Quetzales en los reportes, KPIs y métricas del sistema, mostrándose montos nominales en dólares con el signo de Quetzales (ej. $1,000 USD se sumaba y mostraba como Q 1,000.00 en vez de Q 7,750.00).
+- Causa raíz:
+  1. `QuoteModal.jsx` guardaba cotizaciones en USD con `total` y `currency: 'USD'`, pero no leía `exchangeRate` ni persistía `totalGtq` ni `subtotalGtq`.
+  2. `server.cjs` en `readStateFromTables` entregaba el JSON crudo sin enriquecer cotizaciones existentes ni calcular la conversión a moneda local usando `exchangeRate`.
+  3. Múltiples reportes intentaban leer `quote.totalGtq || quote.total || 0` (cayendo en el total en dólares por ser `totalGtq` indefinido), mientras que otros leían directamente `quote.total` sin contemplar la moneda.
+- Solución:
+  1. En `server.cjs`: Inyección retroactiva automática en `readStateFromTables` de `totalGtq`, `subtotalGtq`, `discountAmountGtq` y `exchangeRate` para cada cotización en USD según el tipo de cambio configurado en `app_state_kv`.
+  2. En `QuoteModal.jsx`: Guardado automático de `totalGtq`, `subtotalGtq` y `exchangeRate` al cotizar en USD usando el tipo de cambio activo de configuración.
+  3. En `eventSeriesUtils.js`: Funciones estándar `getQuoteFinancialAmounts(quote, exchangeRate)` y `getQuoteTotalGtq(quote)`.
+  4. En `ReportsVentas.jsx`, `ReportsComisiones.jsx`, `ReportsContabilidad.jsx`, `ReportsDashboard.jsx`, `ReportsInstitucion.jsx`, `ReportsProyeccionMetas.jsx`, `ReportsSeguimientosPendientes.jsx`, `ReportsEficenciaConfirmacion.jsx`, `ReportsIngresosCategorias.jsx`, `ReportsOcupacion.jsx` y `CustomersModule.jsx`: Migrados para usar montos convertidos en Quetzales, con indicador visual de monto original en USD en Ventas y Contabilidad.
+  5. Validado con 33 pruebas unitarias (`node --test tests/*.test.mjs`) y build de producción limpio (versión 2.1.125).
+
+### Solución: Error 413 (Payload Too Large) al Modificar Tipo de Cambio y Configuraciones de `app_state_kv` (`SettingsTipoCambio.jsx`, `stateService.js`, `server.cjs`, `SettingsCitas.jsx`, `SettingsMantenimiento.jsx`, `SettingsGlobalGoals.jsx`) (2026-09-17)
+- Requerimiento: Resolver error HTTP `413 (Payload Too Large)` y `ApiError: Error interno del servidor` al guardar el tipo de cambio USD a GTQ en producción desde el panel de Configuración.
+- Causa raíz:
+  1. `SettingsTipoCambio.jsx` ejecutaba `const currentState = await loadCrmState(); await saveCrmState({ ...currentState, exchangeRate: num });`, enviando el estado completo de MariaDB (más de 17 MB con eventos, cotizaciones completas en JSON, historial, etc.) en un solo `PUT /api/state`.
+  2. En local, la base de datos de pruebas era pequeña y no pasaba por proxy inverso. En producción, Nginx o Cloudflare tienen configurado `client_max_body_size` y rechazan peticiones que superan el límite con HTTP 413.
+- Solución:
+  1. En `server.cjs`:
+     - Implementados endpoints atómicos dedicados: `GET /api/exchange-rate` y `PUT /api/exchange-rate` (y `POST /api/exchange-rate`) que operan directamente sobre la fila `clave = 'exchangeRate'` de `app_state_kv` en MariaDB y emiten `state-updated` vía Socket.io.
+     - Implementados endpoints atómicos de configuración genérica con lista blanca segura: `GET /api/settings/:key` y `PUT /api/settings/:key` (y `POST /api/settings/:key`).
+  2. En `src/services/stateService.js`:
+     - Implementados y exportados `getExchangeRateApi()`, `saveExchangeRateApi(rate)`, `getSettingApi(key)` y `saveSettingApi(key, value)`, reduciendo los paquetes de red de 17 Megabytes a ~25 bytes (<1 KB).
+  3. En `src/modules/settings/`:
+     - `SettingsTipoCambio.jsx` refactorizado para usar `saveExchangeRateApi` y `getExchangeRateApi`, eliminando `saveCrmState`.
+     - `SettingsCitas.jsx`, `SettingsMantenimiento.jsx` y `SettingsGlobalGoals.jsx` migrados a `saveSettingApi` protegiendo todas las pantallas de configuración contra el error 413.
+  4. Validado con 29 pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia con `npm run build` (versión 2.1.123).
+
 ### Solución: Estandarización VAPID RFC 8292 y Diagnóstico / Corrección Integral para Web Push en iOS (`webPushService.js`, `public/sw.js`, `SocketContext.jsx`, `.env`) (2026-09-16)
 - Requerimiento: Eliminar la variable legacy `VITE_FIREBASE_VAPID_KEY` para usar únicamente el par de claves VAPID estándar (`VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`), resolver por qué no aparecían las notificaciones push en iOS (iPhone/iPad) y clarificar la configuración requerida.
 - Causa raíz:

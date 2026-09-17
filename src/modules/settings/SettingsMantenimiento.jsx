@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { loadState as loadCrmState, saveState as saveCrmState } from '../../services/stateService';
+import { loadState as loadCrmState, saveSettingApi } from '../../services/stateService';
 import { toast, modernConfirm } from '../../utils/toast';
 
 export default function SettingsMantenimiento({ onStatusChange }) {
@@ -37,8 +37,7 @@ export default function SettingsMantenimiento({ onStatusChange }) {
 
     setSaving(true);
     try {
-      const currentState = await loadCrmState();
-      await saveCrmState({ ...currentState, maintenanceMode: newValue });
+      await saveSettingApi('maintenanceMode', newValue);
       setMaintenanceMode(newValue);
       onStatusChange?.(newValue);
       toast(newValue ? 'Modo mantenimiento activado' : 'Modo mantenimiento desactivado');
