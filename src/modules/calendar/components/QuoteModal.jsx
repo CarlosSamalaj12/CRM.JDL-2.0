@@ -213,6 +213,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [selectedCatalogService, setSelectedCatalogService] = useState(null);
   const [selectedServiceDate, setSelectedServiceDate] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState(() => String(event?.quote?.companyName || event?.quote?.empresa || event?.empresa || '').trim());
+  const [companySearchSubmitted, setCompanySearchSubmitted] = useState('');
   const [showCompanyResults, setShowCompanyResults] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState(new Set());
   const [highlightedRowIds, setHighlightedRowIds] = useState(new Set());
@@ -349,11 +350,18 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   // Asi no sobrescribe lo que el usuario ya haya seleccionado.
   const quoteRef = useRef(quote);
   useEffect(() => { quoteRef.current = quote; }, [quote]);
+
+  // Sincroniza companySearchQuery SOLO cuando el ID/código del evento cambia externamente (sin pisar cuando el usuario borra o busca)
+  const lastEventIdRef = useRef(event?.id || event?.code || '');
   useEffect(() => {
-    if (quote?.companyName && !companySearchQuery) {
-      setCompanySearchQuery(quote.companyName);
+    const curId = event?.id || event?.code || '';
+    if (curId && curId !== lastEventIdRef.current) {
+      lastEventIdRef.current = curId;
+      setCompanySearchQuery(String(event?.quote?.companyName || event?.quote?.empresa || event?.empresa || '').trim());
+      setCompanySearchSubmitted('');
+      setShowCompanyResults(false);
     }
-  }, [quote?.companyName, companySearchQuery]);
+  }, [event?.id, event?.code, event?.quote?.companyName, event?.quote?.empresa, event?.empresa]);
   // ─── Auto-save draft to localStorage ───
   useAutoSave(event, quote);
 
@@ -445,6 +453,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           }))
         };
         setQuote(restored);
+        if (restored.companyName && !current.companyName) {
+          setCompanySearchQuery(restored.companyName);
+        }
         toast.success(`Borrador recuperado (${draftItemCount} servicios). Recuerda guardar tus cambios.`, { duration: 5000 });
       }, 100);
       return () => clearTimeout(timer);
@@ -581,10 +592,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   }, [catalogServices, serviceDraft.category]);
 
   const filteredCompanies = useMemo(() => {
-    const term = companySearchQuery.trim().toLowerCase();
+    const term = companySearchSubmitted.trim().toLowerCase();
     if (!term) return [];
     return companies.filter(c => c.name?.toLowerCase().includes(term) || c.nit?.toLowerCase().includes(term)).slice(0, 8);
-  }, [companySearchQuery, companies]);
+  }, [companySearchSubmitted, companies]);
   const selectedQuoteCompany = useMemo(() => {
     if (quote.companyId) {
       const byId = companies.find(c => String(c.id || '').trim() === String(quote.companyId).trim());
@@ -652,6 +663,45 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
     applyCompanyManager(c, targetMgrId);
     setCompanySearchQuery(c.name);
+    setCompanySearchSubmitted('');
+    setShowCompanyResults(false);
+  };
+
+  const executeCompanySearch = (customTerm) => {
+    const term = typeof customTerm === 'string' ? customTerm.trim() : companySearchQuery.trim();
+    if (term) {
+      setCompanySearchSubmitted(term);
+      setShowCompanyResults(true);
+    } else {
+      setCompanySearchSubmitted('');
+      setShowCompanyResults(false);
+    }
+  };
+
+  const handleCompanySearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      executeCompanySearch();
+    }
+  };
+
+  const handleClearCompanySearch = () => {
+    setCompanySearchQuery('');
+    setCompanySearchSubmitted('');
+    setShowCompanyResults(false);
+  };
+
+  const handleUnlinkCompany = () => {
+    setQuote(prev => ({
+      ...prev,
+      companyId: '',
+      companyName: '',
+      managerId: '',
+      managerName: ''
+    }));
+    setCompanySearchQuery('');
+    setCompanySearchSubmitted('');
     setShowCompanyResults(false);
   };
 
@@ -666,10 +716,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       email: quote.email || '',
       address: quote.address || ''
     }] : [];
+    const seedName = companySearchSubmitted.trim() || companySearchQuery.trim() || quote.companyName || '';
     setCompanyDraft({
       ...emptyCompanyDraft,
-      name: companySearchQuery.trim() || quote.companyName || '',
-      businessName: companySearchQuery.trim() || quote.companyName || '',
+      name: seedName,
+      businessName: seedName,
       owner: quote.contact || quote.managerName || '',
       email: quote.email || '',
       phone: quote.phone || '',
@@ -924,6 +975,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       setCompanies(nextCompanies);
       applyCompanyManager(persistedCompany, matchedManager?.id || matchedManager?.name || '');
       setCompanySearchQuery(persistedCompany.name);
+      setCompanySearchSubmitted('');
       setShowCompanyResults(false);
       resetCreateCompanyModal();
       localSwal({
@@ -5062,7 +5114,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           type="button"
                           className="quote-mobile-header-pill-btn"
                           style={{ height: 32, minHeight: 32 }}
-                          onClick={() => openCreateCompanyModal()}
+                          onClick={() => openEditCompanyModal(selectedQuoteCompany)}
                         >
                           <Pencil size={12} strokeWidth={2} />
                           <span>Editar</span>
@@ -5084,13 +5136,56 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <input
                       type="text"
                       className="quote-mobile-search-input"
-                      style={{ height: 42, minHeight: 42, paddingLeft: 12 }}
+                      style={{ height: 42, minHeight: 42, paddingLeft: 12, paddingRight: companySearchQuery ? 68 : 38 }}
                       value={companySearchQuery}
-                      onChange={e => { setCompanySearchQuery(e.target.value); setShowCompanyResults(true); }}
-                      onFocus={() => setShowCompanyResults(true)}
-                      placeholder="Buscar institución en el catálogo..."
+                      onChange={e => {
+                        setCompanySearchQuery(e.target.value);
+                        if (showCompanyResults) setShowCompanyResults(false);
+                      }}
+                      onKeyDown={handleCompanySearchKeyDown}
+                      placeholder="Buscar empresa (Presiona Enter)..."
                     />
-                    {showCompanyResults && companySearchQuery.trim() && (
+                    <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {companySearchQuery && (
+                        <button
+                          type="button"
+                          onClick={handleClearCompanySearch}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#94a3b8',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '50%'
+                          }}
+                          title="Limpiar búsqueda"
+                        >
+                          <X size={15} strokeWidth={2.4} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => executeCompanySearch()}
+                        style={{
+                          background: '#0f4c81',
+                          border: 'none',
+                          color: '#ffffff',
+                          cursor: 'pointer',
+                          padding: '6px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 6
+                        }}
+                        title="Buscar en catálogo (Enter)"
+                      >
+                        <Search size={14} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                    {showCompanyResults && companySearchSubmitted.trim() && (
                       <div className="quote-mobile-company-drop">
                         {filteredCompanies.map(c => (
                           <div
@@ -5098,13 +5193,17 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             className="quote-mobile-company-drop-item"
                             onClick={() => {
                               handleCompanySelect(c);
-                              setShowCompanyResults(false);
                             }}
                           >
                             <span style={{ fontWeight: 800, color: '#0f172a' }}>{c.name}</span>
                             <span style={{ fontSize: 11, color: '#64748b' }}>{c.owner ? `Encargado: ${c.owner}` : 'Sin encargado'} {c.nit ? `• NIT: ${c.nit}` : ''}</span>
                           </div>
                         ))}
+                        {filteredCompanies.length === 0 && (
+                          <div style={{ padding: '10px 14px', fontSize: 12, color: '#64748b' }}>
+                            No se encontraron empresas con "{companySearchSubmitted.trim()}"
+                          </div>
+                        )}
                         <div
                           className="quote-mobile-company-drop-item"
                           style={{ color: '#0f4c81', fontWeight: 800, background: '#e8f1fb' }}
@@ -5113,21 +5212,41 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                             openCreateCompanyModal();
                           }}
                         >
-                          + Registrar nueva empresa "{companySearchQuery.trim()}"
+                          + Registrar nueva empresa "{companySearchSubmitted.trim()}"
                         </div>
                       </div>
                     )}
                   </div>
 
                   {selectedQuoteCompany ? (
-                    <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, background: '#f0fdf4', padding: '6px 10px', borderRadius: 6, border: '1px solid #bbf7d0' }}>
-                      <Check size={14} strokeWidth={2.5} />
-                      <span>Vinculada: <strong>{selectedQuoteCompany.name}</strong></span>
+                    <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', padding: '6px 10px', borderRadius: 6, border: '1px solid #bbf7d0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Check size={14} strokeWidth={2.5} />
+                        <span>Vinculada: <strong>{selectedQuoteCompany.name}</strong></span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleUnlinkCompany}
+                        style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 11, fontWeight: 700, textDecoration: 'underline', padding: '2px 4px' }}
+                        title="Desvincular institución de esta cotización"
+                      >
+                        Desvincular
+                      </button>
                     </div>
                   ) : quote.companyName ? (
-                    <div style={{ fontSize: 12, color: '#b45309', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, background: '#fffbeb', padding: '6px 10px', borderRadius: 6, border: '1px solid #fde68a' }}>
-                      <AlertTriangle size={14} strokeWidth={2.2} />
-                      <span>Asignada: <strong>{quote.companyName}</strong> (No guardada en catálogo)</span>
+                    <div style={{ fontSize: 12, color: '#b45309', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fffbeb', padding: '6px 10px', borderRadius: 6, border: '1px solid #fde68a' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <AlertTriangle size={14} strokeWidth={2.2} />
+                        <span>Asignada: <strong>{quote.companyName}</strong> (No en catálogo)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleUnlinkCompany}
+                        style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 11, fontWeight: 700, textDecoration: 'underline', padding: '2px 4px' }}
+                        title="Desvincular institución de esta cotización"
+                      >
+                        Desvincular
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -5649,7 +5768,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           {selectedQuoteCompany && (
                             <button
                               type="button"
-                              onClick={() => openCreateCompanyModal()}
+                              onClick={() => openEditCompanyModal(selectedQuoteCompany)}
                               style={{ 
                                 minHeight: 28, 
                                 padding: '0 10px', 
@@ -5704,14 +5823,59 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       </div>
                       <div style={{ position: 'relative' }}>
                         <input
-                          style={fieldInput}
+                          style={{ ...fieldInput, paddingRight: companySearchQuery ? 64 : 36 }}
                           value={companySearchQuery}
-                          onChange={e => { setCompanySearchQuery(e.target.value); setShowCompanyResults(true); }}
-                          onFocus={() => setShowCompanyResults(true)}
+                          onChange={e => {
+                            setCompanySearchQuery(e.target.value);
+                            if (showCompanyResults) setShowCompanyResults(false);
+                          }}
+                          onKeyDown={handleCompanySearchKeyDown}
                           onBlur={() => setTimeout(() => setShowCompanyResults(false), 200)}
-                          placeholder="Buscar institución en el catálogo..."
+                          placeholder="Buscar institución (Presiona Enter)..."
                         />
-                        {showCompanyResults && companySearchQuery.trim() && (
+                        <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {companySearchQuery && (
+                            <button
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={handleClearCompanySearch}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#94a3b8',
+                                cursor: 'pointer',
+                                padding: 4,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '50%'
+                              }}
+                              title="Limpiar búsqueda"
+                            >
+                              <X size={14} strokeWidth={2.4} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => executeCompanySearch()}
+                            style={{
+                              background: '#2563eb',
+                              border: 'none',
+                              color: '#ffffff',
+                              cursor: 'pointer',
+                              padding: '5px 7px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: 5
+                            }}
+                            title="Buscar en catálogo (Enter)"
+                          >
+                            <Search size={13} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                        {showCompanyResults && companySearchSubmitted.trim() && (
                           <div className="qp-company-drop">
                             {filteredCompanies.map(c => (
                               <div
@@ -5723,6 +5887,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                                 {c.name}
                               </div>
                             ))}
+                            {filteredCompanies.length === 0 && (
+                              <div style={{ padding: '10px 14px', fontSize: 12, color: '#64748b' }}>
+                                No se encontraron empresas con "{companySearchSubmitted.trim()}"
+                              </div>
+                            )}
                             <div
                               onMouseDown={e => {
                                 e.preventDefault();
@@ -5731,28 +5900,48 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                               style={{ padding: '10px 14px', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 13, borderTop: filteredCompanies.length > 0 ? '1px solid #e2e8f0' : 'none', display: 'flex', alignItems: 'center', gap: 6 }}
                             >
                               <Plus size={13} strokeWidth={2.2} />
-                              <span>Crear nueva empresa "{companySearchQuery.trim()}"</span>
+                              <span>Crear nueva empresa "{companySearchSubmitted.trim()}"</span>
                             </div>
                           </div>
                         )}
                       </div>
                       {selectedQuoteCompany ? (
-                        <div style={{ marginTop: 4, fontSize: 11.5, color: '#059669', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
-                          <Check size={12} strokeWidth={2.5} />
-                          <span>Vinculada a:</span>
-                          <span style={{ color: '#0f172a' }}>{selectedQuoteCompany.name}</span>
-                        </div>
-                      ) : quote.companyName ? (
-                        <div style={{ marginTop: 4, fontSize: 11.5, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
-                          <AlertTriangle size={12} strokeWidth={2.2} />
-                          <span>Asignada:</span>
-                          <span style={{ color: '#0f172a' }}>{quote.companyName}</span>
+                        <div style={{ marginTop: 4, fontSize: 11.5, color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Check size={12} strokeWidth={2.5} />
+                            <span>Vinculada a:</span>
+                            <span style={{ color: '#0f172a' }}>{selectedQuoteCompany.name}</span>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => openCreateCompanyModal()}
-                            style={{ background: 'none', border: 'none', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                            onClick={handleUnlinkCompany}
+                            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 11, fontWeight: 700, textDecoration: 'underline', padding: 0 }}
+                            title="Desvincular institución de esta cotización"
                           >
-                            (Registrar en catálogo)
+                            (Desvincular)
+                          </button>
+                        </div>
+                      ) : quote.companyName ? (
+                        <div style={{ marginTop: 4, fontSize: 11.5, color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <AlertTriangle size={12} strokeWidth={2.2} />
+                            <span>Asignada:</span>
+                            <span style={{ color: '#0f172a' }}>{quote.companyName}</span>
+                            <button
+                              type="button"
+                              onClick={() => openCreateCompanyModal()}
+                              style={{ background: 'none', border: 'none', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                            >
+                              (Registrar en catálogo)
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleUnlinkCompany}
+                            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 11, fontWeight: 700, textDecoration: 'underline', padding: 0 }}
+                            title="Desvincular institución de esta cotización"
+                          >
+                            (Desvincular)
                           </button>
                         </div>
                       ) : null}
