@@ -1,10 +1,34 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Database,
+  Building2,
+  DollarSign,
+  Clock,
+  ClipboardCheck,
+  ShoppingBag,
+  CreditCard,
+  FileText,
+  FileStack,
+  ScrollText,
+  Users,
+  UserCheck,
+  Calendar,
+  CalendarClock,
+  ShieldAlert,
+  Download,
+  Upload,
+  Wrench,
+  RefreshCw,
+  Home,
+  LayoutGrid,
+  ArrowLeft,
+  Lock
+} from 'lucide-react';
 import SettingsChecklist, { ChecklistTemplateEditor } from './SettingsChecklist';
 import SettingsEmpresas from './SettingsEmpresas';
 import SettingsSalones from './SettingsSalones';
 import SettingsGlobalGoals from './SettingsGlobalGoals';
-import UserModal from './UserModal';
 import SettingsServicios from './SettingsServicios';
 import SettingsPlantillas from './SettingsPlantillas';
 import SettingsFormasPago from './SettingsFormasPago';
@@ -24,8 +48,9 @@ import './settings.css';
 
 export default function SettingsMain() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('general');
-  // Inline view: null = show overview, otherwise show the specific inline panel
+  // Pestaña inicial: 'estructura' (Salones y Metas) como en la maqueta de referencia
+  const [activeTab, setActiveTab] = useState('estructura');
+  // Vista inline activa (pantalla completa con botón Volver)
   const [activeInlineView, setActiveInlineView] = useState(null);
 
   const currentUser = authService.getCurrentUser();
@@ -42,19 +67,19 @@ export default function SettingsMain() {
             <div>
               <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
               <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Solo accessible por administradores</div>
+              <div className="reports-subtitle">Solo accesible por administradores</div>
             </div>
           </div>
           <button className="btn-exit" type="button" onClick={() => navigate('/calendar')}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
+            <ArrowLeft size={16} />
+            <span>Volver</span>
           </button>
         </div>
-        <div className="settings-page-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+        <div className="settings-page-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
           <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 12 }}>lock</span>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#64748b' }}>Acceso restringido</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>Solo los administradores pueden acceder a la configuración.</div>
+            <Lock size={48} color="#94a3b8" style={{ marginBottom: 12 }} />
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#475569' }}>Acceso restringido</div>
+            <div style={{ fontSize: 13, marginTop: 4 }}>Solo los administradores pueden acceder a la configuración del sistema.</div>
           </div>
         </div>
       </div>
@@ -65,75 +90,59 @@ export default function SettingsMain() {
     {
       id: 'general',
       label: 'General y Datos',
-      icon: (
-        <svg viewBox="0 0 24 24">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="9" y1="3" x2="9" y2="21"></line>
-        </svg>
-      ),
+      icon: <Database size={16} />
     },
     {
       id: 'estructura',
       label: 'Salones y Metas',
-      icon: (
-        <svg viewBox="0 0 24 24">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9 22 9 12 15 12 15 22"></polyline>
-        </svg>
-      ),
+      icon: <Home size={16} />
     },
     {
       id: 'servicios',
       label: 'Servicios y Catálogos',
-      icon: (
-        <svg viewBox="0 0 24 24">
-          <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-        </svg>
-      ),
+      icon: <ShoppingBag size={16} />
     },
     {
       id: 'plantillas',
       label: 'Plantillas',
-      icon: (
-        <svg viewBox="0 0 24 24">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-          <polyline points="10 9 9 9 8 9"></polyline>
-        </svg>
-      ),
+      icon: <FileText size={16} />
     },
     {
       id: 'usuarios',
       label: 'Usuarios y Roles',
-      icon: (
-        <svg viewBox="0 0 24 24">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
-      ),
+      icon: <Users size={16} />
     },
     {
       id: 'citas',
       label: 'Citas y Alertas',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-        </svg>
-      ),
-    },
+      icon: <Calendar size={16} />
+    }
   ];
 
   const openView = (view) => setActiveInlineView(view);
   const closeView = () => setActiveInlineView(null);
 
-  // ── If an inline view is active, render only that view ──
+  // Encabezado estandarizado para vistas inline de configuración
+  const renderInlineHeader = (title, subtitle) => (
+    <div className="reports-page-header" style={{ flexShrink: 0 }}>
+      <div className="reports-brand-header">
+        <div className="reports-brand-badge">
+          <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
+        </div>
+        <div>
+          <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
+          <div className="reports-title">{title || 'Panel de Configuración'}</div>
+          <div className="reports-subtitle">{subtitle || 'Ajustes del sistema'}</div>
+        </div>
+      </div>
+      <button className="btn-exit" type="button" onClick={closeView}>
+        <ArrowLeft size={16} />
+        <span>Volver</span>
+      </button>
+    </div>
+  );
+
+  // ── RENDERIZADO DE VISTAS INLINE (PANTALLA COMPLETA CON RETORNO FLUIDO) ──
   if (activeInlineView === 'empresas') {
     return (
       <div className="settings-page" style={{ height: '100%', overflow: 'hidden' }}>
@@ -148,7 +157,17 @@ export default function SettingsMain() {
     return (
       <div className="settings-page" style={{ height: '100%', overflow: 'hidden' }}>
         <div className="settings-page-body" style={{ padding: '16px 28px 20px', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <SettingsUsuariosManager inline onBack={closeView} />
+          <SettingsUsuariosManager initialTab="usuarios" inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'equipos') {
+    return (
+      <div className="settings-page" style={{ height: '100%', overflow: 'hidden' }}>
+        <div className="settings-page-body" style={{ padding: '16px 28px 20px', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <SettingsUsuariosManager initialTab="equipos" inline onBack={closeView} />
         </div>
       </div>
     );
@@ -157,164 +176,9 @@ export default function SettingsMain() {
   if (activeInlineView === 'salones') {
     return (
       <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Administración de salones y áreas</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
+        {renderInlineHeader('Panel de Configuración', 'Administración de salones y áreas del recinto')}
         <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
           <SettingsSalones inline onBack={closeView} />
-        </div>
-      </div>
-    );
-  }
-
-  if (activeInlineView === 'metas') {
-    return (
-      <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Metas globales de ventas</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
-          <SettingsGlobalGoals inline onBack={closeView} />
-        </div>
-      </div>
-    );
-  }
-
-  if (activeInlineView === 'servicios') {
-    return (
-      <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Gestión de servicios, categorías y subcategorías</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <SettingsServicios inline onBack={closeView} />
-        </div>
-      </div>
-    );
-  }
-
-  if (activeInlineView === 'plantillas') {
-    return (
-      <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Plantillas rápidas de servicios para cotizaciones</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
-          <SettingsPlantillas inline onBack={closeView} />
-        </div>
-      </div>
-    );
-  }
-
-  if (activeInlineView === 'plantillas-contrato') {
-    return (
-      <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Configura qué plantilla HTML va con cada tipo de contrato</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
-          <SettingsPlantillasContrato inline onBack={closeView} />
-        </div>
-      </div>
-    );
-  }
-
-  if (activeInlineView === 'formas-pago') {
-    return (
-      <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Formas de pago disponibles en cotizaciones y anticipos</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
-        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
-          <div className="settings-section-card" style={{ overflow: 'visible' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>💳 Formas de Pago</div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                  Crea, edita y deshabilita las formas de pago que aparecen en los combos de cotización y anticipos.
-                </div>
-              </div>
-            </div>
-            <SettingsFormasPago />
-          </div>
         </div>
       </div>
     );
@@ -323,24 +187,20 @@ export default function SettingsMain() {
   if (activeInlineView === 'tipo-cambio') {
     return (
       <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Define el tipo de cambio USD a GTQ para conversión de cotizaciones</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
+        {renderInlineHeader('Panel de Configuración', 'Define el tipo de cambio USD a GTQ para conversión de cotizaciones')}
         <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
           <SettingsTipoCambio inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'metas') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Metas globales mensuales de ventas')}
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <SettingsGlobalGoals inline onBack={closeView} />
         </div>
       </div>
     );
@@ -349,22 +209,7 @@ export default function SettingsMain() {
   if (activeInlineView === 'checklist') {
     return (
       <div className="settings-page">
-        <div className="reports-page-header" style={{ flexShrink: 0 }}>
-          <div className="reports-brand-header">
-            <div className="reports-brand-badge">
-              <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
-            </div>
-            <div>
-              <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
-              <div className="reports-title">Panel de Configuración</div>
-              <div className="reports-subtitle">Plantillas de checklists para eventos</div>
-            </div>
-          </div>
-          <button className="btn-exit" type="button" onClick={closeView}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
-          </button>
-        </div>
+        {renderInlineHeader('Panel de Configuración', 'Plantillas de verificación y checklists para eventos')}
         <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
           <div className="settings-section-card" style={{ overflow: 'visible' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
@@ -382,56 +227,167 @@ export default function SettingsMain() {
     );
   }
 
-  // ── Main overview page with tabs ──
+  if (activeInlineView === 'servicios') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Gestión de servicios, categorías y subcategorías')}
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <SettingsServicios inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'formas-pago') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Formas de pago autorizadas en cotizaciones y anticipos')}
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <div className="settings-section-card" style={{ overflow: 'visible', maxWidth: '960px', margin: '0 auto', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>💳 Formas de Pago Autorizadas</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                  Crea, edita y habilita las formas de pago que aparecen en los selectores de cotización y anticipos.
+                </div>
+              </div>
+            </div>
+            <SettingsFormasPago />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'plantillas') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Plantillas rápidas de servicios para cotizaciones')}
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <SettingsPlantillas inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'plantillas-contrato') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Configura qué plantilla HTML va con cada tipo de contrato')}
+        <div className="settings-page-body" style={{ padding: '16px 28px 28px', overflowY: 'auto' }}>
+          <SettingsPlantillasContrato inline onBack={closeView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'export') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Exportación de datos de cotizaciones, eventos y clientes')}
+        <div className="settings-page-body" style={{ padding: '20px 28px', overflowY: 'auto' }}>
+          <div className="settings-section-card" style={{ maxWidth: '960px', margin: '0 auto', width: '100%' }}>
+            <SettingsExport />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'import') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Importación masiva de datos desde archivos CSV o Excel')}
+        <div className="settings-page-body" style={{ padding: '20px 28px', overflowY: 'auto' }}>
+          <div className="settings-section-card" style={{ maxWidth: '960px', margin: '0 auto', width: '100%' }}>
+            <SettingsImport />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'mantenimiento') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Herramientas de mantenimiento y diagnóstico de datos')}
+        <div className="settings-page-body" style={{ padding: '20px 28px', overflowY: 'auto' }}>
+          <div style={{ maxWidth: '960px', margin: '0 auto', width: '100%' }}>
+            <SettingsMantenimiento />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'actualizaciones') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Estado de la versión instalada y sincronización de Service Worker')}
+        <div className="settings-page-body" style={{ padding: '20px 28px', overflowY: 'auto' }}>
+          <div style={{ maxWidth: '960px', margin: '0 auto', width: '100%' }}>
+            <SettingsUpdateCheck />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'citas') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Parámetros de recordatorios de citas y control de eventos pasados')}
+        <div className="settings-page-body" style={{ padding: '20px 28px', overflowY: 'auto' }}>
+          <div className="settings-section-card" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+            <SettingsCitas inline onBack={closeView} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── VISTA PRINCIPAL CON DISEÑO EJECUTIVO DE PESTAÑAS Y TARJETAS BENTO ──
   return (
     <div className="settings-page">
-      {/* Header */}
+      {/* Header Institucional */}
       <div className="reports-page-header" style={{ flexShrink: 0 }}>
         <div className="reports-brand-header">
           <div className="reports-brand-badge">
             <img src="/Oficial_JDL_acua.png" alt="" className="reports-brand-logo" />
           </div>
           <div>
-            <div className="reports-eyebrow">EMS Reservas | Jardines del Lago</div>
+            <div className="reports-eyebrow">EMS RESERVAS | JARDINES DEL LAGO</div>
             <div className="reports-title">Panel de Configuración</div>
             <div className="reports-subtitle">Ajustes generales, estructura de salones, catálogos y migración de datos</div>
           </div>
         </div>
         <button className="btn-exit" type="button" onClick={() => navigate('/calendar')}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-          Volver
+          <ArrowLeft size={16} />
+          <span>Volver</span>
         </button>
       </div>
 
-      {/* Body */}
+      {/* Cuerpo Principal: Sidebar de Cápsulas + Contenido */}
       <div className="settings-page-body">
         <div className="settings-layout-row">
-          {/* Sidebar Navigation */}
+          {/* Navegación Lateral Tipo Píldora / Cápsula */}
           <div className="settings-nav">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 className={`settings-nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => {
-                  if (item.id === 'usuarios') {
-                    openView('usuarios');
-                  } else if (item.id === 'empresas') {
-                    openView('empresas');
-                  } else {
-                    setActiveTab(item.id);
-                  }
-                }}
+                onClick={() => setActiveTab(item.id)}
               >
                 {item.icon}
-                {item.label}
+                <span>{item.label}</span>
               </button>
             ))}
           </div>
 
-          {/* Content Panel */}
+          {/* Panel de Contenido de la Pestaña Activa */}
           <div className="settings-content">
-            {/* ── TAB: General y Datos ── */}
+            {/* ════════════ 1. GENERAL Y DATOS ════════════ */}
             {activeTab === 'general' && (
               <>
                 <div className="settings-hero-section">
@@ -442,22 +398,18 @@ export default function SettingsMain() {
                     </p>
                   </div>
                   <div className="settings-storytelling-card">
-                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Visión general</span>
+                    <div className="settings-storytelling-tag">Administración General y Migración</div>
                     <p className="settings-story-text">
-                      Desde aquí gestionas la base de datos de <strong className="highlight-blue">clientes corporativos</strong>,
-                      la <strong className="highlight-blue">exportación</strong> de información del CRM y la
-                      <strong className="highlight-blue"> importación</strong> de datos desde archivos CSV o Excel.
-                      Todo en un solo lugar con trazabilidad completa.
+                      Desde aquí gestionas la base de datos de <strong className="highlight-blue">clientes corporativos</strong>, la <strong className="highlight-blue">exportación e importación</strong> de información del CRM, el <strong className="highlight-blue">mantenimiento de base de datos</strong> y la verificación de <strong className="highlight-blue">actualizaciones del sistema</strong>.
                     </p>
                   </div>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('empresas')}>
+                {/* Tarjeta: Clientes y Empresas (Azul) */}
+                <div className="settings-bento-card is-blue" onClick={() => openView('empresas')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                      </svg>
+                      <Building2 size={20} />
                     </div>
                     <div className="settings-bento-info">
                       <h3 className="settings-bento-title">Clientes y Empresas</h3>
@@ -466,30 +418,86 @@ export default function SettingsMain() {
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('empresas')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div className="settings-section-card">
-                  <h3 className="settings-section-card-title">Exportación de Datos</h3>
-                  <SettingsExport />
+                {/* Tarjeta: Exportación de Datos (Verde) */}
+                <div className="settings-bento-card is-green" onClick={() => openView('export')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <Download size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Exportación de Datos</h3>
+                      <p className="settings-bento-desc">
+                        Descarga copias de seguridad de cotizaciones, eventos y clientes en planillas Excel y JSON.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('export')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div className="settings-section-card">
-                  <h3 className="settings-section-card-title">Importación de Datos</h3>
-                  <SettingsImport />
+                {/* Tarjeta: Importación de Datos (Ámbar) */}
+                <div className="settings-bento-card is-amber" onClick={() => openView('import')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <Upload size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Importación de Datos</h3>
+                      <p className="settings-bento-desc">
+                        Carga masiva de eventos, empresas y catálogos desde archivos CSV o planillas Excel compatibles.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('import')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div style={{ marginTop: '24px' }}>
-                  <SettingsMantenimiento />
+                {/* Tarjeta: Mantenimiento y Diagnóstico (Púrpura) */}
+                <div className="settings-bento-card is-purple" onClick={() => openView('mantenimiento')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <Wrench size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Mantenimiento y Diagnóstico</h3>
+                      <p className="settings-bento-desc">
+                        Auditoría y saneamiento de registros huérfanos, caché de sincronización e integridad de datos.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('mantenimiento')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div style={{ marginTop: '24px' }}>
-                  <SettingsUpdateCheck />
+                {/* Tarjeta: Actualizaciones del Sistema (Cian) */}
+                <div className="settings-bento-card is-cyan" onClick={() => openView('actualizaciones')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <RefreshCw size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Actualizaciones del Sistema</h3>
+                      <p className="settings-bento-desc">
+                        Verifica la versión instalada de la aplicación, estado del Service Worker y cierre de sesión seguro.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('actualizaciones')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
               </>
             )}
 
-            {/* ── TAB: Estructura y Espacios ── */}
+            {/* ════════════ 2. SALONES Y METAS (EXACTO A IMAGEN DE REFERENCIA) ════════════ */}
             {activeTab === 'estructura' && (
               <>
                 <div className="settings-hero-section">
@@ -500,23 +508,18 @@ export default function SettingsMain() {
                     </p>
                   </div>
                   <div className="settings-storytelling-card">
-                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Control de infraestructura</span>
+                    <div className="settings-storytelling-tag">Control de Infraestructura</div>
                     <p className="settings-story-text">
-                      Administra los <strong className="highlight-blue">salones y áreas</strong> del recinto,
-                      establece las <strong className="highlight-blue">metas mensuales de ventas</strong> del equipo
-                      y configura las <strong className="highlight-blue">plantillas de checklists</strong>
-                      para estandarizar la operación de cada evento.
+                      Administra los <strong className="highlight-blue">salones y áreas</strong> del recinto, establece las <strong className="highlight-blue">metas mensuales de ventas</strong> del equipo y configura las <strong className="highlight-blue">plantillas de checklists</strong> para estandarizar la operación de cada evento.
                     </p>
                   </div>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('salones')}>
+                {/* Tarjeta 1: Salones y Áreas (Azul) */}
+                <div className="settings-bento-card is-blue" onClick={() => openView('salones')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <path d="M9 3v18M15 3v18M3 9h18M3 15h18"></path>
-                      </svg>
+                      <LayoutGrid size={20} />
                     </div>
                     <div className="settings-bento-info">
                       <h3 className="settings-bento-title">Salones y Áreas</h3>
@@ -525,33 +528,34 @@ export default function SettingsMain() {
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('salones')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('tipo-cambio')}>
+                {/* Tarjeta 2: Tipo de Cambio USD — GTQ (Verde) */}
+                <div className="settings-bento-card is-green" onClick={() => openView('tipo-cambio')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                      </svg>
+                      <DollarSign size={20} />
                     </div>
                     <div className="settings-bento-info">
-                      <h3 className="settings-bento-title">Tipo de Cambio USD → GTQ</h3>
+                      <h3 className="settings-bento-title">Tipo de Cambio USD — GTQ</h3>
                       <p className="settings-bento-desc">
                         Define el tipo de cambio para convertir cotizaciones en Dólares a Quetzales en reportes y métricas.
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('tipo-cambio')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('metas')}>
+                {/* Tarjeta 3: Meta Mensual de Ventas (Ámbar) */}
+                <div className="settings-bento-card is-amber" onClick={() => openView('metas')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                      </svg>
+                      <Clock size={20} />
                     </div>
                     <div className="settings-bento-info">
                       <h3 className="settings-bento-title">Meta Mensual de Ventas</h3>
@@ -560,17 +564,16 @@ export default function SettingsMain() {
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('metas')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('checklist')}>
+                {/* Tarjeta 4: Plantillas de Checklists (Púrpura) */}
+                <div className="settings-bento-card is-purple" onClick={() => openView('checklist')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
-                        <rect x="9" y="3" width="6" height="4" rx="1"></rect>
-                        <path d="M9 14l2 2 4-4"></path>
-                      </svg>
+                      <ClipboardCheck size={20} />
                     </div>
                     <div className="settings-bento-info">
                       <h3 className="settings-bento-title">Plantillas de Checklists</h3>
@@ -579,12 +582,14 @@ export default function SettingsMain() {
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('checklist')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
               </>
             )}
 
-            {/* ── TAB: Servicios y Catálogos ── */}
+            {/* ════════════ 3. SERVICIOS Y CATÁLOGOS ════════════ */}
             {activeTab === 'servicios' && (
               <>
                 <div className="settings-hero-section">
@@ -595,154 +600,220 @@ export default function SettingsMain() {
                     </p>
                   </div>
                   <div className="settings-storytelling-card">
-                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Catálogo de servicios</span>
+                    <div className="settings-storytelling-tag">Catálogo Comercial y Operativo</div>
                     <p className="settings-story-text">
-                      Gestiona el <strong className="highlight-blue">catálogo de servicios</strong>, las
-                      <strong className="highlight-blue"> categorías</strong> y
-                      <strong className="highlight-blue"> subcategorías</strong> que se utilizan en las cotizaciones de eventos.
-                      Puedes importar y exportar servicios desde archivos CSV.
+                      Gestiona el <strong className="highlight-blue">catálogo de servicios</strong>, las <strong className="highlight-blue">categorías</strong> y <strong className="highlight-blue">subcategorías</strong> utilizadas en cotizaciones, así como las <strong className="highlight-blue">formas de pago autorizadas</strong> para cobros y anticipos.
                     </p>
                   </div>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('servicios')}>
+                {/* Tarjeta: Servicios, Categorías y Subcategorías (Azul) */}
+                <div className="settings-bento-card is-blue" onClick={() => openView('servicios')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                      </svg>
+                      <ShoppingBag size={20} />
                     </div>
                     <div className="settings-bento-info">
                       <h3 className="settings-bento-title">Servicios, Categorías y Subcategorías</h3>
                       <p className="settings-bento-desc">
-                        CRUD completo de servicios con importación/exportación CSV, más administración de categorías y subcategorías.
+                        CRUD completo de servicios con importación/exportación CSV, precios vigentes y estructura jerárquica.
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('servicios')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('formas-pago')}>
+                {/* Tarjeta: Formas de Pago Autorizadas (Verde) */}
+                <div className="settings-bento-card is-green" onClick={() => openView('formas-pago')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                        <line x1="1" y1="10" x2="23" y2="10"></line>
-                      </svg>
+                      <CreditCard size={20} />
                     </div>
                     <div className="settings-bento-info">
-                      <h3 className="settings-bento-title">Formas de Pago</h3>
+                      <h3 className="settings-bento-title">Formas de Pago Autorizadas</h3>
                       <p className="settings-bento-desc">
-                        Administra las formas de pago disponibles en cotizaciones y anticipos (Efectivo, Tarjeta, Transferencia, etc.).
+                        Administra las modalidades de pago disponibles (Transferencia, Boleta, Tarjeta, Cheque, Efectivo) para cobros y anticipos.
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('formas-pago')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
               </>
             )}
 
-            {/* ── TAB: Plantillas de Cotización ── */}
+            {/* ════════════ 4. PLANTILLAS ════════════ */}
             {activeTab === 'plantillas' && (
               <>
                 <div className="settings-hero-section">
                   <div className="settings-category-header">
-                    <h2 className="settings-category-title">Plantillas de Cotización</h2>
+                    <h2 className="settings-category-title">Plantillas de Cotización y Contratos</h2>
                     <p className="settings-category-subtitle">
-                      Crea y administra plantillas rápidas con servicios predefinidos para agilizar las cotizaciones
+                      Estandariza paquetes de servicios y formatos legales para agilizar la venta
                     </p>
                   </div>
                   <div className="settings-storytelling-card">
-                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Productividad comercial</span>
+                    <div className="settings-storytelling-tag">Estandarización de Documentos y Ofertas</div>
                     <p className="settings-story-text">
-                      Las <strong className="highlight-blue">plantillas rápidas</strong> te permiten precargar conjuntos de servicios
-                      recurrentes (paquetes, banquetes, montajes) en una sola selección.
-                      Crea una plantilla, asígnale un nombre y estará disponible al hacer una cotización.
+                      Configura <strong className="highlight-blue">paquetes rápidos de servicios</strong> para agregarlos con un solo clic a las cotizaciones y administra las <strong className="highlight-blue">plantillas HTML de contratos</strong> según el tipo de evento.
                     </p>
                   </div>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('plantillas')}>
+                {/* Tarjeta: Plantillas Rápidas de Servicios (Azul) */}
+                <div className="settings-bento-card is-blue" onClick={() => openView('plantillas')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                      </svg>
+                      <FileStack size={20} />
                     </div>
                     <div className="settings-bento-info">
-                      <h3 className="settings-bento-title">Plantillas de Cotización</h3>
+                      <h3 className="settings-bento-title">Plantillas Rápidas de Servicios</h3>
                       <p className="settings-bento-desc">
-                        Administra las plantillas de servicios rápidos que aparecen en la sección de cotizaciones.
+                        Combos preconfigurados de alimentos, bebidas, salones y mobiliario para cotizaciones inmediatas.
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('plantillas')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
 
-                <div className="settings-bento-card" onClick={() => openView('plantillas-contrato')}>
+                {/* Tarjeta: Plantillas de Contratos Legales (Púrpura) */}
+                <div className="settings-bento-card is-purple" onClick={() => openView('plantillas-contrato')}>
                   <div className="settings-bento-card-left">
                     <div className="settings-bento-icon">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                      </svg>
+                      <ScrollText size={20} />
                     </div>
                     <div className="settings-bento-info">
-                      <h3 className="settings-bento-title">Plantillas de Contrato</h3>
+                      <h3 className="settings-bento-title">Plantillas de Contratos Legales</h3>
                       <p className="settings-bento-desc">
-                        Configura qué archivo HTML (Jardines.html, ServiHosp.html) se usa para cada tipo de contrato.
+                        Vincula el diseño y cláusulas contractuales HTML para contratos corporativos, sociales y de hospedaje.
                       </p>
                     </div>
                   </div>
-                  <span className="settings-bento-btn" style={{ pointerEvents: 'none' }}>Abrir →</span>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('plantillas-contrato')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
               </>
             )}
 
-            {/* ── TAB: Usuarios y Roles ── */}
+            {/* ════════════ 5. USUARIOS Y ROLES ════════════ */}
             {activeTab === 'usuarios' && (
-              <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
-                <SettingsUsuariosManager inline={false} />
-              </div>
-            )}
-            {/* ── TAB: Citas y Alertas ── */}
-            {activeTab === 'citas' && (
               <>
                 <div className="settings-hero-section">
                   <div className="settings-category-header">
-                    <h2 className="settings-category-title">Citas y Alertas</h2>
+                    <h2 className="settings-category-title">Usuarios, Roles y Equipos</h2>
                     <p className="settings-category-subtitle">
-                      Configuración de notificaciones y tiempos de recordatorio para citas de seguimiento
+                      Control de accesos, credenciales del personal y asignación de ejecutivos
                     </p>
                   </div>
                   <div className="settings-storytelling-card">
-                    <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Gestión de alertas</span>
+                    <div className="settings-storytelling-tag">Seguridad, Accesos y Equipos</div>
                     <p className="settings-story-text">
-                      Configura el <strong className="highlight-blue">tiempo de anticipación</strong> con el que los
-                      vendedores recibirán recordatorios visuales de sus citas.
-                      Esto ayuda a optimizar las llamadas de seguimiento sin saturar de notificaciones el panel lateral.
+                      Supervisa los <strong className="highlight-blue">usuarios activos</strong>, gestiona sus <strong className="highlight-blue">roles y contraseñas</strong>, y organiza los <strong className="highlight-blue">equipos comerciales</strong> para distribución de leads y metas.
                     </p>
                   </div>
                 </div>
 
-                <div className="settings-section-card" style={{ overflow: 'visible' }}>
-                  <SettingsCitas inline />
+                {/* Tarjeta: Usuarios y Credenciales (Azul) */}
+                <div className="settings-bento-card is-blue" onClick={() => openView('usuarios')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <Users size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Usuarios y Credenciales</h3>
+                      <p className="settings-bento-desc">
+                        Alta, edición y desactivación de cuentas de ejecutivos de venta, supervisores y administradores.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('usuarios')}>
+                    <span>Abrir →</span>
+                  </button>
+                </div>
+
+                {/* Tarjeta: Equipos de Trabajo y Asesores (Verde) */}
+                <div className="settings-bento-card is-green" onClick={() => openView('equipos')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <UserCheck size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Equipos de Trabajo y Asesores</h3>
+                      <p className="settings-bento-desc">
+                        Agrupa ejecutivos por departamentos o unidades de negocio para asignación automática de eventos.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('equipos')}>
+                    <span>Abrir →</span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ════════════ 6. CITAS Y ALERTAS ════════════ */}
+            {activeTab === 'citas' && (
+              <>
+                <div className="settings-hero-section">
+                  <div className="settings-category-header">
+                    <h2 className="settings-category-title">Citas y Alertas del Sistema</h2>
+                    <p className="settings-category-subtitle">
+                      Parámetros de recordatorios para atención comercial y control de cierres
+                    </p>
+                  </div>
+                  <div className="settings-storytelling-card">
+                    <div className="settings-storytelling-tag">Seguimiento Comercial y Control Operativo</div>
+                    <p className="settings-story-text">
+                      Define el <strong className="highlight-blue">tiempo de anticipación de alertas</strong> para citas con clientes y establece el <strong className="highlight-blue">margen de días de gracia</strong> permitido para modificar eventos de fechas pasadas.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tarjeta: Recordatorios y Alertas de Citas (Azul) */}
+                <div className="settings-bento-card is-blue" onClick={() => openView('citas')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <CalendarClock size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Recordatorios y Alertas de Citas</h3>
+                      <p className="settings-bento-desc">
+                        Configura cuántas horas o días antes se notifican visualmente las citas y visitas comerciales pendientes.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('citas')}>
+                    <span>Abrir →</span>
+                  </button>
+                </div>
+
+                {/* Tarjeta: Bloqueo de Edición de Eventos Pasados (Ámbar) */}
+                <div className="settings-bento-card is-amber" onClick={() => openView('citas')}>
+                  <div className="settings-bento-card-left">
+                    <div className="settings-bento-icon">
+                      <ShieldAlert size={20} />
+                    </div>
+                    <div className="settings-bento-info">
+                      <h3 className="settings-bento-title">Bloqueo y Margen de Edición de Eventos Pasados</h3>
+                      <p className="settings-bento-desc">
+                        Control de seguridad que bloquea la alteración de cotizaciones y detalles en eventos cuya fecha ya concluyó.
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="settings-bento-btn" onClick={() => openView('citas')}>
+                    <span>Abrir →</span>
+                  </button>
                 </div>
               </>
             )}
           </div>
         </div>
-
-        {/* SettingsChecklist — Event checklist modal (still needed for calendar integration) */}
-        <SettingsChecklist />
-        <UserModal />
       </div>
     </div>
   );

@@ -3,8 +3,8 @@ import SettingsUsers from './SettingsUsers';
 import SettingsEquipos from './SettingsEquipos';
 import UserModal from './UserModal';
 
-export default function SettingsUsuariosManager({ inline, onBack }) {
-  const [activeTab, setActiveTab] = useState('usuarios'); // 'usuarios' | 'equipos'
+export default function SettingsUsuariosManager({ inline, onBack, initialTab = 'usuarios' }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'usuarios'); // 'usuarios' | 'equipos'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: '10px', width: '100%' }}>
