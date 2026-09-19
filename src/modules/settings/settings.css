@@ -1,324 +1,760 @@
 /* ============================================================
-   CRM Settings — Premium Design System (Reports-aligned)
-   Apple-inspired · Clean · Consistent with Reports module
+   CRM Settings — Executive Redesign (100% Mockup Aligned)
+   Jardines del Lago · EMS Reservas
    ============================================================ */
 
 /* ---------- 1. Page Layout ---------- */
 .settings-page {
   width: 100%;
   height: 100%;
-  background: #ffffff;
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Header Institucional Superior */
+.settings-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.settings-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.settings-brand-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.5px;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.28);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.settings-brand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-brand-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.settings-brand-eyebrow .divider {
+  color: #cbd5e1;
+  font-weight: 400;
+}
+
+.settings-brand-eyebrow .highlight-brand {
+  color: #0284c7;
+  font-weight: 800;
+}
+
+.settings-header-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.settings-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings-btn-audit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.settings-btn-audit:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.settings-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.settings-btn-back:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
 }
 
 .settings-page-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 16px 28px 28px;
+  gap: 16px;
+  padding: 20px 28px 24px;
   overflow-y: auto;
 }
 
+/* Layout Principal de 2 Columnas */
+.settings-layout-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
 /* ---------- 2. Nav Sidebar ---------- */
+.settings-sidebar-col {
+  width: 230px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-sidebar-eyebrow {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #94a3b8;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 4px 0 8px 6px;
+}
+
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 220px;
-  flex-shrink: 0;
+  gap: 6px;
+  width: 100%;
 }
 
 .settings-nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
   color: #475569;
-  font-size: 12.5px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.15s ease;
   width: 100%;
   font-family: inherit;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  position: relative;
 }
 
 .settings-nav-item:hover {
-  background: #ffffff;
-  border-color: #94a3b8;
+  background: #f1f5f9;
   color: #0f172a;
-  transform: translateX(2px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
 .settings-nav-item.active {
-  background: #ffffff;
-  border: 1.5px solid #2563eb;
-  color: #1e40af;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.09);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #0284c7;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.05);
+}
+
+.settings-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3.5px;
+  background: #0284c7;
+  border-radius: 0 3px 3px 0;
+}
+
+.settings-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .settings-nav-item svg {
   width: 17px;
   height: 17px;
-  fill: none;
   stroke: currentColor;
-  stroke-width: 2.2;
+  stroke-width: 2.1;
   flex-shrink: 0;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .settings-nav-item.active svg {
-  stroke: #2563eb;
+  stroke: #0284c7;
   opacity: 1;
 }
 
-/* ---------- 3. Content Panel ---------- */
-.settings-content {
+.settings-nav-badge-active {
+  background: #dbeafe;
+  color: #0369a1;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.settings-nav-badge-count {
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.settings-nav-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px #d1fae5;
+  display: inline-block;
+}
+
+/* Tarjeta Sincronización en Vivo */
+.settings-sync-card {
+  margin-top: 14px;
+  background: #f0f9ff;
+  border: 1px solid #e0f2fe;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.settings-sync-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #0284c7;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.settings-sync-text {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #475569;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* ---------- 3. Main Content Card (White Canvas) ---------- */
+.settings-content-card {
   flex: 1;
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 4px 0 4px 20px;
-  overflow-y: auto;
-  border-left: 1px solid #f1f5f9;
 }
 
-/* ---------- 4. Category Header ---------- */
-.settings-category-header {
-  margin-bottom: 2px;
+.settings-content-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .settings-category-title {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 800;
   color: #0f172a;
-  margin: 0 0 2px 0;
+  margin: 0 0 3px 0;
   line-height: 1.2;
 }
 
 .settings-category-subtitle {
-  font-size: 12px;
+  font-size: 12.5px;
   color: #64748b;
   margin: 0;
   line-height: 1.4;
 }
 
-/* ---------- 5. Bento-style Cards (Reports-aligned) ---------- */
-.settings-bento-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 18px;
-  min-height: 70px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-top: 3.5px solid #2563eb !important;
-  border-radius: 14px;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.2s ease;
-  cursor: pointer;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-}
-
-.settings-bento-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-  border-left-color: #cbd5e1;
-  border-right-color: #cbd5e1;
-  border-bottom-color: #cbd5e1;
-}
-
-/* Variantes de Color de Acento */
-.settings-bento-card.is-blue   { border-top-color: #2563eb !important; }
-.settings-bento-card.is-green  { border-top-color: #16a34a !important; }
-.settings-bento-card.is-amber  { border-top-color: #f59e0b !important; }
-.settings-bento-card.is-purple { border-top-color: #8b5cf6 !important; }
-.settings-bento-card.is-cyan   { border-top-color: #06b6d4 !important; }
-.settings-bento-card.is-rose   { border-top-color: #f43f5e !important; }
-
-.settings-bento-card-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.settings-bento-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #2563eb;
-  transition: transform 0.25s ease;
-}
-
-.settings-bento-card.is-blue .settings-bento-icon {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #2563eb;
-}
-
-.settings-bento-card.is-green .settings-bento-icon {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  color: #16a34a;
-}
-
-.settings-bento-card.is-amber .settings-bento-icon {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #d97706;
-}
-
-.settings-bento-card.is-purple .settings-bento-icon {
-  background: #f5f3ff;
-  border-color: #ddd6fe;
-  color: #7c3aed;
-}
-
-.settings-bento-card.is-cyan .settings-bento-icon {
-  background: #ecfeff;
-  border-color: #a5f3fc;
-  color: #0891b2;
-}
-
-.settings-bento-card.is-rose .settings-bento-icon {
-  background: #fff1f2;
-  border-color: #fecdd3;
-  color: #e11d48;
-}
-
-.settings-bento-card:hover .settings-bento-icon {
-  transform: scale(1.06);
-}
-
-.settings-bento-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-}
-
-.settings-bento-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.settings-bento-title {
-  font-size: 13.5px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-  line-height: 1.3;
-}
-
-.settings-bento-desc {
-  font-size: 11.5px;
-  color: #64748b;
-  margin: 0;
-  line-height: 1.4;
-}
-
-.settings-bento-btn {
+.settings-status-badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  height: 30px;
-  padding: 0 14px;
-  background: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  gap: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
   font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
   white-space: nowrap;
-  font-family: inherit;
-  flex-shrink: 0;
 }
 
-.settings-bento-card:hover .settings-bento-btn {
-  background: #f1f5f9;
-  color: #0f172a;
-  border-color: #94a3b8;
+.settings-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #16a34a;
 }
 
-.settings-bento-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #f8fafc !important;
-  color: #94a3b8 !important;
-  border-color: #e2e8f0 !important;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* ---------- 6. Reports-style Storytelling Card ---------- */
-.settings-storytelling-card {
-  padding: 16px 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+/* ---------- 4. Storytelling Banner (Infraestructura) ---------- */
+.settings-storytelling-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
   border-radius: 12px;
-  margin-bottom: 20px;
-  position: relative;
+  padding: 14px 18px;
+}
+
+.settings-storytelling-icon-solid {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+
+.settings-storytelling-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-storytelling-eyebrow {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #1d4ed8;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.settings-storytelling-text {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #334155;
+  margin: 0;
+  font-weight: 500;
+}
+
+.settings-storytelling-text strong,
+.settings-storytelling-text strong.highlight-blue {
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+/* Retrocompatibilidad con nombres anteriores */
+.settings-storytelling-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 4px;
 }
 
 .settings-storytelling-tag {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-size: 10.5px;
   font-weight: 800;
-  color: #2563eb;
+  color: #1d4ed8;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .settings-storytelling-tag::before {
   content: '';
   display: inline-block;
   width: 3.5px;
-  height: 14px;
+  height: 13px;
   background: #2563eb;
   border-radius: 2px;
 }
 
 .settings-story-text {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.5;
   color: #334155;
+  margin: 0;
   font-weight: 500;
+}
+
+/* ---------- 5. Bento Cards (Exactas a la Maqueta) ---------- */
+.settings-bento-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-bento-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+  min-height: 74px;
+}
+
+.settings-bento-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  transform: translateY(-1px);
+}
+
+.settings-bento-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-bento-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 800;
+  transition: transform 0.2s ease;
+}
+
+.settings-bento-card:hover .settings-bento-icon-box {
+  transform: scale(1.05);
+}
+
+.settings-bento-icon-box.is-blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.settings-bento-icon-box.is-green {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.settings-bento-icon-box.is-amber {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.settings-bento-icon-box.is-purple {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.settings-bento-icon-box.is-cyan {
+  background: #ecfeff;
+  color: #0891b2;
+}
+
+.settings-bento-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-bento-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-bento-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #0f172a;
   margin: 0;
 }
 
-.settings-story-text strong,
-.settings-story-text strong.highlight-blue { color: #2563eb; font-weight: 800; }
-.settings-story-text strong.highlight-green { color: #16a34a; font-weight: 800; }
-.settings-story-text strong.highlight-orange { color: #ea580c; font-weight: 800; }
-.settings-story-text strong.highlight-slate { color: #0f172a; font-weight: 800; }
-.settings-story-text strong.highlight-purple { color: #7c3aed; font-weight: 800; }
+.settings-bento-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  line-height: 1.2;
+}
+
+.settings-bento-badge.badge-gray {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.settings-bento-badge.badge-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.settings-bento-badge.badge-amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.settings-bento-badge.badge-purple {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.settings-bento-badge.badge-blue {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.settings-bento-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64748b;
+  margin: 0;
+}
+
+.settings-bento-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.settings-meta-pill-green {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.settings-meta-pill-green .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+
+.settings-meta-tag {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.settings-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+  width: 260px;
+  max-width: 100%;
+}
+
+.settings-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.settings-progress-labels .label-title {
+  color: #475569;
+  font-weight: 600;
+}
+
+.settings-progress-labels .label-val {
+  color: #b45309;
+  font-weight: 800;
+}
+
+.settings-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.settings-progress-fill {
+  height: 100%;
+  background: #f59e0b;
+  border-radius: 999px;
+}
+
+.settings-action-btn {
+  width: 176px !important;
+  min-width: 176px !important;
+  max-width: 176px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 0 16px !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+  font-family: inherit !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+  box-sizing: border-box !important;
+}
+
+.settings-action-btn:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.05) !important;
+  transform: translateY(-1px) !important;
+}
+
+.settings-bento-card:hover .settings-action-btn {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+.settings-bento-btn {
+  width: 176px !important;
+  min-width: 176px !important;
+  max-width: 176px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  padding: 0 16px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
+  font-family: inherit !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.settings-bento-card:hover .settings-bento-btn {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* ---------- 6. Footer (Respaldo y Versión) ---------- */
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 6px 4px;
+  font-size: 11.5px;
+  color: #64748b;
+  border-top: 1px solid #f1f5f9;
+}
+
+.settings-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-footer-right {
+  font-weight: 600;
+  color: #475569;
+}
 
 /* ---------- 7. Hero Panel (Reports-aligned) ---------- */
 .settings-hero-section {

@@ -6,7 +6,7 @@ const settingsMainPath = new URL('../src/modules/settings/SettingsMain.jsx', imp
 const settingsCssPath = new URL('../src/modules/settings/settings.css', import.meta.url);
 const settingsUsuariosManagerPath = new URL('../src/modules/settings/SettingsUsuariosManager.jsx', import.meta.url);
 
-test('SettingsMain define las 6 secciones ejecutivas en el sidebar de cápsulas', async () => {
+test('SettingsMain define las 6 secciones ejecutivas en el sidebar de cápsulas con badges', async () => {
   const source = await readFile(settingsMainPath, 'utf8');
 
   assert.match(source, /id:\s*'general',\s*label:\s*'General y Datos'/);
@@ -15,33 +15,69 @@ test('SettingsMain define las 6 secciones ejecutivas en el sidebar de cápsulas'
   assert.match(source, /id:\s*'plantillas',\s*label:\s*'Plantillas'/);
   assert.match(source, /id:\s*'usuarios',\s*label:\s*'Usuarios y Roles'/);
   assert.match(source, /id:\s*'citas',\s*label:\s*'Citas y Alertas'/);
+
+  // Badges y tarjeta de sincronización
+  assert.match(source, /settings-nav-badge-active/);
+  assert.match(source, /settings-sync-card/);
+  assert.match(source, /Sincronización en vivo/);
 });
 
-test('La pestaña Estructura y Espacios coincide exactamente con la maqueta de referencia', async () => {
+test('La cabecera superior institucional coincide exactamente con la maqueta', async () => {
   const source = await readFile(settingsMainPath, 'utf8');
 
+  assert.match(source, /settings-brand-avatar/);
+  assert.match(source, /JL/);
+  assert.match(source, /EMS RESERVAS/);
+  assert.match(source, /JARDINES DEL LAGO/);
+  assert.match(source, /Historial de Auditoría/);
+  assert.match(source, /Volver al Tablero/);
+});
+
+test('La pestaña Estructura y Espacios coincide al 100% con la imagen de referencia', async () => {
+  const source = await readFile(settingsMainPath, 'utf8');
+
+  // Título y badge de estado
   assert.match(source, /Estructura y Espacios/);
-  assert.match(source, /Control de Infraestructura/i);
-  assert.match(source, /Salones y Áreas/);
-  assert.match(source, /Tipo de Cambio USD — GTQ/);
-  assert.match(source, /Meta Mensual de Ventas/);
-  assert.match(source, /Plantillas de Checklists/);
+  assert.match(source, /Sistema Operativo Activo/);
 
-  // Colores de las tarjetas bento en la sección de estructura
-  assert.match(source, /openView\('salones'\)[\s\S]{0,400}Salones y Áreas/);
-  assert.match(source, /openView\('tipo-cambio'\)[\s\S]{0,400}Tipo de Cambio USD — GTQ/);
-  assert.match(source, /openView\('metas'\)[\s\S]{0,400}Meta Mensual de Ventas/);
-  assert.match(source, /openView\('checklist'\)[\s\S]{0,400}Plantillas de Checklists/);
+  // Banner storytelling
+  assert.match(source, /settings-storytelling-banner/);
+  assert.match(source, /CONTROL DE INFRAESTRUCTURA/);
+
+  // Tarjetas Bento y sus sub-metas
+  assert.match(source, /Salones y Áreas/);
+  assert.match(source, /8 Salones Activos/);
+  assert.match(source, /100% disponibles/);
+  assert.match(source, /2 Áreas exteriores de jardines/);
+  assert.match(source, /Gestionar Áreas/);
+
+  assert.match(source, /Tipo de Cambio USD → GTQ/);
+  assert.match(source, /1 USD = Q 7\.82 GTQ/);
+  assert.match(source, /\$\/Q/);
+  assert.match(source, /Banco Central/);
+  assert.match(source, /Ajustar Tasa/);
+
+  assert.match(source, /Meta Mensual de Ventas/);
+  assert.match(source, /Septiembre: Q 850,000\.00/);
+  assert.match(source, /Avance actual/);
+  assert.match(source, /84\.5% \(Q 718,250\.00\)/);
+  assert.match(source, /Definir Objetivos/);
+
+  assert.match(source, /Plantillas de Checklists/);
+  assert.match(source, /6 Modelos/);
+  assert.match(source, /Montaje de Salón/);
+  assert.match(source, /Banquete y Cocina/);
+  assert.match(source, /Audio \/ Luces/);
+  assert.match(source, /Configurar Plantillas/);
+
+  // Pie de página
+  assert.match(source, /Último respaldo de base de datos generado hoy a las 04:00 AM/);
+  assert.match(source, /Jardines del Lago v4\.8 Enterprise/);
 });
 
-test('Todas las tarjetas Bento cuentan con botón "Abrir →" y transiciones inline', async () => {
+test('Soporta apertura fluida de todas las vistas inline principales', async () => {
   const source = await readFile(settingsMainPath, 'utf8');
 
-  // Comprueba que los botones tienen "Abrir →"
-  const bentoButtons = source.match(/Abrir →/g) ?? [];
-  assert.ok(bentoButtons.length >= 15, `Se esperaban al menos 15 botones 'Abrir →', encontrados ${bentoButtons.length}`);
-
-  // Comprueba soporte para abrir todas las vistas inline principales
   assert.match(source, /activeInlineView === 'empresas'/);
   assert.match(source, /activeInlineView === 'usuarios'/);
   assert.match(source, /activeInlineView === 'equipos'/);
@@ -67,25 +103,33 @@ test('SettingsUsuariosManager acepta initialTab para aterrizar en usuarios o equ
   assert.match(source, /useState\(initialTab/);
 });
 
-test('settings.css contiene los estilos del nuevo diseño ejecutivo (bento cards, banner, tags)', async () => {
+test('settings.css contiene los estilos exactos de la maqueta de referencia', async () => {
   const css = await readFile(settingsCssPath, 'utf8');
+
+  // Cabecera JL
+  assert.match(css, /\.settings-brand-avatar/);
+  assert.match(css, /\.settings-header-bar/);
+  assert.match(css, /\.settings-btn-audit/);
+  assert.match(css, /\.settings-btn-back/);
+
+  // Sidebar
+  assert.match(css, /\.settings-sidebar-eyebrow/);
+  assert.match(css, /\.settings-nav-item/);
+  assert.match(css, /\.settings-nav-item\.active::before/);
+  assert.match(css, /\.settings-sync-card/);
+
+  // Storytelling banner
+  assert.match(css, /\.settings-storytelling-banner/);
+  assert.match(css, /\.settings-storytelling-icon-solid/);
+  assert.match(css, /\.settings-status-badge/);
 
   // Bento cards
   assert.match(css, /\.settings-bento-card/);
-  assert.match(css, /\.settings-bento-card\.is-blue\s*\{\s*border-top-color:\s*#2563eb/);
-  assert.match(css, /\.settings-bento-card\.is-green\s*\{\s*border-top-color:\s*#16a34a/);
-  assert.match(css, /\.settings-bento-card\.is-amber\s*\{\s*border-top-color:\s*#f59e0b/);
-  assert.match(css, /\.settings-bento-card\.is-purple\s*\{\s*border-top-color:\s*#8b5cf6/);
+  assert.match(css, /\.settings-bento-icon-box/);
+  assert.match(css, /\.settings-action-btn/);
+  assert.match(css, /\.settings-progress-track/);
+  assert.match(css, /\.settings-progress-fill/);
 
-  // Storytelling banner
-  assert.match(css, /\.settings-storytelling-card/);
-  assert.match(css, /\.settings-storytelling-tag::before/);
-  assert.match(css, /width:\s*3\.5px/);
-
-  // Botón Abrir
-  assert.match(css, /\.settings-bento-btn/);
-
-  // Sidebar en cápsula
-  assert.match(css, /\.settings-nav-item/);
-  assert.match(css, /\.settings-nav-item\.active/);
+  // Footer
+  assert.match(css, /\.settings-footer/);
 });

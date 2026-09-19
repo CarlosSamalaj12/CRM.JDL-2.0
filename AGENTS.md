@@ -32,29 +32,20 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
-### Solución: Rediseño Ejecutivo del Panel de Configuración con Bento Cards, Storytelling y Vistas Inline (`SettingsMain.jsx`, `settings.css`, `SettingsUsuariosManager.jsx`, `settings-redesign.test.mjs`) (2026-09-19)
-- Requerimiento: Rediseñar integralmente el Panel de Configuración basándose en la imagen de referencia (pestaña Estructura y Espacios con tarjetas Bento estilizadas de borde superior de color, botón "Abrir →", sidebar en cápsulas, banner storytelling con barra azul y términos clave resaltados), aplicando el nuevo lenguaje visual a las 6 secciones (`General y Datos`, `Salones y Metas`, `Servicios y Catálogos`, `Plantillas`, `Usuarios y Roles`, `Citas y Alertas`) y ofreciendo navegación fluida hacia las herramientas con botón `< Volver`.
-- Causa raíz:
-  1. El panel anterior de configuración renderizaba formularios y tablas incrustadas apiladas en acordeones o pestañas densas, rompiendo la armonía con el diseño institucional de Reportes.
-  2. No existía una pantalla de inicio organizada por tarjetas Bento de ~70px de alto con encabezado, descripción, icono en pastilla tintada y acción clara.
-  3. `SettingsUsuariosManager.jsx` no permitía seleccionar una pestaña inicial (`initialTab`), lo que impedía abrir directamente "Equipos de Trabajo y Asesores" desde una tarjeta dedicada.
+### Solución: Rediseño Ejecutivo del Panel de Configuración Réplica 100% Maqueta (`SettingsMain.jsx`, `settings.css`, `SettingsUsuariosManager.jsx`, `settings-redesign.test.mjs`) (2026-09-19)
+- Requerimiento: Alinear y replicar de forma 100% fiel la imagen de referencia ejecutiva provista por el usuario: cabecera con avatar circular azul "JL", "EMS RESERVAS / JARDINES DEL LAGO", botón "Historial de Auditoría" y "< Volver al Tablero"; sidebar con título "MÓDULOS DEL SISTEMA", pestañas con barra indicadora vertical azul y badges dinámicos ("Activo", "6", punto verde "●"), tarjeta inferior "Sincronización en vivo"; contenedor blanco con badge "● Sistema Operativo Activo"; banner azul con icono sólido de edificio y términos clave en azul; 4 tarjetas Bento idénticas a la imagen con badges de estado, sub-meta info, barra de progreso naranja de avance de ventas y tags de checklists con botones dedicados; y pie de página con respaldo automático y versión Enterprise.
 - Solución:
   1. En `src/modules/settings/settings.css`:
-     - Diseñado el sidebar `.settings-nav` con elementos tipo cápsula `.settings-nav-item` con bordes suaves, hover deslizante y estado activo con borde azul `#2563eb` y halo sutil.
-     - Creado el banner storytelling `.settings-storytelling-card` con fondo `#f8fafc`, barra lateral indicadora de 3.5px en `.settings-storytelling-tag::before` y estilos de texto resaltado (`highlight-blue`).
-     - Diseñadas las tarjetas Bento `.settings-bento-card` con borde superior de 3.5px (`.is-blue`, `.is-green`, `.is-amber`, `.is-purple`, `.is-cyan`, `.is-rose`), contenedores de icono con fondo pastel a juego, títulos semibold y botones compactos `.settings-bento-btn` (`Abrir →`).
-  2. En `src/modules/settings/SettingsUsuariosManager.jsx`:
-     - Agregada prop `initialTab` (`'usuarios' | 'equipos'`) para soportar apertura directa desde la tarjeta Bento respectiva.
-  3. En `src/modules/settings/SettingsMain.jsx`:
-     - Reestructurado el módulo completo organizando las 6 categorías ejecutivas:
-       * `General y Datos`: Clientes y Empresas, Exportación, Importación, Mantenimiento y Actualizaciones.
-       * `Salones y Metas` (Estructura y Espacios): Salones y Áreas (Azul), Tipo de Cambio USD — GTQ (Verde), Meta Mensual de Ventas (Ámbar), Plantillas de Checklists (Púrpura) — idéntico a la imagen de referencia.
-       * `Servicios y Catálogos`: Servicios/Categorías/Subcategorías y Formas de Pago Autorizadas.
-       * `Plantillas`: Plantillas Rápidas de Servicios y Plantillas de Contratos Legales.
-       * `Usuarios y Roles`: Usuarios y Credenciales y Equipos de Trabajo y Asesores.
-       * `Citas y Alertas`: Recordatorios de Citas y Bloqueo de Edición de Eventos Pasados.
-     - Implementado sistema de visualización inline a pantalla completa para las 16 herramientas con cabecera institucional JDL y botón `< Volver` inmediato.
-  4. Validado con 61 pruebas unitarias automatizadas (`node --test tests/*.test.mjs`) y compilación limpia de producción (versión 2.1.150).
+     - Diseñado `.settings-brand-avatar` circular azul `#0284c7` con tipografía bold blanca "JL".
+     - Estilizado `.settings-header-bar` con acciones `.settings-btn-audit` y `.settings-btn-back`.
+     - Implementado `.settings-sidebar-col` con eyebrow `MÓDULOS DEL SISTEMA`, elementos `.settings-nav-item` con barra indicadora lateral de 3.5px (`::before`), badges `.settings-nav-badge-active`, `.settings-nav-badge-count`, `.settings-nav-badge-dot` y tarjeta informativa `.settings-sync-card`.
+     - Implementado `.settings-content-card` blanco con encabezado `.settings-status-badge` (`● Sistema Operativo Activo`), banner `.settings-storytelling-banner` con icono sólido `.settings-storytelling-icon-solid`.
+     - Diseñadas las tarjetas `.settings-bento-card` con cajas de icono `.settings-bento-icon-box` (`.is-blue`, `.is-green`, `.is-amber`, `.is-purple`), badges de cabecera (`.badge-gray`, `.badge-green`, `.badge-amber`, `.badge-purple`), sub-metas (`.settings-meta-pill-green`, `.settings-meta-tag`, `.settings-progress-wrap` con barra de progreso naranja) y botones de acción dedicados `.settings-action-btn`.
+     - Diseñado el pie `.settings-footer` con icono de escudo y versión del sistema.
+  2. En `src/modules/settings/SettingsMain.jsx`:
+     - Reestructurado el layout principal y cada una de las 6 secciones reflejando los elementos exactos de la imagen.
+     - Botones de acción dedicados: `Gestionar Áreas →`, `Ajustar Tasa →`, `Definir Objetivos →`, `Configurar Plantillas →`, etc.
+  3. Validado con 62 pruebas unitarias automatizadas (`node --test tests/*.test.mjs`) y compilación limpia de producción (versión 2.1.151).
 
 ### Solución: Bloqueo de Cierre Involuntario, Scroll Fluido con Ratón/Barra en Anticipos/Auditoría y Botón de Cerrar en Evidencia (`QuoteModal.jsx`, `quoteMobile.css`) (2026-09-19)
 - Requerimiento: Evitar que el modal de Gestión de Anticipos se cierre por error al hacer clic afuera en el fondo (`backdrop`), solucionar el problema donde la tabla de anticipos y el log de auditoría se comprimían a una sola fila sin barra de desplazamiento ni funcionamiento del scroll del ratón (solo permitía moverse con Tab), y restaurar el icono `✕` en los botones de cerrar del visor lightbox de evidencias.
