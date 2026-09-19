@@ -32,6 +32,68 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Bloqueo de Cierre Involuntario, Scroll Fluido con Ratón/Barra en Anticipos/Auditoría y Botón de Cerrar en Evidencia (`QuoteModal.jsx`, `quoteMobile.css`) (2026-09-19)
+- Requerimiento: Evitar que el modal de Gestión de Anticipos se cierre por error al hacer clic afuera en el fondo (`backdrop`), solucionar el problema donde la tabla de anticipos y el log de auditoría se comprimían a una sola fila sin barra de desplazamiento ni funcionamiento del scroll del ratón (solo permitía moverse con Tab), y restaurar el icono `✕` en los botones de cerrar del visor lightbox de evidencias.
+- Causa raíz:
+  1. `QuoteModal.jsx` tenía un listener `onClick` en `.qav-modal-backdrop` que cerraba inmediatamente el modal ante cualquier clic fuera del recuadro.
+  2. En `quoteMobile.css`, los hijos flex de `.qav-modal-body` (`.qav-card`, `.qav-accordion`, etc.) tenían `flex-shrink: 1` implícito, lo que provocaba que Flexbox comprimiera violentamente la tabla de anticipos y el acordeón de auditoría a ~50px de altura (dejando visible únicamente la primera fila y ocultando el resto y el pie de la tabla).
+  3. Las reglas de scrollbars tenían un ancho estrecho (6px) y colores translúcidos que las hacían invisibles en Chrome y carecían de soporte estándar para Firefox (`scrollbar-color`).
+  4. La tabla de trazabilidad no tenía un contenedor con altura máxima y scroll dedicado (`.qav-log-wrap`).
+  5. En el visor de evidencias, el botón superior utilizaba `.qav-close-btn` (que imponía un botón circular de icono aplastando el texto) y el botón inferior carecía de icono SVG.
+- Solución:
+  1. En `QuoteModal.jsx`:
+     - Eliminado el listener `onClick` del backdrop; el modal solo se cierra al hacer clic deliberado en `[ ✕ ]` o `[ Listo / Cerrar ]`.
+     - Encapsulada la tabla de auditoría en `<div className="qav-log-wrap" style={{ maxHeight: '220px', overflowY: 'auto' }}>` con encabezados fijos (`position: sticky`).
+     - Sustituidos los botones de cerrar en el visor de comprobantes por `.qav-lightbox-close-btn` con icono `<X size={15} strokeWidth={2.5} />` y texto `Cerrar` nítidos.
+  2. En `quoteMobile.css`:
+     - Incorporado `flex-shrink: 0 !important;` en `.qav-card`, `.qav-accordion`, `.qav-kpi-grid` y `.qav-footer`, erradicando el colapso vertical de las tablas.
+     - Barras de desplazamiento visibles y de alto contraste (`width: 8px !important; background: #94a3b8;`) con soporte estándar `scrollbar-width: thin !important; scrollbar-color: #94a3b8 #f1f5f9 !important;` para `.qav-table-wrap`, `.qav-log-wrap` y `.qav-modal-body`.
+     - Creada la clase de alta especificidad `.qav-lightbox-close-btn` (con variante `.is-bottom`) que neutraliza los estilos globales y asegura la visualización perfecta del icono y texto.
+  3. Validado con 54 pruebas unitarias automáticas y compilación limpia de producción (versión 2.1.148).
+### Solución: Icono de Evidencia de Referencia y Corrección de Scroll en Gestión de Anticipos (`QuoteModal.jsx`, `quoteMobile.css`) (2026-09-19)
+- Requerimiento: Resolver el bloqueo de scroll entre anticipos en el módulo de Gestión de Anticipos y reemplazar el nombre extenso del archivo de evidencia por un icono de referencia compacto que indique que existe comprobante adjunto.
+- Causa raíz:
+  1. En `quoteMobile.css`, la propiedad `overscroll-behavior: contain !important` en `.qav-table-wrap` y `.qav-modal-body` provocaba un bloqueo de eventos de scroll (`scroll trap`), impidiendo que el desplazamiento vertical se propagara al resto del modal cuando el cursor se encontraba sobre la tabla.
+  2. En `QuoteModal.jsx`, la celda de evidencia renderizaba el nombre completo del archivo (ej. `WhatsApp Image 2026-09-14 at 3.53.05 PM.webp`), inflando el ancho de la columna a más de 350px y desfigurando el diseño de la tabla.
+- Solución:
+  1. En `QuoteModal.jsx`:
+     - La cabecera `EVIDENCIA` se ajustó a un ancho estricto de `70px`.
+     - Se reemplazó el texto del archivo por un botón de icono cuadrado (`30px × 30px`) con `ImageIcon` y tooltip informativo (`title="Comprobante: ... (clic para ver)"`), que abre directamente el visor lightbox al hacer clic.
+     - Si el anticipo carece de comprobante, se muestra un guión elegante `—`.
+     - Altura dinámica para la tabla: `maxHeight: 280px` cuando el formulario está activo y `maxHeight: 520px` cuando el formulario está minimizado.
+  2. En `quoteMobile.css`:
+     - Se sustituyó `overscroll-behavior: contain` por `overscroll-behavior: auto !important` en `.qav-table-wrap` y `.qav-modal-body`.
+     - Se añadió `touch-action: pan-y !important` y encabezados fijos (`position: sticky; top: 0; z-index: 5`) en la tabla.
+     - Se incorporó soporte para `.qav-inline-card` cuando se despliega incrustado desde la reserva.
+  3. Validado con 54 pruebas unitarias automatizadas (`node --test tests/*.test.mjs`) y compilación limpia de producción (versión 2.1.147).
+
+### Solución: Sincronización Bidireccional de Pagos/Abonos en Eventos y Contratos, Endpoints Atómicos y Rediseño Ejecutivo de Gestión de Anticipos (`server.cjs`, `QuoteModal.jsx`, `quoteMobile.css`, `stateService.js`, `ReportsContabilidad.jsx`, `event-advances-sync.test.mjs`) (2026-09-19)
+- Requerimiento: Resolver error crítico donde al aplicar un pago en el Estado de Cuenta no se restaba en el evento ni al generar el contrato, permitir editar y eliminar abonos dentro del módulo del evento llevando registro de quién lo hace y horario, y rediseñar por completo el módulo de anticipos según maqueta ejecutiva (Imagen 3).
+- Causa raíz:
+  1. `server.cjs` en las líneas 3878 y 4313 forzaba `{ advances: undefined }` al persistir `cotizacion_json`.
+  2. En eventos multi-slot, la función `syncEventsToDb` ejecutaba `DELETE FROM anticipos_evento` porque los slots secundarios tenían `advances` vacío y compartían el mismo `baseId`.
+  3. No existían endpoints atómicos REST para consultar, insertar, modificar o eliminar abonos directamente sin sobreescribir el payload masivo del evento.
+  4. La vista previa de anticipos en `QuoteModal.jsx` (modal e inline) no permitía editar o eliminar abonos con selector de usuario auditor ni contaba con el diseño ejecutivo moderno.
+- Solución:
+  1. En `server.cjs`:
+     - Eliminada la propiedad destructiva `{ advances: undefined }`, preservando `JSON.stringify(q)`.
+     - Protegida la sincronización de multi-slots restringiendo el borrado de anticipos al ID base (`id === baseId`) y verificando `Array.isArray(quote.advances)`.
+     - Creados 4 endpoints REST atómicos: `GET /api/events/:eventId/anticipos`, `POST /api/events/:eventId/anticipos`, `PUT /api/events/:eventId/anticipos/:advanceId` y `DELETE /api/events/:eventId/anticipos/:advanceId`.
+     - Registro cronológico auditable en `historial_anticipos` con nombre de usuario, ID, acción (`added`, `edited`, `deleted`), timestamp y emisión de WebSockets en tiempo real.
+  2. En `src/services/stateService.js` y `src/services/api.js`:
+     - Exportados `getEventAdvancesApi`, `addEventAdvanceApi`, `updateEventAdvanceApi` y `deleteEventAdvanceApi`.
+  3. En `src/modules/reports/ReportsContabilidad.jsx`:
+     - Vinculada la aplicación de abonos en el Estado de Cuenta a los endpoints atómicos, garantizando sincronización inmediata sin riesgo de sobreescritura.
+  4. En `src/modules/calendar/components/QuoteModal.jsx` y `src/modules/calendar/components/quoteMobile.css`:
+     - Rediseñado completamente el módulo "Gestión de Anticipos" fiel a la Imagen 3:
+       * Encabezado institucional con billetera azul, badge `● Evento: [Nombre] #[Código]` y subtítulo.
+       * 3 tarjetas KPI: TOTAL ANTICIPOS (con contador de aportes), SALDO PENDIENTE (con badge ámbar `Por Pagar` y vencimiento), y SALDO A FAVOR (con check esmeralda).
+       * Formulario de alta gama con prefijo `Q` en Monto, selectores ejecutivos, caja de carga de comprobante con botón "Explorar" y selector de Asesor/Usuario.
+       * Tabla estilizada de abonos con badges de forma de pago, fecha con hora, referencia bancaria en monospace, monto bold, botón de comprobante lightbox y acciones ✏️ / 🗑️.
+       * Acordeón colapsable `LOG DE TRAZABILIDAD Y AUDITORÍA DE PAGOS` con historial auditable.
+       * Pie con exportación a PDF formal y botón "Listo / Cerrar".
+  5. Validado con 54 pruebas automatizadas (`node --test tests/*.test.mjs`) y compilación limpia de producción (versión 2.1.143).
+
 ### Solución: Persistencia de Abonos en Edición, Explicación de Almacenamiento en MariaDB y Rediseño Ejecutivo de Botones (`ReportsContabilidad.jsx`, `reports.css`, `reports-contabilidad-statement.test.mjs`) (2026-09-17)
 - Requerimiento: Resolver error donde un abono desaparecía de la base de datos al ser editado y actualizado desde el estado de cuenta contable, explicar dónde y cómo se almacenan los abonos en el sistema, y rediseñar todos los botones del panel de pagos y modales contables (corrigiendo el botón rosa deformado de comprobante, botón de saldar, cancelar, guardar/actualizar y acciones de tabla).
 - Causa raíz:

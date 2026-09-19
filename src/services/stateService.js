@@ -666,6 +666,50 @@ export async function saveSettingApi(key, value) {
   return savedVal;
 }
 
+export async function getEventAdvancesApi(eventId) {
+  if (!eventId) return { advances: [], advanceLogs: [], summary: {} };
+  try {
+    const res = await api.get(`/api/events/${encodeURIComponent(eventId)}/anticipos`);
+    return res || { advances: [], advanceLogs: [], summary: {} };
+  } catch (err) {
+    console.error('Error en getEventAdvancesApi:', err);
+    return { advances: [], advanceLogs: [], summary: {} };
+  }
+}
+
+export async function addEventAdvanceApi(eventId, data) {
+  if (!eventId) throw new Error('eventId requerido para registrar anticipo.');
+  const res = await api.post(`/api/events/${encodeURIComponent(eventId)}/anticipos`, data);
+  cachedState = null;
+  cacheTimestamp = 0;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+  return res;
+}
+
+export async function updateEventAdvanceApi(eventId, advanceId, data) {
+  if (!eventId || !advanceId) throw new Error('eventId y advanceId requeridos para actualizar anticipo.');
+  const res = await api.put(`/api/events/${encodeURIComponent(eventId)}/anticipos/${encodeURIComponent(advanceId)}`, data);
+  cachedState = null;
+  cacheTimestamp = 0;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+  return res;
+}
+
+export async function deleteEventAdvanceApi(eventId, advanceId, payload = {}) {
+  if (!eventId || !advanceId) throw new Error('eventId y advanceId requeridos para eliminar anticipo.');
+  const res = await api.delete(`/api/events/${encodeURIComponent(eventId)}/anticipos/${encodeURIComponent(advanceId)}`, payload);
+  cachedState = null;
+  cacheTimestamp = 0;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+  return res;
+}
+
 const stateService = {
   loadState,
   saveState,
@@ -692,6 +736,10 @@ const stateService = {
   resolveExchangeRateAtDateApi,
   getSettingApi,
   saveSettingApi,
+  getEventAdvancesApi,
+  addEventAdvanceApi,
+  updateEventAdvanceApi,
+  deleteEventAdvanceApi,
 };
 
 export default stateService;

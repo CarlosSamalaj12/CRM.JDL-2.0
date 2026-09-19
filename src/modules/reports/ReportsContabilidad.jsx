@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { loadState as loadCrmState } from '../../services/stateService';
+import { loadState as loadCrmState, addEventAdvanceApi, updateEventAdvanceApi, deleteEventAdvanceApi } from '../../services/stateService';
 import authService from '../../services/authService';
 import { STATUS_META } from '../calendar/constants';
 import { getEventSeriesFinancialMeta, getQuoteFinancialAmounts } from './components/eventSeriesUtils';
@@ -54,6 +54,108 @@ function formatCompactMoney(amount) {
   if (num >= 1000000) return `Q ${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `Q ${(num / 1000).toFixed(1)}K`;
   return `Q ${num.toFixed(2)}`;
+}
+
+export function renderFormattedParts(amount, qColor) {
+  const num = Number(amount || 0);
+  const formatted = num.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parts = formatted.split('.');
+  const intPart = parts[0];
+  const decPart = parts[1] || '00';
+  return (
+    <>
+      <span style={{ color: qColor || 'inherit', marginRight: '2px', fontWeight: 800 }}>Q</span>
+      <span style={{ fontWeight: 900 }}>{intPart}</span>
+      <span style={{ fontSize: '0.72em', fontWeight: 700, opacity: 0.85 }}>.{decPart}</span>
+    </>
+  );
+}
+
+export function formatDateEs(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const parts = String(dateStr).split('T')[0].split('-');
+    if (parts.length === 3) {
+      const year = parts[0];
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
+      return `${day} ${months[monthIdx] || ''} ${year}`;
+    }
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('es-GT', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  } catch (_) {}
+  return String(dateStr);
+}
+
+export function getAccountInitials(name = '') {
+  const clean = String(name || '').trim();
+  if (!clean) return 'JL';
+
+  const stripped = clean
+    .replace(/^boda\s+de\s+/i, '')
+    .replace(/^boda\s+/i, '')
+    .replace(/^evento\s+de\s+/i, '')
+    .replace(/^evento\s+/i, '')
+    .replace(/^cumplea[ñn]os\s+/i, '')
+    .replace(/^xv\s+a[ñn]os\s+/i, '')
+    .trim();
+
+  const words = stripped
+    .split(/\s+/)
+    .filter(w => w.length > 0 && !['de', 'la', 'el', 'los', 'las', 'y', 'del', 'en'].includes(w.toLowerCase()));
+
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
+export function getAccountToneStyles(tone) {
+  switch (tone) {
+    case 'overdue':
+      return {
+        bg: '#fee2e2',
+        color: '#dc2626',
+        borderColor: '#fca5a5',
+        borderTop: '#ef4444',
+        btnBg: '#f59e0b',
+        btnText: '#ffffff',
+      };
+    case 'due':
+      return {
+        bg: '#fef3c7',
+        color: '#b45309',
+        borderColor: '#fde68a',
+        borderTop: '#f59e0b',
+        btnBg: '#fffbeb',
+        btnText: '#b45309',
+      };
+    case 'credit':
+      return {
+        bg: '#f5f3ff',
+        color: '#6d28d9',
+        borderColor: '#ddd6fe',
+        borderTop: '#8b5cf6',
+        btnBg: '#f5f3ff',
+        btnText: '#6d28d9',
+      };
+    case 'ok':
+    default:
+      return {
+        bg: '#dcfce7',
+        color: '#15803d',
+        borderColor: '#bbf7d0',
+        borderTop: '#10b981',
+        btnBg: '#ecfdf5',
+        btnText: '#065f46',
+      };
+  }
 }
 
 export function categorizeQuoteItems(items = []) {
@@ -133,6 +235,11 @@ export default function ReportsContabilidad({ onClose }) {
 
   // ── Expansión y Modales ──
   const [expandedAccounts, setExpandedAccounts] = useState(new Set());
+  const [accountDetailTab, setAccountDetailTab] = useState({});
+  const getDetailTab = (key) => accountDetailTab[key] || 'events';
+  const setDetailTab = (key, tab) => setAccountDetailTab(prev => ({ ...prev, [key]: tab }));
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const hasActiveFilters = Boolean(appliedSearch || sellerFilter || dateFrom || dateTo || statusTab !== 'ALL' || salonFilter || institutionTypeFilter);
   const [activeStatementCompanyId, setActiveStatementCompanyId] = useState(null);
   const [activeEventStatementRow, setActiveEventStatementRow] = useState(null);
   const [previewVoucher, setPreviewVoucher] = useState(null);
@@ -228,7 +335,10 @@ export default function ReportsContabilidad({ onClose }) {
 
   const handleFillPendingBalance = () => {
     if (!activeEventStatementRow) return;
-    const pending = activeEventStatementRow.balancePending || 0;
+    const mFin = getQuoteFinancialAmounts(activeEventStatementRow.quote, activeEventStatementRow.exchangeRate);
+    const mTotal = Number(activeEventStatementRow.total) > 0 ? Number(activeEventStatementRow.total) : mFin.totalGtq;
+    const mAdvTotal = Number(activeEventStatementRow.advancesTotal) || 0;
+    const pending = Math.max(0, mTotal - mAdvTotal);
     if (pending > 0) {
       setAdvanceForm(prev => ({
         ...prev,
@@ -399,8 +509,18 @@ export default function ReportsContabilidad({ onClose }) {
         change: `${advanceEditingId ? 'Editado' : 'Registrado'} abono de Q ${amount.toFixed(2)} (${paymentType} ${voucherNumber ? '#' + voucherNumber : ''}) - Aplicado por: ${actorName} - ${description}`
       });
 
+      const finAmounts = getQuoteFinancialAmounts(currentQuote, activeEventStatementRow.exchangeRate);
+      const effectiveQuoteTotal = finAmounts.rawTotal > 0 ? finAmounts.rawTotal : Number(currentQuote.total || 0);
+      const effectiveQuoteTotalGtq = finAmounts.totalGtq > 0 ? finAmounts.totalGtq : Number(currentQuote.totalGtq || 0);
+      const effectiveQuoteSubtotal = finAmounts.rawSubtotal > 0 ? finAmounts.rawSubtotal : Number(currentQuote.subtotal || 0);
+      const effectiveQuoteSubtotalGtq = finAmounts.subtotalGtq > 0 ? finAmounts.subtotalGtq : Number(currentQuote.subtotalGtq || 0);
+
       const updatedQuote = {
         ...currentQuote,
+        total: effectiveQuoteTotal,
+        totalGtq: effectiveQuoteTotalGtq,
+        subtotal: effectiveQuoteSubtotal,
+        subtotalGtq: effectiveQuoteSubtotalGtq,
         advances: currentAdvances,
         advanceLogs
       };
@@ -409,6 +529,41 @@ export default function ReportsContabilidad({ onClose }) {
         ...targetEvent,
         quote: updatedQuote
       };
+
+      try {
+        if (advanceEditingId) {
+          await updateEventAdvanceApi(targetEvent.id, advanceEditingId, {
+            amount,
+            date,
+            paymentType,
+            voucherNumber,
+            description,
+            evidenceDataUrl,
+            evidenceName,
+            evidenceType,
+            actorId,
+            actorName
+          });
+        } else {
+          const newAdvId = currentAdvances[currentAdvances.length - 1]?.id;
+          await addEventAdvanceApi(targetEvent.id, {
+            id: newAdvId,
+            amount,
+            date,
+            paymentType,
+            voucherNumber,
+            description,
+            evidenceDataUrl,
+            evidenceName,
+            evidenceType,
+            createdByUserId: actorId,
+            createdByName: actorName,
+            createdAt: new Date().toISOString()
+          });
+        }
+      } catch (atomicErr) {
+        console.warn('Advertencia en endpoint atómico de anticipos:', atomicErr);
+      }
 
       await handleAddEvent(updatedEvent);
 
@@ -421,12 +576,13 @@ export default function ReportsContabilidad({ onClose }) {
       const isUsd = !!activeEventStatementRow.isUsd;
       const rate = activeEventStatementRow.exchangeRate || 1;
       const advTotal = isUsd ? Math.round(rawAdvTotal * rate * 100) / 100 : rawAdvTotal;
-      const totalGtq = activeEventStatementRow.total;
+      const totalGtq = effectiveQuoteTotalGtq > 0 ? effectiveQuoteTotalGtq : (Number(activeEventStatementRow.total) || 0);
       const delta = totalGtq - advTotal;
 
       setActiveEventStatementRow(prev => ({
         ...prev,
         quote: updatedQuote,
+        total: totalGtq,
         advances: sortedAdvances,
         advancesCount: sortedAdvances.length,
         advancesTotal: advTotal,
@@ -514,8 +670,18 @@ export default function ReportsContabilidad({ onClose }) {
         change: 'Abono eliminado del evento'
       });
 
+      const finAmounts = getQuoteFinancialAmounts(currentQuote, activeEventStatementRow.exchangeRate);
+      const effectiveQuoteTotal = finAmounts.rawTotal > 0 ? finAmounts.rawTotal : Number(currentQuote.total || 0);
+      const effectiveQuoteTotalGtq = finAmounts.totalGtq > 0 ? finAmounts.totalGtq : Number(currentQuote.totalGtq || 0);
+      const effectiveQuoteSubtotal = finAmounts.rawSubtotal > 0 ? finAmounts.rawSubtotal : Number(currentQuote.subtotal || 0);
+      const effectiveQuoteSubtotalGtq = finAmounts.subtotalGtq > 0 ? finAmounts.subtotalGtq : Number(currentQuote.subtotalGtq || 0);
+
       const updatedQuote = {
         ...currentQuote,
+        total: effectiveQuoteTotal,
+        totalGtq: effectiveQuoteTotalGtq,
+        subtotal: effectiveQuoteSubtotal,
+        subtotalGtq: effectiveQuoteSubtotalGtq,
         advances: currentAdvances,
         advanceLogs
       };
@@ -524,6 +690,16 @@ export default function ReportsContabilidad({ onClose }) {
         ...targetEvent,
         quote: updatedQuote
       };
+
+      try {
+        await deleteEventAdvanceApi(targetEvent.id, advanceId, {
+          actorId,
+          actorName,
+          reason: 'Eliminado desde Estado de Cuenta Contable'
+        });
+      } catch (atomicDelErr) {
+        console.warn('Advertencia en eliminación atómica de anticipo:', atomicDelErr);
+      }
 
       await handleAddEvent(updatedEvent);
 
@@ -536,12 +712,13 @@ export default function ReportsContabilidad({ onClose }) {
       const isUsd = !!activeEventStatementRow.isUsd;
       const rate = activeEventStatementRow.exchangeRate || 1;
       const advTotal = isUsd ? Math.round(rawAdvTotal * rate * 100) / 100 : rawAdvTotal;
-      const totalGtq = activeEventStatementRow.total;
+      const totalGtq = effectiveQuoteTotalGtq > 0 ? effectiveQuoteTotalGtq : (Number(activeEventStatementRow.total) || 0);
       const delta = totalGtq - advTotal;
 
       setActiveEventStatementRow(prev => ({
         ...prev,
         quote: updatedQuote,
+        total: totalGtq,
         advances: sortedAdvances,
         advancesCount: sortedAdvances.length,
         advancesTotal: advTotal,
@@ -1204,6 +1381,45 @@ export default function ReportsContabilidad({ onClose }) {
     setCurrentPage(1);
   };
 
+  const handleResetSecondaryFilters = () => {
+    setDateFrom('');
+    setDateTo('');
+    setSellerFilter('');
+    setSalonFilter('');
+    setInstitutionTypeFilter('');
+    setCurrentPage(1);
+  };
+
+  const handleDatePreset = (preset) => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth();
+    const pad = (n) => String(n).padStart(2, '0');
+
+    if (preset === 'THIS_MONTH') {
+      const firstDay = `${y}-${pad(m + 1)}-01`;
+      const lastDayObj = new Date(y, m + 1, 0);
+      const lastDay = `${y}-${pad(m + 1)}-${pad(lastDayObj.getDate())}`;
+      setDateFrom(firstDay);
+      setDateTo(lastDay);
+    } else if (preset === 'NEXT_30') {
+      const fromStr = `${y}-${pad(m + 1)}-${pad(today.getDate())}`;
+      const future = new Date(today);
+      future.setDate(future.getDate() + 30);
+      const toStr = `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}`;
+      setDateFrom(fromStr);
+      setDateTo(toStr);
+    } else if (preset === 'THIS_YEAR') {
+      setDateFrom(`${y}-01-01`);
+      setDateTo(`${y}-12-31`);
+    } else if (preset === 'ALL') {
+      setDateFrom('');
+      setDateTo('');
+    }
+  };
+
+  const secondaryFiltersCount = [dateFrom, dateTo, sellerFilter, salonFilter, institutionTypeFilter].filter(Boolean).length;
+
   const toggleExpandAccount = (key) => {
     setExpandedAccounts(prev => {
       const next = new Set(prev);
@@ -1294,6 +1510,15 @@ export default function ReportsContabilidad({ onClose }) {
     const items = quote.items || [];
     const categorized = categorizeQuoteItems(items);
     const advances = row.advances || [];
+
+    const finAmounts = getQuoteFinancialAmounts(quote, row.exchangeRate);
+    const effectiveTotal = Number(row.total) > 0 ? Number(row.total) : finAmounts.totalGtq;
+    const effectiveAdvTotal = Number(row.advancesTotal) || 0;
+    const effectiveDelta = effectiveTotal - effectiveAdvTotal;
+    const effectivePending = Math.max(0, effectiveDelta);
+    const effectiveCredit = Math.max(0, -effectiveDelta);
+    const effectivePaidPct = effectiveTotal > 0 ? ((effectiveAdvTotal / effectiveTotal) * 100).toFixed(1) : (effectiveAdvTotal > 0 ? '100.0' : '0.0');
+    const effectiveRawUsd = Number(row.rawTotal || finAmounts.rawTotal || 0);
 
     const currencySymbol = row.isUsd ? '$' : 'Q';
 
@@ -1387,22 +1612,22 @@ export default function ReportsContabilidad({ onClose }) {
   <div class="kpi-summary-box">
     <div class="kpi-box">
       <div class="kpi-label">Total Contratado</div>
-      <div class="kpi-val" style="color:#0f172a;">Q ${Number(row.total || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
-      ${row.isUsd ? `<small style="font-size:9px;color:#64748b;">$${Number(row.rawTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD (TC Q${Number(row.exchangeRate || 7.75).toFixed(2)})</small>` : ''}
+      <div class="kpi-val" style="color:#0f172a;">Q ${effectiveTotal.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
+      ${row.isUsd ? `<small style="font-size:9px;color:#64748b;">$${effectiveRawUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD (TC Q${Number(row.exchangeRate || 7.75).toFixed(2)})</small>` : ''}
     </div>
     <div class="kpi-box">
       <div class="kpi-label">Total Abonado</div>
-      <div class="kpi-val" style="color:#16a34a;">Q ${Number(row.advancesTotal || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
-      <small style="font-size:9px;color:#16a34a;">${row.total > 0 ? ((row.advancesTotal / row.total) * 100).toFixed(1) : 0}% pagado</small>
+      <div class="kpi-val" style="color:#16a34a;">Q ${effectiveAdvTotal.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
+      <small style="font-size:9px;color:#16a34a;">${effectivePaidPct}% pagado</small>
     </div>
     <div class="kpi-box">
       <div class="kpi-label">Saldo Pendiente</div>
-      <div class="kpi-val" style="color:${row.balancePending > 0 ? '#dc2626' : '#16a34a'};">Q ${Number(row.balancePending || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
-      <small style="font-size:9px;color:${row.balancePending > 0 ? '#dc2626' : '#16a34a'};">${row.balancePending > 0 ? 'Por cancelar' : 'Al día'}</small>
+      <div class="kpi-val" style="color:${effectivePending > 0 ? '#dc2626' : '#16a34a'};">Q ${effectivePending.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
+      <small style="font-size:9px;color:${effectivePending > 0 ? '#dc2626' : '#16a34a'};">${effectivePending > 0 ? 'Por cancelar' : 'Al día'}</small>
     </div>
     <div class="kpi-box">
       <div class="kpi-label">Saldo a Favor</div>
-      <div class="kpi-val" style="color:#7c3aed;">Q ${Number(row.creditBalance || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
+      <div class="kpi-val" style="color:#7c3aed;">Q ${effectiveCredit.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
       <small style="font-size:9px;color:#7c3aed;">Disponible</small>
     </div>
   </div>
@@ -1642,8 +1867,10 @@ export default function ReportsContabilidad({ onClose }) {
         </div>
       </div>
 
-      {/* ── 5 TARJETAS KPI (Idénticas a la Referencia) ── */}
-      <div className="acct-kpi-grid" style={{ marginBottom: '16px' }}>
+      {/* ── VISTA DESKTOP (> 850px) ── */}
+      <div className="acct-desktop-view">
+        {/* ── 5 TARJETAS KPI (Idénticas a la Referencia) ── */}
+        <div className="acct-kpi-grid" style={{ marginBottom: '16px' }}>
         {/* 1. Instituciones */}
         <div className="acct-kpi-card acct-kpi-card--instituciones">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -2038,16 +2265,16 @@ export default function ReportsContabilidad({ onClose }) {
           <table className="acct-table">
             <thead>
               <tr>
-                <th style={{ width: '130px' }}>INDICADOR / ESTADO</th>
-                <th>INSTITUCIÓN / EVENTO</th>
-                <th>CONTACTO</th>
-                <th style={{ textAlign: 'center', width: '70px' }}>EVENTOS</th>
-                <th style={{ textAlign: 'right' }}>VENTA NETA</th>
-                <th style={{ textAlign: 'right' }}>COBRADO</th>
-                <th style={{ textAlign: 'right' }}>PENDIENTE</th>
-                <th style={{ textAlign: 'right' }}>SALDO FAVOR</th>
-                <th>PROPUESTA COBRO</th>
-                <th style={{ textAlign: 'center', width: '150px' }}>ACCIONES</th>
+                <th className="acct-col-status">INDICADOR / ESTADO</th>
+                <th className="acct-col-company">INSTITUCIÓN / EVENTO</th>
+                <th className="acct-col-contact">CONTACTO</th>
+                <th className="acct-col-events">EVENTOS</th>
+                <th className="acct-col-net">VENTA NETA</th>
+                <th className="acct-col-collected">COBRADO</th>
+                <th className="acct-col-pending">PENDIENTE</th>
+                <th className="acct-col-credit">SALDO FAVOR</th>
+                <th className="acct-col-due">PROPUESTA COBRO</th>
+                <th className="acct-col-actions">ACCIONES</th>
               </tr>
             </thead>
             <tbody>
@@ -2065,12 +2292,13 @@ export default function ReportsContabilidad({ onClose }) {
                   const isDue = account.collectionTone === 'due';
                   const isCredit = account.collectionTone === 'credit';
                   const amortPct = account.netAmount > 0 ? (account.collectedAmount / account.netAmount) * 100 : 0;
+                  const currentTab = getDetailTab(account.key);
 
                   return (
                     <Fragment key={account.key}>
                       <tr style={{ background: isExpanded ? '#f8fafc' : '#ffffff' }}>
                         {/* Indicador / Estado */}
-                        <td>
+                        <td className="acct-col-status">
                           {isOverdue ? (
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -2111,7 +2339,7 @@ export default function ReportsContabilidad({ onClose }) {
                         </td>
 
                         {/* Institución / Evento */}
-                        <td>
+                        <td className="acct-col-company">
                           <div style={{ fontWeight: 800, fontSize: '12.5px', color: '#0f172a', textTransform: 'uppercase' }}>
                             {account.companyName}
                           </div>
@@ -2122,7 +2350,7 @@ export default function ReportsContabilidad({ onClose }) {
                         </td>
 
                         {/* Contacto */}
-                        <td>
+                        <td className="acct-col-contact">
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 600, color: '#334155' }}>
                             <Phone size={11} strokeWidth={2} color="#64748b" />
                             <span>{account.contactPhone || account.rows?.[0]?.quote?.contact || 'S/N'}</span>
@@ -2133,7 +2361,7 @@ export default function ReportsContabilidad({ onClose }) {
                         </td>
 
                         {/* Eventos */}
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="acct-col-events">
                           <span style={{
                             background: '#f1f5f9', color: '#0f172a', fontSize: '11.5px', fontWeight: 800,
                             padding: '3px 8px', borderRadius: '6px'
@@ -2143,12 +2371,12 @@ export default function ReportsContabilidad({ onClose }) {
                         </td>
 
                         {/* Venta Neta */}
-                        <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '12.5px', color: '#0f172a' }}>
+                        <td className="acct-col-net">
                           {formatMoney(account.netAmount)}
                         </td>
 
                         {/* Cobrado */}
-                        <td style={{ textAlign: 'right' }}>
+                        <td className="acct-col-collected">
                           <div style={{ fontWeight: 800, fontSize: '12px', color: '#16a34a' }}>
                             {formatMoney(account.collectedAmount)}
                           </div>
@@ -2158,17 +2386,17 @@ export default function ReportsContabilidad({ onClose }) {
                         </td>
 
                         {/* Pendiente */}
-                        <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '12.5px', color: account.pendingAmount > 0 ? '#dc2626' : '#16a34a' }}>
+                        <td className="acct-col-pending" style={{ color: account.pendingAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 800, fontSize: '12.5px' }}>
                           {formatMoney(account.pendingAmount)}
                         </td>
 
                         {/* Saldo Favor */}
-                        <td style={{ textAlign: 'right', fontSize: '12px', color: account.creditAmount > 0 ? '#7c3aed' : '#64748b', fontWeight: account.creditAmount > 0 ? 800 : 500 }}>
+                        <td className="acct-col-credit" style={{ color: account.creditAmount > 0 ? '#7c3aed' : '#64748b', fontWeight: account.creditAmount > 0 ? 800 : 500, fontSize: '12px' }}>
                           {formatMoney(account.creditAmount)}
                         </td>
 
                         {/* Propuesta Cobro */}
-                        <td>
+                        <td className="acct-col-due">
                           <div style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>
                             {account.collectionDueLabel}
                           </div>
@@ -2185,130 +2413,363 @@ export default function ReportsContabilidad({ onClose }) {
                         </td>
 
                         {/* Acciones */}
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <td className="acct-col-actions">
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
                             <button
                               type="button"
+                              className={`acct-btn-detail ${isExpanded ? 'is-active' : ''}`}
                               onClick={() => toggleExpandAccount(account.key)}
-                              title={isExpanded ? "Ocultar eventos" : "Ver eventos de esta institución"}
-                              style={{
-                                background: isExpanded ? '#0f172a' : '#f1f5f9',
-                                color: isExpanded ? '#ffffff' : '#334155',
-                                border: '1px solid #cbd5e1', borderRadius: '6px',
-                                padding: '4px 9px', fontSize: '11px', fontWeight: 700, cursor: 'pointer',
-                                display: 'inline-flex', alignItems: 'center', gap: '3px'
-                              }}
+                              title={isExpanded ? "Ocultar desglose" : "Consultar desglose por eventos, contactos y amortizaciones"}
                             >
                               <span>Detalle</span>
-                              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                              {isExpanded ? <ChevronUp size={12} strokeWidth={2.2} /> : <ChevronDown size={12} strokeWidth={2.2} />}
                             </button>
 
                             <button
                               type="button"
+                              className="acct-btn-state"
                               onClick={() => setActiveStatementCompanyId(account.key)}
-                              title="Ver estado de cuenta de la empresa"
-                              style={{
-                                background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
-                                borderRadius: '6px', padding: '4px 9px', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
-                              }}
+                              title="Ver estado de cuenta específico del cliente seleccionado al instante"
                             >
-                              Estado
+                              <FileText size={12} strokeWidth={2} />
+                              <span>Estado</span>
                             </button>
                           </div>
                         </td>
                       </tr>
 
-                      {/* ── FILA EXPANDIDA: LISTA ANIDADA DE EVENTOS ── */}
+                      {/* ── FILA EXPANDIDA: DESGLOSE COMPLETO (EVENTOS, CONTACTOS, AMORTIZACIONES) ── */}
                       {isExpanded && (
                         <tr style={{ background: '#f8fafc' }}>
-                          <td colSpan={10} style={{ padding: '12px 20px 18px 30px', borderLeft: '3px solid #2563eb' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <FileText size={13} color="#2563eb" />
-                                <span>Eventos Registrados de {account.companyName} ({account.rows.length})</span>
+                          <td colSpan={10} style={{ padding: '12px 20px 18px 24px', borderLeft: '4px solid #2563eb' }}>
+                            <div className="acct-expanded-box">
+                              {/* Barra Superior de Pestañas */}
+                              <div className="acct-detail-tabs-bar">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '14px' }}>
+                                  <Building2 size={15} color="#2563eb" />
+                                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                                    {account.companyName}
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className={`acct-detail-tab-btn ${currentTab === 'events' ? 'is-active' : ''}`}
+                                  onClick={() => setDetailTab(account.key, 'events')}
+                                >
+                                  <Calendar size={13} />
+                                  <span>Eventos Registrados</span>
+                                  <span className="acct-detail-tab-badge">{account.rows.length}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`acct-detail-tab-btn ${currentTab === 'contacts' ? 'is-active' : ''}`}
+                                  onClick={() => setDetailTab(account.key, 'contacts')}
+                                >
+                                  <User size={13} />
+                                  <span>Contactos & Asesor</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`acct-detail-tab-btn ${currentTab === 'amortizations' ? 'is-active' : ''}`}
+                                  onClick={() => setDetailTab(account.key, 'amortizations')}
+                                >
+                                  <CreditCard size={13} />
+                                  <span>Trazabilidad de Amortizaciones</span>
+                                  <span className="acct-detail-tab-badge">{account.advancesCount}</span>
+                                </button>
+
+                                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveStatementCompanyId(account.key)}
+                                    title="Ver estado de cuenta de la empresa"
+                                    style={{
+                                      background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
+                                      borderRadius: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 700,
+                                      cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px'
+                                    }}
+                                  >
+                                    <FileText size={12} />
+                                    <span>Ver Estado Corporativo</span>
+                                  </button>
+                                </div>
                               </div>
-                              <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                Haz clic en "Estado de Cuenta" para generar la hoja formal membretada del evento
-                              </span>
-                            </div>
 
-                            <div style={{
-                              background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0',
-                              overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                            }}>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
-                                <thead>
-                                  <tr style={{ background: '#f1f5f9', color: '#475569', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>
-                                    <th style={{ padding: '8px 10px' }}>Fecha</th>
-                                    <th style={{ padding: '8px 10px' }}>Folio / Cotización</th>
-                                    <th style={{ padding: '8px 10px' }}>Nombre Evento</th>
-                                    <th style={{ padding: '8px 10px' }}>Salón</th>
-                                    <th style={{ padding: '8px 10px' }}>Vendedor</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Venta Neta</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Cobrado</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Saldo Pendiente</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center' }}>Acciones del Evento</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {account.rows.map(evRow => (
-                                    <tr key={evRow.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                      <td style={{ padding: '7px 10px', fontWeight: 600 }}>{evRow.eventDate}</td>
-                                      <td style={{ padding: '7px 10px', fontWeight: 800, color: '#0284c7' }}>
-                                        {evRow.folio || evRow.refId}
-                                      </td>
-                                      <td style={{ padding: '7px 10px', fontWeight: 700, color: '#0f172a' }}>{evRow.name}</td>
-                                      <td style={{ padding: '7px 10px', color: '#475569' }}>{evRow.salon}</td>
-                                      <td style={{ padding: '7px 10px', color: '#475569' }}>{evRow.userName}</td>
-                                      <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>
-                                        {formatMoney(evRow.total)}
-                                      </td>
-                                      <td style={{ padding: '7px 10px', textAlign: 'right', color: '#16a34a', fontWeight: 700 }}>
-                                        {formatMoney(evRow.advancesTotal)}
-                                      </td>
-                                      <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 800, color: evRow.balancePending > 0 ? '#dc2626' : '#16a34a' }}>
-                                        {formatMoney(evRow.balancePending)}
-                                      </td>
-                                      <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                                          <button
-                                            type="button"
-                                            className="acct-btn-subrow-pay"
-                                            onClick={() => {
-                                              setActiveEventStatementRow(evRow);
-                                              setShowAdvanceForm(true);
-                                            }}
-                                            title="Aplicar abono o registrar cobro a este evento"
-                                          >
-                                            <CreditCard size={12} />
-                                            <span>Aplicar Pago</span>
-                                          </button>
+                              {/* ── CONTENIDO PESTAÑA 1: EVENTOS ── */}
+                              {currentTab === 'events' && (
+                                <div style={{ overflowX: 'auto' }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                                    <thead>
+                                      <tr style={{ background: '#f8fafc', color: '#475569', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Fecha</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Folio / Cotización</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Nombre Evento</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Salón</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Vendedor</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Venta Neta</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Cobrado</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Saldo Pendiente</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>Acciones del Evento</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {account.rows.map(evRow => {
+                                        const evAmortPct = evRow.total > 0 ? (evRow.advancesTotal / evRow.total) * 100 : 0;
+                                        return (
+                                          <tr key={evRow.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '7px 10px', fontWeight: 600 }}>{evRow.eventDate}</td>
+                                            <td style={{ padding: '7px 10px', fontWeight: 800, color: '#0284c7' }}>
+                                              {evRow.folio || evRow.refId}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', fontWeight: 700, color: '#0f172a' }}>{evRow.name}</td>
+                                            <td style={{ padding: '7px 10px', color: '#475569' }}>{evRow.salon}</td>
+                                            <td style={{ padding: '7px 10px', color: '#475569' }}>{evRow.userName}</td>
+                                            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>
+                                              {formatMoney(evRow.total)}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                                              <div style={{ color: '#16a34a', fontWeight: 700 }}>{formatMoney(evRow.advancesTotal)}</div>
+                                              <div style={{ fontSize: '10px', color: '#15803d' }}>{evAmortPct.toFixed(1)}%</div>
+                                            </td>
+                                            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 800, color: evRow.balancePending > 0 ? '#dc2626' : '#16a34a' }}>
+                                              {formatMoney(evRow.balancePending)}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                                              <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                                <button
+                                                  type="button"
+                                                  className="acct-btn-subrow-pay"
+                                                  onClick={() => {
+                                                    setActiveEventStatementRow(evRow);
+                                                    setShowAdvanceForm(true);
+                                                  }}
+                                                  title="Aplicar abono o registrar cobro a este evento"
+                                                >
+                                                  <CreditCard size={12} />
+                                                  <span>Aplicar Pago</span>
+                                                </button>
 
-                                          <button
-                                            type="button"
-                                            className="acct-btn-subrow-state"
-                                            onClick={() => setActiveEventStatementRow(evRow)}
-                                            title="Abrir hoja formal del estado de cuenta de este evento"
-                                          >
-                                            <FileText size={12} />
-                                            <span>Estado</span>
-                                          </button>
+                                                <button
+                                                  type="button"
+                                                  className="acct-btn-subrow-state"
+                                                  onClick={() => setActiveEventStatementRow(evRow)}
+                                                  title="Abrir hoja formal del estado de cuenta de este evento"
+                                                >
+                                                  <FileText size={12} />
+                                                  <span>Estado</span>
+                                                </button>
 
-                                          <button
-                                            type="button"
-                                            className="acct-btn-cancel-form"
-                                            onClick={() => { onClose?.(); navigate(`/reserva/${evRow.actionEventId}`); }}
-                                            style={{ height: '26px', minHeight: '26px', padding: '0 8px', fontSize: '10.5px' }}
-                                            title="Abrir detalles de la reserva en el calendario"
-                                          >
-                                            <span>Reserva</span>
-                                          </button>
+                                                <button
+                                                  type="button"
+                                                  className="acct-btn-cancel-form"
+                                                  onClick={() => { onClose?.(); navigate(`/reserva/${evRow.actionEventId}`); }}
+                                                  style={{ height: '26px', minHeight: '26px', padding: '0 8px', fontSize: '10.5px' }}
+                                                  title="Abrir detalles de la reserva en el calendario"
+                                                >
+                                                  <span>Reserva</span>
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+
+                              {/* ── CONTENIDO PESTAÑA 2: CONTACTOS ── */}
+                              {currentTab === 'contacts' && (
+                                <div className="acct-contact-grid">
+                                  <div className="acct-contact-item">
+                                    <div className="acct-contact-item-icon"><User size={16} /></div>
+                                    <div>
+                                      <div className="acct-contact-item-label">Contacto Registrado</div>
+                                      <div className="acct-contact-item-value">{account.rows[0]?.clientName || account.rows[0]?.manager || account.companyName}</div>
+                                    </div>
+                                  </div>
+
+                                  <div className="acct-contact-item">
+                                    <div className="acct-contact-item-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}><Phone size={16} /></div>
+                                    <div>
+                                      <div className="acct-contact-item-label">Teléfono Directo</div>
+                                      <div className="acct-contact-item-value">
+                                        {account.contactPhone ? (
+                                          <a href={`tel:${account.contactPhone.replace(/\s+/g, '')}`} className="acct-contact-link">
+                                            {account.contactPhone}
+                                          </a>
+                                        ) : (
+                                          <span style={{ color: '#94a3b8' }}>No registrado</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="acct-contact-item">
+                                    <div className="acct-contact-item-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}><FileText size={16} /></div>
+                                    <div>
+                                      <div className="acct-contact-item-label">Correo Electrónico</div>
+                                      <div className="acct-contact-item-value">
+                                        {account.rows[0]?.managerEmail ? (
+                                          <a href={`mailto:${account.rows[0].managerEmail}`} className="acct-contact-link">
+                                            {account.rows[0].managerEmail}
+                                          </a>
+                                        ) : (
+                                          <span style={{ color: '#94a3b8' }}>No registrado</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="acct-contact-item">
+                                    <div className="acct-contact-item-icon" style={{ background: '#fffbeb', color: '#b45309' }}><User size={16} /></div>
+                                    <div>
+                                      <div className="acct-contact-item-label">Ejecutivo Comercial</div>
+                                      <div className="acct-contact-item-value">{account.primarySeller}</div>
+                                    </div>
+                                  </div>
+
+                                  <div className="acct-contact-item">
+                                    <div className="acct-contact-item-icon" style={{ background: '#f1f5f9', color: '#475569' }}><Building2 size={16} /></div>
+                                    <div>
+                                      <div className="acct-contact-item-label">Tipo de Institución</div>
+                                      <div className="acct-contact-item-value">{account.companyType || 'Corporativo / Privado'}</div>
+                                    </div>
+                                  </div>
+
+                                  <div className="acct-contact-item">
+                                    <div className="acct-contact-item-icon" style={{ background: '#ecfdf5', color: '#059669' }}><CheckCircle2 size={16} /></div>
+                                    <div>
+                                      <div className="acct-contact-item-label">Resumen de Eventos</div>
+                                      <div className="acct-contact-item-value">
+                                        {account.eventsCount} eventos ({account.paidEventsCount} al día, {account.pendingEventsCount} con saldo)
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* ── CONTENIDO PESTAÑA 3: TRAZABILIDAD DE AMORTIZACIONES ── */}
+                              {currentTab === 'amortizations' && (
+                                <div>
+                                  <div className="acct-amort-summary-bar">
+                                    <div className="acct-amort-stat">
+                                      <span className="acct-amort-stat-label">Venta Neta Total</span>
+                                      <span className="acct-amort-stat-val" style={{ color: '#0f172a' }}>{formatMoney(account.netAmount)}</span>
+                                    </div>
+                                    <div className="acct-amort-stat">
+                                      <span className="acct-amort-stat-label">Total Amortizado</span>
+                                      <span className="acct-amort-stat-val" style={{ color: '#16a34a' }}>{formatMoney(account.collectedAmount)}</span>
+                                    </div>
+                                    <div className="acct-amort-progress-container">
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 800, color: '#166534', marginBottom: '3px' }}>
+                                        <span>Cobertura</span>
+                                        <span>{amortPct.toFixed(1)}%</span>
+                                      </div>
+                                      <div className="acct-amort-progress-bar">
+                                        <div className="acct-amort-progress-fill" style={{ width: `${Math.min(100, amortPct)}%` }}></div>
+                                      </div>
+                                    </div>
+                                    <div className="acct-amort-stat">
+                                      <span className="acct-amort-stat-label">Saldo por Amortizar</span>
+                                      <span className="acct-amort-stat-val" style={{ color: account.pendingAmount > 0 ? '#dc2626' : '#16a34a' }}>
+                                        {formatMoney(account.pendingAmount)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {(() => {
+                                    const allAdvances = [];
+                                    for (const r of account.rows) {
+                                      if (Array.isArray(r.advances)) {
+                                        for (const adv of r.advances) {
+                                          allAdvances.push({ ...adv, eventFolio: r.folio || r.refId, eventName: r.name, evRow: r });
+                                        }
+                                      }
+                                    }
+                                    allAdvances.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+                                    if (allAdvances.length === 0) {
+                                      return (
+                                        <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                                          <Coins size={28} color="#94a3b8" style={{ marginBottom: '6px' }} />
+                                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>No se registran abonos en la cartera de esta institución</div>
+                                          <div style={{ fontSize: '11.5px', marginTop: '4px' }}>Haz clic en "Aplicar Pago" en la pestaña de eventos para ingresar el primer anticipo o liquidación.</div>
                                         </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                      );
+                                    }
+
+                                    return (
+                                      <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                                          <thead>
+                                            <tr style={{ background: '#f8fafc', color: '#475569', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>
+                                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>Fecha</th>
+                                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>Evento / Folio</th>
+                                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>Método de Pago</th>
+                                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>No. Boleta / Ref</th>
+                                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>Aplicado Por</th>
+                                              <th style={{ padding: '8px 10px', textAlign: 'right' }}>Monto Abono</th>
+                                              <th style={{ padding: '8px 10px', textAlign: 'center' }}>Acciones</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {allAdvances.map((adv, idx) => (
+                                              <tr key={adv.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <td style={{ padding: '8px 10px', fontWeight: 600 }}>{adv.date || '—'}</td>
+                                                <td style={{ padding: '8px 10px' }}>
+                                                  <span style={{ fontWeight: 800, color: '#0284c7' }}>{adv.eventFolio}</span>
+                                                  <span style={{ color: '#64748b', marginLeft: '6px', fontSize: '11px' }}>({adv.eventName})</span>
+                                                </td>
+                                                <td style={{ padding: '8px 10px', fontWeight: 600, color: '#334155' }}>
+                                                  {adv.paymentType || 'Efectivo'}
+                                                </td>
+                                                <td style={{ padding: '8px 10px', color: '#475569' }}>
+                                                  {adv.receiptNumber || adv.boletaNumber || 'S/N'}
+                                                </td>
+                                                <td style={{ padding: '8px 10px', color: '#475569' }}>
+                                                  {adv.userName || adv.createdByName || adv.appliedByName || 'Sistema'}
+                                                </td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                                                  {formatMoney(adv.amount)}
+                                                </td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                  <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                                    {adv.voucherImage && (
+                                                      <button
+                                                        type="button"
+                                                        className="acct-btn-row-action is-voucher"
+                                                        onClick={() => setPreviewVoucher(adv.voucherImage)}
+                                                        title="Ver boleta o comprobante bancario"
+                                                      >
+                                                        <Eye size={11} />
+                                                        <span>Ver Boleta</span>
+                                                      </button>
+                                                    )}
+                                                    <button
+                                                      type="button"
+                                                      className="acct-btn-subrow-state"
+                                                      onClick={() => setActiveEventStatementRow(adv.evRow)}
+                                                      title="Ver estado de cuenta de este evento"
+                                                      style={{ height: '24px', minHeight: '24px', padding: '0 7px', fontSize: '10.5px' }}
+                                                    >
+                                                      <FileText size={11} />
+                                                      <span>Ver Evento</span>
+                                                    </button>
+                                                  </div>
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2394,6 +2855,881 @@ export default function ReportsContabilidad({ onClose }) {
           </div>
         </div>
       </div>
+      </div> {/* Fin .acct-desktop-view */}
+
+      {/* ── VISTA MÓVIL (≤ 850px) — Idéntica a la Maqueta Móvil de Referencia ── */}
+      <div className="acct-mobile-view">
+        {/* 1. Diagnóstico de Cartera Móvil */}
+        <div className="acct-mobile-diagnostic-card">
+          <div className="acct-mobile-diagnostic-icon">
+            <AlertCircle size={18} color="#0284c7" />
+          </div>
+          <div className="acct-mobile-diagnostic-content">
+            <div className="acct-mobile-diagnostic-title">Diagnóstico de Cartera</div>
+            <div className="acct-mobile-diagnostic-text">
+              Cartera de <strong>{allAccounts.length} empresas</strong> cotizadas por{' '}
+              <strong>{formatCompactMoney(summary.netAmount)}</strong>. Existen{' '}
+              <span className="acct-overdue-pill-highlight">
+                {summary.overdueCount} instituciones vencidas
+              </span>{' '}
+              que requieren gestión de cobro hoy.
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Resumen Financiero QTZ (Carrusel Deslizable) */}
+        <div className="acct-mobile-carousel-header">
+          <span className="acct-mobile-carousel-title">
+            RESUMEN FINANCIERO <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>QTZ</span>
+          </span>
+          <span className="acct-mobile-carousel-hint">Deslizar →</span>
+        </div>
+
+        <div className="acct-mobile-kpi-carousel">
+          {/* Card 1: Saldo Pendiente */}
+          <div className="acct-mobile-kpi-slide is-pending">
+            <div className="acct-mobile-kpi-slide-header">
+              <span className="acct-mobile-kpi-slide-label">SALDO PENDIENTE</span>
+              <span className="acct-mobile-kpi-slide-pill is-mora">● {summary.overdueCount} Mora</span>
+            </div>
+            <div className="acct-mobile-kpi-slide-amount">
+              {renderFormattedParts(summary.pendingAmount, '#e11d48')}
+            </div>
+            <div className="acct-mobile-kpi-slide-footer">
+              <span style={{ color: '#e11d48', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                <AlertTriangle size={12} strokeWidth={2.2} /> Requiere cobro
+              </span>
+              <span style={{ color: '#64748b', fontWeight: 600 }}>
+                {summary.netAmount > 0 ? ((summary.pendingAmount / summary.netAmount) * 100).toFixed(1) : '0.0'}% cartera
+              </span>
+            </div>
+            <div className="acct-mobile-kpi-slide-bar">
+              <div
+                className="acct-mobile-kpi-slide-fill is-pending"
+                style={{ width: `${Math.min(100, summary.netAmount > 0 ? (summary.pendingAmount / summary.netAmount) * 100 : 0)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Card 2: Venta Neta */}
+          <div className="acct-mobile-kpi-slide is-net">
+            <div className="acct-mobile-kpi-slide-header">
+              <span className="acct-mobile-kpi-slide-label">VENTA NETA</span>
+              <span className="acct-mobile-kpi-slide-icon" style={{ background: '#f0f9ff', color: '#0284c7' }}>
+                <Coins size={14} strokeWidth={2.2} />
+              </span>
+            </div>
+            <div className="acct-mobile-kpi-slide-amount">
+              {renderFormattedParts(summary.netAmount, '#0284c7')}
+            </div>
+            <div className="acct-mobile-kpi-slide-footer">
+              <span style={{ color: '#64748b', fontWeight: 600 }}>Total cotizado y confirmado</span>
+              <span style={{ color: '#0f172a', fontWeight: 700 }}>{summary.totalEvents} eventos</span>
+            </div>
+          </div>
+
+          {/* Card 3: Cobrado */}
+          <div className="acct-mobile-kpi-slide is-collected">
+            <div className="acct-mobile-kpi-slide-header">
+              <span className="acct-mobile-kpi-slide-label">COBRADO</span>
+              <span className="acct-mobile-kpi-slide-pill is-success">{summary.amortizationRate.toFixed(1)}%</span>
+            </div>
+            <div className="acct-mobile-kpi-slide-amount">
+              {renderFormattedParts(summary.collectedAmount, '#16a34a')}
+            </div>
+            <div className="acct-mobile-kpi-slide-footer">
+              <span style={{ color: '#16a34a', fontWeight: 700 }}>{summary.totalAdvances} pagos conciliados</span>
+            </div>
+            <div className="acct-mobile-kpi-slide-bar">
+              <div
+                className="acct-mobile-kpi-slide-fill is-collected"
+                style={{ width: `${Math.min(100, summary.amortizationRate)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Card 4: Saldo a Favor */}
+          <div className="acct-mobile-kpi-slide is-credit">
+            <div className="acct-mobile-kpi-slide-header">
+              <span className="acct-mobile-kpi-slide-label">SALDO A FAVOR</span>
+              <span className="acct-mobile-kpi-slide-icon" style={{ background: '#f5f3ff', color: '#9333ea' }}>
+                <Sparkles size={14} strokeWidth={2.2} />
+              </span>
+            </div>
+            <div className="acct-mobile-kpi-slide-amount">
+              {renderFormattedParts(summary.creditAmount, '#9333ea')}
+            </div>
+            <div className="acct-mobile-kpi-slide-footer">
+              <span style={{ color: '#64748b', fontWeight: 600 }}>Disponible para aplicación</span>
+            </div>
+          </div>
+
+          {/* Card 5: Instituciones */}
+          <div className="acct-mobile-kpi-slide is-institutions">
+            <div className="acct-mobile-kpi-slide-header">
+              <span className="acct-mobile-kpi-slide-label">INSTITUCIONES</span>
+              <span className="acct-mobile-kpi-slide-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                <Landmark size={14} strokeWidth={2.2} />
+              </span>
+            </div>
+            <div className="acct-mobile-kpi-slide-amount">
+              <span style={{ fontWeight: 900 }}>{allAccounts.length}</span>{' '}
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>cuentas</span>
+            </div>
+            <div className="acct-mobile-kpi-slide-footer">
+              <span style={{ color: '#64748b', fontWeight: 600 }}>{summary.totalEvents} eventos registrados</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Buscador Móvil + Botón de Filtros */}
+        <div className="acct-mobile-search-wrapper">
+          <div className="acct-mobile-search-bar">
+            <Search size={16} color="#94a3b8" />
+            <input
+              type="text"
+              value={searchDraft}
+              onChange={e => setSearchDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleTriggerSearch(e); }}
+              placeholder="Buscar empresa, cotización, contacto..."
+              className="acct-mobile-search-input"
+            />
+            {searchDraft && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="acct-mobile-clear-btn"
+                title="Limpiar búsqueda"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowMobileFilters(true)}
+              className={`acct-mobile-filter-btn ${secondaryFiltersCount > 0 ? 'has-active' : ''}`}
+              title="Filtros de Cartera"
+            >
+              <Filter size={15} strokeWidth={2.2} />
+              {secondaryFiltersCount > 0 && (
+                <span className="acct-mobile-filter-badge">{secondaryFiltersCount}</span>
+              )}
+            </button>
+          </div>
+
+          {/* Tira de Filtros Activos (Quick Removable Chips) */}
+          {secondaryFiltersCount > 0 && (
+            <div className="acct-mobile-active-chips-strip">
+              <span className="acct-mobile-active-chips-label">Filtros:</span>
+              {dateFrom && (
+                <span className="acct-mobile-chip">
+                  <span>Desde: {dateFrom}</span>
+                  <button type="button" onClick={() => { setDateFrom(''); setCurrentPage(1); }}><X size={11} /></button>
+                </span>
+              )}
+              {dateTo && (
+                <span className="acct-mobile-chip">
+                  <span>Hasta: {dateTo}</span>
+                  <button type="button" onClick={() => { setDateTo(''); setCurrentPage(1); }}><X size={11} /></button>
+                </span>
+              )}
+              {sellerFilter && (
+                <span className="acct-mobile-chip">
+                  <span>{uniqueSellers.find(u => String(u.id) === String(sellerFilter))?.name || 'Vendedor'}</span>
+                  <button type="button" onClick={() => { setSellerFilter(''); setCurrentPage(1); }}><X size={11} /></button>
+                </span>
+              )}
+              {salonFilter && (
+                <span className="acct-mobile-chip">
+                  <span>{salonFilter}</span>
+                  <button type="button" onClick={() => { setSalonFilter(''); setCurrentPage(1); }}><X size={11} /></button>
+                </span>
+              )}
+              <button
+                type="button"
+                className="acct-mobile-clear-all-chip"
+                onClick={handleResetSecondaryFilters}
+              >
+                Limpiar todo
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Bottom Sheet de Filtros Móviles */}
+        {showMobileFilters && createPortal(
+          <div
+            className="acct-mobile-sheet-overlay"
+            onClick={() => setShowMobileFilters(false)}
+          >
+            <div
+              className="acct-mobile-sheet-container"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Drag Handle */}
+              <div className="acct-mobile-sheet-handle" />
+
+              {/* Header */}
+              <div className="acct-mobile-sheet-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Filter size={18} color="#2563eb" strokeWidth={2.4} />
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                    Filtros de Cartera
+                  </span>
+                  {secondaryFiltersCount > 0 && (
+                    <span className="acct-mobile-sheet-count-badge">{secondaryFiltersCount} activos</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileFilters(false)}
+                  className="acct-mobile-sheet-close-btn"
+                  title="Cerrar filtros"
+                >
+                  <X size={18} strokeWidth={2.4} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="acct-mobile-sheet-body">
+                {/* 1. Rango de Fechas */}
+                <div className="acct-mobile-sheet-section">
+                  <div className="acct-mobile-sheet-label">
+                    <Calendar size={13} color="#64748b" />
+                    <span>Fecha del Evento</span>
+                  </div>
+
+                  {/* Date Quick Presets */}
+                  <div className="acct-mobile-date-presets">
+                    <button
+                      type="button"
+                      className={`acct-date-preset-btn ${!dateFrom && !dateTo ? 'is-active' : ''}`}
+                      onClick={() => handleDatePreset('ALL')}
+                    >
+                      Cualquiera
+                    </button>
+                    <button
+                      type="button"
+                      className="acct-date-preset-btn"
+                      onClick={() => handleDatePreset('THIS_MONTH')}
+                    >
+                      Este Mes
+                    </button>
+                    <button
+                      type="button"
+                      className="acct-date-preset-btn"
+                      onClick={() => handleDatePreset('NEXT_30')}
+                    >
+                      Próx. 30 días
+                    </button>
+                    <button
+                      type="button"
+                      className="acct-date-preset-btn"
+                      onClick={() => handleDatePreset('THIS_YEAR')}
+                    >
+                      Este Año
+                    </button>
+                  </div>
+
+                  <div className="acct-mobile-sheet-date-grid">
+                    <div>
+                      <span className="acct-sheet-sublabel">Desde:</span>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={e => setDateFrom(e.target.value)}
+                        className="acct-sheet-input-date"
+                      />
+                    </div>
+                    <div>
+                      <span className="acct-sheet-sublabel">Hasta:</span>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={e => setDateTo(e.target.value)}
+                        className="acct-sheet-input-date"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Asesor / Ejecutivo */}
+                <div className="acct-mobile-sheet-section">
+                  <div className="acct-mobile-sheet-label">
+                    <User size={13} color="#64748b" />
+                    <span>Ejecutivo Comercial</span>
+                  </div>
+                  <select
+                    value={sellerFilter}
+                    onChange={e => setSellerFilter(e.target.value)}
+                    className="acct-sheet-select"
+                  >
+                    <option value="">Todos los ejecutivos</option>
+                    {uniqueSellers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Salón / Área */}
+                <div className="acct-mobile-sheet-section">
+                  <div className="acct-mobile-sheet-label">
+                    <Building2 size={13} color="#64748b" />
+                    <span>Salón o Área</span>
+                  </div>
+                  <select
+                    value={salonFilter}
+                    onChange={e => setSalonFilter(e.target.value)}
+                    className="acct-sheet-select"
+                  >
+                    <option value="">Todos los salones</option>
+                    {uniqueSalones.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="acct-mobile-sheet-footer">
+                <button
+                  type="button"
+                  onClick={() => { handleResetSecondaryFilters(); }}
+                  className="acct-mobile-sheet-btn is-reset"
+                >
+                  <RotateCcw size={13} />
+                  <span>Restablecer</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCurrentPage(1); setShowMobileFilters(false); }}
+                  className="acct-mobile-sheet-btn is-apply"
+                >
+                  <span>Aplicar Filtros</span>
+                  {secondaryFiltersCount > 0 && <span>({secondaryFiltersCount})</span>}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* 4. Pestañas de Estado (Scroll Horizontal Idénticas a la Maqueta) */}
+        <div className="acct-mobile-status-scroll">
+          <button
+            type="button"
+            className={`acct-mobile-pill is-pill-all ${statusTab === 'ALL' ? 'is-active' : ''}`}
+            onClick={() => { setStatusTab('ALL'); setCurrentPage(1); }}
+          >
+            <span>Todos</span>
+            <span className="acct-mobile-pill-count">{statusCounts.all}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`acct-mobile-pill is-pill-overdue ${statusTab === 'OVERDUE' ? 'is-active' : ''}`}
+            onClick={() => { setStatusTab('OVERDUE'); setCurrentPage(1); }}
+          >
+            <span className="acct-pill-dot is-dot-overdue" />
+            <span>Vencidos</span>
+            <span className="acct-mobile-pill-count">{statusCounts.overdue}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`acct-mobile-pill is-pill-due ${statusTab === 'DUE_SOON' ? 'is-active' : ''}`}
+            onClick={() => { setStatusTab('DUE_SOON'); setCurrentPage(1); }}
+          >
+            <span className="acct-pill-dot is-dot-due" />
+            <span>Por Vencer</span>
+            <span className="acct-mobile-pill-count">{statusCounts.dueSoon}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`acct-mobile-pill is-pill-ok ${statusTab === 'UP_TO_DATE' ? 'is-active' : ''}`}
+            onClick={() => { setStatusTab('UP_TO_DATE'); setCurrentPage(1); }}
+          >
+            <span className="acct-pill-dot is-dot-ok" />
+            <span>Al Día</span>
+            <span className="acct-mobile-pill-count">{statusCounts.upToDate}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`acct-mobile-pill is-pill-credit ${statusTab === 'CREDIT' ? 'is-active' : ''}`}
+            onClick={() => { setStatusTab('CREDIT'); setCurrentPage(1); }}
+          >
+            <span className="acct-pill-dot is-dot-credit" />
+            <span>Saldo a Favor</span>
+            <span className="acct-mobile-pill-count">{statusCounts.credit}</span>
+          </button>
+        </div>
+
+        {/* 5. Contador y Ordenamiento Móvil */}
+        <div className="acct-mobile-meta-bar">
+          <span className="acct-mobile-meta-count">
+            Mostrando <strong>{accounts.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, accounts.length)}</strong> de <strong>{accounts.length}</strong> cuentas
+          </span>
+          <div className="acct-mobile-sort-container">
+            <span className="acct-mobile-sort-label">Ordenar:</span>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="acct-mobile-sort-select"
+            >
+              <option value="PENDING_DESC">Mayor saldo ▾</option>
+              <option value="PENDING_ASC">Menor saldo ▾</option>
+              <option value="NET_DESC">Mayor venta ▾</option>
+              <option value="NAME_ASC">Nombre A-Z ▾</option>
+              <option value="DUE_ASC">Próximo vencimiento ▾</option>
+            </select>
+          </div>
+        </div>
+
+        {/* 6. Tarjetas Ejecutivas Móviles */}
+        <div className="acct-mobile-cards-list">
+          {paginatedAccounts.length === 0 ? (
+            <div className="acct-mobile-empty-state">
+              <Search size={32} color="#94a3b8" />
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#475569', marginTop: '8px' }}>
+                No se encontraron cuentas
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '3px' }}>
+                Intenta con otro término o restablece los filtros.
+              </div>
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="acct-mobile-empty-reset-btn"
+              >
+                Restablecer filtros
+              </button>
+            </div>
+          ) : (
+            paginatedAccounts.map(account => {
+              const isExpanded = expandedAccounts.has(account.key);
+              const toneStyles = getAccountToneStyles(account.collectionTone);
+              const initials = getAccountInitials(account.companyName);
+              const repRow = account.rows.find(r => r.balancePending > 0) || account.rows[0];
+              const targetDate = repRow?.dueDate || repRow?.eventDate || '';
+              const dateLabel = (account.collectionTone === 'overdue' || account.collectionTone === 'due')
+                ? 'Vencimiento:'
+                : 'Fecha Evento:';
+              const currentTab = getDetailTab(account.key);
+              const isOkTone = account.collectionTone === 'ok';
+              const amortPct = account.netAmount > 0
+                ? ((account.collectedAmount / account.netAmount) * 100)
+                : 0;
+
+              return (
+                <div
+                  key={`mobile-${account.key}`}
+                  className="acct-mobile-card"
+                  style={{ borderTop: `3.5px solid ${toneStyles.borderTop}` }}
+                >
+                  {/* Cabecera de la Tarjeta */}
+                  <div className="acct-mobile-card-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      {/* Avatar de Iniciales */}
+                      <div
+                        className="acct-mobile-avatar"
+                        style={{ background: toneStyles.bg, color: toneStyles.color, border: `1px solid ${toneStyles.borderColor}` }}
+                      >
+                        {initials}
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className="acct-mobile-card-title">
+                            {account.companyName}
+                          </span>
+                          <span className="acct-mobile-event-count-badge">
+                            {account.eventsCount} {account.eventsCount === 1 ? 'evento' : 'eventos'}
+                          </span>
+                        </div>
+                        <div className="acct-mobile-card-executive">
+                          <User size={11} strokeWidth={2} />
+                          <span>{account.primarySeller || 'Sin asesor asignado'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Badge de Estado */}
+                    <div
+                      className="acct-mobile-status-badge"
+                      style={{ background: toneStyles.bg, color: toneStyles.color, border: `1px solid ${toneStyles.borderColor}` }}
+                    >
+                      ● {account.collectionBadgeText}
+                    </div>
+                  </div>
+
+                  {/* Cuadro Financiero Interno */}
+                  <div className="acct-mobile-inner-box">
+                    <div className="acct-mobile-inner-grid">
+                      <div>
+                        <div className="acct-mobile-inner-label">SALDO PENDIENTE</div>
+                        <div
+                          className="acct-mobile-inner-val"
+                          style={{ color: account.pendingAmount > 0 ? '#e11d48' : '#16a34a' }}
+                        >
+                          {renderFormattedParts(account.pendingAmount, account.pendingAmount > 0 ? '#e11d48' : '#16a34a')}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        {isOkTone ? (
+                          <>
+                            <div className="acct-mobile-inner-label">COBRADO ({amortPct.toFixed(1)}%)</div>
+                            <div className="acct-mobile-inner-val" style={{ color: '#16a34a' }}>
+                              {renderFormattedParts(account.collectedAmount, '#16a34a')}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="acct-mobile-inner-label">VENTA NETA</div>
+                            <div className="acct-mobile-inner-val" style={{ color: '#0f172a' }}>
+                              {renderFormattedParts(account.netAmount, '#0f172a')}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Barra de Amortización */}
+                    <div className="acct-mobile-amort-row">
+                      <span className="acct-mobile-amort-text">
+                        <span style={{ color: isOkTone ? '#16a34a' : '#0284c7' }}>●</span>{' '}
+                        {isOkTone ? 'Venta Total:' : 'Amortizado:'}{' '}
+                        <strong>
+                          Q {Number(isOkTone ? account.netAmount : account.collectedAmount).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        </strong>
+                      </span>
+                      <span
+                        className="acct-mobile-amort-pct"
+                        style={{ background: isOkTone ? '#ecfdf5' : '#f8fafc', color: isOkTone ? '#16a34a' : '#64748b' }}
+                      >
+                        {amortPct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="acct-mobile-progress-track">
+                      <div
+                        className="acct-mobile-progress-fill"
+                        style={{
+                          width: `${Math.min(100, amortPct)}%`,
+                          background: isOkTone ? '#10b981' : (account.collectionTone === 'overdue' ? '#ef4444' : '#0284c7')
+                        }}
+                      />
+                    </div>
+
+                    {/* Fila de Vencimiento / Fecha */}
+                    <div className="acct-mobile-date-row">
+                      <span className="acct-mobile-date-label">
+                        <Calendar size={12} strokeWidth={2} />
+                        <span>{dateLabel}</span>
+                      </span>
+                      <span className="acct-mobile-date-val">
+                        {formatDateEs(targetDate)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Fila de Botones de Acción */}
+                  <div className="acct-mobile-actions-row">
+                    {/* Botón Teléfono */}
+                    {account.contactPhone ? (
+                      <a
+                        href={`tel:${account.contactPhone.replace(/\D/g, '')}`}
+                        className="acct-btn-mobile-phone"
+                        title={`Llamar a ${account.contactPhone}`}
+                      >
+                        <Phone size={12} strokeWidth={2.2} />
+                        <span>{account.contactPhone}</span>
+                      </a>
+                    ) : (
+                      <span className="acct-btn-mobile-phone is-disabled" title="Teléfono no disponible">
+                        <Phone size={12} strokeWidth={2.2} />
+                        <span>Sin tel</span>
+                      </span>
+                    )}
+
+                    {/* Botón Propuesta Contextual */}
+                    {account.collectionTone === 'overdue' && (
+                      <button
+                        type="button"
+                        className="acct-btn-mobile-proposal is-overdue"
+                        onClick={() => setActiveStatementCompanyId(account.key)}
+                        title="Gestionar cobro vencido"
+                      >
+                        <AlertTriangle size={13} strokeWidth={2.2} />
+                        <span>Solicitar pago</span>
+                      </button>
+                    )}
+                    {account.collectionTone === 'due' && (
+                      <button
+                        type="button"
+                        className="acct-btn-mobile-proposal is-due"
+                        onClick={() => setActiveStatementCompanyId(account.key)}
+                        title="Enviar recordatorio previo"
+                      >
+                        <Clock size={13} strokeWidth={2.2} />
+                        <span>Recordatorio previo</span>
+                      </button>
+                    )}
+                    {account.collectionTone === 'credit' && (
+                      <button
+                        type="button"
+                        className="acct-btn-mobile-proposal is-credit"
+                        onClick={() => setActiveStatementCompanyId(account.key)}
+                        title="Consultar saldo a favor"
+                      >
+                        <Sparkles size={13} strokeWidth={2.2} />
+                        <span>Saldo a favor</span>
+                      </button>
+                    )}
+                    {isOkTone && (
+                      <button
+                        type="button"
+                        className="acct-btn-mobile-proposal is-ok"
+                        onClick={() => setActiveStatementCompanyId(account.key)}
+                        title="Cuenta en plazo"
+                      >
+                        <Check size={13} strokeWidth={2.5} />
+                        <span>En plazo pactado</span>
+                      </button>
+                    )}
+
+                    {/* Botón Estado ("Ver estado de cuenta") */}
+                    <button
+                      type="button"
+                      className="acct-btn-mobile-state"
+                      onClick={() => setActiveStatementCompanyId(account.key)}
+                      title="Ver estado de cuenta de la empresa al instante"
+                    >
+                      <FileText size={12} strokeWidth={2.2} />
+                      <span>Estado</span>
+                    </button>
+
+                    {/* Botón Detalle con chevron */}
+                    <button
+                      type="button"
+                      className={`acct-btn-mobile-detail ${isExpanded ? 'is-active' : ''}`}
+                      onClick={() => toggleExpandAccount(account.key)}
+                      title={isExpanded ? 'Ocultar detalle' : 'Ver desglose por eventos'}
+                    >
+                      <span>Detalle</span>
+                      {isExpanded ? <ChevronUp size={13} strokeWidth={2.2} /> : <ChevronRight size={13} strokeWidth={2.2} />}
+                    </button>
+                  </div>
+
+                  {/* Panel Desplegable de Detalle Móvil */}
+                  {isExpanded && (
+                    <div className="acct-mobile-expanded-box">
+                      {/* Pestañas de Detalle */}
+                      <div className="acct-mobile-detail-tabs">
+                        <button
+                          type="button"
+                          className={`acct-mobile-dtab-btn ${currentTab === 'events' ? 'is-active' : ''}`}
+                          onClick={() => setDetailTab(account.key, 'events')}
+                        >
+                          <Calendar size={12} />
+                          <span>Eventos ({account.rows.length})</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`acct-mobile-dtab-btn ${currentTab === 'contacts' ? 'is-active' : ''}`}
+                          onClick={() => setDetailTab(account.key, 'contacts')}
+                        >
+                          <User size={12} />
+                          <span>Contacto</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`acct-mobile-dtab-btn ${currentTab === 'amortizations' ? 'is-active' : ''}`}
+                          onClick={() => setDetailTab(account.key, 'amortizations')}
+                        >
+                          <CreditCard size={12} />
+                          <span>Abonos ({account.advancesCount})</span>
+                        </button>
+                      </div>
+
+                      {/* Contenido Pestaña Eventos */}
+                      {currentTab === 'events' && (
+                        <div className="acct-mobile-events-list">
+                          {account.rows.map(row => (
+                            <div key={row.id} className="acct-mobile-event-subcard">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                <div>
+                                  <div style={{ fontWeight: 800, fontSize: '12px', color: '#0f172a' }}>
+                                    {row.name}
+                                  </div>
+                                  <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
+                                    <strong>{row.folio || row.refId}</strong> • {row.salon} • {row.eventDate}
+                                  </div>
+                                </div>
+                                <span
+                                  className="acct-mobile-event-status-pill"
+                                  style={{ background: row.balancePending > 0 ? '#fef2f2' : '#f0fdf4', color: row.balancePending > 0 ? '#b91c1c' : '#15803d' }}
+                                >
+                                  {row.balancePending > 0 ? 'Con Saldo' : 'Al Día'}
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '8px', padding: '6px 8px', background: '#f8fafc', borderRadius: '6px' }}>
+                                <div>
+                                  <span style={{ color: '#64748b' }}>Total:</span> <strong>{formatMoney(row.total)}</strong>
+                                </div>
+                                <div>
+                                  <span style={{ color: '#64748b' }}>Saldo:</span>{' '}
+                                  <strong style={{ color: row.balancePending > 0 ? '#dc2626' : '#16a34a' }}>
+                                    {formatMoney(row.balancePending)}
+                                  </strong>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                                <button
+                                  type="button"
+                                  className="acct-btn-subrow-pay"
+                                  onClick={() => { setActiveEventStatementRow(row); setShowAdvanceForm(true); }}
+                                >
+                                  <CreditCard size={11} />
+                                  <span>Aplicar Pago</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="acct-btn-subrow-state"
+                                  onClick={() => setActiveEventStatementRow(row)}
+                                >
+                                  <FileText size={11} />
+                                  <span>Hoja Evento</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Contenido Pestaña Contactos */}
+                      {currentTab === 'contacts' && (
+                        <div className="acct-mobile-contact-box">
+                          <div className="acct-mobile-contact-item">
+                            <span className="acct-mobile-contact-lbl">Teléfono Principal:</span>
+                            <span className="acct-mobile-contact-val">{account.contactPhone || 'No registrado'}</span>
+                          </div>
+                          <div className="acct-mobile-contact-item">
+                            <span className="acct-mobile-contact-lbl">Correo Electrónico:</span>
+                            <span className="acct-mobile-contact-val">{account.rows[0]?.managerEmail || 'No registrado'}</span>
+                          </div>
+                          <div className="acct-mobile-contact-item">
+                            <span className="acct-mobile-contact-lbl">Ejecutivo Asignado:</span>
+                            <span className="acct-mobile-contact-val">{account.primarySeller}</span>
+                          </div>
+                          <div className="acct-mobile-contact-item">
+                            <span className="acct-mobile-contact-lbl">Tipo Institución:</span>
+                            <span className="acct-mobile-contact-val">{account.companyType || 'Corporativo / Privado'}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Contenido Pestaña Amortizaciones */}
+                      {currentTab === 'amortizations' && (
+                        <div className="acct-mobile-amort-list">
+                          {account.rows.flatMap(r => (r.advances || []).map(a => ({ ...a, eventName: r.name, eventFolio: r.folio || r.refId }))).length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '14px', color: '#94a3b8', fontSize: '11px' }}>
+                              No hay abonos registrados para esta cuenta.
+                            </div>
+                          ) : (
+                            account.rows.flatMap(r => (r.advances || []).map(a => ({ ...a, eventName: r.name, eventFolio: r.folio || r.refId })))
+                              .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+                              .map((adv, idx) => (
+                                <div key={adv.id || idx} className="acct-mobile-adv-item">
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a' }}>
+                                      {adv.paymentType || 'Transferencia'} • {adv.voucherNumber || 'S/N'}
+                                    </span>
+                                    <span style={{ fontSize: '12px', fontWeight: 900, color: '#16a34a' }}>
+                                      Q {Number(adv.amount || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                                    {adv.date} • {adv.eventName} ({adv.eventFolio})
+                                  </div>
+                                  {adv.evidenceDataUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewVoucher(adv.evidenceDataUrl)}
+                                      className="acct-btn-row-action is-voucher"
+                                      style={{ marginTop: '6px', fontSize: '10.5px' }}
+                                    >
+                                      <Eye size={11} /> Ver Comprobante
+                                    </button>
+                                  )}
+                                </div>
+                              ))
+                          )}
+                        </div>
+                      )}
+
+                      {/* Botón Footer: Ver Estado Corporativo Completo */}
+                      <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => setActiveStatementCompanyId(account.key)}
+                          className="acct-mobile-full-statement-btn"
+                        >
+                          <FileText size={13} strokeWidth={2.2} />
+                          <span>Ver Estado de Cuenta Completo</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* 7. Paginación Móvil */}
+        <div className="acct-mobile-pagination">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => handlePageChange(currentPage - 1)}
+            className="acct-mobile-page-btn is-nav"
+          >
+            Anterior
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((p, idx, arr) => (
+                <Fragment key={`m-page-${p}`}>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span style={{ padding: '0 2px', color: '#94a3b8', fontSize: '11px' }}>...</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(p)}
+                    className={`acct-mobile-page-btn ${currentPage === p ? 'is-active' : ''}`}
+                  >
+                    {p}
+                  </button>
+                </Fragment>
+              ))}
+          </div>
+
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => handlePageChange(currentPage + 1)}
+            className="acct-mobile-page-btn is-nav"
+          >
+            Siguiente
+          </button>
+        </div>
+      </div>
 
       {/* ── MODAL: HOJA FORMAL DE ESTADO DE CUENTA POR EVENTO ── */}
       {activeEventStatementRow && createPortal(
@@ -2476,7 +3812,19 @@ export default function ReportsContabilidad({ onClose }) {
             </div>
 
             {/* Cuerpo del Modal: Hoja Formal Membretada */}
-            <div style={{ padding: '24px 28px', overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+            {(() => {
+              const modalFin = getQuoteFinancialAmounts(activeEventStatementRow.quote, activeEventStatementRow.exchangeRate);
+              const effectiveTotal = Number(activeEventStatementRow.total) > 0 ? Number(activeEventStatementRow.total) : modalFin.totalGtq;
+              const effectiveAdvTotal = Number(activeEventStatementRow.advancesTotal) || 0;
+              const effectiveDelta = effectiveTotal - effectiveAdvTotal;
+              const effectivePending = Math.max(0, effectiveDelta);
+              const effectiveCredit = Math.max(0, -effectiveDelta);
+              const effectivePaidPct = effectiveTotal > 0 ? ((effectiveAdvTotal / effectiveTotal) * 100).toFixed(1) : (effectiveAdvTotal > 0 ? '100.0' : '0.0');
+              const rawUsdTotal = Number(activeEventStatementRow.rawTotal || modalFin.rawTotal || 0);
+
+              return (
+                <>
+                  <div style={{ padding: '24px 28px', overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
               <div style={{
                 background: '#ffffff', padding: '32px', borderRadius: '12px',
                 border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
@@ -2555,7 +3903,7 @@ export default function ReportsContabilidad({ onClose }) {
                   if (!hasAnyItems) {
                     return (
                       <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', background: '#f8fafc', borderRadius: '8px', marginBottom: '20px' }}>
-                        No hay ítems desglosados en esta cotización. El monto global contratado es {formatMoney(activeEventStatementRow.total)}.
+                        No hay ítems desglosados en esta cotización. El monto global contratado es {formatMoney(effectiveTotal)}.
                       </div>
                     );
                   }
@@ -2620,11 +3968,11 @@ export default function ReportsContabilidad({ onClose }) {
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Total Contratado</div>
                     <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>
-                      {formatMoney(activeEventStatementRow.total)}
+                      {formatMoney(effectiveTotal)}
                     </div>
                     {activeEventStatementRow.isUsd && (
                       <div style={{ fontSize: '9.5px', color: '#0284c7', fontWeight: 700 }}>
-                        ${Number(activeEventStatementRow.rawTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
+                        ${rawUsdTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
                       </div>
                     )}
                   </div>
@@ -2632,27 +3980,27 @@ export default function ReportsContabilidad({ onClose }) {
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 700, textTransform: 'uppercase' }}>Total Abonado</div>
                     <div style={{ fontSize: '16px', fontWeight: 900, color: '#16a34a', marginTop: '2px' }}>
-                      {formatMoney(activeEventStatementRow.advancesTotal)}
+                      {formatMoney(effectiveAdvTotal)}
                     </div>
                     <div style={{ fontSize: '9.5px', color: '#16a34a', fontWeight: 700 }}>
-                      {activeEventStatementRow.total > 0 ? ((activeEventStatementRow.advancesTotal / activeEventStatementRow.total) * 100).toFixed(1) : 0}% pagado
+                      {effectivePaidPct}% pagado
                     </div>
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, textTransform: 'uppercase' }}>Saldo Pendiente</div>
-                    <div style={{ fontSize: '16px', fontWeight: 900, color: activeEventStatementRow.balancePending > 0 ? '#dc2626' : '#16a34a', marginTop: '2px' }}>
-                      {formatMoney(activeEventStatementRow.balancePending)}
+                    <div style={{ fontSize: '16px', fontWeight: 900, color: effectivePending > 0 ? '#dc2626' : '#16a34a', marginTop: '2px' }}>
+                      {formatMoney(effectivePending)}
                     </div>
-                    <div style={{ fontSize: '9.5px', color: activeEventStatementRow.balancePending > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
-                      {activeEventStatementRow.balancePending > 0 ? 'Por cancelar' : 'Al día'}
+                    <div style={{ fontSize: '9.5px', color: effectivePending > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
+                      {effectivePending > 0 ? 'Por cancelar' : 'Al día'}
                     </div>
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 700, textTransform: 'uppercase' }}>Saldo a Favor</div>
                     <div style={{ fontSize: '16px', fontWeight: 900, color: '#7c3aed', marginTop: '2px' }}>
-                      {formatMoney(activeEventStatementRow.creditBalance)}
+                      {formatMoney(effectiveCredit)}
                     </div>
                     <div style={{ fontSize: '9.5px', color: '#7c3aed', fontWeight: 700 }}>
                       Disponible
@@ -2669,12 +4017,12 @@ export default function ReportsContabilidad({ onClose }) {
                     </div>
 
                     <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {activeEventStatementRow.balancePending > 0 && (
+                      {effectivePending > 0 && (
                         <span style={{
                           background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca',
                           borderRadius: '6px', padding: '3px 8px', fontSize: '10.5px', fontWeight: 800
                         }}>
-                          Pendiente: {formatMoney(activeEventStatementRow.balancePending)}
+                          Pendiente: {formatMoney(effectivePending)}
                         </span>
                       )}
 
@@ -2738,14 +4086,14 @@ export default function ReportsContabilidad({ onClose }) {
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {activeEventStatementRow.balancePending > 0 && !advanceEditingId && (
+                          {effectivePending > 0 && !advanceEditingId && (
                             <button
                               type="button"
                               className="acct-btn-saldar"
                               onClick={handleFillPendingBalance}
                               title="Llenar con el monto exacto pendiente por cancelar"
                             >
-                              <span>⚡ Saldar Pendiente: {formatMoney(activeEventStatementRow.balancePending)}</span>
+                              <span>⚡ Saldar Pendiente: {formatMoney(effectivePending)}</span>
                             </button>
                           )}
 
@@ -3081,9 +4429,9 @@ export default function ReportsContabilidad({ onClose }) {
               display: 'flex', justifyContent: 'space-between', alignItems: 'center'
             }}>
               <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                {activeEventStatementRow.balancePending > 0 ? (
+                {effectivePending > 0 ? (
                   <span style={{ color: '#dc2626', fontWeight: 700 }}>
-                    ⚠️ Saldo pendiente: {formatMoney(activeEventStatementRow.balancePending)}
+                    ⚠️ Saldo pendiente: {formatMoney(effectivePending)}
                   </span>
                 ) : (
                   <span style={{ color: '#16a34a', fontWeight: 700 }}>
@@ -3112,8 +4460,11 @@ export default function ReportsContabilidad({ onClose }) {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
+          </>
+        );
+      })()}
+    </div>
+  </div>,
         document.body
       )}
 

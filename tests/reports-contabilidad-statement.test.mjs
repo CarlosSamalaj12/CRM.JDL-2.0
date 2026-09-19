@@ -247,4 +247,98 @@ test('ReportsContabilidad y server.cjs registran y muestran el usuario o vendedo
   assert.ok(serverCode.includes('nombre_usuario_creador = COALESCE(VALUES(nombre_usuario_creador), anticipos_evento.nombre_usuario_creador)'), 'server.cjs debe actualizar nombre_usuario_creador en duplicados');
 });
 
+test('ReportsContabilidad y reports.css implementan rediseño móvil ejecutivo y optimización de columnas desktop', async () => {
+  const jsxPath = path.join(projectRoot, 'src', 'modules', 'reports', 'ReportsContabilidad.jsx');
+  const jsxCode = fs.readFileSync(jsxPath, 'utf8');
 
+  const cssPath = path.join(projectRoot, 'src', 'modules', 'reports', 'reports.css');
+  const cssCode = fs.readFileSync(cssPath, 'utf8');
+
+  // 1. Separación de vistas responsive
+  assert.ok(jsxCode.includes('acct-desktop-view'), 'Debe contar con contenedor .acct-desktop-view');
+  assert.ok(jsxCode.includes('acct-mobile-view'), 'Debe contar con contenedor .acct-mobile-view');
+  assert.ok(cssCode.includes('.acct-desktop-view'), 'CSS debe definir .acct-desktop-view');
+  assert.ok(cssCode.includes('.acct-mobile-view'), 'CSS debe definir .acct-mobile-view');
+  assert.ok(cssCode.includes('@media (max-width: 850px)'), 'CSS debe incluir breakpoint responsive a 850px');
+
+  // 2. Botón "Detalle" (con chevron) y Botón "Estado" ("Ver estado de cuenta")
+  assert.ok(jsxCode.includes('acct-btn-detail'), 'Debe contar con botón Detalle en desktop');
+  assert.ok(jsxCode.includes('acct-btn-state'), 'Debe contar con botón Estado en desktop');
+  assert.ok(jsxCode.includes('acct-btn-mobile-detail'), 'Debe contar con botón Detalle en móvil');
+  assert.ok(jsxCode.includes('acct-btn-mobile-state'), 'Debe contar con botón Estado en móvil');
+  assert.ok(jsxCode.includes('setActiveStatementCompanyId(account.key)'), 'Botón Estado debe consultar directamente el estado de cuenta corporativo');
+
+  // 3. Calibración de columnas y acciones sticky
+  assert.ok(cssCode.includes('position: sticky'), 'Columna de acciones debe estar anclada sticky');
+  assert.ok(cssCode.includes('.acct-col-actions'), 'Debe definir clase .acct-col-actions');
+  assert.ok(cssCode.includes('.acct-col-status'), 'Debe definir clase .acct-col-status');
+  assert.ok(cssCode.includes('.acct-col-company'), 'Debe definir clase .acct-col-company');
+
+  // 4. Elementos de la vista móvil idénticos a la maqueta
+  assert.ok(jsxCode.includes('acct-mobile-diagnostic-card'), 'Debe incluir tarjeta de diagnóstico móvil');
+  assert.ok(jsxCode.includes('acct-mobile-kpi-carousel'), 'Debe incluir carrusel financiero deslizante');
+  assert.ok(jsxCode.includes('Deslizar →'), 'Debe incluir indicador Deslizar en carrusel');
+  assert.ok(jsxCode.includes('acct-mobile-search-bar'), 'Debe incluir buscador móvil');
+  assert.ok(jsxCode.includes('showMobileFilters'), 'Debe soportar drawer de filtros avanzados en móvil');
+  assert.ok(jsxCode.includes('acct-mobile-status-scroll'), 'Debe incluir scroll horizontal de estados');
+  assert.ok(jsxCode.includes('acct-mobile-avatar'), 'Debe incluir avatar de iniciales en tarjetas móviles');
+  assert.ok(jsxCode.includes('acct-mobile-inner-box'), 'Debe incluir caja interna de métricas');
+  assert.ok(jsxCode.includes('acct-btn-mobile-phone'), 'Debe incluir botón de llamada telefónica');
+  assert.ok(jsxCode.includes('acct-btn-mobile-proposal'), 'Debe incluir botón contextual de propuesta');
+  assert.ok(jsxCode.includes('acct-mobile-pagination'), 'Debe incluir paginador móvil');
+
+  // 5. Verificación de helpers matemáticos y visuales
+  assert.ok(jsxCode.includes('function getAccountInitials'), 'Debe definir getAccountInitials');
+  assert.ok(jsxCode.includes('function formatDateEs'), 'Debe definir formatDateEs');
+  assert.ok(jsxCode.includes('function renderFormattedParts'), 'Debe definir renderFormattedParts');
+
+  const initialsMatch = jsxCode.match(/export function getAccountInitials\([\s\S]*?^}/m);
+  assert.ok(initialsMatch, 'Debe exportar getAccountInitials');
+  const getAccountInitials = new Function(`${initialsMatch[0].replace('export function getAccountInitials', 'function getAccountInitials')}; return getAccountInitials;`)();
+  assert.equal(getAccountInitials('PNUD'), 'PN');
+  assert.equal(getAccountInitials('BODA GIOIA OROZCO'), 'GO');
+  assert.equal(getAccountInitials('BODA CARDONA LUNA'), 'CL');
+  assert.equal(getAccountInitials('BODA BURDIN VALENCIA'), 'BV');
+
+  const dateMatch = jsxCode.match(/export function formatDateEs\([\s\S]*?^}/m);
+  assert.ok(dateMatch, 'Debe exportar formatDateEs');
+  const formatDateEs = new Function(`${dateMatch[0].replace('export function formatDateEs', 'function formatDateEs')}; return formatDateEs;`)();
+  assert.equal(formatDateEs('2026-07-31'), '31 jul 2026');
+  assert.equal(formatDateEs('2026-09-30'), '30 sept 2026');
+});
+
+test('ReportsContabilidad y reports.css implementan modal bottom sheet de filtros y pastillas de estado anti-truncamiento', () => {
+  const jsxPath = path.join(projectRoot, 'src', 'modules', 'reports', 'ReportsContabilidad.jsx');
+  const jsxCode = fs.readFileSync(jsxPath, 'utf8');
+
+  const cssPath = path.join(projectRoot, 'src', 'modules', 'reports', 'reports.css');
+  const cssCode = fs.readFileSync(cssPath, 'utf8');
+
+  // 1. Bottom Sheet Modal Portal
+  assert.ok(jsxCode.includes('acct-mobile-sheet-overlay'), 'Debe contar con overlay de modal bottom sheet');
+  assert.ok(jsxCode.includes('acct-mobile-sheet-container'), 'Debe contar con contenedor de modal bottom sheet');
+  assert.ok(jsxCode.includes('acct-mobile-sheet-handle'), 'Debe incluir tirador o drag handle');
+  assert.ok(jsxCode.includes('acct-mobile-date-presets'), 'Debe incluir presets de fecha rápida');
+  assert.ok(jsxCode.includes('handleDatePreset'), 'Debe implementar función handleDatePreset');
+  assert.ok(jsxCode.includes('acct-sheet-input-date'), 'Debe usar inputs de fecha estilizados para el sheet');
+
+  // 2. Tira de Chips de Filtros Activos Rápidos
+  assert.ok(jsxCode.includes('acct-mobile-active-chips-strip'), 'Debe mostrar tira de chips de filtros activos');
+  assert.ok(jsxCode.includes('acct-mobile-clear-all-chip'), 'Debe permitir limpiar todos los filtros');
+  assert.ok(jsxCode.includes('handleResetSecondaryFilters'), 'Debe implementar handleResetSecondaryFilters');
+
+  // 3. Pastillas de Estado Pastel Anti-Truncamiento
+  assert.ok(jsxCode.includes('is-pill-all'), 'Debe usar clase is-pill-all');
+  assert.ok(jsxCode.includes('is-pill-overdue'), 'Debe usar clase is-pill-overdue');
+  assert.ok(jsxCode.includes('is-pill-due'), 'Debe usar clase is-pill-due');
+  assert.ok(jsxCode.includes('is-pill-ok'), 'Debe usar clase is-pill-ok');
+  assert.ok(jsxCode.includes('is-pill-credit'), 'Debe usar clase is-pill-credit');
+  assert.ok(jsxCode.includes('acct-pill-dot'), 'Debe incluir puntos de color');
+
+  // 4. CSS: light-mode forzado en fechas y flex-shrink: 0 para evitar truncamiento
+  assert.ok(cssCode.includes('color-scheme: light !important'), 'CSS debe forzar color-scheme: light en fechas para evitar fondos negros de SO móvil');
+  assert.ok(cssCode.includes('flex-shrink: 0 !important'), 'CSS debe impedir que las pastillas se encojan o trunquen sus textos y contadores');
+  assert.ok(cssCode.includes('min-width: max-content !important'), 'CSS debe asegurar ancho natural sin cortes');
+  assert.ok(cssCode.includes('.acct-mobile-sheet-overlay'), 'CSS debe definir overlay');
+  assert.ok(cssCode.includes('.acct-mobile-sheet-container'), 'CSS debe definir contenedor con animación');
+});

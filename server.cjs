@@ -220,6 +220,60 @@ function asTime(value) {
   return null;
 }
 
+function normalizeQuoteFinancials(quote, resolvedRate) {
+  if (!quote || typeof quote !== "object") return quote;
+
+  let rawTotal = Number(quote.total || 0);
+  let rawSubtotal = Number(quote.subtotal || 0);
+  const rawDiscount = Number(quote.discountAmount ?? quote.discountValue ?? 0);
+
+  // Fallback 1: Si rawTotal es 0, buscar en el historial de versiones guardadas
+  if (rawTotal <= 0 && Array.isArray(quote.versions) && quote.versions.length > 0) {
+    const latestVersion = quote.versions[quote.versions.length - 1];
+    if (latestVersion && Number(latestVersion.total || 0) > 0) {
+      rawTotal = Number(latestVersion.total || 0);
+      if (rawSubtotal <= 0) rawSubtotal = Number(latestVersion.subtotal || rawTotal);
+    }
+  }
+
+  // Fallback 2: Si rawTotal sigue en 0, calcular la suma exacta desde los ítems/servicios
+  if (rawTotal <= 0 && Array.isArray(quote.items) && quote.items.length > 0) {
+    rawSubtotal = quote.items.reduce((acc, it) => {
+      const qty = Number(it?.qty || it?.quantity || (it?.quantityMode === 'PAX' ? (quote.people || 1) : 1));
+      const price = Number(it?.price || it?.unitPrice || 0);
+      return acc + (it?.total ? Number(it.total) : (qty * price));
+    }, 0);
+    rawTotal = Math.max(0, rawSubtotal - rawDiscount);
+  }
+
+  if (rawTotal > 0 && (!quote.total || Number(quote.total) <= 0)) {
+    quote.total = rawTotal;
+  }
+  if (rawSubtotal > 0 && (!quote.subtotal || Number(quote.subtotal) <= 0)) {
+    quote.subtotal = rawSubtotal;
+  }
+
+  const isUsd = String(quote.currency || "").trim().toUpperCase() === "USD";
+  const rate = resolvedRate && Number(resolvedRate.rate) > 0 ? Number(resolvedRate.rate) : (Number(quote.exchangeRate) || 7.75);
+
+  if (isUsd) {
+    quote.exchangeRate = rate;
+    if (resolvedRate?.effectiveDate) quote.exchangeRateDate = resolvedRate.effectiveDate;
+    quote.totalGtq = Math.round(Number(quote.total || 0) * rate * 100) / 100;
+    quote.subtotalGtq = Math.round(Number(quote.subtotal || 0) * rate * 100) / 100;
+    if (rawDiscount > 0 || quote.discountAmount !== undefined || quote.discountValue !== undefined) {
+      quote.discountAmountGtq = Math.round(Number(quote.discountAmount || 0) * rate * 100) / 100;
+    }
+  } else {
+    quote.totalGtq = Number(quote.total || 0);
+    quote.subtotalGtq = Number(quote.subtotal || 0);
+    if (rawDiscount > 0 || quote.discountAmount !== undefined || quote.discountValue !== undefined) {
+      quote.discountAmountGtq = Number(quote.discountAmount || 0);
+    }
+  }
+  return quote;
+}
+
 function asDateTime(value) {
   const raw = String(value || "").trim();
   if (!raw) return null;
@@ -2156,34 +2210,23 @@ async function readStateFromTables() {
           }
           const baseId = str(e.id).replace(/_(s|slot)\d+_\d{6,}$/, '');
           const tableAdvances = advancesByBaseEvent.get(baseId);
-          if (tableAdvances && tableAdvances.length > 0) {
-            if (!quote || typeof quote !== "object") quote = {};
-            const uniqueMap = new Map();
-            for (const adv of tableAdvances) {
-              uniqueMap.set(adv.id, adv);
+          if (!quote || typeof quote !== "object") quote = {};
+          const advancesMap = new Map();
+          if (Array.isArray(quote.advances)) {
+            for (const adv of quote.advances) {
+              if (adv && adv.id) advancesMap.set(str(adv.id), adv);
             }
-            quote.advances = Array.from(uniqueMap.values());
           }
+          if (tableAdvances && tableAdvances.length > 0) {
+            for (const adv of tableAdvances) {
+              if (adv && adv.id) advancesMap.set(str(adv.id), adv);
+            }
+          }
+          quote.advances = Array.from(advancesMap.values());
           const eventDateForRate = toIsoDate(e.fecha_inicio_reserva) || toIsoDate(e.fecha_evento) || toIsoDate(e.fecha_fin_reserva) || "";
           const resolvedRate = resolveRateForEvent(eventDateForRate);
           if (quote && typeof quote === "object") {
-            const isUsd = String(quote.currency || "").trim().toUpperCase() === "USD";
-            const rate = resolvedRate.rate;
-            if (isUsd) {
-              quote.exchangeRate = rate;
-              quote.exchangeRateDate = resolvedRate.effectiveDate;
-              quote.totalGtq = Math.round(Number(quote.total || 0) * rate * 100) / 100;
-              quote.subtotalGtq = Math.round(Number(quote.subtotal || 0) * rate * 100) / 100;
-              if (quote.discountAmount !== undefined && quote.discountAmount !== null) {
-                quote.discountAmountGtq = Math.round(Number(quote.discountAmount || 0) * rate * 100) / 100;
-              }
-            } else {
-              quote.totalGtq = Number(quote.total || 0);
-              quote.subtotalGtq = Number(quote.subtotal || 0);
-              if (quote.discountAmount !== undefined && quote.discountAmount !== null) {
-                quote.discountAmountGtq = Number(quote.discountAmount || 0);
-              }
-            }
+            normalizeQuoteFinancials(quote, resolvedRate);
           }
           return {
             id: str(e.id),
@@ -3875,7 +3918,7 @@ function isEventUnchanged(e, oldEvent) {
           e?.paxCompartido === true ? 1 : 0,
           e?.slotPax === null || e?.slotPax === undefined || e?.slotPax === "" ? null : Math.max(0, Number(e.slotPax)),
           str(e?.notes).trim() || null,
-          e?.quote && typeof e.quote === "object" ? JSON.stringify(Object.assign({}, e.quote, { advances: undefined })) : e?.quote ? JSON.stringify(e.quote) : null,
+          e?.quote && typeof e.quote === "object" ? JSON.stringify(normalizeQuoteFinancials(e.quote)) : null,
         ]
       );
 
@@ -3900,140 +3943,128 @@ function isEventUnchanged(e, oldEvent) {
         }
       }
 
-      // === UPSERT: anticipos_evento (normalizar pagos en tabla propia) ===
+      // === UPSERT: anticipos_evento (solo para el ID base principal del evento, no para slots secundarios) ===
       const baseId = id.replace(/_(s|slot)\d+_\d{6,}$/, '');
-      const existingAdvancesById = new Map();
-      try {
-        const dbExisting = await conn.query("SELECT id, creado_en_iso, id_usuario_creador, nombre_usuario_creador, datos_evidencia FROM anticipos_evento WHERE id_evento = ? OR id_evento = ?", [baseId, id]);
-        for (const ea of dbExisting) {
-          existingAdvancesById.set(str(ea.id), {
-            createdAt: str(ea.creado_en_iso || ""),
-            createdByUserId: str(ea.id_usuario_creador || ""),
-            createdByName: str(ea.nombre_usuario_creador || ""),
-            datos_evidencia: str(ea.datos_evidencia || "")
-          });
-        }
-      } catch (_) {}
+      if (id === baseId) {
+        const existingAdvancesById = new Map();
+        try {
+          const dbExisting = await conn.query("SELECT id, creado_en_iso, id_usuario_creador, nombre_usuario_creador, datos_evidencia FROM anticipos_evento WHERE id_evento = ? OR id_evento = ?", [baseId, id]);
+          for (const ea of dbExisting) {
+            existingAdvancesById.set(str(ea.id), {
+              createdAt: str(ea.creado_en_iso || ""),
+              createdByUserId: str(ea.id_usuario_creador || ""),
+              createdByName: str(ea.nombre_usuario_creador || ""),
+              datos_evidencia: str(ea.datos_evidencia || "")
+            });
+          }
+        } catch (_) {}
 
-      const advanceLogs = Array.isArray(e?.quote?.advanceLogs) ? e.quote.advanceLogs : [];
-      const nowIso = new Date().toISOString();
+        const advanceLogs = Array.isArray(e?.quote?.advanceLogs) ? e.quote.advanceLogs : [];
+        const nowIso = new Date().toISOString();
 
-      if (e?.quote && typeof e.quote === "object") {
-        const incomingAdvances = Array.isArray(e.quote.advances) ? e.quote.advances : [];
-        const incomingIds = new Set(incomingAdvances.map(a => str(a.id)));
+        if (e?.quote && typeof e.quote === "object" && Array.isArray(e.quote.advances)) {
+          const incomingAdvances = e.quote.advances;
+          const incomingIds = new Set(incomingAdvances.map(a => str(a.id)));
 
-        // Borrar solo los que ya no estan en la lista entrante y registrarlos en historial
-        for (const [existingId, _] of existingAdvancesById) {
-          if (!incomingIds.has(existingId)) {
-            const delLog = advanceLogs.findLast(l => str(l.tone) === "deleted");
-            const actorId = str(delLog?.actorId || "").trim() || null;
-            const actorName = str(delLog?.actorName || "Sistema").trim();
-            const detalle = str(delLog?.change || "Anticipo eliminado").trim();
-            const logAt = str(delLog?.at || nowIso).trim();
+          // Borrar solo los que ya no estan en la lista entrante y registrarlos en historial
+          for (const [existingId, _] of existingAdvancesById) {
+            if (!incomingIds.has(existingId)) {
+              const delLog = advanceLogs.findLast(l => str(l.tone) === "deleted");
+              const actorId = str(delLog?.actorId || "").trim() || null;
+              const actorName = str(delLog?.actorName || "Sistema").trim();
+              const detalle = str(delLog?.change || "Anticipo eliminado").trim();
+              const logAt = str(delLog?.at || nowIso).trim();
+              await conn.query(
+                `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, 'deleted', ?, ?, ?, ?)`,
+                [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, existingId, baseId, actorId, actorName, detalle, logAt]
+              );
+            }
+          }
+
+          const deleteIds = [...existingAdvancesById.keys()].filter(eid => !incomingIds.has(eid));
+          if (deleteIds.length > 0) {
+            const placeholders = deleteIds.map(() => "?").join(",");
+            await conn.query(`DELETE FROM anticipos_evento WHERE (id_evento = ? OR id_evento = ?) AND id IN (${placeholders})`, [baseId, id, ...deleteIds]);
+          }
+
+          // Insertar o actualizar cada advance con ON DUPLICATE KEY UPDATE
+          for (const adv of incomingAdvances) {
+            const advId = str(adv.id).trim() || `adv_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+            const existingMeta = existingAdvancesById.get(advId);
+            let editadoPorId = null;
+            let editadoPorNombre = null;
+            let editadoEnIso = null;
+            if (existingMeta) {
+              const editedLog = advanceLogs.findLast(l => str(l.tone) === "edited");
+              editadoPorId = str(editedLog?.actorId || "").trim() || null;
+              editadoPorNombre = str(editedLog?.actorName || "").trim() || null;
+              editadoEnIso = str(editedLog?.at || "").trim() || null;
+            }
+
+            let datosEvidencia = null;
+            const incomingUrl = str(adv.evidenceDataUrl || "").trim();
+            if (incomingUrl.startsWith("data:")) {
+              datosEvidencia = incomingUrl; // Nuevo archivo cargado
+            } else if (incomingUrl.startsWith("/api/anticipos/") && existingMeta?.datos_evidencia) {
+              datosEvidencia = existingMeta.datos_evidencia; // Conservar el archivo existente
+            }
+
             await conn.query(
-              `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, 'deleted', ?, ?, ?, ?)`,
-              [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, existingId, baseId, actorId, actorName, detalle, logAt]
+              `INSERT INTO anticipos_evento
+                 (id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso, editado_por_id, editado_por_nombre, editado_en_iso)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE
+                 id_evento = VALUES(id_evento),
+                 fecha_anticipo = VALUES(fecha_anticipo),
+                 monto = VALUES(monto),
+                 tipo_pago = VALUES(tipo_pago),
+                 descripcion = VALUES(descripcion),
+                 numero_boleta = VALUES(numero_boleta),
+                 id_usuario_creador = COALESCE(VALUES(id_usuario_creador), anticipos_evento.id_usuario_creador),
+                 nombre_usuario_creador = COALESCE(VALUES(nombre_usuario_creador), anticipos_evento.nombre_usuario_creador),
+                 nombre_evidencia = VALUES(nombre_evidencia),
+                 tipo_evidencia = VALUES(tipo_evidencia),
+                 datos_evidencia = VALUES(datos_evidencia),
+                 editado_por_id = VALUES(editado_por_id),
+                 editado_por_nombre = VALUES(editado_por_nombre),
+                 editado_en_iso = VALUES(editado_en_iso)`,
+              [
+                advId,
+                baseId,
+                asDate(adv.date || ""),
+                Math.max(0, Number(adv.amount || 0)),
+                str(adv.paymentType || "Efectivo").trim(),
+                str(adv.description || "").trim() || null,
+                str(adv.voucherNumber || "").trim() || null,
+                str(adv.createdByUserId || "").trim() || existingMeta?.createdByUserId || null,
+                str(adv.createdByName || "").trim() || existingMeta?.createdByName || null,
+                str(adv.evidenceName || "").trim() || null,
+                str(adv.evidenceType || "").trim() || null,
+                datosEvidencia,
+                existingMeta?.createdAt || str(adv.createdAt || "").trim() || null,
+                editadoPorId,
+                editadoPorNombre,
+                editadoEnIso,
+              ]
+            );
+            const accion = existingMeta ? "edited" : "added";
+            const logEntry = advanceLogs.findLast(l => str(l.tone) === accion);
+            let haActorId = str(logEntry?.actorId || "").trim() || null;
+            let haActorName = str(logEntry?.actorName || "").trim() || "Sistema";
+            let haDetalle = str(logEntry?.change || "").trim();
+            let haAt = str(logEntry?.at || "").trim() || nowIso;
+            if (!logEntry) {
+              haActorId = str(adv.createdByUserId || "").trim() || null;
+              haActorName = str(adv.createdByName || "").trim() || "Sistema";
+              haDetalle = `${accion === "added" ? "Agregado" : "Editado"} anticipo: Q ${Math.max(0, Number(adv.amount || 0)).toFixed(2)}`;
+              haAt = str(adv.createdAt || "").trim() || nowIso;
+            }
+            await conn.query(
+              `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, advId, id, accion, haActorId, haActorName, haDetalle, haAt]
             );
           }
         }
-
-        const deleteIds = [...existingAdvancesById.keys()].filter(eid => !incomingIds.has(eid));
-        if (deleteIds.length > 0) {
-          const placeholders = deleteIds.map(() => "?").join(",");
-          await conn.query(`DELETE FROM anticipos_evento WHERE (id_evento = ? OR id_evento = ?) AND id IN (${placeholders})`, [baseId, id, ...deleteIds]);
-        }
-
-        // Insertar o actualizar cada advance con ON DUPLICATE KEY UPDATE
-        for (const adv of incomingAdvances) {
-          const advId = str(adv.id).trim() || `adv_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
-          const existingMeta = existingAdvancesById.get(advId);
-          let editadoPorId = null;
-          let editadoPorNombre = null;
-          let editadoEnIso = null;
-          if (existingMeta) {
-            const editedLog = advanceLogs.findLast(l => str(l.tone) === "edited");
-            editadoPorId = str(editedLog?.actorId || "").trim() || null;
-            editadoPorNombre = str(editedLog?.actorName || "").trim() || null;
-            editadoEnIso = str(editedLog?.at || "").trim() || null;
-          }
-
-          let datosEvidencia = null;
-          const incomingUrl = str(adv.evidenceDataUrl || "").trim();
-          if (incomingUrl.startsWith("data:")) {
-            datosEvidencia = incomingUrl; // Nuevo archivo cargado
-          } else if (incomingUrl.startsWith("/api/anticipos/") && existingMeta?.datos_evidencia) {
-            datosEvidencia = existingMeta.datos_evidencia; // Conservar el archivo existente
-          }
-
-          await conn.query(
-            `INSERT INTO anticipos_evento
-               (id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso, editado_por_id, editado_por_nombre, editado_en_iso)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-               id_evento = VALUES(id_evento),
-               fecha_anticipo = VALUES(fecha_anticipo),
-               monto = VALUES(monto),
-               tipo_pago = VALUES(tipo_pago),
-               descripcion = VALUES(descripcion),
-               numero_boleta = VALUES(numero_boleta),
-               id_usuario_creador = COALESCE(VALUES(id_usuario_creador), anticipos_evento.id_usuario_creador),
-               nombre_usuario_creador = COALESCE(VALUES(nombre_usuario_creador), anticipos_evento.nombre_usuario_creador),
-               nombre_evidencia = VALUES(nombre_evidencia),
-               tipo_evidencia = VALUES(tipo_evidencia),
-               datos_evidencia = VALUES(datos_evidencia),
-               editado_por_id = VALUES(editado_por_id),
-               editado_por_nombre = VALUES(editado_por_nombre),
-               editado_en_iso = VALUES(editado_en_iso)`,
-            [
-              advId,
-              baseId,
-              asDate(adv.date || ""),
-              Math.max(0, Number(adv.amount || 0)),
-              str(adv.paymentType || "Efectivo").trim(),
-              str(adv.description || "").trim() || null,
-              str(adv.voucherNumber || "").trim() || null,
-              str(adv.createdByUserId || "").trim() || existingMeta?.createdByUserId || null,
-              str(adv.createdByName || "").trim() || existingMeta?.createdByName || null,
-              str(adv.evidenceName || "").trim() || null,
-              str(adv.evidenceType || "").trim() || null,
-              datosEvidencia,
-              existingMeta?.createdAt || str(adv.createdAt || "").trim() || null,
-              editadoPorId,
-              editadoPorNombre,
-              editadoEnIso,
-            ]
-          );
-          const accion = existingMeta ? "edited" : "added";
-          const logEntry = advanceLogs.findLast(l => str(l.tone) === accion);
-          let haActorId = str(logEntry?.actorId || "").trim() || null;
-          let haActorName = str(logEntry?.actorName || "").trim() || "Sistema";
-          let haDetalle = str(logEntry?.change || "").trim();
-          let haAt = str(logEntry?.at || "").trim() || nowIso;
-          if (!logEntry) {
-            haActorId = str(adv.createdByUserId || "").trim() || null;
-            haActorName = str(adv.createdByName || "").trim() || "Sistema";
-            haDetalle = `${accion === "added" ? "Agregado" : "Editado"} anticipo: Q ${Math.max(0, Number(adv.amount || 0)).toFixed(2)}`;
-            haAt = str(adv.createdAt || "").trim() || nowIso;
-          }
-          await conn.query(
-            `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, advId, id, accion, haActorId, haActorName, haDetalle, haAt]
-          );
-        }
-      } else if (existingAdvancesById.size > 0) {
-        // Evento sin quote: eliminar todos los advances y registrarlos en historial
-        for (const [deletedId, _] of existingAdvancesById) {
-          const delLog = advanceLogs.findLast(l => str(l.tone) === "deleted");
-          const actorId = str(delLog?.actorId || "").trim() || null;
-          const actorName = str(delLog?.actorName || "Sistema").trim();
-          const detalle = str(delLog?.change || "Anticipo eliminado").trim();
-          const logAt = str(delLog?.at || nowIso).trim();
-          await conn.query(
-            `INSERT INTO historial_anticipos (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso) VALUES (?, ?, ?, 'deleted', ?, ?, ?, ?)`,
-            [`ha_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, deletedId, id, actorId, actorName, detalle, logAt]
-          );
-        }
-        await conn.query("DELETE FROM anticipos_evento WHERE id_evento = ?", [id]);
       }
 
       // === UPSERT: cotizaciones (solo para el ID base principal del evento, no para slots secundarios) ===
@@ -4317,7 +4348,7 @@ function isEventUnchanged(e, oldEvent) {
         // Re-escribir cotizacion_json en eventos por si el codigo fue reasignado
         await conn.query(
           `UPDATE eventos SET cotizacion_json = ? WHERE id = ?`,
-          [JSON.stringify(Object.assign({}, q, { advances: undefined })), id]
+          [JSON.stringify(q), id]
         );
       }
     }
@@ -6582,6 +6613,422 @@ app.get("/api/anticipos/historial/:eventId", async (req, res) => {
   } catch (error) {
     console.error("Error al obtener historial_anticipos:", error.message);
     return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// === ENDPOINTS ATÓMICOS DE ANTICIPOS / ABONOS ===
+app.get("/api/events/:eventId/anticipos", async (req, res) => {
+  const eventId = str(req.params.eventId || "").trim();
+  if (!eventId) return res.status(400).json({ message: "eventId requerido." });
+  const baseId = eventId.replace(/_(s|slot)\d+_\d{6,}$/, "");
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      `SELECT id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta,
+              id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia,
+              (datos_evidencia IS NOT NULL AND datos_evidencia != '') AS has_evidencia,
+              creado_en_iso, editado_por_id, editado_por_nombre, editado_en_iso
+       FROM anticipos_evento
+       WHERE id_evento = ? OR id_evento = ?
+       ORDER BY fecha_anticipo DESC, creado_en_iso DESC, id DESC`,
+      [eventId, baseId]
+    );
+
+    const advances = rows.map((r) => {
+      let dStr = "";
+      if (r.fecha_anticipo) {
+        if (typeof r.fecha_anticipo === "string") {
+          dStr = r.fecha_anticipo.slice(0, 10);
+        } else if (r.fecha_anticipo instanceof Date) {
+          dStr = r.fecha_anticipo.toISOString().slice(0, 10);
+        } else {
+          dStr = String(r.fecha_anticipo).slice(0, 10);
+        }
+      }
+      return {
+        id: str(r.id),
+        date: dStr,
+        amount: Number(r.monto || 0),
+        paymentType: str(r.tipo_pago || "Efectivo"),
+        voucherNumber: str(r.numero_boleta || ""),
+        description: str(r.descripcion || ""),
+        createdByUserId: str(r.id_usuario_creador || ""),
+        createdByName: str(r.nombre_usuario_creador || ""),
+        createdAt: str(r.creado_en_iso || ""),
+        editedByUserId: str(r.editado_por_id || ""),
+        editedByName: str(r.editado_por_nombre || ""),
+        editedAt: str(r.editado_en_iso || ""),
+        evidenceDataUrl: r.has_evidencia ? `/api/anticipos/${r.id}/evidencia` : "",
+        evidenceName: str(r.nombre_evidencia || ""),
+        evidenceType: str(r.tipo_evidencia || ""),
+      };
+    });
+
+    const historyRows = await conn.query(
+      `SELECT id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso
+       FROM historial_anticipos
+       WHERE id_evento = ? OR id_evento = ?
+       ORDER BY creado_en_iso DESC, id DESC`,
+      [eventId, baseId]
+    );
+    const advanceLogs = historyRows.map((h) => ({
+      id: str(h.id),
+      advanceId: str(h.id_anticipo),
+      tone: str(h.accion),
+      actorId: str(h.id_usuario_actor || ""),
+      actorName: str(h.nombre_usuario_actor || "Sistema"),
+      change: str(h.detalle || ""),
+      at: str(h.creado_en_iso || ""),
+    }));
+
+    const evRows = await conn.query(
+      `SELECT cotizacion_json FROM eventos WHERE id = ? OR id = ? LIMIT 1`,
+      [baseId, eventId]
+    );
+    let totalContratado = 0;
+    if (evRows.length && evRows[0].cotizacion_json) {
+      try {
+        const q = typeof evRows[0].cotizacion_json === "string" ? JSON.parse(evRows[0].cotizacion_json) : evRows[0].cotizacion_json;
+        normalizeQuoteFinancials(q);
+        totalContratado = Number(q.totalGtq || q.total || 0);
+      } catch (_) {}
+    }
+    const totalAbonado = advances.reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+    const saldoPendiente = Math.max(0, totalContratado - totalAbonado);
+    const saldoAFavor = Math.max(0, totalAbonado - totalContratado);
+
+    return res.json({
+      advances,
+      advanceLogs,
+      summary: {
+        totalContratado,
+        totalAbonado,
+        saldoPendiente,
+        saldoAFavor,
+      },
+    });
+  } catch (error) {
+    console.error("Error en GET /api/events/:eventId/anticipos:", error);
+    return res.status(500).json({ message: "Error al consultar anticipos.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.post("/api/events/:eventId/anticipos", async (req, res) => {
+  const eventId = str(req.params.eventId || "").trim();
+  if (!eventId) return res.status(400).json({ message: "eventId requerido." });
+  const baseId = eventId.replace(/_(s|slot)\d+_\d{6,}$/, "");
+  const body = req.body || {};
+  const amount = Math.max(0, Number(body.amount || 0));
+  if (amount <= 0) {
+    return res.status(400).json({ message: "El monto del anticipo debe ser mayor a 0." });
+  }
+
+  const advId = str(body.id || "").trim() || `adv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const dateVal = asDate(body.date || new Date().toISOString().slice(0, 10));
+  const paymentType = str(body.paymentType || "Efectivo").trim();
+  const voucherNumber = str(body.voucherNumber || "").trim();
+  const description = str(body.description || "").trim();
+  const createdByUserId = str(body.createdByUserId || "").trim() || null;
+  const createdByName = str(body.createdByName || "").trim() || "Sistema";
+  const nowIso = str(body.createdAt || new Date().toISOString()).trim();
+
+  let datosEvidencia = null;
+  const incomingEvidence = str(body.evidenceDataUrl || "").trim();
+  if (incomingEvidence.startsWith("data:")) {
+    datosEvidencia = incomingEvidence;
+  }
+  const evidenceName = str(body.evidenceName || "").trim() || null;
+  const evidenceType = str(body.evidenceType || "").trim() || null;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    await conn.query(
+      `INSERT INTO anticipos_evento
+        (id, id_evento, fecha_anticipo, monto, tipo_pago, descripcion, numero_boleta, id_usuario_creador, nombre_usuario_creador, nombre_evidencia, tipo_evidencia, datos_evidencia, creado_en_iso)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        fecha_anticipo = VALUES(fecha_anticipo),
+        monto = VALUES(monto),
+        tipo_pago = VALUES(tipo_pago),
+        descripcion = VALUES(descripcion),
+        numero_boleta = VALUES(numero_boleta),
+        nombre_evidencia = VALUES(nombre_evidencia),
+        tipo_evidencia = VALUES(tipo_evidencia),
+        datos_evidencia = COALESCE(VALUES(datos_evidencia), anticipos_evento.datos_evidencia)`,
+      [advId, baseId, dateVal, amount, paymentType, description || null, voucherNumber || null, createdByUserId, createdByName, evidenceName, evidenceType, datosEvidencia, nowIso]
+    );
+
+    const logId = `ha_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const logDetail = `Registrado abono de Q ${amount.toFixed(2)} (${paymentType}${voucherNumber ? ` #${voucherNumber}` : ""}) - Aplicado por: ${createdByName}${description ? ` - ${description}` : ""}`;
+    await conn.query(
+      `INSERT INTO historial_anticipos
+        (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso)
+       VALUES (?, ?, ?, 'added', ?, ?, ?, ?)`,
+      [logId, advId, baseId, createdByUserId, createdByName, logDetail, nowIso]
+    );
+
+    const evRows = await conn.query(`SELECT id, cotizacion_json FROM eventos WHERE id = ? OR id = ?`, [baseId, eventId]);
+    for (const evRow of evRows) {
+      if (evRow.cotizacion_json) {
+        try {
+          const q = typeof evRow.cotizacion_json === "string" ? JSON.parse(evRow.cotizacion_json) : evRow.cotizacion_json;
+          normalizeQuoteFinancials(q);
+          if (!Array.isArray(q.advances)) q.advances = [];
+          const existingIdx = q.advances.findIndex(a => str(a.id) === advId);
+          const advanceObj = {
+            id: advId,
+            date: dateVal,
+            amount,
+            paymentType,
+            voucherNumber,
+            description,
+            createdByUserId,
+            createdByName,
+            createdAt: nowIso,
+            evidenceDataUrl: datosEvidencia ? `/api/anticipos/${advId}/evidencia` : (body.evidenceDataUrl || ""),
+            evidenceName,
+            evidenceType
+          };
+          if (existingIdx >= 0) {
+            q.advances[existingIdx] = advanceObj;
+          } else {
+            q.advances.unshift(advanceObj);
+          }
+          if (!Array.isArray(q.advanceLogs)) q.advanceLogs = [];
+          q.advanceLogs.unshift({
+            at: nowIso,
+            tone: "added",
+            actorId: createdByUserId,
+            actorName: createdByName,
+            change: logDetail
+          });
+          await conn.query(`UPDATE eventos SET cotizacion_json = ? WHERE id = ?`, [JSON.stringify(q), evRow.id]);
+        } catch (_) {}
+      }
+    }
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: "advances", eventId });
+      io.emit("event-advances-updated", { eventId, baseId, advanceId: advId, action: "added" });
+    }
+
+    return res.json({
+      success: true,
+      advance: {
+        id: advId,
+        date: dateVal,
+        amount,
+        paymentType,
+        voucherNumber,
+        description,
+        createdByUserId,
+        createdByName,
+        createdAt: nowIso,
+        evidenceDataUrl: datosEvidencia ? `/api/anticipos/${advId}/evidencia` : (body.evidenceDataUrl || ""),
+        evidenceName,
+        evidenceType
+      }
+    });
+  } catch (error) {
+    console.error("Error en POST /api/events/:eventId/anticipos:", error);
+    return res.status(500).json({ message: "Error al guardar anticipo.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.put("/api/events/:eventId/anticipos/:advanceId", async (req, res) => {
+  const eventId = str(req.params.eventId || "").trim();
+  const advanceId = str(req.params.advanceId || "").trim();
+  if (!eventId || !advanceId) return res.status(400).json({ message: "eventId y advanceId requeridos." });
+  const baseId = eventId.replace(/_(s|slot)\d+_\d{6,}$/, "");
+  const body = req.body || {};
+  const amount = Math.max(0, Number(body.amount || 0));
+  if (amount <= 0) {
+    return res.status(400).json({ message: "El monto del anticipo debe ser mayor a 0." });
+  }
+
+  const dateVal = asDate(body.date || new Date().toISOString().slice(0, 10));
+  const paymentType = str(body.paymentType || "Efectivo").trim();
+  const voucherNumber = str(body.voucherNumber || "").trim();
+  const description = str(body.description || "").trim();
+  const actorId = str(body.actorId || body.editedByUserId || "").trim() || null;
+  const actorName = str(body.actorName || body.editedByName || "").trim() || "Sistema";
+  const nowIso = new Date().toISOString();
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const incomingEvidence = str(body.evidenceDataUrl || "").trim();
+    let evidenceUpdateSql = "";
+    const params = [dateVal, amount, paymentType, description || null, voucherNumber || null, actorId, actorName, nowIso];
+
+    if (incomingEvidence.startsWith("data:")) {
+      evidenceUpdateSql = ", datos_evidencia = ?, nombre_evidencia = ?, tipo_evidencia = ?";
+      params.push(incomingEvidence, str(body.evidenceName || "").trim() || null, str(body.evidenceType || "").trim() || null);
+    } else if (body.removeEvidence === true) {
+      evidenceUpdateSql = ", datos_evidencia = NULL, nombre_evidencia = NULL, tipo_evidencia = NULL";
+    }
+
+    params.push(advanceId, baseId, eventId);
+
+    await conn.query(
+      `UPDATE anticipos_evento
+       SET fecha_anticipo = ?,
+           monto = ?,
+           tipo_pago = ?,
+           descripcion = ?,
+           numero_boleta = ?,
+           editado_por_id = ?,
+           editado_por_nombre = ?,
+           editado_en_iso = ?
+           ${evidenceUpdateSql}
+       WHERE id = ? AND (id_evento = ? OR id_evento = ?)`,
+      params
+    );
+
+    const logId = `ha_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const logDetail = `Actualizado abono: Q ${amount.toFixed(2)} (${paymentType}${voucherNumber ? ` #${voucherNumber}` : ""}) - Modificado por: ${actorName}${description ? ` - ${description}` : ""}`;
+    await conn.query(
+      `INSERT INTO historial_anticipos
+        (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso)
+       VALUES (?, ?, ?, 'edited', ?, ?, ?, ?)`,
+      [logId, advanceId, baseId, actorId, actorName, logDetail, nowIso]
+    );
+
+    const evRows = await conn.query(`SELECT id, cotizacion_json FROM eventos WHERE id = ? OR id = ?`, [baseId, eventId]);
+    for (const evRow of evRows) {
+      if (evRow.cotizacion_json) {
+        try {
+          const q = typeof evRow.cotizacion_json === "string" ? JSON.parse(evRow.cotizacion_json) : evRow.cotizacion_json;
+          normalizeQuoteFinancials(q);
+          if (Array.isArray(q.advances)) {
+            const idx = q.advances.findIndex(a => str(a.id) === advanceId);
+            if (idx >= 0) {
+              q.advances[idx] = {
+                ...q.advances[idx],
+                date: dateVal,
+                amount,
+                paymentType,
+                voucherNumber,
+                description,
+                editedByUserId: actorId,
+                editedByName: actorName,
+                editedAt: nowIso,
+              };
+              if (incomingEvidence.startsWith("data:")) {
+                q.advances[idx].evidenceDataUrl = `/api/anticipos/${advanceId}/evidencia`;
+                q.advances[idx].evidenceName = str(body.evidenceName || "").trim();
+                q.advances[idx].evidenceType = str(body.evidenceType || "").trim();
+              } else if (body.removeEvidence === true) {
+                q.advances[idx].evidenceDataUrl = "";
+                q.advances[idx].evidenceName = "";
+                q.advances[idx].evidenceType = "";
+              }
+            }
+          }
+          if (!Array.isArray(q.advanceLogs)) q.advanceLogs = [];
+          q.advanceLogs.unshift({
+            at: nowIso,
+            tone: "edited",
+            actorId,
+            actorName,
+            change: logDetail
+          });
+          await conn.query(`UPDATE eventos SET cotizacion_json = ? WHERE id = ?`, [JSON.stringify(q), evRow.id]);
+        } catch (_) {}
+      }
+    }
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: "advances", eventId });
+      io.emit("event-advances-updated", { eventId, baseId, advanceId, action: "edited" });
+    }
+
+    return res.json({ success: true, advanceId });
+  } catch (error) {
+    console.error("Error en PUT /api/events/:eventId/anticipos/:advanceId:", error);
+    return res.status(500).json({ message: "Error al actualizar anticipo.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.delete("/api/events/:eventId/anticipos/:advanceId", async (req, res) => {
+  const eventId = str(req.params.eventId || "").trim();
+  const advanceId = str(req.params.advanceId || "").trim();
+  if (!eventId || !advanceId) return res.status(400).json({ message: "eventId y advanceId requeridos." });
+  const baseId = eventId.replace(/_(s|slot)\d+_\d{6,}$/, "");
+  const body = req.body || {};
+  const actorId = str(body.actorId || req.query.actorId || "").trim() || null;
+  const actorName = str(body.actorName || req.query.actorName || "Sistema").trim();
+  const reason = str(body.reason || req.query.reason || "Eliminado por usuario").trim();
+  const nowIso = new Date().toISOString();
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const prevRows = await conn.query(
+      `SELECT id, monto, tipo_pago, numero_boleta FROM anticipos_evento WHERE id = ? AND (id_evento = ? OR id_evento = ?)`,
+      [advanceId, baseId, eventId]
+    );
+    const prevAmount = prevRows.length ? Number(prevRows[0].monto || 0) : 0;
+    const prevType = prevRows.length ? str(prevRows[0].tipo_pago || "") : "";
+
+    await conn.query(
+      `DELETE FROM anticipos_evento WHERE id = ? AND (id_evento = ? OR id_evento = ?)`,
+      [advanceId, baseId, eventId]
+    );
+
+    const logId = `ha_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const logDetail = `Eliminado abono de Q ${prevAmount.toFixed(2)}${prevType ? ` (${prevType})` : ""}: ${reason} - Por: ${actorName}`;
+    await conn.query(
+      `INSERT INTO historial_anticipos
+        (id, id_anticipo, id_evento, accion, id_usuario_actor, nombre_usuario_actor, detalle, creado_en_iso)
+       VALUES (?, ?, ?, 'deleted', ?, ?, ?, ?)`,
+      [logId, advanceId, baseId, actorId, actorName, logDetail, nowIso]
+    );
+
+    const evRows = await conn.query(`SELECT id, cotizacion_json FROM eventos WHERE id = ? OR id = ?`, [baseId, eventId]);
+    for (const evRow of evRows) {
+      if (evRow.cotizacion_json) {
+        try {
+          const q = typeof evRow.cotizacion_json === "string" ? JSON.parse(evRow.cotizacion_json) : evRow.cotizacion_json;
+          normalizeQuoteFinancials(q);
+          if (Array.isArray(q.advances)) {
+            q.advances = q.advances.filter(a => str(a.id) !== advanceId);
+          }
+          if (!Array.isArray(q.advanceLogs)) q.advanceLogs = [];
+          q.advanceLogs.unshift({
+            at: nowIso,
+            tone: "deleted",
+            actorId,
+            actorName,
+            change: logDetail
+          });
+          await conn.query(`UPDATE eventos SET cotizacion_json = ? WHERE id = ?`, [JSON.stringify(q), evRow.id]);
+        } catch (_) {}
+      }
+    }
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), entity: "advances", eventId });
+      io.emit("event-advances-updated", { eventId, baseId, advanceId, action: "deleted" });
+    }
+
+    return res.json({ success: true, deletedId: advanceId });
+  } catch (error) {
+    console.error("Error en DELETE /api/events/:eventId/anticipos/:advanceId:", error);
+    return res.status(500).json({ message: "Error al eliminar anticipo.", detail: error.message });
   } finally {
     if (conn) conn.release();
   }

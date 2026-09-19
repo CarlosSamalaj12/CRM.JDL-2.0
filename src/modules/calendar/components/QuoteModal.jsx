@@ -28,10 +28,33 @@ import {
   Pencil,
   Info,
   UserPlus,
-  PlusCircle
+  PlusCircle,
+  Coins,
+  Wallet,
+  UploadCloud,
+  CheckCircle,
+  AlertCircle,
+  Eye,
+  RotateCcw,
+  FileDown,
+  ChevronDown,
+  ChevronUp,
+  Image as ImageIcon
 } from 'lucide-react';
 import authService from '../../../services/authService';
-import { loadState as loadCrmState, saveState as saveCrmState, saveCompanyApi, saveQuickManagerApi, saveServiceApi, getExchangeRateApi, resolveExchangeRateAtDateApi } from '../../../services/stateService';
+import {
+  loadState as loadCrmState,
+  saveState as saveCrmState,
+  saveCompanyApi,
+  saveQuickManagerApi,
+  saveServiceApi,
+  getExchangeRateApi,
+  resolveExchangeRateAtDateApi,
+  getEventAdvancesApi,
+  addEventAdvanceApi,
+  updateEventAdvanceApi,
+  deleteEventAdvanceApi
+} from '../../../services/stateService';
 import { generateQuotePrintDocument } from '../../../utils/printUtils';
 import api from '../../../services/api';
 import socketService from '../../../services/socketService';
@@ -140,12 +163,40 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
           title = opt.title || '';
           description = opt.text || opt.html || '';
           state = opt.icon === 'success' ? 'success' : opt.icon === 'error' ? 'error' : opt.icon === 'warning' ? 'warning' : 'info';
-          opts = opt;
+          opts = {
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#0f4c81',
+            ...opt,
+            title: title || opt.title,
+            text: description || opt.text,
+            icon: state || opt.icon,
+            customClass: {
+              popup: 'qav-swal-popup',
+              title: 'qav-swal-title',
+              htmlContainer: 'qav-swal-text',
+              confirmButton: 'qav-swal-confirm-btn',
+              cancelButton: 'qav-swal-cancel-btn',
+              ...(opt.customClass || {})
+            }
+          };
         } else {
           title = args[0] || '';
           description = args[1] || '';
           state = args[2] === 'success' ? 'success' : args[2] === 'error' ? 'error' : args[2] === 'warning' ? 'warning' : 'info';
-          opts = {};
+          opts = {
+            title,
+            text: description,
+            icon: state,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#0f4c81',
+            customClass: {
+              popup: 'qav-swal-popup',
+              title: 'qav-swal-title',
+              htmlContainer: 'qav-swal-text',
+              confirmButton: 'qav-swal-confirm-btn',
+              cancelButton: 'qav-swal-cancel-btn'
+            }
+          };
         }
         if (opts.showCancelButton || opts.showDenyButton || opts.input) {
           const target = document.getElementById('companyCreateBackdrop')
@@ -285,13 +336,23 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const [advanceEvidenceFile, setAdvanceEvidenceFile] = useState(null);
   const [advanceEvidenceInputKey, setAdvanceEvidenceInputKey] = useState(0);
   const [formasPago, setFormasPago] = useState([]);
-  const [newAdvance, setNewAdvance] = useState({
-    amount: '',
-    date: todayISO(),
-    paymentType: 'Efectivo',
-    voucherNumber: '',
-    description: '',
-    evidenceName: ''
+  const [crmUsers, setCrmUsers] = useState([]);
+  const [previewVoucher, setPreviewVoucher] = useState(null);
+  const [showTraceabilityLogs, setShowTraceabilityLogs] = useState(false);
+  const [showAdvanceForm, setShowAdvanceForm] = useState(true);
+  const [newAdvance, setNewAdvance] = useState(() => {
+    const u = authService.getCurrentUser() || {};
+    return {
+      amount: '',
+      date: todayISO(),
+      paymentType: 'Transferencia Bancaria',
+      voucherNumber: '',
+      description: '',
+      evidenceName: '',
+      evidenceDataUrl: '',
+      userId: u.id || '',
+      userName: u.fullName || u.name || 'Usuario'
+    };
   });
 
   const [quote, setQuote] = useState({
@@ -380,6 +441,19 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       setCatalogServices(data?.services || []);
       setQuickTemplates(data?.quoteServiceTemplates || data?.quickTemplates || []);
       setContractTemplates(Array.isArray(data?.contractTemplates) ? data.contractTemplates : []);
+      setCrmUsers(Array.isArray(data?.users) ? data.users : []);
+      const currentEvId = String(event?.id || eventData?.id || eventProp?.id || '');
+      if (currentEvId) {
+        getEventAdvancesApi(currentEvId).then(advRes => {
+          if (advRes && Array.isArray(advRes.advances) && advRes.advances.length > 0) {
+            setQuote(prev => ({
+              ...prev,
+              advances: advRes.advances,
+              advanceLogs: Array.isArray(advRes.advanceLogs) && advRes.advanceLogs.length > 0 ? advRes.advanceLogs : prev.advanceLogs
+            }));
+          }
+        }).catch(() => {});
+      }
       setQuote(prev => {
         if (prev.code) return prev;
         const evs = data?.events || [];
@@ -1727,16 +1801,20 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   });
 
   const resetAdvanceForm = () => {
+    const u = authService.getCurrentUser() || {};
     setAdvanceEditingId('');
     setAdvanceEvidenceFile(null);
     setAdvanceEvidenceInputKey(key => key + 1);
     setNewAdvance({
       amount: '',
       date: quote.docDate || todayISO(),
-      paymentType: 'Efectivo',
+      paymentType: 'Transferencia Bancaria',
       voucherNumber: '',
       description: '',
-      evidenceName: ''
+      evidenceName: '',
+      evidenceDataUrl: '',
+      userId: u.id || '',
+      userName: u.fullName || u.name || 'Usuario'
     });
   };
 
@@ -1747,66 +1825,75 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     setShowAdvancesModal(true);
     window.setTimeout(() => document.getElementById('quoteAdvanceAmount')?.focus(), 40);
 
-    try {
-      const freshData = await loadCrmState({ cacheBust: true });
-      const currentEvId = String(event?.id || eventData?.id || eventProp?.id || '');
-      if (currentEvId) {
-        const freshEvent = (freshData?.events || []).find(e => String(e.id) === currentEvId || String(e.id_grupo) === currentEvId);
-        if (freshEvent?.quote?.advances) {
+    const currentEvId = String(event?.id || eventData?.id || eventProp?.id || '');
+    if (currentEvId) {
+      try {
+        const advRes = await getEventAdvancesApi(currentEvId);
+        if (advRes && Array.isArray(advRes.advances)) {
           setQuote(prev => ({
             ...prev,
-            advances: freshEvent.quote.advances || prev.advances,
-            advanceLogs: freshEvent.quote.advanceLogs || prev.advanceLogs,
-            items: freshEvent.quote.items || prev.items
+            advances: advRes.advances,
+            advanceLogs: Array.isArray(advRes.advanceLogs) && advRes.advanceLogs.length > 0 ? advRes.advanceLogs : prev.advanceLogs
           }));
         }
+      } catch (err) {
+        console.warn('Error fetching fresh event advances:', err);
       }
-    } catch (err) {
-      console.warn('Error reloading fresh state on open advances:', err);
     }
   };
 
   const handleStartEditAdvance = (advanceId) => {
     const item = advanceRows.find(advance => String(advance.id) === String(advanceId));
     if (!item) return;
+    setShowAdvanceForm(true);
     setAdvanceEditingId(item.id);
     setAdvanceEvidenceFile(null);
     setAdvanceEvidenceInputKey(key => key + 1);
     setNewAdvance({
       amount: item.amount ? String(Number(item.amount).toFixed(2)) : '',
       date: item.date || quote.docDate || todayISO(),
-      paymentType: normalizeAdvancePaymentType(item.paymentType),
+      paymentType: item.paymentType || 'Transferencia Bancaria',
       voucherNumber: item.voucherNumber || '',
       description: item.description || '',
-      evidenceName: item.evidenceName || ''
+      evidenceName: item.evidenceName || '',
+      evidenceDataUrl: item.evidenceDataUrl || '',
+      userId: item.createdByUserId || item.userId || '',
+      userName: item.createdByName || item.userName || ''
     });
+    const formEl = document.getElementById('qavFormContainer');
+    if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleSaveAdvanceEntry = async () => {
     const amountRaw = String(newAdvance.amount || '').trim();
     const amount = Math.max(0, Number(amountRaw || 0));
-    const paymentType = normalizeAdvancePaymentType(newAdvance.paymentType);
+    const paymentType = String(newAdvance.paymentType || 'Transferencia Bancaria').trim();
     const date = String(newAdvance.date || '').trim();
     const voucherNumber = String(newAdvance.voucherNumber || '').trim();
     const description = String(newAdvance.description || '').trim();
+    const u = authService.getCurrentUser() || {};
+    const actorId = String(newAdvance.userId || u.id || 'system').trim();
+    const actorName = String(newAdvance.userName || u.fullName || u.name || 'Usuario').trim();
+
     if (!amountRaw || Number.isNaN(Number(amountRaw)) || amount <= 0) {
-      localSwal('Error', 'Anticipo: el monto es obligatorio y debe ser mayor a 0.', 'error');
+      toast.error('Anticipo: el monto es obligatorio y debe ser mayor a 0.', { position: 'top-center' });
+      document.getElementById('quoteAdvanceAmount')?.focus();
       return;
     }
-    if (!String(newAdvance.paymentType || '').trim()) {
-      localSwal('Error', 'Anticipo: la forma de pago es obligatoria.', 'error');
+    if (!paymentType) {
+      toast.error('Anticipo: la forma de pago es obligatoria.', { position: 'top-center' });
       return;
     }
     if (!date) {
-      localSwal('Error', 'Anticipo: la fecha es obligatoria.', 'error');
+      toast.error('Anticipo: la fecha es obligatoria.', { position: 'top-center' });
       return;
     }
     if (!description) {
-      localSwal('Error', 'Anticipo: la descripcion es obligatoria.', 'error');
+      toast.error('Anticipo: la descripción o concepto es obligatorio.', { position: 'top-center' });
       return;
     }
-    if (paymentType !== 'Efectivo' && !voucherNumber) {
-      localSwal('Error', 'Anticipo: el No. de boleta es obligatorio para este tipo de pago.', 'error');
+    if (paymentType !== 'Efectivo' && paymentType !== 'Efectivo en Caja' && !voucherNumber) {
+      toast.error('Anticipo: el No. de boleta o referencia es obligatorio para este tipo de pago.', { position: 'top-center' });
       return;
     }
 
@@ -1829,12 +1916,50 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       evidenceType = String(processed.type || '').trim();
     }
 
-    const actor = getCurrentActor();
-    setQuote(prev => {
-      const currentAdvances = Array.isArray(prev.advances) ? prev.advances : [];
+    const targetEventId = String(event?.id || eventData?.id || eventProp?.id || '');
+
+    try {
+      let savedAdvance = null;
       if (advanceEditingId) {
-        const previous = normalizeAdvance(currentAdvances.find(item => String(item?.id || '') === String(advanceEditingId)));
-        const nextAdvances = currentAdvances.map(item => {
+        if (targetEventId) {
+          await updateEventAdvanceApi(targetEventId, advanceEditingId, {
+            amount,
+            date,
+            paymentType,
+            voucherNumber,
+            description,
+            evidenceDataUrl,
+            evidenceName,
+            evidenceType,
+            actorId,
+            actorName
+          });
+        }
+      } else {
+        if (targetEventId) {
+          const res = await addEventAdvanceApi(targetEventId, {
+            amount,
+            date,
+            paymentType,
+            voucherNumber,
+            description,
+            evidenceDataUrl,
+            evidenceName,
+            evidenceType,
+            createdByUserId: actorId,
+            createdByName: actorName,
+            createdAt: new Date().toISOString()
+          });
+          savedAdvance = res?.advance || null;
+        }
+      }
+
+      const currentAdvances = Array.isArray(quote.advances) ? [...quote.advances] : [];
+      let updatedAdvances;
+      let updatedLogs = Array.isArray(quote.advanceLogs) ? [...quote.advanceLogs] : [];
+
+      if (advanceEditingId) {
+        updatedAdvances = currentAdvances.map(item => {
           if (String(item?.id || '') !== String(advanceEditingId)) return item;
           return {
             ...item,
@@ -1843,43 +1968,75 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             date,
             voucherNumber,
             description,
-            evidenceDataUrl: evidenceDataUrl || previous.evidenceDataUrl || '',
-            evidenceName: evidenceName || previous.evidenceName || '',
-            evidenceType: evidenceType || previous.evidenceType || ''
+            evidenceDataUrl: evidenceDataUrl || item.evidenceDataUrl || '',
+            evidenceName: evidenceName || item.evidenceName || '',
+            evidenceType: evidenceType || item.evidenceType || '',
+            editedByUserId: actorId,
+            editedByName: actorName,
+            editedAt: new Date().toISOString()
           };
         });
-        const change = `Anticipo editado: ${previous.date || ''} ${formatAdvanceDetail(previous)} ${moneyGT(previous.amount || 0, quote.currency)} -> ${date} ${formatAdvanceDetail({ paymentType, voucherNumber, description })} ${moneyGT(amount || 0, quote.currency)}`;
-        return {
-          ...prev,
-          advances: nextAdvances,
-          advanceLogs: [...(prev.advanceLogs || []), buildAdvanceLog('edited', 'Editado', change, actor)]
+        updatedLogs.unshift({
+          id: `log_${Date.now()}`,
+          at: new Date().toISOString(),
+          tone: 'edited',
+          label: 'Editado',
+          actorId,
+          actorName,
+          change: `Actualizado abono de Q ${amount.toFixed(2)} (${paymentType}${voucherNumber ? ` #${voucherNumber}` : ''}) - Por: ${actorName} - ${description}`
+        });
+      } else {
+        const newId = savedAdvance?.id || `adv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const advanceEntry = {
+          id: newId,
+          amount,
+          paymentType,
+          date,
+          voucherNumber,
+          description,
+          evidenceDataUrl: evidenceDataUrl || (savedAdvance?.evidenceDataUrl || ''),
+          evidenceName,
+          evidenceType,
+          createdAt: new Date().toISOString(),
+          createdByUserId: actorId,
+          createdByName: actorName
         };
+        updatedAdvances = [advanceEntry, ...currentAdvances];
+        updatedLogs.unshift({
+          id: `log_${Date.now()}`,
+          at: new Date().toISOString(),
+          tone: 'added',
+          label: 'Agregado',
+          actorId,
+          actorName,
+          change: `Registrado abono de Q ${amount.toFixed(2)} (${paymentType}${voucherNumber ? ` #${voucherNumber}` : ''}) - Aplicado por: ${actorName} - ${description}`
+        });
       }
 
-      const advanceEntry = {
-        id: `adv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        amount,
-        paymentType,
-        date,
-        voucherNumber,
-        description,
-        evidenceDataUrl,
-        evidenceName,
-        evidenceType,
-        createdAt: new Date().toISOString(),
-        createdByUserId: actor.id,
-        createdByName: actor.name
+      const updatedQuote = {
+        ...quote,
+        advances: updatedAdvances,
+        advanceLogs: updatedLogs
       };
-      const change = `Anticipo agregado: ${date} ${formatAdvanceDetail(advanceEntry)} ${moneyGT(amount || 0, quote.currency)}`;
-      return {
-        ...prev,
-        advances: [...currentAdvances, advanceEntry],
-        advanceLogs: [...(prev.advanceLogs || []), buildAdvanceLog('added', 'Agregado', change, actor)]
-      };
-    });
-    const wasEditing = Boolean(advanceEditingId);
-    resetAdvanceForm();
-    localSwal('Exito', wasEditing ? 'Anticipo actualizado.' : 'Anticipo agregado.', 'success');
+
+      setQuote(updatedQuote);
+
+      if (typeof onSave === 'function') {
+        try {
+          await onSave(updatedQuote, { keepOpen: true });
+        } catch (_) {}
+      }
+
+      const wasEditing = Boolean(advanceEditingId);
+      resetAdvanceForm();
+      toast.success(wasEditing ? '✓ Anticipo actualizado correctamente.' : '✓ Anticipo registrado exitosamente.', {
+        position: 'top-center',
+        duration: 3500
+      });
+    } catch (err) {
+      console.error('Error al guardar anticipo:', err);
+      toast.error('No se pudo registrar el anticipo: ' + (err?.message || 'Error de conexión'), { position: 'top-center' });
+    }
   };
 
   const handleDeleteAdvanceEntry = async (advanceId) => {
@@ -1887,26 +2044,84 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     if (!item) return;
     const result = await localSwal({
       icon: 'warning',
-      title: 'Eliminar anticipo',
-      text: 'Este movimiento se quitara de los saldos y quedara registrado en el log.',
+      title: '¿Eliminar este anticipo?',
+      text: `Se eliminará el abono de Q ${Number(item.amount || 0).toFixed(2)} (${item.paymentType || ''}) y se recalculará el saldo del evento.`,
       showCancelButton: true,
-      confirmButtonText: 'Eliminar',
+      confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#991b1b',
-      cancelButtonColor: '#1267d8'
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b'
     });
     if (!result.isConfirmed) return;
-    const actor = getCurrentActor();
-    setQuote(prev => ({
-      ...prev,
-      advances: (prev.advances || []).filter(a => String(a.id || '') !== String(advanceId)),
-      advanceLogs: [
-        ...(prev.advanceLogs || []),
-        buildAdvanceLog('deleted', 'Eliminado', `Anticipo eliminado: ${item.date || ''} ${formatAdvanceDetail(item)} ${moneyGT(item.amount || 0, quote.currency)}`, actor)
-      ]
-    }));
-    if (String(advanceEditingId) === String(advanceId)) resetAdvanceForm();
-    localSwal('Listo', 'Anticipo eliminado.', 'success');
+
+    const u = authService.getCurrentUser() || {};
+    const actorId = u.id || 'system';
+    const actorName = u.fullName || u.name || 'Usuario';
+    const targetEventId = String(event?.id || eventData?.id || eventProp?.id || '');
+
+    try {
+      if (targetEventId) {
+        await deleteEventAdvanceApi(targetEventId, advanceId, {
+          actorId,
+          actorName,
+          reason: 'Eliminado por usuario desde Gestión de Anticipos'
+        });
+      }
+
+      const updatedAdvances = (quote.advances || []).filter(a => String(a.id || '') !== String(advanceId));
+      const updatedLogs = [
+        {
+          id: `log_${Date.now()}`,
+          at: new Date().toISOString(),
+          tone: 'deleted',
+          label: 'Eliminado',
+          actorId,
+          actorName,
+          change: `Eliminado abono de Q ${Number(item.amount || 0).toFixed(2)} (${item.paymentType || ''}) - Por: ${actorName}`
+        },
+        ...(quote.advanceLogs || [])
+      ];
+
+      const updatedQuote = {
+        ...quote,
+        advances: updatedAdvances,
+        advanceLogs: updatedLogs
+      };
+
+      setQuote(updatedQuote);
+
+      if (typeof onSave === 'function') {
+        try {
+          await onSave(updatedQuote, { keepOpen: true });
+        } catch (_) {}
+      }
+
+      if (String(advanceEditingId) === String(advanceId)) resetAdvanceForm();
+      toast.success('✓ Anticipo eliminado exitosamente.', {
+        position: 'top-center',
+        duration: 3500
+      });
+    } catch (err) {
+      console.error('Error al eliminar anticipo:', err);
+      toast.error('No se pudo eliminar el anticipo: ' + (err?.message || 'Error de conexión'), { position: 'top-center' });
+    }
+  };
+
+  const handleExportStatementPdf = async () => {
+    try {
+      const printWin = window.open('', '_blank');
+      const finalQuote = buildPrintableQuote(quote, totals);
+      const currentUser = authService.getCurrentUser() || {};
+      const printUrl = await generateQuotePrintDocument(finalQuote, currentUser, 'completa', event);
+      if (printUrl && printWin) {
+        printWin.location.href = printUrl;
+      } else if (printWin) {
+        printWin.close();
+      }
+    } catch (err) {
+      console.error('Error al exportar documento:', err);
+      localSwal('Error', 'No se pudo generar el documento PDF: ' + (err?.message || 'Error de conexión'), 'error');
+    }
   };
 
   const handleReimprimir = async () => {
@@ -2033,167 +2248,742 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   const fieldSelect = { width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' };
   const card = { background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px' };
 
-  return inlineMode ? (
-    <div style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '16px', position: 'relative' }}>
-      {saving && <LoadingSpinner mensaje="Guardando cotización..." />}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Anticipos</div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>Registra pagos anticipados para restar saldo del evento</div>
-        </div>
-      </div>
+  const renderPaymentTypePill = (paymentType) => {
+    const pt = String(paymentType || '').toLowerCase();
+    if (pt.includes('transferencia')) {
+      return (
+        <span className="qav-payment-pill is-transfer">
+          <CreditCard size={11} />
+          <span>{paymentType || 'Transferencia'}</span>
+        </span>
+      );
+    }
+    if (pt.includes('efectivo')) {
+      return (
+        <span className="qav-payment-pill is-cash">
+          <Coins size={11} />
+          <span>{paymentType || 'Efectivo en Caja'}</span>
+        </span>
+      );
+    }
+    if (pt.includes('depósito') || pt.includes('deposito')) {
+      return (
+        <span className="qav-payment-pill is-deposit">
+          <Building2 size={11} />
+          <span>{paymentType || 'Depósito'}</span>
+        </span>
+      );
+    }
+    if (pt.includes('tarjeta')) {
+      return (
+        <span className="qav-payment-pill is-card">
+          <CreditCard size={11} />
+          <span>{paymentType || 'Tarjeta'}</span>
+        </span>
+      );
+    }
+    return (
+      <span className="qav-payment-pill is-check">
+        <FileText size={11} />
+        <span>{paymentType || 'Cheque / Otro'}</span>
+      </span>
+    );
+  };
 
-      <div className="quoteAdvanceFormGrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <label className="field quoteAdvanceField--amount" style={{ gridColumn: 'span 2' }}>
-          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Monto</span>
-          <input id="quoteAdvanceAmount" type="number" min="0" step="0.01" value={newAdvance.amount} onChange={e => setNewAdvance(p => ({ ...p, amount: e.target.value }))} placeholder="Ej: 1500.00" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
-        </label>
-        <label className="field quoteAdvanceField--type" style={{ gridColumn: 'span 2' }}>
-          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Forma de pago</span>
-          <select value={newAdvance.paymentType} onChange={e => setNewAdvance(p => ({ ...p, paymentType: e.target.value }))} style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}>
-            {formasPago.map(fp => (
-              <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
-            ))}
-          </select>
-        </label>
-        <label className="field quoteAdvanceField--date" style={{ gridColumn: 'span 2' }}>
-          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Fecha</span>
-          <input type="date" value={newAdvance.date} onChange={e => setNewAdvance(p => ({ ...p, date: e.target.value }))} style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
-        </label>
-        <label className="field quoteAdvanceField--voucher" style={{ gridColumn: 'span 2' }}>
-          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>No. boleta</span>
-          <input type="text" value={newAdvance.voucherNumber} onChange={e => setNewAdvance(p => ({ ...p, voucherNumber: e.target.value }))} placeholder="Ej: BOL-000123" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
-        </label>
-        <label className="field quoteAdvanceDescriptionField" style={{ gridColumn: 'span 4' }}>
-          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Descripcion</span>
-          <input type="text" value={newAdvance.description} onChange={e => setNewAdvance(p => ({ ...p, description: e.target.value }))} placeholder="Detalle del anticipo" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }} />
-        </label>
-        <label className="field quoteAdvanceField--evidence" style={{ gridColumn: 'span 4' }}>
-          <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Evidencia (archivo)</span>
-          <input key={advanceEvidenceInputKey} type="file" accept="image/*,application/pdf" onChange={e => { const file = e.target.files?.[0] || null; setAdvanceEvidenceFile(file); setNewAdvance(p => ({ ...p, evidenceName: file?.name || p.evidenceName })); }} style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#fff' }} />
-          <small style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', display: 'block' }}>
-            {advanceEvidenceFile ? `Archivo seleccionado: ${advanceEvidenceFile.name}` : (newAdvance.evidenceName ? `Archivo actual: ${newAdvance.evidenceName}` : 'Sin archivo adjunto')}
-          </small>
-        </label>
-        <div className="rightActions quoteAdvanceAddAction" style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'flex-end', gap: '6px', paddingBottom: '2px' }}>
-          <button className="btnPrimary" type="button" onClick={handleSaveAdvanceEntry} style={{ padding: '7px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>{advanceEditingId ? 'Guardar cambios' : 'Agregar anticipo'}</button>
-          <button className="btn" type="button" onClick={resetAdvanceForm} style={{ padding: '7px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>Limpiar</button>
-        </div>
-      </div>
-
-      <div className="quoteAdvanceSummary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '12px', borderLeft: '3px solid #0f172a' }}>
-          <span style={{ fontSize: '9px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total anticipos</span>
-          <strong style={{ display: 'block', fontSize: '15px', fontWeight: 850, color: '#0f172a', marginTop: '3px' }}>{moneyGT(abonosTotal, quote.currency)}</strong>
-        </div>
-        <div style={{ background: saldoPendiente > 0 ? '#fef2f2' : '#f0fdf4', borderRadius: '8px', padding: '12px', borderLeft: `3px solid ${saldoPendiente > 0 ? '#dc2626' : '#16a34a'}` }}>
-          <span style={{ fontSize: '9px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Saldo pendiente</span>
-          <strong style={{ display: 'block', fontSize: '15px', fontWeight: 850, color: saldoPendiente > 0 ? '#dc2626' : '#16a34a', marginTop: '3px' }}>{moneyGT(saldoPendiente, quote.currency)}</strong>
-        </div>
-        <div style={{ background: '#eff6ff', borderRadius: '8px', padding: '12px', borderLeft: '3px solid #2563eb' }}>
-          <span style={{ fontSize: '9px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Saldo a favor</span>
-          <strong style={{ display: 'block', fontSize: '15px', fontWeight: 850, color: '#2563eb', marginTop: '3px' }}>{moneyGT(Math.max(0, abonosTotal - totals.total), quote.currency)}</strong>
-        </div>
-      </div>
-
-      <div className="quoteTableWrap quoteAdvanceTableWrap" style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
-        <div className="quoteAdvanceLedgerHead" style={{ display: 'grid', gridTemplateColumns: '110px 110px 130px 1fr 110px 118px 160px', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-          <span style={{ padding: '8px 10px' }}>Fecha</span>
-          <span style={{ padding: '8px 10px' }}>Tipo</span>
-          <span style={{ padding: '8px 10px' }}>No. boleta</span>
-          <span style={{ padding: '8px 10px' }}>Descripcion</span>
-          <span style={{ padding: '8px 10px', textAlign: 'right' }}>Monto</span>
-          <span style={{ padding: '8px 10px' }}>Evidencia</span>
-          <span style={{ padding: '8px 10px' }}>Acciones</span>
-        </div>
-        <div className="quoteAdvanceLedgerBody">
-          {advanceRows.length > 0 ? advanceRows.map(adv => (
-            <div className={`quoteAdvanceLedgerRow${String(adv.id) === String(advanceEditingId) ? ' isEditing' : ''}`} key={adv.id} style={{ display: 'grid', gridTemplateColumns: '110px 110px 130px 1fr 110px 118px 160px', borderBottom: '1px solid #f1f5f9', fontSize: '11px', transition: 'background 0.12s' }}>
-              <div style={{ padding: '7px 10px', color: '#334155' }}>{adv.date || '-'}</div>
-              <div style={{ padding: '7px 10px', fontWeight: 600 }}>{adv.paymentType || '-'}</div>
-              <div style={{ padding: '7px 10px' }}>{adv.voucherNumber || '-'}</div>
-              <div style={{ padding: '7px 10px', color: '#475569', fontSize: '10px' }}>{adv.description || '-'}</div>
-              <div style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{moneyGT(adv.amount, quote.currency)}</div>
-              <div style={{ padding: '7px 10px' }}>
-                {adv.evidenceDataUrl ? (
-                  <a className="btn quoteAdvanceEvidenceLink" href={adv.evidenceDataUrl} download={adv.evidenceName || `evidencia_${adv.id}.pdf`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>Ver</a>
-                ) : (
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{adv.evidenceName || '-'}</span>
-                )}
+  const renderPreviewVoucherModal = () => {
+    if (!previewVoucher) return null;
+    return createPortal(
+      <div
+        onClick={() => setPreviewVoucher(null)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(6px)',
+          zIndex: 10000002,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '680px',
+            width: '100%',
+            overflow: 'hidden',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <div
+            style={{
+              background: '#0f172a',
+              color: '#ffffff',
+              padding: '12px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800 }}>
+                Comprobante / Boleta de Pago
               </div>
-              <div style={{ padding: '7px 10px', display: 'flex', gap: '4px' }}>
-                <button className="apptIconBtn apptEdit" type="button" onClick={() => handleStartEditAdvance(adv.id)} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 700, borderRadius: '4px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>Editar</button>
-                <button className="apptIconBtn apptDelete" type="button" onClick={() => handleDeleteAdvanceEntry(adv.id)} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 700, borderRadius: '4px', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>Eliminar</button>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                No. {previewVoucher.voucherNumber || 'S/N'} • {moneyGT(previewVoucher.amount || 0, quote.currency)} ({previewVoucher.paymentType})
               </div>
             </div>
-          )) : (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>Sin anticipos registrados.</div>
+            <button
+              type="button"
+              className="qav-lightbox-close-btn"
+              onClick={() => setPreviewVoucher(null)}
+              title="Cerrar comprobante (Esc)"
+            >
+              <X size={15} strokeWidth={2.5} />
+              <span>Cerrar</span>
+            </button>
+          </div>
+
+          <div
+            style={{
+              padding: '16px',
+              maxHeight: '75vh',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px',
+              background: '#f8fafc'
+            }}
+          >
+            {previewVoucher.evidenceDataUrl ? (
+              previewVoucher.evidenceType?.includes('pdf') || String(previewVoucher.evidenceDataUrl).includes('application/pdf') || String(previewVoucher.evidenceName || '').endsWith('.pdf') ? (
+                <iframe
+                  src={previewVoucher.evidenceDataUrl}
+                  style={{ width: '100%', height: '480px', border: 'none', borderRadius: '8px' }}
+                  title="PDF Comprobante"
+                />
+              ) : (
+                <img
+                  src={previewVoucher.evidenceDataUrl}
+                  alt="Boleta de pago"
+                  style={{ maxWidth: '100%', maxHeight: '550px', borderRadius: '8px', objectFit: 'contain', border: '1px solid #cbd5e1' }}
+                />
+              )
+            ) : (
+              <div style={{ padding: '30px', color: '#94a3b8' }}>No hay imagen adjunta para este abono.</div>
+            )}
+          </div>
+
+          <div
+            style={{
+              padding: '12px 18px',
+              background: '#ffffff',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '11px',
+              color: '#64748b'
+            }}
+          >
+            <span>Concepto: {previewVoucher.description || 'Sin notas'}</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {previewVoucher.evidenceDataUrl && (
+                <a
+                  href={previewVoucher.evidenceDataUrl}
+                  download={previewVoucher.evidenceName || `comprobante_${previewVoucher.id || 'pago'}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '6px 14px',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <FileDown size={13} />
+                  Descargar
+                </a>
+              )}
+              <button
+                type="button"
+                className="qav-lightbox-close-btn is-bottom"
+                onClick={() => setPreviewVoucher(null)}
+                title="Cerrar comprobante (Esc)"
+              >
+                <X size={15} strokeWidth={2.5} />
+                <span>Cerrar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  const renderExecutiveAdvancesContent = ({ isInline = false } = {}) => {
+    const totalAbonado = abonosTotal;
+    const evDateStr = String(quote.eventDate || quote.docDate || event?.date || event?.slotStartDate || '').slice(0, 10);
+    let dueNotice = 'Vence 7 días antes del evento';
+    if (evDateStr && !isNaN(new Date(evDateStr).getTime())) {
+      const evDate = new Date(`${evDateStr}T12:00:00`);
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+      const diffDays = Math.round((evDate - today) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) {
+        dueNotice = `Evento pasado hace ${Math.abs(diffDays)} día${Math.abs(diffDays) === 1 ? '' : 's'}`;
+      } else if (diffDays === 0) {
+        dueNotice = 'Vence hoy (fecha del evento)';
+      } else if (diffDays <= 7) {
+        dueNotice = `Vence en ${diffDays} día${diffDays === 1 ? '' : 's'}`;
+      } else {
+        dueNotice = 'Vence 7 días antes del evento';
+      }
+    }
+
+    const eventDisplayName = event?.name || eventData?.name || quote.companyName || 'Evento';
+    const eventCodeOrId = event?.id || quote.code || 'EV';
+
+    return (
+      <div className={isInline ? "qav-inline-card" : "qav-modal-card"}>
+        {/* Header */}
+        <div className="qav-modal-header">
+          <div className="qav-header-left">
+            <div className="qav-header-icon-box">
+              <Wallet size={22} strokeWidth={2.2} />
+            </div>
+            <div>
+              <div className="qav-header-title-row">
+                <h3 className="qav-header-title">Gestión de Anticipos</h3>
+                <span className="qav-header-event-pill" title={`${eventDisplayName} #${eventCodeOrId}`}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0284c7', display: 'inline-block' }} />
+                  <span>Evento: {eventDisplayName} #{eventCodeOrId}</span>
+                </span>
+              </div>
+              <div className="qav-header-subtitle">
+                Registra pagos anticipados para amortizar el saldo consolidado del evento en Jardines del Lago.
+              </div>
+            </div>
+          </div>
+          {!isInline && (
+            <button
+              type="button"
+              className="qav-close-btn"
+              title="Cerrar (Esc)"
+              onClick={() => {
+                resetAdvanceForm();
+                setShowAdvancesModal(false);
+              }}
+            >
+              <X size={18} strokeWidth={2.5} />
+            </button>
           )}
         </div>
-      </div>
 
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
-        <div style={{ padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 800, color: '#1e293b' }}>Log de pagos y movimientos</div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-          <thead>
-            <tr style={{ background: '#fafbfc' }}>
-              <th style={{ padding: '7px 10px', fontWeight: 700, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>Fecha/Hora</th>
-              <th style={{ padding: '7px 10px', fontWeight: 700, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>Usuario</th>
-              <th style={{ padding: '7px 10px', fontWeight: 700, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>Movimiento</th>
-            </tr>
-          </thead>
-          <tbody>
-            {advanceLogRows.length > 0 ? advanceLogRows.map(log => (
-              <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={{ padding: '7px 10px', color: '#475569', whiteSpace: 'nowrap' }}>{log.at ? new Date(log.at).toLocaleString('es-GT') : '-'}</td>
-                <td style={{ padding: '7px 10px', fontWeight: 600 }}>{log.actorName || 'Sistema'}</td>
-                <td style={{ padding: '7px 10px' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#475569' }}>
-                    <span style={{
-                      padding: '1px 6px', borderRadius: '3px', fontWeight: 700, fontSize: '9px',
-                      background: log.tone === 'added' ? '#dcfce7' : log.tone === 'edited' ? '#dbeafe' : log.tone === 'deleted' ? '#fee2e2' : '#f1f5f9',
-                      color: log.tone === 'added' ? '#16a34a' : log.tone === 'edited' ? '#2563eb' : log.tone === 'deleted' ? '#dc2626' : '#64748b'
-                    }}>{log.label || 'Agregado'}</span>
-                    <span>{log.change || '-'}</span>
-                  </span>
-                </td>
-              </tr>
-            )) : (
-              <tr><td colSpan={3} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>Sin movimientos de pagos registrados.</td></tr>
+        {/* Modal Body */}
+        <div className="qav-modal-body">
+          {/* KPI Cards Grid */}
+          <div className="qav-kpi-grid">
+            {/* KPI 1: TOTAL ANTICIPOS */}
+            <div className="qav-kpi-card">
+              <div>
+                <div className="qav-kpi-label">TOTAL ANTICIPOS</div>
+                <div className="qav-kpi-value">{moneyGT(totalAbonado, quote.currency)}</div>
+                <div className="qav-kpi-sub">✓ {advanceRows.length} aporte{advanceRows.length === 1 ? '' : 's'} registrado{advanceRows.length === 1 ? '' : 's'}</div>
+              </div>
+              <div className="qav-kpi-icon-wrap is-neutral">
+                <FileText size={18} />
+              </div>
+            </div>
+
+            {/* KPI 2: SALDO PENDIENTE */}
+            <div className={`qav-kpi-card ${saldoPendiente > 0 ? 'is-pending' : ''}`}>
+              <div>
+                <div className="qav-kpi-label-row">
+                  <span className="qav-kpi-label">SALDO PENDIENTE</span>
+                  {saldoPendiente > 0 && <span className="qav-kpi-badge is-pending">Por Pagar</span>}
+                </div>
+                <div className={`qav-kpi-value ${saldoPendiente > 0 ? 'is-pending' : ''}`}>
+                  {moneyGT(saldoPendiente, quote.currency)}
+                </div>
+                <div className="qav-kpi-sub">{saldoPendiente > 0 ? dueNotice : 'Totalmente saldado ✓'}</div>
+              </div>
+              <div className={`qav-kpi-icon-wrap ${saldoPendiente > 0 ? 'is-pending' : 'is-neutral'}`}>
+                <AlertCircle size={18} />
+              </div>
+            </div>
+
+            {/* KPI 3: SALDO A FAVOR */}
+            <div className="qav-kpi-card">
+              <div>
+                <div className="qav-kpi-label">SALDO A FAVOR</div>
+                <div className={`qav-kpi-value ${saldoAFavor > 0 ? 'is-credit' : ''}`}>
+                  {moneyGT(saldoAFavor, quote.currency)}
+                </div>
+                <div className="qav-kpi-sub">
+                  {saldoAFavor > 0 ? 'Sobrepago disponible para acreditar' : 'No hay sobrepagos acreditados'}
+                </div>
+              </div>
+              <div className="qav-kpi-icon-wrap is-credit">
+                <CheckCircle size={18} />
+              </div>
+            </div>
+          </div>
+
+          {/* Formulario: NUEVO REGISTRO / EDITAR ANTICIPO */}
+          <div className="qav-card" id="qavFormContainer">
+            <div
+              className="qav-card-header"
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => setShowAdvanceForm(prev => !prev)}
+            >
+              <div className="qav-card-title">
+                {advanceEditingId ? (
+                  <>
+                    <Pencil size={13} color="#059669" />
+                    <span>EDITANDO ANTICIPO REGISTRADO</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={13} color="#0284c7" />
+                    <span>NUEVO REGISTRO DE ANTICIPO</span>
+                  </>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="qav-card-hint" style={{ display: showAdvanceForm ? 'inline' : 'none' }}>
+                  Campos obligatorios marcados con *
+                </span>
+                <button
+                  type="button"
+                  className="qav-btn-clean"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAdvanceForm(prev => !prev);
+                  }}
+                  style={{ height: '26px', minHeight: '26px', padding: '0 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  title={showAdvanceForm ? "Minimizar formulario para ver más anticipos" : "Mostrar formulario de registro"}
+                >
+                  {showAdvanceForm ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  <span>{showAdvanceForm ? 'Minimizar' : '+ Formulario'}</span>
+                </button>
+              </div>
+            </div>
+
+            {showAdvanceForm && (
+              <>
+            {/* Fila 1: Monto, Forma de Pago, Fecha, No. Boleta */}
+            <div className="qav-form-row is-cols-4">
+              <div className="qav-field-group">
+                <label className="qav-field-label">Monto a abonar *</label>
+                <div className="qav-monto-prefix-wrap">
+                  <span className="qav-monto-prefix">{quote.currency === 'USD' ? '$' : 'Q'}</span>
+                  <input
+                    id="quoteAdvanceAmount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="qav-monto-input"
+                    value={newAdvance.amount}
+                    onChange={e => setNewAdvance(p => ({ ...p, amount: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div className="qav-field-group">
+                <label className="qav-field-label">Forma de pago *</label>
+                <select
+                  className="qav-select"
+                  value={newAdvance.paymentType}
+                  onChange={e => setNewAdvance(p => ({ ...p, paymentType: e.target.value }))}
+                >
+                  <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                  <option value="Efectivo en Caja">Efectivo en Caja</option>
+                  <option value="Depósito Bancario">Depósito Bancario</option>
+                  <option value="Tarjeta de Crédito / Débito">Tarjeta de Crédito / Débito</option>
+                  <option value="Cheque">Cheque</option>
+                  {formasPago.filter(fp => !['Transferencia Bancaria', 'Efectivo en Caja', 'Depósito Bancario', 'Tarjeta de Crédito / Débito', 'Cheque'].includes(fp.nombre)).map(fp => (
+                    <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="qav-field-group">
+                <label className="qav-field-label">Fecha de pago *</label>
+                <input
+                  type="date"
+                  className="qav-input"
+                  value={newAdvance.date}
+                  onChange={e => setNewAdvance(p => ({ ...p, date: e.target.value }))}
+                />
+              </div>
+
+              <div className="qav-field-group">
+                <label className="qav-field-label">No. Boleta / Referencia</label>
+                <input
+                  type="text"
+                  className="qav-input"
+                  value={newAdvance.voucherNumber}
+                  onChange={e => setNewAdvance(p => ({ ...p, voucherNumber: e.target.value }))}
+                  placeholder="Ej: BOL-009182 / Transf 4891"
+                />
+              </div>
+            </div>
+
+            {/* Fila 2: Descripción y Evidencia */}
+            <div className="qav-form-row is-cols-2">
+              <div className="qav-field-group">
+                <label className="qav-field-label">Descripción / Concepto *</label>
+                <input
+                  type="text"
+                  className="qav-input"
+                  value={newAdvance.description}
+                  onChange={e => setNewAdvance(p => ({ ...p, description: e.target.value }))}
+                  placeholder="Ej: Anticipo del 50% correspondiente a reserva del salón principal..."
+                />
+              </div>
+
+              <div className="qav-field-group">
+                <label className="qav-field-label">Evidencia o Comprobante (Voucher)</label>
+                <div className="qav-upload-box">
+                  <div className="qav-upload-info" title={advanceEvidenceFile ? advanceEvidenceFile.name : (newAdvance.evidenceName || 'Sin comprobante')}>
+                    <UploadCloud size={16} color="#0284c7" />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '240px' }}>
+                      {advanceEvidenceFile
+                        ? advanceEvidenceFile.name
+                        : (newAdvance.evidenceName ? newAdvance.evidenceName : 'Adjuntar comprobante (PDF, JPG, PNG)')}
+                    </span>
+                    {(advanceEvidenceFile || newAdvance.evidenceName) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAdvanceEvidenceFile(null);
+                          setNewAdvance(p => ({ ...p, evidenceName: '', evidenceDataUrl: '' }));
+                          setAdvanceEvidenceInputKey(k => k + 1);
+                        }}
+                        style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer', padding: 0, display: 'flex' }}
+                        title="Quitar comprobante"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <label className="qav-upload-btn" style={{ margin: 0, cursor: 'pointer' }}>
+                    Explorar
+                    <input
+                      key={advanceEvidenceInputKey}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={e => {
+                        const file = e.target.files?.[0] || null;
+                        setAdvanceEvidenceFile(file);
+                        setNewAdvance(p => ({ ...p, evidenceName: file?.name || p.evidenceName }));
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Fila 3: Responsable / Asesor que aplica el pago */}
+            <div className="qav-form-row is-cols-2" style={{ alignItems: 'flex-end', marginBottom: 0 }}>
+              <div className="qav-field-group">
+                <label className="qav-field-label">Responsable / Asesor que aplica el pago</label>
+                <select
+                  className="qav-select"
+                  value={newAdvance.userId}
+                  onChange={e => {
+                    const selId = e.target.value;
+                    const uObj = crmUsers.find(u => String(u.id) === String(selId));
+                    setNewAdvance(p => ({
+                      ...p,
+                      userId: selId,
+                      userName: uObj ? (uObj.name || uObj.fullName) : p.userName
+                    }));
+                  }}
+                >
+                  {crmUsers.length > 0 ? (
+                    crmUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name || u.fullName || u.email}</option>
+                    ))
+                  ) : (
+                    <option value={newAdvance.userId || 'system'}>{newAdvance.userName || 'Usuario Actual'}</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Botones de acción del formulario */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button type="button" className="qav-btn-clean" onClick={resetAdvanceForm}>
+                  <RotateCcw size={12} />
+                  <span>Limpiar formulario</span>
+                </button>
+                {advanceEditingId && (
+                  <button
+                    type="button"
+                    className="qav-btn-clean"
+                    onClick={resetAdvanceForm}
+                    style={{ borderColor: '#fca5a5', color: '#dc2626' }}
+                  >
+                    Cancelar edición
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`qav-btn-submit ${advanceEditingId ? 'is-edit' : ''}`}
+                  onClick={handleSaveAdvanceEntry}
+                >
+                  <Check size={14} strokeWidth={2.5} />
+                  <span>{advanceEditingId ? 'Guardar Cambios' : 'Registrar Anticipo'}</span>
+                </button>
+              </div>
+            </div>
+            </>
+          )}
+        </div>
+
+          {/* Tabla: ANTICIPOS APLICADOS AL EVENTO */}
+          <div className="qav-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="qav-card-header" style={{ padding: '12px 18px', margin: 0 }}>
+              <div className="qav-card-title">
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+                <span>ANTICIPOS APLICADOS AL EVENTO</span>
+              </div>
+              <div className="qav-card-hint">
+                Mostrando {advanceRows.length} registro{advanceRows.length === 1 ? '' : 's'}
+              </div>
+            </div>
+
+            <div className="qav-table-wrap" style={{ maxHeight: showAdvanceForm ? '280px' : '520px', overflowY: 'auto' }}>
+              <table className="qav-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '120px' }}>FECHA</th>
+                    <th style={{ width: '130px' }}>TIPO / FORMA</th>
+                    <th style={{ width: '130px' }}>NO. BOLETA / REF</th>
+                    <th>DESCRIPCIÓN</th>
+                    <th style={{ textAlign: 'right', width: '110px' }}>MONTO</th>
+                    <th style={{ textAlign: 'center', width: '70px' }}>EVIDENCIA</th>
+                    <th style={{ textAlign: 'center', width: '80px' }}>ACCIONES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {advanceRows.length > 0 ? (
+                    advanceRows.map(adv => (
+                      <tr key={adv.id} style={{ background: String(adv.id) === String(advanceEditingId) ? '#f0fdf4' : 'transparent' }}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{adv.date || '-'}</div>
+                          {adv.createdAt && (
+                            <div style={{ fontSize: '10px', color: '#64748b' }}>
+                              {new Date(adv.createdAt).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })} hrs
+                            </div>
+                          )}
+                        </td>
+                        <td>{renderPaymentTypePill(adv.paymentType)}</td>
+                        <td>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 750, color: '#0f172a', fontSize: '12px' }}>
+                            {adv.voucherNumber || '-'}
+                          </span>
+                        </td>
+                        <td>
+                          <div>{adv.description || '-'}</div>
+                          {adv.createdByName && (
+                            <div style={{ fontSize: '9.5px', color: '#94a3b8', marginTop: '2px' }}>
+                              Aplicado por: {adv.createdByName}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', fontSize: '12.5px' }}>
+                          {moneyGT(adv.amount, quote.currency)}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {adv.evidenceDataUrl ? (
+                            <button
+                              type="button"
+                              className="qav-evidence-icon-btn"
+                              onClick={() => setPreviewVoucher(adv)}
+                              title={adv.evidenceName ? `Comprobante: ${adv.evidenceName} (clic para ver)` : "Comprobante adjunto (clic para ver)"}
+                              aria-label="Ver comprobante adjunto"
+                            >
+                              <ImageIcon size={15} strokeWidth={2.3} />
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '13px', color: '#cbd5e1', fontWeight: 750 }} title="Sin evidencia adjunta">—</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                            <button
+                              type="button"
+                              className="qav-action-btn"
+                              onClick={() => {
+                                setShowAdvanceForm(true);
+                                handleStartEditAdvance(adv.id);
+                              }}
+                              title="Editar anticipo"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              className="qav-action-btn is-delete"
+                              onClick={() => handleDeleteAdvanceEntry(adv.id)}
+                              title="Eliminar anticipo"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
+                        Sin anticipos registrados para este evento.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Fila de resumen al pie de la tabla */}
+            <div className="qav-table-footer">
+              <span style={{ fontWeight: 800, color: '#475569', letterSpacing: '0.3px', textTransform: 'uppercase', fontSize: '11px' }}>
+                TOTAL AMORTIZADO EN ANTICIPOS:
+              </span>
+              <strong style={{ fontSize: '14px', fontWeight: 850, color: '#0f172a' }}>
+                {moneyGT(totalAbonado, quote.currency)}
+              </strong>
+            </div>
+          </div>
+
+          {/* Acordeón: Log de Trazabilidad y Auditoría */}
+          <div className="qav-accordion">
+            <button
+              type="button"
+              className="qav-accordion-header"
+              onClick={() => setShowTraceabilityLogs(prev => !prev)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>
+                <Clock size={14} color="#0284c7" />
+                <span>LOG DE TRAZABILIDAD Y AUDITORÍA DE PAGOS</span>
+                <span style={{ background: '#f1f5f9', color: '#475569', borderRadius: '12px', padding: '1px 7px', fontSize: '10px' }}>
+                  {advanceLogRows.length} evento{advanceLogRows.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              {showTraceabilityLogs ? <ChevronUp size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
+            </button>
+
+            {showTraceabilityLogs && (
+              <div className="qav-log-wrap" style={{ maxHeight: '220px', overflowY: 'auto', overflowX: 'auto', borderTop: '1px solid #f1f5f9', background: '#fafbfc' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', color: '#64748b', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 5, padding: '7px 10px', textAlign: 'left', background: '#f8fafc', width: '150px' }}>Fecha / Hora</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 5, padding: '7px 10px', textAlign: 'left', background: '#f8fafc', width: '150px' }}>Usuario</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 5, padding: '7px 10px', textAlign: 'left', background: '#f8fafc' }}>Movimiento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advanceLogRows.length > 0 ? (
+                      advanceLogRows.map(log => (
+                        <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', color: '#475569' }}>
+                            {log.at ? new Date(log.at).toLocaleString('es-GT') : '-'}
+                          </td>
+                          <td style={{ padding: '6px 8px', fontWeight: 650, color: '#0f172a' }}>
+                            {log.actorName || 'Sistema'}
+                          </td>
+                          <td style={{ padding: '6px 8px' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '9px',
+                              fontWeight: 800,
+                              marginRight: '6px',
+                              textTransform: 'uppercase',
+                              background: log.tone === 'added' ? '#dcfce7' : log.tone === 'edited' ? '#dbeafe' : '#fee2e2',
+                              color: log.tone === 'added' ? '#15803d' : log.tone === 'edited' ? '#1d4ed8' : '#dc2626'
+                            }}>
+                              {log.label || (log.tone === 'added' ? 'AGREGADO' : log.tone === 'edited' ? 'MODIFICADO' : 'ELIMINADO')}
+                            </span>
+                            <span style={{ color: '#334155' }}>{log.change || '-'}</span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={3} style={{ padding: '12px', textAlign: 'center', color: '#94a3b8' }}>
+                          Sin movimientos registrados en este evento.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
-        <button className="btn" type="button" onClick={() => { resetAdvanceForm(); onClose?.(); }} style={{ padding: '8px 18px', fontSize: '11px', fontWeight: 700, borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>Cancelar</button>
-        <button
-          className="btnPrimary"
-          type="button"
-          disabled={saving}
-          onClick={async () => {
-            try {
-              setSaving(true);
-              if (typeof onSave === 'function') {
-                await onSave(quote);
-              }
-              onClose?.();
-            } catch (saveErr) {
-              console.error('Error al guardar anticipos:', saveErr);
-              localSwal({
-                icon: 'error',
-                title: 'Error al guardar',
-                text: 'No se pudieron guardar los anticipos: ' + (saveErr?.message || 'Error de conexión')
-              });
-            } finally {
-              setSaving(false);
-            }
-          }}
-          style={{ padding: '8px 18px', fontSize: '11px', fontWeight: 800, borderRadius: '7px', border: 'none', background: '#2563eb', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
-        >
-          {saving ? 'Guardando...' : 'Guardar y salir'}
-        </button>
+        {/* Modal Footer */}
+        <div className="qav-footer">
+          <div className="qav-footer-left">
+            <button
+              type="button"
+              className="qav-pdf-link-btn"
+              onClick={handleExportStatementPdf}
+            >
+              <FileDown size={14} />
+              <span>Exportar Estado de Cuenta (PDF)</span>
+            </button>
+            <span>|</span>
+            <span style={{ color: '#94a3b8', fontSize: '11px' }}>EMS v4.2 • Jardines del Lago</span>
+          </div>
+          <div>
+            <button
+              type="button"
+              className="qav-btn-done"
+              onClick={() => {
+                resetAdvanceForm();
+                if (isInline) {
+                  onClose?.();
+                } else {
+                  setShowAdvancesModal(false);
+                }
+              }}
+            >
+              Listo / Cerrar
+            </button>
+          </div>
+        </div>
       </div>
+    );
+  };
+
+  return inlineMode ? (
+    <div style={{ position: 'relative', width: '100%' }}>
+      {saving && <LoadingSpinner mensaje="Guardando cotización..." />}
+      {renderExecutiveAdvancesContent({ isInline: true })}
+      {renderPreviewVoucherModal()}
     </div>
   ) : (
     <>
@@ -8014,183 +8804,25 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       )}
 
 
-      {/* ── Modal: Anticipos ── */}
+      {/* ── Modal: Gestión Ejecutiva de Anticipos ── */}
       {showAdvancesModal && createPortal(
         <div
-          className="modalBackdrop"
+          className="qav-modal-backdrop"
           id="quoteAdvanceBackdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 10000000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-            background: 'rgba(2,6,23,0.72)',
-            overflow: 'auto'
-          }}
         >
-          <div className="modal quoteAdvanceModal" role="dialog" aria-modal="true" aria-labelledby="quoteAdvanceTitle">
-            <div className="modalHeader">
-              <div>
-                <div className="modalTitle" id="quoteAdvanceTitle">Anticipos</div>
-                <div className="modalSubtitle">Registra pagos anticipados para restar saldo del evento</div>
-              </div>
-              <button className="qp-close-btn" type="button" title="Cerrar" onClick={() => { resetAdvanceForm(); setShowAdvancesModal(false); }}>
-                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-                  <path d="M4 4l10 10M14 4l-10 10" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="modalBody quoteAdvanceBody">
-              <div className="quoteAdvanceFormGrid">
-                <label className="field quoteAdvanceField--amount">
-                  <span>Monto</span>
-                  <input id="quoteAdvanceAmount" type="number" min="0" step="0.01" value={newAdvance.amount} onChange={e => setNewAdvance(p => ({ ...p, amount: e.target.value }))} placeholder="Ej: 1500.00" />
-                </label>
-                <label className="field quoteAdvanceField--type">
-                  <span>Forma de pago</span>
-                  <select value={newAdvance.paymentType} onChange={e => setNewAdvance(p => ({ ...p, paymentType: e.target.value }))}>
-                    {formasPago.map(fp => (
-                      <option key={fp.id} value={fp.nombre}>{fp.nombre}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field quoteAdvanceField--date">
-                  <span>Fecha</span>
-                  <input type="date" value={newAdvance.date} onChange={e => setNewAdvance(p => ({ ...p, date: e.target.value }))} />
-                </label>
-                <label className="field quoteAdvanceField--voucher">
-                  <span>No. boleta</span>
-                  <input type="text" value={newAdvance.voucherNumber} onChange={e => setNewAdvance(p => ({ ...p, voucherNumber: e.target.value }))} placeholder="Ej: BOL-000123" />
-                </label>
-                <label className="field quoteAdvanceDescriptionField">
-                  <span>Descripcion</span>
-                  <input type="text" value={newAdvance.description} onChange={e => setNewAdvance(p => ({ ...p, description: e.target.value }))} placeholder="Detalle del anticipo" />
-                </label>
-                <label className="field quoteAdvanceField--evidence">
-                  <span>Evidencia (archivo)</span>
-                  <input
-                    key={advanceEvidenceInputKey}
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={e => {
-                      const file = e.target.files?.[0] || null;
-                      setAdvanceEvidenceFile(file);
-                      setNewAdvance(p => ({ ...p, evidenceName: file?.name || p.evidenceName }));
-                    }}
-                  />
-                  <small id="quoteAdvanceEvidenceHint" className="fieldHint">
-                    {advanceEvidenceFile ? `Archivo seleccionado: ${advanceEvidenceFile.name}` : (newAdvance.evidenceName ? `Archivo actual: ${newAdvance.evidenceName}` : 'Sin archivo adjunto')}
-                  </small>
-                </label>
-                <div className="rightActions quoteAdvanceAddAction">
-                  <button className="btnPrimary" type="button" onClick={handleSaveAdvanceEntry}>{advanceEditingId ? 'Guardar cambios' : 'Agregar anticipo'}</button>
-                  <button className="btn" type="button" onClick={resetAdvanceForm}>Limpiar formulario</button>
-                </div>
-              </div>
-
-              <div className="quoteAdvanceSummary">
-                <div className="quoteAdvanceMetric quoteAdvanceMetric--total">
-                  <span>Total anticipos</span>
-                  <strong>{moneyGT(abonosTotal, quote.currency)}</strong>
-                </div>
-                <div className="quoteAdvanceMetric quoteAdvanceMetric--pending" style={{ background: saldoPendiente > 0 ? '#fef2f2' : '#f8fafc', borderLeft: `4px solid ${saldoPendiente > 0 ? '#dc2626' : '#cbd5e1'}` }}>
-                  <span>Saldo pendiente</span>
-                  <strong style={{ color: saldoPendiente > 0 ? '#dc2626' : '#64748b' }}>{moneyGT(saldoPendiente, quote.currency)}</strong>
-                </div>
-                <div className="quoteAdvanceMetric quoteAdvanceMetric--credit" style={{ background: saldoAFavor > 0 ? '#f0fdf4' : '#f8fafc', borderLeft: `4px solid ${saldoAFavor > 0 ? '#16a34a' : '#cbd5e1'}` }}>
-                  <span>Saldo a favor</span>
-                  <strong style={{ color: saldoAFavor > 0 ? '#16a34a' : '#64748b' }}>{moneyGT(saldoAFavor, quote.currency)}</strong>
-                </div>
-              </div>
-
-              <div className="quoteTableWrap quoteAdvanceTableWrap">
-                <div className="quoteAdvanceLedgerHead">
-                  <span>Fecha</span>
-                  <span>Tipo</span>
-                  <span>No. boleta</span>
-                  <span>Descripcion</span>
-                  <span>Monto</span>
-                  <span>Evidencia</span>
-                  <span>Acciones</span>
-                </div>
-                <div className="quoteAdvanceLedgerBody">
-                  {advanceRows.length > 0 ? advanceRows.map(adv => (
-                    <div className={`quoteAdvanceLedgerRow${String(adv.id) === String(advanceEditingId) ? ' isEditing' : ''}`} key={adv.id}>
-                      <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Fecha</span><span>{adv.date || '-'}</span></div>
-                      <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Tipo</span><span>{adv.paymentType || '-'}</span></div>
-                      <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">No. boleta</span><span>{adv.voucherNumber || '-'}</span></div>
-                      <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Descripcion</span><span>{adv.description || '-'}</span></div>
-                      <div className="quoteAdvanceLedgerCell"><span className="quoteAdvanceLedgerLabel">Monto</span><strong>{moneyGT(adv.amount, quote.currency)}</strong></div>
-                      <div className="quoteAdvanceLedgerCell quoteAdvanceLedgerCell--evidence">
-                        <span className="quoteAdvanceLedgerLabel">Evidencia</span>
-                        {adv.evidenceDataUrl ? (
-                          <a className="btn quoteAdvanceEvidenceLink" href={adv.evidenceDataUrl} download={adv.evidenceName || `evidencia_${adv.id}.pdf`} target="_blank" rel="noopener noreferrer">Ver</a>
-                        ) : (
-                          <span className="quoteAdvanceLedgerMuted">{adv.evidenceName || '-'}</span>
-                        )}
-                      </div>
-                      <div className="quoteAdvanceLedgerCell quoteAdvanceLedgerCell--actions">
-                        <span className="quoteAdvanceLedgerLabel">Acciones</span>
-                        <div className="appointmentActions">
-                          <button className="apptIconBtn apptEdit" type="button" onClick={() => handleStartEditAdvance(adv.id)}>Editar</button>
-                          <button className="apptIconBtn apptDelete" type="button" onClick={() => handleDeleteAdvanceEntry(adv.id)}>Eliminar</button>
-                        </div>
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="quoteAdvanceLedgerEmpty">Sin anticipos registrados.</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="quoteAdvanceLogCard">
-                <div className="quoteCardTitle">Log de pagos y movimientos</div>
-                <div className="quoteTableWrap quoteAdvanceLogWrap">
-                  <table className="quoteTable">
-                    <thead>
-                      <tr>
-                        <th>Fecha/Hora</th>
-                        <th>Usuario</th>
-                        <th>Movimiento</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {advanceLogRows.length > 0 ? advanceLogRows.map(log => (
-                        <tr className={`quoteAdvanceLogRow quoteAdvanceLogRow--${log.tone || 'added'}`} key={log.id}>
-                          <td>{log.at ? new Date(log.at).toLocaleString('es-GT') : '-'}</td>
-                          <td>{log.actorName || 'Sistema'}</td>
-                          <td>
-                            <span className="quoteAdvanceLogEntry">
-                              <span className={`quoteAdvanceLogTag quoteAdvanceLogTag--${log.tone || 'added'}`}>{log.label || 'Agregado'}</span>
-                              <span>{log.change || '-'}</span>
-                            </span>
-                          </td>
-                        </tr>
-                      )) : (
-                        <tr className="quoteAdvanceLogEmptyRow">
-                          <td colSpan={3}>Sin movimientos de pagos registrados.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <div className="modalFooter">
-              <div></div>
-              <div className="rightActions">
-                <button className="btn" id="btnQuoteAdvanceDone" type="button" onClick={() => { resetAdvanceForm(); setShowAdvancesModal(false); }}>Listo</button>
-              </div>
-            </div>
+          <div
+            className="qav-modal-container"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quoteAdvanceTitle"
+            onClick={e => e.stopPropagation()}
+          >
+            {renderExecutiveAdvancesContent({ isInline: false })}
           </div>
         </div>,
         document.body
       )}
+      {renderPreviewVoucherModal()}
 
     </>
   );

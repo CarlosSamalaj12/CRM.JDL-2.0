@@ -54,13 +54,30 @@ export const getQuoteFinancialAmounts = (quote, fallbackExchangeRate = 7.75) => 
     return { totalGtq: 0, subtotalGtq: 0, discountGtq: 0, isUsd: false, exchangeRate: 1, rawTotal: 0, rawSubtotal: 0 };
   }
   const isUsd = String(quote.currency || '').trim().toUpperCase() === 'USD';
-  const rawTotal = Math.max(0, Number(quote.total || 0));
-  const rawSubtotal = Math.max(0, Number(quote.subtotal || 0));
+  let rawTotal = Math.max(0, Number(quote.total || 0));
+  let rawSubtotal = Math.max(0, Number(quote.subtotal || 0));
   const rawDiscount = Math.max(0, Number(quote.discountAmount ?? quote.discountValue ?? 0));
   const rate = Number(quote.exchangeRate) > 0 ? Number(quote.exchangeRate) : Number(fallbackExchangeRate || 7.75);
 
+  // Fallback 1: Si rawTotal es 0 pero existen versiones históricas con total
+  if (rawTotal <= 0 && Array.isArray(quote.versions) && quote.versions.length > 0) {
+    const latestVersion = quote.versions[quote.versions.length - 1];
+    rawTotal = Math.max(0, Number(latestVersion?.total || 0));
+    rawSubtotal = Math.max(0, Number(latestVersion?.subtotal || rawTotal));
+  }
+
+  // Fallback 2: Si rawTotal sigue siendo 0 pero la cotización tiene ítems agregados
+  if (rawTotal <= 0 && Array.isArray(quote.items) && quote.items.length > 0) {
+    rawSubtotal = quote.items.reduce((acc, it) => {
+      const qty = Number(it.qty || it.quantity || (it.quantityMode === 'PAX' ? (quote.people || 1) : 1));
+      const price = Number(it.price || it.unitPrice || 0);
+      return acc + (it.total ? Number(it.total) : (qty * price));
+    }, 0);
+    rawTotal = Math.max(0, rawSubtotal - rawDiscount);
+  }
+
   let totalGtq;
-  if (quote.totalGtq !== undefined && quote.totalGtq !== null && !Number.isNaN(Number(quote.totalGtq))) {
+  if (quote.totalGtq !== undefined && quote.totalGtq !== null && !Number.isNaN(Number(quote.totalGtq)) && Number(quote.totalGtq) > 0) {
     totalGtq = Number(quote.totalGtq);
   } else if (isUsd) {
     totalGtq = Math.round(rawTotal * rate * 100) / 100;
@@ -69,7 +86,7 @@ export const getQuoteFinancialAmounts = (quote, fallbackExchangeRate = 7.75) => 
   }
 
   let subtotalGtq;
-  if (quote.subtotalGtq !== undefined && quote.subtotalGtq !== null && !Number.isNaN(Number(quote.subtotalGtq))) {
+  if (quote.subtotalGtq !== undefined && quote.subtotalGtq !== null && !Number.isNaN(Number(quote.subtotalGtq)) && Number(quote.subtotalGtq) > 0) {
     subtotalGtq = Number(quote.subtotalGtq);
   } else if (isUsd) {
     subtotalGtq = Math.round(rawSubtotal * rate * 100) / 100;
