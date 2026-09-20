@@ -19,8 +19,9 @@ import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 import {
   IconFileText, IconPlus, IconSearch, IconCheckCircle,
   IconArrowLeft, IconX, IconGripVertical,
-  IconHistory
+  IconHistory, IconRefreshCw
 } from '../components/Icons.jsx';
+import ReassignSalonModal from '../components/ReassignSalonModal.jsx';
 import SettingsChecklist from '../../settings/SettingsChecklist';
 import { emitOpenEventChecklist } from '../../../utils/appEvents';
 import OrdenTiemposEditor from '../components/OrdenTiemposEditor.jsx';
@@ -239,6 +240,7 @@ export default function ConstructorInforme() {
   const [dias, setDias] = useState([crearDiaVacio()]);
   const [activeDay, setActiveDay] = useState(0);
   const [categoriaActiva, setCategoriaActiva] = useState('menus');
+  const [showReassignModal, setShowReassignModal] = useState(false);
 
   const initialDiasSnapshotRef = useRef('');
 
@@ -645,8 +647,14 @@ export default function ConstructorInforme() {
                   if (!salon && d.slot_salon) salon = d.slot_salon;
                   if (!horario && d.slot_horario) horario = d.slot_horario;
                   const cdMatch = crmDays.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''));
-                  if (!salon && cdMatch?.salon) salon = cdMatch.salon;
-                  if (!horario && cdMatch?.horario) horario = cdMatch.horario;
+                  if (cdMatch?.salon) {
+                    salon = cdMatch.salon;
+                    if (mont.length > 0) mont[0].salon = cdMatch.salon;
+                  }
+                  if (cdMatch?.horario) {
+                    horario = cdMatch.horario;
+                    if (mont.length > 0) mont[0].horario = cdMatch.horario;
+                  }
                   const loadedItems = (d.items || []).map(item => ({
                     comp_id: Date.now() + Math.random(),
                     dbId: item.id || null,
@@ -675,23 +683,15 @@ export default function ConstructorInforme() {
                   };
                 });
 
-                // Si la fecha del evento en el calendario cambió respecto a las fechas guardadas del informe, re-alinear las fechas automáticamente
-                if (crmDays.length > 0 && mappedDias.length > 0 && crmDays[0].fecha !== mappedDias[0].fecha) {
-                  const diffMs = new Date(crmDays[0].fecha + 'T12:00:00').getTime() - new Date(mappedDias[0].fecha + 'T12:00:00').getTime();
-                  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-                  if (!isNaN(diffDays) && diffDays !== 0) {
-                    mappedDias.forEach((md, idx) => {
-                      if (idx < crmDays.length) {
-                        md.fecha = crmDays[idx].fecha;
-                        if (!md.salon && crmDays[idx].salon) md.salon = crmDays[idx].salon;
-                        if (!md.horario && crmDays[idx].horario) md.horario = crmDays[idx].horario;
-                      } else {
-                        const oldT = new Date(md.fecha + 'T12:00:00');
-                        oldT.setDate(oldT.getDate() + diffDays);
-                        md.fecha = oldT.toISOString().slice(0, 10);
-                      }
-                    });
-                  }
+                // Sincronizar salón y horario con la reserva actual del CRM para cada fecha
+                if (crmDays.length > 0 && mappedDias.length > 0) {
+                  mappedDias.forEach((md) => {
+                    const match = crmDays.find(cd => cd.fecha === md.fecha);
+                    if (match) {
+                      if (match.salon) md.salon = match.salon;
+                      if (match.horario) md.horario = match.horario;
+                    }
+                  });
                 }
 
                 // Si la reserva en el calendario tiene días que no estaban en este informe guardado (ej. se guardó solo día 1), incluir los días faltantes automáticamente
@@ -1237,6 +1237,16 @@ export default function ConstructorInforme() {
       <div className="pos-topbar-right">
         <span className="pos-topbar-user">{user?.nombre || user?.email}</span>
         <span className="pos-topbar-ocup">#{id_ocupacion}</span>
+        {informeId && user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
+          <button
+            className="pos-topbar-badge"
+            onClick={() => setShowReassignModal(true)}
+            style={{ background: '#0284c7', color: 'white', cursor: 'pointer', border: 'none', fontSize: '11px', fontWeight: '700', padding: '3px 8px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            title="Reasignar este informe a otro salón del evento"
+          >
+            <IconRefreshCw size={12} /> Reasignar Salón
+          </button>
+        )}
         {versionActiva && (
           <button className="pos-topbar-badge" onClick={() => setShowVersionSelector(true)}
             style={{background:'var(--success)',color:'white',cursor:'pointer',border:'none',fontSize:'inherit'}}
@@ -1247,7 +1257,7 @@ export default function ConstructorInforme() {
         {informeId && <span className="pos-topbar-badge">#{informeId}</span>}
       </div>
     </div>
-  ), [evento, user, id_ocupacion, versionActiva, informeId, navigate]);
+  ), [evento, user, id_ocupacion, versionActiva, informeId, navigate, setShowReassignModal]);
 
   useEffect(() => {
     if (setInformeActions) {
@@ -2241,6 +2251,21 @@ export default function ConstructorInforme() {
         initialIndex={lightboxIndex}
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
+      />
+
+      <ReassignSalonModal
+        isOpen={showReassignModal}
+        informeId={informeId}
+        currentSalon={evento?.Salon || ''}
+        currentOcupacionId={id_ocupacion}
+        dias={dias}
+        onClose={() => setShowReassignModal(false)}
+        onReassigned={(newInfo) => {
+          if (newInfo?.targetSlotId && newInfo.targetSlotId !== id_ocupacion) {
+            navigate(`/informe/pos/${newInfo.targetSlotId}`, { replace: true });
+          }
+          window.location.reload();
+        }}
       />
     </div>
   );

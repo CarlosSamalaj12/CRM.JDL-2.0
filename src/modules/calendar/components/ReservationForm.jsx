@@ -13,6 +13,8 @@ import AppointmentModal from './AppointmentModal';
 import HistoryPanel from './HistoryPanel';
 import QuoteModal from './QuoteModal';
 import ConfirmModal from '../../../components/ConfirmModal';
+import InformeTransferModal from './InformeTransferModal';
+import { checkEventInformes, reassignInformeSlot } from '../../informes/services/api';
 import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
@@ -449,6 +451,12 @@ export default function ReservationForm() {
   const [validationErrors, setValidationErrors] = useState([]);
   const [slotConflicts, setSlotConflicts] = useState([]);
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, type: null, message: '', title: '', isDanger: true });
+  const [informeTransferModal, setInformeTransferModal] = useState({
+    isOpen: false,
+    affectedInformes: [],
+    availableSlots: [],
+    pendingSave: null,
+  });
   const [isCloseHovered, setIsCloseHovered] = useState(false);
   const [isCloseActive, setIsCloseActive] = useState(false);
 
@@ -1401,8 +1409,98 @@ export default function ReservationForm() {
         quote: formData.quote || existingEvent?.quote || undefined
       };
 
+      // Si es una edición y existen informes activos, verificar si algún informe fue afectado
+      if (id) {
+        try {
+          const infCheck = await checkEventInformes(id);
+          if (infCheck?.hasInformes && Array.isArray(infCheck.informes) && infCheck.informes.length > 0) {
+            const affected = [];
+            for (const inf of infCheck.informes) {
+              const day1 = inf.dias?.[0];
+              const infDate = day1?.fecha || (existingEvent?.date ? String(existingEvent.date).slice(0, 10) : '');
+              const infSalon = day1?.salon || existingEvent?.salon || '';
+
+              // Comprobar si algún slot nuevo tiene exactamente el mismo salón y cubre la fecha
+              const matchingNewSlot = cleanedSlots.find(s => {
+                const sStart = String(s.dateStart || formData.date || '').slice(0, 10);
+                const sEnd = String(s.dateEnd || sStart).slice(0, 10);
+                const coversDate = infDate ? (infDate >= sStart && infDate <= sEnd) : true;
+                const sameSalon = String(s.salon || '').trim().toLowerCase() === String(infSalon).trim().toLowerCase();
+                return coversDate && sameSalon;
+              });
+
+              if (!matchingNewSlot) {
+                affected.push({
+                  ...inf,
+                  currentDate: infDate,
+                  currentSalon: infSalon,
+                  menuNombre: day1?.menu_nombre || 'Menú programado',
+                });
+              }
+            }
+
+            if (affected.length > 0) {
+              setInformeTransferModal({
+                isOpen: true,
+                affectedInformes: affected,
+                availableSlots: cleanedSlots,
+                pendingSave: { eventData, cleanedSlots, moveToFollowUp, isNew }
+              });
+              setSaving(false);
+              return;
+            }
+          }
+        } catch (checkErr) {
+          console.warn('[checkEventInformes error]', checkErr);
+        }
+      }
+
+      await executeSaveReservation(eventData, cleanedSlots, moveToFollowUp, isNew);
+    } catch (err) {
+      console.error('[handleSave] Error crítico al guardar:', err);
+      showNotification(`Error al guardar: ${err?.message || 'Error del servidor'}`, 'error');
+      setSaving(false);
+    }
+  };
+
+  const executeSaveReservation = async (eventData, cleanedSlots, moveToFollowUp, isNew, transfersToApply = null) => {
+    setSaving(true);
+    try {
       const savedEvent = await handleAddEvent(eventData);
       const newId = savedEvent?.id || id;
+
+      // Si se especificaron transferencias de informe a salones/slots específicos, aplicarlas
+      if (transfersToApply && typeof transfersToApply === 'object') {
+        const expandedSlots = Array.isArray(savedEvent?._allExpanded) && savedEvent._allExpanded.length > 0
+          ? savedEvent._allExpanded
+          : [savedEvent];
+
+        for (const [infId, slotIdxStr] of Object.entries(transfersToApply)) {
+          if (slotIdxStr === 'none') continue;
+          const slotIdx = Number(slotIdxStr);
+          const targetSlot = cleanedSlots[slotIdx];
+          if (!targetSlot) continue;
+
+          // Buscar el ID expandido correspondiente al slot
+          const targetSlotExpanded = expandedSlots.find(es => {
+            const sameSalon = String(es.salon || '').trim().toLowerCase() === String(targetSlot.salon || '').trim().toLowerCase();
+            const esStart = String(es.date || es.eventDateStart || '').slice(0, 10);
+            const tsStart = String(targetSlot.dateStart || '').slice(0, 10);
+            return sameSalon && esStart === tsStart;
+          }) || expandedSlots[slotIdx] || savedEvent;
+
+          const targetSlotId = targetSlotExpanded?.id || newId;
+          const targetHorario = `${targetSlot.startTime || '10:00'} - ${targetSlot.endTime || '12:00'}`;
+          const targetFecha = targetSlot.dateStart || null;
+
+          await reassignInformeSlot(infId, {
+            targetSlotId,
+            targetSalon: targetSlot.salon,
+            targetHorario,
+            targetFecha
+          }).catch(err => console.warn('[reassignInformeSlot failed]', err.message));
+        }
+      }
 
       // Actualizar estado local del formulario de inmediato
       if (newId) {
@@ -1446,6 +1544,20 @@ export default function ReservationForm() {
       showNotification(`Error al guardar: ${err?.message || 'Error del servidor'}`, 'error');
       setSaving(false);
     }
+  };
+
+  const handleConfirmInformeTransfer = async (transfersMap) => {
+    if (!informeTransferModal.pendingSave) return;
+    const { eventData, cleanedSlots, moveToFollowUp, isNew } = informeTransferModal.pendingSave;
+    setInformeTransferModal(prev => ({ ...prev, isOpen: false }));
+    await executeSaveReservation(eventData, cleanedSlots, moveToFollowUp, isNew, transfersMap);
+  };
+
+  const handleProceedWithoutInformeTransfer = async () => {
+    if (!informeTransferModal.pendingSave) return;
+    const { eventData, cleanedSlots, moveToFollowUp, isNew } = informeTransferModal.pendingSave;
+    setInformeTransferModal(prev => ({ ...prev, isOpen: false }));
+    await executeSaveReservation(eventData, cleanedSlots, moveToFollowUp, isNew, null);
   };
 
   const PIPELINE_STEPS = [
@@ -2958,6 +3070,15 @@ export default function ReservationForm() {
         isDanger={confirmConfig.isDanger}
         onConfirm={onConfirmAction}
         onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      <InformeTransferModal
+        isOpen={informeTransferModal.isOpen}
+        affectedInformes={informeTransferModal.affectedInformes}
+        availableSlots={informeTransferModal.availableSlots}
+        onConfirm={handleConfirmInformeTransfer}
+        onProceedWithoutTransfer={handleProceedWithoutInformeTransfer}
+        onCancel={() => setInformeTransferModal(prev => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

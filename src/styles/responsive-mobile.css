@@ -272,7 +272,7 @@ body:not(.informes-theme) #appShell.lum-calendar {
     height: 44px !important;
   }
 
-  body:not(.informes-theme) input:not(.search-input-naked),
+  body:not(.informes-theme) input:not(.search-input-naked):not([type="checkbox"]):not([type="radio"]),
   body:not(.informes-theme) select,
   body:not(.informes-theme) textarea {
     min-height: 44px !important;

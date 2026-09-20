@@ -378,6 +378,29 @@ export async function getInformes() {
   return response.json();
 }
 
+export async function checkEventInformes(eventId) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/informes/check-event/${encodeURIComponent(eventId)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) return { hasInformes: false, informes: [] };
+  return response.json();
+}
+
+export async function reassignInformeSlot(informeId, payload) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/informes/${encodeURIComponent(informeId)}/reassign-slot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Error al reasignar salón al informe');
+  }
+  return response.json();
+}
+
 export async function getInformeById(id) {
   const response = await fetch(`${apiUrl}/api/informes/${id}`);
   if (!response.ok) {

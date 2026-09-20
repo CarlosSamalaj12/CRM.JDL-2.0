@@ -10,11 +10,13 @@ const router = express.Router();
 router.post('/', authenticate, authorizeRoles(...EDIT_ROLES), informeController.createInforme);
 router.get('/', authenticate, informeController.getInformes);
 
-// Importante: /ocupacion/:id_ocupacion debe ir ANTES de /:id para evitar conflicto
+// Importante: /ocupacion/:id_ocupacion y /check-event/:eventId deben ir ANTES de /:id para evitar conflicto
 router.get('/ocupacion/:id_ocupacion', authenticate, informeController.getInformesByOcupacion);
+router.get('/check-event/:eventId', authenticate, informeController.checkEventInformes);
 
 router.get('/por-evento', informeController.getInformeByEventFields);
 
+router.post('/:id/reassign-slot', authenticate, authorizeRoles(...EDIT_ROLES), informeController.reassignInformeSlot);
 router.get('/:id', informeController.getInformeById);
 router.put('/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeController.updateInforme);
 router.delete('/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeController.deleteInforme);

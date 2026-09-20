@@ -46,6 +46,7 @@ import {
   Wrench,
   Armchair,
   LayoutGrid,
+  RefreshCw,
 } from 'lucide-react';
 
 // Wrapper helper that sets standard props, adds our modern styles and micro-animations
@@ -107,3 +108,4 @@ export const IconLayers = wrapIcon(Layers, 'crm-icon-layers');
 export const IconWrench = wrapIcon(Wrench, 'crm-icon-wrench');
 export const IconArmchair = wrapIcon(Armchair, 'crm-icon-armchair');
 export const IconLayoutGrid = wrapIcon(LayoutGrid, 'crm-icon-layoutgrid');
+export const IconRefreshCw = wrapIcon(RefreshCw, 'crm-icon-refresh');

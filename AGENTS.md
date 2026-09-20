@@ -32,6 +32,30 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Blindaje Antidesfase de Informes al Editar Reservas, Modal de Transferencia Inteligente de Salón y Reasignación Manual (`informeController.js`, `server.cjs`, `ReservationForm.jsx`, `InformeTransferModal.jsx`, `ReassignSalonModal.jsx`, `ConstructorInforme.jsx`, `InformeView.jsx`) (2026-09-19)
+- Requerimiento: Resolver error crítico en reservas multislot donde al cambiar fechas de un salón (ej. *Santa Cruz* del 24-27 al 25-27) y agregar otro salón el día 24 (ej. *Mesa Reservada* con comida solo ese día), el sistema desfasaba silenciosamente el informe (#1146) del día 24 al 25 arrastrando el menú ("Caldo de res"), mostraba *Santa Cruz* en lugar de *Mesa Reservada*, y en el Kanban el día 24 aparecía como "+ Informe" sin vincular. Blindar el sistema para evitar mutaciones automáticas de fechas en informes, proveer un modal inteligente al guardar en "Editar Reserva" para transferir el informe al salón destino conservando el menú intacto, reparar el informe #1146, y habilitar un botón "Reasignar Salón" en el constructor y visor de informes sin alterar la presentación visual de los días.
+- Causa raíz:
+  1. `server.cjs` en `syncEventsToDb` (líneas 3925–3944) detectaba `oldEvent.date !== e.date` y ejecutaba un trigger destructivo ciego: `UPDATE informe_dias_detalle SET fecha_evento = DATE_ADD(..., INTERVAL ? DAY)`.
+  2. `informeController.js` en `fetchInformeWithDias` (líneas 54–75) mutaba silenciosamente la base de datos en tiempo de lectura (`UPDATE informe_dias_detalle SET fecha_evento = ? WHERE id_informe = ?`) si la fecha del evento no coincidía con el primer día.
+  3. `server.cjs` (líneas 4356–4378) sobreescribía `informes_eventos.id_ocupacion` con el slot principal (`principalSlotId`), desvinculando cualquier slot secundario con informe activo.
+  4. `ConstructorInforme.jsx` (líneas 678–695) desplazaba artificialmente los días mapeados al cargar si la fecha del slot CRM difería del día 1.
+- Solución:
+  1. En `informeController.js`:
+     - Eliminada la mutación automática ciega de `fecha_evento` en `fetchInformeWithDias`.
+     - Implementado endpoint `GET /api/informes/check-event/:eventId` (`checkEventInformes`): detecta qué informes y días con menús/montajes están asociados a la serie de la reserva antes de guardar.
+     - Implementado endpoint `POST /api/informes/:id/reassign-slot` (`reassignInformeSlot`): reasigna `id_ocupacion` en `informes_eventos` y actualiza opcionalmente el salón y horario en `descripcion_montaje` del día afectado manteniendo el menú, ingredientes y cantidades 100% intactos.
+  2. En `server.cjs`:
+     - Eliminado el trigger destructivo `DATE_ADD(idd.fecha_evento, INTERVAL ? DAY)`.
+     - Blindada la asignación de `id_ocupacion` con `AND id_ocupacion NOT IN (SELECT id FROM eventos)` en `syncEventsToDb` y `ensureMainSalonStructure` para impedir la desconexión de slots secundarios.
+     - Creada y registrada la migración `ensureRepairDesyncedInformes` que restaura el informe #1146 al slot `evt_10dcf44a` (*Mesa Reservada*, 2026-09-24, 19:00 - 21:00) con el menú "Caldo de res" intacto.
+  3. En `src/modules/calendar/components/ReservationForm.jsx` y `InformeTransferModal.jsx`:
+     - Al guardar la reserva, si se detecta que un salón con informe existente fue modificado o recortado, se intercepta el guardado abriendo `InformeTransferModal`.
+     - El modal detecta coincidencias automáticas de fechas, permite elegir a qué salón transferir el informe o guardar sin transferir, y ejecuta la reasignación atómica sin desfasar menús.
+  4. En `src/modules/informes/components/ReassignSalonModal.jsx`, `ConstructorInforme.jsx` e `InformeView.jsx`:
+     - Creado `ReassignSalonModal` accesible para roles autorizados (Admin, Vendedor, FrontOffice, Eventos) mediante el botón "🔄 Reasignar Salón" en la barra superior de edición y en el visor (tanto en desktop como en barra móvil).
+     - En `ConstructorInforme.jsx`, corregido el mapeo de días para vincular datos por fecha exacta del calendario (`crmDays.find(cd => cd.fecha === md.fecha)`), blindando los menús contra desfasamiento.
+  5. Validado con 69 pruebas automáticas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión 2.1.153).
+
 ### Solución: Rediseño Ejecutivo del Panel de Configuración Réplica 100% Maqueta (`SettingsMain.jsx`, `settings.css`, `SettingsUsuariosManager.jsx`, `settings-redesign.test.mjs`) (2026-09-19)
 - Requerimiento: Alinear y replicar de forma 100% fiel la imagen de referencia ejecutiva provista por el usuario: cabecera con avatar circular azul "JL", "EMS RESERVAS / JARDINES DEL LAGO", botón "Historial de Auditoría" y "< Volver al Tablero"; sidebar con título "MÓDULOS DEL SISTEMA", pestañas con barra indicadora vertical azul y badges dinámicos ("Activo", "6", punto verde "●"), tarjeta inferior "Sincronización en vivo"; contenedor blanco con badge "● Sistema Operativo Activo"; banner azul con icono sólido de edificio y términos clave en azul; 4 tarjetas Bento idénticas a la imagen con badges de estado, sub-meta info, barra de progreso naranja de avance de ventas y tags de checklists con botones dedicados; y pie de página con respaldo automático y versión Enterprise.
 - Solución:

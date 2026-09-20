@@ -51,28 +51,7 @@ async function fetchInformeWithDias(informeId) {
     return getTime(a.fecha_evento) - getTime(b.fecha_evento);
   });
 
-  // Si el evento en tbl_seguimientocotizaciones cambió de fecha, re-alinear automáticamente las fechas de los días del informe
-  if (detailsRows.length > 0 && currentInf.FechaEvento) {
-    const eventFirstDateStr = getIsoDateStr(currentInf.FechaEvento);
-    const detailFirstDateStr = getIsoDateStr(detailsRows[0].fecha_evento);
-    if (eventFirstDateStr && detailFirstDateStr && eventFirstDateStr !== detailFirstDateStr) {
-      const diffMs = new Date(eventFirstDateStr + 'T12:00:00').getTime() - new Date(detailFirstDateStr + 'T12:00:00').getTime();
-      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-      if (!isNaN(diffDays) && diffDays !== 0) {
-        for (const d of detailsRows) {
-          const oldStr = getIsoDateStr(d.fecha_evento);
-          if (oldStr) {
-            const oldT = new Date(oldStr + 'T12:00:00');
-            oldT.setDate(oldT.getDate() + diffDays);
-            const newIso = oldT.toISOString().slice(0, 10);
-            d.fecha_evento = newIso;
-            // Actualizar en BD en segundo plano para persistir
-            pool.query('UPDATE informe_dias_detalle SET fecha_evento = ? WHERE id = ?', [newIso, d.id]).catch(() => {});
-          }
-        }
-      }
-    }
-  }
+  // Las fechas de los días del informe son definidas por el usuario/cocina y no deben desplazarse ciegamente al consultar.
 
   // Obtener slots de la serie del evento para mapear salón, pax y horario específicos de cada fecha
   try {
@@ -493,3 +472,139 @@ export async function updateDiaMenuItem(req, res, next) {
 
 export const updateDiaMenuItemNotas = updateDiaMenuItem;
 
+// ─── Verificar si un evento tiene informes asociados y listar sus datos ───
+export async function checkEventInformes(req, res, next) {
+  try {
+    const { eventId } = req.params;
+    if (!eventId) return res.json({ hasInformes: false, informes: [] });
+
+    const rawId = String(eventId).trim();
+    const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+
+    const [rows] = await pool.query(`
+      SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion,
+             (SELECT COUNT(*) FROM informe_dias_detalle WHERE informe_id = i.id) AS total_dias
+      FROM informes_eventos i
+      WHERE i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%')
+      ORDER BY i.version DESC
+    `, [rawId, baseId, baseId]);
+
+    if (rows.length === 0) {
+      return res.json({ hasInformes: false, informes: [] });
+    }
+
+    const infIds = rows.map(r => r.id);
+    const placeholders = infIds.map(() => '?').join(',');
+    const [dias] = await pool.query(`
+      SELECT idd.id, idd.informe_id, idd.fecha_evento, idd.menu_id, idd.descripcion_montaje,
+             cm.nombre_menu
+      FROM informe_dias_detalle idd
+      LEFT JOIN cat_menus cm ON idd.menu_id = cm.id
+      WHERE idd.informe_id IN (${placeholders})
+      ORDER BY idd.fecha_evento ASC, idd.id ASC
+    `, infIds);
+
+    const diasPorInforme = {};
+    for (const d of dias) {
+      if (!diasPorInforme[d.informe_id]) diasPorInforme[d.informe_id] = [];
+      let parsed = null;
+      try {
+        parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : d.descripcion_montaje;
+      } catch { parsed = {}; }
+      diasPorInforme[d.informe_id].push({
+        id: d.id,
+        fecha: d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : '',
+        menu_nombre: d.nombre_menu || null,
+        salon: parsed?.salon || parsed?.montajes?.[0]?.salon || '',
+        horario: parsed?.horario || parsed?.montajes?.[0]?.horario || '',
+      });
+    }
+
+    const enriched = rows.map(r => ({
+      ...r,
+      dias: diasPorInforme[r.id] || []
+    }));
+
+    res.json({ hasInformes: true, informes: enriched });
+  } catch (error) { next(error); }
+}
+
+// ─── Transferir / Reasignar un informe a otro salón o slot ───
+export async function reassignInformeSlot(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { targetSlotId, targetSalon, targetHorario, targetFecha, diaId } = req.body;
+
+    if (!targetSlotId) {
+      return res.status(400).json({ message: 'targetSlotId es requerido' });
+    }
+
+    // Buscar informe por ID o id_ocupacion
+    const [infRows] = await pool.query(
+      'SELECT id, id_ocupacion FROM informes_eventos WHERE id = ? OR id_ocupacion = ? LIMIT 1',
+      [id, id]
+    );
+    if (infRows.length === 0) {
+      return res.status(404).json({ message: 'Informe no encontrado' });
+    }
+
+    const currentInf = infRows[0];
+
+    // Actualizar vinculación de ocupación en informes_eventos
+    await pool.query(
+      'UPDATE informes_eventos SET id_ocupacion = ? WHERE id = ?',
+      [targetSlotId, currentInf.id]
+    );
+
+    // Actualizar datos del salón y horario en informe_dias_detalle
+    const [dias] = await pool.query(
+      'SELECT id, fecha_evento, descripcion_montaje FROM informe_dias_detalle WHERE informe_id = ? ORDER BY fecha_evento ASC, id ASC',
+      [currentInf.id]
+    );
+
+    let targetDia = null;
+    if (diaId) {
+      targetDia = dias.find(d => String(d.id) === String(diaId));
+    } else if (targetFecha) {
+      targetDia = dias.find(d => String(d.fecha_evento || '').slice(0, 10) === String(targetFecha).slice(0, 10));
+    }
+    if (!targetDia && dias.length > 0) {
+      targetDia = dias[0];
+    }
+
+    if (targetDia) {
+      let parsed = {};
+      try {
+        parsed = typeof targetDia.descripcion_montaje === 'string' ? JSON.parse(targetDia.descripcion_montaje) : (targetDia.descripcion_montaje || {});
+      } catch { parsed = {}; }
+
+      parsed._v = 2;
+      if (targetSalon) parsed.salon = targetSalon;
+      if (targetHorario) parsed.horario = targetHorario;
+      if (Array.isArray(parsed.montajes) && parsed.montajes.length > 0) {
+        if (targetSalon) parsed.montajes[0].salon = targetSalon;
+        if (targetHorario) parsed.montajes[0].horario = targetHorario;
+      } else if (targetSalon) {
+        parsed.montajes = [{ salon: targetSalon, horario: targetHorario || '', tipo: 'Personalizado' }];
+      }
+
+      const newFecha = (targetFecha && /^\d{4}-\d{2}-\d{2}$/.test(targetFecha)) ? targetFecha : targetDia.fecha_evento;
+      await pool.query(
+        'UPDATE informe_dias_detalle SET fecha_evento = ?, descripcion_montaje = ? WHERE id = ?',
+        [newFecha, JSON.stringify(parsed), targetDia.id]
+      );
+    }
+
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'informes', id: currentInf.id, id_ocupacion: targetSlotId, timestamp: Date.now() });
+    }
+
+    res.json({
+      ok: true,
+      message: 'Informe transferido al salón exitosamente',
+      informeId: currentInf.id,
+      targetSlotId,
+      targetSalon
+    });
+  } catch (error) { next(error); }
+}

@@ -1200,13 +1200,58 @@ async function ensureMainSalonStructure() {
           `UPDATE informes_eventos
            SET id_ocupacion = ?
            WHERE (id_ocupacion = ? OR id_ocupacion LIKE CONCAT(?, '_%'))
-             AND id_ocupacion != ?`,
+             AND id_ocupacion != ?
+             AND id_ocupacion NOT IN (SELECT id FROM eventos)`,
           [p.id, baseId, baseId, p.id]
         );
       }
     } catch (alignErr) {
       console.warn('[Migration ensureMainSalonStructure align informes]', alignErr.message);
     }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+// Migración para reparar informes con días/fechas/salones desfasados por cambio de slots (ej. People in Need #1146)
+async function ensureRepairDesyncedInformes() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    // 1. Reparar específicamente el informe 1146 (People in Need)
+    // El informe 1146 pertenece a la serie evt_10dcf44a, y su comida ("Caldo de res")
+    // es para el día 2026-09-24 en el salón "Mesa Reservada" (19:00:00 - 21:00:00).
+    const inf1146 = await conn.query("SELECT id, id_ocupacion FROM informes_eventos WHERE id = 1146 OR id_ocupacion LIKE '%10dcf44a%'");
+    for (const inf of inf1146) {
+      // Re-vincular a slot del 24 de septiembre: 'evt_10dcf44a'
+      await conn.query("UPDATE informes_eventos SET id_ocupacion = 'evt_10dcf44a' WHERE id = ?", [inf.id]);
+
+      // Restaurar día 1 a 2026-09-24, salón Mesa Reservada, horario 19:00:00 - 21:00:00
+      const dias = await conn.query("SELECT id, fecha_evento, descripcion_montaje FROM informe_dias_detalle WHERE informe_id = ? ORDER BY id ASC LIMIT 1", [inf.id]);
+      if (dias.length > 0) {
+        const d1 = dias[0];
+        let parsed = {};
+        try {
+          parsed = typeof d1.descripcion_montaje === 'string' ? JSON.parse(d1.descripcion_montaje) : (d1.descripcion_montaje || {});
+        } catch { parsed = {}; }
+        parsed._v = 2;
+        parsed.salon = 'Mesa Reservada';
+        parsed.horario = '19:00:00 - 21:00:00';
+        if (Array.isArray(parsed.montajes) && parsed.montajes.length > 0) {
+          parsed.montajes[0].salon = 'Mesa Reservada';
+          parsed.montajes[0].horario = '19:00:00 - 21:00:00';
+        } else {
+          parsed.montajes = [{ salon: 'Mesa Reservada', horario: '19:00:00 - 21:00:00', tipo: 'Personalizado' }];
+        }
+        await conn.query(
+          "UPDATE informe_dias_detalle SET fecha_evento = '2026-09-24', descripcion_montaje = ? WHERE id = ?",
+          [JSON.stringify(parsed), d1.id]
+        );
+        console.log(`[MIGRACIÓN] Informe #${inf.id} reparado: Día 1 en 2026-09-24 (Mesa Reservada 19:00 - 21:00).`);
+      }
+    }
+  } catch (err) {
+    console.warn('[ensureRepairDesyncedInformes]', err.message);
   } finally {
     if (conn) conn.release();
   }
@@ -3922,26 +3967,7 @@ function isEventUnchanged(e, oldEvent) {
         ]
       );
 
-      // Si la fecha del evento cambió, sincronizar/desplazar automáticamente las fechas de los informes
-      if (oldEvent && oldEvent.date && e.date && oldEvent.date !== e.date) {
-        try {
-          const oldT = new Date(String(oldEvent.date).slice(0, 10) + 'T12:00:00').getTime();
-          const newT = new Date(String(e.date).slice(0, 10) + 'T12:00:00').getTime();
-          const diffDays = Math.round((newT - oldT) / (1000 * 60 * 60 * 24));
-          if (!isNaN(diffDays) && diffDays !== 0) {
-            const baseEvId = id.replace(/_(s|slot)\d+.*$/, '');
-            await conn.query(
-              `UPDATE informe_dias_detalle idd
-               JOIN informes_eventos ie ON idd.informe_id = ie.id
-               SET idd.fecha_evento = DATE_ADD(idd.fecha_evento, INTERVAL ? DAY)
-               WHERE (ie.id_ocupacion = ? OR ie.id_ocupacion = ? OR ie.id_ocupacion LIKE CONCAT(?, '_%'))`,
-              [diffDays, id, baseEvId, baseEvId]
-            );
-          }
-        } catch (infErr) {
-          console.warn('[syncEventsToDb] No se pudo desplazar fechas de informes:', infErr.message);
-        }
-      }
+      // Las fechas de los informes y menús no se desplazan automáticamente para evitar corromper menús planificados.
 
       // === UPSERT: anticipos_evento (solo para el ID base principal del evento, no para slots secundarios) ===
       const baseId = id.replace(/_(s|slot)\d+_\d{6,}$/, '');
@@ -4371,7 +4397,8 @@ function isEventUnchanged(e, oldEvent) {
           `UPDATE informes_eventos
            SET id_ocupacion = ?
            WHERE (id_ocupacion = ? OR id_ocupacion LIKE CONCAT(?, '_%'))
-             AND id_ocupacion != ?`,
+             AND id_ocupacion != ?
+             AND id_ocupacion NOT IN (SELECT id FROM eventos)`,
           [principalSlotId, baseId, baseId, principalSlotId]
         );
       }
@@ -7772,6 +7799,7 @@ const MIGRATIONS = [
   { name: 'ChecklistsEventoTableAndMigration', fn: ensureChecklistsEventoTableAndMigration },
   { name: 'OcupacionPerformanceIndexes', fn: ensureOcupacionPerformanceIndexes },
   { name: 'UnifyPushSubscriptions', fn: ensureUnifyPushSubscriptions },
+  { name: 'RepairDesyncedInformes', fn: ensureRepairDesyncedInformes },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -7801,6 +7829,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensurePaxCompartidoStructure',
   'ensureSlotPaxStructure',
   'ensureMainSalonStructure',
+  'ensureRepairDesyncedInformes',
   'ensureManagersFromOwnerMigration',
   'ensurePosiblesVentasStructure',
   'ensurePosiblesVentasSeguimiento',

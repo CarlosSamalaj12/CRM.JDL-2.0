@@ -257,7 +257,7 @@
   border-color: #0369a1 !important;
   transform: translateY(-2px) !important;
   box-shadow: 0 4px 12px rgba(3, 105, 161, 0.25) !important;
-}/* Inputs */body:not(.informes-theme) input:not(.search-input-naked), body:not(.informes-theme) select, body:not(.informes-theme) .field input:not(.search-input-naked), body:not(.informes-theme) .field select {
+}/* Inputs */body:not(.informes-theme) input:not(.search-input-naked):not([type="checkbox"]):not([type="radio"]), body:not(.informes-theme) select, body:not(.informes-theme) .field input:not(.search-input-naked):not([type="checkbox"]):not([type="radio"]), body:not(.informes-theme) .field select {
 
   min-height: 42px;
 }

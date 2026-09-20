@@ -24,7 +24,9 @@ import {
   IconArmchair,
   IconLayoutGrid,
   IconAlertCircle,
+  IconRefreshCw,
 } from '../components/Icons.jsx';
+import ReassignSalonModal from '../components/ReassignSalonModal.jsx';
 import { TIEMPOS_COMIDA } from '../constants/tiemposComida.js';
 import { loadState as loadCrmState } from '../../../services/stateService.js';
 
@@ -81,6 +83,7 @@ export default function InformeView() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  const [showReassignModal, setShowReassignModal] = useState(false);
   const [imagenes, setImagenes] = useState([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -685,12 +688,17 @@ export default function InformeView() {
          <IconMessageCircle size={16} /> <span className="btn-text">Colaborar</span>
        </button>
        {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
+         <button onClick={() => setShowReassignModal(true)} className="btn-secondary" data-tooltip="Reasignar este informe a otro salón del evento">
+           <IconRefreshCw size={16} /> <span className="btn-text">Reasignar Salón</span>
+         </button>
+       )}
+       {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
          <button onClick={() => navigate(`/informe/pos/${informe?.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
            <IconFileText size={16} /> <span className="btn-text">Editar</span>
          </button>
        )}
      </>
-   ), [pdfLoading, colabOpen, user, informe?.id_ocupacion, navigate]);
+   ), [pdfLoading, colabOpen, user, informe?.id_ocupacion, navigate, setShowReassignModal]);
 
   // Pasar las acciones al header (solo en desktop, móvil usa barra inferior)
   useEffect(() => {
@@ -1873,6 +1881,35 @@ export default function InformeView() {
             <span style={{ fontSize: '10.5px', fontWeight: 600, lineHeight: 1.1 }}>Colaborar</span>
           </button>
 
+          {/* 4.5. Reasignar Salón */}
+          {user && ['Admin', 'Vendedor', 'FrontOffice', 'Eventos'].includes(user.rol) && (
+            <button
+              type="button"
+              onClick={() => setShowReassignModal(true)}
+              className="iv-mob-btn iv-mob-btn-reassign"
+              style={{
+                flex: '1 1 0',
+                minWidth: 0,
+                height: '42px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '2px',
+                color: '#0284c7',
+                cursor: 'pointer',
+                padding: '2px 0',
+              }}
+              title="Reasignar salón"
+            >
+              <IconRefreshCw size={17} />
+              <span style={{ fontSize: '10.5px', fontWeight: 600, lineHeight: 1.1 }}>Reasignar</span>
+            </button>
+          )}
+
           {/* 5. Editar */}
           {user && ['Admin', 'Vendedor', 'FrontOffice', 'Eventos'].includes(user.rol) && (
             <button
@@ -1911,6 +1948,16 @@ export default function InformeView() {
         initialIndex={lightboxIndex}
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
+      />
+
+      <ReassignSalonModal
+        isOpen={showReassignModal}
+        informeId={id}
+        currentSalon={informe?.Salon || ''}
+        currentOcupacionId={informe?.id_ocupacion || ''}
+        dias={informe?.dias || []}
+        onClose={() => setShowReassignModal(false)}
+        onReassigned={() => loadInforme()}
       />
     </div>
   );
