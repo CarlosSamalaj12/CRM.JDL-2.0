@@ -4392,14 +4392,15 @@ function isEventUnchanged(e, oldEvent) {
       }
       for (const [gid, principalSlotId] of groupsWithMain) {
         if (!principalSlotId) continue;
-        const baseId = gid.replace(/_(s|slot)\d+_\d{6,}$/, '');
+        const cleanPrincipalSlotId = str(principalSlotId).replace(/^#/, '').trim();
+        const cleanBaseId = str(baseId).replace(/^#/, '').trim();
         await conn.query(
           `UPDATE informes_eventos
            SET id_ocupacion = ?
-           WHERE (id_ocupacion = ? OR id_ocupacion LIKE CONCAT(?, '_%'))
-             AND id_ocupacion != ?
-             AND id_ocupacion NOT IN (SELECT id FROM eventos)`,
-          [principalSlotId, baseId, baseId, principalSlotId]
+           WHERE (REPLACE(id_ocupacion, '#', '') = ? OR REPLACE(id_ocupacion, '#', '') LIKE CONCAT(?, '_%'))
+             AND REPLACE(id_ocupacion, '#', '') != ?
+             AND REPLACE(id_ocupacion, '#', '') NOT IN (SELECT REPLACE(id, '#', '') FROM eventos)`,
+          [cleanPrincipalSlotId, cleanBaseId, cleanBaseId, cleanPrincipalSlotId]
         );
       }
     } catch (infSyncErr) {

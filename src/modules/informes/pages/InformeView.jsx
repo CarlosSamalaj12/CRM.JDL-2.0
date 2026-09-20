@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useContext, useMemo } from 'react';
+import { useEffect, useState, useRef, useContext, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getInformeById, getImagenes, imagenUrl, marcarInformeLeido, updateDiaMenuItemNotas, updateDiaMenuItemCantidad } from '../services/api.js';
@@ -127,29 +127,30 @@ export default function InformeView() {
     };
   }, []);
 
-  useEffect(() => {
-    const loadInforme = async () => {
-      try {
-        const data = await getInformeById(id);
-        setInforme(data);
-        if (data?.id) {
-          getImagenes(data.id).then(setImagenes).catch(() => {});
-          // Auto-marcar como leído al entrar al informe
-          marcarInformeLeido(data.id).catch(() => {});
-          
-        }
-      } catch (err) {
-        if (err.status === 404 || err.message?.includes('no encontrado')) {
-          setError('No hay informe creado para este evento');
-        } else {
-          setError('No se pudo cargar el informe: ' + err.message);
-        }
-      } finally {
-        setLoading(false);
+  const loadInforme = useCallback(async (targetId = id) => {
+    try {
+      setLoading(true);
+      const data = await getInformeById(targetId);
+      setInforme(data);
+      if (data?.id) {
+        getImagenes(data.id).then(setImagenes).catch(() => {});
+        // Auto-marcar como leído al entrar al informe
+        marcarInformeLeido(data.id).catch(() => {});
       }
-    };
-    loadInforme();
+    } catch (err) {
+      if (err.status === 404 || err.message?.includes('no encontrado')) {
+        setError('No hay informe creado para este evento');
+      } else {
+        setError('No se pudo cargar el informe: ' + err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadInforme(id);
+  }, [id, loadInforme]);
 
   useEffect(() => {
     if (!socketConnected || !informe?.id_ocupacion) return;
@@ -1161,15 +1162,15 @@ export default function InformeView() {
               const todasAlertas = [...alertas, ...(alertaCustom ? [alertaCustom] : [])];
 
               // 1. Salón del día (montaje > slot > informe)
-              const salonesDelDia = [
-                parsed?.salon,
-                ...montajesList.map(m => m.salon),
-                dia.slot_salon,
-                dia.salon
-              ].filter(Boolean);
-              const diaSalon = salonesDelDia.length > 0 
-                ? Array.from(new Set(salonesDelDia.map(s => String(s).trim()))).join(', ')
-                : (informe.Salon || '-');
+              const montajesSalones = Array.from(new Set(
+                [
+                  ...(Array.isArray(montajesList) ? montajesList.map(m => m.salon) : []),
+                  parsed?.salon
+                ].filter(s => s && String(s).trim())
+              ));
+              const diaSalon = montajesSalones.length > 0 
+                ? montajesSalones.join(', ')
+                : (dia.slot_salon || dia.salon || informe.Salon || '-');
 
               // 2. Pax del día
               let diaPax = null;
@@ -1952,12 +1953,18 @@ export default function InformeView() {
 
       <ReassignSalonModal
         isOpen={showReassignModal}
-        informeId={id}
+        informeId={informe?.id || id}
         currentSalon={informe?.Salon || ''}
-        currentOcupacionId={informe?.id_ocupacion || ''}
+        currentOcupacionId={informe?.id_ocupacion || id}
         dias={informe?.dias || []}
         onClose={() => setShowReassignModal(false)}
-        onReassigned={() => loadInforme()}
+        onReassigned={(newInfo) => {
+          if (newInfo?.targetSlotId && newInfo.targetSlotId !== id) {
+            navigate(`/informe/${newInfo.targetSlotId}`, { replace: true });
+          } else {
+            loadInforme(newInfo?.targetSlotId || id);
+          }
+        }}
       />
     </div>
   );

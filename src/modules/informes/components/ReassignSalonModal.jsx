@@ -30,33 +30,33 @@ export default function ReassignSalonModal({
       .then(state => {
         if (!mounted) return;
         const allEvts = Array.isArray(state?.events) ? state.events : [];
-        const normId = String(currentOcupacionId).trim();
+        const cleanId = (id) => String(id || '').replace(/^#/, '').trim();
+        const normId = cleanId(currentOcupacionId);
         const baseId = normId.replace(/_(s|slot)\d+.*$/, '');
 
         // Encontrar evento y grupo
-        const targetEv = allEvts.find(e =>
-          String(e.id || '') === normId ||
-          String(e.groupId || '') === normId ||
-          String(e.id || '') === baseId ||
-          String(e.groupId || '') === baseId
-        );
+        const targetEv = allEvts.find(e => {
+          const eId = cleanId(e.id || e.Idocupacion);
+          const egId = cleanId(e.groupId);
+          return eId === normId || egId === normId || eId === baseId || egId === baseId;
+        });
 
-        const gId = targetEv?.groupId || baseId || normId;
+        const gId = cleanId(targetEv?.groupId || baseId || normId);
         const series = allEvts.filter(e => {
-          const eId = String(e.id || '');
-          const egId = String(e.groupId || '');
+          const eId = cleanId(e.id || e.Idocupacion || '');
+          const egId = cleanId(e.groupId || '');
           return egId === gId || eId === gId || (baseId && eId.startsWith(baseId));
         });
 
         const slots = [];
         series.forEach(ev => {
-          const sId = String(ev.id || '');
-          const sDate = String(ev.date || ev.eventDateStart || '').slice(0, 10);
-          const sSalon = String(ev.salon || ev.nombre_salon || '').trim();
+          const sId = cleanId(ev.id || ev.Idocupacion || '');
+          const sDate = String(ev.date || ev.eventDateStart || ev.FechaEvento || '').slice(0, 10);
+          const sSalon = String(ev.salon || ev.nombre_salon || ev.Salon || '').trim();
           const sHorario = (ev.startTime && ev.endTime)
             ? `${ev.startTime} - ${ev.endTime}`
             : (ev.HoraI && ev.HoraF ? `${ev.HoraI} - ${ev.HoraF}` : '');
-          const sPax = ev.slotPax || ev.pax || '';
+          const sPax = ev.slotPax || ev.pax || ev.Pax || '';
 
           if (sSalon && sDate) {
             slots.push({
@@ -65,7 +65,7 @@ export default function ReassignSalonModal({
               fecha: sDate,
               horario: sHorario,
               pax: sPax,
-              isCurrent: sId === normId || sSalon.toLowerCase() === currentSalon.toLowerCase()
+              isCurrent: sId === normId
             });
           }
         });
@@ -94,6 +94,11 @@ export default function ReassignSalonModal({
     const chosenSlot = availableSlots[selectedSlotIndex];
     if (!chosenSlot) {
       toast.error('Selecciona un salón destino');
+      return;
+    }
+
+    if (chosenSlot.isCurrent) {
+      toast.error('El informe ya está asignado a este salón. Selecciona otro salón para transferirlo.');
       return;
     }
 
@@ -205,7 +210,8 @@ export default function ReassignSalonModal({
         {/* Cuerpo */}
         <div style={{ padding: '20px 24px', maxHeight: '380px', overflowY: 'auto' }}>
           <div style={{
-            background: '#f1f5f9',
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
             borderRadius: '10px',
             padding: '12px 16px',
             marginBottom: '16px',
@@ -213,8 +219,8 @@ export default function ReassignSalonModal({
             color: '#475569'
           }}>
             <div><strong>Informe actual:</strong> #{informeId}</div>
-            <div><strong>Salón asignado:</strong> {currentSalon || 'No asignado'}</div>
-            <div><strong>Ocupación vinculada:</strong> #{currentOcupacionId}</div>
+            <div><strong>Salón vinculado:</strong> <span style={{ color: '#0284c7', fontWeight: '800' }}>{currentSalon || 'No asignado'}</span></div>
+            <div><strong>Ocupación vinculada:</strong> <code style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px', fontSize: '11.5px' }}>#{currentOcupacionId}</code></div>
           </div>
 
           <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
@@ -254,9 +260,13 @@ export default function ReassignSalonModal({
                         <span style={{ fontSize: '14px', fontWeight: '800', color: isSelected ? '#0369a1' : '#1e293b' }}>
                           {slot.salon}
                         </span>
-                        {slot.isCurrent && (
-                          <span style={{ fontSize: '11px', background: '#e2e8f0', color: '#475569', padding: '1px 6px', borderRadius: '4px' }}>
-                            Actual
+                        {slot.isCurrent ? (
+                          <span style={{ fontSize: '11px', fontWeight: '700', background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
+                            ● Salón Actual
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11px', fontWeight: '600', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '6px' }}>
+                            Disponible
                           </span>
                         )}
                       </div>
@@ -352,24 +362,24 @@ export default function ReassignSalonModal({
           <button
             type="button"
             onClick={handleApply}
-            disabled={saving || availableSlots.length === 0}
+            disabled={saving || availableSlots.length === 0 || availableSlots[selectedSlotIndex]?.isCurrent}
             style={{
               padding: '8px 18px',
               fontSize: '13px',
               fontWeight: '700',
               color: '#ffffff',
-              background: 'linear-gradient(135deg, #005954 0%, #0284c7 100%)',
+              background: (availableSlots[selectedSlotIndex]?.isCurrent) ? '#94a3b8' : 'linear-gradient(135deg, #005954 0%, #0284c7 100%)',
               border: 'none',
               borderRadius: '8px',
-              cursor: 'pointer',
-              opacity: (saving || availableSlots.length === 0) ? 0.6 : 1,
+              cursor: (saving || availableSlots.length === 0 || availableSlots[selectedSlotIndex]?.isCurrent) ? 'not-allowed' : 'pointer',
+              opacity: (saving || availableSlots.length === 0 || availableSlots[selectedSlotIndex]?.isCurrent) ? 0.6 : 1,
               display: 'flex',
               alignItems: 'center',
               gap: '6px'
             }}
           >
             <IconRefreshCw size={14} />
-            {saving ? 'Reasignando...' : 'Aplicar Reasignación'}
+            {saving ? 'Reasignando...' : (availableSlots[selectedSlotIndex]?.isCurrent ? 'Salón Ya Asignado' : 'Aplicar Reasignación')}
           </button>
         </div>
       </div>

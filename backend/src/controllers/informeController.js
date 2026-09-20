@@ -1,28 +1,75 @@
 import pool from '../config/db.js';
 
 const OCCUPACION_JOIN = `
-  (e.Idocupacion = SUBSTRING_INDEX(i.id_ocupacion, '_s', 1) OR e.Idocupacion = i.id_ocupacion)
+  (e.Idocupacion = i.id_ocupacion OR (e.Idocupacion = SUBSTRING_INDEX(i.id_ocupacion, '_s', 1) AND NOT EXISTS (SELECT 1 FROM tbl_seguimientocotizaciones e2 WHERE e2.Idocupacion = i.id_ocupacion)))
 `;
 
 async function fetchInformeWithDias(informeId) {
-  const [rows] = await pool.query(`
-    SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion,
-           e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento,
-           COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
-           e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc,
-           e.Telefono, ce.folio
+  const [infRows] = await pool.query(`
+    SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion
     FROM informes_eventos i
-    LEFT JOIN tbl_seguimientocotizaciones e ON ${OCCUPACION_JOIN}
-    LEFT JOIN eventos ev ON i.id_ocupacion = ev.id
-    LEFT JOIN cotizaciones_evento ce ON ev.id = ce.id_evento
-    LEFT JOIN usuarios u ON ev.id_usuario = u.id
     WHERE i.id = ?
   `, [informeId]);
 
-  if (rows.length === 0) return null;
+  if (infRows.length === 0) return null;
 
-  const currentInf = rows[0];
-  const baseId = String(currentInf.id_ocupacion).replace(/_(s|slot)\d+.*$/, '');
+  const currentInf = infRows[0];
+  const cleanOcupacionId = String(currentInf.id_ocupacion || '').replace(/^#/, '').trim();
+  const baseId = cleanOcupacionId.replace(/_(s|slot)\d+.*$/, '');
+
+  // Obtener datos del evento/slot específico
+  let eventData = null;
+  // 1. Intentar coincidencia exacta con el slot asignado
+  const [exactRows] = await pool.query(`
+    SELECT e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento,
+           COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
+           e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc,
+           e.Telefono, ce.folio
+    FROM tbl_seguimientocotizaciones e
+    LEFT JOIN eventos ev ON (ev.id = e.Idocupacion OR REPLACE(ev.id, '#', '') = e.Idocupacion)
+    LEFT JOIN cotizaciones_evento ce ON ev.id = ce.id_evento
+    LEFT JOIN usuarios u ON ev.id_usuario = u.id
+    WHERE e.Idocupacion = ? OR e.Idocupacion = ? OR REPLACE(e.Idocupacion, '#', '') = ?
+    LIMIT 1
+  `, [currentInf.id_ocupacion, cleanOcupacionId, cleanOcupacionId]);
+
+  if (exactRows.length > 0) {
+    eventData = exactRows[0];
+  }
+
+  // 2. Si no hubo coincidencia exacta o faltan datos generales (Institucion, Vendedor, folio), consultar evento base
+  if (baseId && baseId !== cleanOcupacionId) {
+    const [baseRows] = await pool.query(`
+      SELECT e.Institucion, e.Pax, e.FechaEvento, e.Salon, e.TipoEvento,
+             COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
+             e.HoraI, e.HoraF, e.EncargadoEvento, e.NoDoc,
+             e.Telefono, ce.folio
+      FROM tbl_seguimientocotizaciones e
+      LEFT JOIN eventos ev ON (ev.id = e.Idocupacion OR REPLACE(ev.id, '#', '') = e.Idocupacion)
+      LEFT JOIN cotizaciones_evento ce ON ev.id = ce.id_evento
+      LEFT JOIN usuarios u ON ev.id_usuario = u.id
+      WHERE e.Idocupacion = ? OR REPLACE(e.Idocupacion, '#', '') = ?
+      LIMIT 1
+    `, [baseId, baseId]);
+
+    if (baseRows.length > 0) {
+      const bRow = baseRows[0];
+      if (!eventData) {
+        eventData = bRow;
+      } else {
+        // Preservar Salon, Pax, FechaEvento, HoraI, HoraF del slot específico, pero heredar metadatos generales
+        eventData.Institucion = eventData.Institucion || bRow.Institucion;
+        eventData.Vendedor = eventData.Vendedor || bRow.Vendedor;
+        eventData.TipoEvento = eventData.TipoEvento || bRow.TipoEvento;
+        eventData.EncargadoEvento = eventData.EncargadoEvento || bRow.EncargadoEvento;
+        eventData.NoDoc = eventData.NoDoc || bRow.NoDoc;
+        eventData.Telefono = eventData.Telefono || bRow.Telefono;
+        eventData.folio = eventData.folio || bRow.folio;
+      }
+    }
+  }
+
+  Object.assign(currentInf, eventData || {});
 
   // 1. Días guardados en este informe
   const [directDetails] = await pool.query(`
@@ -58,12 +105,34 @@ async function fetchInformeWithDias(informeId) {
     const [seriesSlots] = await pool.query(`
       SELECT Idocupacion, FechaEvento, Salon, Pax, HoraI, HoraF, NoDoc
       FROM tbl_seguimientocotizaciones
-      WHERE Idocupacion = ? OR Idocupacion = ? OR Idocupacion LIKE CONCAT(?, '_%')
-    `, [currentInf.id_ocupacion, baseId, baseId]);
+      WHERE Idocupacion = ? OR Idocupacion = ? OR REPLACE(Idocupacion, '#', '') = ?
+         OR Idocupacion = ? OR Idocupacion LIKE CONCAT(?, '_%')
+    `, [currentInf.id_ocupacion, cleanOcupacionId, cleanOcupacionId, baseId, baseId]);
 
     for (const d of detailsRows) {
       const dIso = getIsoDateStr(d.fecha_evento);
-      const slot = seriesSlots.find(s => getIsoDateStr(s.FechaEvento) === dIso);
+
+      // 1. Buscar coincidencia exacta con el slot asignado al informe
+      let slot = seriesSlots.find(s => {
+        const sClean = String(s.Idocupacion || '').replace(/^#/, '').trim();
+        return sClean === cleanOcupacionId;
+      });
+
+      // 2. Si el slot asignado no coincide con la fecha de este día, buscar por fecha y salón de montaje
+      if (!slot || (dIso && getIsoDateStr(slot.FechaEvento) !== dIso)) {
+        let parsedMontaje = null;
+        try {
+          parsedMontaje = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : d.descripcion_montaje;
+        } catch {}
+        const targetSalon = parsedMontaje?.salon || parsedMontaje?.montajes?.[0]?.salon;
+        if (targetSalon) {
+          slot = seriesSlots.find(s => getIsoDateStr(s.FechaEvento) === dIso && String(s.Salon).trim().toLowerCase() === String(targetSalon).trim().toLowerCase());
+        }
+        if (!slot) {
+          slot = seriesSlots.find(s => getIsoDateStr(s.FechaEvento) === dIso);
+        }
+      }
+
       if (slot) {
         d.slot_salon = slot.Salon || null;
         d.slot_pax = slot.Pax || null;
@@ -539,10 +608,12 @@ export async function reassignInformeSlot(req, res, next) {
       return res.status(400).json({ message: 'targetSlotId es requerido' });
     }
 
-    // Buscar informe por ID o id_ocupacion
+    const cleanSlotId = String(targetSlotId).replace(/^#/, '').trim();
+
+    // Buscar informe por ID o id_ocupacion (con o sin #)
     const [infRows] = await pool.query(
-      'SELECT id, id_ocupacion FROM informes_eventos WHERE id = ? OR id_ocupacion = ? LIMIT 1',
-      [id, id]
+      'SELECT id, id_ocupacion FROM informes_eventos WHERE id = ? OR id_ocupacion = ? OR REPLACE(id_ocupacion, "#", "") = ? LIMIT 1',
+      [id, id, id]
     );
     if (infRows.length === 0) {
       return res.status(404).json({ message: 'Informe no encontrado' });
@@ -550,10 +621,10 @@ export async function reassignInformeSlot(req, res, next) {
 
     const currentInf = infRows[0];
 
-    // Actualizar vinculación de ocupación en informes_eventos
+    // Actualizar vinculación de ocupación en informes_eventos con ID limpio
     await pool.query(
       'UPDATE informes_eventos SET id_ocupacion = ? WHERE id = ?',
-      [targetSlotId, currentInf.id]
+      [cleanSlotId, currentInf.id]
     );
 
     // Actualizar datos del salón y horario en informe_dias_detalle
@@ -582,8 +653,10 @@ export async function reassignInformeSlot(req, res, next) {
       if (targetSalon) parsed.salon = targetSalon;
       if (targetHorario) parsed.horario = targetHorario;
       if (Array.isArray(parsed.montajes) && parsed.montajes.length > 0) {
-        if (targetSalon) parsed.montajes[0].salon = targetSalon;
-        if (targetHorario) parsed.montajes[0].horario = targetHorario;
+        parsed.montajes.forEach(m => {
+          if (targetSalon) m.salon = targetSalon;
+          if (targetHorario) m.horario = targetHorario;
+        });
       } else if (targetSalon) {
         parsed.montajes = [{ salon: targetSalon, horario: targetHorario || '', tipo: 'Personalizado' }];
       }
@@ -595,15 +668,24 @@ export async function reassignInformeSlot(req, res, next) {
       );
     }
 
+    // Registrar en historial
+    try {
+      await pool.query(
+        'INSERT INTO informe_historial (informe_id, usuario_id, accion, descripcion) VALUES (?, ?, ?, ?)',
+        [currentInf.id, req.user?.id || null, 'REASIGNAR_SALON', `Informe reasignado a ocupación ${cleanSlotId}${targetSalon ? ` (${targetSalon})` : ''}`]
+      );
+    } catch { /* no crítico */ }
+
     if (req.io) {
-      req.io.emit('state-updated', { type: 'informes', id: currentInf.id, id_ocupacion: targetSlotId, timestamp: Date.now() });
+      req.io.emit('state-updated', { type: 'informes', id: currentInf.id, id_ocupacion: cleanSlotId, timestamp: Date.now() });
+      req.io.emit('informe:reassigned', { informeId: currentInf.id, targetSlotId: cleanSlotId, targetSalon, targetHorario, targetFecha });
     }
 
     res.json({
       ok: true,
       message: 'Informe transferido al salón exitosamente',
       informeId: currentInf.id,
-      targetSlotId,
+      targetSlotId: cleanSlotId,
       targetSalon
     });
   } catch (error) { next(error); }

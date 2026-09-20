@@ -514,33 +514,43 @@ export default function ConstructorInforme() {
       try {
         const crmState = await loadCrmState();
         const allEvts = Array.isArray(crmState?.events) ? crmState.events : [];
-        const normId = String(id_ocupacion).trim();
+        const cleanId = (id) => String(id || '').replace(/^#/, '').trim();
+        const normId = cleanId(id_ocupacion);
         const baseId = normId.replace(/_(s|slot)\d+.*$/, '');
 
-        const targetEv = allEvts.find(e => String(e.id || e.Idocupacion) === normId || String(e.groupId) === normId || String(e.id || e.Idocupacion) === baseId || String(e.groupId) === baseId);
-        const gId = targetEv?.groupId || baseId || normId;
+        const targetEv = allEvts.find(e => {
+          const eId = cleanId(e.id || e.Idocupacion);
+          const egId = cleanId(e.groupId);
+          return eId === normId || egId === normId || eId === baseId || egId === baseId;
+        });
+        const gId = cleanId(targetEv?.groupId || baseId || normId);
         const series = allEvts.filter(e => {
-          const eId = String(e.id || e.Idocupacion || '');
-          const egId = String(e.groupId || '');
+          const eId = cleanId(e.id || e.Idocupacion || '');
+          const egId = cleanId(e.groupId || '');
           return egId === gId || eId === gId || (baseId && eId.startsWith(baseId));
         });
 
-        const seenDates = new Set();
-        const addDayObj = (f, s, h) => {
+        const seenKeys = new Set();
+        const addDayObj = (f, s, h, slotId) => {
           const cf = String(f || '').trim().slice(0, 10);
-          if (cf && /^\d{4}-\d{2}-\d{2}$/.test(cf) && !seenDates.has(cf)) {
-            seenDates.add(cf);
-            crmDays.push({ fecha: cf, salon: s || '', horario: h || '' });
+          const sClean = String(s || '').trim();
+          const cleanSlot = cleanId(slotId);
+          const key = `${cf}_${sClean}_${cleanSlot}`;
+          if (cf && /^\d{4}-\d{2}-\d{2}$/.test(cf) && !seenKeys.has(key)) {
+            seenKeys.add(key);
+            crmDays.push({ fecha: cf, salon: sClean, horario: h || '', slotId: cleanSlot });
           }
         };
 
         const sourceEvts = series.length > 0 ? series : (targetEv ? [targetEv] : []);
         sourceEvts.forEach(ev => {
+          const evSlotId = cleanId(ev.id || ev.Idocupacion || '');
           if (Array.isArray(ev.slots) && ev.slots.length > 0) {
             ev.slots.forEach(sl => {
               const start = sl.dateStart || sl.date;
               const end = sl.dateEnd || sl.dateStart || sl.date;
               const hor = (sl.timeStart && sl.timeEnd) ? `${sl.timeStart} A ${sl.timeEnd}` : (ev.timeStart && ev.timeEnd ? `${ev.timeStart} A ${ev.timeEnd}` : '');
+              const slId = cleanId(sl.id || evSlotId);
               if (start && end && start !== end) {
                 const sDate = new Date(start + 'T00:00:00');
                 const eDate = new Date(end + 'T00:00:00');
@@ -548,18 +558,18 @@ export default function ConstructorInforme() {
                   const curr = new Date(sDate);
                   let cnt = 0;
                   while (curr <= eDate && cnt < 50) {
-                    addDayObj(curr.toISOString().slice(0, 10), sl.salon || ev.salon || '', hor);
+                    addDayObj(curr.toISOString().slice(0, 10), sl.salon || ev.salon || '', hor, slId);
                     curr.setDate(curr.getDate() + 1);
                     cnt++;
                   }
                 }
               } else {
-                addDayObj(start || end, sl.salon || ev.salon || '', hor);
+                addDayObj(start || end, sl.salon || ev.salon || '', hor, slId);
               }
             });
           } else {
             const hor = (ev.timeStart && ev.timeEnd) ? `${ev.timeStart} A ${ev.timeEnd}` : (ev.HoraI && ev.HoraF ? `${ev.HoraI} A ${ev.HoraF}` : '');
-            addDayObj(ev.date || ev.FechaEvento || ev.eventDateStart, ev.salon || ev.Salon || '', hor);
+            addDayObj(ev.date || ev.FechaEvento || ev.eventDateStart, ev.salon || ev.Salon || '', hor, evSlotId);
           }
         });
 
@@ -646,7 +656,10 @@ export default function ConstructorInforme() {
                   if (!horario && d.horario) horario = d.horario;
                   if (!salon && d.slot_salon) salon = d.slot_salon;
                   if (!horario && d.slot_horario) horario = d.slot_horario;
-                  const cdMatch = crmDays.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''));
+                  const cleanOcupId = String(id_ocupacion || '').replace(/^#/, '').trim();
+                  const cdMatch = crmDays.find(cd => cd.slotId === cleanOcupId && cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''))
+                    || (salon ? crmDays.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : '') && cd.salon.toLowerCase() === salon.toLowerCase()) : null)
+                    || crmDays.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''));
                   if (cdMatch?.salon) {
                     salon = cdMatch.salon;
                     if (mont.length > 0) mont[0].salon = cdMatch.salon;
@@ -685,8 +698,11 @@ export default function ConstructorInforme() {
 
                 // Sincronizar salón y horario con la reserva actual del CRM para cada fecha
                 if (crmDays.length > 0 && mappedDias.length > 0) {
+                  const cleanOcupId = String(id_ocupacion || '').replace(/^#/, '').trim();
                   mappedDias.forEach((md) => {
-                    const match = crmDays.find(cd => cd.fecha === md.fecha);
+                    const match = crmDays.find(cd => cd.slotId === cleanOcupId && cd.fecha === md.fecha)
+                      || (md.salon ? crmDays.find(cd => cd.fecha === md.fecha && cd.salon.toLowerCase() === md.salon.toLowerCase()) : null)
+                      || crmDays.find(cd => cd.fecha === md.fecha);
                     if (match) {
                       if (match.salon) md.salon = match.salon;
                       if (match.horario) md.horario = match.horario;
@@ -768,7 +784,10 @@ export default function ConstructorInforme() {
           if (!horario && d.horario) horario = d.horario;
           if (!salon && d.slot_salon) salon = d.slot_salon;
           if (!horario && d.slot_horario) horario = d.slot_horario;
-          const cdMatch = crmDaysRef.current?.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''));
+          const cleanOcupId = String(id_ocupacion || '').replace(/^#/, '').trim();
+          const cdMatch = crmDaysRef.current?.find(cd => cd.slotId === cleanOcupId && cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''))
+            || (salon ? crmDaysRef.current?.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : '') && cd.salon.toLowerCase() === salon.toLowerCase()) : null)
+            || crmDaysRef.current?.find(cd => cd.fecha === (d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : ''));
           if (!salon && cdMatch?.salon) salon = cdMatch.salon;
           if (!horario && cdMatch?.horario) horario = cdMatch.horario;
           const loadedItems = (d.items || []).map(item => ({
