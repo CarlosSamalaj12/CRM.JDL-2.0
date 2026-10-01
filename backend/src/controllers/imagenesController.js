@@ -3,10 +3,13 @@ import { emitChange } from '../helpers/socketEvents.js';
 
 export async function getImagenes(req, res, next) {
   try {
-    const { id } = req.params;
+    const informeId = parseInt(req.params.id, 10);
+    if (!informeId || Number.isNaN(informeId)) {
+      return res.status(400).json({ message: 'ID de informe inválido' });
+    }
     const [rows] = await pool.query(
       'SELECT * FROM informe_imagenes WHERE informe_id = ? ORDER BY created_at ASC',
-      [id]
+      [informeId]
     );
     res.json(rows);
   } catch (error) { next(error); }
@@ -14,7 +17,10 @@ export async function getImagenes(req, res, next) {
 
 export async function createImagen(req, res, next) {
   try {
-    const { id } = req.params;
+    const informeId = parseInt(req.params.id, 10);
+    if (!informeId || Number.isNaN(informeId)) {
+      return res.status(400).json({ message: 'ID de informe inválido' });
+    }
     const { url, descripcion, dia_id } = req.body;
 
     if (!url) {
@@ -23,10 +29,10 @@ export async function createImagen(req, res, next) {
 
     const [result] = await pool.query(
       'INSERT INTO informe_imagenes (informe_id, dia_id, url, descripcion) VALUES (?, ?, ?, ?)',
-      [id, dia_id || null, url, descripcion || null]
+      [informeId, dia_id || null, url, descripcion || null]
     );
 
-    emitChange(req, 'informe_imagen', 'created', { id: result.insertId, informe_id: id });
+    emitChange(req, 'informe_imagen', 'created', { id: result.insertId, informe_id: informeId });
     const [newImg] = await pool.query('SELECT * FROM informe_imagenes WHERE id = ?', [result.insertId]);
     res.status(201).json(newImg[0]);
   } catch (error) { next(error); }
@@ -34,7 +40,10 @@ export async function createImagen(req, res, next) {
 
 export async function uploadImagenFile(req, res, next) {
   try {
-    const { id } = req.params;
+    const informeId = parseInt(req.params.id, 10);
+    if (!informeId || Number.isNaN(informeId)) {
+      return res.status(400).json({ message: 'ID de informe inválido' });
+    }
     if (!req.file) {
       return res.status(400).json({ message: 'El archivo es obligatorio' });
     }
@@ -49,10 +58,10 @@ export async function uploadImagenFile(req, res, next) {
 
     const [result] = await pool.query(
       'INSERT INTO informe_imagenes (informe_id, dia_id, url, descripcion) VALUES (?, ?, ?, ?)',
-      [id, dia_id, dataUrl, descripcion]
+      [informeId, dia_id, dataUrl, descripcion]
     );
 
-    emitChange(req, 'informe_imagen', 'created', { id: result.insertId, informe_id: id });
+    emitChange(req, 'informe_imagen', 'created', { id: result.insertId, informe_id: informeId });
     const [newImg] = await pool.query('SELECT * FROM informe_imagenes WHERE id = ?', [result.insertId]);
     res.status(201).json(newImg[0]);
   } catch (error) { next(error); }
