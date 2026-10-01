@@ -551,10 +551,12 @@ export async function checkEventInformes(req, res, next) {
     const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
 
     const [rows] = await pool.query(`
-      SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion,
+      SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion, i.estado,
              (SELECT COUNT(*) FROM informe_dias_detalle WHERE informe_id = i.id) AS total_dias
       FROM informes_eventos i
-      WHERE i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%')
+      WHERE (i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%'))
+        AND (i.estado IS NULL OR i.estado = 'activo')
+        AND (i.deleted_at IS NULL)
       ORDER BY i.version DESC
     `, [rawId, baseId, baseId]);
 
@@ -596,6 +598,146 @@ export async function checkEventInformes(req, res, next) {
 
     res.json({ hasInformes: true, informes: enriched });
   } catch (error) { next(error); }
+}
+
+// ─── Función interna de aplicación atómica de resoluciones de informes ───
+export async function applyInformeResolutionsInternal(conn, baseId, resolutions = [], currentUser = null) {
+  const applied = [];
+  const userId = currentUser?.id || null;
+  const userRole = currentUser?.role || currentUser?.rol || 'FrontOffice';
+
+  for (const item of resolutions) {
+    if (!item || !item.informeId) continue;
+    const infId = Number(item.informeId);
+    const action = String(item.action || 'reassign').toLowerCase();
+    const cleanSlotId = item.targetSlotId ? String(item.targetSlotId).replace(/^#/, '').trim() : null;
+
+    if (action === 'reassign') {
+      if (cleanSlotId) {
+        await conn.query(
+          'UPDATE informes_eventos SET id_ocupacion = ?, id_reserva_origen = COALESCE(?, id_reserva_origen), estado = "activo", deleted_at = NULL WHERE id = ?',
+          [cleanSlotId, baseId, infId]
+        );
+      }
+
+      // Actualizar día si se especificó diaId o fecha/salón
+      const [dias] = await conn.query(
+        'SELECT id, fecha_evento, descripcion_montaje FROM informe_dias_detalle WHERE informe_id = ? ORDER BY fecha_evento ASC, id ASC',
+        [infId]
+      );
+
+      let targetDia = null;
+      if (item.diaId) {
+        targetDia = dias.find(d => Number(d.id) === Number(item.diaId));
+      } else if (item.targetFecha) {
+        targetDia = dias.find(d => String(d.fecha_evento || '').slice(0, 10) === String(item.targetFecha).slice(0, 10));
+      }
+      if (!targetDia && dias.length > 0) targetDia = dias[0];
+
+      if (targetDia) {
+        let parsed = {};
+        try {
+          parsed = typeof targetDia.descripcion_montaje === 'string' ? JSON.parse(targetDia.descripcion_montaje) : (targetDia.descripcion_montaje || {});
+        } catch { parsed = {}; }
+
+        parsed._v = 2;
+        if (item.targetSalon) parsed.salon = item.targetSalon;
+        if (item.targetHorario) parsed.horario = item.targetHorario;
+        if (Array.isArray(parsed.montajes) && parsed.montajes.length > 0) {
+          parsed.montajes.forEach(m => {
+            if (item.targetSalon) m.salon = item.targetSalon;
+            if (item.targetHorario) m.horario = item.targetHorario;
+          });
+        } else if (item.targetSalon) {
+          parsed.montajes = [{ salon: item.targetSalon, horario: item.targetHorario || '', tipo: 'Personalizado' }];
+        }
+
+        const newFecha = (item.targetFecha && /^\d{4}-\d{2}-\d{2}$/.test(item.targetFecha)) ? item.targetFecha : targetDia.fecha_evento;
+        await conn.query(
+          'UPDATE informe_dias_detalle SET fecha_evento = ?, descripcion_montaje = ? WHERE id = ?',
+          [newFecha, JSON.stringify(parsed), targetDia.id]
+        );
+      }
+
+      try {
+        await conn.query(
+          'INSERT INTO informe_historial (informe_id, usuario_id, rol_usuario, accion, descripcion) VALUES (?, ?, ?, ?, ?)',
+          [infId, userId, userRole, 'REASIGNADO', `Reasignado a ocupación ${cleanSlotId || 'N/A'}${item.targetSalon ? ` (${item.targetSalon})` : ''}`]
+        );
+      } catch (_) {}
+
+      applied.push({ informeId: infId, action: 'reassign', targetSlotId: cleanSlotId, targetSalon: item.targetSalon });
+
+    } else if (action === 'archive') {
+      // Desvincular de ocupación actual y marcar como archivado para conservación histórica
+      await conn.query(
+        'UPDATE informes_eventos SET estado = "archivado", id_ocupacion = NULL, id_reserva_origen = COALESCE(?, id_reserva_origen) WHERE id = ?',
+        [baseId, infId]
+      );
+
+      try {
+        await conn.query(
+          'INSERT INTO informe_historial (informe_id, usuario_id, rol_usuario, accion, descripcion) VALUES (?, ?, ?, ?, ?)',
+          [infId, userId, userRole, 'ARCHIVADO', `Informe desvinculado de la reserva y archivado para conservación histórica`]
+        );
+      } catch (_) {}
+
+      applied.push({ informeId: infId, action: 'archive' });
+
+    } else if (action === 'delete') {
+      // Soft delete con confirmación y auditoría
+      await conn.query(
+        'UPDATE informes_eventos SET estado = "eliminado", deleted_at = NOW(), deleted_by = ? WHERE id = ?',
+        [userId, infId]
+      );
+
+      try {
+        await conn.query(
+          'INSERT INTO informe_historial (informe_id, usuario_id, rol_usuario, accion, descripcion) VALUES (?, ?, ?, ?, ?)',
+          [infId, userId, userRole, 'ELIMINADO', `Informe eliminado mediante soft delete al modificar la reserva`]
+        );
+      } catch (_) {}
+
+      applied.push({ informeId: infId, action: 'delete' });
+    }
+  }
+
+  return applied;
+}
+
+// ─── Endpoint dedicado para resolver conflictos de informes ───
+export async function resolveInformeConflicts(req, res, next) {
+  let conn;
+  try {
+    const { eventId, resolutions = [] } = req.body;
+    const currentUser = req.user || { id: null, username: 'Sistema', role: 'FrontOffice' };
+    const rawId = String(eventId || '').trim();
+    const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const applied = await applyInformeResolutionsInternal(conn, baseId, resolutions, currentUser);
+
+    await conn.commit();
+
+    if (req.io) {
+      req.io.emit('state-updated', { type: 'informes', timestamp: Date.now() });
+      req.io.emit('informe:conflict-resolved', { eventId: rawId, count: applied.length });
+    }
+
+    res.json({
+      ok: true,
+      message: 'Conflictos de informe resueltos exitosamente',
+      appliedCount: applied.length,
+      applied
+    });
+  } catch (error) {
+    if (conn) try { await conn.rollback(); } catch (_) {}
+    next(error);
+  } finally {
+    if (conn) conn.release();
+  }
 }
 
 // ─── Transferir / Reasignar un informe a otro salón o slot ───

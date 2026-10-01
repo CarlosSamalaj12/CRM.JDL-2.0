@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { emitChange } from '../helpers/socketEvents.js';
+import { applyInformeResolutionsInternal } from './informeController.js';
 
 const EVENTO_USER_JOIN = `
   LEFT JOIN eventos ev ON e.Idocupacion = ev.id
@@ -759,10 +760,102 @@ export async function updateEvent(req, res, next) {
       ? eventData._allExpanded
       : [eventData];
 
+  const informeResolutions = Array.isArray(req.body?.informeResolutions)
+    ? req.body.informeResolutions
+    : Array.isArray(eventData?.informeResolutions)
+      ? eventData.informeResolutions
+      : [];
+
   let conn;
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
+
+    // ─── BLINDAJE ANTIDESFASE DE INFORMES (Validación & Intercepción 409) ───
+    const [informesActivos] = await conn.query(`
+      SELECT i.id, i.id_ocupacion, i.version, i.estado
+      FROM informes_eventos i
+      WHERE (i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%'))
+        AND (i.estado IS NULL OR i.estado = 'activo')
+        AND i.deleted_at IS NULL
+    `, [rawId, baseId, baseId]);
+
+    if (informesActivos.length > 0) {
+      const infIds = informesActivos.map(inf => inf.id);
+      const [dias] = await conn.query(`
+        SELECT idd.id AS dia_id, idd.informe_id, idd.fecha_evento, idd.descripcion_montaje,
+               cm.nombre_menu
+        FROM informe_dias_detalle idd
+        LEFT JOIN cat_menus cm ON idd.menu_id = cm.id
+        WHERE idd.informe_id IN (?)
+        ORDER BY idd.fecha_evento ASC, idd.id ASC
+      `, [infIds]);
+
+      const uncoveredConflicts = [];
+
+      for (const d of dias) {
+        let parsed = {};
+        try {
+          parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || {});
+        } catch { parsed = {}; }
+
+        const diaFecha = d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : '';
+        const diaSalon = (parsed.salon || parsed.montajes?.[0]?.salon || '').trim().toLowerCase();
+
+        // Verificar si algún slot entrante cubre este día (fecha y salón)
+        const matchingSlot = expanded.find(s => {
+          const sStart = String(s.dateStart || s.date || '').slice(0, 10);
+          const sEnd = String(s.dateEnd || sStart).slice(0, 10);
+          const sSalon = String(s.salon || '').trim().toLowerCase();
+          const coversDate = diaFecha ? (diaFecha >= sStart && diaFecha <= sEnd) : true;
+          const sameSalon = diaSalon ? (diaSalon === sSalon) : true;
+          return coversDate && sameSalon;
+        });
+
+        if (!matchingSlot) {
+          // Verificar si el usuario ya adjuntó resolución para este informe/día
+          const hasRes = informeResolutions.some(r =>
+            Number(r.informeId) === Number(d.informe_id) &&
+            (!r.diaId || Number(r.diaId) === Number(d.dia_id))
+          );
+
+          if (!hasRes) {
+            uncoveredConflicts.push({
+              informeId: d.informe_id,
+              diaId: d.dia_id,
+              fecha: diaFecha,
+              salon: parsed.salon || 'No especificado',
+              menuNombre: d.nombre_menu || 'Servicio programado',
+              horario: parsed.horario || ''
+            });
+          }
+        }
+      }
+
+      // Si hay conflictos sin resolver, BLOQUEAR con HTTP 409 Conflict
+      if (uncoveredConflicts.length > 0) {
+        await conn.rollback();
+        return res.status(409).json({
+          conflict: true,
+          code: 'INFORMES_DESYNC_BLOCKED',
+          message: 'La modificación desvincula fechas o salones con informes de evento activos.',
+          conflicts: uncoveredConflicts,
+          availableSlots: expanded.map(s => ({
+            id: s.id,
+            salon: s.salon,
+            dateStart: s.dateStart || s.date,
+            dateEnd: s.dateEnd || s.dateStart || s.date,
+            startTime: s.startTime,
+            endTime: s.endTime
+          }))
+        });
+      }
+    }
+
+    // ─── APLICAR RESOLUCIONES DE INFORMES EN LA MISMA TRANSACCIÓN ───
+    if (informeResolutions.length > 0) {
+      await applyInformeResolutionsInternal(conn, baseId, informeResolutions, req.user);
+    }
 
     if (expanded.length > 0) {
       const incomingIds = expanded.map(s => toStr(s?.id)).filter(Boolean);
@@ -777,6 +870,34 @@ export async function updateEvent(req, res, next) {
 
     for (const slot of expanded) {
       await upsertEventSlot(conn, slot);
+
+      // Sincronización normalizada a reserva_salones_fechas
+      const slotId = toStr(slot?.id);
+      if (slotId) {
+        try {
+          await conn.query(`
+            INSERT INTO reserva_salones_fechas
+              (id, reserva_id, salon, fecha_inicio, fecha_fin, hora_inicio, hora_fin, is_principal)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              salon = VALUES(salon),
+              fecha_inicio = VALUES(fecha_inicio),
+              fecha_fin = VALUES(fecha_fin),
+              hora_inicio = VALUES(hora_inicio),
+              hora_fin = VALUES(hora_fin),
+              is_principal = VALUES(is_principal)
+          `, [
+            slotId,
+            baseId,
+            toStr(slot?.salon) || '(sin salon)',
+            asSafeDate(slot?.dateStart || slot?.date),
+            asSafeDate(slot?.dateEnd || slot?.dateStart || slot?.date),
+            asSafeTime(slot?.startTime),
+            asSafeTime(slot?.endTime),
+            slot?.isPrincipal ? 1 : 0
+          ]);
+        } catch (_) {}
+      }
     }
 
     await conn.commit();

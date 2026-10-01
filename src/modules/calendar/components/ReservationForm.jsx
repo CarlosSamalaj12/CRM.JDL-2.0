@@ -1409,40 +1409,55 @@ export default function ReservationForm() {
         quote: formData.quote || existingEvent?.quote || undefined
       };
 
-      // Si es una edición y existen informes activos, verificar si algún informe fue afectado
+      // Si es una edición y existen informes activos, verificar granularmente si algún día/informe fue afectado
       if (id) {
         try {
           const infCheck = await checkEventInformes(id);
           if (infCheck?.hasInformes && Array.isArray(infCheck.informes) && infCheck.informes.length > 0) {
-            const affected = [];
+            const conflicts = [];
             for (const inf of infCheck.informes) {
-              const day1 = inf.dias?.[0];
-              const infDate = day1?.fecha || (existingEvent?.date ? String(existingEvent.date).slice(0, 10) : '');
-              const infSalon = day1?.salon || existingEvent?.salon || '';
+              const days = Array.isArray(inf.dias) && inf.dias.length > 0
+                ? inf.dias
+                : [{
+                    id: null,
+                    fecha: existingEvent?.date ? String(existingEvent.date).slice(0, 10) : '',
+                    salon: existingEvent?.salon || '',
+                    menu_nombre: 'Menú programado',
+                    horario: `${existingEvent?.startTime || ''} - ${existingEvent?.endTime || ''}`
+                  }];
 
-              // Comprobar si algún slot nuevo tiene exactamente el mismo salón y cubre la fecha
-              const matchingNewSlot = cleanedSlots.find(s => {
-                const sStart = String(s.dateStart || formData.date || '').slice(0, 10);
-                const sEnd = String(s.dateEnd || sStart).slice(0, 10);
-                const coversDate = infDate ? (infDate >= sStart && infDate <= sEnd) : true;
-                const sameSalon = String(s.salon || '').trim().toLowerCase() === String(infSalon).trim().toLowerCase();
-                return coversDate && sameSalon;
-              });
+              for (const day of days) {
+                const dayDate = day.fecha;
+                const daySalon = (day.salon || existingEvent?.salon || '').trim().toLowerCase();
 
-              if (!matchingNewSlot) {
-                affected.push({
-                  ...inf,
-                  currentDate: infDate,
-                  currentSalon: infSalon,
-                  menuNombre: day1?.menu_nombre || 'Menú programado',
+                // Comprobar si algún slot nuevo tiene exactamente el mismo salón y cubre la fecha
+                const matchingNewSlot = cleanedSlots.find(s => {
+                  const sStart = String(s.dateStart || formData.date || '').slice(0, 10);
+                  const sEnd = String(s.dateEnd || sStart).slice(0, 10);
+                  const coversDate = dayDate ? (dayDate >= sStart && dayDate <= sEnd) : true;
+                  const sameSalon = daySalon ? (String(s.salon || '').trim().toLowerCase() === daySalon) : true;
+                  return coversDate && sameSalon;
                 });
+
+                if (!matchingNewSlot) {
+                  conflicts.push({
+                    informeId: inf.id,
+                    diaId: day.id,
+                    fecha: dayDate,
+                    salon: day.salon || existingEvent?.salon || 'No especificado',
+                    menuNombre: day.menu_nombre || 'Servicio programado',
+                    horario: day.horario || '',
+                    version: inf.version || 1
+                  });
+                }
               }
             }
 
-            if (affected.length > 0) {
+            if (conflicts.length > 0) {
               setInformeTransferModal({
                 isOpen: true,
-                affectedInformes: affected,
+                conflicts,
+                affectedInformes: conflicts,
                 availableSlots: cleanedSlots,
                 pendingSave: { eventData, cleanedSlots, moveToFollowUp, isNew }
               });
@@ -1463,44 +1478,35 @@ export default function ReservationForm() {
     }
   };
 
-  const executeSaveReservation = async (eventData, cleanedSlots, moveToFollowUp, isNew, transfersToApply = null) => {
+  const executeSaveReservation = async (eventData, cleanedSlots, moveToFollowUp, isNew, resolutionsToApply = null) => {
     setSaving(true);
     try {
-      const savedEvent = await handleAddEvent(eventData);
-      const newId = savedEvent?.id || id;
-
-      // Si se especificaron transferencias de informe a salones/slots específicos, aplicarlas
-      if (transfersToApply && typeof transfersToApply === 'object') {
-        const expandedSlots = Array.isArray(savedEvent?._allExpanded) && savedEvent._allExpanded.length > 0
-          ? savedEvent._allExpanded
-          : [savedEvent];
-
-        for (const [infId, slotIdxStr] of Object.entries(transfersToApply)) {
-          if (slotIdxStr === 'none') continue;
+      // Formatear resoluciones si vienen en formato lista o mapa
+      let formattedResolutions = undefined;
+      if (Array.isArray(resolutionsToApply)) {
+        formattedResolutions = resolutionsToApply;
+      } else if (resolutionsToApply && typeof resolutionsToApply === 'object') {
+        formattedResolutions = Object.entries(resolutionsToApply).map(([infId, slotIdxStr]) => {
           const slotIdx = Number(slotIdxStr);
           const targetSlot = cleanedSlots[slotIdx];
-          if (!targetSlot) continue;
-
-          // Buscar el ID expandido correspondiente al slot
-          const targetSlotExpanded = expandedSlots.find(es => {
-            const sameSalon = String(es.salon || '').trim().toLowerCase() === String(targetSlot.salon || '').trim().toLowerCase();
-            const esStart = String(es.date || es.eventDateStart || '').slice(0, 10);
-            const tsStart = String(targetSlot.dateStart || '').slice(0, 10);
-            return sameSalon && esStart === tsStart;
-          }) || expandedSlots[slotIdx] || savedEvent;
-
-          const targetSlotId = targetSlotExpanded?.id || newId;
-          const targetHorario = `${targetSlot.startTime || '10:00'} - ${targetSlot.endTime || '12:00'}`;
-          const targetFecha = targetSlot.dateStart || null;
-
-          await reassignInformeSlot(infId, {
-            targetSlotId,
-            targetSalon: targetSlot.salon,
-            targetHorario,
-            targetFecha
-          }).catch(err => console.warn('[reassignInformeSlot failed]', err.message));
-        }
+          return {
+            informeId: Number(infId),
+            action: slotIdxStr === 'none' ? 'archive' : 'reassign',
+            targetSlotId: targetSlot?.id || id,
+            targetSalon: targetSlot?.salon || '',
+            targetFecha: targetSlot?.dateStart || null,
+            targetHorario: targetSlot ? `${targetSlot.startTime || '10:00'} - ${targetSlot.endTime || '12:00'}` : null
+          };
+        });
       }
+
+      const payload = {
+        ...eventData,
+        informeResolutions: formattedResolutions
+      };
+
+      const savedEvent = await handleAddEvent(payload);
+      const newId = savedEvent?.id || id;
 
       // Actualizar estado local del formulario de inmediato
       if (newId) {
@@ -1540,17 +1546,33 @@ export default function ReservationForm() {
       } catch {}
 
     } catch (err) {
+      // Bloqueo HTTP 409 Conflict: backend detectó informes desfasados no resueltos
+      if (err?.status === 409 || err?.responseBody?.conflict) {
+        const body = err.responseBody || {};
+        const backendConflicts = body.conflicts || [];
+        setInformeTransferModal({
+          isOpen: true,
+          conflicts: backendConflicts,
+          affectedInformes: backendConflicts,
+          availableSlots: body.availableSlots || cleanedSlots,
+          pendingSave: { eventData, cleanedSlots, moveToFollowUp, isNew }
+        });
+        setSaving(false);
+        showNotification(err.message || 'Se requiere resolver el destino de los informes activos.', 'warning');
+        return;
+      }
+
       console.error('[handleSave] Error crítico al guardar:', err);
       showNotification(`Error al guardar: ${err?.message || 'Error del servidor'}`, 'error');
       setSaving(false);
     }
   };
 
-  const handleConfirmInformeTransfer = async (transfersMap) => {
+  const handleConfirmInformeTransfer = async (resolutionsList) => {
     if (!informeTransferModal.pendingSave) return;
     const { eventData, cleanedSlots, moveToFollowUp, isNew } = informeTransferModal.pendingSave;
     setInformeTransferModal(prev => ({ ...prev, isOpen: false }));
-    await executeSaveReservation(eventData, cleanedSlots, moveToFollowUp, isNew, transfersMap);
+    await executeSaveReservation(eventData, cleanedSlots, moveToFollowUp, isNew, resolutionsList);
   };
 
   const handleProceedWithoutInformeTransfer = async () => {
@@ -3074,11 +3096,13 @@ export default function ReservationForm() {
 
       <InformeTransferModal
         isOpen={informeTransferModal.isOpen}
+        conflicts={informeTransferModal.conflicts || informeTransferModal.affectedInformes}
         affectedInformes={informeTransferModal.affectedInformes}
         availableSlots={informeTransferModal.availableSlots}
         onConfirm={handleConfirmInformeTransfer}
         onProceedWithoutTransfer={handleProceedWithoutInformeTransfer}
         onCancel={() => setInformeTransferModal(prev => ({ ...prev, isOpen: false }))}
+        isSubmitting={saving}
       />
     </div>
   );

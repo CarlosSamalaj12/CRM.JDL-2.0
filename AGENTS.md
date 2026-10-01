@@ -32,6 +32,31 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Blindaje Antidesfase de Informes al Modificar Reservas, Intercepción Atómica HTTP 409 y Modal Ejecutivo Tri-Estado (`eventsController.js`, `informeController.js`, `informeRoutes.js`, `server.cjs`, `eventService.js`, `ReservationForm.jsx`, `InformeTransferModal.jsx`, `informes-conflict-guard.test.mjs`) (2026-10-01)
+- Requerimiento: Implementar un mecanismo de intercepción y blindaje atómico al modificar fechas o salones de una reserva con informes asociados. Si existen informes en días o salones que van a ser liberados o desplazados, bloquear la actualización automática con HTTP 409 Conflict. Presentar un modal no nativo, ultra intuitivo con tarjetas Bento e iconos minimalistas SVG que permita al usuario decidir el destino con 3 acciones: a) Mover/Reasignar a un salón/slot válido, b) Desvincular/Archivar para preservación histórica sin perder datos, y c) Eliminar mediante Soft Delete auditado.
+- Solución:
+  1. En `server.cjs`:
+     - Creada y registrada la migración `ensureInformeConflictGuardStructure` en `MIGRATIONS` y `CANONICAL_MIGRATIONS`.
+     - Crea la tabla normalizada `reserva_salones_fechas` e incorpora columnas evolutivas en `informes_eventos` (`id_reserva_origen`, `estado`, `deleted_at`, `deleted_by`), `informe_dias_detalle` (`slot_detalle_id`) e `informe_historial` (`rol_usuario`), con índices dedicados.
+  2. En `backend/src/controllers/informeController.js` y `informeRoutes.js`:
+     - Implementado `applyInformeResolutionsInternal` con soporte atómico para acciones `reassign`, `archive` (estado='archivado', id_ocupacion=NULL) y `delete` (estado='eliminado', soft delete auditado).
+     - Registrado endpoint `POST /api/informes/resolve-conflicts`.
+     - Enriquecido `checkEventInformes` para filtrar informes eliminados y retornar detalles completos por día.
+  3. En `backend/src/controllers/eventsController.js`:
+     - En `updateEvent` (`PUT /api/events/:id`), implementado el interceptor que verifica si hay informes activos en fechas o salones no cubiertos por los nuevos slots.
+     - Si existen conflictos no resueltos, aborta la transacción con `HTTP 409 Conflict` (`INFORMES_DESYNC_BLOCKED`).
+     - Si se adjuntan `informeResolutions`, las ejecuta de forma atómica en la misma transacción junto con la actualización de la reserva y sincronización a `reserva_salones_fechas`.
+  4. En `src/services/eventService.js`:
+     - `eventService.update` transmite `informeResolutions` en el payload y re-lanza explícitamente los errores 409 para activar el modal en la interfaz sin caer en el fallback de `saveState`.
+  5. En `src/modules/calendar/components/InformeTransferModal.jsx` y `src/modules/informes/components/ReassignSalonModal.jsx`:
+     - Erradicados todos los emojis del sistema operativo (`🗓️`, `⏰`, `👥`, `📄`, `ℹ️`, `⚠️`, `🔄`).
+     - Sustituidos por iconografía SVG minimalista de trazo nítido (`IconCalendar`, `IconClock`, `IconUsers`, `IconFileText`, `IconBuilding`, `IconTag`, `IconLayers`, `IconSwap`, `IconArchive`, `IconTrash`, `IconShieldAlert`, `IconInfo`, `IconAlertTriangle`, `IconCheck`, `IconX`, `IconRefreshCw`).
+     - Checkboxes ejecutivos estilizados y cabeceras con botón de cierre limpio.
+  6. En `src/modules/calendar/components/ReservationForm.jsx`:
+     - Verificación granular por cada día de informe antes de guardar.
+     - Captura reactiva de errores 409 del backend como red de seguridad adicional.
+  7. Validado con 81 pruebas automáticas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión 2.1.156).
+
 ### Solución: Blindaje Antidesfase de Informes al Editar Reservas, Modal de Transferencia Inteligente de Salón y Reasignación Manual (`informeController.js`, `server.cjs`, `ReservationForm.jsx`, `InformeTransferModal.jsx`, `ReassignSalonModal.jsx`, `ConstructorInforme.jsx`, `InformeView.jsx`) (2026-09-19)
 - Requerimiento: Resolver error crítico en reservas multislot donde al cambiar fechas de un salón (ej. *Santa Cruz* del 24-27 al 25-27) y agregar otro salón el día 24 (ej. *Mesa Reservada* con comida solo ese día), el sistema desfasaba silenciosamente el informe (#1146) del día 24 al 25 arrastrando el menú ("Caldo de res"), mostraba *Santa Cruz* en lugar de *Mesa Reservada*, y en el Kanban el día 24 aparecía como "+ Informe" sin vincular. Blindar el sistema para evitar mutaciones automáticas de fechas en informes, proveer un modal inteligente al guardar en "Editar Reserva" para transferir el informe al salón destino conservando el menú intacto, reparar el informe #1146, y habilitar un botón "Reasignar Salón" en el constructor y visor de informes sin alterar la presentación visual de los días.
 - Causa raíz:

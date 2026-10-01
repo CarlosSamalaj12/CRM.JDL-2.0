@@ -239,11 +239,15 @@ async getAll() {
       try {
         const res = await api.put(`/api/events/${encodeURIComponent(id)}`, {
           event: savedEvent,
-          expandedEvents: savedEvent?._allExpanded || (hasSlots ? expandedEvents : undefined)
+          expandedEvents: savedEvent?._allExpanded || (hasSlots ? expandedEvents : undefined),
+          informeResolutions: eventData?.informeResolutions || savedEvent?.informeResolutions
         });
         invalidateStateCache();
         return res?.event || savedEvent;
       } catch (apiErr) {
+        if (apiErr?.status === 409 || apiErr?.responseBody?.conflict) {
+          throw apiErr;
+        }
         console.warn('[eventService.update] Endpoint atómico falló, recurriendo a saveState fallback:', apiErr);
         await saveState({ ...currentState, events: updatedEvents });
         return savedEvent;

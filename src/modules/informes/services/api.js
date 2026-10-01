@@ -387,6 +387,20 @@ export async function checkEventInformes(eventId) {
   return response.json();
 }
 
+export async function resolveInformeConflictsApi(eventId, resolutions) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiUrl}/api/informes/resolve-conflicts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ eventId, resolutions }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Error al resolver conflictos de informe');
+  }
+  return response.json();
+}
+
 export async function reassignInformeSlot(informeId, payload) {
   const token = localStorage.getItem('token');
   const response = await fetch(`${apiUrl}/api/informes/${encodeURIComponent(informeId)}/reassign-slot`, {

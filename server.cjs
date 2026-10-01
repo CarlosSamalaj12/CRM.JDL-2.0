@@ -1257,6 +1257,87 @@ async function ensureRepairDesyncedInformes() {
   }
 }
 
+// Migración para blindaje de informes ante modificación de reservas (tabla de slots, estados, soft-delete e índices)
+async function ensureInformeConflictGuardStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // 1. Tabla de slots por salón y fecha (reserva_salones_fechas)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reserva_salones_fechas (
+        id VARCHAR(64) PRIMARY KEY,
+        reserva_id VARCHAR(64) NOT NULL,
+        salon VARCHAR(100) NOT NULL,
+        fecha_inicio DATE NOT NULL,
+        fecha_fin DATE NOT NULL,
+        hora_inicio TIME NOT NULL,
+        hora_fin TIME NOT NULL,
+        is_principal TINYINT(1) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deleted_at DATETIME NULL,
+        INDEX idx_reserva_id (reserva_id),
+        INDEX idx_fechas_salon (fecha_inicio, fecha_fin, salon),
+        INDEX idx_deleted_at (deleted_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 2. Columnas evolutivas de blindaje en informes_eventos
+    const infCols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'informes_eventos'`,
+      [DB_NAME]
+    );
+    const infColSet = new Set(infCols.map(r => String(r.column_name || '').toLowerCase()));
+
+    if (!infColSet.has('id_reserva_origen')) {
+      await conn.query(`ALTER TABLE informes_eventos ADD COLUMN id_reserva_origen VARCHAR(64) NULL AFTER id_ocupacion`);
+    }
+    if (!infColSet.has('estado')) {
+      await conn.query(`ALTER TABLE informes_eventos ADD COLUMN estado VARCHAR(32) DEFAULT 'activo' AFTER version`);
+    }
+    if (!infColSet.has('deleted_at')) {
+      await conn.query(`ALTER TABLE informes_eventos ADD COLUMN deleted_at DATETIME NULL AFTER estado`);
+    }
+    if (!infColSet.has('deleted_by')) {
+      await conn.query(`ALTER TABLE informes_eventos ADD COLUMN deleted_by INT NULL AFTER deleted_at`);
+    }
+
+    // 3. Columna en informe_dias_detalle
+    const diasCols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'informe_dias_detalle'`,
+      [DB_NAME]
+    );
+    const diasColSet = new Set(diasCols.map(r => String(r.column_name || '').toLowerCase()));
+    if (!diasColSet.has('slot_detalle_id')) {
+      await conn.query(`ALTER TABLE informe_dias_detalle ADD COLUMN slot_detalle_id VARCHAR(64) NULL AFTER informe_id`);
+    }
+
+    // 4. Columna en informe_historial
+    const histCols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'informe_historial'`,
+      [DB_NAME]
+    );
+    const histColSet = new Set(histCols.map(r => String(r.column_name || '').toLowerCase()));
+    if (!histColSet.has('rol_usuario')) {
+      await conn.query(`ALTER TABLE informe_historial ADD COLUMN rol_usuario VARCHAR(50) NULL AFTER usuario_id`);
+    }
+
+    // 5. Índices de rendimiento
+    try {
+      await conn.query(`CREATE INDEX IF NOT EXISTS idx_informes_id_reserva_origen ON informes_eventos (id_reserva_origen)`);
+      await conn.query(`CREATE INDEX IF NOT EXISTS idx_informes_estado ON informes_eventos (estado)`);
+      await conn.query(`CREATE INDEX IF NOT EXISTS idx_informes_deleted_at ON informes_eventos (deleted_at)`);
+      await conn.query(`CREATE INDEX IF NOT EXISTS idx_informe_dias_slot ON informe_dias_detalle (slot_detalle_id)`);
+      await conn.query(`CREATE INDEX IF NOT EXISTS idx_informe_dias_fecha ON informe_dias_detalle (fecha_evento)`);
+    } catch (_) {}
+  } catch (err) {
+    console.warn('[ensureInformeConflictGuardStructure]', err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+
 // Migracion: para empresas que tienen `encargado_principal` legacy pero NO
 // tienen managers formales en `encargados_empresa`, autogenera un manager
 // copiando el nombre del `encargado_principal` y los datos de contacto
@@ -7801,6 +7882,7 @@ const MIGRATIONS = [
   { name: 'OcupacionPerformanceIndexes', fn: ensureOcupacionPerformanceIndexes },
   { name: 'UnifyPushSubscriptions', fn: ensureUnifyPushSubscriptions },
   { name: 'RepairDesyncedInformes', fn: ensureRepairDesyncedInformes },
+  { name: 'InformeConflictGuardStructure', fn: ensureInformeConflictGuardStructure },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -7831,6 +7913,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureSlotPaxStructure',
   'ensureMainSalonStructure',
   'ensureRepairDesyncedInformes',
+  'ensureInformeConflictGuardStructure',
   'ensureManagersFromOwnerMigration',
   'ensurePosiblesVentasStructure',
   'ensurePosiblesVentasSeguimiento',

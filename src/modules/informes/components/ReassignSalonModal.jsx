@@ -2,7 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { loadState as loadCrmState } from '../../../services/stateService';
 import { reassignInformeSlot } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { IconRefreshCw, IconX, IconCheck } from './Icons';
+import {
+  IconRefreshCw,
+  IconX,
+  IconCheck,
+  IconCalendar,
+  IconClock,
+  IconUsers,
+  IconBuilding,
+  IconFileText,
+  IconTag,
+  IconLayers
+} from './Icons';
 
 export default function ReassignSalonModal({
   isOpen,
@@ -178,10 +189,14 @@ export default function ReassignSalonModal({
                 color: '#0284c7',
                 fontSize: '11px',
                 fontWeight: '800',
-                padding: '2px 8px',
+                padding: '3px 8px',
                 borderRadius: '6px',
-                letterSpacing: '0.04em'
+                letterSpacing: '0.04em',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px'
               }}>
+                <IconLayers size={11} strokeWidth={2.5} />
                 LOGÍSTICA DE EVENTO
               </span>
             </div>
@@ -212,15 +227,27 @@ export default function ReassignSalonModal({
           <div style={{
             background: '#f8fafc',
             border: '1px solid #e2e8f0',
-            borderRadius: '10px',
+            borderRadius: '12px',
             padding: '12px 16px',
             marginBottom: '16px',
             fontSize: '12.5px',
-            color: '#475569'
+            color: '#475569',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px'
           }}>
-            <div><strong>Informe actual:</strong> #{informeId}</div>
-            <div><strong>Salón vinculado:</strong> <span style={{ color: '#0284c7', fontWeight: '800' }}>{currentSalon || 'No asignado'}</span></div>
-            <div><strong>Ocupación vinculada:</strong> <code style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px', fontSize: '11.5px' }}>#{currentOcupacionId}</code></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <IconFileText size={13} strokeWidth={2} style={{ color: '#0284c7' }} />
+              <span><strong>Informe actual:</strong> #{informeId}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <IconBuilding size={13} strokeWidth={2} style={{ color: '#0284c7' }} />
+              <span><strong>Salón vinculado:</strong> <span style={{ color: '#0284c7', fontWeight: '800' }}>{currentSalon || 'No asignado'}</span></span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <IconTag size={13} strokeWidth={2} style={{ color: '#64748b' }} />
+              <span><strong>Ocupación vinculada:</strong> <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontSize: '11.5px', color: '#334155' }}>#{currentOcupacionId}</code></span>
+            </div>
           </div>
 
           <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
@@ -270,8 +297,31 @@ export default function ReassignSalonModal({
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                        📅 {slot.fecha} {slot.horario ? `· ⏰ ${slot.horario}` : ''} {slot.pax ? `· 👥 ${slot.pax} pax` : ''}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        fontSize: '12px',
+                        color: '#64748b',
+                        marginTop: '4px'
+                      }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <IconCalendar size={13} strokeWidth={2} style={{ color: '#0284c7' }} />
+                          <span>{slot.fecha}</span>
+                        </span>
+                        {slot.horario && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <IconClock size={13} strokeWidth={2} style={{ color: '#64748b' }} />
+                            <span>{slot.horario}</span>
+                          </span>
+                        )}
+                        {slot.pax && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <IconUsers size={13} strokeWidth={2} style={{ color: '#64748b' }} />
+                            <span>{slot.pax} pax</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div style={{
