@@ -497,44 +497,65 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     };
 }, []);
 
-// ─── Restore draft from localStorage on mount ───
+  const [pendingDraft, setPendingDraft] = useState(null);
+
+  const formatDraftDate = (dateStr) => {
+    if (!dateStr) return 'recientemente';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return 'recientemente';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm} a las ${hh}:${mi}`;
+  };
+
+  // ─── Detectar borrador previo en localStorage de forma interactiva ───
   useEffect(() => {
     const draft = loadDraft(event);
-    if (draft && draft.items && draft.items.length > 0) {
-      const timer = setTimeout(() => {
-        const current = quoteRef.current || {};
-        const currentItemCount = current.items?.length || 0;
-        const draftItemCount = draft.items?.length || 0;
+    if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+      const current = quoteRef.current || {};
+      const currentItemCount = (current.items || []).length;
+      const draftItemCount = (draft.items || []).length;
 
-        // Si la cotización en memoria ya tiene al menos los mismos ítems, no pisar
-        if (currentItemCount >= draftItemCount && currentItemCount > 0) {
-          savedQuoteSnapshotRef.current = quoteSnapshot(current);
-          return;
-        }
+      // Si la cotización en memoria ya tiene al menos los mismos ítems, no molestar
+      if (currentItemCount >= draftItemCount && currentItemCount > 0) {
+        return;
+      }
 
-        // Si el borrador tiene ítems no guardados, restaurar preservando datos de empresa actuales
-        const restored = {
-          ...current,
-          ...draft,
-          companyId: draft.companyId || current.companyId,
-          companyName: draft.companyName || current.companyName,
-          contact: draft.contact || current.contact,
-          email: draft.email || current.email,
-          phone: draft.phone || current.phone,
-          items: draft.items.map(item => ({
-            ...item,
-            rowId: item.rowId || 'row_' + Math.random().toString(36).substr(2, 8)
-          }))
-        };
-        setQuote(restored);
-        if (restored.companyName && !current.companyName) {
-          setCompanySearchQuery(restored.companyName);
-        }
-        toast.success(`Borrador recuperado (${draftItemCount} servicios). Recuerda guardar tus cambios.`, { duration: 5000 });
-      }, 100);
-      return () => clearTimeout(timer);
+      setPendingDraft(draft);
     }
-  }, []);
+  }, [event]);
+
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    const current = quoteRef.current || {};
+    const restored = {
+      ...current,
+      ...pendingDraft,
+      companyId: pendingDraft.companyId || current.companyId,
+      companyName: pendingDraft.companyName || current.companyName,
+      contact: pendingDraft.contact || current.contact,
+      email: pendingDraft.email || current.email,
+      phone: pendingDraft.phone || current.phone,
+      items: (pendingDraft.items || []).map(item => ({
+        ...item,
+        rowId: item.rowId || 'row_' + Math.random().toString(36).substr(2, 8)
+      }))
+    };
+    setQuote(restored);
+    if (restored.companyName && !current.companyName) {
+      setCompanySearchQuery(restored.companyName);
+    }
+    toast.success(`Borrador recuperado (${(pendingDraft.items || []).length} servicios).`);
+    setPendingDraft(null);
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft(event);
+    setPendingDraft(null);
+    toast('Borrador descartado.', { icon: '🗑️' });
+  };
 
   // Load discount auth status and listen for responses
   useEffect(() => {
@@ -572,8 +593,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             setQuote(prev => ({
               ...prev,
               advances: freshEvent.quote.advances || prev.advances,
-              advanceLogs: freshEvent.quote.advanceLogs || prev.advanceLogs,
-              items: freshEvent.quote.items || prev.items
+              advanceLogs: freshEvent.quote.advanceLogs || prev.advanceLogs
+              // PROTECCIÓN CRÍTICA: NUNCA sobreescribir prev.items desde sockets en segundo plano
             }));
           }
         }
@@ -5398,6 +5419,51 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             </div>
           </header>
 
+          {/* Banner de recuperación de borrador offline (Móvil) */}
+          {pendingDraft && (
+            <div style={{
+              background: '#eff6ff',
+              borderBottom: '1px solid #bfdbfe',
+              padding: '10px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              zIndex: 999
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>💾</span>
+                <div style={{ fontSize: 12, color: '#1e3a8a', fontWeight: 600 }}>
+                  Borrador no guardado disponible ({(pendingDraft.items || []).length} servicios)
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>
+                Guardado el {formatDraftDate(pendingDraft.savedAt)}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleRestoreDraft}
+                  style={{
+                    flex: 1, padding: '7px 12px', background: '#2563eb', color: '#fff',
+                    borderRadius: 6, border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer'
+                  }}
+                >
+                  Restaurar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDiscardDraft}
+                  style={{
+                    padding: '7px 12px', background: '#fff', color: '#64748b',
+                    borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600, fontSize: 12, cursor: 'pointer'
+                  }}
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 2. Pestañas Ejecutivas Segmentadas */}
           <div className="quote-mobile-tabs-container">
             <div className="quote-mobile-tabs-bar">
@@ -6479,6 +6545,66 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             </button>
           </div>
         </div>
+
+        {/* ── BANNER DE RECUPERACIÓN DE BORRADOR (DESKTOP) ── */}
+        {pendingDraft && (
+          <div style={{
+            background: 'linear-gradient(90deg, #eff6ff 0%, #f0fdf4 100%)',
+            borderBottom: '1px solid #bfdbfe',
+            padding: '10px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            zIndex: 999
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#2563eb', flexShrink: 0
+              }}>
+                <Save size={16} strokeWidth={2.2} />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a' }}>
+                  Borrador no guardado disponible ({(pendingDraft.items || []).length} servicio{(pendingDraft.items || []).length === 1 ? '' : 's'})
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>
+                  Guardado localmente el {formatDraftDate(pendingDraft.savedAt)}. ¿Deseas restaurar estos cambios al carrito?
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleRestoreDraft}
+                style={{
+                  background: '#2563eb', color: '#ffffff',
+                  border: 'none', borderRadius: '6px',
+                  padding: '7px 16px', fontSize: '12px', fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                  boxShadow: '0 1px 3px rgba(37,99,235,0.2)'
+                }}
+              >
+                <Check size={14} strokeWidth={2.5} />
+                <span>Restaurar borrador</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                style={{
+                  background: '#ffffff', color: '#64748b',
+                  border: '1px solid #cbd5e1', borderRadius: '6px',
+                  padding: '7px 14px', fontSize: '12px', fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Descartar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Panel datos empresa (modal) ── */}
         {showDocPanel && (
