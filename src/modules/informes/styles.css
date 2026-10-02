@@ -3641,6 +3641,500 @@ button[data-tooltip-bottom]::after {
 .informe-print-container { padding: 0; }
 
 /* ═══════════════════════════════════════════════
+   SELECTOR DE DÍAS DEL EVENTO (EXECUTIVE DAY SELECTOR)
+   ═══════════════════════════════════════════════ */
+
+.iv-dia-selector-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  margin: 0 auto 16px auto;
+  max-width: 100%;
+  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03);
+  box-sizing: border-box;
+  flex-wrap: wrap;
+}
+
+/* Badge izquierdo con icono SVG y datos de contexto */
+.iv-dia-badge-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.iv-dia-badge-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.06);
+}
+
+.iv-dia-badge-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.iv-dia-badge-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #2563eb;
+}
+
+.iv-dia-dot-sep {
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.iv-dia-badge-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #475569;
+  flex-wrap: wrap;
+}
+
+.iv-dia-status-main {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.iv-dia-status-date {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.iv-dia-count-chip {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.iv-dia-salon-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* Grupo derecho: Segmented pills y custom dropdown */
+.iv-dia-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Segmented Pills (Cambio rápido 1-clic) */
+.iv-dia-segmented-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.iv-dia-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.iv-dia-pill-btn:hover {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.iv-dia-pill-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+}
+
+.iv-dia-pill-btn.active svg {
+  stroke: #ffffff;
+}
+
+.iv-dia-pill-badge {
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.iv-dia-pill-btn.active .iv-dia-pill-badge {
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.iv-dia-pill-date {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.iv-dia-pill-salon {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iv-dia-pill-btn.active .iv-dia-pill-salon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+/* Custom Dropdown Trigger */
+.iv-dia-custom-dropdown-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.iv-dia-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 38px;
+  padding: 0 12px 0 10px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  font-family: inherit;
+  min-width: 220px;
+}
+
+.iv-dia-dropdown-trigger:hover {
+  border-color: #0284c7;
+  background: #f8fafc;
+  box-shadow: 0 2px 5px rgba(2, 132, 199, 0.08);
+}
+
+.iv-dia-dropdown-trigger.open {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.iv-dia-trigger-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.iv-dia-trigger-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.iv-dia-trigger-icon.is-layers {
+  background: #eff6ff;
+  color: #0284c7;
+}
+
+.iv-dia-trigger-icon.is-calendar {
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.iv-dia-trigger-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.iv-dia-trigger-chevron {
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.iv-dia-trigger-chevron.is-open {
+  transform: rotate(180deg);
+  color: #0284c7;
+}
+
+/* Custom Dropdown Menu Popover */
+.iv-dia-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 280px;
+  max-width: 360px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 12px 30px -6px rgba(15, 23, 42, 0.15), 0 4px 10px -2px rgba(15, 23, 42, 0.05);
+  z-index: 1050;
+  animation: ivDiaMenuIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ivDiaMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.iv-dia-menu-header {
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.iv-dia-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.iv-dia-menu-item:hover {
+  background: #f1f5f9;
+}
+
+.iv-dia-menu-item.is-selected {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+.iv-dia-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.iv-dia-item-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.iv-dia-item-icon-box.is-layers {
+  background: #eff6ff;
+  color: #0284c7;
+}
+
+.iv-dia-item-icon-box.is-calendar {
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.iv-dia-icon-day-num {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  background: #ffffff;
+  color: #059669;
+  padding: 1px 3px;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.iv-dia-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.iv-dia-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iv-dia-item-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.iv-dia-item-chip-all {
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.iv-dia-item-date-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.iv-dia-item-sub {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.iv-dia-item-salon-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #059669;
+  font-weight: 600;
+}
+
+.iv-dia-item-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.35);
+}
+
+.iv-dia-menu-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 4px 6px;
+}
+
+/* Responsividad para móviles */
+@media (max-width: 768px) {
+  .iv-dia-selector-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .iv-dia-controls-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .iv-dia-segmented-pills {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 3px;
+  }
+  .iv-dia-segmented-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .iv-dia-pill-btn {
+    flex-shrink: 0;
+  }
+  .iv-dia-custom-dropdown-wrap {
+    width: 100%;
+  }
+  .iv-dia-dropdown-trigger {
+    width: 100%;
+    min-width: 0;
+  }
+  .iv-dia-dropdown-menu {
+    left: 0;
+    right: 0;
+    max-width: 100%;
+  }
+}
+
+/* ═══════════════════════════════════════════════
    DOCUMENTO FORMAL
    ═══════════════════════════════════════════════ */
 
