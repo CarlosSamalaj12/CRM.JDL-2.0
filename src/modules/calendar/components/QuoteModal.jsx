@@ -160,22 +160,26 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         let title, description, state, opts;
         if (args.length === 1 && typeof args[0] === 'object') {
           const opt = args[0];
-          title = opt.title || '';
+          title = opt.title !== undefined ? opt.title : '';
           description = opt.text || opt.html || '';
-          state = opt.icon === 'success' ? 'success' : opt.icon === 'error' ? 'error' : opt.icon === 'warning' ? 'warning' : 'info';
+          state = (opt.icon === null || opt.icon === false)
+            ? undefined
+            : ['success', 'error', 'warning', 'info', 'question'].includes(opt.icon)
+              ? opt.icon
+              : (opt.icon ? 'info' : undefined);
           opts = {
             confirmButtonText: 'Entendido',
             confirmButtonColor: '#0f4c81',
             ...opt,
             title: title || opt.title,
             text: description || opt.text,
-            icon: state || opt.icon,
+            icon: state,
             customClass: {
-              popup: 'qav-swal-popup',
-              title: 'qav-swal-title',
-              htmlContainer: 'qav-swal-text',
-              confirmButton: 'qav-swal-confirm-btn',
-              cancelButton: 'qav-swal-cancel-btn',
+              popup: opt.customClass?.popup ? `qav-swal-popup ${opt.customClass.popup}` : 'qav-swal-popup',
+              title: opt.customClass?.title || 'qav-swal-title',
+              htmlContainer: opt.customClass?.htmlContainer || 'qav-swal-text',
+              confirmButton: opt.customClass?.confirmButton || 'qav-swal-confirm-btn',
+              cancelButton: opt.customClass?.cancelButton || 'qav-swal-cancel-btn',
               ...(opt.customClass || {})
             }
           };
@@ -1309,6 +1313,230 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     triggerRowFeedback(Array.from(selectedItemIds), dir === 'up' ? 'Servicios subidos' : 'Servicios bajados');
   };
 
+  const promptPrintFormatModal = () => {
+    return new Promise((resolve) => {
+      let chosen = null;
+      localSwal({
+        icon: null,
+        title: '',
+        html: `
+          <div class="qformat-dialog-wrapper">
+            <div class="qformat-header">
+              <div class="qformat-header-icon-box">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 9V2h12v7"/>
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                  <rect x="6" y="14" width="12" height="8"/>
+                </svg>
+              </div>
+              <h3 class="qformat-title">Selecciona el formato</h3>
+              <p class="qformat-subtitle">Elige el tipo de documento PDF que deseas exportar o imprimir</p>
+            </div>
+
+            <div class="qformat-cards-grid">
+              <div class="qformat-card is-standard" data-format="standard" role="button" tabindex="0">
+                <div class="qformat-card-icon-box is-blue">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <line x1="10" y1="9" x2="8" y2="9"/>
+                  </svg>
+                </div>
+                <div class="qformat-card-content">
+                  <div class="qformat-card-top-row">
+                    <span class="qformat-card-title">Cotización</span>
+                    <span class="qformat-pill is-blue">Comercial</span>
+                  </div>
+                  <div class="qformat-card-desc">Cotización + Contrato</div>
+                </div>
+                <div class="qformat-card-arrow">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="qformat-card is-completa" data-format="completa" role="button" tabindex="0">
+                <div class="qformat-card-icon-box is-emerald">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                    <path d="m9 14 2 2 4-4"/>
+                  </svg>
+                </div>
+                <div class="qformat-card-content">
+                  <div class="qformat-card-top-row">
+                    <span class="qformat-card-title">Contrato</span>
+                    <span class="qformat-pill is-emerald">Operativo</span>
+                  </div>
+                  <div class="qformat-card-desc">Cotización + Menú Montaje + Contrato</div>
+                </div>
+                <div class="qformat-card-arrow">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="qformat-card is-sin-precios" data-format="sin_precios" role="button" tabindex="0">
+                <div class="qformat-card-icon-box is-purple">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    <circle cx="12" cy="16" r="1.5"/>
+                  </svg>
+                </div>
+                <div class="qformat-card-content">
+                  <div class="qformat-card-top-row">
+                    <span class="qformat-card-title">Sin Precios / Informe</span>
+                    <span class="qformat-pill is-purple">Cocina / Staff</span>
+                  </div>
+                  <div class="qformat-card-desc">Cotización (Q0) + Menú Montaje</div>
+                </div>
+                <div class="qformat-card-arrow">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonText: 'Cancelar',
+        width: '520px',
+        customClass: {
+          popup: 'qformat-swal-popup',
+          cancelButton: 'qformat-cancel-btn'
+        },
+        didOpen: (popup) => {
+          const cards = popup.querySelectorAll('.qformat-card');
+          cards.forEach(card => {
+            const selectCard = () => {
+              chosen = card.getAttribute('data-format');
+              Swal.close();
+            };
+            card.addEventListener('click', selectCard);
+            card.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectCard();
+              }
+            });
+          });
+        }
+      }).then(() => {
+        resolve(chosen);
+      });
+    });
+  };
+
+  const promptQuoteSavedModal = (finalQuote) => {
+    return new Promise((resolve) => {
+      let chosen = null;
+      localSwal({
+        icon: null,
+        title: '',
+        html: `
+          <div class="qsave-dialog-wrapper">
+            <div class="qsave-header">
+              <div class="qsave-badge-container">
+                <div class="qsave-badge-icon">
+                  <svg class="qsave-check-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline class="qsave-check-path" points="20 6 9 17 4 12"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="qsave-status-pill">
+                <span class="qsave-status-dot"></span>
+                Guardado exitoso
+              </div>
+              <h3 class="qsave-title">¡Cotización guardada!</h3>
+              <div class="qsave-code-chip">
+                <span class="qsave-code-label">Código</span>
+                <span class="qsave-code-val">${finalQuote.code || 'COT'}</span>
+              </div>
+              <p class="qsave-subtitle">¿Qué deseas hacer ahora?</p>
+            </div>
+
+            <div class="qsave-cards-grid">
+              <div class="qsave-card is-print" data-action="print" role="button" tabindex="0">
+                <div class="qsave-card-icon-box is-blue">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9V2h12v7"/>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                </div>
+                <div class="qsave-card-content">
+                  <div class="qsave-card-top-row">
+                    <span class="qsave-card-title">Imprimir / PDF</span>
+                    <span class="qsave-pill is-blue">Documento</span>
+                  </div>
+                  <div class="qsave-card-desc">Generar o imprimir cotización, contrato o formato sin precios</div>
+                </div>
+                <div class="qsave-card-arrow">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="qsave-card is-whatsapp" data-action="whatsapp" role="button" tabindex="0">
+                <div class="qsave-card-icon-box is-emerald">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                  </svg>
+                </div>
+                <div class="qsave-card-content">
+                  <div class="qsave-card-top-row">
+                    <span class="qsave-card-title">WhatsApp</span>
+                    <span class="qsave-pill is-emerald">Chat Directo</span>
+                  </div>
+                  <div class="qsave-card-desc">Enviar resumen de cotización pre-cargado al cliente</div>
+                </div>
+                <div class="qsave-card-arrow">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonText: 'Cerrar',
+        width: '520px',
+        customClass: {
+          popup: 'qsave-swal-popup',
+          cancelButton: 'qsave-cancel-btn'
+        },
+        didOpen: (popup) => {
+          const cards = popup.querySelectorAll('.qsave-card');
+          cards.forEach(card => {
+            const selectCard = () => {
+              chosen = card.getAttribute('data-action');
+              Swal.close();
+            };
+            card.addEventListener('click', selectCard);
+            card.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectCard();
+              }
+            });
+          });
+        }
+      }).then(() => {
+        resolve(chosen);
+      });
+    });
+  };
+
   const handleSaveQuote = async () => {
     if (!quote.companyId) {
       showOverlayAlert('warning', 'Falta la empresa', 'Para guardar la cotización es necesario seleccionar una empresa.<br><br><strong>Por favor, busca y selecciona una institución del listado.</strong>');
@@ -1450,93 +1678,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
       setSaving(false);
 
-      const result = await localSwal({
-        icon: 'success',
-        title: '¡Cotización guardada!',
-        text: `Código: ${finalQuote.code}\n¿Qué deseas hacer ahora?`,
-        showConfirmButton: true,
-        showDenyButton: true,
-        showCancelButton: true,
-        confirmButtonText: '🖨️ Imprimir / PDF',
-        denyButtonText: '💬 WhatsApp',
-        cancelButtonText: '❌ Cerrar',
-        confirmButtonColor: '#3085d6',
-        denyButtonColor: '#25d366',
-        cancelButtonColor: '#6e7881'
-      });
+      const action = await promptQuoteSavedModal(finalQuote);
 
-      if (result.isConfirmed) {
+      if (action === 'print') {
         const user = authService.getCurrentUser();
-        
-        // Modal moderno de selección de formato
-        const formatModal = await localSwal({
-          title: '<strong style="color:#118895">Selecciona el formato</strong>',
-          html: `
-            <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px;padding:0 10px;">
-              <div class="format-card" data-format="standard" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#118895,#0d6b76);display:flex;align-items:center;justify-content:center;font-size:24px;">📄</div>
-                  <div style="flex:1;">
-                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Cotización</div>
-                    <div style="font-size:12px;color:#64748b;">Cotización + Contrato</div>
-                  </div>
-                  <div style="color:#94a3b8;font-size:20px;">→</div>
-                </div>
-              </div>
-              
-              <div class="format-card" data-format="completa" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:24px;">📋</div>
-                  <div style="flex:1;">
-                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Contrato</div>
-                    <div style="font-size:12px;color:#64748b;">Cotización + Menú Montaje + Contrato</div>
-                  </div>
-                  <div style="color:#94a3b8;font-size:20px;">→</div>
-                </div>
-              </div>
-              
-              <div class="format-card" data-format="sin_precios" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:24px;">🔒</div>
-                  <div style="flex:1;">
-                    <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Sin Precio/Informe</div>
-                    <div style="font-size:12px;color:#64748b;">Cotización (Q0) + Menú Montaje</div>
-                  </div>
-                  <div style="color:#94a3b8;font-size:20px;">→</div>
-                </div>
-              </div>
-            </div>
-          `,
-          showCancelButton: true,
-          showConfirmButton: false,
-          cancelButtonText: 'Cancelar',
-          cancelButtonColor: '#6e7881',
-          width: '480px',
-          didOpen: () => {
-            const cards = document.querySelectorAll('.format-card');
-            cards.forEach(card => {
-              card.addEventListener('mouseenter', function() {
-                this.style.borderColor = '#118895';
-                this.style.boxShadow = '0 4px 12px rgba(17,136,149,0.15)';
-                this.style.transform = 'translateY(-2px)';
-              });
-              card.addEventListener('mouseleave', function() {
-                this.style.borderColor = '#e5e7eb';
-                this.style.boxShadow = 'none';
-                this.style.transform = 'translateY(0)';
-              });
-              card.addEventListener('click', function() {
-                const format = this.getAttribute('data-format');
-                Swal.clickConfirm();
-                window.__selectedPrintFormat = format;
-              });
-            });
-          }
-        });
-        
-        const pf = window.__selectedPrintFormat;
-        window.__selectedPrintFormat = null;
-        
+        const pf = await promptPrintFormatModal();
         if (pf) {
           const printWin = window.open("/loading.html", "_blank", "width=1000,height=800,scrollbars=yes");
           const printUrl = await generateQuotePrintDocument(buildPrintableQuote(finalQuote, totals), user, pf, event);
@@ -1547,30 +1693,52 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             localSwal({ icon: 'error', title: 'Error', text: 'No se pudo generar el documento.' });
           }
         }
-      } else if (result.isDenied) {
+      } else if (action === 'whatsapp') {
+        const user = authService.getCurrentUser();
         const showGuidedAlert = async () => {
           const waResult = await localSwal({
-            icon: 'info',
-            title: 'Enviar por WhatsApp',
+            icon: null,
+            title: '',
             html: `
-              <div style="text-align: left; font-size: 14px; line-height: 1.5; padding: 0 10px;">
-                <p>Por políticas de WhatsApp, no es posible adjuntar archivos automáticamente mediante enlaces. Por favor realiza los siguientes pasos:</p>
-                <ol>
-                  <li style="margin-bottom: 8px;">Presiona <strong>"1. Generar PDF"</strong> para abrir y guardar la cotización en tu equipo.</li>
-                  <li style="margin-bottom: 8px;">Presiona <strong>"2. Abrir WhatsApp"</strong> para iniciar el chat con el mensaje pre-cargado.</li>
-                  <li><strong>Arrastra o adjunta</strong> el archivo PDF guardado en el chat.</li>
-                </ol>
+              <div class="qwa-dialog-wrapper">
+                <div class="qwa-header">
+                  <div class="qwa-header-icon-box">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                  </div>
+                  <h3 class="qwa-title">Enviar por WhatsApp</h3>
+                  <p class="qwa-subtitle">WhatsApp no permite adjuntar archivos directamente desde enlaces web. Sigue estos 3 pasos:</p>
+                </div>
+
+                <div class="qwa-steps-list">
+                  <div class="qwa-step-card is-step1">
+                    <div class="qwa-step-number">1</div>
+                    <div class="qwa-step-text">Presiona <strong>"1. Generar PDF"</strong> para abrir y guardar la cotización en tu equipo.</div>
+                  </div>
+                  <div class="qwa-step-card is-step2">
+                    <div class="qwa-step-number">2</div>
+                    <div class="qwa-step-text">Presiona <strong>"2. Abrir WhatsApp"</strong> para iniciar el chat con el mensaje pre-cargado.</div>
+                  </div>
+                  <div class="qwa-step-card is-step3">
+                    <div class="qwa-step-number">3</div>
+                    <div class="qwa-step-text"><strong>Arrastra o adjunta</strong> el archivo PDF guardado en el chat.</div>
+                  </div>
+                </div>
               </div>
             `,
             showConfirmButton: true,
             showDenyButton: true,
             showCancelButton: true,
-            confirmButtonText: '📄 1. Generar PDF',
-            denyButtonText: '💬 2. Abrir WhatsApp',
+            confirmButtonText: '1. Generar PDF',
+            denyButtonText: '2. Abrir WhatsApp',
             cancelButtonText: 'Listo',
-            confirmButtonColor: '#3085d6',
-            denyButtonColor: '#25d366',
-            cancelButtonColor: '#6e7881',
+            customClass: {
+              popup: 'qwa-swal-popup',
+              confirmButton: 'qwa-btn-pdf',
+              denyButton: 'qwa-btn-wa',
+              cancelButton: 'qwa-btn-dismiss'
+            },
             allowOutsideClick: false,
           });
 
@@ -1623,14 +1791,14 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
             <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px; color: #991b1b; font-family: monospace; font-size: 12px; word-break: break-word; margin-bottom: 12px;">
               ${errorMsg}
             </div>
-            <p style="color: #047857; font-weight: 600; margin-bottom: 4px;">🛡️ Tus datos no se han perdido:</p>
+            <p style="color: #047857; font-weight: 600; margin-bottom: 4px;">Tus datos no se han perdido:</p>
             <p style="margin: 0; color: #64748b; font-size: 12px;">Esta ventana permanecerá abierta para que no pierdas ningún dato. Puedes reintentar guardar o copiar un respaldo de emergencia al portapapeles.</p>
           </div>
         `,
         showDenyButton: true,
         showCancelButton: true,
-        confirmButtonText: '🔄 Reintentar guardar',
-        denyButtonText: '📋 Copiar respaldo JSON',
+        confirmButtonText: 'Reintentar guardar',
+        denyButtonText: 'Copiar respaldo JSON',
         cancelButtonText: 'Continuar editando',
         confirmButtonColor: '#2563eb',
         denyButtonColor: '#059669',
@@ -2153,75 +2321,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     }
 
     const user = authService.getCurrentUser();
-
-    const formatModal = await localSwal({
-      title: '<strong style="color:#118895">Selecciona el formato</strong>',
-      html: `
-        <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px;padding:0 10px;">
-          <div class="format-card" data-format="standard" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#118895,#0d6b76);display:flex;align-items:center;justify-content:center;font-size:24px;">📄</div>
-              <div style="flex:1;">
-                <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Cotización</div>
-                <div style="font-size:12px;color:#64748b;">Cotización + Contrato</div>
-              </div>
-              <div style="color:#94a3b8;font-size:20px;">→</div>
-            </div>
-          </div>
-          
-          <div class="format-card" data-format="completa" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:24px;">📋</div>
-              <div style="flex:1;">
-                <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Contrato</div>
-                <div style="font-size:12px;color:#64748b;">Cotización + Menú Montaje + Contrato</div>
-              </div>
-              <div style="color:#94a3b8;font-size:20px;">→</div>
-            </div>
-          </div>
-          
-          <div class="format-card" data-format="sin_precios" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:12px;padding:16px;transition:all 0.2s;background:#fff;">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:24px;">🔒</div>
-              <div style="flex:1;">
-                <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:2px;">Sin Precio/Informe</div>
-                <div style="font-size:12px;color:#64748b;">Cotización (Q0) + Menú Montaje</div>
-              </div>
-              <div style="color:#94a3b8;font-size:20px;">→</div>
-            </div>
-          </div>
-        </div>
-      `,
-      showCancelButton: true,
-      showConfirmButton: false,
-      cancelButtonText: 'Cancelar',
-      cancelButtonColor: '#6e7881',
-      width: '480px',
-      didOpen: () => {
-        const cards = document.querySelectorAll('.format-card');
-        cards.forEach(card => {
-          card.addEventListener('mouseenter', function() {
-            this.style.borderColor = '#118895';
-            this.style.boxShadow = '0 4px 12px rgba(17,136,149,0.15)';
-            this.style.transform = 'translateY(-2px)';
-          });
-          card.addEventListener('mouseleave', function() {
-            this.style.borderColor = '#e5e7eb';
-            this.style.boxShadow = 'none';
-            this.style.transform = 'translateY(0)';
-          });
-          card.addEventListener('click', function() {
-            const format = this.getAttribute('data-format');
-            window.__selectedPrintFormat = format;
-            Swal.clickConfirm();
-          });
-        });
-      }
-    });
-
-    const printOption = window.__selectedPrintFormat;
-    window.__selectedPrintFormat = null;
-
+    const printOption = await promptPrintFormatModal();
     if (!printOption) return;
 
     // Abrir la ventana síncronamente antes de la generación asíncrona para que iOS lo acepte

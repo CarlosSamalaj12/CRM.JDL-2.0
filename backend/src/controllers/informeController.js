@@ -4,6 +4,20 @@ const OCCUPACION_JOIN = `
   (e.Idocupacion = i.id_ocupacion OR (e.Idocupacion = SUBSTRING_INDEX(i.id_ocupacion, '_s', 1) AND NOT EXISTS (SELECT 1 FROM tbl_seguimientocotizaciones e2 WHERE e2.Idocupacion = i.id_ocupacion)))
 `;
 
+function toIsoDate(value) {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const clean = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.slice(0, 10);
+  }
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 async function fetchInformeWithDias(informeId) {
   const [infRows] = await pool.query(`
     SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion
@@ -557,8 +571,16 @@ export async function checkEventInformes(req, res, next) {
       WHERE (i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%'))
         AND (i.estado IS NULL OR i.estado = 'activo')
         AND (i.deleted_at IS NULL)
+        AND i.id = (
+          SELECT i2.id FROM informes_eventos i2
+          WHERE (i2.id_ocupacion = ? OR i2.id_ocupacion = ? OR i2.id_ocupacion LIKE CONCAT(?, '_%'))
+            AND (i2.estado IS NULL OR i2.estado = 'activo')
+            AND i2.deleted_at IS NULL
+          ORDER BY i2.version DESC, i2.id DESC
+          LIMIT 1
+        )
       ORDER BY i.version DESC
-    `, [rawId, baseId, baseId]);
+    `, [rawId, baseId, baseId, rawId, baseId, baseId]);
 
     if (rows.length === 0) {
       return res.json({ hasInformes: false, informes: [] });
@@ -567,7 +589,9 @@ export async function checkEventInformes(req, res, next) {
     const infIds = rows.map(r => r.id);
     const placeholders = infIds.map(() => '?').join(',');
     const [dias] = await pool.query(`
-      SELECT idd.id, idd.informe_id, idd.fecha_evento, idd.menu_id, idd.descripcion_montaje,
+      SELECT idd.id, idd.informe_id,
+             DATE_FORMAT(idd.fecha_evento, '%Y-%m-%d') AS fecha_evento,
+             idd.menu_id, idd.descripcion_montaje,
              cm.nombre_menu
       FROM informe_dias_detalle idd
       LEFT JOIN cat_menus cm ON idd.menu_id = cm.id
@@ -584,7 +608,7 @@ export async function checkEventInformes(req, res, next) {
       } catch { parsed = {}; }
       diasPorInforme[d.informe_id].push({
         id: d.id,
-        fecha: d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : '',
+        fecha: toIsoDate(d.fecha_evento),
         menu_nombre: d.nombre_menu || null,
         salon: parsed?.salon || parsed?.montajes?.[0]?.salon || '',
         horario: parsed?.horario || parsed?.montajes?.[0]?.horario || '',

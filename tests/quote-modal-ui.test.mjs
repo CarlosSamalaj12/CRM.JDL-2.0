@@ -48,3 +48,62 @@ test('el encabezado no repite las acciones disponibles en la barra flotante', as
   assert.doesNotMatch(header, /selectedItemIds|Duplicar|Subir|Bajar|Limpiar|Deseleccionar/);
   assert.match(source, /className="qp-floating-selection-bar"/);
 });
+
+test('modal de selección de formato de impresión erradica emojis y utiliza Bento cards con SVG minimalistas', async () => {
+  const source = await readFile(quoteModalPath, 'utf8');
+  const cssPath = new URL('../src/modules/calendar/components/quoteMobile.css', import.meta.url);
+  const cssSource = await readFile(cssPath, 'utf8');
+
+  // Verifica que promptPrintFormatModal no use emojis del sistema
+  const fnStart = source.indexOf('const promptPrintFormatModal = () => {');
+  const fnEnd = source.indexOf('const handleSaveQuote = async () => {', fnStart);
+  assert.ok(fnStart >= 0 && fnEnd > fnStart);
+  const modalCode = source.slice(fnStart, fnEnd);
+
+  assert.doesNotMatch(modalCode, /📄|📋|🔒|→/);
+  assert.match(modalCode, /icon:\s*null/);
+  assert.match(modalCode, /popup:\s*['"]qformat-swal-popup['"]/);
+  assert.match(modalCode, /qformat-card is-standard/);
+  assert.match(modalCode, /qformat-card is-completa/);
+  assert.match(modalCode, /qformat-card is-sin-precios/);
+  assert.match(modalCode, /<svg width="22" height="22" viewBox="0 0 24 24"/);
+
+  // Verifica clases ejecutivas en el CSS
+  assert.match(cssSource, /\.qformat-swal-popup/);
+  assert.match(cssSource, /\.qformat-card/);
+  assert.match(cssSource, /\.qformat-pill/);
+  assert.match(cssSource, /\.qformat-cancel-btn/);
+  assert.match(cssSource, /\.qformat-card\.is-standard:hover/);
+});
+
+test('modal de cotización guardada erradica el check verde genérico de SweetAlert y emojis, usando animación SVG y Bento cards', async () => {
+  const source = await readFile(quoteModalPath, 'utf8');
+  const cssPath = new URL('../src/modules/calendar/components/quoteMobile.css', import.meta.url);
+  const cssSource = await readFile(cssPath, 'utf8');
+
+  // Verifica que promptQuoteSavedModal no use emojis del sistema ni icon: 'success'
+  const fnStart = source.indexOf('const promptQuoteSavedModal = (finalQuote) => {');
+  const fnEnd = source.indexOf('const handleSaveQuote = async () => {', fnStart);
+  assert.ok(fnStart >= 0 && fnEnd > fnStart);
+  const modalCode = source.slice(fnStart, fnEnd);
+
+  assert.doesNotMatch(modalCode, /🖨️|💬|❌/);
+  assert.match(modalCode, /icon:\s*null/);
+  assert.match(modalCode, /popup:\s*['"]qsave-swal-popup['"]/);
+  assert.match(modalCode, /qsave-badge-icon/);
+  assert.match(modalCode, /qsave-check-svg/);
+  assert.match(modalCode, /qsave-check-path/);
+  assert.match(modalCode, /qsave-card is-print/);
+  assert.match(modalCode, /qsave-card is-whatsapp/);
+
+  // Verifica clases y animaciones ejecutivas en quoteMobile.css
+  assert.match(cssSource, /\.qsave-swal-popup/);
+  assert.match(cssSource, /\.qsave-badge-icon/);
+  assert.match(cssSource, /@keyframes qsave-ring-pulse/);
+  assert.match(cssSource, /@keyframes qsave-check-draw/);
+  assert.match(cssSource, /\.qsave-card\.is-print:hover/);
+  assert.match(cssSource, /\.qsave-card\.is-whatsapp:hover/);
+  assert.match(cssSource, /\.qwa-swal-popup/);
+});
+
+

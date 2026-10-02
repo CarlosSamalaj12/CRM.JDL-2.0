@@ -1279,14 +1279,12 @@ export default function ReservationForm() {
         status: newStatus
       };
 
-      // Guardar con eventService.saveQuote (atómico rápido) o handleAddEvent como respaldo
+      // Guardar con eventService.saveQuote (atómico rápido) o handleAddEvent para reservas nuevas
       if (typeof eventService?.saveQuote === 'function' && (id || currentEvent.id)) {
         const targetId = id || currentEvent.id;
         await eventService.saveQuote(targetId, quoteData, newStatus);
-        try {
-          await handleAddEvent(updatedEvent);
-        } catch (_) {
-          // Si handleAddEvent falla por recarga de estado, la cotización ya está a salvo en MariaDB
+        if (typeof refreshData === 'function') {
+          try { refreshData(true); } catch (_) {}
         }
       } else {
         await handleAddEvent(updatedEvent);

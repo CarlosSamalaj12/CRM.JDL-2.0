@@ -1322,7 +1322,12 @@ async function ensureInformeConflictGuardStructure() {
       await conn.query(`ALTER TABLE informe_historial ADD COLUMN rol_usuario VARCHAR(50) NULL AFTER usuario_id`);
     }
 
-    // 5. Índices de rendimiento
+    // 5. Flexibilización en cotizaciones_evento (id_empresa y id_encargado opcionales)
+    try {
+      await conn.query(`ALTER TABLE cotizaciones_evento MODIFY COLUMN id_empresa VARCHAR(200) NULL DEFAULT NULL, MODIFY COLUMN id_encargado VARCHAR(200) NULL DEFAULT NULL`);
+    } catch (_) {}
+
+    // 6. Índices de rendimiento
     try {
       await conn.query(`CREATE INDEX IF NOT EXISTS idx_informes_id_reserva_origen ON informes_eventos (id_reserva_origen)`);
       await conn.query(`CREATE INDEX IF NOT EXISTS idx_informes_estado ON informes_eventos (estado)`);

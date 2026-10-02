@@ -32,6 +32,61 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Rediseño Ejecutivo del Diálogo de Cotización Guardada, Animación SVG y Guía de WhatsApp (`QuoteModal.jsx`, `quoteMobile.css`, `quote-modal-ui.test.mjs`) (2026-10-02)
+- Requerimiento: Reemplazar el checkmark verde pixelado/genérico de SweetAlert y los emojis del sistema operativo (`🖨️`, `💬`, `❌`) en el diálogo "¡Cotización guardada!". Crear un indicador de completado minimalista con animación fluida en SVG vectorial, halo pulsante en esmeralda, pastilla de estado "Guardado exitoso", chip de código de cotización (`COT-XXXXX`) y tarjetas Bento interactivas para "Imprimir / PDF" y "WhatsApp", junto con la modernización de la guía de pasos para compartir por WhatsApp.
+- Solución:
+  1. En `src/modules/calendar/components/quoteMobile.css`:
+     - Implementado `.qsave-swal-popup` con curvatura de 22px, sombreado profundo `0 25px 60px -15px rgba(15,23,42,0.28)` y ancho de 480px.
+     - Diseñado el badge de completado `.qsave-badge-icon` (62×62px) con fondo gradiente mint/esmeralda, animación de pop-in `@keyframes qsave-pop` y halo radiante suave `@keyframes qsave-ring-pulse`.
+     - Creado el trazo dinámico de verificación `.qsave-check-path` con animación de dibujo vectorial `@keyframes qsave-check-draw` que no se pixela en pantallas retina.
+     - Añadida pastilla `.qsave-status-pill` con punto brillante y chip de código `.qsave-code-chip`.
+     - Implementadas tarjetas Bento interactivas `.qsave-card` con variantes `.is-print` y `.is-whatsapp`, iconos vectoriales minimalistas SVG, badges temáticos y flechas SVG animadas con desplazamiento lateral.
+     - Diseñado `.qwa-swal-popup` con encabezado verde WhatsApp, tarjetas de pasos numeradas (1, 2, 3) y botones estilizados sin emojis.
+  2. En `src/modules/calendar/components/QuoteModal.jsx`:
+     - Creada la función `promptQuoteSavedModal(finalQuote)` que suprime los iconos genéricos (`icon: null`) y retorna de forma asíncrona la acción elegida (`'print'`, `'whatsapp'`, o `null`).
+     - Modernizado el flujo de WhatsApp (`showGuidedAlert`) para usar la nueva arquitectura de pasos Bento y botones vectoriales.
+     - Erradicados emojis en botones de error y respaldo.
+  3. Validado con 88 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión 2.1.162).
+
+### Solución: Rediseño Ejecutivo del Selector de Formato de Impresión/Exportación de Cotizaciones (`QuoteModal.jsx`, `quoteMobile.css`, `quote-modal-ui.test.mjs`) (2026-10-02)
+- Requerimiento: Modernizar integralmente el modal "Selecciona el formato" de cotizaciones/contratos, erradicando los emojis del sistema operativo (`📄`, `📋`, `🔒`, `→`) y el icono circular azul genérico de SweetAlert `( i )`. Crear una interfaz ejecutiva Bento con tarjetas interactivas, iconos vectoriales minimalistas SVG, pastillas categóricas (`Comercial`, `Operativo`, `Cocina / Staff`), microinteracciones de elevación e iluminación sutil, y plena accesibilidad con teclado.
+- Solución:
+  1. En `src/modules/calendar/components/quoteMobile.css`:
+     - Diseñado el contenedor `.qformat-swal-popup` con ancho controlado de 480px, esquinas suaves de 20px, sombreado `0 25px 60px -15px rgba(15,23,42,0.28)` y borde sutil.
+     - Incorporado encabezado `.qformat-header` con caja de icono gradiente `.qformat-header-icon-box` e icono SVG de documento/impresora.
+     - Implementadas tarjetas Bento interactivas `.qformat-card` con variantes temáticas:
+       - `.is-standard`: Acento Azul Cobalto (`#0284c7`), badge `Comercial`, SVG minimalista de hoja de cotización (`FileText`).
+       - `.is-completa`: Acento Esmeralda (`#059669`), badge `Operativo`, SVG minimalista de contrato / checklist (`ClipboardCheck`).
+       - `.is-sin-precios`: Acento Púrpura Imperial (`#7c3aed`), badge `Cocina / Staff`, SVG minimalista de candado seguro (`Lock`).
+     - Micro-animaciones en hover: elevación `-2px`, escalado sutil de la caja de icono `1.06`, desplazamiento `+4px` de la flecha SVG derecha y halo perimetral con el color institucional de cada formato.
+     - Botón de cancelación ejecutiva tipo pastilla `.qformat-cancel-btn`.
+  2. En `src/modules/calendar/components/QuoteModal.jsx`:
+     - Modificado `localSwal` para aceptar `icon: null` o `icon: false`, suprimiendo la animación azul por defecto de SweetAlert y permitiendo una cabecera nativa limpia.
+     - Creada la función unificada `promptPrintFormatModal()` que encapsula la renderización del diálogo Bento y el manejo de selección (vía clic o teclado `Enter`/`Space`).
+     - Conectado `promptPrintFormatModal()` tanto en `handleSaveQuote` (flujo post-guardado) como en `handleReimprimir` (botón de la barra superior).
+  3. Validado con 87 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión 2.1.160).
+
+### Solución: Corrección de Conflicto 409 al Guardar Cotizaciones, Formato ISO en Días de Informes y Filtrado de Versiones Activas (`eventsController.js`, `informeController.js`, `ReservationForm.jsx`, `server.cjs`, `quote-save-conflict-guard.test.mjs`) (2026-10-02)
+- Requerimiento: Resolver error donde al guardar una cotización desde el modal de cotización, el sistema arrojaba en consola `HTTP 409 Conflict: La modificación desvincula fechas o salones con informes de evento activos`, mostrando el toast rojo "Error al guardar el evento" aunque la cotización sí se persistía.
+- Causa raíz:
+  1. En `ReservationForm.jsx`, `handleQuoteSave` guardaba la cotización correctamente en MariaDB mediante `eventService.saveQuote`, pero inmediatamente intentaba ejecutar `await handleAddEvent(updatedEvent)` como respaldo. Al tratarse de un evento existente, `handleAddEvent` llamaba a `eventService.update` (`PUT /api/events/:id`), que disparaba innecesariamente el guardián de desvinculación de informes y la reescritura de slots de la reserva, mostrando un toast de error a pesar de que la cotización ya estaba guardada.
+  2. En `backend/src/controllers/eventsController.js` y `informeController.js`, las consultas de `informesActivos` obtenían **todas** las versiones históricas anteriores del informe (ej. versiones 1 a 33), las cuales contenían salones y días antiguos que ya habían sido modificados o descartados en la versión actual (versión 34).
+  3. En `informe_dias_detalle`, la columna `fecha_evento` es retornada por el driver `mysql2` como un objeto `Date` de JavaScript. La expresión `String(d.fecha_evento).slice(0, 10)` producía cadenas como `"Wed Sep 30"` o `"Fri Sep 25"`, rompiendo la comparación lexicográfica contra fechas ISO `"2026-09-30"` y provocando que cada día del informe fuera erróneamente clasificado como un conflicto no cubierto.
+  4. En `updateEvent` (`eventsController.js`), si la petición provenía de una actualización parcial o de un slot individual sin `expandedEvents` explícito, `expanded` se reducía a un solo elemento (`[eventData]`). Esto hacía que el validador comparara todos los días del informe contra un único slot, y además disparaba `DELETE FROM eventos WHERE id NOT IN (...)`, amenazando con eliminar los demás slots de la reserva.
+  5. En `cotizaciones_evento`, `id_empresa` e `id_encargado` estaban definidos como `NOT NULL`, lo que causaba fallos en `PUT /api/events/:id/quote` cuando la cotización no tenía empresa o encargado asociado.
+- Solución:
+  1. En `backend/src/controllers/eventsController.js`:
+     - Implementado el helper `toIsoDate(val)` para normalizar fechas procedentes de strings o instancias `Date`.
+     - Actualizada la consulta de `informesActivos` para filtrar exclusivamente la última versión activa para toda la serie de la reserva (`AND i.id = (SELECT i2.id FROM informes_eventos i2 WHERE (i2.id_ocupacion = ? OR i2.id_ocupacion = ? OR i2.id_ocupacion LIKE CONCAT(?, '_%')) AND (i2.estado IS NULL OR i2.estado = 'activo') AND i2.deleted_at IS NULL ORDER BY i2.version DESC, i2.id DESC LIMIT 1)`).
+     - Incorporado `hasExplicitMultiSlots` y `slotsForCoverageCheck`: si la petición no reemplaza explícitamente los multi-slots, recupera los slots existentes de la base de datos para validar la cobertura completa del informe y previene el borrado involuntario de otros slots en `eventos`.
+     - Añadido `DATE_FORMAT(idd.fecha_evento, '%Y-%m-%d') AS fecha_evento` en la consulta de días y normalización con `toIsoDate` en `diaFecha`, `sStart` y `sEnd`.
+  2. En `backend/src/controllers/informeController.js`:
+     - Implementado `toIsoDate(val)` y actualizado `checkEventInformes` para consultar solo la versión activa más reciente de la serie y formatear las fechas de días en formato ISO estricto (`YYYY-MM-DD`).
+  3. En `server.cjs`:
+     - Incorporada la migración en `ensureInformeConflictGuardStructure` para permitir valores `NULL` en `id_empresa` e `id_encargado` de la tabla `cotizaciones_evento`.
+  4. En `src/modules/calendar/components/ReservationForm.jsx`:
+     - En `handleQuoteSave`, cuando el evento ya existe (`id` o `currentEvent.id`), se ejecuta el guardado atómico con `eventService.saveQuote(targetId, quoteData, newStatus)` y se llama a `refreshData(true)` en segundo plano sin invocar `handleAddEvent` de forma redundante.
+  5. Validado con 86 pruebas unitarias automáticas (`node --test tests/*.test.mjs`), reinicio limpio del servidor backend y compilación de producción exitosa (versión 2.1.158).
 ### Solución: Blindaje Antidesfase de Informes al Modificar Reservas, Intercepción Atómica HTTP 409 y Modal Ejecutivo Tri-Estado (`eventsController.js`, `informeController.js`, `informeRoutes.js`, `server.cjs`, `eventService.js`, `ReservationForm.jsx`, `InformeTransferModal.jsx`, `informes-conflict-guard.test.mjs`) (2026-10-01)
 - Requerimiento: Implementar un mecanismo de intercepción y blindaje atómico al modificar fechas o salones de una reserva con informes asociados. Si existen informes en días o salones que van a ser liberados o desplazados, bloquear la actualización automática con HTTP 409 Conflict. Presentar un modal no nativo, ultra intuitivo con tarjetas Bento e iconos minimalistas SVG que permita al usuario decidir el destino con 3 acciones: a) Mover/Reasignar a un salón/slot válido, b) Desvincular/Archivar para preservación histórica sin perder datos, y c) Eliminar mediante Soft Delete auditado.
 - Solución:

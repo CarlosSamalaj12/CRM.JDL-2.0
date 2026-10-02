@@ -661,6 +661,19 @@ const asSafeTime = (val) => {
   return '00:00:00';
 };
 const toStr = (val) => String(val || '').trim();
+const toIsoDate = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string') {
+    const clean = val.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.slice(0, 10);
+  }
+  const d = val instanceof Date ? val : new Date(val);
+  if (Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 async function upsertEventSlot(conn, e) {
   const id = toStr(e?.id);
@@ -754,6 +767,10 @@ export async function updateEvent(req, res, next) {
   const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
   const groupId = toStr(eventData?.groupId || baseId);
 
+  const hasExplicitMultiSlots = (Array.isArray(req.body?.expandedEvents) && req.body.expandedEvents.length > 0)
+    || (Array.isArray(eventData?._allExpanded) && eventData._allExpanded.length > 0)
+    || (Array.isArray(eventData?.slots) && eventData.slots.length > 0);
+
   const expanded = Array.isArray(req.body?.expandedEvents) && req.body.expandedEvents.length > 0
     ? req.body.expandedEvents
     : Array.isArray(eventData?._allExpanded) && eventData._allExpanded.length > 0
@@ -778,18 +795,52 @@ export async function updateEvent(req, res, next) {
       WHERE (i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%'))
         AND (i.estado IS NULL OR i.estado = 'activo')
         AND i.deleted_at IS NULL
-    `, [rawId, baseId, baseId]);
+        AND i.id = (
+          SELECT i2.id FROM informes_eventos i2
+          WHERE (i2.id_ocupacion = ? OR i2.id_ocupacion = ? OR i2.id_ocupacion LIKE CONCAT(?, '_%'))
+            AND (i2.estado IS NULL OR i2.estado = 'activo')
+            AND i2.deleted_at IS NULL
+          ORDER BY i2.version DESC, i2.id DESC
+          LIMIT 1
+        )
+    `, [rawId, baseId, baseId, rawId, baseId, baseId]);
 
     if (informesActivos.length > 0) {
       const infIds = informesActivos.map(inf => inf.id);
       const [dias] = await conn.query(`
-        SELECT idd.id AS dia_id, idd.informe_id, idd.fecha_evento, idd.descripcion_montaje,
+        SELECT idd.id AS dia_id, idd.informe_id,
+               DATE_FORMAT(idd.fecha_evento, '%Y-%m-%d') AS fecha_evento,
+               idd.descripcion_montaje,
                cm.nombre_menu
         FROM informe_dias_detalle idd
         LEFT JOIN cat_menus cm ON idd.menu_id = cm.id
         WHERE idd.informe_id IN (?)
         ORDER BY idd.fecha_evento ASC, idd.id ASC
       `, [infIds]);
+
+      // Si no es un reemplazo explícito multi-slot (ej. actualización de cotización o de slot individual),
+      // los demás slots de la reserva en la BD siguen vigentes y cubren los días del informe.
+      let slotsForCoverageCheck = expanded;
+      if (!hasExplicitMultiSlots) {
+        const [existingDbSlots] = await conn.query(
+          `SELECT id, nombre_salon AS salon, fecha_inicio_reserva AS dateStart, fecha_fin_reserva AS dateEnd, fecha_evento AS date, hora_inicio AS startTime, hora_fin AS endTime FROM eventos WHERE (id_grupo = ? OR id = ?)`,
+          [groupId, groupId]
+        );
+        if (existingDbSlots && existingDbSlots.length > 0) {
+          slotsForCoverageCheck = existingDbSlots.map(es => {
+            if (String(es.id) === String(eventData.id || rawId)) {
+              return {
+                ...es,
+                ...eventData,
+                salon: eventData.salon || es.salon,
+                dateStart: eventData.dateStart || eventData.date || es.dateStart,
+                dateEnd: eventData.dateEnd || eventData.endDate || es.dateEnd
+              };
+            }
+            return es;
+          });
+        }
+      }
 
       const uncoveredConflicts = [];
 
@@ -799,13 +850,13 @@ export async function updateEvent(req, res, next) {
           parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || {});
         } catch { parsed = {}; }
 
-        const diaFecha = d.fecha_evento ? String(d.fecha_evento).slice(0, 10) : '';
+        const diaFecha = toIsoDate(d.fecha_evento);
         const diaSalon = (parsed.salon || parsed.montajes?.[0]?.salon || '').trim().toLowerCase();
 
-        // Verificar si algún slot entrante cubre este día (fecha y salón)
-        const matchingSlot = expanded.find(s => {
-          const sStart = String(s.dateStart || s.date || '').slice(0, 10);
-          const sEnd = String(s.dateEnd || sStart).slice(0, 10);
+        // Verificar si algún slot cubre este día (fecha y salón)
+        const matchingSlot = slotsForCoverageCheck.find(s => {
+          const sStart = toIsoDate(s.dateStart || s.eventDateStart || s.date || '');
+          const sEnd = toIsoDate(s.dateEnd || s.eventDateEnd || s.endDate || sStart);
           const sSalon = String(s.salon || '').trim().toLowerCase();
           const coversDate = diaFecha ? (diaFecha >= sStart && diaFecha <= sEnd) : true;
           const sameSalon = diaSalon ? (diaSalon === sSalon) : true;
@@ -840,7 +891,7 @@ export async function updateEvent(req, res, next) {
           code: 'INFORMES_DESYNC_BLOCKED',
           message: 'La modificación desvincula fechas o salones con informes de evento activos.',
           conflicts: uncoveredConflicts,
-          availableSlots: expanded.map(s => ({
+          availableSlots: slotsForCoverageCheck.map(s => ({
             id: s.id,
             salon: s.salon,
             dateStart: s.dateStart || s.date,
@@ -857,7 +908,7 @@ export async function updateEvent(req, res, next) {
       await applyInformeResolutionsInternal(conn, baseId, informeResolutions, req.user);
     }
 
-    if (expanded.length > 0) {
+    if (hasExplicitMultiSlots && expanded.length > 0) {
       const incomingIds = expanded.map(s => toStr(s?.id)).filter(Boolean);
       if (incomingIds.length > 0) {
         const placeholders = incomingIds.map(() => '?').join(',');

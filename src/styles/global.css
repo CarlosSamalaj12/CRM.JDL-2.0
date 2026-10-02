@@ -8668,7 +8668,7 @@ body.quoteModeOpen #quoteBackdrop[hidden]{
 }
 
 /* Custom compact styles for SweetAlert2 modals to make them non-invasive */
-body div.swal2-container div.swal2-popup.swal2-modal {
+body div.swal2-container div.swal2-popup.swal2-modal:not(.qformat-swal-popup):not(.qsave-swal-popup):not(.qwa-swal-popup) {
   width: 360px !important;
   padding: 1.25rem !important;
   border-radius: 16px !important;

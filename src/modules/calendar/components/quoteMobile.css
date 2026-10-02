@@ -2308,6 +2308,835 @@ body .swal2-styled.swal2-cancel:hover {
   color: #1e293b !important;
 }
 
+/* ==========================================================================
+   MODAL DE SELECCIÓN DE FORMATO DE IMPRESIÓN (REDISEÑO EJECUTIVO MINIMALISTA)
+   ========================================================================== */
+/* High specificity override to guarantee 520px width regardless of container or load order */
+div.swal2-container div.swal2-popup.qformat-swal-popup,
+div.swal2-container div.swal2-popup.swal2-modal.qformat-swal-popup,
+body div.swal2-container div.swal2-popup.qformat-swal-popup,
+body div.swal2-container div.swal2-popup.swal2-modal.qformat-swal-popup,
+#qp-root div.swal2-container div.swal2-popup.qformat-swal-popup,
+#qp-root div.swal2-container div.swal2-popup.swal2-modal.qformat-swal-popup,
+.swal2-popup.qformat-swal-popup {
+  width: 520px !important;
+  max-width: 95vw !important;
+  min-width: 320px !important;
+  padding: 28px 24px 22px 24px !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(15, 23, 42, 0.06) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  font-family: inherit !important;
+  text-align: left !important;
+}
+
+body div.swal2-container div.swal2-popup.qformat-swal-popup .swal2-title,
+#qp-root div.swal2-container div.swal2-popup.qformat-swal-popup .swal2-title {
+  display: none !important;
+}
+
+body div.swal2-container div.swal2-popup.qformat-swal-popup .swal2-html-container,
+#qp-root div.swal2-container div.swal2-popup.qformat-swal-popup .swal2-html-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+body div.swal2-container div.swal2-popup.qformat-swal-popup .swal2-actions,
+#qp-root div.swal2-container div.swal2-popup.qformat-swal-popup .swal2-actions {
+  margin-top: 18px !important;
+  margin-bottom: 0 !important;
+  justify-content: center !important;
+}
+
+.qformat-dialog-wrapper {
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+}
+
+.qformat-header {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.qformat-header-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  color: #0284c7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.12);
+}
+
+.qformat-title {
+  font-size: 19px !important;
+  font-weight: 850 !important;
+  color: #0f172a !important;
+  margin: 0 0 4px 0 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.25 !important;
+}
+
+.qformat-subtitle {
+  font-size: 13px !important;
+  color: #64748b !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.qformat-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.qformat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 18px;
+  border-radius: 14px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  text-align: left;
+  outline: none;
+  min-height: 72px;
+  box-sizing: border-box;
+}
+
+.qformat-card:focus-visible {
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.35) !important;
+}
+
+.qformat-card-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.22s ease;
+}
+
+.qformat-card-icon-box.is-blue {
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  color: #2563eb;
+}
+
+.qformat-card-icon-box.is-emerald {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+}
+
+.qformat-card-icon-box.is-purple {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+  color: #7c3aed;
+}
+
+.qformat-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.qformat-card-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+  line-height: 1.2;
+}
+
+.qformat-card-title {
+  font-size: 15px !important;
+  font-weight: 750 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.015em !important;
+  white-space: nowrap !important;
+  line-height: 1.2 !important;
+}
+
+.qformat-pill {
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  padding: 2px 8px !important;
+  border-radius: 6px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+.qformat-pill.is-blue {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.qformat-pill.is-emerald {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.qformat-pill.is-purple {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.qformat-card-desc {
+  font-size: 13px !important;
+  color: #475569 !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.005em !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.qformat-card:hover .qformat-card-desc {
+  color: #0f172a !important;
+}
+
+.qformat-card-arrow {
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-left: 2px;
+}
+
+/* Hover effects */
+.qformat-card.is-standard:hover {
+  border-color: #3b82f6;
+  background: #f8fbff;
+  box-shadow: 0 8px 24px -4px rgba(59, 130, 246, 0.14), 0 0 0 1px rgba(59, 130, 246, 0.4);
+  transform: translateY(-2px);
+}
+.qformat-card.is-standard:hover .qformat-card-arrow {
+  color: #2563eb;
+  transform: translateX(4px);
+}
+.qformat-card.is-standard:hover .qformat-card-icon-box {
+  transform: scale(1.06);
+}
+
+.qformat-card.is-completa:hover {
+  border-color: #10b981;
+  background: #f0fdf4;
+  box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.14), 0 0 0 1px rgba(16, 185, 129, 0.4);
+  transform: translateY(-2px);
+}
+.qformat-card.is-completa:hover .qformat-card-arrow {
+  color: #059669;
+  transform: translateX(4px);
+}
+.qformat-card.is-completa:hover .qformat-card-icon-box {
+  transform: scale(1.06);
+}
+
+.qformat-card.is-sin-precios:hover {
+  border-color: #8b5cf6;
+  background: #faf5ff;
+  box-shadow: 0 8px 24px -4px rgba(139, 92, 246, 0.14), 0 0 0 1px rgba(139, 92, 246, 0.4);
+  transform: translateY(-2px);
+}
+.qformat-card.is-sin-precios:hover .qformat-card-arrow {
+  color: #7c3aed;
+  transform: translateX(4px);
+}
+.qformat-card.is-sin-precios:hover .qformat-card-icon-box {
+  transform: scale(1.06);
+}
+
+.qformat-card:active {
+  transform: scale(0.985) translateY(0);
+}
+
+body .swal2-cancel.qformat-cancel-btn {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  padding: 8px 26px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  transition: all 0.15s ease !important;
+}
+
+body .swal2-cancel.qformat-cancel-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ==========================================================================
+   MODAL EJECUTIVO: COTIZACIÓN GUARDADA Y ACCIONES POST-GUARDADO
+   ========================================================================== */
+
+div.swal2-container div.swal2-popup.qsave-swal-popup,
+div.swal2-container div.swal2-popup.swal2-modal.qsave-swal-popup,
+body div.swal2-container div.swal2-popup.qsave-swal-popup,
+body div.swal2-container div.swal2-popup.swal2-modal.qsave-swal-popup,
+#qp-root div.swal2-container div.swal2-popup.qsave-swal-popup,
+#qp-root div.swal2-container div.swal2-popup.swal2-modal.qsave-swal-popup,
+.swal2-popup.qsave-swal-popup {
+  width: 520px !important;
+  max-width: 95vw !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.28) !important;
+  padding: 28px 24px 22px 24px !important;
+  font-family: inherit !important;
+}
+
+body div.swal2-container div.swal2-popup.qsave-swal-popup .swal2-title,
+#qp-root div.swal2-container div.swal2-popup.qsave-swal-popup .swal2-title {
+  display: none !important;
+}
+
+body div.swal2-container div.swal2-popup.qsave-swal-popup .swal2-html-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: inherit !important;
+  overflow: visible !important;
+}
+
+body div.swal2-container div.swal2-popup.qsave-swal-popup .swal2-actions {
+  margin-top: 14px !important;
+  gap: 10px !important;
+  width: 100% !important;
+  justify-content: center !important;
+}
+
+/* Wrapper */
+.qsave-dialog-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* Header con icono de completado minimalista */
+.qsave-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.qsave-badge-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.qsave-badge-icon {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 2px solid #a7f3d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #059669;
+  position: relative;
+  animation: qsave-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards, qsave-ring-pulse 2.2s infinite ease-out;
+}
+
+.qsave-check-svg {
+  width: 30px;
+  height: 30px;
+}
+
+.qsave-check-path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: qsave-check-draw 0.45s cubic-bezier(0.65, 0, 0.45, 1) 0.15s forwards;
+}
+
+@keyframes qsave-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes qsave-pop {
+  0% {
+    transform: scale(0.65);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes qsave-ring-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.38), 0 8px 20px -4px rgba(16, 185, 129, 0.22);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(16, 185, 129, 0), 0 8px 20px -4px rgba(16, 185, 129, 0.22);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0), 0 8px 20px -4px rgba(16, 185, 129, 0.22);
+  }
+}
+
+.qsave-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3.5px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #15803d;
+  letter-spacing: 0.02em;
+}
+
+.qsave-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 6px #16a34a;
+}
+
+.qsave-title {
+  margin: 10px 0 6px 0;
+  font-size: 21px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.025em;
+}
+
+.qsave-code-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.qsave-code-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.qsave-code-val {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.03em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.qsave-subtitle {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Bento Cards Grid */
+.qsave-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.qsave-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 18px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  user-select: none;
+  min-height: 72px;
+  box-sizing: border-box;
+}
+
+.qsave-card:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+}
+
+.qsave-card-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.qsave-card-icon-box.is-blue {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #0284c7;
+  border: 1px solid #bfdbfe;
+}
+
+.qsave-card-icon-box.is-emerald {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.qsave-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.qsave-card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 3px;
+  line-height: 1.2;
+}
+
+.qsave-card-title {
+  font-size: 15px !important;
+  font-weight: 750 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.015em !important;
+  white-space: nowrap !important;
+  line-height: 1.2 !important;
+}
+
+.qsave-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2.5px 8px !important;
+  border-radius: 6px;
+  font-size: 10.5px !important;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  line-height: 1.2 !important;
+}
+
+.qsave-pill.is-blue {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.qsave-pill.is-emerald {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.qsave-card-desc {
+  font-size: 13px !important;
+  color: #334155 !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.005em !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.qsave-card:hover .qsave-card-desc {
+  color: #0f172a !important;
+}
+
+.qsave-card-arrow {
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+}
+
+/* Card hover animations */
+.qsave-card.is-print:hover {
+  border-color: #38bdf8;
+  background: #f8fafc;
+  box-shadow: 0 8px 22px -4px rgba(2, 132, 199, 0.15), 0 0 0 1px rgba(2, 132, 199, 0.35);
+  transform: translateY(-2px);
+}
+
+.qsave-card.is-print:hover .qsave-card-arrow {
+  color: #0284c7;
+  transform: translateX(4px);
+}
+
+.qsave-card.is-print:hover .qsave-card-icon-box {
+  transform: scale(1.06);
+}
+
+.qsave-card.is-whatsapp:hover {
+  border-color: #34d399;
+  background: #f8fafc;
+  box-shadow: 0 8px 22px -4px rgba(5, 150, 105, 0.15), 0 0 0 1px rgba(5, 150, 105, 0.35);
+  transform: translateY(-2px);
+}
+
+.qsave-card.is-whatsapp:hover .qsave-card-arrow {
+  color: #059669;
+  transform: translateX(4px);
+}
+
+.qsave-card.is-whatsapp:hover .qsave-card-icon-box {
+  transform: scale(1.06);
+}
+
+.qsave-card:active {
+  transform: scale(0.985) translateY(0);
+}
+
+/* Botón Cancelar/Cerrar */
+body .swal2-cancel.qsave-cancel-btn {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  padding: 8px 26px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  transition: all 0.15s ease !important;
+}
+
+body .swal2-cancel.qsave-cancel-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ==========================================================================
+   MODAL EJECUTIVO: GUÍA DE WHATSAPP
+   ========================================================================== */
+
+body div.swal2-container div.swal2-popup.qwa-swal-popup {
+  width: 490px !important;
+  max-width: 95vw !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.28) !important;
+  padding: 26px 24px 20px 24px !important;
+  font-family: inherit !important;
+}
+
+body div.swal2-container div.swal2-popup.qwa-swal-popup .swal2-title {
+  display: none !important;
+}
+
+body div.swal2-container div.swal2-popup.qwa-swal-popup .swal2-html-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: inherit !important;
+  overflow: visible !important;
+}
+
+body div.swal2-container div.swal2-popup.qwa-swal-popup .swal2-actions {
+  margin-top: 18px !important;
+  gap: 10px !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+}
+
+.qwa-dialog-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: left;
+}
+
+.qwa-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.qwa-header-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1.5px solid #a7f3d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #059669;
+  margin-bottom: 10px;
+  box-shadow: 0 6px 16px -2px rgba(16, 185, 129, 0.2);
+}
+
+.qwa-title {
+  margin: 0 0 4px 0;
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.qwa-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.qwa-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.qwa-step-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.qwa-step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.qwa-step-card.is-step2 .qwa-step-number {
+  background: #059669;
+}
+
+.qwa-step-card.is-step3 .qwa-step-number {
+  background: #64748b;
+}
+
+.qwa-step-text {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.qwa-step-text strong {
+  color: #0f172a;
+}
+
+/* Botones de acción en modal WhatsApp */
+body .swal2-confirm.qwa-btn-pdf {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  padding: 9px 18px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25) !important;
+}
+
+body .swal2-deny.qwa-btn-wa {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: #059669 !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  padding: 9px 18px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25) !important;
+}
+
+body .swal2-cancel.qwa-btn-dismiss {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-radius: 10px !important;
+  padding: 9px 18px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+
 
 
 
