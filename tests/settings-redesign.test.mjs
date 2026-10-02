@@ -133,3 +133,30 @@ test('settings.css contiene los estilos exactos de la maqueta de referencia', as
   // Footer
   assert.match(css, /\.settings-footer/);
 });
+
+test('settings.css implementa diseño responsivo móvil completo para el panel de configuración', async () => {
+  const css = await readFile(settingsCssPath, 'utf8');
+
+  // Media queries responsive
+  assert.match(css, /@media\s*\(\s*max-width:\s*880px\s*\)/);
+  assert.match(css, /@media\s*\(\s*max-width:\s*480px\s*\)/);
+
+  // Layout grid y sidebar colapsan a columna completa en móvil
+  assert.match(css, /\.settings-layout-grid[\s\S]*?flex-direction:\s*column\s*!important/);
+  assert.match(css, /\.settings-sidebar-col[\s\S]*?width:\s*100%\s*!important/);
+
+  // Nav horizontal deslizable con pills
+  assert.match(css, /\.settings-nav[\s\S]*?flex-direction:\s*row\s*!important/);
+  assert.match(css, /\.settings-nav[\s\S]*?overflow-x:\s*auto\s*!important/);
+  assert.match(css, /\.settings-nav-item[\s\S]*?border-radius:\s*999px\s*!important/);
+
+  // Header institucional adaptable sin desbordamiento
+  assert.match(css, /\.settings-header-bar[\s\S]*?flex-direction:\s*column\s*!important/);
+  assert.match(css, /\.settings-header-actions[\s\S]*?width:\s*100%\s*!important/);
+  assert.match(css, /\.settings-btn-audit[\s\S]*?flex:\s*1/);
+  assert.match(css, /\.settings-btn-back[\s\S]*?flex:\s*1/);
+
+  // Bento cards y botones full-width responsivos
+  assert.match(css, /\.settings-bento-card[\s\S]*?flex-direction:\s*column\s*!important/);
+  assert.match(css, /\.settings-action-btn[\s\S]*?width:\s*100%\s*!important/);
+});

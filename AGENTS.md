@@ -32,6 +32,31 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Optimización Responsiva Móvil Integral del Panel de Configuración (`settings.css`, `SettingsMain.jsx`, `settings-redesign.test.mjs`) (2026-10-02)
+- Requerimiento: Resolver error de visualización en dispositivos móviles (iPhone / Android) donde el panel de configuración se rompía por completo: la cabecera superior truncaba "Historial de Auditoría" y ocultaba "Volver al Tablero" fuera de pantalla, el sidebar fijo de 230px (`.settings-sidebar-col`) comprimía el canvas blanco principal (`.settings-content-card`) a un hilo vertical de ~60px cortando títulos y palabras letra por letra, los botones Bento de 176px desbordaban las tarjetas y la tarjeta estática de sincronización consumía el espacio útil en pantalla.
+- Causa raíz:
+  1. `.settings-layout-grid` utilizaba flexbox horizontal de escritorio (`display: flex; gap: 24px;`) sin reglas `@media` para colapsar en pantallas menores a 880px.
+  2. `.settings-sidebar-col` tenía ancho fijo `width: 230px; flex-shrink: 0;`, consumiendo casi el 70% del ancho móvil.
+  3. `.settings-header-bar` no contaba con reglas responsivas, provocando que los botones de acción se desbordaran hacia la derecha fuera del viewport.
+  4. Los botones de acción Bento (`.settings-action-btn`) tenían anchos forzados de `176px !important`, lo que impedía que se ajustaran dentro de las tarjetas en pantallas estrechas.
+- Solución:
+  1. En `src/modules/settings/settings.css`:
+     - `@media (max-width: 880px)`:
+       - `.settings-header-bar`: Colapsado a distribución vertical limpia (`flex-direction: column; align-items: stretch; gap: 12px; padding: 12px 16px;`). Los botones "Historial de Auditoría" y "Volver al Tablero" se distribuyen simétricamente en una fila con `flex: 1`, textos protegidos contra desbordamiento con `text-overflow: ellipsis`, bordes refinados y esquinas suaves.
+       - `.settings-layout-grid` / `.settings-layout-row`: Colapsado a columna completa (`flex-direction: column; width: 100%; gap: 12px;`).
+       - `.settings-sidebar-col`: Ancho al 100% (`width: 100%; flex-shrink: 0;`).
+       - `.settings-nav` y `.settings-nav-item`: Transformados en una barra de pastillas/pills moderna deslizable horizontalmente con scroll táctil inercial iOS/Android (`overflow-x: auto; flex-direction: row; gap: 8px; border-radius: 999px;`). En estado activo, la pastilla se ilumina en azul institucional `#0284c7` con texto e iconos blancos y sombra sutil; en inactivo, pastilla blanca limpia con borde sutil.
+       - `.settings-sync-card`: Ocultada en móviles (`display: none;`) para maximizar el área de trabajo y ubicar el contenido directamente tras los módulos.
+       - `.settings-content-card`: Ancho 100% con padding ergonómico (`padding: 16px 14px; border-radius: 14px;`).
+       - `.settings-content-header`: Colapsado en columna para títulos y pastilla de estado sin colisiones.
+       - `.settings-bento-card`: Colapsado en columna vertical accesible con icono alineado al inicio.
+       - `.settings-action-btn`: Ancho adaptativo al 100% (`width: 100% !important; min-width: 0 !important;`) y centrado con microinteracción táctil fluida.
+       - `.settings-footer`: Ajustado para visualización vertical limpia con tipografía optimizada.
+     - `@media (max-width: 480px)`: Afinamiento para teléfonos ultra compactos (padding de 8-10px, títulos a 16px, pastillas compactas a 36px de altura).
+  2. En `tests/settings-redesign.test.mjs`:
+     - Incorporada prueba unitaria automatizada que verifica el colapso del grid, la barra de pastillas horizontal y los botones responsivos full-width.
+  3. Validado con 89 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.166).
+
 ### Solución: Rediseño Ejecutivo del Diálogo de Cotización Guardada, Animación SVG y Guía de WhatsApp (`QuoteModal.jsx`, `quoteMobile.css`, `quote-modal-ui.test.mjs`) (2026-10-02)
 - Requerimiento: Reemplazar el checkmark verde pixelado/genérico de SweetAlert y los emojis del sistema operativo (`🖨️`, `💬`, `❌`) en el diálogo "¡Cotización guardada!". Crear un indicador de completado minimalista con animación fluida en SVG vectorial, halo pulsante en esmeralda, pastilla de estado "Guardado exitoso", chip de código de cotización (`COT-XXXXX`) y tarjetas Bento interactivas para "Imprimir / PDF" y "WhatsApp", junto con la modernización de la guía de pasos para compartir por WhatsApp.
 - Solución:
