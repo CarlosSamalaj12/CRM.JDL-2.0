@@ -1100,211 +1100,133 @@ export default function InformeView() {
         }
       `}</style>
       <div className="informe-print-container">
-        {/* ─── SELECTOR MODERNO Y EJECUTIVO DE DÍAS (OCULTO AL IMPRIMIR O EXPORTAR PDF) ─── */}
+        {/* ─── SELECTOR EJECUTIVO DE DÍAS (SLIM, OCULTO AL IMPRIMIR O EXPORTAR PDF) ─── */}
         {todosDiasValidos.length > 1 && (
           <div className="no-print iv-dia-selector-bar">
-            {/* Izquierda: Badge de contexto con icono SVG minimalista */}
-            <div className="iv-dia-badge-block">
-              <div className="iv-dia-badge-icon">
-                <IconCalendar size={16} />
+            {/* Lado izquierdo: Identificador sutil con icono minimalista */}
+            <div className="iv-dia-label-side">
+              <div className="iv-dia-icon-box">
+                <IconCalendar size={14} />
               </div>
-              <div className="iv-dia-badge-info">
-                <div className="iv-dia-badge-tag">
-                  <span>VISTA DE OPERACIÓN</span>
-                  <span className="iv-dia-dot-sep">•</span>
-                  <span>{todosDiasValidos.length} DÍAS PROGRAMADOS</span>
-                </div>
-                <div className="iv-dia-badge-status">
-                  {selectedDiaValue === 'all' ? (
-                    <>
-                      <span className="iv-dia-status-main">Vista General Completa</span>
-                      <span className="iv-dia-count-chip">{todosDiasValidos.length} días</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="iv-dia-status-main">
-                        Filtrado por Día {diasFiltrados[0]?.numeroDiaOriginal}
-                      </span>
-                      {diasFiltrados[0]?.dia?.fecha_evento && (
-                        <span className="iv-dia-status-date">
-                          • {formatFechaShort(diasFiltrados[0].dia.fecha_evento)}
-                        </span>
-                      )}
-                      {(diasFiltrados[0]?.dia?.slot_salon || diasFiltrados[0]?.dia?.salon) && (
-                        <span className="iv-dia-salon-pill">
-                          <IconBuilding size={11} />
-                          {diasFiltrados[0].dia.slot_salon || diasFiltrados[0].dia.salon}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
+              <span className="iv-dia-title-text">Días del informe</span>
+              <span className="iv-dia-count-tag">{todosDiasValidos.length} días</span>
             </div>
 
-            {/* Derecha: Píldoras de cambio rápido 1-clic y Dropdown Bento */}
-            <div className="iv-dia-controls-group">
-              {/* Segmented Pills para cambio instantáneo */}
-              <div className="iv-dia-segmented-pills">
-                <button
-                  type="button"
-                  className={`iv-dia-pill-btn ${selectedDiaValue === 'all' ? 'active' : ''}`}
-                  onClick={() => handleSelectDay('all')}
-                  title="Ver todos los días del informe"
-                >
-                  <IconLayers size={13} />
-                  <span>Todos</span>
-                  <span className="iv-dia-pill-badge">{todosDiasValidos.length}</span>
-                </button>
+            {/* Lado derecho: Selector desplegable moderno (Dropdown Bento) */}
+            <div className="iv-dia-dropdown-wrap" ref={dayDropdownRef}>
+              <label htmlFor="iv-dia-select-btn" className="iv-dia-select-label">
+                Seleccionar día:
+              </label>
 
-                {todosDiasValidos.map((item) => {
-                  const cleanFecha = String(item.dia?.fecha_evento || '').slice(0, 10);
-                  const shortFecha = cleanFecha ? formatFechaShort(cleanFecha) : '';
-                  const salonInfo = item.dia?.slot_salon || item.dia?.salon || '';
-                  const optVal = cleanFecha || String(item.numeroDiaOriginal);
-                  const isActive = selectedDiaValue === optVal;
+              <button
+                type="button"
+                id="iv-dia-select-btn"
+                className={`iv-dia-trigger-btn ${isDayDropdownOpen ? 'open' : ''}`}
+                onClick={() => setIsDayDropdownOpen(prev => !prev)}
+                aria-expanded={isDayDropdownOpen}
+                aria-haspopup="listbox"
+                title="Seleccionar día a visualizar"
+              >
+                <div className="iv-dia-trigger-content">
+                  {selectedDiaValue === 'all' ? (
+                    <IconLayers size={14} className="iv-dia-icon-accent" />
+                  ) : (
+                    <IconCalendar size={14} className="iv-dia-icon-accent" />
+                  )}
+                  <span className="iv-dia-trigger-text">
+                    {selectedDiaValue === 'all'
+                      ? `Ver todos los días (${todosDiasValidos.length})`
+                      : (() => {
+                          const match = todosDiasValidos.find(it => {
+                            const cf = String(it.dia?.fecha_evento || '').slice(0, 10);
+                            return cf === selectedDiaValue || String(it.numeroDiaOriginal) === selectedDiaValue;
+                          });
+                          if (!match) return `Día ${selectedDiaValue}`;
+                          const sf = match.dia?.fecha_evento ? formatFechaShort(match.dia.fecha_evento) : '';
+                          const sl = match.dia?.slot_salon || match.dia?.salon || '';
+                          return `Día ${match.numeroDiaOriginal}${sf ? ` • ${sf}` : ''}${sl ? ` (${sl})` : ''}`;
+                        })()
+                    }
+                  </span>
+                </div>
+                <IconChevronDown size={14} className={`iv-dia-chevron-icon ${isDayDropdownOpen ? 'is-open' : ''}`} />
+              </button>
 
-                  return (
-                    <button
-                      key={item.dia?.id || item.numeroDiaOriginal}
-                      type="button"
-                      className={`iv-dia-pill-btn ${isActive ? 'active' : ''}`}
-                      onClick={() => handleSelectDay(optVal)}
-                      title={`Día ${item.numeroDiaOriginal}${shortFecha ? ` • ${shortFecha}` : ''}${salonInfo ? ` (${salonInfo})` : ''}`}
-                    >
-                      <IconCalendar size={13} />
-                      <span>Día {item.numeroDiaOriginal}</span>
-                      {shortFecha && <span className="iv-dia-pill-date">{shortFecha}</span>}
-                      {salonInfo && (
-                        <span className="iv-dia-pill-salon" title={salonInfo}>
-                          {salonInfo}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Menú flotante Bento */}
+              {isDayDropdownOpen && (
+                <div className="iv-dia-menu-popover" role="listbox">
+                  <div className="iv-dia-popover-header">
+                    <span>SELECCIONAR DÍA A VISUALIZAR</span>
+                  </div>
 
-              {/* Selector Desplegable Ejecutivo (Reemplazo moderno del dropdown nativo) */}
-              <div className="iv-dia-custom-dropdown-wrap" ref={dayDropdownRef}>
-                <button
-                  type="button"
-                  id="iv-dia-select-btn"
-                  className={`iv-dia-dropdown-trigger ${isDayDropdownOpen ? 'open' : ''}`}
-                  onClick={() => setIsDayDropdownOpen(prev => !prev)}
-                  aria-expanded={isDayDropdownOpen}
-                  aria-haspopup="listbox"
-                  title="Seleccionar día a visualizar"
-                >
-                  <div className="iv-dia-trigger-left">
-                    {selectedDiaValue === 'all' ? (
-                      <div className="iv-dia-trigger-icon is-layers">
+                  {/* Opción: Ver todos los días */}
+                  <div
+                    role="option"
+                    aria-selected={selectedDiaValue === 'all'}
+                    className={`iv-dia-popover-item ${selectedDiaValue === 'all' ? 'selected' : ''}`}
+                    onClick={() => handleSelectDay('all')}
+                  >
+                    <div className="iv-dia-item-main">
+                      <div className="iv-dia-item-icon is-all">
                         <IconLayers size={14} />
                       </div>
-                    ) : (
-                      <div className="iv-dia-trigger-icon is-calendar">
-                        <IconCalendar size={14} />
+                      <div className="iv-dia-item-labels">
+                        <div className="iv-dia-item-row">
+                          <span className="iv-dia-item-name">Ver todos los días</span>
+                          <span className="iv-dia-item-badge">{todosDiasValidos.length} días</span>
+                        </div>
+                        <span className="iv-dia-item-hint">Muestra la secuencia logística completa</span>
                       </div>
+                    </div>
+                    {selectedDiaValue === 'all' && (
+                      <IconCheck size={14} className="iv-dia-item-check" />
                     )}
-                    <span className="iv-dia-trigger-label">
-                      {selectedDiaValue === 'all'
-                        ? `Ver todos los días (${todosDiasValidos.length})`
-                        : (() => {
-                            const match = todosDiasValidos.find(it => {
-                              const cf = String(it.dia?.fecha_evento || '').slice(0, 10);
-                              return cf === selectedDiaValue || String(it.numeroDiaOriginal) === selectedDiaValue;
-                            });
-                            if (!match) return `Día ${selectedDiaValue}`;
-                            const sf = match.dia?.fecha_evento ? formatFechaShort(match.dia.fecha_evento) : '';
-                            const sl = match.dia?.slot_salon || match.dia?.salon || '';
-                            return `Día ${match.numeroDiaOriginal}${sf ? ` • ${sf}` : ''}${sl ? ` (${sl})` : ''}`;
-                          })()
-                      }
-                    </span>
                   </div>
-                  <div className={`iv-dia-trigger-chevron ${isDayDropdownOpen ? 'is-open' : ''}`}>
-                    <IconChevronDown size={14} />
-                  </div>
-                </button>
 
-                {/* Menú Flotante Bento */}
-                {isDayDropdownOpen && (
-                  <div className="iv-dia-dropdown-menu" role="listbox">
-                    <div className="iv-dia-menu-header">
-                      <span>SELECCIONAR DÍA A VISUALIZAR</span>
-                    </div>
+                  <div className="iv-dia-popover-divider" />
 
-                    <div
-                      role="option"
-                      aria-selected={selectedDiaValue === 'all'}
-                      className={`iv-dia-menu-item ${selectedDiaValue === 'all' ? 'is-selected' : ''}`}
-                      onClick={() => handleSelectDay('all')}
-                    >
-                      <div className="iv-dia-item-left">
-                        <div className="iv-dia-item-icon-box is-layers">
-                          <IconLayers size={15} />
-                        </div>
-                        <div className="iv-dia-item-info">
-                          <div className="iv-dia-item-title-row">
-                            <span className="iv-dia-item-title">Ver todos los días</span>
-                            <span className="iv-dia-item-chip-all">{todosDiasValidos.length} días</span>
+                  {/* Opciones por cada día */}
+                  {todosDiasValidos.map((item) => {
+                    const cleanFecha = String(item.dia?.fecha_evento || '').slice(0, 10);
+                    const shortFecha = cleanFecha ? formatFechaShort(cleanFecha) : '';
+                    const salonInfo = item.dia?.slot_salon || item.dia?.salon || '';
+                    const optVal = cleanFecha || String(item.numeroDiaOriginal);
+                    const isSelected = selectedDiaValue === optVal;
+
+                    return (
+                      <div
+                        key={item.dia?.id || item.numeroDiaOriginal}
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`iv-dia-popover-item ${isSelected ? 'selected' : ''}`}
+                        onClick={() => handleSelectDay(optVal)}
+                      >
+                        <div className="iv-dia-item-main">
+                          <div className="iv-dia-item-icon is-day">
+                            <IconCalendar size={14} />
+                            <span className="iv-dia-icon-number">{item.numeroDiaOriginal}</span>
                           </div>
-                          <span className="iv-dia-item-sub">Muestra la secuencia logística completa del evento</span>
-                        </div>
-                      </div>
-                      {selectedDiaValue === 'all' && (
-                        <div className="iv-dia-item-check">
-                          <IconCheck size={14} strokeWidth={2.6} />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="iv-dia-menu-divider" />
-
-                    {todosDiasValidos.map((item) => {
-                      const cleanFecha = String(item.dia?.fecha_evento || '').slice(0, 10);
-                      const shortFecha = cleanFecha ? formatFechaShort(cleanFecha) : '';
-                      const salonInfo = item.dia?.slot_salon || item.dia?.salon || '';
-                      const optVal = cleanFecha || String(item.numeroDiaOriginal);
-                      const isSelected = selectedDiaValue === optVal;
-
-                      return (
-                        <div
-                          key={item.dia?.id || item.numeroDiaOriginal}
-                          role="option"
-                          aria-selected={isSelected}
-                          className={`iv-dia-menu-item ${isSelected ? 'is-selected' : ''}`}
-                          onClick={() => handleSelectDay(optVal)}
-                        >
-                          <div className="iv-dia-item-left">
-                            <div className="iv-dia-item-icon-box is-calendar">
-                              <IconCalendar size={14} />
-                              <span className="iv-dia-icon-day-num">{item.numeroDiaOriginal}</span>
+                          <div className="iv-dia-item-labels">
+                            <div className="iv-dia-item-row">
+                              <span className="iv-dia-item-name">Día {item.numeroDiaOriginal}</span>
+                              {shortFecha && <span className="iv-dia-item-date">{shortFecha}</span>}
                             </div>
-                            <div className="iv-dia-item-info">
-                              <div className="iv-dia-item-title-row">
-                                <span className="iv-dia-item-title">Día {item.numeroDiaOriginal}</span>
-                                {shortFecha && <span className="iv-dia-item-date-badge">{shortFecha}</span>}
+                            {salonInfo && (
+                              <div className="iv-dia-item-salon">
+                                <IconBuilding size={11} />
+                                <span>{salonInfo}</span>
                               </div>
-                              {salonInfo && (
-                                <div className="iv-dia-item-salon-row">
-                                  <IconBuilding size={11} />
-                                  <span>{salonInfo}</span>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
-                          {isSelected && (
-                            <div className="iv-dia-item-check">
-                              <IconCheck size={14} strokeWidth={2.6} />
-                            </div>
-                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        {isSelected && (
+                          <IconCheck size={14} className="iv-dia-item-check" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

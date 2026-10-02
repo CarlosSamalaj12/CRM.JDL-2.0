@@ -33,23 +33,25 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
 
 ## Bugs históricos resueltos
 ### Solución: Rediseño Ejecutivo y Minimalista del Selector de Días de Informes (`InformeView.jsx`, `styles.css`, `informe-day-selector-ui.test.mjs`) (2026-10-02)
-- Requerimiento: Modernizar integralmente el apartado de selección de días en la visualización de informes de eventos (`InformeView.jsx`). Reemplazar el elemento `<select>` nativo del navegador y los emojis del sistema operativo (`📅`, `📋`) por una interfaz moderna y ejecutiva con iconografía vectorial minimalista SVG, píldoras segmentadas interactivas de cambio instantáneo a 1-clic y un menú flotante Bento para selección detallada.
+- Requerimiento: Modernizar integralmente el apartado de selección de días en la visualización de informes de eventos (`InformeView.jsx`). Reemplazar el elemento `<select>` nativo del navegador y los emojis del sistema operativo (`📅`, `📋`) por una barra de herramientas ejecutiva compacta de una sola fila (`.iv-dia-selector-bar`), alineada al ancho del documento (`max-width: 850px`), con iconografía vectorial minimalista SVG y un menú flotante Bento para selección rápida y estética.
 - Causa raíz:
   1. El componente utilizaba una etiqueta nativa `<select id="iv-dia-select">` con opciones `<option>`, impidiendo la renderización de estilos personalizados, microinteracciones o iconos vectoriales.
   2. Los textos incluían emojis del sistema operativo (`📅 DÍA DEL EVENTO` y `📋 Ver todos los días ({N})`), luciendo pixelados o discordantes entre diferentes dispositivos.
-  3. No existía una opción rápida de cambio directo a 1-clic para los días programados.
+  3. Intentos previos combinaban controles redundantes (píldoras, selectores y resúmenes simultáneos) saturando visualmente la cabecera del documento.
 - Solución:
   1. En `src/modules/informes/pages/InformeView.jsx`:
-     - Erradicados todos los emojis del sistema operativo.
-     - Implementado el bloque izquierdo `.iv-dia-badge-block` con caja de icono gradiente `<IconCalendar size={16} />`, micro-etiqueta superior (`VISTA DE OPERACIÓN • N DÍAS PROGRAMADOS`) y pastilla de estado enriquecida con información del salón activo (`<IconBuilding size={11} />`).
-     - Incorporadas **píldoras segmentadas interactivas** (`.iv-dia-segmented-pills`): botones táctiles para alternar en 1 solo clic entre "Todos" y cada uno de los días del evento ("Día 1", "Día 2", etc.) con chip de fecha y nombre de salón.
-     - Diseñado el **dropdown ejecutivo Bento** (`.iv-dia-custom-dropdown-wrap`): reemplazo del `<select>` nativo con botón disparador que incluye icono SVG temático (`IconLayers` / `IconCalendar`), flecha chevron con animación rotacional fluida (`IconChevronDown`) y menú flotante accesible con soporte para clic exterior (`handleClickOutside`) y tecla `Escape`. Cada opción en el menú muestra badges dedicados, fechas legibles, salón asignado y checkmark minimalista (`IconCheck`) para la opción seleccionada.
+     - Erradicados todos los emojis del sistema operativo y el elemento nativo `<select>`.
+     - Implementada una sola fila compacta ejecutiva (`.iv-dia-selector-bar` con altura fija de 48px y centrado perfecto):
+       - Bloque izquierdo (`.iv-dia-label-side`): icono minimalista en caja suave (`.iv-dia-icon-box` con `<IconCalendar size={14} />`), etiqueta formal ("Días del informe") y pastilla de conteo sutil (`.iv-dia-count-tag`).
+       - Bloque derecho (`.iv-dia-dropdown-wrap`): disparador moderno con micro-etiqueta ("Seleccionar día:"), botón interactivo (`.iv-dia-trigger-btn`) con icono temático (`IconLayers` o `IconCalendar`), texto informativo truncado elegantemente y chevron rotacional (`IconChevronDown`).
+     - Diseñado el **menú flotante Bento** (`.iv-dia-menu-popover`): menú desplegable con cabecera en micro-mayúsculas, opción global "Ver todos los días" y opciones por día con números dedicados, fechas legibles, badges de salón asignado (`<IconBuilding size={11} />`) y checkmark minimalista (`<IconCheck size={14} />`).
+     - Soporte para cierre automático al hacer clic afuera (`handleClickOutside`) o presionar tecla `Escape`.
   2. En `src/modules/informes/styles.css`:
-     - Diseñados los estilos ejecutivos para `.iv-dia-selector-bar`, `.iv-dia-badge-icon`, `.iv-dia-pill-btn`, `.iv-dia-dropdown-trigger`, `.iv-dia-dropdown-menu`, y `.iv-dia-menu-item.is-selected`.
-     - Añadida regla responsiva `@media (max-width: 768px)` con scroll táctil inercial para las píldoras en dispositivos móviles y ancho completo para el dropdown.
+     - Diseñados los estilos ejecutivos limpios para `.iv-dia-selector-bar` (ancho máximo coincidente de 850px, bordes refinados y sombras tenues), `.iv-dia-label-side`, `.iv-dia-trigger-btn`, `.iv-dia-menu-popover`, `.iv-dia-popover-item` y `.iv-dia-popover-item.selected`.
+     - Añadida regla responsiva `@media (max-width: 768px)` con ajuste vertical ergonómico a 100% de ancho para móviles.
   3. En `tests/informe-day-selector-ui.test.mjs`:
-     - Creada suite de pruebas unitarias que valida la erradicación de emojis, el uso exclusivo de iconos SVG y la presencia de la arquitectura interactiva y estilos responsivos.
-  4. Validado con 91 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.167).
+     - Suite de pruebas unitarias actualizada validando la erradicación de emojis, el uso exclusivo de iconos SVG y la arquitectura de la barra ejecutiva slim.
+  4. Validado con 91 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.168).
 
 ### Solución: Optimización Responsiva Móvil Integral del Panel de Configuración (`settings.css`, `SettingsMain.jsx`, `settings-redesign.test.mjs`) (2026-10-02)
 - Requerimiento: Resolver error de visualización en dispositivos móviles (iPhone / Android) donde el panel de configuración se rompía por completo: la cabecera superior truncaba "Historial de Auditoría" y ocultaba "Volver al Tablero" fuera de pantalla, el sidebar fijo de 230px (`.settings-sidebar-col`) comprimía el canvas blanco principal (`.settings-content-card`) a un hilo vertical de ~60px cortando títulos y palabras letra por letra, los botones Bento de 176px desbordaban las tarjetas y la tarjeta estática de sincronización consumía el espacio útil en pantalla.
