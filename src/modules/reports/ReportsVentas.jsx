@@ -594,50 +594,285 @@ export default function ReportsVentas({ onClose }) {
     setCurrentPage(1);
   };
 
-  // Exportar Excel profesional (.xlsx)
+  // Exportar Excel profesional con diseño ejecutivo (.xlsx)
   const handleExportExcel = async () => {
+    const now = new Date();
+    const nowStr = now.toISOString().slice(0, 10);
+    const fechaGen = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
     try {
-      const XLSX = await import('xlsx');
-      const wb = XLSX.utils.book_new();
+      const ExcelJSModule = await import('exceljs/dist/exceljs.min.js');
+      const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 
-      const wsData = reportData.map((r, i) => ({
-        '#': i + 1,
-        'Estado': r.status,
-        'Cotización': r.refId,
-        'No. Folio / NOG': r.folio || '0',
-        'Institución / Cliente': r.institucion || r.name,
-        'Vendedor Asignado': r.userName,
-        'Fecha Inicio': formatDateShort(r.eventDate),
-        'Fecha Fin': formatDateShort(r.endDate || r.eventDate),
-        'Evento': r.eventType || r.name,
-        'Salón Principal': r.salon,
-        'PAX': r.pax,
-        'Monto Total (GTQ)': r.total,
-      }));
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'CRM Jardines del Lago';
+      workbook.created = now;
 
-      const ws = XLSX.utils.json_to_sheet(wsData);
+      const worksheet = workbook.addWorksheet('Reporte de Ventas', {
+        views: [{ showGridLines: true }]
+      });
 
-      // Auto ancho de columnas
-      ws['!cols'] = [
-        { wch: 5 },  // #
-        { wch: 15 }, // Estado
-        { wch: 14 }, // Cotización
-        { wch: 16 }, // Folio
-        { wch: 38 }, // Institución
-        { wch: 24 }, // Vendedor
-        { wch: 12 }, // Fecha Inicio
-        { wch: 12 }, // Fecha Fin
-        { wch: 26 }, // Evento
-        { wch: 20 }, // Salón
-        { wch: 8 },  // PAX
-        { wch: 18 }, // Monto
+      // ── 1. Banner Superior Institucional ──
+      worksheet.mergeCells('A1:L1');
+      const titleCell = worksheet.getCell('A1');
+      titleCell.value = 'JARDINES DEL LAGO — REPORTE DE VENTAS Y COTIZACIONES';
+      titleCell.font = { name: 'Segoe UI', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
+      titleCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1E293B' } // Slate 800
+      };
+      titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      worksheet.getRow(1).height = 32;
+
+      // ── 2. Metadatos del Reporte ──
+      worksheet.mergeCells('A2:L2');
+      const subCell = worksheet.getCell('A2');
+
+      const filterSegments = [];
+      if (search) filterSegments.push(`Búsqueda: "${search}"`);
+      if (dateFrom || dateTo) filterSegments.push(`Fechas: ${dateFrom || 'Inicio'} a ${dateTo || 'Fin'}`);
+      if (userFilter.size > 0) {
+        const uNames = users?.filter(u => userFilter.has(String(u.id))).map(u => u.fullName || u.name).filter(Boolean);
+        if (uNames?.length) filterSegments.push(`Vendedores: ${uNames.join(', ')}`);
+      }
+      if (statusFilter.size > 0) filterSegments.push(`Estados: ${[...statusFilter].join(', ')}`);
+      if (salonFilter.size > 0) filterSegments.push(`Salones: ${[...salonFilter].join(', ')}`);
+
+      const filtrosStr = filterSegments.length > 0 ? filterSegments.join('  |  ') : 'Todos los registros (sin filtros)';
+
+      subCell.value = `Generado el: ${fechaGen}   •   Total de registros: ${reportData.length}   •   ${filtrosStr}`;
+      subCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FF475569' } };
+      subCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' } // Slate 100
+      };
+      subCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      worksheet.getRow(2).height = 20;
+
+      // Fila 3 en blanco
+      worksheet.getRow(3).height = 8;
+
+      // ── 3. Encabezados de Columnas ──
+      const columnsDef = [
+        { header: '#', width: 6, align: 'center' },
+        { header: 'Estado', width: 20, align: 'center' },
+        { header: 'Cotización', width: 16, align: 'center' },
+        { header: 'No. Folio / NOG', width: 18, align: 'center' },
+        { header: 'Institución / Cliente', width: 38, align: 'left' },
+        { header: 'Vendedor Asignado', width: 24, align: 'left' },
+        { header: 'Fecha Inicio', width: 14, align: 'center' },
+        { header: 'Fecha Fin', width: 14, align: 'center' },
+        { header: 'Evento', width: 28, align: 'left' },
+        { header: 'Salón Principal', width: 22, align: 'left' },
+        { header: 'PAX', width: 10, align: 'center' },
+        { header: 'Monto Total (GTQ)', width: 22, align: 'right' }
       ];
 
-      XLSX.utils.book_append_sheet(wb, ws, 'Reporte de Ventas');
-      XLSX.writeFile(wb, `Reporte_Ventas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const headerRow = worksheet.getRow(4);
+      headerRow.height = 28;
+
+      columnsDef.forEach((col, idx) => {
+        const cell = headerRow.getCell(idx + 1);
+        cell.value = col.header;
+        cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF2563EB' } // Azul corporativo JDL
+        };
+        cell.alignment = { vertical: 'middle', horizontal: col.align };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF1D4ED8' } },
+          bottom: { style: 'medium', color: { argb: 'FF1D4ED8' } },
+          left: { style: 'thin', color: { argb: 'FF93C5FD' } },
+          right: { style: 'thin', color: { argb: 'FF93C5FD' } }
+        };
+        worksheet.getColumn(idx + 1).width = col.width;
+      });
+
+      // ── 4. Filas de Datos con Bordes y Colores ──
+      const thinCellBorder = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      };
+
+      const hexToArgb = (hex) => {
+        if (!hex) return 'FFFFFFFF';
+        return 'FF' + hex.replace('#', '').toUpperCase();
+      };
+
+      reportData.forEach((r, rowIdx) => {
+        const row = worksheet.addRow([
+          rowIdx + 1,
+          r.status || '',
+          r.refId || '',
+          r.folio || '0',
+          r.institucion || r.name || '',
+          r.userName || 'Sin asignar',
+          formatDateShort(r.eventDate),
+          formatDateShort(r.endDate || r.eventDate),
+          r.eventType || r.name || '',
+          r.salon || '',
+          Number(r.pax || 0),
+          Number(r.total || 0)
+        ]);
+
+        row.height = 22;
+        const isEven = rowIdx % 2 === 0;
+        const bgArgb = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = thinCellBorder;
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: bgArgb }
+          };
+          cell.font = { name: 'Segoe UI', size: 9.5, color: { argb: 'FF0F172A' } };
+
+          const colDef = columnsDef[colNumber - 1];
+          cell.alignment = { vertical: 'middle', horizontal: colDef?.align || 'left' };
+
+          if (colNumber === 1) { // #
+            cell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: 'FF64748B' } };
+          } else if (colNumber === 2) { // Estado con color temático
+            const stMeta = STATUS_COLORS[r.status];
+            if (stMeta) {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: hexToArgb(stMeta.bg) }
+              };
+              cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: hexToArgb(stMeta.color) } };
+              cell.border = {
+                top: { style: 'thin', color: { argb: hexToArgb(stMeta.border || '#cbd5e1') } },
+                bottom: { style: 'thin', color: { argb: hexToArgb(stMeta.border || '#cbd5e1') } },
+                left: { style: 'thin', color: { argb: hexToArgb(stMeta.border || '#cbd5e1') } },
+                right: { style: 'thin', color: { argb: hexToArgb(stMeta.border || '#cbd5e1') } }
+              };
+            } else {
+              cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF334155' } };
+            }
+          } else if (colNumber === 3) { // Cotización
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF2563EB' } };
+          } else if (colNumber === 4) { // Folio
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF475569' } };
+          } else if (colNumber === 11) { // PAX
+            cell.numFmt = '#,##0';
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF0F172A' } };
+          } else if (colNumber === 12) { // Monto Total
+            cell.numFmt = '"Q"#,##0.00';
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF059669' } };
+          }
+        });
+      });
+
+      // ── 5. Fila de Total General ──
+      const totalRowIndex = 4 + reportData.length + 1;
+      const totalRow = worksheet.getRow(totalRowIndex);
+      totalRow.height = 26;
+
+      worksheet.mergeCells(`A${totalRowIndex}:J${totalRowIndex}`);
+      const totalLabelCell = worksheet.getCell(`A${totalRowIndex}`);
+      totalLabelCell.value = 'TOTAL GENERAL:';
+      totalLabelCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+      totalLabelCell.alignment = { vertical: 'middle', horizontal: 'right' };
+      totalLabelCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' }
+      };
+
+      for (let c = 1; c <= 10; c++) {
+        worksheet.getCell(totalRowIndex, c).border = {
+          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          bottom: { style: 'double', color: { argb: 'FF0F172A' } }
+        };
+      }
+
+      // Total PAX
+      const totalPaxCell = worksheet.getCell(`K${totalRowIndex}`);
+      totalPaxCell.value = reportData.length > 0 ? { formula: `SUM(K5:K${totalRowIndex - 1})` } : 0;
+      totalPaxCell.numFmt = '#,##0';
+      totalPaxCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+      totalPaxCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      totalPaxCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEFF6FF' }
+      };
+      totalPaxCell.border = {
+        top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        bottom: { style: 'double', color: { argb: 'FF1D4ED8' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      };
+
+      // Total Monto
+      const totalValCell = worksheet.getCell(`L${totalRowIndex}`);
+      totalValCell.value = reportData.length > 0 ? { formula: `SUM(L5:L${totalRowIndex - 1})` } : 0;
+      totalValCell.numFmt = '"Q"#,##0.00';
+      totalValCell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FF059669' } };
+      totalValCell.alignment = { vertical: 'middle', horizontal: 'right' };
+      totalValCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEFF6FF' }
+      };
+      totalValCell.border = {
+        top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        bottom: { style: 'double', color: { argb: 'FF059669' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      };
+
+      // ── 6. Autofiltros en Encabezados ──
+      worksheet.autoFilter = {
+        from: { row: 4, column: 1 },
+        to: { row: 4, column: 12 }
+      };
+
+      // ── 7. Descarga en navegador ──
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = downloadUrl;
+      downloadAnchor.download = `Reporte_Ventas_${nowStr}.xlsx`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
-      console.error('Error al exportar Excel:', err);
-      alert('Error generando el archivo Excel.');
+      console.warn('Error al exportar con ExcelJS, usando fallback básico:', err);
+      try {
+        const XLSX = await import('xlsx');
+        const wsData = reportData.map((r, i) => ({
+          '#': i + 1,
+          'Estado': r.status,
+          'Cotización': r.refId,
+          'No. Folio / NOG': r.folio || '0',
+          'Institución / Cliente': r.institucion || r.name,
+          'Vendedor Asignado': r.userName,
+          'Fecha Inicio': formatDateShort(r.eventDate),
+          'Fecha Fin': formatDateShort(r.endDate || r.eventDate),
+          'Evento': r.eventType || r.name,
+          'Salón Principal': r.salon,
+          'PAX': r.pax,
+          'Monto Total (GTQ)': r.total,
+        }));
+        const ws = XLSX.utils.json_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Reporte de Ventas');
+        XLSX.writeFile(wb, `Reporte_Ventas_${nowStr}.xlsx`);
+      } catch (fallbackErr) {
+        console.error('Error generando archivo Excel fallback:', fallbackErr);
+        alert('Error generando el archivo Excel.');
+      }
     }
   };
 

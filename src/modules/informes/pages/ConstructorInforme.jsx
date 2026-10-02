@@ -1114,10 +1114,11 @@ export default function ConstructorInforme() {
   };
 
   // ─── Imágenes ───
-  const loadImagenes = async () => {
-    if (!informeId) { setImagenes([]); return; }
+  const loadImagenes = async (overrideId) => {
+    const idToUse = overrideId || informeId;
+    if (!idToUse) { setImagenes([]); return; }
     try {
-      const imgs = await getImagenes(informeId);
+      const imgs = await getImagenes(idToUse);
       setImagenes(imgs);
     } catch { toast.error('Error al cargar imágenes'); }
   };
@@ -1153,7 +1154,7 @@ export default function ConstructorInforme() {
 
       setUrlInput('');
       setImagenDesc('');
-      loadImagenes();
+      loadImagenes(targetId);
     } catch (err) {
       console.error(err);
       toast.error('Error al agregar imagen');
@@ -1179,9 +1180,11 @@ export default function ConstructorInforme() {
   const handleUploadImagen = async () => {
     const file = selectedFile;
     if (!file) return;
-    if (!informeId) {
+    let targetId = informeId;
+    if (!targetId) {
       try {
         const res = await createInforme(id_ocupacion);
+        targetId = res.id;
         setInformeId(res.id);
         setVersionActiva(res.version || 1);
       } catch { toast.error('Error al crear informe'); return; }
@@ -1189,11 +1192,11 @@ export default function ConstructorInforme() {
     setUploadingImg(true);
     try {
       const compressed = await compressImage(file);
-      await uploadImagen(informeId, compressed, imagenDesc || null);
+      await uploadImagen(targetId, compressed, imagenDesc || null);
       setImagenDesc('');
       setSelectedFile(null);
       toast.success('Imagen subida y optimizada ✓');
-      loadImagenes();
+      loadImagenes(targetId);
     } catch (err) {
       console.error(err);
       toast.error('Error al subir imagen');

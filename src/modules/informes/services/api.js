@@ -685,6 +685,7 @@ export async function getTiposMontaje() {
 // --- IMÁGENES DE INFORMES ---
 
 export async function getImagenes(informeId) {
+  if (!informeId || informeId === 'null' || informeId === 'undefined') return [];
   const token = localStorage.getItem('token');
   const response = await fetch(`${apiUrl}/api/informes/${informeId}/imagenes`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -694,6 +695,9 @@ export async function getImagenes(informeId) {
 }
 
 export async function createImagen(informeId, data) {
+  if (!informeId || informeId === 'null' || informeId === 'undefined') {
+    throw new Error('ID de informe inválido para crear imagen');
+  }
   const token = localStorage.getItem('token');
   const response = await fetch(`${apiUrl}/api/informes/${informeId}/imagenes`, {
     method: 'POST',
@@ -705,6 +709,9 @@ export async function createImagen(informeId, data) {
 }
 
 export async function uploadImagen(informeId, file, descripcion) {
+  if (!informeId || informeId === 'null' || informeId === 'undefined') {
+    throw new Error('ID de informe inválido para subir imagen');
+  }
   const token = localStorage.getItem('token');
   const formData = new FormData();
   formData.append('imagen', file);
