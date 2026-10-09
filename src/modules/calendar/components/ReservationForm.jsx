@@ -214,7 +214,9 @@ function normalizeReservationSnapshot({ formData = {}, slots = [] }) {
     startTime: String(formData?.startTime || '').trim(),
     endTime: String(formData?.endTime || '').trim(),
     pax: String(formData?.pax || '').trim(),
-    paxCompartido: formData?.paxCompartido === true ? true : (formData?.paxCompartido === false ? false : null),
+    paxCompartido: (formData?.paxCompartido === 'principal' || formData?.paxCompartido === 2)
+      ? 'principal'
+      : (formData?.paxCompartido === true ? true : (formData?.paxCompartido === false ? false : null)),
     notes: String(formData?.notes || '').trim(),
     userId: String(formData?.userId || '').trim(),
     clientName: String(formData?.clientName || '').trim(),
@@ -247,9 +249,11 @@ function shouldMoveEditedReservationToSeguimiento(existingEvent, series, nextFor
     name: existingEvent.name || '',
     date: firstDate || existingEvent.eventDateStart || existingEvent.date || '',
     endDate: lastDate || existingEvent.eventDateEnd || existingEvent.endDate || existingEvent.date || '',
-    pax: (existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1)
-      ? (oldSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
-      : (oldSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0) || existingEvent.pax || ''),
+    pax: (existingEvent.paxCompartido === 2 || existingEvent.paxCompartido === 'principal' || existingEvent.pax_compartido === 2)
+      ? (oldSlots.find(s => s.isPrincipal === true)?.pax || oldSlots.find(s => s.salon === existingEvent.mainSalon)?.pax || existingEvent.pax || '')
+      : ((existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1 || existingEvent.pax_compartido === 1)
+        ? (oldSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
+        : (oldSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0) || existingEvent.pax || '')),
     notes: existingEvent.notes || '',
     userId: existingEvent.userId || '',
     salon: firstSlot.salon || existingEvent.salon || '',
@@ -777,10 +781,14 @@ export default function ReservationForm() {
           const date = String(ev.date || '');
           return date && (!max || date > max) ? date : max;
         }, existingEvent.endDate || existingEvent.eventDateEnd || existingEvent.date || getDefaultDate());
-        const isShared = existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1;
-        const totalPaxFromSlots = isShared
-          ? (seriesSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
-          : seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+        const isPrincipal = existingEvent.paxCompartido === 2 || existingEvent.paxCompartido === 'principal' || existingEvent.paxTipo === 'principal' || existingEvent.pax_compartido === 2;
+        const isShared = !isPrincipal && (existingEvent.paxCompartido === true || existingEvent.paxCompartido === 1 || existingEvent.pax_compartido === 1);
+        const paxModeValue = isPrincipal ? 'principal' : (isShared ? true : (existingEvent.paxCompartido === false || existingEvent.pax_compartido === 0 ? false : null));
+        const totalPaxFromSlots = isPrincipal
+          ? (seriesSlots.find(s => s.isPrincipal === true)?.pax || seriesSlots.find(s => s.salon === existingEvent.mainSalon)?.pax || existingEvent.pax || '')
+          : (isShared
+            ? (seriesSlots.find(s => Number(s.pax) > 0)?.pax || existingEvent.pax || '')
+            : seriesSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0));
 
         const loadedFData = {
           name: existingEvent.name || '',
@@ -791,7 +799,7 @@ export default function ReservationForm() {
           startTime: firstSlot.startTime || existingEvent.startTime || '10:00',
           endTime: firstSlot.endTime || existingEvent.endTime || '12:00',
           pax: totalPaxFromSlots || existingEvent.pax || '',
-          paxCompartido: isShared,
+          paxCompartido: paxModeValue,
           notes: existingEvent.notes || '',
           userId: existingEvent.userId || '',
           quote: existingEvent.quote || null,
@@ -854,7 +862,10 @@ export default function ReservationForm() {
 
   const syncEventPaxFromSlots = useCallback(() => {
     let total;
-    if (formData.paxCompartido === true) {
+    if (formData.paxCompartido === 'principal' || formData.paxCompartido === 2) {
+      const principalSlot = slots.find(s => s.isPrincipal === true) || slots[0];
+      total = principalSlot ? Number(principalSlot.pax || 0) : Number(formData.pax || 0);
+    } else if (formData.paxCompartido === true) {
       const firstWithVal = slots.find(s => Number(s.pax) > 0);
       total = firstWithVal ? Number(firstWithVal.pax) : Number(formData.pax || 0);
     } else {
@@ -905,6 +916,10 @@ export default function ReservationForm() {
     const newSlots = slots.map((s, i) => ({ ...s, isPrincipal: i === index }));
     setSlots(newSlots);
     syncPrincipalFromSlots(newSlots);
+    if (formData.paxCompartido === 'principal' || formData.paxCompartido === 2) {
+      const pPax = Number(newSlots[index]?.pax || 0);
+      setFormData(prev => ({ ...prev, pax: pPax > 0 ? pPax : '' }));
+    }
   };
 
   /**
@@ -946,6 +961,10 @@ export default function ReservationForm() {
     if (field === 'pax') {
       if (formData.paxCompartido === true) {
         setFormData(prev => ({ ...prev, pax: val }));
+      } else if (formData.paxCompartido === 'principal' || formData.paxCompartido === 2) {
+        const principalSlot = newSlots.find(s => s.isPrincipal === true) || newSlots[0];
+        const pPax = principalSlot ? Number(principalSlot.pax || 0) : 0;
+        setFormData(prev => ({ ...prev, pax: pPax > 0 ? pPax : '' }));
       } else {
         const total = newSlots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
         setFormData(prev => ({ ...prev, pax: total > 0 ? total : '' }));
@@ -1021,7 +1040,7 @@ export default function ReservationForm() {
     if (!isMaintenanceMode) {
       const totalPax = syncEventPaxFromSlots();
       if (!totalPax || totalPax <= 0) issues.push('PAX total debe ser mayor a 0');
-      if (formData.paxCompartido === null) issues.push('Tipo PAX: selecciona Compartido o No Compartido');
+      if (formData.paxCompartido === null) issues.push('Tipo PAX: selecciona Compartido, No Compartido o Salón Principal');
     }
 
     if (!slots.length) issues.push('Debes seleccionar al menos un salón y horario');
@@ -1401,6 +1420,12 @@ export default function ReservationForm() {
         id: id || undefined,
         groupId: existingEvent?.groupId || undefined,
         pax: formData.pax ? parseInt(formData.pax) : null,
+        paxCompartido: (formData.paxCompartido === 'principal' || formData.paxCompartido === 2)
+          ? 'principal'
+          : formData.paxCompartido,
+        paxTipo: (formData.paxCompartido === 'principal' || formData.paxCompartido === 2)
+          ? 'principal'
+          : (formData.paxCompartido === true ? 'compartido' : 'no_compartido'),
         slots: cleanedSlots,
         mainSalon: principalSlot?.salon || formData.salon || '',
         salon: principalSlot?.salon || cleanedSlots.map(s => s.salon).join(', '),
@@ -1990,7 +2015,7 @@ export default function ReservationForm() {
                   }}
                 >
                   {formData.paxCompartido === true && '✓ '}
-                  PAX Compartido
+                  Compartido
                 </button>
                 <button
                   type="button"
@@ -2003,6 +2028,19 @@ export default function ReservationForm() {
                   {formData.paxCompartido === false && '✓ '}
                   No Compartido
                 </button>
+                <button
+                  type="button"
+                  className={`res-mobile-pax-toggle-btn ${formData.paxCompartido === 'principal' ? 'is-active-principal' : ''}`}
+                  style={formData.paxCompartido === 'principal' ? { background: '#d97706', color: 'white', borderColor: '#b45309' } : {}}
+                  onClick={() => {
+                    const principalSlot = slots.find(s => s.isPrincipal === true) || slots[0];
+                    const principalPax = principalSlot ? (Number(principalSlot.pax) > 0 ? principalSlot.pax : '') : (formData.pax || '');
+                    setFormData(prev => ({ ...prev, paxCompartido: 'principal', pax: principalPax }));
+                  }}
+                >
+                  {formData.paxCompartido === 'principal' ? '⭐ ' : ''}
+                  Salón Principal
+                </button>
               </div>
 
               {/* Callout explicativo */}
@@ -2013,10 +2051,12 @@ export default function ReservationForm() {
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
                 <div>
-                  <strong>{formData.paxCompartido === false ? 'Modo No Compartido' : 'Modo Compartido'}: </strong>
-                  {formData.paxCompartido === false
-                    ? 'Cada salón asignado cuenta con su propio cupo de comensales y se suman para el total del evento.'
-                    : `El cupo de ${formData.pax || 'comensales'} aplica a todos los salones asignados al evento y unifica la cotización del banquete.`}
+                  <strong>{formData.paxCompartido === 'principal' ? 'Modo Salón Principal' : (formData.paxCompartido === false ? 'Modo No Compartido' : 'Modo Compartido')}: </strong>
+                  {formData.paxCompartido === 'principal'
+                    ? 'Cada salón asignado cuenta con su propio cupo independiente. El PAX total del evento y reportes se toma únicamente del salón principal (⭐).'
+                    : (formData.paxCompartido === false
+                      ? 'Cada salón asignado cuenta con su propio cupo de comensales y se suman para el total del evento.'
+                      : `El cupo de ${formData.pax || 'comensales'} aplica a todos los salones asignados al evento y unifica la cotización del banquete.`)}
                 </div>
               </div>
             </div>
@@ -2644,7 +2684,7 @@ export default function ReservationForm() {
                           setSlots(prev => prev.map(s => ({ ...s, pax: defaultPax })));
                         }}
                         style={{
-                          padding: '5px 18px',
+                          padding: '5px 14px',
                           fontSize: '12px',
                           fontWeight: '700',
                           cursor: 'pointer',
@@ -2670,7 +2710,7 @@ export default function ReservationForm() {
                           setFormData(prev => ({ ...prev, paxCompartido: false, pax: total > 0 ? total : '' }));
                         }}
                         style={{
-                          padding: '5px 18px',
+                          padding: '5px 14px',
                           fontSize: '12px',
                           fontWeight: '700',
                           cursor: 'pointer',
@@ -2689,6 +2729,33 @@ export default function ReservationForm() {
                         )}
                         No Compartido
                       </div>
+                      <div style={{ width: '1px', background: formData.paxCompartido === null ? '#f97316' : '#e2e8f0' }} />
+                      <div
+                        onClick={() => {
+                          const principalSlot = slots.find(s => s.isPrincipal === true) || slots[0];
+                          const principalPax = principalSlot ? (Number(principalSlot.pax) > 0 ? principalSlot.pax : '') : (formData.pax || '');
+                          setFormData(prev => ({ ...prev, paxCompartido: 'principal', pax: principalPax }));
+                        }}
+                        style={{
+                          padding: '5px 14px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          background: formData.paxCompartido === 'principal' ? '#d97706' : '#f8fafc',
+                          color: formData.paxCompartido === 'principal' ? 'white' : '#475569',
+                          transition: 'all 0.2s',
+                          userSelect: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        {formData.paxCompartido === 'principal' && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                        )}
+                        Salón Principal
+                      </div>
                     </div>
                     {formData.paxCompartido === null && (
                       <span style={{ fontSize: '11px', color: '#f97316', fontWeight: '600' }}>Obligatorio</span>
@@ -2705,7 +2772,8 @@ export default function ReservationForm() {
                     borderLeft: '2.5px solid #94a3b8'
                   }}>
                     <strong style={{ color: '#334155' }}>Compartido</strong>: un solo PAX total que aplica a todos los salones/días del evento.<br />
-                    <strong style={{ color: '#334155' }}>No Compartido</strong>: cada salón tiene su propio PAX, se suman para el total del evento.
+                    <strong style={{ color: '#334155' }}>No Compartido</strong>: cada salón tiene su propio PAX, se suman para el total del evento.<br />
+                    <strong style={{ color: '#b45309' }}>Salón Principal</strong>: cada salón cuenta con su propio cupo independiente, y el PAX total del evento y reportes se toma únicamente del salón principal (marcado con ⭐).
                   </div>
                 </div>
               </div>

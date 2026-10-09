@@ -2374,7 +2374,9 @@ async function readStateFromTables() {
             endTime: toHHmm(e.hora_fin),
             userId: str(e.id_usuario),
             pax: e.pax === null || e.pax === undefined ? null : Number(e.pax),
-            paxCompartido: e.pax_compartido !== 0,
+            paxCompartido: Number(e.pax_compartido) === 2 ? 'principal' : (Number(e.pax_compartido) === 1),
+            paxTipo: Number(e.pax_compartido) === 2 ? 'principal' : (Number(e.pax_compartido) === 1 ? 'compartido' : 'no_compartido'),
+            pax_compartido: Number(e.pax_compartido),
             slotPax: e.slot_pax === null || e.slot_pax === undefined ? null : Number(e.slot_pax),
             notes: str(e.notas || e.notes),
             quote,
@@ -4046,7 +4048,9 @@ function isEventUnchanged(e, oldEvent) {
           str(e?.status).trim() || "Lista de Espera",
           str(e?.userId).trim() || null,
           e?.pax === null || e?.pax === undefined || e?.pax === "" ? null : Math.max(0, Number(e.pax)),
-          e?.paxCompartido === true ? 1 : 0,
+          e?.paxCompartido === 'principal' || e?.paxCompartido === 2 || e?.paxTipo === 'principal' || Number(e?.pax_compartido) === 2
+            ? 2
+            : (e?.paxCompartido === true || Number(e?.paxCompartido) === 1 || Number(e?.pax_compartido) === 1 ? 1 : 0),
           e?.slotPax === null || e?.slotPax === undefined || e?.slotPax === "" ? null : Math.max(0, Number(e.slotPax)),
           str(e?.notes).trim() || null,
           e?.quote && typeof e.quote === "object" ? JSON.stringify(normalizeQuoteFinancials(e.quote)) : null,

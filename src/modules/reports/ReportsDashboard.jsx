@@ -352,20 +352,35 @@ export default function ReportsDashboard({ onClose }) {
     let plannedMonthPax = 0;   // todos los estatus
     for (const ev of inRange) {
       const status = String(ev.status || '').trim();
-      const pax = Math.max(0, Number(ev.slotPax ?? ev.pax ?? 0));
       const groupKey = ev.groupId || ev.id;
-      const isShared = ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1;
-      // Slot compartido: dedupe por (día + groupId) para no duplicar
-      const sharedKey = isShared ? `${ev.date || ''}_${groupKey}` : null;
+      const isPrincipal = ev.paxCompartido === 2 || ev.paxCompartido === 'principal' || ev.paxTipo === 'principal' || ev.pax_compartido === 2;
+      const isShared = !isPrincipal && (ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1);
+      const isMainSlot = isPrincipal
+        ? ((ev.mainSalon && ev.salon && String(ev.salon).trim() === String(ev.mainSalon).trim()) || ev.isPrincipal === true || !String(ev.id || '').includes('_s'))
+        : true;
+      const pax = Math.max(0, Number(ev.slotPax ?? ev.pax ?? 0));
+      const dedupeKey = (isShared || isPrincipal) ? `${ev.date || ''}_${groupKey}` : null;
+
       // Planificado: cualquier status
-      if (!isShared || !seenSharedPlanned.has(sharedKey)) {
-        if (isShared) seenSharedPlanned.add(sharedKey);
+      if (isPrincipal) {
+        if (isMainSlot && !seenSharedPlanned.has(dedupeKey)) {
+          seenSharedPlanned.add(dedupeKey);
+          plannedMonthPax += pax;
+        }
+      } else if (!isShared || !seenSharedPlanned.has(dedupeKey)) {
+        if (isShared) seenSharedPlanned.add(dedupeKey);
         plannedMonthPax += pax;
       }
-      // Confirmado: dedupe slots compartidos
+
+      // Confirmado: dedupe slots compartidos o salón principal
       if (status === STATUS.CONFIRMADO) {
-        if (!isShared || !seenSharedConfirmed.has(sharedKey)) {
-          if (isShared) seenSharedConfirmed.add(sharedKey);
+        if (isPrincipal) {
+          if (isMainSlot && !seenSharedConfirmed.has(dedupeKey)) {
+            seenSharedConfirmed.add(dedupeKey);
+            totalMonthPax += pax;
+          }
+        } else if (!isShared || !seenSharedConfirmed.has(dedupeKey)) {
+          if (isShared) seenSharedConfirmed.add(dedupeKey);
           totalMonthPax += pax;
         }
       }
@@ -601,12 +616,22 @@ export default function ReportsDashboard({ onClose }) {
       const d = String(ev.date || '');
       if (!d || d < from || d > to) continue;
       if (String(ev.status || '').trim() !== STATUS.CONFIRMADO) continue;
-      const isShared = ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1;
+      const isPrincipal = ev.paxCompartido === 2 || ev.paxCompartido === 'principal' || ev.paxTipo === 'principal' || ev.pax_compartido === 2;
+      const isShared = !isPrincipal && (ev.paxCompartido === 1 || ev.paxCompartido === true || ev.paxShared === true || ev.pax_compartido === 1);
+      const isMainSlot = isPrincipal
+        ? ((ev.mainSalon && ev.salon && String(ev.salon).trim() === String(ev.mainSalon).trim()) || ev.isPrincipal === true || !String(ev.id || '').includes('_s'))
+        : true;
       const groupKey = ev.groupId || ev.id;
       const dayGroupKey = `${d}_${groupKey}`;
       const pax = Math.max(0, Number(ev.slotPax ?? ev.pax ?? 0));
 
-      if (isShared) {
+      if (isPrincipal) {
+        if (isMainSlot && !seenSharedGroup.has(dayGroupKey)) {
+          seenSharedGroup.add(dayGroupKey);
+          dayEvents[d] = (dayEvents[d] || 0) + 1;
+          dayPax[d] = (dayPax[d] || 0) + pax;
+        }
+      } else if (isShared) {
         if (!seenSharedGroup.has(dayGroupKey)) {
           seenSharedGroup.add(dayGroupKey);
           dayEvents[d] = (dayEvents[d] || 0) + 1;

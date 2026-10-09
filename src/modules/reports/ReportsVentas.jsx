@@ -5,11 +5,18 @@ import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 import { getEventSeries, getEventSeriesFinancialMeta, getQuoteFinancialAmounts } from './components/eventSeriesUtils';
 
-// PAX correcto de una reserva, respetando paxCompartido:
+// PAX correcto de una reserva, respetando paxCompartido y Salón Principal:
 function getReservationPax(reservation, allEvents) {
   const series = getEventSeries(reservation, allEvents);
   if (!series.length) return Number(reservation?.pax || 0) || 0;
   const first = series[0];
+  const isPrincipal =
+    first?.paxCompartido === 2 || first?.paxCompartido === 'principal' || first?.paxTipo === 'principal' ||
+    first?.pax_compartido === 2 || first?.PaxCompartido === 2;
+  if (isPrincipal) {
+    const mainSlot = series.find(s => s.isPrincipal === true || (s.mainSalon && s.salon === s.mainSalon)) || first;
+    return Number(mainSlot?.slotPax ?? mainSlot?.pax ?? 0) || 0;
+  }
   const isShared =
     first?.paxCompartido === true || first?.PaxCompartido === true ||
     first?.paxCompartido === 1    || first?.PaxCompartido === 1;

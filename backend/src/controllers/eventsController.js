@@ -239,11 +239,15 @@ export async function getEvents(req, res, next) {
 export async function getEventById(req, res, next) {
   try {
     const { id } = req.params;
+    const baseId = String(id || '').replace(/_(s|slot)\d+.*$/, '');
     const [rows] = await pool.query(`
       SELECT
         e.Idocupacion,
         e.Institucion,
-        e.Pax,
+        COALESCE(
+          (SELECT p.Pax FROM tbl_seguimientocotizaciones p WHERE (p.Idocupacion = e.Idocupacion OR p.Idocupacion = ? OR p.Idocupacion LIKE CONCAT(?, '_%')) AND p.SalonPrincipal IS NOT NULL AND TRIM(p.Salon) = TRIM(p.SalonPrincipal) LIMIT 1),
+          e.Pax
+        ) AS Pax,
         e.Estatuscotizacion,
         COALESCE(u.nombre_completo, u.nombre, e.Vendedor) AS Vendedor,
         e.FechaEvento,
@@ -253,6 +257,7 @@ export async function getEventById(req, res, next) {
         e.TipoEvento,
         e.Telefono,
         e.Salon,
+        e.SalonPrincipal,
         e.EncargadoEvento,
         e.NoDoc,
         COALESCE(m.tiene_alertas, 0) AS tiene_alertas,
@@ -270,7 +275,7 @@ export async function getEventById(req, res, next) {
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion
       ${EVENTO_USER_JOIN}
       WHERE e.Idocupacion = ?
-    `, [id]);
+    `, [baseId, baseId, id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ message: 'Evento no encontrado' });
@@ -714,7 +719,9 @@ async function upsertEventSlot(conn, e) {
       toStr(e?.status) || 'Reserva sin Cotizacion',
       toStr(e?.userId) || null,
       e?.pax === null || e?.pax === undefined || e?.pax === '' ? null : Math.max(0, Number(e.pax)),
-      e?.paxCompartido === true || Number(e?.paxCompartido) === 1 ? 1 : 0,
+      e?.paxCompartido === 'principal' || e?.paxCompartido === 2 || e?.paxTipo === 'principal' || Number(e?.pax_compartido) === 2
+        ? 2
+        : (e?.paxCompartido === true || Number(e?.paxCompartido) === 1 || Number(e?.pax_compartido) === 1 ? 1 : 0),
       e?.slotPax === null || e?.slotPax === undefined || e?.slotPax === '' ? null : Math.max(0, Number(e.slotPax)),
       toStr(e?.notes) || null,
       e?.quote && typeof e.quote === 'object' ? JSON.stringify(Object.assign({}, e.quote, { advances: undefined })) : e?.quote ? JSON.stringify(e.quote) : null
@@ -948,6 +955,61 @@ export async function updateEvent(req, res, next) {
             slot?.isPrincipal ? 1 : 0
           ]);
         } catch (_) {}
+      }
+    }
+
+    // ─── SINCRONIZAR PAX EN COTIZACIÓN VINCULADA ───
+    const totalPaxToSync = eventData?.pax !== null && eventData?.pax !== undefined && eventData?.pax !== ''
+      ? Math.max(0, Number(eventData.pax))
+      : null;
+    if (totalPaxToSync !== null && totalPaxToSync > 0) {
+      try {
+        await conn.query(
+          `UPDATE cotizaciones_evento SET personas = ? WHERE id_evento = ? OR id_evento = ? OR id_evento LIKE CONCAT(?, '_%')`,
+          [totalPaxToSync, baseId, groupId, baseId]
+        );
+      } catch (_) {}
+    }
+
+    // ─── SINCRONIZAR NUM_PERSONAS EN MONTAJES DE INFORMES ACTIVOS (SIN TOCAR PLATILLOS) ───
+    if (Array.isArray(dias) && dias.length > 0) {
+      for (const d of dias) {
+        let parsed = null;
+        try {
+          parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : (d.descripcion_montaje || null);
+        } catch (_) {}
+        if (!parsed || !Array.isArray(parsed.montajes) || parsed.montajes.length === 0) continue;
+
+        const diaFecha = toIsoDate(d.fecha_evento);
+        const diaSalon = (parsed.salon || parsed.montajes?.[0]?.salon || '').trim().toLowerCase();
+
+        const slotForDay = expanded.find(s => {
+          const sStart = toIsoDate(s.dateStart || s.eventDateStart || s.date || '');
+          const sEnd = toIsoDate(s.dateEnd || s.eventDateEnd || s.endDate || sStart);
+          const sSalon = String(s.salon || '').trim().toLowerCase();
+          const coversDate = diaFecha ? (diaFecha >= sStart && diaFecha <= sEnd) : true;
+          const sameSalon = diaSalon ? (diaSalon === sSalon) : true;
+          return coversDate && sameSalon;
+        }) || expanded[0];
+
+        if (slotForDay) {
+          const targetPax = Number(slotForDay.pax ?? slotForDay.slotPax ?? totalPaxToSync ?? 0);
+          if (targetPax > 0) {
+            let changed = false;
+            for (const m of parsed.montajes) {
+              if (m.num_personas && Number(m.num_personas) !== targetPax) {
+                m.num_personas = String(targetPax);
+                changed = true;
+              }
+            }
+            if (changed) {
+              await conn.query(
+                `UPDATE informe_dias_detalle SET descripcion_montaje = ? WHERE id = ?`,
+                [JSON.stringify(parsed), d.dia_id]
+              );
+            }
+          }
+        }
       }
     }
 

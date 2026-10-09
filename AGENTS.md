@@ -32,6 +32,45 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Blindaje Anticolisión de Empresas en Menú & Montaje y Saneamiento de COT-172536 (`printUtils.js`, `fix_dvv_company.cjs`, `menu-montaje-company-shield.test.mjs`) (2026-10-09)
+- Requerimiento: Resolver error donde al imprimir una cotización con contrato (formato completo que adjunta Menú & Montaje del evento), la barra azul del encabezado mostraba el nombre de un evento ajeno (`BODA CLAUDIA RIOS - MENU & MONTAJE - 2026-10-06`) a pesar de que el evento impreso pertenecía a `DVV INTERNATIONAL` (Cotización `COT-172536`, Encargado `ANA ZAPETA`, Salón `San Pedro`).
+- Causa raíz:
+  1. En la base de datos MariaDB de empresas, el registro `id: 1000` correspondía a `"BODA CLAUDIA RIOS"`.
+  2. Debido a una colisión histórica de empresas heredadas/clonadas en el CRM, la cotización `COT-172536` y sus slots tenían asignado `companyId: 1000`, a pesar de que el usuario había especificado `quote.companyName = "DVV INTERNATIONAL"`.
+  3. En `src/utils/printUtils.js`, las funciones `buildMenuMontajeSectionHtmlOnly` y `buildMenuMontajeReportHtml` buscaban ciegamente la empresa por ID (`companies.find(c => c.id === quote.companyId)`) y ejecutaban `company?.name || quote.companyName`, priorizando el nombre del catálogo (`"BODA CLAUDIA RIOS"`) por encima del nombre real de la cotización (`"DVV INTERNATIONAL"`).
+- Solución:
+  1. En `src/utils/printUtils.js`:
+     - Implementada validación de concordancia estricta en `buildMenuMontajeSectionHtmlOnly` y `buildMenuMontajeReportHtml`: se define `explicitName = quote.companyName || ev?.name`. Si la empresa encontrada por ID tiene un nombre que no concuerda con el nombre explícito, se descarta el ID colisionado y se busca en el catálogo por nombre o se toma como `null`.
+     - `institutionName` ahora prioriza fielmente `explicitName` por encima de cualquier empresa de catálogo, garantizando que el encabezado del documento refleje siempre el cliente/evento real.
+  2. En MariaDB (`scripts/fix_dvv_company.cjs`):
+     - Registrada la empresa oficial `DVV INTERNATIONAL` en la tabla `empresas` (`cmp_dvv_intl_*`).
+     - Actualizada la cotización `COT-172536` en `cotizaciones_evento` y los 4 slots de `evt_f5c3dd54` en `eventos` con el nuevo ID limpio de empresa, desvinculando completamente la colisión con `1000`.
+  3. Validado con suite de 99 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.171).
+
+### Solución: Modo Tipo PAX "Salón Principal", Sincronización Automática con Cotizaciones y Desacople Fiel de Informes (`ReservationForm.jsx`, `InformeView.jsx`, `eventsController.js`, `informeController.js`, `ReportsDashboard.jsx`, `ReportsVentas.jsx`, `Kanban.jsx`, `pax-salon-principal.test.mjs`) (2026-10-09)
+- Requerimiento: Resolver discrepancia crítica en eventos multislot donde el informe de evento mostraba un número de personas desfasado (ej. 170 Pax en vez de 150 Pax) en el encabezado y en el día tras modificarse la reserva en el CRM. Además, permitir un tercer modo "Salón Principal" en Tipo PAX donde salones auxiliares (ej. Casa Flores con 10 personas) puedan tener su cupo independiente sin inflar el total ni forzar a que todos los salones tengan 150 en modo compartido. Mantener la sincronización automática con `cotizaciones_evento` y asegurar que en los informes cada día refleje el PAX del salón reservado y el encabezado general refleje el PAX oficial del evento, preservando intactas las cantidades de los platillos de cocina.
+- Causa raíz:
+  1. `InformeView.jsx` priorizaba el valor estático `personasMontaje` guardado en el JSON de montajes por encima de `dia.slot_pax` y de `informe.Pax`.
+  2. `cotizaciones_evento` mantenía el número inicial de 170 personas sin actualizarse cuando se editaba la reserva.
+  3. `fetchInformeWithDias` y `getEventById` consultaban el slot base `cleanOcupacionId` que correspondía a Casa Flores (10 Pax) en vez de resolver el Salón Principal (Muelle, 150 Pax).
+  4. El selector de Tipo PAX solo admitía dos estados binarios (Compartido / No Compartido), obligando a que o bien todos los salones tuvieran 150, o bien se sumaran a 310.
+- Solución:
+  1. En `src/modules/calendar/components/ReservationForm.jsx`:
+     - Añadido el tercer modo interactivo **`Salón Principal`** en el selector de Tipo PAX (desktop y móvil).
+     - Al seleccionar "Salón Principal", cada salón mantiene su propio cupo independiente en su fila y el PAX TOTAL del evento toma reactivamente solo el valor del slot marcado con la estrella ⭐ (`isPrincipal === true`).
+     - Al alternar la estrella ⭐ a otro salón o editar el cupo del salón principal, el total del evento se actualiza de inmediato.
+  2. En `src/services/eventService.js`, `server.cjs` y `backend/src/controllers/eventsController.js`:
+     - Soporte completo para `pax_compartido = 2` / `'principal'` en MariaDB y memoria.
+     - Al guardar la reserva, sincronización automática del campo `personas` en `cotizaciones_evento` y actualización del `num_personas` de los montajes de los días de informes activos correspondientes a los salones modificados, dejando intactas las cantidades de platillos de cocina.
+  3. En `backend/src/controllers/informeController.js` y `eventsController.js`:
+     - `fetchInformeWithDias` y `getEventById` resuelven el PAX oficial del Salón Principal para `currentInf.Pax` y mapean el `slot_pax` de cada día según el salón asignado a esa fecha.
+  4. En `src/modules/informes/pages/InformeView.jsx`:
+     - El encabezado general del documento muestra `{informe.Pax || diaPax || '-'} Pax` (150 Pax).
+     - La barra azul de cada día prioriza `dia.slot_pax` para mostrar fielmente el cupo del salón asignado a la fecha.
+  5. En `src/modules/reports/ReportsDashboard.jsx`, `ReportsVentas.jsx` y `Kanban.jsx`:
+     - Reconocimiento de eventos con `paxCompartido === 2` para computar exclusivamente el PAX del salón principal en métricas mensuales, diarias y de ventas sin duplicar ni sumar salones auxiliares.
+  6. Validado con suite de 97 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.170).
+
 ### Solución: Rediseño Ejecutivo y Minimalista del Selector de Días de Informes (`InformeView.jsx`, `styles.css`, `informe-day-selector-ui.test.mjs`) (2026-10-02)
 - Requerimiento: Modernizar integralmente el apartado de selección de días en la visualización de informes de eventos (`InformeView.jsx`). Reemplazar el elemento `<select>` nativo del navegador y los emojis del sistema operativo (`📅`, `📋`) por una barra de herramientas ejecutiva compacta de una sola fila (`.iv-dia-selector-bar`), alineada al ancho del documento (`max-width: 850px`), con iconografía vectorial minimalista SVG y un menú flotante Bento para selección rápida y estética.
 - Causa raíz:

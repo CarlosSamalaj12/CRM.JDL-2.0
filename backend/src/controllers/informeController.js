@@ -117,34 +117,50 @@ async function fetchInformeWithDias(informeId) {
   // Obtener slots de la serie del evento para mapear salón, pax y horario específicos de cada fecha
   try {
     const [seriesSlots] = await pool.query(`
-      SELECT Idocupacion, FechaEvento, Salon, Pax, HoraI, HoraF, NoDoc
+      SELECT Idocupacion, FechaEvento, Salon, Pax, HoraI, HoraF, NoDoc, SalonPrincipal
       FROM tbl_seguimientocotizaciones
       WHERE Idocupacion = ? OR Idocupacion = ? OR REPLACE(Idocupacion, '#', '') = ?
          OR Idocupacion = ? OR Idocupacion LIKE CONCAT(?, '_%')
     `, [currentInf.id_ocupacion, cleanOcupacionId, cleanOcupacionId, baseId, baseId]);
 
+    // Resolver PAX oficial del evento desde el Salón Principal si la reserva lo tiene designado
+    const principalSlot = seriesSlots.find(s => s.SalonPrincipal && String(s.Salon).trim().toLowerCase() === String(s.SalonPrincipal).trim().toLowerCase());
+    if (principalSlot && principalSlot.Pax !== null && principalSlot.Pax !== undefined) {
+      currentInf.Pax = principalSlot.Pax;
+    }
+
     for (const d of detailsRows) {
       const dIso = getIsoDateStr(d.fecha_evento);
 
-      // 1. Buscar coincidencia exacta con el slot asignado al informe
-      let slot = seriesSlots.find(s => {
-        const sClean = String(s.Idocupacion || '').replace(/^#/, '').trim();
-        return sClean === cleanOcupacionId;
-      });
+      // 1. Obtener salón asignado al día (desde montaje o campo salón)
+      let parsedMontaje = null;
+      try {
+        parsedMontaje = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : d.descripcion_montaje;
+      } catch {}
+      const targetSalon = parsedMontaje?.salon || parsedMontaje?.montajes?.[0]?.salon || d.salon;
 
-      // 2. Si el slot asignado no coincide con la fecha de este día, buscar por fecha y salón de montaje
+      let slot = null;
+      if (targetSalon) {
+        slot = seriesSlots.find(s => {
+          const sSalon = String(s.Salon || '').trim().toLowerCase();
+          const tSalon = String(targetSalon).trim().toLowerCase();
+          const matchSalon = sSalon === tSalon || tSalon.includes(sSalon) || sSalon.includes(tSalon);
+          const matchFecha = dIso ? getIsoDateStr(s.FechaEvento) === dIso : true;
+          return matchSalon && matchFecha;
+        });
+      }
+
+      // 2. Si no hubo coincidencia por salón, buscar por el slot asignado al informe
+      if (!slot) {
+        slot = seriesSlots.find(s => {
+          const sClean = String(s.Idocupacion || '').replace(/^#/, '').trim();
+          return sClean === cleanOcupacionId;
+        });
+      }
+
+      // 3. Fallback por fecha del día
       if (!slot || (dIso && getIsoDateStr(slot.FechaEvento) !== dIso)) {
-        let parsedMontaje = null;
-        try {
-          parsedMontaje = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : d.descripcion_montaje;
-        } catch {}
-        const targetSalon = parsedMontaje?.salon || parsedMontaje?.montajes?.[0]?.salon;
-        if (targetSalon) {
-          slot = seriesSlots.find(s => getIsoDateStr(s.FechaEvento) === dIso && String(s.Salon).trim().toLowerCase() === String(targetSalon).trim().toLowerCase());
-        }
-        if (!slot) {
-          slot = seriesSlots.find(s => getIsoDateStr(s.FechaEvento) === dIso);
-        }
+        slot = seriesSlots.find(s => getIsoDateStr(s.FechaEvento) === dIso) || slot;
       }
 
       if (slot) {

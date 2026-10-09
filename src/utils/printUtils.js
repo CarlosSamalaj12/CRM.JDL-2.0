@@ -1683,8 +1683,18 @@ export function buildMenuMontajeSectionHtmlOnly(ev, quoteLike, reportMode = "ful
   const entries = (Array.isArray(quote?.menuMontajeEntries) ? quote.menuMontajeEntries : [])
     .filter((x) => String(x?.date || "").trim() && String(x?.salon || "").trim());
   if (!entries.length) return "";
-  const company = (companies || []).find((c) => String(c.id || "") === String(quote.companyId || ""));
-  const institutionName = String(company?.name || quote.companyName || "-").trim() || "-";
+
+  const explicitName = String(quote.companyName || ev?.name || "").trim();
+  let company = (companies || []).find((c) => String(c.id || "").trim() === String(quote.companyId || "").trim());
+  if (company && explicitName) {
+    const compNameNorm = String(company.name || "").trim().toLowerCase();
+    const expNameNorm = explicitName.toLowerCase();
+    if (compNameNorm !== expNameNorm) {
+      const byName = (companies || []).find((c) => String(c.name || "").trim().toLowerCase() === expNameNorm);
+      company = byName || null;
+    }
+  }
+  const institutionName = explicitName || String(company?.name || "-").trim() || "-";
   const manager = company?.managers?.find((m) => String(m.id || "") === String(quote.managerId || ""));
   const seller = (users || []).find((u) => String(u.id || "") === String(ev?.userId || ""));
 
@@ -1741,8 +1751,17 @@ export function buildMenuMontajeSectionHtmlOnly(ev, quoteLike, reportMode = "ful
 
 export function buildMenuMontajeReportHtml(ev, quoteLike, reportMode = "full", { companies = [], users = [] } = {}) {
   const quote = quoteLike || {};
-  const company = (companies || []).find((c) => String(c.id || "") === String(quote.companyId || ""));
-  const institutionName = String(company?.name || quote.companyName || "-").trim() || "-";
+  const explicitName = String(quote.companyName || ev?.name || "").trim();
+  let company = (companies || []).find((c) => String(c.id || "").trim() === String(quote.companyId || "").trim());
+  if (company && explicitName) {
+    const compNameNorm = String(company.name || "").trim().toLowerCase();
+    const expNameNorm = explicitName.toLowerCase();
+    if (compNameNorm !== expNameNorm) {
+      const byName = (companies || []).find((c) => String(c.name || "").trim().toLowerCase() === expNameNorm);
+      company = byName || null;
+    }
+  }
+  const institutionName = explicitName || String(company?.name || "-").trim() || "-";
 
   const sectionHtml = buildMenuMontajeSectionHtmlOnly(ev, quoteLike, reportMode, { companies, users });
 

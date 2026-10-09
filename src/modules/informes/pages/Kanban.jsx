@@ -700,7 +700,8 @@ export default function Kanban() {
     // Si NO es compartido (PaxCompartido === 0), cada salón sale por separado.
     const consolidatedMap = new Map();
     for (const ev of rawDayEvents) {
-      const isShared = (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
+      const isPrincipalMode = (ev.PaxCompartido === 2 || ev.PaxCompartido === 'principal');
+      const isShared = isPrincipalMode || (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
       const groupId = getEventGroupId(ev.Idocupacion);
 
       if (!isShared) {
@@ -745,6 +746,7 @@ export default function Kanban() {
             prev._isPrincipal = true;
             prev.Idocupacion = ev.Idocupacion;
             prev.SalonPrincipal = ev.SalonPrincipal;
+            if (isPrincipalMode && ev.Pax) prev.Pax = ev.Pax;
           }
 
           // Sumar servicios de alimentación del día
@@ -900,7 +902,8 @@ export default function Kanban() {
         for (const ev of day.events) {
           const paxVal = Number(ev.Pax) || 0;
           const groupId = getEventGroupId(ev.Idocupacion);
-          const isShared = (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
+          const isPrincipalMode = (ev.PaxCompartido === 2 || ev.PaxCompartido === 'principal');
+          const isShared = isPrincipalMode || (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
           if (isShared) {
             const key = `${groupId}_${day.isoDate}`;
             if (!seenSharedPaxPrint.has(key)) {
@@ -2386,7 +2389,8 @@ events={events}
                     day.events.forEach((ev, ei) => {
                       const paxVal = Number(ev.Pax) || 0;
                       const groupId = getEventGroupId(ev.Idocupacion);
-                      const isShared = (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
+                      const isPrincipalMode = (ev.PaxCompartido === 2 || ev.PaxCompartido === 'principal');
+                      const isShared = isPrincipalMode || (ev.PaxCompartido === 1 || ev.PaxCompartido === true);
                       if (isShared) {
                         const key = `${groupId}_${day.isoDate}`;
                         if (!seenSharedPaxTable.has(key)) {

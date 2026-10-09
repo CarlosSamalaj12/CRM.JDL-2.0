@@ -76,7 +76,8 @@ function expandEventSlots(eventData, existingEvent = null) {
     return rawId.length <= 70 ? rawId : rawId.slice(0, 65) + '_' + Math.random().toString(16).slice(2, 6);
   };
 
-  const isSharedPax = eventData.paxCompartido === true;
+  const isPrincipalPax = eventData.paxCompartido === 'principal' || eventData.paxCompartido === 2 || eventData.paxTipo === 'principal';
+  const isSharedPax = !isPrincipalPax && (eventData.paxCompartido === true || eventData.paxCompartido === 1);
   slots.forEach((slot, slotIndex) => {
     const slotStart = slot.dateStart || eventDateStart;
     const slotEnd = slot.dateEnd || slot.dateStart || eventDateEnd || eventDateStart;
@@ -104,7 +105,8 @@ function expandEventSlots(eventData, existingEvent = null) {
           ? (Number.isFinite(totalPax) && totalPax > 0 ? totalPax : null)
           : (slotPaxVal ?? (Number.isFinite(totalPax) && totalPax > 0 ? totalPax : null)),
         slotPax: slotPaxVal,
-        paxCompartido: isSharedPax,
+        paxCompartido: isPrincipalPax ? 2 : (isSharedPax ? 1 : 0),
+        paxTipo: isPrincipalPax ? 'principal' : (isSharedPax ? 'compartido' : 'no_compartido'),
         slots: undefined,
       });
     });

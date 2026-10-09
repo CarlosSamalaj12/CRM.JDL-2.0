@@ -1260,17 +1260,17 @@ export default function InformeView() {
                 ? montajesSalones.join(', ')
                 : (dia.slot_salon || dia.salon || informe.Salon || '-');
 
-              // 2. Pax del día
+              // 2. Pax del día (prioriza el PAX sincronizado de la reserva para el salón de esta fecha)
               let diaPax = null;
+              if (dia.slot_pax && Number(dia.slot_pax) > 0) {
+                diaPax = dia.slot_pax;
+              }
               const personasMontaje = montajesList.find(m => m.num_personas && Number(m.num_personas) > 0)?.num_personas;
-              if (personasMontaje) {
+              if (!diaPax && personasMontaje) {
                 diaPax = personasMontaje;
-              } else if (dia.items && dia.items.length > 0) {
+              } else if (!diaPax && dia.items && dia.items.length > 0) {
                 const maxQty = Math.max(...dia.items.map(it => Number(it.cantidad_total) || 0));
                 if (maxQty > 0) diaPax = maxQty;
-              }
-              if (!diaPax && dia.slot_pax && Number(dia.slot_pax) > 0) {
-                diaPax = dia.slot_pax;
               }
               if (!diaPax) {
                 diaPax = informe.Pax || '-';
@@ -1334,7 +1334,7 @@ export default function InformeView() {
                       <div className="iv-mg-cell">
                         <span className="iv-mg-label">PERSONAS (NO. PAX)</span>
                         <span className="iv-mg-val">
-                          <span className="iv-pax-tag">{diaPax} Pax</span>
+                          <span className="iv-pax-tag">{informe.Pax || diaPax || '-'} Pax</span>
                         </span>
                       </div>
                       <div className="iv-mg-cell">
