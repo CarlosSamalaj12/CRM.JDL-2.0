@@ -812,9 +812,10 @@ export async function updateEvent(req, res, next) {
         )
     `, [rawId, baseId, baseId, rawId, baseId, baseId]);
 
+    let dias = [];
     if (informesActivos.length > 0) {
       const infIds = informesActivos.map(inf => inf.id);
-      const [dias] = await conn.query(`
+      const [diasResult] = await conn.query(`
         SELECT idd.id AS dia_id, idd.informe_id,
                DATE_FORMAT(idd.fecha_evento, '%Y-%m-%d') AS fecha_evento,
                idd.descripcion_montaje,
@@ -824,6 +825,7 @@ export async function updateEvent(req, res, next) {
         WHERE idd.informe_id IN (?)
         ORDER BY idd.fecha_evento ASC, idd.id ASC
       `, [infIds]);
+      dias = Array.isArray(diasResult) ? diasResult : [];
 
       // Si no es un reemplazo explícito multi-slot (ej. actualización de cotización o de slot individual),
       // los demás slots de la reserva en la BD siguen vigentes y cubren los días del informe.

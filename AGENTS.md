@@ -32,6 +32,17 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Corrección de Error 413 Payload Too Large y ReferenceError en Actualización Atómica de Eventos (`eventsController.js`, `server.cjs`) (2026-10-09)
+- Requerimiento: Resolver error donde al guardar cambios en una reserva desde `ReservationForm.jsx`, la consola arrojaba `PUT /api/state 413 (Payload Too Large)` con toast "Error al guardar el evento".
+- Causa raíz:
+  1. En `backend/src/controllers/eventsController.js`, en la función `updateEvent`, la variable `dias` estaba declarada dentro del bloque condicional `if (informesActivos.length > 0) { const [dias] = ... }`. Al guardar un evento que no tenía informes activos asociados (`informesActivos.length === 0`), `dias` no existía en el scope exterior, provocando `ReferenceError: dias is not defined` en la línea 975 (`if (Array.isArray(dias) && dias.length > 0)`).
+  2. Al fallar el endpoint atómico `/api/events/:id` con HTTP 500, `eventService.update` recurría al mecanismo de respaldo `saveState({ ...currentState })`, el cual enviaba el estado completo de todo el CRM (>25MB).
+  3. `server.cjs` tenía un límite de `express.json({ limit: "25mb" })`, provocando el rechazo con código `HTTP 413 Payload Too Large`.
+- Solución:
+  1. En `backend/src/controllers/eventsController.js`: Se declaró `let dias = [];` fuera del bloque condicional, garantizando que siempre esté definida como un arreglo vacío si no hay informes activos. Con esto, `PUT /api/events/:id` completa el guardado atómico en milisegundos sin recurrir al fallback de estado completo.
+  2. En `server.cjs`: Se aumentó el límite de `express.json` y `express.urlencoded` a `100mb` para prevenir rechazos por tamaño de payload en operaciones masivas.
+  3. Validado con 99 pruebas unitarias y compilación de producción en versión 2.1.172.
+
 ### Solución: Blindaje Anticolisión de Empresas en Menú & Montaje y Saneamiento de COT-172536 (`printUtils.js`, `fix_dvv_company.cjs`, `menu-montaje-company-shield.test.mjs`) (2026-10-09)
 - Requerimiento: Resolver error donde al imprimir una cotización con contrato (formato completo que adjunta Menú & Montaje del evento), la barra azul del encabezado mostraba el nombre de un evento ajeno (`BODA CLAUDIA RIOS - MENU & MONTAJE - 2026-10-06`) a pesar de que el evento impreso pertenecía a `DVV INTERNATIONAL` (Cotización `COT-172536`, Encargado `ANA ZAPETA`, Salón `San Pedro`).
 - Causa raíz:

@@ -125,7 +125,8 @@ app.use((req, res, next) => {
   next();
 });
 app.use(compression({ threshold: 512 }));
-app.use(express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 // Timeout de 25 segundos para todas las rutas API — complementa el timeout de 15s del cliente
 app.use((req, res, next) => {
