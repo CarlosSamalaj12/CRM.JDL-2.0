@@ -392,6 +392,9 @@ function DeletedLeadCard({ lead, restoring, onRestore }) {
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <Icon name="users" size={12} color="#94a3b8" strokeWidth={2.2} />
                   <span>Asignado: {lead.vendedorNombre}</span>
+                  {lead.creadoPorNombre && (
+                    <span style={{ color: '#64748b' }}> · por {lead.creadoPorNombre}</span>
+                  )}
                   {(lead.asignadoEn || lead.creadoEn) && (
                     <span style={{ color: '#94a3b8', fontSize: '10.5px' }} title={`Asignado el ${formatFechaCompleta(lead.asignadoEn || lead.creadoEn)}`}>
                       (hace {formatDiasAsignado(lead.asignadoEn || lead.creadoEn)})
@@ -401,17 +404,20 @@ function DeletedLeadCard({ lead, restoring, onRestore }) {
               ) : (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#d97706' }}>
                   <Icon name="alertTriangle" size={12} color="#d97706" strokeWidth={2.3} />
-                  Sin vendedor asignado
+                  <span>Sin vendedor asignado</span>
+                  {lead.creadoPorNombre && (
+                    <span style={{ color: '#64748b' }}> · registrado por {lead.creadoPorNombre}</span>
+                  )}
                 </span>
               )}
               {lead.tomadoPorOtro && lead.atendidoPorNombre && (
                 <span style={{
-                  fontSize: '10.5px', color: '#b45309', fontWeight: 700,
+                  fontSize: '10.5px', color: '#0369a1', fontWeight: 700,
                   display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  background: '#fef3c7', padding: '1px 5px', borderRadius: '4px', border: '1px solid #fde68a', width: 'fit-content'
+                  background: '#e0f2fe', padding: '1px 5px', borderRadius: '4px', border: '1px solid #bae6fd', width: 'fit-content'
                 }}>
-                  <Icon name="alertTriangle" size={10} color="#b45309" strokeWidth={2.5} />
-                  Atendido por: {lead.atendidoPorNombre}
+                  <Icon name="alertTriangle" size={10} color="#0284c7" strokeWidth={2.5} />
+                  Reserva atendida por: {lead.atendidoPorNombre}
                 </span>
               )}
             </div>
@@ -558,6 +564,11 @@ function LeadCard({
   const avatarStyle = getAvatarStyle(lead.nombreCliente, lead.estado);
   const accentColor = est.color || '#0d9488';
 
+  // Vendedor que atiende la reserva o da seguimiento activo (NUNCA quien asignó/creó el evento)
+  const vendedorContacto = lead.tomadoPorOtro && lead.atendidoPorNombre
+    ? lead.atendidoPorNombre
+    : (lead.atendidoPorNombre || lead.vendedorNombre || null);
+
   return (
     <div
       style={{
@@ -649,14 +660,22 @@ function LeadCard({
             {lead.vendedorNombre ? (
               <>
                 Asignado a: <strong style={{ color: '#334155' }}>{lead.vendedorNombre}</strong>
+                {lead.creadoPorNombre && (
+                  <span style={{ color: '#64748b' }}> · asignado por <strong style={{ color: '#475569', fontWeight: 600 }}>{lead.creadoPorNombre}</strong></span>
+                )}
                 {fechaAsig && <span> · hace {formatDiasAsignado(fechaAsig)}</span>}
               </>
             ) : (
-              <span style={{ color: '#d97706', fontWeight: 600 }}>Sin vendedor asignado</span>
+              <>
+                <span style={{ color: '#d97706', fontWeight: 600 }}>Sin vendedor asignado</span>
+                {lead.creadoPorNombre && (
+                  <span style={{ color: '#64748b' }}> · asignado por <strong style={{ color: '#475569', fontWeight: 600 }}>{lead.creadoPorNombre}</strong></span>
+                )}
+              </>
             )}
             {lead.tomadoPorOtro && lead.atendidoPorNombre && (
-              <span style={{ color: '#b45309', marginLeft: '6px' }}>
-                · Atendido por: <strong>{lead.atendidoPorNombre}</strong>
+              <span style={{ color: '#0369a1', marginLeft: '6px', fontWeight: 600 }}>
+                · Reserva atendida por: <strong style={{ color: '#0284c7' }}>{lead.atendidoPorNombre}</strong>
               </span>
             )}
           </span>
@@ -783,7 +802,7 @@ function LeadCard({
               <span>
                 {lead.estado === 'pendiente' ? 'Próximo seguimiento:' : 'Último contacto:'}{' '}
                 <strong>{formatDiaSeguimientoShort(fechaSeg)}</strong>
-                {lead.creadoPorNombre && <span> · {lead.creadoPorNombre}</span>}
+                {vendedorContacto && <span> · {vendedorContacto}</span>}
               </span>
             </span>
           ) : (
@@ -1414,6 +1433,7 @@ export default function PosiblesVentasModule() {
         (l.correo || '').toLowerCase().includes(term) ||
         (l.vendedorNombre || '').toLowerCase().includes(term) ||
         (l.atendidoPorNombre || '').toLowerCase().includes(term) ||
+        (l.creadoPorNombre || '').toLowerCase().includes(term) ||
         (l.salones || []).some(s => String(s).toLowerCase().includes(term)) ||
         (l.notas || '').toLowerCase().includes(term)
       );
@@ -1447,6 +1467,7 @@ export default function PosiblesVentasModule() {
         Estado: ESTADO_MAP[l.estado]?.label || l.estado || '—',
         Vendedor: l.vendedorNombre || 'Sin asignar',
         'Creado Por': l.creadoPorNombre || '—',
+        'Atendido Por': l.tomadoPorOtro && l.atendidoPorNombre ? l.atendidoPorNombre : (l.atendidoPorNombre || l.vendedorNombre || '—'),
         'Fecha Asignación': l.asignadoEn ? formatFechaCompleta(l.asignadoEn) : '—',
         'Último Seguimiento': l.ultimoSeguimientoEn ? formatFechaCompleta(l.ultimoSeguimientoEn) : 'Sin seguimiento',
         Notas: l.notas || '—',

@@ -104,14 +104,30 @@ const LINKED_EVENT_SELECT = `
   COALESCE(e_direct.id_usuario, u_legacy.id) AS linked_usuario_id,
   COALESCE(u_direct.nombre, ev.Vendedor) AS atendido_por_nombre,
   e_direct.creado_en AS linked_creado_en,
-  e_direct.actualizado_en AS linked_actualizado_en
+  e_direct.actualizado_en AS linked_actualizado_en,
+  (
+    SELECT MAX(re.creado_en_fila)
+      FROM recordatorios_evento re
+     WHERE re.clave_evento = pv.evento_id
+        OR re.clave_evento = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+        OR SUBSTRING_INDEX(re.clave_evento, '_s', 1) = pv.evento_id
+  ) AS linked_recordatorio_en,
+  (
+    SELECT MAX(ce.cotizado_en_iso)
+      FROM cotizaciones_evento ce
+     WHERE ce.id_evento = pv.evento_id
+        OR ce.id_evento = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+        OR SUBSTRING_INDEX(ce.id_evento, '_s', 1) = pv.evento_id
+  ) AS linked_cotizacion_en
 `;
 
 /** Para el listado principal: une con la tabla eventos y tbl_seguimientocotizaciones si existe. */
 const LINKED_EVENT_JOIN = `
   LEFT JOIN eventos e_direct
     ON e_direct.id = pv.evento_id
+    OR e_direct.id_grupo = pv.evento_id
     OR e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+    OR e_direct.id_grupo = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
   LEFT JOIN usuarios u_direct
     ON u_direct.id = e_direct.id_usuario
   LEFT JOIN tbl_seguimientocotizaciones ev
@@ -176,6 +192,20 @@ function toDateStr(value) {
   return null;
 }
 
+function getLatestDate(...dates) {
+  let latest = null;
+  let latestTime = -Infinity;
+  for (const d of dates) {
+    if (!d) continue;
+    const t = new Date(d).getTime();
+    if (!Number.isNaN(t) && t > latestTime) {
+      latestTime = t;
+      latest = d;
+    }
+  }
+  return latest;
+}
+
 function buildLead(row) {
   // Si la query ya trajo linked_estatus / linked_fecha, recalculamos el estado derivado
   // y, si difiere, lo persistimos después en bulk. Aquí devolvemos el derivado para la respuesta.
@@ -201,7 +231,13 @@ function buildLead(row) {
     creadoPorId: row.creado_por_id,
     creadoPorNombre: row.creado_por_nombre || null,
     estado: derived,
-    ultimoSeguimientoEn: row.ultimo_seguimiento_en || (row.evento_id ? (row.linked_actualizado_en || row.linked_creado_en || row.actualizado_en || row.creado_en) : null),
+    ultimoSeguimientoEn: getLatestDate(
+      row.ultimo_seguimiento_en,
+      row.evento_id ? row.linked_recordatorio_en : null,
+      row.evento_id ? row.linked_cotizacion_en : null,
+      row.evento_id ? row.linked_actualizado_en : null,
+      row.evento_id ? row.linked_creado_en : null
+    ) || row.ultimo_seguimiento_en || (row.evento_id ? (row.actualizado_en || row.creado_en) : null),
     primerSeguimientoEn: row.primer_seguimiento_en || (row.evento_id ? (row.linked_creado_en || row.actualizado_en || row.creado_en) : null),
     eventoId: row.evento_id || null,
     atendidoPorId: row.linked_usuario_id || null,
@@ -488,6 +524,15 @@ export async function enviarMensajeVendedor(req, res, next) {
       mensaje: mensajeTrim,
     });
 
+    // Actualizar último contacto en posibles_ventas
+    await pool.query(
+      `UPDATE posibles_ventas
+          SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+              ultimo_seguimiento_en = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [lead.id]
+    ).catch(() => {});
+
     if (!notifId) {
       return res.status(500).json({ message: 'No se pudo registrar la notificación' });
     }
@@ -718,10 +763,18 @@ export async function updatePosibleVenta(req, res, next) {
     if (body.servicios !== undefined) {
       updates.push('servicios_json = ?');
       params.push(JSON.stringify(Array.isArray(body.servicios) ? body.servicios : []));
+      updates.push('ultimo_seguimiento_en = CURRENT_TIMESTAMP');
+      updates.push('primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP)');
     }
     if (body.notas !== undefined) {
       updates.push('notas = ?');
       params.push(String(body.notas || '').trim() || null);
+      updates.push('ultimo_seguimiento_en = CURRENT_TIMESTAMP');
+      updates.push('primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP)');
+    }
+    if (body.ultimoSeguimientoEn !== undefined) {
+      updates.push('ultimo_seguimiento_en = ?');
+      params.push(body.ultimoSeguimientoEn ? new Date(body.ultimoSeguimientoEn) : null);
     }
     if (body.vendedorId !== undefined) {
       const nuevoVendedor = String(body.vendedorId || '').trim() || null;

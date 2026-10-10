@@ -109,3 +109,27 @@ test('ReservationForm.jsx ejecuta chequeo granular y maneja tanto pre-validació
   assert.ok(content.includes('informeResolutions'), 'Debe incluir informeResolutions en la llamada de guardado');
   assert.ok(content.includes('err?.status === 409'), 'Debe capturar respuesta 409 y activar el modal');
 });
+
+test('Blindaje Antidesfase: Soporte granular para días vacíos, eliminación por diaId y Guardar sin Transferir funcional', () => {
+  const informeCtrlPath = path.join(projectRoot, 'backend', 'src', 'controllers', 'informeController.js');
+  const informeContent = fs.readFileSync(informeCtrlPath, 'utf8');
+  assert.ok(informeContent.includes('isEmpty'), 'checkEventInformes debe calcular si el día del informe está vacío');
+  assert.ok(informeContent.includes('delete_day'), 'applyInformeResolutionsInternal debe admitir acción delete_day');
+  assert.ok(informeContent.includes('DELETE FROM informe_dias_detalle WHERE id = ?'), 'Debe eliminar solo el día específico por diaId sin borrar todo el informe');
+
+  const eventsCtrlPath = path.join(projectRoot, 'backend', 'src', 'controllers', 'eventsController.js');
+  const eventsContent = fs.readFileSync(eventsCtrlPath, 'utf8');
+  assert.ok(eventsContent.includes('emptyDiasToPrune'), 'eventsController debe recolectar días vacíos para podado automático');
+  assert.ok(eventsContent.includes('isDayEmpty'), 'eventsController debe evaluar si el día desvinculado está vacío');
+
+  const formPath = path.join(projectRoot, 'src', 'modules', 'calendar', 'components', 'ReservationForm.jsx');
+  const formContent = fs.readFileSync(formPath, 'utf8');
+  assert.ok(formContent.includes('discardResolutions'), 'handleProceedWithoutInformeTransfer debe enviar resoluciones para descartar solo los días huérfanos');
+  assert.ok(formContent.includes('day.isEmpty'), 'ReservationForm debe ignorar días vacíos al validar conflictos');
+
+  const modalPath = path.join(projectRoot, 'src', 'modules', 'calendar', 'components', 'InformeTransferModal.jsx');
+  const modalContent = fs.readFileSync(modalPath, 'utf8');
+  assert.ok(modalContent.includes('Eliminar solo este día'), 'Modal debe clarificar la eliminación granular');
+  assert.ok(modalContent.includes('Atención:'), 'Modal debe advertir al usuario cuando un slot es de otra fecha');
+});
+

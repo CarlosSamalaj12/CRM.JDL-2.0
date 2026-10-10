@@ -32,6 +32,53 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Blindaje Antidesfase Granular, Autopodado de Días Vacíos y Guardado sin Transferir Funcional (`eventsController.js`, `informeController.js`, `ReservationForm.jsx`, `InformeTransferModal.jsx`, `informes-conflict-guard.test.mjs`) (2026-10-10)
+- Requerimiento: Resolver error donde al modificar fechas o salones de una reserva (ej. reducir Casa Flores 06 del 16 al 14 de octubre), el sistema detectaba informes con conflicto e impedía guardar con "Guardar sin Transferir" arrojando un error HTTP 409 Conflict. Además, si el usuario confirmaba la reserva, el modal preseleccionaba por defecto reasignar a un salón disponible en otra fecha (ej. No usa Salon al 12 de octubre), moviendo la fecha y salón del informe contra la voluntad del usuario. Si los días retirados de la reserva no tenían comida ni montajes en el informe (días vacíos), el sistema debía permitir guardar sin transferir sin interrumpir ni dar error; y si tenían contenido, permitir elegir si mover de salón o eliminar solo ese día huérfano del informe sin alterar los demás días válidos.
+- Causa raíz:
+  1. En `backend/src/controllers/eventsController.js`: el blindaje antidesfase trataba cualquier fila en `informe_dias_detalle` como un conflicto crítico, incluso si el día estaba completamente vacío (sin menú, sin platillos en `items_tiempo_comida`, y sin montajes personalizados).
+  2. Si el usuario hacía clic en "Guardar sin Transferir", `ReservationForm.jsx` enviaba `informeResolutions: null`, provocando que el backend lo interpretara como un conflicto no resuelto y rechazara con `HTTP 409 Conflict: La modificación desvincula fechas o salones con informes de evento activos`.
+  3. `InformeTransferModal.jsx` inicializaba todas las resoluciones con `action: 'reassign'` y, si no había un salón en la misma fecha, tomaba el primer slot disponible (`availableSlots[0]`), cambiando silenciosamente la fecha del informe al guardar.
+  4. La acción `delete` en `informeController.js` ejecutaba un soft delete de TODO el informe (`UPDATE informes_eventos SET estado = 'eliminado'`), en lugar de eliminar de forma granular únicamente el día desvinculado en `informe_dias_detalle`.
+- Solución:
+  1. En `backend/src/controllers/informeController.js`:
+     - En `checkEventInformes`: cálculo de bandera `isEmpty` para cada día evaluando ausencia de menú, montajes activos y platillos de comida.
+     - En `applyInformeResolutionsInternal`: soporte granular para `diaId` en acciones `delete` y `delete_day`. Si el informe tiene más de un día, ejecuta `DELETE FROM informe_dias_detalle WHERE id = ? AND informe_id = ?` con auditoría `DIA_ELIMINADO`, preservando intactos los demás días del evento. Solo si era el único día se archiva o elimina el informe completo.
+  2. En `backend/src/controllers/eventsController.js`:
+     - Al validar cobertura de informes activos: si un día desvinculado está vacío (`isDayEmpty`), se agrega a `emptyDiasToPrune` y se elimina silenciosamente en la misma transacción sin generar conflicto ni bloquear con 409.
+     - Solo bloquea con 409 si existen días descubiertos con contenido real y sin resoluciones.
+  3. En `src/modules/calendar/components/ReservationForm.jsx`:
+     - En el pre-chequeo local, ignora días con `day.isEmpty`.
+     - En `handleProceedWithoutInformeTransfer`: genera resoluciones con `action: 'delete_day'` para los días huérfanos desvinculados, permitiendo que la reserva se guarde limpiamente sin error 409 y descartando solo los días que el usuario decidió no transferir.
+  4. En `src/modules/calendar/components/InformeTransferModal.jsx`:
+     - Si no hay un slot en la misma fecha dentro de la reserva, sugiere por defecto `Eliminar solo este día` en lugar de reasignar a una fecha distinta.
+     - Si el usuario selecciona reasignar a un slot en una fecha diferente, muestra advertencia visual: `⚠️ Atención: La reserva no tiene salones el [fecha]. Al reasignar aquí, el día del informe se trasladará al [nueva_fecha]`.
+     - Texto de eliminación aclarado a "Eliminar solo este día" con mensaje explicativo de eliminación granular.
+  5. Saneamiento MariaDB de columnas `propina_tipo`, `propina_valor`, `propina_monto` en `cotizaciones_evento` y `cotizacion_versiones_evento`.
+  6. Validado con 112 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.179).
+
+### Solución: Corrección de Vendedor en Último Contacto, Asignador Informativo en Cabecera y Sincronización Automática de Seguimiento en Eventos Asignados (`PosiblesVentasModule.jsx`, `posiblesVentasController.js`, `eventsController.js`, `server.cjs`, `ReportsEventosAsignados.jsx`, `posibles-ventas-vendedor-contacto.test.mjs`) (2026-10-10)
+- Requerimiento: Resolver error crítico en el módulo de Eventos Asignados (`PosiblesVentasModule.jsx`) donde en la sección inferior de la tarjeta "Último contacto" aparecía erróneamente el nombre del usuario que asignó o creó el evento (`lead.creadoPorNombre`, ej. Carlos Robert Samalaj o Recepción) en vez del vendedor asignado o el vendedor que tomó/creó la reserva y le está dando seguimiento. Además, el usuario que asignó el evento debe figurar como dato informativo en la cabecera (`Asignado a: [Vendedor] · asignado por [Quien asignó] · hace X días`) y si otro vendedor tomó la reserva, destacarlo con `· Reserva atendida por: [Vendedor de la Reserva]`. Asimismo, la fecha de "Último contacto" debe actualizarse automáticamente tanto al editar notas o enviar mensajes al vendedor, como al modificar la reserva o registrar anticipos en el calendario.
+- Causa raíz:
+  1. En `PosiblesVentasModule.jsx` (línea 786), el pie de la tarjeta renderizaba directamente `{lead.creadoPorNombre && <span> · {lead.creadoPorNombre}</span>}` junto a la fecha de seguimiento, atribuyendo erróneamente el contacto al creador/asignador en lugar del vendedor.
+  2. La cabecera solo mostraba `Asignado a: lead.vendedorNombre`, omitiendo el dato informativo de quién asignó el evento (`creadoPorNombre`).
+  3. `backend/src/controllers/posiblesVentasController.js`, `eventsController.js` y `server.cjs` no sincronizaban atómicamente `ultimo_seguimiento_en` hacia `posibles_ventas` cuando se editaban notas en el lead, se enviaban recordatorios al vendedor, o se actualizaban reservas y anticipos vinculados en el calendario.
+- Solución:
+  1. En `src/modules/posiblesVentas/PosiblesVentasModule.jsx`:
+     - Resuelto `vendedorContacto = lead.tomadoPorOtro && lead.atendidoPorNombre ? lead.atendidoPorNombre : (lead.atendidoPorNombre || lead.vendedorNombre || null)`.
+     - En la sección inferior "Último contacto:" / "Próximo seguimiento:", reemplazado `lead.creadoPorNombre` por `{vendedorContacto && <span> · {vendedorContacto}</span>}`, garantizando que NUNCA aparezca el creador/asignador como autor del seguimiento.
+     - En la cabecera superior, incorporado el contexto informativo `asignado por [lead.creadoPorNombre]` y destacado `· Reserva atendida por: [lead.atendidoPorNombre]` con estilo azul institucional `#0369a1` cuando un vendedor diferente toma o atiende la reserva.
+     - Actualizado `DeletedLeadCard`, la exportación a Excel con columna `Atendido Por`, y la barra de búsqueda para incluir `creadoPorNombre`.
+  2. En `backend/src/controllers/posiblesVentasController.js`:
+     - Implementada función `getLatestDate` en `buildLead` para resolver reactivamente la fecha de interacción más reciente entre el lead y el evento ligado (`ultimo_seguimiento_en`, `linked_actualizado_en`, `linked_creado_en`).
+     - En `enviarMensajeVendedor`, actualización automática de `ultimo_seguimiento_en = CURRENT_TIMESTAMP`.
+     - En `updatePosibleVenta`, actualización automática de `ultimo_seguimiento_en = CURRENT_TIMESTAMP` y `primer_seguimiento_en` al modificar notas, servicios (`servicios_json`) o enviar `ultimoSeguimientoEn`.
+  3. En `backend/src/controllers/eventsController.js` y `server.cjs`:
+     - En `createEvent`, `updateEvent` y `updateEventQuote`: sincronización inmediata de `primer_seguimiento_en` y `ultimo_seguimiento_en = CURRENT_TIMESTAMP` en `posibles_ventas` vinculadas al evento editado (incluyendo al agregar o modificar servicios y precios de la cotización).
+     - En `server.cjs` (`POST`, `PUT`, `DELETE /api/events/:eventId/anticipos` y guardado de cotizaciones): sincronización automática de `ultimo_seguimiento_en` al registrar o modificar anticipos y servicios.
+  4. En `src/modules/reports/ReportsEventosAsignados.jsx`:
+     - Homologada la insignia a `Reserva atendida por: [l.atendidoPorNombre]` con formato ejecutivo.
+  5. Validado con 111 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.176).
+
 ### Solución: Sistema de Propinas para Personal en Cotizaciones y Contratos con Aislamiento Financiero (`server.cjs`, `eventsController.js`, `stateService.js`, `eventSeriesUtils.js`, `ReportsVentas.jsx`, `ReportsContabilidad.jsx`, `printUtils.js`, `QuoteModal.jsx`, `SettingsPropinas.jsx`, `SettingsMain.jsx`, `quote-tip-system.test.mjs`) (2026-10-10)
 - Requerimiento: Incorporar opción de propinas para el personal en cotizaciones con la misma ergonomía que los descuentos comerciales (ingreso por monto fijo o porcentaje), calculadas sobre el subtotal neto `(Subtotal - Descuento)`. Las propinas no deben inflar los ingresos ni las metas de ventas de la empresa en la reportería (pertenecen a los empleados), pero deben ser identificables por evento en contabilidad y ventas. En documentos impresos, deben salir exclusivamente en el formato completo "Cotización + Contrato" (`completa`) y omitirse en la "Cotización normal" (`standard`) para no interferir en la fase de negociación comercial. Permitir configurar un porcentaje sugerido por defecto (ej. 10%) desde el panel de configuraciones con su propio endpoint REST.
 - Causa raíz y consideraciones:

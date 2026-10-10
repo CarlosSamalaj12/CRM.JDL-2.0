@@ -4510,6 +4510,21 @@ function isEventUnchanged(e, oldEvent) {
           `UPDATE eventos SET cotizacion_json = ? WHERE id = ?`,
           [JSON.stringify(q), id]
         );
+
+        // Sincronizar último contacto en posibles_ventas vinculadas
+        await conn.query(
+          `UPDATE posibles_ventas
+              SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                  ultimo_seguimiento_en = CURRENT_TIMESTAMP
+            WHERE evento_id IS NOT NULL
+              AND (
+                evento_id = ?
+                OR evento_id = ?
+                OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+                OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+              )`,
+          [id, id, id, id]
+        ).catch(() => {});
       }
     }
 
@@ -4613,6 +4628,23 @@ function isEventUnchanged(e, oldEvent) {
             ]
           );
         }
+      }
+
+      // Sincronizar último contacto en posibles_ventas para los eventos con citas actualizadas
+      for (const eventKey of Object.keys(reminders)) {
+        await conn.query(
+          `UPDATE posibles_ventas
+              SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                  ultimo_seguimiento_en = CURRENT_TIMESTAMP
+            WHERE evento_id IS NOT NULL
+              AND (
+                evento_id = ?
+                OR evento_id = ?
+                OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+                OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+              )`,
+          [eventKey, eventKey, eventKey, eventKey]
+        ).catch(() => {});
       }
     }
 
@@ -7032,6 +7064,20 @@ app.post("/api/events/:eventId/anticipos", async (req, res) => {
       }
     }
 
+    await conn.query(
+      `UPDATE posibles_ventas
+          SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+              ultimo_seguimiento_en = CURRENT_TIMESTAMP
+        WHERE evento_id IS NOT NULL
+          AND (
+            evento_id = ?
+            OR evento_id = ?
+            OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+            OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+          )`,
+      [eventId, baseId, eventId, baseId]
+    ).catch(() => {});
+
     if (io) {
       io.emit("state-updated", { timestamp: Date.now(), entity: "advances", eventId });
       io.emit("event-advances-updated", { eventId, baseId, advanceId: advId, action: "added" });
@@ -7166,6 +7212,20 @@ app.put("/api/events/:eventId/anticipos/:advanceId", async (req, res) => {
       }
     }
 
+    await conn.query(
+      `UPDATE posibles_ventas
+          SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+              ultimo_seguimiento_en = CURRENT_TIMESTAMP
+        WHERE evento_id IS NOT NULL
+          AND (
+            evento_id = ?
+            OR evento_id = ?
+            OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+            OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+          )`,
+      [eventId, baseId, eventId, baseId]
+    ).catch(() => {});
+
     if (io) {
       io.emit("state-updated", { timestamp: Date.now(), entity: "advances", eventId });
       io.emit("event-advances-updated", { eventId, baseId, advanceId, action: "edited" });
@@ -7237,6 +7297,20 @@ app.delete("/api/events/:eventId/anticipos/:advanceId", async (req, res) => {
         } catch (_) {}
       }
     }
+
+    await conn.query(
+      `UPDATE posibles_ventas
+          SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+              ultimo_seguimiento_en = CURRENT_TIMESTAMP
+        WHERE evento_id IS NOT NULL
+          AND (
+            evento_id = ?
+            OR evento_id = ?
+            OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+            OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+          )`,
+      [eventId, baseId, eventId, baseId]
+    ).catch(() => {});
 
     if (io) {
       io.emit("state-updated", { timestamp: Date.now(), entity: "advances", eventId });

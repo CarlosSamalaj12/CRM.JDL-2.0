@@ -1460,11 +1460,11 @@ export default function ReportsEventosAsignados({ onClose }) {
                         <div style={{ fontSize: '11.5px', fontWeight: 600 }}>{l.vendedorNombre || <span style={{ color: '#d97706' }}>Sin asignar</span>}</div>
                         {l.tomadoPorOtro && l.atendidoPorNombre && (
                           <div style={{
-                            fontSize: '10px', color: '#b45309', fontWeight: 700,
-                            marginTop: '2px', background: '#fef3c7', padding: '1px 5px',
-                            borderRadius: '4px', border: '1px solid #fde68a', width: 'fit-content'
+                            fontSize: '10px', color: '#0369a1', fontWeight: 700,
+                            marginTop: '2px', background: '#e0f2fe', padding: '1px 5px',
+                            borderRadius: '4px', border: '1px solid #bae6fd', width: 'fit-content'
                           }}>
-                            Atendido por: {l.atendidoPorNombre}
+                            Reserva atendida por: {l.atendidoPorNombre}
                           </div>
                         )}
                         <div style={{ fontSize: '9.5px', color: '#94a3b8', marginTop: '1px' }}>{l.creadoPorNombre ? `por ${l.creadoPorNombre}` : ''}</div>

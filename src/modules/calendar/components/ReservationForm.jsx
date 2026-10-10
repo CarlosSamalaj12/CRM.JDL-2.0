@@ -1450,6 +1450,9 @@ export default function ReservationForm() {
                   }];
 
               for (const day of days) {
+                // Si el día está vacío de contenido culinario y montajes, se limpiará automáticamente sin interrumpir
+                if (day.isEmpty) continue;
+
                 const dayDate = day.fecha;
                 const daySalon = (day.salon || existingEvent?.salon || '').trim().toLowerCase();
 
@@ -1601,8 +1604,15 @@ export default function ReservationForm() {
   const handleProceedWithoutInformeTransfer = async () => {
     if (!informeTransferModal.pendingSave) return;
     const { eventData, cleanedSlots, moveToFollowUp, isNew } = informeTransferModal.pendingSave;
+    const conflicts = informeTransferModal.conflicts || [];
+    // Descartar y eliminar limpiamente de la tabla de días únicamente los días huérfanos que el usuario decidió no transferir
+    const discardResolutions = conflicts.map(c => ({
+      informeId: c.informeId,
+      diaId: c.diaId,
+      action: 'delete_day'
+    }));
     setInformeTransferModal(prev => ({ ...prev, isOpen: false }));
-    await executeSaveReservation(eventData, cleanedSlots, moveToFollowUp, isNew, null);
+    await executeSaveReservation(eventData, cleanedSlots, moveToFollowUp, isNew, discardResolutions);
   };
 
   const PIPELINE_STEPS = [

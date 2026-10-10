@@ -126,14 +126,17 @@ export default function InformeTransferModal({
 
       const fallbackSlot = availableSlots[0];
       const target = matchingSlot || fallbackSlot;
+      // Si no hay slot en la misma fecha, la sugerencia por defecto es eliminar solo ese día huérfano
+      // para evitar mover la fecha o salón del evento accidentalmente.
+      const defaultAction = matchingSlot ? 'reassign' : 'delete';
 
       initial[key] = {
         informeId: c.informeId,
         diaId: c.diaId,
-        action: 'reassign', // 'reassign' | 'archive' | 'delete'
+        action: defaultAction,
         targetSlotId: target ? String(target.id) : '',
         targetSalon: target ? target.salon : '',
-        targetFecha: c.fecha || (target ? (target.dateStart || target.date) : ''),
+        targetFecha: matchingSlot ? c.fecha : (target ? (target.dateStart || target.date) : ''),
         targetHorario: target ? `${target.startTime || '10:00'} - ${target.endTime || '12:00'}` : c.horario
       };
     });
@@ -436,7 +439,7 @@ export default function InformeTransferModal({
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <IconTrash /> Eliminar
+                    <IconTrash /> Eliminar solo este día
                   </button>
                 </div>
 
@@ -474,6 +477,33 @@ export default function InformeTransferModal({
                         );
                       })}
                     </select>
+
+                    {(() => {
+                      const sel = availableSlots.find(s => String(s.id) === String(currentRes.targetSlotId));
+                      const sStart = String(sel?.dateStart || sel?.date || '').slice(0, 10);
+                      const sEnd = String(sel?.dateEnd || sStart).slice(0, 10);
+                      const isDateMatch = c.fecha && c.fecha >= sStart && c.fecha <= sEnd;
+                      if (!isDateMatch && sel) {
+                        return (
+                          <div style={{
+                            marginTop: '8px',
+                            fontSize: '11.5px',
+                            color: '#b45309',
+                            background: '#fffbeb',
+                            border: '1px solid #fef3c7',
+                            padding: '6px 10px',
+                            borderRadius: '7px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                            <IconShieldAlert />
+                            <span><strong>Atención:</strong> La reserva no tiene salones el {c.fecha}. Al reasignar aquí, el día del informe se trasladará al <strong>{sStart}</strong>.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 )}
 
@@ -509,7 +539,7 @@ export default function InformeTransferModal({
                     gap: '8px'
                   }}>
                     <span style={{ marginTop: '2px', flexShrink: 0 }}><IconAlertTriangle /></span>
-                    <span><strong>Soft Delete Auditado:</strong> El informe será marcado como eliminado con registro en auditoría. Podrá ser consultado o restaurado por administradores.</span>
+                    <span><strong>Eliminación Granular:</strong> Se eliminará únicamente este día huérfano de la tabla de días del informe. Los demás días del informe se mantendrán 100% intactos con sus menús y logística.</span>
                   </div>
                 )}
               </div>

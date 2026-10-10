@@ -622,12 +622,27 @@ export async function checkEventInformes(req, res, next) {
       try {
         parsed = typeof d.descripcion_montaje === 'string' ? JSON.parse(d.descripcion_montaje) : d.descripcion_montaje;
       } catch { parsed = {}; }
+
+      const hasMenu = !!(d.nombre_menu && String(d.nombre_menu).trim().length > 0);
+      const montajes = Array.isArray(parsed?.montajes) ? parsed.montajes : [];
+      const hasMontaje = montajes.some(m =>
+        (m.tipo_montaje && String(m.tipo_montaje).trim().length > 0) ||
+        (m.observaciones && String(m.observaciones).trim().length > 0) ||
+        (m.equipo_necesario && String(m.equipo_necesario).trim().length > 0)
+      );
+      const tiemposComida = Array.isArray(parsed?.items_tiempo_comida)
+        ? parsed.items_tiempo_comida.filter(Boolean)
+        : [];
+      const hasComida = tiemposComida.length > 0 || !!(parsed?.tiempo_comida);
+      const isEmpty = !hasMenu && !hasMontaje && !hasComida;
+
       diasPorInforme[d.informe_id].push({
         id: d.id,
         fecha: toIsoDate(d.fecha_evento),
         menu_nombre: d.nombre_menu || null,
         salon: parsed?.salon || parsed?.montajes?.[0]?.salon || '',
         horario: parsed?.horario || parsed?.montajes?.[0]?.horario || '',
+        isEmpty,
       });
     }
 
@@ -724,8 +739,30 @@ export async function applyInformeResolutionsInternal(conn, baseId, resolutions 
 
       applied.push({ informeId: infId, action: 'archive' });
 
-    } else if (action === 'delete') {
-      // Soft delete con confirmación y auditoría
+    } else if (action === 'delete' || action === 'delete_day') {
+      // Si se especifica un diaId particular, verificar si el informe tiene más días
+      if (item.diaId) {
+        const [remainingDias] = await conn.query(
+          'SELECT id FROM informe_dias_detalle WHERE informe_id = ?',
+          [infId]
+        );
+        if (remainingDias.length > 1) {
+          await conn.query(
+            'DELETE FROM informe_dias_detalle WHERE id = ? AND informe_id = ?',
+            [item.diaId, infId]
+          );
+          try {
+            await conn.query(
+              'INSERT INTO informe_historial (informe_id, usuario_id, rol_usuario, accion, descripcion) VALUES (?, ?, ?, ?, ?)',
+              [infId, userId, userRole, 'DIA_ELIMINADO', `Día #${item.diaId} eliminado del informe al recortar fechas de la reserva`]
+            );
+          } catch (_) {}
+          applied.push({ informeId: infId, diaId: item.diaId, action: 'delete_day' });
+          continue;
+        }
+      }
+
+      // Si no hay diaId o era el único día del informe, soft delete de todo el informe
       await conn.query(
         'UPDATE informes_eventos SET estado = "eliminado", deleted_at = NOW(), deleted_by = ? WHERE id = ?',
         [userId, infId]

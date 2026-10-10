@@ -660,6 +660,23 @@ export async function updateEventQuote(req, res, next) {
       }
     }
 
+    // ─── SINCRONIZAR ÚLTIMO CONTACTO EN POSIBLES VENTAS VINCULADAS ───
+    try {
+      await conn.query(
+        `UPDATE posibles_ventas
+            SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                ultimo_seguimiento_en = CURRENT_TIMESTAMP
+          WHERE evento_id IS NOT NULL
+            AND (
+              evento_id = ?
+              OR evento_id = ?
+              OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+              OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+            )`,
+        [id, baseId, id, baseId]
+      );
+    } catch (_) {}
+
     await conn.commit();
 
     emitChange(req, 'quote', 'updated', { id: baseId, quote: q, status });
@@ -773,6 +790,27 @@ export async function createEvent(req, res, next) {
       await upsertEventSlot(conn, slot);
     }
 
+    // ─── SINCRONIZAR SEGUIMIENTO EN POSIBLES VENTAS VINCULADAS ───
+    const firstId = toStr(expanded[0]?.id || eventData?.id);
+    const firstBaseId = firstId ? firstId.replace(/_(s|slot)\d+.*$/, '') : '';
+    if (firstId || firstBaseId) {
+      try {
+        await conn.query(
+          `UPDATE posibles_ventas
+              SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                  ultimo_seguimiento_en = CURRENT_TIMESTAMP
+            WHERE evento_id IS NOT NULL
+              AND (
+                evento_id = ?
+                OR evento_id = ?
+                OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+                OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+              )`,
+          [firstId, firstBaseId, firstId, firstBaseId]
+        );
+      } catch (_) {}
+    }
+
     await conn.commit();
 
     const savedEvent = expanded[0] || eventData;
@@ -878,6 +916,7 @@ export async function updateEvent(req, res, next) {
       }
 
       const uncoveredConflicts = [];
+      const emptyDiasToPrune = [];
 
       for (const d of dias) {
         let parsed = {};
@@ -899,6 +938,25 @@ export async function updateEvent(req, res, next) {
         });
 
         if (!matchingSlot) {
+          // Determinar si el día está vacío de contenido culinario y montajes
+          const hasMenu = !!(d.nombre_menu && String(d.nombre_menu).trim().length > 0);
+          const montajes = Array.isArray(parsed?.montajes) ? parsed.montajes : [];
+          const hasMontaje = montajes.some(m =>
+            (m.tipo_montaje && String(m.tipo_montaje).trim().length > 0) ||
+            (m.observaciones && String(m.observaciones).trim().length > 0) ||
+            (m.equipo_necesario && String(m.equipo_necesario).trim().length > 0)
+          );
+          const tiemposComida = Array.isArray(parsed?.items_tiempo_comida)
+            ? parsed.items_tiempo_comida.filter(Boolean)
+            : [];
+          const hasComida = tiemposComida.length > 0 || !!(parsed?.tiempo_comida);
+          const isDayEmpty = !hasMenu && !hasMontaje && !hasComida;
+
+          if (isDayEmpty) {
+            emptyDiasToPrune.push({ informeId: d.informe_id, diaId: d.dia_id });
+            continue;
+          }
+
           // Verificar si el usuario ya adjuntó resolución para este informe/día
           const hasRes = informeResolutions.some(r =>
             Number(r.informeId) === Number(d.informe_id) &&
@@ -918,7 +976,7 @@ export async function updateEvent(req, res, next) {
         }
       }
 
-      // Si hay conflictos sin resolver, BLOQUEAR con HTTP 409 Conflict
+      // Si hay conflictos reales con contenido sin resolver, BLOQUEAR con HTTP 409 Conflict
       if (uncoveredConflicts.length > 0) {
         await conn.rollback();
         return res.status(409).json({
@@ -935,6 +993,25 @@ export async function updateEvent(req, res, next) {
             endTime: s.endTime
           }))
         });
+      }
+
+      // Limpieza silenciosa y atómica de días vacíos desvinculados
+      for (const ed of emptyDiasToPrune) {
+        const [remaining] = await conn.query(
+          'SELECT id FROM informe_dias_detalle WHERE informe_id = ?',
+          [ed.informeId]
+        );
+        if (remaining.length > 1) {
+          await conn.query(
+            'DELETE FROM informe_dias_detalle WHERE id = ? AND informe_id = ?',
+            [ed.diaId, ed.informeId]
+          );
+        } else {
+          await conn.query(
+            'UPDATE informes_eventos SET estado = "archivado", id_ocupacion = NULL WHERE id = ?',
+            [ed.informeId]
+          );
+        }
       }
     }
 
@@ -1040,6 +1117,24 @@ export async function updateEvent(req, res, next) {
         }
       }
     }
+
+    // ─── SINCRONIZAR ÚLTIMO CONTACTO EN POSIBLES VENTAS VINCULADAS ───
+    try {
+      await conn.query(
+        `UPDATE posibles_ventas
+            SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                ultimo_seguimiento_en = CURRENT_TIMESTAMP
+          WHERE evento_id IS NOT NULL
+            AND (
+              evento_id = ?
+              OR evento_id = ?
+              OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+              OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+              OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+            )`,
+        [rawId, baseId, rawId, baseId, groupId]
+      );
+    } catch (_) {}
 
     await conn.commit();
 
@@ -1243,6 +1338,23 @@ export async function createEventReminder(req, res, next) {
       createdBy: createdBy || 'unknown',
       finalizado: false
     };
+    // ─── SINCRONIZAR ÚLTIMO CONTACTO EN POSIBLES VENTAS VINCULADAS ───
+    try {
+      await pool.query(
+        `UPDATE posibles_ventas
+            SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                ultimo_seguimiento_en = CURRENT_TIMESTAMP
+          WHERE evento_id IS NOT NULL
+            AND (
+              evento_id = ?
+              OR evento_id = ?
+              OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+              OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+            )`,
+        [rawId, baseId, rawId, baseId]
+      );
+    } catch (_) {}
+
     if (req.io) {
       req.io.emit('state-updated', { type: 'reminders', eventId: baseId, timestamp: Date.now() });
     }
@@ -1268,13 +1380,34 @@ export async function deleteEventReminder(req, res, next) {
 
 // ── PATCH /api/events/:id/reminders/:reminderId/toggle ──
 export async function toggleEventReminder(req, res, next) {
-  const { reminderId } = req.params;
+  const { id, reminderId } = req.params;
+  const rawId = toStr(id);
+  const baseId = rawId.replace(/_(s|slot)\d+.*$/, '');
   const { finalizado } = req.body;
   try {
     await pool.query(
       `UPDATE recordatorios_evento SET finalizado = ? WHERE id = ?`,
       [finalizado ? 1 : 0, reminderId]
     );
+
+    if (rawId || baseId) {
+      try {
+        await pool.query(
+          `UPDATE posibles_ventas
+              SET primer_seguimiento_en = COALESCE(primer_seguimiento_en, CURRENT_TIMESTAMP),
+                  ultimo_seguimiento_en = CURRENT_TIMESTAMP
+            WHERE evento_id IS NOT NULL
+              AND (
+                evento_id = ?
+                OR evento_id = ?
+                OR evento_id = SUBSTRING_INDEX(?, '_s', 1)
+                OR SUBSTRING_INDEX(evento_id, '_s', 1) = ?
+              )`,
+          [rawId, baseId, rawId, baseId]
+        );
+      } catch (_) {}
+    }
+
     if (req.io) {
       req.io.emit('state-updated', { type: 'reminders', timestamp: Date.now() });
     }
