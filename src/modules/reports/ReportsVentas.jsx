@@ -395,6 +395,10 @@ export default function ReportsVentas({ onClose }) {
         total: finAmounts.totalGtq,
         subtotal: finAmounts.subtotalGtq,
         discount: finAmounts.discountGtq,
+        tip: finAmounts.tipGtq,
+        rawTip: finAmounts.rawTip,
+        clientTotal: finAmounts.clientTotalGtq,
+        hasTip: finAmounts.hasTip,
         isUsd: finAmounts.isUsd,
         rawTotal: finAmounts.rawTotal,
         exchangeRate: finAmounts.exchangeRate,
@@ -438,6 +442,7 @@ export default function ReportsVentas({ onClose }) {
     const totalEvents = reportData.length;
     const totalPax = reportData.reduce((sum, r) => sum + (r.pax || 0), 0);
     const totalVentas = reportData.reduce((sum, r) => sum + (r.total || 0), 0);
+    const totalPropinas = reportData.reduce((sum, r) => sum + (r.tip || 0), 0);
     const confirmadosList = reportData.filter(r => r.status === 'Confirmado');
     const preReservaList = reportData.filter(r => r.status === 'Pre reserva');
 
@@ -448,6 +453,7 @@ export default function ReportsVentas({ onClose }) {
       totalEvents,
       totalPax,
       totalVentas,
+      totalPropinas,
       confirmadosCount: confirmadosList.length,
       confirmadosAmount,
       preReservaCount: preReservaList.length,
@@ -2002,6 +2008,23 @@ export default function ReportsVentas({ onClose }) {
                         {visibleColumns.monto && (
                           <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 800, color: '#059669', fontSize: '12.5px' }}>
                             <div>{formatMoney(r.total)}</div>
+                            {r.tip > 0 && (
+                              <div style={{ marginTop: '3px' }}>
+                                <span style={{
+                                  fontSize: '9.5px',
+                                  color: '#0284c7',
+                                  background: '#e0f2fe',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #bae6fd',
+                                  fontWeight: 700,
+                                  display: 'inline-block',
+                                  whiteSpace: 'nowrap'
+                                }} title={`Propina acordada para empleados: ${formatMoney(r.tip)}`}>
+                                  + Propina: {formatMoney(r.tip)}
+                                </span>
+                              </div>
+                            )}
                             {r.isUsd && (
                               <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', marginTop: '2px' }}>
                                 <span>${Number(r.rawTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</span>
@@ -2034,17 +2057,24 @@ export default function ReportsVentas({ onClose }) {
             display: 'flex',
             justifyContent: 'flex-end',
             alignItems: 'center',
-            gap: '14px',
+            gap: '18px',
             padding: '12px 10px',
             borderTop: '2px solid #e2e8f0',
             marginTop: '4px',
           }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
-              SUBTOTAL PÁGINA:
-            </span>
-            <span style={{ fontSize: '14px', fontWeight: 900, color: '#059669' }}>
-              {formatMoney(pageSubtotal)}
-            </span>
+            {summary.totalPropinas > 0 && (
+              <span style={{ fontSize: '11px', color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                Propina (periodo): <strong>{formatMoney(summary.totalPropinas)}</strong>
+              </span>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+                SUBTOTAL PÁGINA:
+              </span>
+              <span style={{ fontSize: '14px', fontWeight: 900, color: '#059669' }}>
+                {formatMoney(pageSubtotal)}
+              </span>
+            </div>
           </div>
 
           {/* Paginación Inferior */}

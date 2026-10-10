@@ -51,12 +51,13 @@ export const getEventSeriesFinancialMeta = (ev, allEvents) => {
 
 export const getQuoteFinancialAmounts = (quote, fallbackExchangeRate = 7.75) => {
   if (!quote || typeof quote !== 'object') {
-    return { totalGtq: 0, subtotalGtq: 0, discountGtq: 0, isUsd: false, exchangeRate: 1, rawTotal: 0, rawSubtotal: 0 };
+    return { totalGtq: 0, subtotalGtq: 0, discountGtq: 0, tipGtq: 0, clientTotalGtq: 0, isUsd: false, exchangeRate: 1, rawTotal: 0, rawSubtotal: 0, rawTip: 0, hasTip: false };
   }
   const isUsd = String(quote.currency || '').trim().toUpperCase() === 'USD';
   let rawTotal = Math.max(0, Number(quote.total || 0));
   let rawSubtotal = Math.max(0, Number(quote.subtotal || 0));
   const rawDiscount = Math.max(0, Number(quote.discountAmount ?? quote.discountValue ?? 0));
+  const rawTip = Math.max(0, Number(quote.tipAmount ?? (quote.tipValue && quote.tipType === 'AMOUNT' ? quote.tipValue : 0)));
   const rate = Number(quote.exchangeRate) > 0 ? Number(quote.exchangeRate) : Number(fallbackExchangeRate || 7.75);
 
   // Fallback 1: Si rawTotal es 0 pero existen versiones históricas con total
@@ -73,16 +74,12 @@ export const getQuoteFinancialAmounts = (quote, fallbackExchangeRate = 7.75) => 
       const price = Number(it.price || it.unitPrice || 0);
       return acc + (it.total ? Number(it.total) : (qty * price));
     }, 0);
-    rawTotal = Math.max(0, rawSubtotal - rawDiscount);
+    rawTotal = Math.max(0, rawSubtotal - rawDiscount + rawTip);
   }
 
-  let totalGtq;
-  if (quote.totalGtq !== undefined && quote.totalGtq !== null && !Number.isNaN(Number(quote.totalGtq)) && Number(quote.totalGtq) > 0) {
-    totalGtq = Number(quote.totalGtq);
-  } else if (isUsd) {
-    totalGtq = Math.round(rawTotal * rate * 100) / 100;
-  } else {
-    totalGtq = rawTotal;
+  // Si rawSubtotal no fue proporcionado explícitamente pero rawTotal > 0, derivarlo
+  if (rawSubtotal <= 0 && rawTotal > 0) {
+    rawSubtotal = Math.max(0, rawTotal + rawDiscount - rawTip);
   }
 
   let subtotalGtq;
@@ -103,15 +100,48 @@ export const getQuoteFinancialAmounts = (quote, fallbackExchangeRate = 7.75) => 
     discountGtq = rawDiscount;
   }
 
+  let tipGtq;
+  if (quote.tipAmountGtq !== undefined && quote.tipAmountGtq !== null && !Number.isNaN(Number(quote.tipAmountGtq))) {
+    tipGtq = Number(quote.tipAmountGtq);
+  } else if (quote.tipAmount !== undefined && quote.tipAmount !== null && !Number.isNaN(Number(quote.tipAmount))) {
+    tipGtq = isUsd ? Math.round(Number(quote.tipAmount) * rate * 100) / 100 : Number(quote.tipAmount);
+  } else if (isUsd) {
+    tipGtq = Math.round(rawTip * rate * 100) / 100;
+  } else {
+    tipGtq = rawTip;
+  }
+
+  // Monto neto de la empresa (Subtotal - Descuento), preservando ventas y metas sin inflar por propina
+  const companyTotalGtq = Math.max(0, subtotalGtq - discountGtq);
+  const clientTotalGtq = Math.max(0, companyTotalGtq + tipGtq);
+
+  // totalGtq representa la venta oficial de la empresa para metas e ingresos
+  let totalGtq;
+  if (rawTip > 0) {
+    totalGtq = companyTotalGtq;
+  } else if (quote.totalGtq !== undefined && quote.totalGtq !== null && !Number.isNaN(Number(quote.totalGtq)) && Number(quote.totalGtq) > 0) {
+    totalGtq = Number(quote.totalGtq);
+  } else if (isUsd) {
+    totalGtq = Math.round(rawTotal * rate * 100) / 100;
+  } else {
+    totalGtq = rawTotal > 0 ? rawTotal : companyTotalGtq;
+  }
+
   return {
     totalGtq: Math.max(0, totalGtq),
+    companyTotalGtq: Math.max(0, companyTotalGtq),
+    clientTotalGtq: Math.max(0, clientTotalGtq),
     subtotalGtq: Math.max(0, subtotalGtq),
     discountGtq: Math.max(0, discountGtq),
+    tipGtq: Math.max(0, tipGtq),
     isUsd,
     exchangeRate: isUsd ? rate : 1,
     exchangeRateDate: quote.exchangeRateDate || null,
     rawTotal,
     rawSubtotal,
+    rawDiscount,
+    rawTip,
+    hasTip: tipGtq > 0 || rawTip > 0
   };
 };
 

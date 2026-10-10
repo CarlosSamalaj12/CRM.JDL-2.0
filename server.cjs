@@ -477,6 +477,10 @@ function normalizeDiscountType(type) {
   return String(type || "").trim().toUpperCase() === "PERCENT" ? "PERCENT" : "AMOUNT";
 }
 
+function normalizeTipType(type) {
+  return String(type || "").trim().toUpperCase() === "AMOUNT" ? "AMOUNT" : "PERCENT";
+}
+
 function normalizeMenuDishType(type) {
   const value = String(type || "").trim().toUpperCase();
   if (value === "VEGETARIANO") return "VEGETARIANO";
@@ -585,8 +589,17 @@ function calculateQuoteTotals(quote) {
   const discountAmount = discountType === "PERCENT"
     ? Math.max(0, Math.min(subtotal, subtotal * Math.min(100, discountValue) / 100))
     : Math.max(0, Math.min(subtotal, discountValue));
-  const total = Math.max(0, subtotal - discountAmount);
-  return { subtotal, discountType, discountValue, discountAmount, total };
+  const netSubtotal = Math.max(0, subtotal - discountAmount);
+
+  const tipType = normalizeTipType(q.tipType);
+  const tipValueRaw = Math.max(0, Number(q.tipValue || 0));
+  const tipValue = Number.isFinite(tipValueRaw) ? tipValueRaw : 0;
+  const tipAmount = tipType === "PERCENT"
+    ? Math.round(netSubtotal * Math.max(0, tipValue) / 100 * 100) / 100
+    : Math.round(tipValue * 100) / 100;
+
+  const total = Math.max(0, netSubtotal + tipAmount);
+  return { subtotal, discountType, discountValue, discountAmount, netSubtotal, tipType, tipValue, tipAmount, total };
 }
 
 async function ensureServiceCatalogStructure() {
@@ -1090,6 +1103,15 @@ async function ensureQuoteVersionStructure() {
     if (!cotizacionColSet.has("total_neto")) {
       await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN total_neto DECIMAL(12,2) NOT NULL DEFAULT 0");
     }
+    if (!cotizacionColSet.has("propina_tipo")) {
+      await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_tipo VARCHAR(12) NOT NULL DEFAULT 'PERCENT'");
+    }
+    if (!cotizacionColSet.has("propina_valor")) {
+      await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_valor DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
+    if (!cotizacionColSet.has("propina_monto")) {
+      await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_monto DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
 
     const versionCols = await conn.query(
       `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'cotizacion_versiones_evento'`,
@@ -1110,6 +1132,15 @@ async function ensureQuoteVersionStructure() {
     }
     if (!versionColSet.has("total_neto")) {
       await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN total_neto DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
+    if (!versionColSet.has("propina_tipo")) {
+      await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_tipo VARCHAR(12) NOT NULL DEFAULT 'PERCENT'");
+    }
+    if (!versionColSet.has("propina_valor")) {
+      await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_valor DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
+    if (!versionColSet.has("propina_monto")) {
+      await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_monto DECIMAL(12,2) NOT NULL DEFAULT 0");
     }
   } finally {
     if (conn) conn.release();
@@ -4212,8 +4243,8 @@ function isEventUnchanged(e, oldEvent) {
         await conn.query(
           `
             INSERT INTO cotizaciones_evento
-              (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
               id_empresa = VALUES(id_empresa),
               id_encargado = VALUES(id_encargado),
@@ -4243,6 +4274,9 @@ function isEventUnchanged(e, oldEvent) {
               descuento_tipo = VALUES(descuento_tipo),
               descuento_valor = VALUES(descuento_valor),
               descuento_monto = VALUES(descuento_monto),
+              propina_tipo = VALUES(propina_tipo),
+              propina_valor = VALUES(propina_valor),
+              propina_monto = VALUES(propina_monto),
               total_neto = VALUES(total_neto),
               cotizado_en_iso = VALUES(cotizado_en_iso),
               json_crudo = VALUES(json_crudo)
@@ -4277,6 +4311,9 @@ function isEventUnchanged(e, oldEvent) {
             normalizeDiscountType(q.discountType),
             Number(quoteTotals.discountValue || 0),
             Number(quoteTotals.discountAmount || 0),
+            normalizeTipType(q.tipType),
+            Number(quoteTotals.tipValue || 0),
+            Number(quoteTotals.tipAmount || 0),
             Number(quoteTotals.total || 0),
             str(q.quotedAt).trim() || null,
             safeJsonStringify(q),
@@ -4388,7 +4425,7 @@ function isEventUnchanged(e, oldEvent) {
 
           for (const v of versionRows) {
             const vTotals = calculateQuoteTotals(v.snapshot);
-            versionValues.push("(?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            versionValues.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             versionParams.push(
               id,
               Number(v.version),
@@ -4396,6 +4433,9 @@ function isEventUnchanged(e, oldEvent) {
               normalizeDiscountType(v.snapshot?.discountType),
               Number(vTotals.discountValue || 0),
               Number(vTotals.discountAmount || 0),
+              normalizeTipType(v.snapshot?.tipType),
+              Number(vTotals.tipValue || 0),
+              Number(vTotals.tipAmount || 0),
               Number(vTotals.total || 0),
               str(v.snapshot?.quotedAt).trim() || null,
               safeJsonStringify(v.snapshot)
@@ -4426,13 +4466,16 @@ function isEventUnchanged(e, oldEvent) {
             await conn.query(
               `
                 INSERT INTO cotizacion_versiones_evento
-                  (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
+                  (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
                 VALUES ${versionValues.join(",")}
                 ON DUPLICATE KEY UPDATE
                   subtotal = VALUES(subtotal),
                   descuento_tipo = VALUES(descuento_tipo),
                   descuento_valor = VALUES(descuento_valor),
                   descuento_monto = VALUES(descuento_monto),
+                  propina_tipo = VALUES(propina_tipo),
+                  propina_valor = VALUES(propina_valor),
+                  propina_monto = VALUES(propina_monto),
                   total_neto = VALUES(total_neto),
                   cotizado_en_iso = VALUES(cotizado_en_iso),
                   json_crudo = VALUES(json_crudo)
@@ -6533,8 +6576,64 @@ const ALLOWED_SETTINGS_KEYS = new Set([
   'salonConflictDisabled',
   'contractTemplates',
   'informe_tiempos_orden',
-  'informe_tipos_montaje'
+  'informe_tipos_montaje',
+  'tipConfig'
 ]);
+
+app.get("/api/settings/propina", async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      "SELECT valor_json FROM app_state_kv WHERE clave = 'tipConfig' LIMIT 1"
+    );
+    let config = { defaultPercent: 10, enabled: true, note: "Propina sugerida para el personal de servicio" };
+    if (rows.length > 0 && rows[0].valor_json) {
+      try {
+        const parsed = JSON.parse(rows[0].valor_json);
+        config = { ...config, ...parsed };
+      } catch (_) {}
+    }
+    return res.json({ ok: true, config });
+  } catch (error) {
+    console.error("Error al obtener configuración de propinas:", error);
+    return res.status(500).json({ ok: false, message: "Error al obtener configuración de propinas.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.put("/api/settings/propina", async (req, res) => {
+  let conn;
+  try {
+    const raw = req.body || {};
+    const percent = Math.max(0, Math.min(100, Number(raw.defaultPercent ?? raw.percent ?? 10)));
+    const enabled = raw.enabled !== false;
+    const note = String(raw.note || "").trim();
+    const config = { defaultPercent: Number.isFinite(percent) ? percent : 10, enabled, note };
+
+    conn = await pool.getConnection();
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('tipConfig', ?)
+        ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+      `,
+      [JSON.stringify(config)]
+    );
+
+    if (io) {
+      io.emit("state-updated", { timestamp: Date.now(), key: "tipConfig" });
+    }
+
+    return res.json({ ok: true, config, message: "Configuración de propinas guardada correctamente." });
+  } catch (error) {
+    console.error("Error al guardar configuración de propinas:", error);
+    return res.status(500).json({ ok: false, message: "Error al guardar configuración de propinas.", detail: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
 
 app.get("/api/settings/:key", async (req, res) => {
   const key = str(req.params.key).trim();

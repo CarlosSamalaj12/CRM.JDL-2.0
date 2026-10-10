@@ -32,6 +32,33 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Sistema de Propinas para Personal en Cotizaciones y Contratos con Aislamiento Financiero (`server.cjs`, `eventsController.js`, `stateService.js`, `eventSeriesUtils.js`, `ReportsVentas.jsx`, `ReportsContabilidad.jsx`, `printUtils.js`, `QuoteModal.jsx`, `SettingsPropinas.jsx`, `SettingsMain.jsx`, `quote-tip-system.test.mjs`) (2026-10-10)
+- Requerimiento: Incorporar opción de propinas para el personal en cotizaciones con la misma ergonomía que los descuentos comerciales (ingreso por monto fijo o porcentaje), calculadas sobre el subtotal neto `(Subtotal - Descuento)`. Las propinas no deben inflar los ingresos ni las metas de ventas de la empresa en la reportería (pertenecen a los empleados), pero deben ser identificables por evento en contabilidad y ventas. En documentos impresos, deben salir exclusivamente en el formato completo "Cotización + Contrato" (`completa`) y omitirse en la "Cotización normal" (`standard`) para no interferir en la fase de negociación comercial. Permitir configurar un porcentaje sugerido por defecto (ej. 10%) desde el panel de configuraciones con su propio endpoint REST.
+- Causa raíz y consideraciones:
+  1. `cotizaciones_evento` y `cotizacion_versiones_evento` no almacenaban campos dedicados para propinas (`propina_tipo`, `propina_valor`, `propina_monto`).
+  2. La función de cómputo financiero `getQuoteFinancialAmounts` sumaba directamente los totales hacia `totalGtq`, lo que habría inflado artificialmente las métricas de ingresos corporativos si se mezclaban fondos de empleados con ventas de servicios.
+  3. Los formatos impresos no contaban con discriminación de propina entre propuesta comercial inicial y contrato legal formal.
+- Solución:
+  1. En `server.cjs` y `backend/src/controllers/eventsController.js`:
+     - Migración automática MariaDB de columnas `propina_tipo` (VARCHAR), `propina_valor` (DECIMAL 10,2) y `propina_monto` (DECIMAL 10,2) en `cotizaciones_evento` y `cotizacion_versiones_evento`.
+     - `calculateQuoteTotals`: calcula `netSubtotal = Math.max(0, subtotal - discountAmount)`, resuelve `tipAmount` según tipo (monto o porcentaje sobre subtotal neto), mantiene `companyTotal = netSubtotal` y define el total del cliente `total = netSubtotal + tipAmount`.
+     - Endpoints REST dedicados `GET /api/settings/propina` y `PUT /api/settings/propina` para porcentaje sugerido (default 10%), estado habilitado y nota de servicio.
+  2. En `src/services/stateService.js`:
+     - Funciones atómicas `getTipConfigApi()` y `saveTipConfigApi(config)`.
+  3. En `src/modules/reports/components/eventSeriesUtils.js`:
+     - `getQuoteFinancialAmounts` expone `companyTotalGtq` (`totalGtq = companyTotalGtq`) para blindar ingresos y metas de la empresa contra cualquier alteración por propinas, y provee `tipGtq`, `clientTotalGtq` y `hasTip`.
+  4. En `src/modules/reports/ReportsVentas.jsx` y `ReportsContabilidad.jsx`:
+     - `ReportsVentas.jsx`: Badge visual `+ Propina: Q X.XX` en la tabla y métrica informativa en la barra de resumen `Propina (periodo)` sin sumar a metas corporativas.
+     - `ReportsContabilidad.jsx`: Badge en subtabla de cuentas, desglose en modal formal de estado de cuenta y banner de observación de fondo de empleados.
+  5. En `src/utils/printUtils.js`:
+     - Tokens `PROPINA` y `MONTO_PROPINA` para plantillas de contrato.
+     - En `generateQuotePrintDocument`, la propina se imprime estrictamente cuando `printOption === "completa"` y `rawTipDoc > 0`. En `standard`, se omite la fila y el total impreso se mantiene en el monto de servicios.
+  6. En `src/modules/calendar/components/QuoteModal.jsx`:
+     - Interfaz completa desktop y móvil con selector de tipo (% o Monto), botón "10% Sugerido" conectado a la configuración de la empresa, botón "Quitar", cálculo reactivo sobre subtotal neto e inclusión en snapshot impreso y persistencia.
+  7. En `src/modules/settings/SettingsPropinas.jsx` y `SettingsMain.jsx`:
+     - Módulo de configuración Bento para definir porcentaje sugerido por defecto, conmutador de estado, atajos (5%, 10%, 15%) y nota de contrato.
+  8. Validado con 107 pruebas unitarias automáticas (`node --test tests/*.test.mjs`) y compilación exitosa de producción (versión 2.1.174).
+
 ### Solución: Corrección de Error 413 Payload Too Large y ReferenceError en Actualización Atómica de Eventos (`eventsController.js`, `server.cjs`) (2026-10-09)
 - Requerimiento: Resolver error donde al guardar cambios en una reserva desde `ReservationForm.jsx`, la consola arrojaba `PUT /api/state 413 (Payload Too Large)` con toast "Error al guardar el evento".
 - Causa raíz:

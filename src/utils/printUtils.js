@@ -70,6 +70,8 @@ function buildTemplatePrintContextFromQuoteData(quote, user) {
     MONTO_A_FAVOR: quoteMoney(saldoAFavor, docCurrency),
     TOTAL_COTIZACION: quoteMoney(totalDoc, docCurrency),
     VALOR_TOTAL: quoteMoney(totalDoc, docCurrency),
+    PROPINA: quoteMoney(Number(quote?.tipAmount || 0), docCurrency),
+    MONTO_PROPINA: quoteMoney(Number(quote?.tipAmount || 0), docCurrency),
     SALDO_ESTADO: saldoAFavor > 0 ? `SALDO A FAVOR: ${quoteMoney(saldoAFavor, docCurrency)}` : (saldoPendiente > 0 ? `SALDO PENDIENTE: ${quoteMoney(saldoPendiente, docCurrency)}` : `CANCELADO (${quoteMoney(0, docCurrency)})`)
   };
 }
@@ -651,7 +653,17 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       return sum + Number(item?.total ?? qty * price);
     }, 0));
     const discountDoc = Number(quote.discountAmount || 0);
-    const totalDoc = Number(quote.total || Math.max(0, subtotalDoc - discountDoc));
+    const netSubtotalDoc = Math.max(0, subtotalDoc - discountDoc);
+
+    // Tip sólo se incluye en documento impreso cuando printOption === 'completa' (Cotización + Contrato)
+    // En 'standard' (cotización comercial normal) NO se muestra ni suma propina según requerimiento de negociación.
+    const rawTipDoc = Number(quote.tipAmount !== undefined && quote.tipAmount !== null ? quote.tipAmount : (quote.tipValue || 0));
+    const tipDoc = (printOption === "completa" && rawTipDoc > 0) ? rawTipDoc : 0;
+
+    const totalDoc = (printOption === "completa")
+      ? Number(quote.total || (netSubtotalDoc + tipDoc))
+      : netSubtotalDoc;
+
     const docCurrency = quote.currency || 'GTQ';
     const wordsVal = numberToWords(totalDoc);
     const currencyName = docCurrency === 'USD' ? 'DÓLARES' : 'QUETZALES';
@@ -676,6 +688,9 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     const discountLabel = Number(discountDoc) > 0 && quote.discountType === "PERCENT" && Number(quote.discountValue || 0) > 0
       ? `DESCUENTO (${Number(quote.discountValue).toFixed(2)}%)`
       : "DESCUENTO";
+    const tipLabel = Number(tipDoc) > 0 && quote.tipType === "PERCENT" && Number(quote.tipValue || 0) > 0
+      ? `PROPINA (${Number(quote.tipValue).toFixed(2)}%)`
+      : "PROPINA";
     const itemsRowsHtml = buildQuoteRowsHtml(items, docCurrency);
     const sellerSignatureUrl = dynamicSignatureUrl || user?.signatureDataUrl || (user?.id ? users.find(u => String(u.id) === String(user.id))?.signatureDataUrl : null) || (user?.email ? users.find(u => String(u.email || '').toLowerCase() === String(user.email).toLowerCase())?.signatureDataUrl : null);
     const sellerSignatureHtml = sellerSignatureUrl
@@ -1374,20 +1389,27 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
               </thead>
               <tbody>
                 ${itemsRowsHtml}
-                ${discountDoc > 0 ? `
+                ${(discountDoc > 0 || tipDoc > 0) ? `
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">SUBTOTAL EVENTO</td>
                   <td class="sumValue">${quoteMoney(subtotalDoc, docCurrency)}</td>
-                </tr>
+                </tr>` : ''}
+                ${discountDoc > 0 ? `
                 <tr>
                   <td colspan="2"></td>
                   <td class="sumLabel">${escapeHtml(discountLabel)}</td>
-                  <td class="sumValue">${quoteMoney(discountDoc, docCurrency)}</td>
+                  <td class="sumValue">- ${quoteMoney(discountDoc, docCurrency)}</td>
+                </tr>` : ''}
+                ${tipDoc > 0 ? `
+                <tr>
+                  <td colspan="2"></td>
+                  <td class="sumLabel">${escapeHtml(tipLabel)}</td>
+                  <td class="sumValue">+ ${quoteMoney(tipDoc, docCurrency)}</td>
                 </tr>` : ''}
                 <tr class="sumTotal">
                   <td colspan="2"></td>
-                  <td class="sumLabel">TOTAL EVENTO</td>
+                  <td class="sumLabel">${printOption === "completa" ? "TOTAL A PAGAR" : "TOTAL EVENTO"}</td>
                   <td class="sumValue">${quoteMoney(totalDoc, docCurrency)}</td>
                 </tr>
                 <tr class="sumTotalWords">

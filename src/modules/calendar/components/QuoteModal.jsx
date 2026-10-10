@@ -50,6 +50,7 @@ import {
   saveServiceApi,
   getExchangeRateApi,
   resolveExchangeRateAtDateApi,
+  getTipConfigApi,
   getEventAdvancesApi,
   addEventAdvanceApi,
   updateEventAdvanceApi,
@@ -322,6 +323,15 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const [tipConfig, setTipConfig] = useState({ defaultPercent: 10, enabled: true });
+  useEffect(() => {
+    getTipConfigApi().then(cfg => {
+      if (cfg && Number.isFinite(Number(cfg.defaultPercent))) {
+        setTipConfig(cfg);
+      }
+    }).catch(() => {});
+  }, []);
+
   const handleStepItemQty = (rowId, delta) => {
     setQuote(p => ({
       ...p,
@@ -381,6 +391,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     dueDate: event?.quote?.dueDate || '',
     discountType: event?.quote?.discountType || 'AMOUNT',
     discountValue: event?.quote?.discountValue || 0,
+    tipType: event?.quote?.tipType || 'PERCENT',
+    tipValue: event?.quote?.tipValue !== undefined && event?.quote?.tipValue !== null ? event.quote.tipValue : 0,
     items: (event?.quote?.items || []).map(item => ({
       ...item,
       rowId: item.rowId || uid()
@@ -1097,8 +1109,26 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     const discountAmount = quote.discountType === 'PERCENT'
       ? Math.max(0, Math.min(subtotal, subtotal * Math.min(100, quote.discountValue) / 100))
       : Math.max(0, Math.min(subtotal, quote.discountValue));
-    return { subtotal, discountAmount, total: Math.max(0, subtotal - discountAmount) };
-  }, [quote.items, quote.discountType, quote.discountValue]);
+    const netSubtotal = Math.max(0, subtotal - discountAmount);
+
+    const rawTipValue = Math.max(0, Number(quote.tipValue || 0));
+    const tipValue = Number.isFinite(rawTipValue) ? rawTipValue : 0;
+    const tipAmount = quote.tipType === 'PERCENT'
+      ? Math.max(0, Math.round((netSubtotal * tipValue / 100) * 100) / 100)
+      : Math.max(0, Math.round(tipValue * 100) / 100);
+
+    const total = Math.max(0, netSubtotal + tipAmount);
+    return {
+      subtotal,
+      discountAmount,
+      netSubtotal,
+      tipType: quote.tipType || 'PERCENT',
+      tipValue,
+      tipAmount,
+      total,
+      companyTotal: netSubtotal
+    };
+  }, [quote.items, quote.discountType, quote.discountValue, quote.tipType, quote.tipValue]);
   const menuMontajeSummary = useMemo(() => {
     const entries = Array.isArray(quote.menuMontajeEntries)
       ? quote.menuMontajeEntries.filter(entry => String(entry?.date || '').trim() || String(entry?.salon || '').trim())
@@ -1217,6 +1247,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       items: cleanItems,
       subtotal: totalsObj?.subtotal ?? sourceQuote.subtotal,
       discountAmount: totalsObj?.discountAmount ?? sourceQuote.discountAmount,
+      tipType: sourceQuote.tipType || 'PERCENT',
+      tipValue: sourceQuote.tipValue || 0,
+      tipAmount: totalsObj?.tipAmount ?? sourceQuote.tipAmount ?? 0,
+      netSubtotal: totalsObj?.netSubtotal ?? ((totalsObj?.subtotal || 0) - (totalsObj?.discountAmount || 0)),
       total: totalsObj?.total ?? sourceQuote.total,
       printValidDates: availableServiceDates
     };
@@ -1642,6 +1676,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       const totalGtq = isUsd ? Math.round(Number(totals.total || 0) * effectiveRate * 100) / 100 : Number(totals.total || 0);
       const subtotalGtq = isUsd ? Math.round(Number(totals.subtotal || 0) * effectiveRate * 100) / 100 : Number(totals.subtotal || 0);
       const discountAmountGtq = isUsd ? Math.round(Number(totals.discountAmount || 0) * effectiveRate * 100) / 100 : Number(totals.discountAmount || 0);
+      const tipAmountGtq = isUsd ? Math.round(Number(totals.tipAmount || 0) * effectiveRate * 100) / 100 : Number(totals.tipAmount || 0);
+      const companyTotalGtq = isUsd ? Math.round(Number(totals.companyTotal || 0) * effectiveRate * 100) / 100 : Number(totals.companyTotal || 0);
 
       const currentSnapshot = {
         ...quote,
@@ -1649,6 +1685,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         version: newVersionNum,
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
+        tipType: quote.tipType,
+        tipValue: quote.tipValue,
+        tipAmount: totals.tipAmount,
+        tipAmountGtq,
+        companyTotal: totals.companyTotal,
+        companyTotalGtq,
         total: totals.total,
         totalGtq,
         subtotalGtq,
@@ -1668,6 +1710,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         version: newVersionNum,
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
+        tipType: quote.tipType,
+        tipValue: quote.tipValue,
+        tipAmount: totals.tipAmount,
+        tipAmountGtq,
+        companyTotal: totals.companyTotal,
+        companyTotalGtq,
         total: totals.total,
         totalGtq,
         subtotalGtq,
@@ -5938,6 +5986,62 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       )}
                     </div>
 
+                    {/* Tarjeta de Propinas */}
+                    <div className="quote-mobile-card">
+                      <div className="quote-mobile-card-header">
+                        <div>
+                          <div className="quote-mobile-card-eyebrow">Personal de Servicio</div>
+                          <h2 className="quote-mobile-card-title">Propina sugerida</h2>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            className="quote-mobile-tag"
+                            style={{ cursor: 'pointer', background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', fontWeight: 700 }}
+                            onClick={() => setQuote(p => ({ ...p, tipType: 'PERCENT', tipValue: tipConfig.defaultPercent || 10 }))}
+                          >
+                            {tipConfig.defaultPercent || 10}% Sugerido
+                          </button>
+                          {quote.tipValue > 0 && (
+                            <button
+                              type="button"
+                              className="quote-mobile-tag"
+                              style={{ cursor: 'pointer', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontWeight: 700 }}
+                              onClick={() => setQuote(p => ({ ...p, tipValue: 0 }))}
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <select
+                          className="quote-mobile-select-date"
+                          value={quote.tipType}
+                          onChange={e => setQuote(p => ({ ...p, tipType: e.target.value }))}
+                        >
+                          <option value="PERCENT">Porcentaje (%)</option>
+                          <option value="AMOUNT">Monto Fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step={quote.tipType === 'PERCENT' ? '1' : '10'}
+                          className="quote-mobile-search-input"
+                          style={{ padding: '0 12px', height: 38, minHeight: 38 }}
+                          value={quote.tipValue}
+                          onChange={e => setQuote(p => ({ ...p, tipValue: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                          placeholder={quote.tipType === 'PERCENT' ? 'Ej. 10%' : 'Ej. 200'}
+                        />
+                      </div>
+                      {totals.tipAmount > 0 && (
+                        <div style={{ fontSize: 12, color: '#0284c7', fontWeight: 700, textAlign: 'right', marginTop: 4 }}>
+                          Propina calculada: +{moneyGT(totals.tipAmount, quote.currency)}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Tarjeta de Resumen Financiero */}
                     <div className="quote-mobile-card">
                       <div className="quote-mobile-card-header">
@@ -5955,6 +6059,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         <div className="quote-mobile-summary-row" style={{ color: '#dc2626' }}>
                           <span>Descuento aplicado:</span>
                           <strong>−{moneyGT(totals.discountAmount, quote.currency)}</strong>
+                        </div>
+                      )}
+                      {totals.tipAmount > 0 && (
+                        <div className="quote-mobile-summary-row" style={{ color: '#0284c7' }}>
+                          <span>Propina ({quote.tipType === 'PERCENT' ? `${Number(quote.tipValue).toFixed(0)}%` : 'fija'}):</span>
+                          <strong>+{moneyGT(totals.tipAmount, quote.currency)}</strong>
                         </div>
                       )}
                       <div className="quote-mobile-summary-row is-total">
@@ -7977,36 +8087,95 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   )}
                 </div>
 
-                {/* Totales / descuento */}
+                {/* Totales / descuento / propina */}
                 <div className="qp-totals" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <div>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Tipo Descuento</label>
-                      <select style={{ ...fieldSelect, width: 140, height: 38 }} value={quote.discountType} onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}>
-                        <option value="AMOUNT">Monto fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
-                        <option value="PERCENT">Porcentaje (%)</option>
-                      </select>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    {/* Descuento Comercial */}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Tipo Descuento</label>
+                        <select style={{ ...fieldSelect, width: 130, height: 38 }} value={quote.discountType} onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}>
+                          <option value="AMOUNT">Monto fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
+                          <option value="PERCENT">Porcentaje (%)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Valor Descuento</label>
+                        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                          <span style={{ position: 'absolute', left: 10, fontSize: 12, color: '#64748b', fontWeight: 700 }}>
+                            {quote.discountType === 'PERCENT' ? '%' : (quote.currency === 'USD' ? '$' : 'Q')}
+                          </span>
+                          <input
+                            style={{ ...fieldInput, width: 110, height: 38, paddingLeft: 26, fontSize: 13, fontWeight: 700 }}
+                            type="number"
+                            value={quote.discountValue}
+                            onChange={e => {
+                              const raw = e.target.value;
+                              setQuote(p => ({ ...p, discountValue: raw === '' ? '' : parseFloat(raw) || 0 }));
+                            }}
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Valor Descuento</label>
-                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                        <span style={{ position: 'absolute', left: 10, fontSize: 12, color: '#64748b', fontWeight: 700 }}>
-                          {quote.discountType === 'PERCENT' ? '%' : (quote.currency === 'USD' ? '$' : 'Q')}
-                        </span>
-                        <input
-                          style={{ ...fieldInput, width: 130, height: 38, paddingLeft: 26, fontSize: 13, fontWeight: 700 }}
-                          type="number"
-                          value={quote.discountValue}
-                          onChange={e => {
-                            const raw = e.target.value;
-                            setQuote(p => ({ ...p, discountValue: raw === '' ? '' : parseFloat(raw) || 0 }));
-                          }}
-                          min="0"
-                          step="0.01"
-                        />
+
+                    {/* Propina */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', paddingLeft: 14, borderLeft: '1px dashed #cbd5e1' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', margin: 0 }}>Propina</label>
+                          {quote.tipValue > 0 && (
+                            <span style={{ fontSize: 10, padding: '1px 6px', background: '#e0f2fe', color: '#0284c7', borderRadius: 999, fontWeight: 800 }}>Activa</span>
+                          )}
+                        </div>
+                        <select style={{ ...fieldSelect, width: 130, height: 38, borderColor: quote.tipValue > 0 ? '#38bdf8' : undefined }} value={quote.tipType} onChange={e => setQuote(p => ({ ...p, tipType: e.target.value }))}>
+                          <option value="PERCENT">Porcentaje (%)</option>
+                          <option value="AMOUNT">Monto fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', display: 'block', marginBottom: 4 }}>Valor Propina</label>
+                        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                          <span style={{ position: 'absolute', left: 10, fontSize: 12, color: '#0284c7', fontWeight: 700 }}>
+                            {quote.tipType === 'PERCENT' ? '%' : (quote.currency === 'USD' ? '$' : 'Q')}
+                          </span>
+                          <input
+                            style={{ ...fieldInput, width: 105, height: 38, paddingLeft: 26, fontSize: 13, fontWeight: 700, borderColor: quote.tipValue > 0 ? '#38bdf8' : undefined }}
+                            type="number"
+                            value={quote.tipValue}
+                            onChange={e => {
+                              const raw = e.target.value;
+                              setQuote(p => ({ ...p, tipValue: raw === '' ? '' : parseFloat(raw) || 0 }));
+                            }}
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          type="button"
+                          title={`Aplicar ${tipConfig.defaultPercent || 10}% sugerido`}
+                          onClick={() => setQuote(p => ({ ...p, tipType: 'PERCENT', tipValue: tipConfig.defaultPercent || 10 }))}
+                          style={{ height: 38, padding: '0 9px', fontSize: 11, fontWeight: 700, background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                          {tipConfig.defaultPercent || 10}% Sugerido
+                        </button>
+                        {quote.tipValue > 0 && (
+                          <button
+                            type="button"
+                            title="Quitar propina"
+                            onClick={() => setQuote(p => ({ ...p, tipValue: 0 }))}
+                            style={{ height: 38, padding: '0 8px', fontSize: 11, fontWeight: 700, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer' }}
+                          >
+                            Quitar
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
+
                   <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
                     <div style={{ fontSize: 12, color: '#64748b' }}>
                       Subtotal: <strong style={{ color: '#0f172a', marginLeft: 6 }}>{moneyGT(totals.subtotal, quote.currency)}</strong>
@@ -8014,6 +8183,11 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     {totals.discountAmount > 0 && (
                       <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
                         Descuento aplicado: <strong style={{ color: '#dc2626', marginLeft: 6 }}>- {moneyGT(totals.discountAmount, quote.currency)}</strong>
+                      </div>
+                    )}
+                    {totals.tipAmount > 0 && (
+                      <div style={{ fontSize: 12, color: '#0284c7', fontWeight: 600 }}>
+                        Propina ({quote.tipType === 'PERCENT' ? `${Number(quote.tipValue).toFixed(0)}%` : 'fija'}): <strong style={{ color: '#0284c7', marginLeft: 6 }}>+ {moneyGT(totals.tipAmount, quote.currency)}</strong>
                       </div>
                     )}
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}>

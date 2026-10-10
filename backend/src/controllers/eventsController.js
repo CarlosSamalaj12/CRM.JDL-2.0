@@ -384,7 +384,14 @@ export async function updateEventQuote(req, res, next) {
   const discountAmount = discountType === 'PERCENT'
     ? Math.max(0, Math.min(subtotal, (subtotal * Math.min(100, discountValue)) / 100))
     : Math.max(0, Math.min(subtotal, discountValue));
-  const total = Math.max(0, subtotal - discountAmount);
+  const netSubtotal = Math.max(0, subtotal - discountAmount);
+
+  const tipType = String(q.tipType || 'PERCENT').toUpperCase() === 'AMOUNT' ? 'AMOUNT' : 'PERCENT';
+  const tipValue = Math.max(0, Number(q.tipValue || 0));
+  const tipAmount = tipType === 'PERCENT'
+    ? Math.round(netSubtotal * tipValue / 100 * 100) / 100
+    : Math.round(tipValue * 100) / 100;
+  const total = Math.max(0, netSubtotal + tipAmount);
   const currentVersion = Math.max(1, Number(q.version || 1));
 
   const asDate = (val) => {
@@ -418,8 +425,8 @@ export async function updateEventQuote(req, res, next) {
     // 2. UPSERT en cotizaciones_evento
     await conn.query(
       `INSERT INTO cotizaciones_evento
-        (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          id_empresa = VALUES(id_empresa),
          id_encargado = VALUES(id_encargado),
@@ -449,6 +456,9 @@ export async function updateEventQuote(req, res, next) {
          descuento_tipo = VALUES(descuento_tipo),
          descuento_valor = VALUES(descuento_valor),
          descuento_monto = VALUES(descuento_monto),
+         propina_tipo = VALUES(propina_tipo),
+         propina_valor = VALUES(propina_valor),
+         propina_monto = VALUES(propina_monto),
          total_neto = VALUES(total_neto),
          cotizado_en_iso = VALUES(cotizado_en_iso),
          json_crudo = VALUES(json_crudo)`,
@@ -482,6 +492,9 @@ export async function updateEventQuote(req, res, next) {
         discountType,
         Number(discountValue || 0),
         Number(discountAmount || 0),
+        tipType,
+        Number(tipValue || 0),
+        Number(tipAmount || 0),
         Number(total || 0),
         str(q.quotedAt) || null,
         JSON.stringify(q)
@@ -569,9 +582,16 @@ export async function updateEventQuote(req, res, next) {
         const vDisAmt = vDisType === 'PERCENT'
           ? Math.max(0, Math.min(vSub, (vSub * Math.min(100, vDisVal)) / 100))
           : Math.max(0, Math.min(vSub, vDisVal));
-        const vTot = Math.max(0, vSub - vDisAmt);
+        const vNetSub = Math.max(0, vSub - vDisAmt);
 
-        vValues.push('(?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        const vTipType = String(v.snapshot?.tipType || 'PERCENT').toUpperCase() === 'AMOUNT' ? 'AMOUNT' : 'PERCENT';
+        const vTipVal = Math.max(0, Number(v.snapshot?.tipValue || 0));
+        const vTipAmt = vTipType === 'PERCENT'
+          ? Math.round(vNetSub * vTipVal / 100 * 100) / 100
+          : Math.round(vTipVal * 100) / 100;
+        const vTot = Math.max(0, vNetSub + vTipAmt);
+
+        vValues.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         vParams.push(
           baseId,
           Number(v.version),
@@ -579,6 +599,9 @@ export async function updateEventQuote(req, res, next) {
           vDisType,
           Number(vDisVal || 0),
           Number(vDisAmt || 0),
+          vTipType,
+          Number(vTipVal || 0),
+          Number(vTipAmt || 0),
           Number(vTot || 0),
           str(v.snapshot?.quotedAt) || null,
           JSON.stringify(v.snapshot)
@@ -586,13 +609,16 @@ export async function updateEventQuote(req, res, next) {
       }
       await conn.query(
         `INSERT INTO cotizacion_versiones_evento
-          (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
+          (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
          VALUES ${vValues.join(',')}
          ON DUPLICATE KEY UPDATE
            subtotal = VALUES(subtotal),
            descuento_tipo = VALUES(descuento_tipo),
            descuento_valor = VALUES(descuento_valor),
            descuento_monto = VALUES(descuento_monto),
+           propina_tipo = VALUES(propina_tipo),
+           propina_valor = VALUES(propina_valor),
+           propina_monto = VALUES(propina_monto),
            total_neto = VALUES(total_neto),
            cotizado_en_iso = VALUES(cotizado_en_iso),
            json_crudo = VALUES(json_crudo)`,

@@ -1157,6 +1157,10 @@ export default function ReportsContabilidad({ onClose }) {
         total,
         advancesTotal,
         delta,
+        tip: finAmounts.tipGtq,
+        rawTip: finAmounts.rawTip,
+        clientTotal: finAmounts.clientTotalGtq,
+        hasTip: finAmounts.hasTip,
         rawTotal: finAmounts.rawTotal,
         isUsd: finAmounts.isUsd,
         exchangeRate: finAmounts.exchangeRate,
@@ -2529,6 +2533,11 @@ export default function ReportsContabilidad({ onClose }) {
                                             <td style={{ padding: '7px 10px', color: '#475569' }}>{evRow.userName}</td>
                                             <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>
                                               {formatMoney(evRow.total)}
+                                              {evRow.hasTip && evRow.tip > 0 && (
+                                                <div style={{ fontSize: '9.5px', color: '#059669', fontWeight: 700, marginTop: '2px' }}>
+                                                  + Propina: {formatMoney(evRow.tip)}
+                                                </div>
+                                              )}
                                             </td>
                                             <td style={{ padding: '7px 10px', textAlign: 'right' }}>
                                               <div style={{ color: '#16a34a', fontWeight: 700 }}>{formatMoney(evRow.advancesTotal)}</div>
@@ -3975,6 +3984,11 @@ export default function ReportsContabilidad({ onClose }) {
                         ${rawUsdTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
                       </div>
                     )}
+                    {modalFin.hasTip && modalFin.tipGtq > 0 && (
+                      <div style={{ fontSize: '9.5px', color: '#059669', fontWeight: 700, marginTop: '2px' }}>
+                        + Propina: {formatMoney(modalFin.tipGtq)}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
@@ -4007,6 +4021,35 @@ export default function ReportsContabilidad({ onClose }) {
                     </div>
                   </div>
                 </div>
+
+                {/* Observación de Propina */}
+                {modalFin.hasTip && modalFin.tipGtq > 0 && (
+                  <div style={{
+                    background: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    borderRadius: '8px',
+                    padding: '9px 14px',
+                    margin: '-6px 0 20px',
+                    fontSize: '11.5px',
+                    color: '#065f46',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 800 }}>⭐ Propina:</span>
+                      <strong style={{ color: '#047857' }}>{formatMoney(modalFin.tipGtq)}</strong>
+                      <span style={{ fontSize: '10.5px', color: '#059669' }}>
+                        (Total a liquidar por cliente: {formatMoney(modalFin.clientTotalGtq)})
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: '#059669', fontWeight: 600 }}>
+                      ✓ Asignado a colaboradores (no computable en metas ni ingresos de la empresa)
+                    </div>
+                  </div>
+                )}
 
                 {/* Tabla Cronológica de Abonos y Formulario de Aplicación de Pagos */}
                 <div style={{ marginBottom: '20px' }}>

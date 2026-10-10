@@ -666,6 +666,28 @@ export async function saveSettingApi(key, value) {
   return savedVal;
 }
 
+export async function getTipConfigApi() {
+  try {
+    const res = await api.get('/api/settings/propina');
+    return res?.config || { defaultPercent: 10, enabled: true, note: 'Propina sugerida para el personal de servicio' };
+  } catch (err) {
+    console.warn('Error en getTipConfigApi:', err);
+    return { defaultPercent: 10, enabled: true, note: 'Propina sugerida para el personal de servicio' };
+  }
+}
+
+export async function saveTipConfigApi(config) {
+  const res = await api.put('/api/settings/propina', config);
+  const saved = res?.config || config;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('entity:changed', {
+      detail: { entity: 'setting', action: 'updated', data: { key: 'tipConfig', value: saved } }
+    }));
+    window.dispatchEvent(new Event('stateUpdated'));
+  }
+  return saved;
+}
+
 export async function getEventAdvancesApi(eventId) {
   if (!eventId) return { advances: [], advanceLogs: [], summary: {} };
   try {
@@ -736,6 +758,8 @@ const stateService = {
   resolveExchangeRateAtDateApi,
   getSettingApi,
   saveSettingApi,
+  getTipConfigApi,
+  saveTipConfigApi,
   getEventAdvancesApi,
   addEventAdvanceApi,
   updateEventAdvanceApi,
