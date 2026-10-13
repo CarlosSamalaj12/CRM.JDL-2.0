@@ -1,7 +1,11 @@
 import express from 'express';
+import { authenticate } from '../middlewares/auth.js';
 import * as catalogController from '../controllers/catalogController.js';
 
 const router = express.Router();
+
+// Blindaje de seguridad: todas las operaciones del catálogo requieren autenticación
+router.use(authenticate);
 
 // Ingredientes
 router.post('/ingredientes', catalogController.createIngrediente);

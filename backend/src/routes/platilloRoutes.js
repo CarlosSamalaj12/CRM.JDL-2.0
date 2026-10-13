@@ -1,7 +1,11 @@
 import express from 'express';
+import { authenticate } from '../middlewares/auth.js';
 import * as platilloController from '../controllers/platilloController.js';
 
 const router = express.Router();
+
+// Blindaje de seguridad: todas las operaciones de platillos requieren autenticación
+router.use(authenticate);
 
 // Gestión de Platillos
 router.post('/', platilloController.createPlatillo);

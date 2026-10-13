@@ -40,9 +40,19 @@ export const authService = {
   // Synchronize and authenticate Firebase user (Google or Email) with MariaDB
   async loginFirebase(firebaseUser) {
     try {
+      let idToken = null;
+      if (typeof firebaseUser.getIdToken === 'function') {
+        try {
+          idToken = await firebaseUser.getIdToken();
+        } catch (tokenErr) {
+          console.warn('[Auth] No se pudo obtener idToken de Firebase:', tokenErr);
+        }
+      }
+
       const payload = {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
+        idToken,
         displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
         photoURL: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || firebaseUser.email)}&background=0ea5e9&color=fff`
       };

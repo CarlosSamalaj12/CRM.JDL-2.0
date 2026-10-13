@@ -1,7 +1,11 @@
 import express from 'express';
+import { authenticate } from '../middlewares/auth.js';
 import * as tareasSemanalesController from '../controllers/tareasSemanalesController.js';
 
 const router = express.Router();
+
+// Blindaje de seguridad: todas las tareas semanales requieren autenticación
+router.use(authenticate);
 
 router.get('/evento/:id_ocupacion', tareasSemanalesController.getTareasByOcupacion);
 router.get('/:semana_lunes/merged', tareasSemanalesController.getTareasMerged);

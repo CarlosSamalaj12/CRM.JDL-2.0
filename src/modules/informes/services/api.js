@@ -1,5 +1,18 @@
 const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
 
+const nativeFetch = (typeof window !== 'undefined' ? window.fetch : globalThis.fetch)?.bind(typeof window !== 'undefined' ? window : globalThis);
+
+function authFetch(url, options = {}) {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+  const headers = {
+    ...(options && options.headers ? options.headers : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+  return (nativeFetch || globalThis.fetch)(url, { ...options, headers });
+}
+
+const fetch = authFetch;
+
 const TAREAS_TIMEOUT = 15000; // 15 segundos
 
 async function fetchWithTimeout(url, options = {}, timeout = TAREAS_TIMEOUT) {

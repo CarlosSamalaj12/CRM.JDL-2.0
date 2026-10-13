@@ -108,7 +108,13 @@ const pool = mariadb.createPool({
 let io;
 const app = express();
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control, Pragma");
   
@@ -135,6 +141,110 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// ─── SEGURIDAD: Middlewares unificados de autenticación y autorización ───
+function authenticateJWT(req, res, next) {
+  const header = req.headers.authorization;
+  const token = (header && header.startsWith('Bearer '))
+    ? header.split(' ')[1]
+    : (req.query?.token || null);
+
+  if (!token) {
+    return res.status(401).json({ ok: false, message: 'Token requerido para esta operación' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ ok: false, message: 'Token inválido o expirado' });
+  }
+}
+
+function requireRole(...allowedRoles) {
+  const normalized = allowedRoles.map(r => String(r).toLowerCase());
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ ok: false, message: 'No autenticado' });
+    }
+    const userRole = String(req.user.rol || req.user.role || '').toLowerCase();
+    if (!normalized.includes(userRole)) {
+      return res.status(403).json({ ok: false, message: 'No tienes permisos para realizar esta acción' });
+    }
+    next();
+  };
+}
+
+// ─── SEGURIDAD: Verificación Criptográfica de Tokens Firebase (Google) ───
+let googleCertCache = { certs: null, expiresAt: 0 };
+
+async function getGooglePublicCerts() {
+  const now = Date.now();
+  if (googleCertCache.certs && googleCertCache.expiresAt > now) {
+    return googleCertCache.certs;
+  }
+  return new Promise((resolve, reject) => {
+    const https = require("https");
+    https.get("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com", (res) => {
+      let data = "";
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => {
+        try {
+          const certs = JSON.parse(data);
+          googleCertCache = { certs, expiresAt: now + 6 * 60 * 60 * 1000 };
+          resolve(certs);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }).on("error", reject);
+  });
+}
+
+async function verifyFirebaseIdToken(idToken) {
+  if (!idToken || typeof idToken !== "string") {
+    throw new Error("Token de Firebase no proporcionado");
+  }
+  const decodedHeader = jwt.decode(idToken, { complete: true });
+  if (!decodedHeader?.header?.kid) {
+    throw new Error("Formato de token de Firebase inválido");
+  }
+  const certs = await getGooglePublicCerts();
+  const cert = certs[decodedHeader.header.kid];
+  if (!cert) {
+    throw new Error("Certificado de firma de Google no encontrado");
+  }
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "authcrmjdl";
+  const verified = jwt.verify(idToken, cert, {
+    algorithms: ["RS256"],
+    audience: projectId,
+    issuer: `https://securetoken.google.com/${projectId}`
+  });
+  return verified;
+}
+
+// ─── SEGURIDAD: Rate Limiting para Login Local ───
+const loginAttempts = new Map();
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const windowMs = 5 * 60 * 1000; // 5 minutos
+  const maxAttempts = 10;
+  const record = loginAttempts.get(ip);
+  if (!record || now - record.firstAttempt > windowMs) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  if (record.count >= maxAttempts) {
+    return false;
+  }
+  record.count += 1;
+  return true;
+}
+
+function resetLoginRateLimit(ip) {
+  loginAttempts.delete(ip);
+}
 
 function hashPasswordScrypt(password, saltHex) {
   return new Promise((resolve, reject) => {
@@ -3251,6 +3361,17 @@ async function authenticateUser(userId, password) {
     if (!row) return null;
     const ok = await verifyPassword(password, str(row.contrasena));
     if (!ok) return null;
+
+    // 🛡️ SEGURIDAD: Si la contraseña era texto plano o formato legacy, migrar automáticamente a scrypt
+    if (ok && !str(row.contrasena).startsWith("scrypt$")) {
+      try {
+        const secureHash = await ensurePasswordHash(password);
+        await conn.query("UPDATE usuarios SET contrasena = ? WHERE id = ?", [secureHash, row.id]);
+        console.log(`[SEGURIDAD] Contraseña legacy de usuario ${row.id} migrada exitosamente a scrypt.`);
+      } catch (hashErr) {
+        console.warn(`[SEGURIDAD] No se pudo migrar contraseña legacy de ${row.id}:`, hashErr.message);
+      }
+    }
     return {
       id: str(row.id),
       name: str(row.nombre),
@@ -5081,7 +5202,7 @@ app.get("/api/version", (_req, res) => {
 
 // ==================== IMPORTACIÓN MASIVA DIRECTA A TABLAS ====================
 
-app.post("/api/import/companies", async (req, res) => {
+app.post("/api/import/companies", authenticateJWT, requireRole("admin"), async (req, res) => {
   const companies = req.body && req.body.companies;
   if (!Array.isArray(companies) || !companies.length) {
     return res.status(400).json({ message: "Se requiere un array de empresas." });
@@ -5144,7 +5265,7 @@ app.post("/api/import/companies", async (req, res) => {
   }
 });
 
-app.post("/api/import/managers", async (req, res) => {
+app.post("/api/import/managers", authenticateJWT, requireRole("admin"), async (req, res) => {
   const managers = req.body && req.body.managers;
   if (!Array.isArray(managers) || !managers.length) {
     return res.status(400).json({ message: "Se requiere un array de encargados." });
@@ -5203,7 +5324,7 @@ app.post("/api/import/managers", async (req, res) => {
 // (Guarda de forma atómica <1KB sin enviar los 17MB de state)
 // ==========================================
 
-app.post("/api/companies", async (req, res) => {
+app.post("/api/companies", authenticateJWT, async (req, res) => {
   const c = req.body && req.body.company;
   if (!c || typeof c !== "object") {
     return res.status(400).json({ message: "Se requiere un objeto de empresa válido." });
@@ -5392,7 +5513,7 @@ app.post("/api/companies/:id/managers", async (req, res) => {
   }
 });
 
-app.delete("/api/companies/:id", async (req, res) => {
+app.delete("/api/companies/:id", authenticateJWT, requireRole("admin"), async (req, res) => {
   const companyId = str(req.params.id).trim();
   if (!companyId) return res.status(400).json({ message: "ID de empresa requerido." });
 
@@ -5440,7 +5561,7 @@ app.delete("/api/companies/:id", async (req, res) => {
   }
 });
 
-app.get("/api/state", async (req, res) => {
+app.get("/api/state", authenticateJWT, async (req, res) => {
   res.setHeader("Cache-Control", "no-cache, must-revalidate");
   console.log(`[${new Date().toLocaleTimeString()}] 🔍 GET /api/state - Consultando base de datos MariaDB...`);
   try {
@@ -5478,7 +5599,7 @@ app.get("/api/state", async (req, res) => {
   }
 });
 
-app.get("/api/anticipos/:id/evidencia", async (req, res) => {
+app.get("/api/anticipos/:id/evidencia", authenticateJWT, async (req, res) => {
   const id = req.params.id;
   let conn;
   try {
@@ -5516,7 +5637,7 @@ setInterval(() => {
   }
 }, 60 * 1000);
 
-app.post("/api/print/prepare", (req, res) => {
+app.post("/api/print/prepare", authenticateJWT, (req, res) => {
   const html = req.body?.html;
   if (!html) {
     return res.status(400).json({ error: "Falta contenido HTML" });
@@ -5538,6 +5659,9 @@ app.get("/api/print/render/:id", (req, res) => {
     `);
   }
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline' https:; img-src data: https:; font-src https: data:;");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   return res.send(item.html);
 });
 
@@ -5579,7 +5703,7 @@ app.get("/api/usuarios/:id/media", async (req, res) => {
   }
 });
 
-app.put("/api/users/:id/equipo", async (req, res) => {
+app.put("/api/users/:id/equipo", authenticateJWT, requireRole("admin"), async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
@@ -5599,27 +5723,41 @@ app.put("/api/users/:id/equipo", async (req, res) => {
 });
 
 // ── Rutas puntuales para gestión rápida de usuarios (5-15ms sin reescribir todo el CRM) ──
-app.put("/api/users/:id", async (req, res) => {
+app.put("/api/users/:id", authenticateJWT, async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
     const u = req.body;
     if (!id || !u) return res.status(400).json({ ok: false, message: "Datos incompletos." });
 
-    const nombre = str(u.fullName || u.name || '').trim();
-    const fullName = str(u.fullName || u.name || '').trim();
-    const username = str(u.username || (u.email ? u.email.split('@')[0] : '')).trim();
-    const email = str(u.email || '').trim().toLowerCase();
-    const phone = str(u.phone || '').trim();
-    const rol = str(u.role || u.rol || 'vendedor').trim();
-    const activo = u.active === false ? 0 : 1;
-    const equipoId = u.teamId ? Number(u.teamId) : null;
-    const puedeAutorizar = u.canAuthorizeDiscount === true ? 1 : 0;
-    const puedeUsarChecklist = u.canUseChecklist === true ? 1 : 0;
-    const salesTargetEnabled = u.salesTargetEnabled === true ? 1 : 0;
-    const goalTiersJson = Array.isArray(u.goalTiers) ? JSON.stringify(u.goalTiers) : (u.goalTiers ? JSON.stringify(u.goalTiers) : null);
+    const currentUser = req.user;
+    const isAdmin = String(currentUser?.rol || currentUser?.role || '').toLowerCase() === 'admin';
+    if (!isAdmin && String(currentUser?.id) !== String(id)) {
+      return res.status(403).json({ ok: false, message: "Solo los administradores pueden editar a otros usuarios." });
+    }
 
     conn = await pool.getConnection();
+
+    const existingRows = await conn.query("SELECT * FROM usuarios WHERE id = ? LIMIT 1", [id]);
+    if (!existingRows.length) {
+      return res.status(404).json({ ok: false, message: "Usuario no encontrado." });
+    }
+    const currentDbUser = existingRows[0];
+
+    const nombre = str(u.fullName || u.name || currentDbUser.nombre || '').trim();
+    const fullName = str(u.fullName || u.name || currentDbUser.nombre_completo || '').trim();
+    const username = str(u.username || currentDbUser.nombre_usuario || '').trim();
+    const email = str(u.email || currentDbUser.correo || '').trim().toLowerCase();
+    const phone = str(u.phone || currentDbUser.telefono || '').trim();
+
+    // Privilegios de roles restringidos a Admin
+    const rol = isAdmin ? str(u.role || u.rol || currentDbUser.rol || 'vendedor').trim() : currentDbUser.rol;
+    const activo = isAdmin ? (u.active === false ? 0 : 1) : currentDbUser.activo;
+    const equipoId = isAdmin ? (u.teamId !== undefined ? (u.teamId ? Number(u.teamId) : null) : currentDbUser.equipo_id) : currentDbUser.equipo_id;
+    const puedeAutorizar = isAdmin ? (u.canAuthorizeDiscount === true ? 1 : 0) : currentDbUser.puede_autorizar_descuento;
+    const puedeUsarChecklist = isAdmin ? (u.canUseChecklist === true ? 1 : 0) : currentDbUser.puede_usar_checklist;
+    const salesTargetEnabled = isAdmin ? (u.salesTargetEnabled === true ? 1 : 0) : currentDbUser.influye_meta_ventas;
+    const goalTiersJson = isAdmin ? (Array.isArray(u.goalTiers) ? JSON.stringify(u.goalTiers) : (u.goalTiers ? JSON.stringify(u.goalTiers) : currentDbUser.tiers_comision_json)) : currentDbUser.tiers_comision_json;
 
     let extraSet = "";
     const params = [
@@ -5686,7 +5824,7 @@ app.put("/api/users/:id", async (req, res) => {
   }
 });
 
-app.post("/api/users", async (req, res) => {
+app.post("/api/users", authenticateJWT, requireRole("admin"), async (req, res) => {
   let conn;
   try {
     const u = req.body;
@@ -5760,7 +5898,7 @@ app.post("/api/users", async (req, res) => {
   }
 });
 
-app.put("/api/users/:id/toggle-active", async (req, res) => {
+app.put("/api/users/:id/toggle-active", authenticateJWT, requireRole("admin"), async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
@@ -5783,7 +5921,7 @@ app.put("/api/users/:id/toggle-active", async (req, res) => {
   }
 });
 
-app.delete("/api/users/:id", async (req, res) => {
+app.delete("/api/users/:id", authenticateJWT, requireRole("admin"), async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
@@ -5805,6 +5943,11 @@ app.delete("/api/users/:id", async (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
+  const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+  if (!checkLoginRateLimit(clientIp)) {
+    return res.status(429).json({ ok: false, message: "Demasiados intentos fallidos. Intenta nuevamente en unos minutos." });
+  }
+
   const userId = str(req.body?.userId).trim();
   const password = str(req.body?.password);
   if (!userId || !password) {
@@ -5815,6 +5958,7 @@ app.post("/api/login", async (req, res) => {
     if (!user) {
       return res.status(401).json({ ok: false, message: "Usuario o contrasena incorrecta." });
     }
+    resetLoginRateLimit(clientIp);
     const token = jwt.sign(
       {
         id: user.id,
@@ -5832,13 +5976,33 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/auth/firebase", async (req, res) => {
-  const uid = str(req.body?.uid).trim();
-  const email = str(req.body?.email).trim();
+  const authHeader = req.headers.authorization;
+  const bearerToken = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : null;
+  const candidateToken = bearerToken || req.body?.idToken;
+
+  let verifiedUid = null;
+  let verifiedEmail = null;
+
+  if (candidateToken) {
+    try {
+      const decodedFirebase = await verifyFirebaseIdToken(candidateToken);
+      verifiedUid = decodedFirebase.sub;
+      verifiedEmail = (decodedFirebase.email || '').toLowerCase().trim();
+    } catch (tokenErr) {
+      console.warn(`[SEGURIDAD] Token Firebase rechazado:`, tokenErr.message);
+      return res.status(401).json({ ok: false, message: "Token de Firebase inválido o expirado." });
+    }
+  } else {
+    return res.status(401).json({ ok: false, message: "Se requiere idToken de Firebase para autenticar." });
+  }
+
+  const uid = verifiedUid;
+  const email = verifiedEmail;
   const displayName = str(req.body?.displayName || email.split("@")[0]).trim();
   const photoURL = str(req.body?.photoURL).trim() || null;
 
   if (!uid || !email) {
-    return res.status(400).json({ ok: false, message: "Datos de autenticación Firebase incompletos." });
+    return res.status(400).json({ ok: false, message: "Datos de autenticación Firebase incompletos en el token verificado." });
   }
 
   const lowerEmail = email.toLowerCase();
@@ -7362,7 +7526,7 @@ app.get("/api/reportes/menu-items", async (req, res) => {
   }
 });
 
-app.put("/api/state", async (req, res) => {
+app.put("/api/state", authenticateJWT, async (req, res) => {
   console.log(`[${new Date().toLocaleTimeString()}] 💾 PUT /api/state - Solicitud de guardado recibida. Sincronizando con MariaDB...`);
   const nextState = req.body && req.body.state;
   if (!nextState || typeof nextState !== "object" || Array.isArray(nextState)) {
@@ -8252,8 +8416,15 @@ async function start() {
     const server = http.createServer(app);
     io = new Server(server, {
       cors: {
-        origin: "*",
-        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') || origin.includes('jardinesdellago.com')) {
+            return callback(null, true);
+          }
+          return callback(null, false);
+        },
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        credentials: true
       }
     });
 
@@ -8262,9 +8433,31 @@ async function start() {
       next();
     });
 
+    io.use((socket, next) => {
+      try {
+        const token = socket.handshake?.auth?.token || socket.handshake?.headers?.authorization?.replace(/^Bearer\s+/i, '');
+        if (token) {
+          try {
+            socket.user = jwt.verify(token, JWT_SECRET);
+          } catch (_) {
+            socket.user = null;
+          }
+        }
+      } catch (_) {}
+      next();
+    });
+
     io.on("connection", (socket) => {
-      socket.on("join", (room) => socket.join(room));
-      socket.on("leave", (room) => socket.leave(room));
+      socket.on("join", (room) => {
+        if (typeof room === 'string' && room.trim()) {
+          socket.join(room);
+        }
+      });
+      socket.on("leave", (room) => {
+        if (typeof room === 'string' && room.trim()) {
+          socket.leave(room);
+        }
+      });
     });
 
     // Cargar dinámicamente rutas ESM del módulo de informes

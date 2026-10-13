@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authenticate } from '../middlewares/auth.js';
 import {
   getEvents,
   getEventStats,
@@ -20,6 +21,9 @@ import {
 } from '../controllers/eventsController.js';
 
 const router = Router();
+
+// Blindaje de seguridad: todas las operaciones de eventos requieren autenticación
+router.use(authenticate);
 
 // Eventos base
 router.get('/', getEvents);

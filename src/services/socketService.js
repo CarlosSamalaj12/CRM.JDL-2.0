@@ -17,10 +17,12 @@ class SocketService {
     const connectUrl = API_BASE_URL.startsWith('http') ? API_BASE_URL : window.location.origin;
 
     console.log(`[SocketService] Conectando a Socket.IO en: ${connectUrl}`);
+    const token = localStorage.getItem('token');
     this.socket = io(connectUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
+      auth: token ? { token } : {},
     });
 
     this.socket.on('connect', () => {

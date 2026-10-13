@@ -9,9 +9,9 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máx antes de comprimir
   fileFilter: (req, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i;
+    const allowed = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
     if (allowed.test(file.originalname)) return cb(null, true);
-    cb(new Error('Solo se permiten imágenes (jpg, png, gif, webp, svg, bmp)'));
+    cb(new Error('Solo se permiten imágenes rasterizadas (jpg, png, gif, webp, bmp). Los archivos SVG no están permitidos por motivos de seguridad.'));
   },
 });
 

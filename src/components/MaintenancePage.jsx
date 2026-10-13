@@ -45,13 +45,18 @@ export default function MaintenancePage() {
   async function doBypass() {
     setBypassing(true);
     try {
-      const res = await fetch('/api/state');
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+      const res = await fetch('/api/state', { headers });
       const data = await res.json();
       const currentState = data && typeof data.state === 'object' ? data.state : data;
       currentState.maintenanceMode = false;
       await fetch('/api/state', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ state: currentState })
       });
       window.location.href = '/settings';
