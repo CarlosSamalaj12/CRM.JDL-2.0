@@ -32,6 +32,91 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Rediseño Bento Ejecutivo Moderno del Modal de Reserva (Edición y Nueva) Basado en Maqueta de Referencia con Preservación Estricta de Colores del CRM (`ReservationForm.jsx`, `Calendar.jsx`, `reservationBento.css`, `tests/reservation-bento-redesign.test.mjs`) (2026-10-14)
+- Requerimientos del usuario:
+  1. Rediseñar el modal de "Editar Reserva" (aplicado de manera simétrica a "Nueva Reserva") basado en la maqueta de referencia proporcionada.
+  2. Preservar de forma estricta los colores institucionales de los estados comerciales del CRM (`STATUS_META`: Contacto `#00A3FF`, Cotizado `#007A64`, Seguimiento `#FF8C00`, Pre-Reserva `#FF00CC`, Confirmado `#00CC66`).
+  3. Mantener el comportamiento exacto actual al cambiar el estado individual de cada salón (sin sobreescrituras forzadas).
+  4. Implementar modal flotante centrado en escritorio (`border-radius: 20px`, sombra ejecutiva y `backdrop-filter: blur(6px)`), y responsivo a pantalla completa en móviles (`<= 768px`).
+  5. Stepper Chevron interactivo con las 5 etapas comerciales y visualización de progreso.
+  6. Tarjeta Bento de Nombre del Evento y categoría.
+  7. Tarjeta Bento de Salones y Horarios con botón rápido `Confirmar Todos` y `+ Agregar Salón`, tabla multi-espacio con selector de salón principal (estrella dorada), rango de fechas, selector de horario `TimeSelect`, selector de estado individual y botón de eliminación.
+  8. Píldoras segmentadas de cálculo de aforo: `Compartido`, `No Compartido` y `Principal` con nota explicativa dinámica.
+  9. Columna lateral con 4 tarjetas Bento: Periodo Global del Evento con contador de jornadas, Estado General Consolidado, Usuario Responsable interactivo con avatar de iniciales (`[ KB ]`), rol y escudo de verificación, y Notas con badge de autoguardado y contador de caracteres.
+  10. Barra de acciones inferior con botones temáticos ejecutivos: Mantenimiento, + Cita (teal), Cotizar (azul), Historial (púrpura), Cancelar (rojo), Descartar y Guardar Cambios (verde esmeralda con check).
+- Solución:
+  1. En `src/modules/calendar/Calendar.jsx`:
+     - Se limpiaron los estilos inline rígidos del overlay de reserva y se portaleó directamente al `document.body` mediante `createPortal`, evitando cualquier restricción de ancho o layout rígido de `#appShell`.
+  2. En `src/modules/calendar/components/reservationBento.css`:
+     - Se crearon reglas CSS con selectores de máxima especificidad (`html body:not(.informes-theme) .reservation-modal-overlay ...`) para blindar inputs, selects y textareas con fondo blanco puro (`background: #ffffff !important`, `background-color: #ffffff !important`, `background-image: none !important`), erradicando los fondos oscuros provenientes de reglas globales.
+     - Se definió el modal flotante centrado con dimensiones ejecutivas (`max-width: 1220px !important`, `height: 88vh !important`, `max-height: 820px !important`, `border-radius: 20px !important`, sombra profunda y `backdrop-filter: blur(8px)` con padding perimetral de `32px 24px`), evitando que ocupe el 100% de la pantalla.
+     - Se corrigió el botón de estrella principal (`.res-bento-star-btn`) y el botón de papelera (`.res-bento-btn-trash`) con reseteo a 28px/30px, fondo transparente, sin bordes de botón estándar ni formas ovaladas infladas.
+     - Se estilizó el botón `+ Agregar Salón` con verde esmeralda sólido (`#007A64`, texto blanco) y `✓ Confirmar Todos` en blanco con borde verde según maqueta.
+     - Se implementó el botón `✓ Guardar Cambios` con degradado esmeralda sólido (`#007A64` a `#00967a`), texto blanco y checkmark vectorial.
+     - Se refinaron las píldoras de aforo (Compartido activo blanco con borde verde, No Compartido y Principal).
+     - Se implementó el Stepper Chevron con `clip-path: polygon(...)`, tintes según estado y renderizado de los 5 iconos vectoriales correspondientes.
+  3. En `src/modules/calendar/components/ReservationForm.jsx`:
+     - Se incorporaron estilos inline de respaldo en inputs de texto, selector de salón, fechas y notas para garantizar apariencia blanca prístina.
+     - Se enriqueció la cabecera con subtítulos e iconos visuales (`📅`, `🕒`, `👥`).
+     - Se blindaron los botones de estrella y eliminación en cada fila de salón con iconos vectoriales SVG limpios.
+  4. En `tests/reservation-bento-redesign.test.mjs`:
+     - Se mantuvieron y validaron las suites automáticas comprobando la integridad de las clases, colores de estado, montaje por portal y compatibilidad.
+  4. En `tests/reservation-bento-redesign.test.mjs`:
+     - Se añadió suite automatizada comprobando la existencia de clases CSS, estructura JSX, preservación estricta de colores de estado en `constants.js` y comportamiento del overlay en `Calendar.jsx`.
+- Validación: 171 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.223`).
+
+### Solución: Validaciones No Nativas, Mínimo 1 Noche Obligatoria, Toast Corporativo y Diseño de Errores Reactivo (`HabitacionModal.jsx`, `habitaciones.css`, `tests/habitaciones-system.test.mjs`) (2026-10-14)
+- Requerimientos del usuario:
+  1. Validar que la reserva de habitación tenga al menos una noche (`noches >= 1`, Check-Out posterior a Check-In).
+  2. Implementar validaciones no nativas (sin globos o popups estándar feos del navegador; usar `noValidate`).
+  3. Agregar diseño ejecutivo con estilos visuales, resaltado de campos inválidos con borde/fondo rojo, anillo focus, micro-animación e insignias de error con icono (`AlertCircle`).
+  4. Integrar feedback con `toast` (`toast.error(...)`) corporativo con mensajes prioritarios y auto-enfoque en el primer campo inválido.
+- Solución:
+  1. En `src/modules/habitaciones/HabitacionModal.jsx`:
+     - Se añadió `<form noValidate onSubmit={handleSubmit}>` y se removieron todos los atributos `required` nativos de HTML5 para erradicar los globos nativos del navegador.
+     - Se implementó función `validateForm()` que valida:
+       - Nombre del huésped obligatorio.
+       - Fecha Check-In y Check-Out obligatorias.
+       - Check-Out estrictamente posterior a Check-In.
+       - Noches obligatorio y mayor o igual a 1 noche (`noches >= 1`).
+       - Cantidad de habitaciones mayor o igual a 1 (`cantidad_habitaciones >= 1`).
+       - Tarifa diaria y monto total válidos (no negativos).
+     - Se integró `setErrors(validationErrors)` y la función `clearError(fieldName)` que limpia reactivamente el error en tiempo real a medida que el usuario escribe o corrige cada campo.
+     - Se integró `toast.error(message)` en `handleSubmit` notificando inmediatamente el primer error encontrado con texto claro en español.
+     - Se implementó auto-enfoque programático con `document.querySelector('.hab-modal-card .is-invalid')?.focus()` para guiar al usuario directo al campo que requiere corrección.
+     - Se restauraron las declaraciones de hook omitidas `const [companySearch, setCompanySearch] = useState('')` y `const [companySuggestions, setCompanySuggestions] = useState([])` solucionando el `ReferenceError: setCompanySearch is not defined`.
+  2. En `src/modules/habitaciones/habitaciones.css`:
+     - Se añadieron estilos blindados con alta especificidad para `.hab-input.is-invalid`, `.hab-select.is-invalid` (borde rojo `#ef4444`, fondo tenue `#fef2f2`, texto `#991b1b` y sombra de resalte).
+     - En foco (`:focus`), se aplica anillo suave de atención `#dc2626` con `rgba(220, 38, 38, 0.28)`.
+     - Se diseñó `.hab-field-error` con tipografía ejecutiva (11px, `font-weight: 800`), icono vectorial de alerta y micro-animación `@keyframes habErrorFadeIn`.
+  3. En `tests/habitaciones-system.test.mjs`:
+     - Se añadió suite automatizada comprobando la regla de al menos 1 noche, validaciones no nativas, uso de `noValidate`, emisión de toasts, badges de error y estilos CSS.
+- Validación: 167 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso.
+
+### Solución: Corrección de Bloqueo al Borrar en Campos Numéricos (Noches, Tarifa Diaria, Cantidad de Habitaciones y Monto Total) y Sincronización Automática de Check-Out (`HabitacionModal.jsx`, `SettingsHabitaciones.jsx`, `tests/habitaciones-system.test.mjs`) (2026-10-14)
+- Requerimientos del usuario:
+  1. En el modal "+ Nueva Reserva de Habitación", al intentar borrar el valor inicial en el campo "Noches" (por ejemplo `1`) para escribir `2`, el sistema no permitía borrar y al escribir salía `12`.
+  2. De igual manera en "Tarifa Diaria (Q)", al intentar borrar para escribir una tarifa deseada, el campo se resistía al borrado y concatenaba números con ceros residuales (ej. `0450`).
+  3. Revisar todos los campos del modal para que permitan borrar completamente su contenido y escribir la cantidad deseada libremente.
+- Causa raíz:
+  1. Los inputs numéricos realizaban coerción inmediata en `onChange` con `parseInt(e.target.value) || 1` y `Math.max(1, ...)` o `parseFloat(e.target.value) || 0`.
+  2. Al presionar Backspace o borrar el texto, `e.target.value` era `""`. Como `parseInt("")` es `NaN`, `NaN || 1` evaluaba a `1` y reescribía el estado en `1` de inmediato, impidiendo vaciar el input. Al pulsar `2`, el cursor concatenaba al `1` existente produciendo `12`.
+  3. De forma idéntica, `parseFloat("") || 0` forzaba `0` instantáneamente al borrar la tarifa diaria, produciendo `0450` al teclear `450`.
+  4. Adicionalmente, al cambiar las noches manualmente, no se actualizaba la fecha de check-out, desincronizando la estancia.
+- Solución:
+  1. En `src/modules/habitaciones/HabitacionModal.jsx`:
+     - Se permitió que el estado acepte strings temporales y string vacío `""` durante la edición (`value={formData.[campo] ?? ''}`).
+     - Se crearon manejadores dedicados `handleNochesChange`, `handleCantidadHabitacionesChange`, `handleTarifaDiariaChange`, y `handleMontoTotalChange` que limpian ceros espurios a la izquierda (ej. `"0450"` -> `"450"`, preservando `"0."` para decimales).
+     - Se implementaron handlers `onBlur` que formatean y aplican fallbacks seguros si el usuario abandona el input en blanco (`noches`: mínimo 1 o días entre check-in y check-out; `cantidad_habitaciones`: mínimo 1; `tarifa_diaria`: 0; `monto_total`: auto-total si estaba en blanco).
+     - Se añadió `onFocus={e => e.target.select()}` en todos los campos numéricos para resaltar el número completo al hacer clic o tabulación, facilitando la sobreescritura inmediata sin obligar a presionar Backspace.
+     - Se incorporó la función `addDays` para sincronizar automáticamente `fecha_check_out` con base en `fecha_check_in` + `noches`.
+     - En `handleSubmit`, se aseguró la sanitización estricta de todos los campos numéricos en el payload antes de enviarlos a `onSave`.
+  2. En `src/modules/settings/SettingsHabitaciones.jsx`:
+     - Se corrigió el mismo comportamiento en `tarifa_base`, `orden`, `globalMonto` y `vm.monto` de metas de vendedores.
+  3. En `tests/habitaciones-system.test.mjs`:
+     - Se incorporó suite de pruebas unitarias automatizadas blindando el soporte de borrado, la auto-selección en foco, `addDays` y la sanitización en `handleSubmit`.
+- Validación: 166 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso.
+
 ### Solución: Rediseño Ejecutivo Moderno de Pantalla de Mantenimiento, Erradicación de Fuga de Clave en Placeholder y Eliminación de Cuenta Regresiva (`MaintenancePage.jsx`, `maintenance.css`, `tests/maintenance-mode-admin.test.mjs`) (2026-10-13)
 - Requerimientos y observaciones del usuario:
   1. **Seguridad y confidencialidad de la clave**: En la versión anterior el placeholder del input mostraba `Ej: JDL-ADMIN-2026`, filtrando la clave maestra. Se erradicó por completo cualquier indicio o muestra de la contraseña en la UI, placeholders o tooltips (`placeholder="••••••••••••"`).

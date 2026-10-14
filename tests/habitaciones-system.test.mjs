@@ -443,5 +443,68 @@ test('Habitaciones: HabitacionModal blinda initialData y props value contra valo
   assert.ok(modalCode.includes("value={formData.telefono ?? ''}"), 'Input de teléfono debe protegerse con fallback contra null');
   assert.ok(modalCode.includes("value={formData.nombre_huesped ?? ''}"), 'Input de huésped debe protegerse con fallback contra null');
   assert.ok(modalCode.includes("value={companySearch ?? ''}"), 'Input de empresa debe protegerse con fallback contra null');
+
+  // Verificar que los hooks de estado de empresa estén declarados
+  assert.ok(modalCode.includes("const [companySearch, setCompanySearch] = useState("), 'Debe declarar el hook companySearch');
+  assert.ok(modalCode.includes("const [companySuggestions, setCompanySuggestions] = useState("), 'Debe declarar el hook companySuggestions');
 });
 
+test('Habitaciones: HabitacionModal permite borrar campos numéricos y escribir cantidades deseadas sin trabas', () => {
+  const modalPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'HabitacionModal.jsx');
+  const modalCode = fs.readFileSync(modalPath, 'utf8');
+
+  // Permitir borrar valores en noches, cantidad_habitaciones, tarifa_diaria y monto_total
+  assert.ok(modalCode.includes("handleNochesChange"), 'Debe implementar handleNochesChange');
+  assert.ok(modalCode.includes("handleNochesBlur"), 'Debe implementar handleNochesBlur');
+  assert.ok(modalCode.includes("handleCantidadHabitacionesChange"), 'Debe implementar handleCantidadHabitacionesChange');
+  assert.ok(modalCode.includes("handleTarifaDiariaChange"), 'Debe implementar handleTarifaDiariaChange');
+  assert.ok(modalCode.includes("handleMontoTotalChange"), 'Debe implementar handleMontoTotalChange');
+
+  // Auto-selección con onFocus en los 4 campos numéricos
+  assert.ok(modalCode.includes("value={formData.noches ?? ''}"), 'Input noches debe aceptar string vacío para poder borrar');
+  assert.ok(modalCode.includes("value={formData.cantidad_habitaciones ?? ''}"), 'Input cantidad_habitaciones debe aceptar string vacío');
+  assert.ok(modalCode.includes("value={formData.tarifa_diaria ?? ''}"), 'Input tarifa_diaria debe aceptar string vacío');
+  assert.ok(modalCode.includes("value={formData.monto_total ?? ''}"), 'Input monto_total debe aceptar string vacío');
+
+  // Sincronización de check-out cuando cambia noches
+  assert.ok(modalCode.includes("function addDays("), 'Debe incluir addDays para sincronizar fecha_check_out con noches');
+
+  // Sanitización de números en handleSubmit antes de onSave
+  assert.ok(modalCode.includes("nochesFinal ="), 'handleSubmit debe sanitizar nochesFinal');
+  assert.ok(modalCode.includes("habsFinal ="), 'handleSubmit debe sanitizar habsFinal');
+  assert.ok(modalCode.includes("tarifaFinal ="), 'handleSubmit debe sanitizar tarifaFinal');
+  assert.ok(modalCode.includes("montoFinal ="), 'handleSubmit debe sanitizar montoFinal');
+});
+test('Habitaciones: HabitacionModal implementa validaciones no nativas, al menos 1 noche, toast y diseño de errores', () => {
+  const modalPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'HabitacionModal.jsx');
+  const modalCode = fs.readFileSync(modalPath, 'utf8');
+
+  // 1. Formulario sin validación nativa del navegador (noValidate)
+  assert.ok(modalCode.includes('<form noValidate onSubmit={handleSubmit}'), 'El formulario debe tener noValidate para evitar globos nativos del navegador');
+  assert.ok(!modalCode.includes('required\n') && !modalCode.includes('required '), 'No debe haber atributos required nativos');
+
+  // 2. Validación de al menos 1 noche y fechas
+  assert.ok(modalCode.includes("const validateForm = () =>"), 'Debe existir validateForm');
+  assert.ok(modalCode.includes("newErrors.noches = 'La reserva debe tener al menos 1 noche'"), 'Debe validar que noches sea al menos 1');
+  assert.ok(modalCode.includes("newErrors.fecha_check_out = 'El check-out debe ser posterior al check-in'"), 'Debe validar check-out posterior a check-in');
+  assert.ok(modalCode.includes("newErrors.nombre_huesped = 'El nombre del huésped es obligatorio'"), 'Debe validar nombre del huésped');
+
+  // 3. Feedback prioritario con toast
+  assert.ok(modalCode.includes("toast.error(validationErrors.noches)"), 'Debe emitir toast.error cuando falten noches');
+  assert.ok(modalCode.includes("toast.error(validationErrors.nombre_huesped)"), 'Debe emitir toast.error para nombre de huésped');
+  assert.ok(modalCode.includes("document.querySelector('.hab-modal-card .is-invalid')"), 'Debe auto-enfocar el primer campo inválido');
+
+  // 4. Clases CSS no nativas y badges de error
+  assert.ok(modalCode.includes("${errors.nombre_huesped ? 'is-invalid' : ''}"), 'Huésped debe tener clase is-invalid');
+  assert.ok(modalCode.includes("${errors.fecha_check_in ? 'is-invalid' : ''}"), 'Check-in debe tener clase is-invalid');
+  assert.ok(modalCode.includes("${errors.fecha_check_out ? 'is-invalid' : ''}"), 'Check-out debe tener clase is-invalid');
+  assert.ok(modalCode.includes("${errors.noches ? 'is-invalid' : ''}"), 'Noches debe tener clase is-invalid');
+  assert.ok(modalCode.includes("hab-field-error"), 'Debe renderizar badges de error con clase hab-field-error');
+
+  // 5. Estilos en habitaciones.css
+  const cssPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'habitaciones.css');
+  const cssCode = fs.readFileSync(cssPath, 'utf8');
+  assert.ok(cssCode.includes('.hab-input.is-invalid'), 'habitaciones.css debe definir estilos de error para .hab-input.is-invalid');
+  assert.ok(cssCode.includes('.hab-field-error'), 'habitaciones.css debe definir .hab-field-error');
+  assert.ok(cssCode.includes('@keyframes habErrorFadeIn'), 'habitaciones.css debe incluir micro-animación habErrorFadeIn');
+});

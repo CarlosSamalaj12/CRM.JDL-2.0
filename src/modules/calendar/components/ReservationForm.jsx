@@ -20,6 +20,7 @@ import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import './reservationMobile.css';
+import './reservationBento.css';
 
 const pastEventEditAuthorizedKeys = new Set();
 
@@ -340,14 +341,14 @@ const StatusSelectCustom = ({ value, options, onChange, disabled, size = 'sm' })
           display: 'flex',
           alignItems: 'center',
           gap: isSm ? '6px' : '10px',
-          padding,
-          background: disabled ? '#f1f5f9' : (isSm ? 'white' : `${selectedOption?.color || '#cbd5e1'}10`),
-          border: '1px solid',
-          borderColor: disabled ? '#cbd5e1' : (isSm ? '#cbd5e1' : `${selectedOption?.color || '#cbd5e1'}80`),
-          borderRadius: isSm ? '6px' : '8px',
+          padding: isSm ? '4px 10px' : padding,
+          background: disabled ? '#f1f5f9' : `${selectedOption?.color || '#cbd5e1'}14`,
+          border: '1.5px solid',
+          borderColor: disabled ? '#cbd5e1' : `${selectedOption?.color || '#cbd5e1'}55`,
+          borderRadius: isSm ? '20px' : '9px',
           cursor: disabled ? 'not-allowed' : 'pointer',
-          color: disabled ? '#94a3b8' : (isSm ? '#0f172a' : selectedOption?.color),
-          fontWeight: isSm ? '700' : '800'
+          color: disabled ? '#94a3b8' : (selectedOption?.color || '#0f172a'),
+          fontWeight: '700'
         }}
       >
         <span style={{
@@ -355,12 +356,12 @@ const StatusSelectCustom = ({ value, options, onChange, disabled, size = 'sm' })
           height: dotSize,
           borderRadius: '50%',
           background: selectedOption?.color || '#cbd5e1',
-          boxShadow: `0 0 0 2px ${disabled ? '#f1f5f9' : (isSm ? 'white' : 'transparent')}, 0 0 0 3px ${selectedOption?.color || '#cbd5e1'}80`
+          boxShadow: `0 0 0 2px white, 0 0 0 3px ${selectedOption?.color || '#cbd5e1'}80`
         }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selectedOption?.key}
         </span>
-        <span style={{ opacity: 0.5, fontSize: isSm ? '9px' : '12px' }}>▼</span>
+        <span style={{ opacity: 0.7, fontSize: isSm ? '9px' : '11px', color: selectedOption?.color || '#0f172a' }}>▼</span>
       </div>
 
       {isOpen && menuPosition && createPortal(
@@ -1616,14 +1617,109 @@ export default function ReservationForm() {
   };
 
   const PIPELINE_STEPS = [
-    { key: 'Reserva sin Cotizacion', label: 'Contacto Inicial' },
-    { key: '1er Cotizacion', label: 'Cotizado' },
-    { key: 'Seguimiento', label: 'Seguimiento' },
-    { key: 'Pre reserva', label: 'Pre-Reserva' },
-    { key: 'Confirmado', label: 'Confirmado' }
+    { key: 'Reserva sin Cotizacion', label: '1. Contacto', stageNumber: 1, stageName: 'ETAPA 1' },
+    { key: '1er Cotizacion', label: '2. Cotizado', stageNumber: 2, stageName: 'ETAPA 2' },
+    { key: 'Seguimiento', label: '3. Seguimiento', stageNumber: 3, stageName: 'ETAPA 3' },
+    { key: 'Pre reserva', label: '4. Pre-Reserva', stageNumber: 4, stageName: 'ETAPA 4' },
+    { key: 'Confirmado', label: '5. Confirmado', stageNumber: 5, stageName: 'ETAPA 5' }
   ];
 
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === formData.status);
+
+  const assignedUser = useMemo(() => {
+    return (users || []).find(u => String(u.id) === String(formData.userId)) || null;
+  }, [users, formData.userId]);
+
+  const getUserInitials = (name) => {
+    if (!name) return 'SE';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
+  const calculatedJornadas = useMemo(() => {
+    if (!formData.date) return 1;
+    const end = formData.endDate || formData.date;
+    const d1 = new Date(formData.date + 'T00:00:00');
+    const d2 = new Date(end + 'T00:00:00');
+    const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, isNaN(diff) ? 1 : diff);
+  }, [formData.date, formData.endDate]);
+
+  const principalSlot = useMemo(() => {
+    return slots.find(s => s.isPrincipal === true) || slots[0] || null;
+  }, [slots]);
+
+  const sumaPaxSalones = useMemo(() => {
+    return slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+  }, [slots]);
+
+  const formattedHeaderDate = useMemo(() => {
+    if (!formData.date) return 'Sin fecha';
+    const parts = String(formData.date).split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return formData.date;
+  }, [formData.date]);
+
+  const handleConfirmAllSlots = () => {
+    setSlots(prev => prev.map(s => ({ ...s, status: 'Confirmado' })));
+    setFormData(prev => ({ ...prev, status: 'Confirmado' }));
+    toast.success('Todos los salones cambiados a Confirmado');
+  };
+
+  const renderStageIcon = (stageNumber) => {
+    switch (stageNumber) {
+      case 1:
+        // Etapa 1: Contacto (usuarios)
+        return (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        );
+      case 2:
+        // Etapa 2: Cotizado (edificio / cotización)
+        return (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+            <line x1="9" y1="22" x2="9" y2="18" />
+            <line x1="15" y1="22" x2="15" y2="18" />
+            <line x1="18" y1="18" x2="6" y2="18" />
+            <line x1="8" y1="6" x2="8.01" y2="6" />
+            <line x1="16" y1="6" x2="16.01" y2="6" />
+            <line x1="12" y1="6" x2="12.01" y2="6" />
+            <line x1="8" y1="10" x2="8.01" y2="10" />
+            <line x1="12" y1="10" x2="12.01" y2="10" />
+            <line x1="16" y1="10" x2="16.01" y2="10" />
+          </svg>
+        );
+      case 3:
+        // Etapa 3: Seguimiento (chat / mensaje)
+        return (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        );
+      case 4:
+        // Etapa 4: Pre-Reserva (reloj)
+        return (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        );
+      case 5:
+      default:
+        // Etapa 5: Confirmado (check ✓)
+        return (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        );
+    }
+  };
 
   if (!pastEventCheckDone) {
     return (
@@ -1634,7 +1730,7 @@ export default function ReservationForm() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 0, background: isMobileView ? '#f8fafc' : 'transparent', position: 'relative', overflow: isMobileView ? 'hidden' : 'visible' }}>
       {saving && <LoadingSpinner mensaje={!id && !createdEventId ? "Creando reserva..." : "Guardando cambios..."} />}
 
       {isMobileView ? (
@@ -2321,798 +2417,718 @@ export default function ReservationForm() {
           </div>
         </div>
       ) : (
-        <>
-      {/* Header bar with title and Cerrar button */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '20px 24px 0 24px',
-        background: '#f8fafc'
-      }}>
-        <div>
-          <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-            {id ? 'Editar Reserva' : 'Nueva Reserva'}
-          </h1>
-          {id && (
-            <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px', fontWeight: '600' }}>
-              {slots[0]?.salon || 'Sin salón'} • {formData.date} • {slots[0]?.startTime || '10:00'} - {slots[0]?.endTime || '12:00'}
+        <div className="res-bento-window">
+          {/* 1. Header Bar */}
+          <div className="res-bento-header">
+            <div className="res-bento-header-left">
+              <div className="res-bento-title-row">
+                <h1 className="res-bento-title">
+                  {id ? 'Editar Reserva' : 'Nueva Reserva'}
+                </h1>
+                <span
+                  className="res-bento-status-pill"
+                  style={{
+                    color: STATUS_META[formData.status]?.color || '#00CC66',
+                    background: `${STATUS_META[formData.status]?.color || '#00CC66'}14`,
+                    borderColor: `${STATUS_META[formData.status]?.color || '#00CC66'}40`
+                  }}
+                >
+                  <span
+                    className="res-bento-status-dot"
+                    style={{ background: STATUS_META[formData.status]?.color || '#00CC66' }}
+                  />
+                  {formData.status}
+                </span>
+                <span className="res-bento-divider">|</span>
+                <span className="res-bento-id-badge">
+                  ID: #{id ? `RES-${String(id).slice(-8).toUpperCase()}` : 'NUEVA'}
+                </span>
+              </div>
+              <div className="res-bento-subtitle">
+                <span style={{ color: '#eab308' }}>★</span>
+                <span style={{ fontWeight: 700, color: '#334155' }}>
+                  Principal: {principalSlot?.salon || slots[0]?.salon || 'Sin salón'}
+                </span>
+                <span>·</span>
+                <span>📅 {formattedHeaderDate}</span>
+                <span>·</span>
+                <span>🕒 {principalSlot?.startTime || slots[0]?.startTime || '10:00'} - {principalSlot?.endTime || slots[0]?.endTime || '12:00'}</span>
+                <span>·</span>
+                <span>👥 Total: <strong>{formData.pax || 0} PAX</strong></span>
+                <span style={{ color: '#64748b' }}>
+                  ({formData.paxCompartido === true ? 'Compartido' : formData.paxCompartido === false ? 'No Compartido' : 'Principal'})
+                </span>
+              </div>
             </div>
-          )}
-        </div>
-        
-        <button
-          onClick={handleBack}
-          onMouseEnter={() => setIsCloseHovered(true)}
-          onMouseLeave={() => { setIsCloseHovered(false); setIsCloseActive(false); }}
-          onMouseDown={() => setIsCloseActive(true)}
-          onMouseUp={() => setIsCloseActive(false)}
-          style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            border: 'none',
-            background: isCloseHovered ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
-            color: isCloseHovered ? '#ef4444' : '#64748b',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.2s ease',
-            padding: 0,
-            boxShadow: 'none',
-            outline: 'none',
-            transform: isCloseActive ? 'scale(0.88)' : 'none',
-          }}
-          aria-label="Cerrar"
-        >
-          <svg
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            width="18"
-            height="18"
-            style={{
-              transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              transform: isCloseHovered ? 'rotate(90deg) scale(1.15)' : 'none',
-              flexShrink: 0,
-            }}
-          >
-            <path d="M4 4l10 10M14 4l-10 10" />
-          </svg>
-        </button>
-      </div>
 
-      <div className="form-stepper-card" style={{
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: '12px',
-              padding: '12px 16px 8px 16px',
-              margin: '16px 24px 16px 24px',
-              position: 'relative',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)'
-            }}>
-              {/* Línea de fondo del Stepper */}
-              <div style={{
-                position: 'absolute',
-                top: '23px',
-                left: '10%',
-                right: '10%',
-                height: '2px',
-                background: '#f1f5f9',
-                borderRadius: '1px',
-                zIndex: 1
-              }} />
+            <button
+              type="button"
+              onClick={handleBack}
+              className="res-bento-close-btn"
+              title="Cerrar ventana"
+              aria-label="Cerrar"
+              style={{
+                width: '32px',
+                height: '32px',
+                minHeight: '32px',
+                maxHeight: '32px',
+                minWidth: '32px',
+                maxWidth: '32px',
+                padding: 0,
+                margin: 0,
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                color: '#94a3b8',
+                cursor: 'pointer'
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
 
-              {/* Línea de progreso rellenada */}
-              <div style={{
-                position: 'absolute',
-                top: '23px',
-                left: '10%',
-                width: `${currentIdx === 0 ? 0 : (currentIdx / (PIPELINE_STEPS.length - 1)) * 80}%`,
-                height: '2px',
-                background: 'linear-gradient(90deg, #00A3FF 0%, #00CC66 100%)',
-                borderRadius: '1px',
-                zIndex: 2,
-                transition: 'all 0.4s ease-out'
-              }} />
+          {/* 2. Pipeline Stepper (Chevron Bar con colores exactos de estado del CRM) */}
+          <div className="res-bento-stepper-wrap">
+            <div className="res-bento-stepper">
+              {PIPELINE_STEPS.map((step, idx) => {
+                const stepColor = STATUS_META[step.key]?.color || '#00A3FF';
+                const isCompleted = idx < currentIdx;
+                const isActive = idx === currentIdx;
 
-              {/* Nodos del Stepper */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 3 }}>
-                {PIPELINE_STEPS.map((step, idx) => {
-                  const isCompleted = idx < currentIdx;
-                  const isActive = idx === currentIdx;
-                  
-                  // Definir estilos según el estado
-                  let nodeBg = '#ffffff';
-                  let nodeBorder = '2px solid #cbd5e1';
-                  let nodeColor = '#94a3b8';
-                  let nodeShadow = 'none';
+                const itemBg = (isActive || isCompleted) ? stepColor : `${stepColor}14`;
+                const itemColor = (isActive || isCompleted) ? '#ffffff' : stepColor;
+                const nodeBg = (isActive || isCompleted) ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.85)';
+                const nodeColor = (isActive || isCompleted) ? '#ffffff' : stepColor;
+                const nodeBorder = (isActive || isCompleted) ? '1px solid rgba(255, 255, 255, 0.5)' : `1.5px solid ${stepColor}60`;
 
-                  if (isCompleted) {
-                    nodeBg = '#00CC66';
-                    nodeBorder = '2px solid #00CC66';
-                    nodeColor = '#ffffff';
-                    nodeShadow = '0 2px 6px rgba(0, 204, 102, 0.2)';
-                  } else if (isActive) {
-                    nodeBg = '#00A3FF';
-                    nodeBorder = '3px solid #ffffff';
-                    nodeColor = '#ffffff';
-                    nodeShadow = '0 0 0 2px #00A3FF, 0 4px 8px rgba(0, 163, 255, 0.25)';
-                  }
-
-                  return (
-                    <div
-                      key={step.key}
-                      onClick={() => handleStepClick(step.key)}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        cursor: 'pointer',
-                        flex: 1
-                      }}
-                    >
-                      {/* Círculo */}
-                      <div style={{
-                        width: '22px',
-                        height: '22px',
-                        borderRadius: '50%',
-                        background: nodeBg,
-                        border: nodeBorder,
-                        color: nodeColor,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '10px',
-                        fontWeight: '900',
-                        boxShadow: nodeShadow,
-                        transition: 'all 0.3s ease',
-                        transform: isActive ? 'scale(1.1)' : 'none'
-                      }}>
-                        {isCompleted ? '✓' : idx + 1}
-                      </div>
-
-                      {/* Etiqueta */}
-                      <span style={{
-                        marginTop: '6px',
-                        fontSize: '10px',
-                        fontWeight: '800',
-                        color: isActive ? '#00A3FF' : isCompleted ? '#0f172a' : '#94a3b8',
-                        transition: 'color 0.3s ease',
-                        textAlign: 'center'
-                      }}>
+                return (
+                  <div
+                    key={step.key}
+                    onClick={() => handleStepClick(step.key)}
+                    className="res-bento-chevron-item"
+                    style={{
+                      background: itemBg,
+                      color: itemColor,
+                      boxShadow: isActive ? `0 3px 12px ${stepColor}45` : 'none',
+                      zIndex: PIPELINE_STEPS.length - idx
+                    }}
+                    title={`Cambiar etapa a: ${step.label}`}
+                  >
+                    <div className="res-bento-chevron-content">
+                      <span className="res-bento-chevron-stage" style={{ color: itemColor, opacity: (isActive || isCompleted) ? 0.9 : 0.8 }}>
+                        {step.stageName}
+                      </span>
+                      <span className="res-bento-chevron-label" style={{ color: itemColor }}>
                         {step.label}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-        <div className="form-scroll-wrapper" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '0 24px 24px 24px' }}>
-          {validationErrors.length > 0 && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
-              <div style={{ color: '#dc2626', fontWeight: '700', marginBottom: '8px' }}>⚠️ Faltan datos por completar:</div>
-              <ul style={{ margin: 0, paddingLeft: '20px', color: '#991b1b', fontSize: '13px' }}>
-                {validationErrors.slice(0, 5).map((err, i) => <li key={i}>{err}</li>)}
-                {validationErrors.length > 5 && <li>...y {validationErrors.length - 5} más</li>}
-              </ul>
-            </div>
-          )}
-          <div className="reservation-form-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '16px', alignItems: 'start' }}>
-          {/* Columna Izquierda: Información de Reserva y Salones */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-            <div className="form-main-card" style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Nombre del evento *</label>
-                <input name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Boda, Corporativo, Cena" style={{ ...inputStyle, fontSize: '15px', padding: '10px 14px' }} />
-              </div>
 
-              {(formData.status === '__hidden__') && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-                  <div>
-                    <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Nombre de quien reserva (Cliente)</label>
-                    <input name="clientName" value={formData.clientName} onChange={handleChange} placeholder="Ej: Carlos Samalaj" style={{ ...inputStyle, padding: '8px 12px' }} />
-                  </div>
-                  <div>
-                    <label style={{ ...labelStyle, fontSize: '13.5px', color: '#475569', fontWeight: '700' }}>Teléfono del Cliente</label>
-                    <input name="clientPhone" value={formData.clientPhone} onChange={handleChange} placeholder="Ej: +502 5555-5555" style={{ ...inputStyle, padding: '8px 12px' }} />
-                  </div>
-                </div>
-              )}
-
-              {/* Sección de salones y horarios */}
-              <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '12px' }}>Salones y horarios</label>
-                
-                <button
-                  onClick={addSlotRow}
-                  style={{
-                    background: '#005954',
-                    color: 'white',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    marginBottom: '16px',
-                    transition: 'background-color 0.15s'
-                  }}
-                >
-                  Agregar salon
-                </button>
-
-                {slotConflicts.length > 0 && (
-                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px', fontSize: '11px', marginBottom: '12px' }}>
-                    <div style={{ fontWeight: '700', color: '#dc2626', marginBottom: '4px' }}>⚠️ Conflictos detectados:</div>
-                    {slotConflicts.map((r, i) => (
-                      <div key={i} style={{ color: '#991b1b', marginBottom: '2px' }}>
-                        Salon {r.index + 1}: {r.message || r.hint}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div style={{ overflowX: 'auto', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
-                  <div style={{ minWidth: '760px' }}>
-                    {/* Encabezado de la tabla */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderBottom: '1px solid #cbd5e1', alignItems: 'center' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Salón Principal">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="#eab308" stroke="#ca8a04" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                        </svg>
-                      </span>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>SALÓN</span>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>PAX</span>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>DESDE</span>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>HASTA</span>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>INICIO</span>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>FIN</span>
-                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', letterSpacing: '0.5px' }}>ESTADO</span>
-                    </div>
-
-                    {/* Contenido de la tabla con scroll vertical */}
-                    <div style={{ display: 'flex', flexDirection: 'column', padding: '8px 0', gap: '6px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden' }}>
-                      {slots.map((slot, index) => {
-                        const isPrincipal = slot.isPrincipal === true;
-                        return (
-                        <div
-                          key={index}
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '28px minmax(110px, 1.5fr) minmax(45px, 0.5fr) minmax(105px, 1fr) minmax(105px, 1fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(120px, 1.2fr)',
-                            gap: '6px',
-                            alignItems: 'center',
-                            background: isPrincipal ? '#fefce8' : 'white',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            border: isPrincipal ? '2px solid #eab308' : '1px solid #cbd5e1',
-                            transition: 'background 0.15s, border-color 0.15s'
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setPrincipalSlot(index)}
-                            title={isPrincipal ? 'Salón principal asignado' : 'Hacer clic para marcar como salón principal'}
-                            aria-label={isPrincipal ? 'Salón principal' : 'Marcar como salón principal'}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: isPrincipal ? '#fef08a' : 'transparent',
-                              border: isPrincipal ? '1.5px solid #facc15' : '1px solid #cbd5e1',
-                              borderRadius: '5px',
-                              width: '24px',
-                              height: '24px',
-                              padding: 0,
-                              margin: '0 auto',
-                              cursor: 'pointer',
-                              opacity: 1,
-                              transition: 'all 0.15s ease'
-                            }}
-                            onMouseEnter={(e) => { if (!isPrincipal) { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#94a3b8'; } }}
-                            onMouseLeave={(e) => { if (!isPrincipal) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = '#cbd5e1'; } }}
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill={isPrincipal ? '#eab308' : '#e2e8f0'} stroke={isPrincipal ? '#ca8a04' : '#94a3b8'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                            </svg>
-                          </button>
-                          <select value={slot.salon} onChange={e => handleSlotChange(index, 'salon', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }}>
-                            <option value="">Selecciona salon</option>
-                            {salones?.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            disabled={isMaintenanceStatus(slot.status || formData.status)}
-                            value={isMaintenanceStatus(slot.status || formData.status) ? 'N/A' : slot.pax}
-                            onChange={e => handleSlotChange(index, 'pax', e.target.value)}
-                            placeholder="PAX"
-                            style={{
-                              ...inputStyle,
-                              padding: '6px 4px',
-                              fontSize: '12.5px',
-                              background: isMaintenanceStatus(slot.status || formData.status) ? '#f1f5f9' : 'white',
-                              color: isMaintenanceStatus(slot.status || formData.status) ? '#94a3b8' : '#000',
-                              textAlign: 'center'
-                            }}
-                          />
-                          <input type="date" value={slot.dateStart} onChange={e => handleSlotChange(index, 'dateStart', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
-                          <input type="date" value={slot.dateEnd} onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)} style={{ ...inputStyle, padding: '6px 4px', fontSize: '12.5px' }} />
-                          <TimeSelect value={slot.startTime} onChange={val => handleSlotChange(index, 'startTime', val)} style={{ padding: '4px 2px', fontSize: '12.5px', height: '28px' }} />
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', width: '100%' }}>
-                            <TimeSelect value={slot.endTime} onChange={val => handleSlotChange(index, 'endTime', val)} style={{ padding: '4px 2px', fontSize: '12.5px', height: '28px' }} />
-                            {slots.length > 1 && (
-                              <button onClick={() => removeSlotRow(index)} style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '14px', cursor: 'pointer', padding: '0 2px', fontWeight: 'bold' }}>×</button>
-                            )}
-                          </div>
-                          <StatusSelectCustom
-                            size="sm"
-                            value={slot.status || formData.status}
-                            onChange={val => handleSlotChange(index, 'status', val)}
-                            options={isMaintenanceStatus(formData.status) ? STATUS_META_LIST.filter(s => isMaintenanceStatus(s.key)) : STATUS_META_LIST}
-                          />
-                        </div>
-                        );
-                      })}
+                    <div
+                      className="res-bento-chevron-node"
+                      style={{
+                        background: nodeBg,
+                        color: nodeColor,
+                        border: nodeBorder
+                      }}
+                    >
+                      {renderStageIcon(step.stageNumber)}
                     </div>
                   </div>
-                </div>
+                );
+              })}
+            </div>
+          </div>
 
-                <div style={{ marginTop: '12px', padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e40af' }}>PAX TOTAL:</span>
-                    <span style={{ fontSize: '16.5px', fontWeight: '900', color: '#1e40af' }}>{isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)}</span>
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '6px 0 2px 0',
-                    borderTop: '1px solid #bfdbfe'
-                  }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569', whiteSpace: 'nowrap' }}>
-                      Tipo PAX:
+          {/* 3. Scrollable Bento Body */}
+          <div className="res-bento-body-scroll">
+            {/* Validation errors alert */}
+            {validationErrors.length > 0 && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px' }}>
+                <div style={{ color: '#dc2626', fontWeight: '800', marginBottom: '4px', fontSize: '13px' }}>
+                  ⚠️ Faltan datos por completar:
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '18px', color: '#991b1b', fontSize: '12.5px', lineHeight: 1.5 }}>
+                  {validationErrors.slice(0, 4).map((err, i) => <li key={i}>{err}</li>)}
+                  {validationErrors.length > 4 && <li>...y {validationErrors.length - 4} más</li>}
+                </ul>
+              </div>
+            )}
+
+            <div className="res-bento-grid">
+              {/* Columna Izquierda: Nombre del Evento y Salones */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', minWidth: 0 }}>
+                {/* Bento Card: Nombre del Evento */}
+                <div className="res-bento-card">
+                  <div className="res-bento-card-header">
+                    <label className="res-bento-card-title">
+                      Nombre del Evento *
+                    </label>
+                    <span className="res-bento-badge">
+                      {formData.clientName ? `Cliente: ${formData.clientName}` : 'Categoría: Convención Corporativa'}
                     </span>
-                    <div style={{
-                      display: 'flex',
-                      borderRadius: '20px',
-                      overflow: 'hidden',
-                      border: '1.5px solid',
-                      borderColor: formData.paxCompartido === null ? '#f97316' : '#e2e8f0',
-                      boxShadow: formData.paxCompartido === null ? '0 0 0 3px rgba(249,115,22,0.15)' : 'none',
-                      transition: 'box-shadow 0.2s'
-                    }}>
-                      <div
-                        onClick={() => {
-                          const defaultPax = slots.find(s => Number(s.pax) > 0)?.pax || formData.pax || '';
-                          setFormData(prev => ({ ...prev, paxCompartido: true, pax: defaultPax }));
-                          setSlots(prev => prev.map(s => ({ ...s, pax: defaultPax })));
-                        }}
-                        style={{
-                          padding: '5px 14px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                          background: formData.paxCompartido === true ? '#005954' : '#f8fafc',
-                          color: formData.paxCompartido === true ? 'white' : '#475569',
-                          transition: 'all 0.2s',
-                          userSelect: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          letterSpacing: '0.02em'
-                        }}
-                      >
-                        {formData.paxCompartido === true && (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                        )}
-                        Compartido
+                  </div>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Ej. Boda Cabrera Szejner, Convención Corporativa, Almuerzo Empresarial..."
+                    className="res-bento-name-input"
+                    style={{ background: '#ffffff', color: '#0f172a' }}
+                  />
+                  {(formData.clientName || formData.clientPhone) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
+                      {formData.clientName && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          👤 <strong>{formData.clientName}</strong>
+                        </span>
+                      )}
+                      {formData.clientPhone && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          📞 {formData.clientPhone}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bento Card: Salones y Horarios */}
+                <div className="res-bento-card res-bento-salones-card">
+                  <div className="res-bento-salones-header">
+                    <div className="res-bento-salones-title-box">
+                      <div className="res-bento-salones-main-title">
+                        <span style={{ fontSize: '16px' }}>🏢</span>
+                        <span>Salones y Horarios</span>
+                        <span className="res-bento-badge">
+                          {slots.length} {slots.length === 1 ? 'espacio asignado' : 'espacios asignados'}
+                        </span>
                       </div>
-                      <div style={{ width: '1px', background: formData.paxCompartido === null ? '#f97316' : '#e2e8f0' }} />
-                      <div
-                        onClick={() => {
-                          const total = slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
-                          setFormData(prev => ({ ...prev, paxCompartido: false, pax: total > 0 ? total : '' }));
-                        }}
-                        style={{
-                          padding: '5px 14px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                          background: formData.paxCompartido === false ? '#2563eb' : '#f8fafc',
-                          color: formData.paxCompartido === false ? 'white' : '#475569',
-                          transition: 'all 0.2s',
-                          userSelect: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          letterSpacing: '0.02em'
-                        }}
+                      <p className="res-bento-salones-sub">
+                        Gestión multi-espacio independiente de fechas, cupos y estado individual
+                      </p>
+                    </div>
+
+                    <div className="res-bento-salones-actions">
+                      <button
+                        type="button"
+                        onClick={handleConfirmAllSlots}
+                        className="res-bento-btn-confirm-all"
+                        title="Cambiar todos los salones a Confirmado"
                       >
-                        {formData.paxCompartido === false && (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                        )}
-                        No Compartido
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Confirmar Todos</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={addSlotRow}
+                        className="res-bento-btn-add-salon"
+                      >
+                        <span>+</span>
+                        <span>Agregar Salón</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {slotConflicts.length > 0 && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '10px 14px', fontSize: '11.5px' }}>
+                      <div style={{ fontWeight: '800', color: '#dc2626', marginBottom: '3px' }}>⚠️ Conflictos detectados en horarios:</div>
+                      {slotConflicts.map((r, i) => (
+                        <div key={i} style={{ color: '#991b1b' }}>
+                          • Salón {r.index + 1}: {r.message || r.hint}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tabla de Salones */}
+                  <div className="res-bento-table-wrap">
+                    <div className="res-bento-table-inner">
+                      <div className="res-bento-table-head">
+                        <span style={{ textAlign: 'center' }} title="Salón Principal">★</span>
+                        <span>Salón / Espacio</span>
+                        <span style={{ textAlign: 'center' }}>PAX</span>
+                        <span>Fechas (Desde - Hasta)</span>
+                        <span>Horario (Inicio - Fin)</span>
+                        <span>Estado Individual</span>
+                        <span style={{ textAlign: 'center' }}>Acción</span>
                       </div>
-                      <div style={{ width: '1px', background: formData.paxCompartido === null ? '#f97316' : '#e2e8f0' }} />
-                      <div
-                        onClick={() => {
-                          const principalSlot = slots.find(s => s.isPrincipal === true) || slots[0];
-                          const principalPax = principalSlot ? (Number(principalSlot.pax) > 0 ? principalSlot.pax : '') : (formData.pax || '');
-                          setFormData(prev => ({ ...prev, paxCompartido: 'principal', pax: principalPax }));
-                        }}
-                        style={{
-                          padding: '5px 14px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                          background: formData.paxCompartido === 'principal' ? '#d97706' : '#f8fafc',
-                          color: formData.paxCompartido === 'principal' ? 'white' : '#475569',
-                          transition: 'all 0.2s',
-                          userSelect: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          letterSpacing: '0.02em'
-                        }}
-                      >
-                        {formData.paxCompartido === 'principal' && (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-                        )}
-                        Salón Principal
+
+                      <div className="res-bento-table-rows">
+                        {slots.map((slot, index) => {
+                          const isPrincipal = slot.isPrincipal === true;
+                          return (
+                            <div
+                              key={index}
+                              className={`res-bento-table-row ${isPrincipal ? 'is-principal' : ''}`}
+                            >
+                              {/* 1. Estrella Principal */}
+                              <button
+                                type="button"
+                                onClick={() => setPrincipalSlot(index)}
+                                className={`res-bento-star-btn ${isPrincipal ? 'is-principal' : ''}`}
+                                title={isPrincipal ? 'Salón principal asignado' : 'Marcar como salón principal'}
+                                aria-label="Marcar como salón principal"
+                                style={{
+                                  width: '28px',
+                                  height: '28px',
+                                  minHeight: '28px',
+                                  maxHeight: '28px',
+                                  minWidth: '28px',
+                                  maxWidth: '28px',
+                                  padding: 0,
+                                  margin: 0,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  boxShadow: 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill={isPrincipal ? '#eab308' : 'none'} stroke={isPrincipal ? '#ca8a04' : '#cbd5e1'} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                              </button>
+
+                              {/* 2. Selector de Salón */}
+                              <div className="res-bento-cell-salon">
+                                <select
+                                  value={slot.salon}
+                                  onChange={e => handleSlotChange(index, 'salon', e.target.value)}
+                                  className="res-bento-select-salon"
+                                  style={{ background: '#ffffff', color: '#0f172a' }}
+                                >
+                                  <option value="">Selecciona salón...</option>
+                                  {salones?.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                                <span className={`res-bento-salon-tag ${isPrincipal ? 'principal' : 'paralelo'}`}>
+                                  {isPrincipal ? 'Principal' : 'Sesión paralela'}
+                                </span>
+                              </div>
+
+                              {/* 3. PAX */}
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                disabled={isMaintenanceStatus(slot.status || formData.status)}
+                                value={isMaintenanceStatus(slot.status || formData.status) ? 'N/A' : (slot.pax ?? '')}
+                                onChange={e => handleSlotChange(index, 'pax', e.target.value)}
+                                placeholder="PAX"
+                                className="res-bento-input-pax"
+                                style={{ background: '#ffffff', color: '#0f172a' }}
+                              />
+
+                              {/* 4. Fechas (Desde - Hasta) */}
+                              <div className="res-bento-cell-range">
+                                <input
+                                  type="date"
+                                  value={slot.dateStart || ''}
+                                  onChange={e => handleSlotChange(index, 'dateStart', e.target.value)}
+                                  className="res-bento-range-input"
+                                  style={{ background: '#ffffff', color: '#0f172a' }}
+                                />
+                                <span className="res-bento-range-sep">→</span>
+                                <input
+                                  type="date"
+                                  value={slot.dateEnd || slot.dateStart || ''}
+                                  onChange={e => handleSlotChange(index, 'dateEnd', e.target.value)}
+                                  className="res-bento-range-input"
+                                  style={{ background: '#ffffff', color: '#0f172a' }}
+                                />
+                              </div>
+
+                              {/* 5. Horario (Inicio - Fin) */}
+                              <div className="res-bento-cell-range">
+                                <TimeSelect
+                                  value={slot.startTime || '10:00'}
+                                  onChange={val => handleSlotChange(index, 'startTime', val)}
+                                  style={{ height: '32px', fontSize: '11.5px', padding: '2px 4px', borderRadius: '8px', background: '#ffffff', color: '#0f172a' }}
+                                />
+                                <span className="res-bento-range-sep">-</span>
+                                <TimeSelect
+                                  value={slot.endTime || '12:00'}
+                                  onChange={val => handleSlotChange(index, 'endTime', val)}
+                                  style={{ height: '32px', fontSize: '11.5px', padding: '2px 4px', borderRadius: '8px', background: '#ffffff', color: '#0f172a' }}
+                                />
+                              </div>
+
+                              {/* 6. Estado Individual del Salón */}
+                              <StatusSelectCustom
+                                size="sm"
+                                value={slot.status || formData.status}
+                                onChange={val => handleSlotChange(index, 'status', val)}
+                                options={isMaintenanceStatus(formData.status) ? STATUS_META_LIST.filter(s => isMaintenanceStatus(s.key)) : STATUS_META_LIST}
+                              />
+
+                              {/* 7. Eliminar */}
+                              <button
+                                type="button"
+                                onClick={() => removeSlotRow(index)}
+                                disabled={slots.length <= 1}
+                                className="res-bento-btn-trash"
+                                title={slots.length <= 1 ? 'Debe existir al menos un salón' : 'Eliminar salón'}
+                                aria-label="Eliminar salón"
+                                style={{
+                                  width: '30px',
+                                  height: '30px',
+                                  minHeight: '30px',
+                                  maxHeight: '30px',
+                                  minWidth: '30px',
+                                  maxWidth: '30px',
+                                  padding: 0,
+                                  margin: 0,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  boxShadow: 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: slots.length <= 1 ? 'not-allowed' : 'pointer',
+                                  opacity: slots.length <= 1 ? 0.3 : 1
+                                }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                    {formData.paxCompartido === null && (
-                      <span style={{ fontSize: '11px', color: '#f97316', fontWeight: '600' }}>Obligatorio</span>
-                    )}
                   </div>
-                  <div style={{
-                    fontSize: '10.5px',
-                    color: '#64748b',
-                    marginTop: '8px',
-                    padding: '6px 8px',
-                    background: '#f1f5f9',
-                    borderRadius: '6px',
-                    lineHeight: 1.5,
-                    borderLeft: '2.5px solid #94a3b8'
-                  }}>
-                    <strong style={{ color: '#334155' }}>Compartido</strong>: un solo PAX total que aplica a todos los salones/días del evento.<br />
-                    <strong style={{ color: '#334155' }}>No Compartido</strong>: cada salón tiene su propio PAX, se suman para el total del evento.<br />
-                    <strong style={{ color: '#b45309' }}>Salón Principal</strong>: cada salón cuenta con su propio cupo independiente, y el PAX total del evento y reportes se toma únicamente del salón principal (marcado con ⭐).
+
+                  {/* Aforo Total y Segmented Controls */}
+                  <div className="res-bento-aforo-footer">
+                    <div className="res-bento-aforo-top-row">
+                      <div className="res-bento-aforo-total-box">
+                        <div className="res-bento-aforo-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            AFORO TOTAL:
+                          </span>
+                          <span className="res-bento-aforo-num" style={{ marginLeft: '6px' }}>
+                            {isMaintenanceStatus(formData.status) ? 'N/A' : (formData.pax || 0)} PAX
+                          </span>
+                          <span className="res-bento-aforo-sub">
+                            (Suma por salón: {sumaPaxSalones} PAX)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="res-bento-calculo-wrap">
+                        <span className="res-bento-calculo-label">Cálculo:</span>
+                        <div className="res-bento-segmented-pills">
+                          {/* Compartido */}
+                          <div
+                            onClick={() => {
+                              const defaultPax = slots.find(s => Number(s.pax) > 0)?.pax || formData.pax || '';
+                              setFormData(prev => ({ ...prev, paxCompartido: true, pax: defaultPax }));
+                              setSlots(prev => prev.map(s => ({ ...s, pax: defaultPax })));
+                            }}
+                            className={`res-bento-seg-pill ${formData.paxCompartido === true ? 'active-compartido' : ''}`}
+                          >
+                            {formData.paxCompartido === true && <span>✓</span>}
+                            <span>Compartido ({formData.pax || 0})</span>
+                          </div>
+
+                          {/* No Compartido */}
+                          <div
+                            onClick={() => {
+                              const total = slots.reduce((acc, slot) => acc + Math.max(0, Number(slot?.pax || 0)), 0);
+                              setFormData(prev => ({ ...prev, paxCompartido: false, pax: total > 0 ? total : '' }));
+                            }}
+                            className={`res-bento-seg-pill ${formData.paxCompartido === false ? 'active-no-compartido' : ''}`}
+                          >
+                            {formData.paxCompartido === false && <span>✓</span>}
+                            <span>No Compartido ({sumaPaxSalones})</span>
+                          </div>
+
+                          {/* Principal */}
+                          <div
+                            onClick={() => {
+                              const pSlot = slots.find(s => s.isPrincipal === true) || slots[0];
+                              const principalPax = pSlot ? (Number(pSlot.pax) > 0 ? pSlot.pax : '') : (formData.pax || '');
+                              setFormData(prev => ({ ...prev, paxCompartido: 'principal', pax: principalPax }));
+                            }}
+                            className={`res-bento-seg-pill ${formData.paxCompartido === 'principal' || formData.paxCompartido === 2 ? 'active-principal' : ''}`}
+                          >
+                            {(formData.paxCompartido === 'principal' || formData.paxCompartido === 2) && <span>★</span>}
+                            <span>Principal ({principalSlot?.pax || 0})</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="res-bento-aforo-note">
+                      <span style={{ fontSize: '13px' }}>ℹ</span>
+                      <span>
+                        {formData.paxCompartido === true && 'Modo Compartido: Aforo unificado del evento. Si cambias de estado a un salón individual, la facturación desglosa cada tarifa por separado manteniendo el cupo.'}
+                        {formData.paxCompartido === false && 'Modo No Compartido: Cada salón tiene su propio cupo independiente y se suman para el aforo total del evento.'}
+                        {(formData.paxCompartido === 'principal' || formData.paxCompartido === 2) && 'Modo Salón Principal: Cada salón cuenta con su propio cupo independiente, y el aforo total del evento y reportes se toma únicamente del salón principal (marcado con ⭐).'}
+                        {formData.paxCompartido === null && 'Por favor selecciona el tipo de cálculo de aforo (Compartido, No Compartido o Salón Principal).'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Columna Derecha: Periodo, Estado, Encargado y Notas */}
+              <div className="res-bento-side-column">
+                {/* 1. Periodo Global del Evento */}
+                <div className="res-bento-card">
+                  <div className="res-bento-card-header">
+                    <div className="res-bento-card-title-group">
+                      <span style={{ fontSize: '14px' }}>📅</span>
+                      <span className="res-bento-card-title">Periodo Global del Evento</span>
+                    </div>
+                    <span className="res-bento-badge green">
+                      {calculatedJornadas} {calculatedJornadas === 1 ? 'Jornada' : 'Jornadas'}
+                    </span>
+                  </div>
+                  <div className="res-bento-periodo-grid">
+                    <div className="res-bento-periodo-field">
+                      <label className="res-bento-field-label">Fecha Inicial *</label>
+                      <input
+                        type="date"
+                        name="date"
+                        value={formData.date || ''}
+                        onChange={handleChange}
+                        className="res-bento-date-input"
+                        style={{ background: '#ffffff', color: '#0f172a' }}
+                      />
+                    </div>
+                    <div className="res-bento-periodo-field">
+                      <label className="res-bento-field-label">Fecha Final *</label>
+                      <input
+                        type="date"
+                        name="endDate"
+                        value={formData.endDate || formData.date || ''}
+                        onChange={handleChange}
+                        className="res-bento-date-input"
+                        style={{ background: '#ffffff', color: '#0f172a' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Estado General Consolidado */}
+                <div className="res-bento-card">
+                  <div className="res-bento-card-header">
+                    <span className="res-bento-card-title">Estado General Consolidado *</span>
+                    <span className="res-bento-badge green">Sincronizado</span>
+                  </div>
+                  <div className="res-bento-status-box">
+                    <StatusSelectCustom
+                      size="md"
+                      value={formData.status}
+                      onChange={(val) => applyEventStatus(val)}
+                      options={STATUS_META_LIST}
+                    />
+                    <div className="res-bento-status-desc">
+                      {isMaintenanceStatus(formData.status)
+                        ? 'En mantenimiento, los salones asignados se marcan como mantenimiento técnico.'
+                        : 'Sincronizado con el calendario general, pipeline y cotizaciones activas.'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Usuario Responsable */}
+                <div className="res-bento-card">
+                  <div className="res-bento-card-header">
+                    <span className="res-bento-card-title">Usuario Responsable *</span>
+                  </div>
+                  <div className="res-bento-user-card">
+                    <div className="res-bento-user-info-left">
+                      <div className="res-bento-user-avatar">
+                        {getUserInitials(assignedUser?.fullName || assignedUser?.name)}
+                      </div>
+                      <div className="res-bento-user-text">
+                        <select
+                          name="userId"
+                          value={formData.userId || ''}
+                          onChange={handleChange}
+                          className="res-bento-user-select"
+                        >
+                          <option value="">-- Sin Encargado --</option>
+                          {users?.map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.fullName || u.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="res-bento-user-role">
+                          <span>{assignedUser?.role || 'Coordinador de Eventos'}</span>
+                          <span>·</span>
+                          <span className="res-bento-online-dot" />
+                          <span style={{ color: '#059669' }}>En línea</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ color: '#059669', flexShrink: 0 }} title="Verificado y Asignado">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        <polyline points="9 12 11 14 15 10" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Notas y Requerimientos */}
+                <div className="res-bento-card">
+                  <div className="res-bento-card-header">
+                    <div className="res-bento-card-title-group">
+                      <span style={{ fontSize: '13px' }}>✍️</span>
+                      <span className="res-bento-card-title">Notas y Requerimientos</span>
+                    </div>
+                    <span className="res-bento-badge">Autoguardado</span>
+                  </div>
+                  <textarea
+                    name="notes"
+                    value={formData.notes || ''}
+                    onChange={handleChange}
+                    placeholder="Protocolo especial, instrucciones del cliente, observaciones logísticas..."
+                    className="res-bento-notes-textarea"
+                    style={{ background: '#ffffff', color: '#0f172a' }}
+                  />
+                  <div className="res-bento-notes-footer">
+                    <span>Campo opcional para observaciones internas</span>
+                    <span>{(formData.notes || '').length} caracteres</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Columna Derecha: Controles de Configuración */}
-          <div className="reservation-side-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-            {/* Fecha inicial */}
-            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Fecha inicial *</label>
-              <input type="date" name="date" value={formData.date} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px' }} />
+          {/* 4. Footer Inferior de Acciones */}
+          <div className="res-bento-footer">
+            <div className="res-bento-footer-left">
+              {formData.status === 'Mantenimiento' ? (
+                <button
+                  type="button"
+                  onClick={handleReleaseMaintenance}
+                  className="res-bento-btn-action mantenimiento"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                  </svg>
+                  <span>Liberar Mantenimiento</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleMaintenance}
+                  className="res-bento-btn-action mantenimiento"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                  </svg>
+                  <span>Mantenimiento</span>
+                </button>
+              )}
+
+              {id && (
+                <button
+                  type="button"
+                  onClick={handleOpenAppointments}
+                  className="res-bento-btn-action cita"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  <span>+ Cita</span>
+                </button>
+              )}
+
+              {id && (
+                <button
+                  type="button"
+                  onClick={handleOpenQuote}
+                  className="res-bento-btn-action cotizar"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  <span>Cotizar</span>
+                </button>
+              )}
+
+              {id && (
+                <button
+                  type="button"
+                  onClick={handleOpenHistory}
+                  className="res-bento-btn-action historial"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span>Historial</span>
+                </button>
+              )}
+
+              {id && (
+                <button
+                  type="button"
+                  onClick={handleCancelEventClick}
+                  className="res-bento-btn-action cancelar"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                  <span>Cancelar</span>
+                </button>
+              )}
             </div>
 
-            {/* Fecha final */}
-            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Fecha final *</label>
-              <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px' }} />
-            </div>
+            <div className="res-bento-footer-right">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="res-bento-btn-descartar"
+              >
+                Descartar
+              </button>
 
-            {/* Estado */}
-            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Estado *</label>
-              {(() => {
-                return (
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    <StatusSelectCustom
-                       size="md"
-                       value={formData.status}
-                       onChange={(val) => applyEventStatus(val)}
-                       options={STATUS_META_LIST}
-                    />
-                    {isMaintenanceStatus(formData.status) && (
-                      <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
-                        En mantenimiento, cada salon solo puede quedar como Mantenimiento o Mantenimiento Realizado.
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Usuario */}
-            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Usuario (quien bloquea) *</label>
-              <select name="userId" value={formData.userId} onChange={handleChange} style={{ ...inputStyle, fontSize: '14px', padding: '10px', marginBottom: '8px' }}>
-                <option value="">-- Sin Encargado --</option>
-                {users?.map(u => (
-                  <option key={u.id} value={u.id}>👤 {u.fullName || u.name}</option>
-                ))}
-              </select>
-
-            </div>
-
-            {/* Notas */}
-            <div className="form-side-card" style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-              <label style={{ ...labelStyle, fontSize: '12px', color: '#475569', fontWeight: '700' }}>Notas</label>
-              <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Detalles u observaciones..." style={{ ...inputStyle, height: '70px', padding: '10px', resize: 'none' }} />
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !hasChanges}
+                className="res-bento-btn-guardar"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>{id ? 'Guardar Cambios' : 'Crear Reserva'}</span>
+              </button>
             </div>
           </div>
         </div>
-      </div>
-
-
-      <div className="reservation-form-footer" style={{ background: '#eff6ff', borderTop: '1px solid #bfdbfe', padding: '14px 24px', display: 'flex', alignItems: 'center', minHeight: '72px', gap: '12px', flexWrap: 'wrap' }}>
-        {formData.status === 'Mantenimiento' ? (
-          <button onClick={handleReleaseMaintenance} className="btn-mantenimiento">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-            </svg>
-            Liberar
-          </button>
-        ) : (
-          <button onClick={handleMaintenance} className="btn-mantenimiento">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-            </svg>
-            Mantenimiento
-          </button>
-        )}
-
-        {id && (
-          <button onClick={handleOpenAppointments} className="btn-agregar-cita">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-              <line x1="12" y1="14" x2="12" y2="18" />
-              <line x1="10" y1="16" x2="14" y2="16" />
-            </svg>
-            + Cita
-          </button>
-        )}
-
-        {id && (
-          <button onClick={handleOpenQuote} className="btn-cotizar">
-            <span style={{ marginRight: '5px', fontWeight: 'bold' }}>Q</span>
-            Cotizar
-          </button>
-        )}
-
-        {id && (
-          <button onClick={handleOpenHistory} className="btn-historial">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            Historial
-          </button>
-        )}
-
-        {id && (
-          <button onClick={handleCancelEventClick} className="btn-cancelar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              <line x1="10" y1="11" x2="10" y2="17" />
-              <line x1="14" y1="11" x2="14" y2="17" />
-            </svg>
-            Cancelar
-          </button>
-        )}
-        
-        <button 
-          onClick={handleSave} 
-          disabled={saving || !hasChanges} 
-          className="btn-guardar" 
-          style={{ 
-            marginLeft: 'auto',
-            opacity: (saving || !hasChanges) ? 0.55 : 1,
-            cursor: (saving || !hasChanges) ? 'not-allowed' : 'pointer'
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          Guardar
-        </button>
-      </div>
-
-      <style>{`
-        button:hover { filter: brightness(0.95); transform: translateY(-1px); }
-        button:active { transform: translateY(0); }
-
-        /* Overrides para superar el !important de design-system.css */
-        .btn-mantenimiento {
-          background: #ffffff !important;
-          border: 1.5px solid #cbd5e1 !important;
-          color: #475569 !important;
-          padding: 8px 14px !important;
-          border-radius: 8px !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-mantenimiento:hover {
-          background: #f8fafc !important;
-          color: #1e293b !important;
-          border-color: #94a3b8 !important;
-        }
-
-        .btn-historial {
-          background: #ffffff !important;
-          border: 1.5px solid #cbd5e1 !important;
-          color: #475569 !important;
-          padding: 8px 14px !important;
-          border-radius: 8px !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-historial:hover {
-          background: #f8fafc !important;
-          color: #1e293b !important;
-          border-color: #94a3b8 !important;
-        }
-
-        .btn-agregar-cita {
-          background: #ffffff !important;
-          border: 1.5px solid #cbd5e1 !important;
-          color: #475569 !important;
-          padding: 8px 14px !important;
-          border-radius: 8px !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-agregar-cita:hover {
-          background: #f8fafc !important;
-          color: #1e293b !important;
-          border-color: #94a3b8 !important;
-        }
-
-        .btn-cancelar {
-          background: #ffffff !important;
-          border: 1.5px solid #fecdd3 !important;
-          color: #e11d48 !important;
-          padding: 8px 14px !important;
-          border-radius: 8px !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-cancelar:hover {
-          background: #fff1f2 !important;
-          color: #be123c !important;
-          border-color: #fda4af !important;
-        }
-
-        .btn-cotizar {
-          background: #ffffff !important;
-          border: 1.5px solid #bfdbfe !important;
-          color: #2563eb !important;
-          padding: 8px 14px !important;
-          border-radius: 8px !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-cotizar:hover {
-          background: #eff6ff !important;
-          color: #1d4ed8 !important;
-          border-color: #93c5fd !important;
-        }
-
-        .btn-guardar {
-          background: #005954 !important;
-          border: 1.5px solid #005954 !important;
-          color: white !important;
-          padding: 10px 28px !important;
-          border-radius: 8px !important;
-          font-weight: 700 !important;
-          font-size: 14px !important;
-          cursor: pointer !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          box-shadow: 0 4px 10px rgba(0, 89, 84, 0.2) !important;
-          transition: all 0.2s ease !important;
-        }
-        .btn-guardar:hover {
-          background: #004440 !important;
-          border-color: #004440 !important;
-          box-shadow: 0 6px 14px rgba(0, 89, 84, 0.3) !important;
-        }
-
-        @media (max-width: 1080px) {
-          .reservation-form-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .reservation-side-panel {
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-        }
-
-        @media (max-width: 760px) {
-          .reservation-side-panel {
-            grid-template-columns: 1fr !important;
-          }
-          .form-stepper-card {
-            margin: 8px 12px 12px 12px !important;
-            padding: 10px 8px !important;
-            border-radius: 8px !important;
-            border-color: #e2e8f0 !important;
-          }
-          .form-scroll-wrapper {
-            padding: 0 12px 12px 12px !important;
-          }
-          .form-main-card {
-            padding: 12px !important;
-            border-radius: 8px !important;
-            border-color: #e2e8f0 !important;
-          }
-          .form-side-card {
-            padding: 12px !important;
-            border-radius: 8px !important;
-            border-color: #e2e8f0 !important;
-          }
-          body:not(.informes-theme) #appShell.lum-calendar .reservation-form-footer {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-            justify-content: flex-start !important;
-            padding: 8px !important;
-            min-height: auto !important;
-            gap: 6px !important;
-          }
-          body:not(.informes-theme) #appShell.lum-calendar .reservation-form-footer > button {
-            width: auto !important;
-            height: 34px !important;
-            padding: 4px 6px !important;
-            font-size: 11px !important;
-            border-radius: 8px !important;
-            margin: 0 !important;
-            flex: 1 1 calc(33.33% - 6px) !important;
-            min-width: 80px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-          }
-          body:not(.informes-theme) #appShell.lum-calendar .reservation-form-footer > button.btn-guardar {
-            margin-left: 0 !important;
-          }
-        }
-      `}</style>
-      </>
       )}
 
 

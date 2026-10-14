@@ -294,11 +294,16 @@ export default function SettingsHabitaciones({ inline, onBack }) {
     }
 
     try {
+      const payload = {
+        ...editFormData,
+        tarifa_base: parseFloat(editFormData.tarifa_base) || 0,
+        orden: parseInt(editFormData.orden, 10) || 0
+      };
       if (editFormData.id) {
-        await updateCatalogoHabitacionApi(activeTab, editFormData.id, editFormData);
+        await updateCatalogoHabitacionApi(activeTab, editFormData.id, payload);
         toast.success('Elemento actualizado correctamente');
       } else {
-        await createCatalogoHabitacionApi(activeTab, editFormData);
+        await createCatalogoHabitacionApi(activeTab, payload);
         toast.success('Elemento agregado al catálogo');
       }
       setIsEditing(false);
@@ -578,8 +583,10 @@ export default function SettingsHabitaciones({ inline, onBack }) {
                           step="0.01"
                           min="0"
                           className="hab-input"
-                          value={editFormData.tarifa_base}
-                          onChange={e => setEditFormData({ ...editFormData, tarifa_base: parseFloat(e.target.value) || 0 })}
+                          value={editFormData.tarifa_base ?? ''}
+                          onFocus={e => e.target.select()}
+                          onChange={e => setEditFormData({ ...editFormData, tarifa_base: e.target.value })}
+                          onBlur={e => setEditFormData({ ...editFormData, tarifa_base: e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0) })}
                           style={{ width: '100%' }}
                         />
                       </div>
@@ -592,8 +599,10 @@ export default function SettingsHabitaciones({ inline, onBack }) {
                       <input
                         type="number"
                         className="hab-input"
-                        value={editFormData.orden}
-                        onChange={e => setEditFormData({ ...editFormData, orden: parseInt(e.target.value) || 0 })}
+                        value={editFormData.orden ?? ''}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setEditFormData({ ...editFormData, orden: e.target.value })}
+                        onBlur={e => setEditFormData({ ...editFormData, orden: e.target.value === '' ? 0 : (parseInt(e.target.value, 10) || 0) })}
                         style={{ width: '100%' }}
                       />
                     </div>
@@ -1072,8 +1081,10 @@ export default function SettingsHabitaciones({ inline, onBack }) {
                     step="0.01"
                     min="0"
                     className="hab-input"
-                    value={globalMonto}
-                    onChange={e => setGlobalMonto(parseFloat(e.target.value) || 0)}
+                    value={globalMonto ?? ''}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setGlobalMonto(e.target.value)}
+                    onBlur={e => setGlobalMonto(e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0))}
                     style={{
                       width: 220,
                       fontSize: 16,
@@ -1122,9 +1133,18 @@ export default function SettingsHabitaciones({ inline, onBack }) {
                           step="0.01"
                           min="0"
                           className="hab-input"
-                          value={vm.monto}
+                          value={vm.monto ?? ''}
+                          onFocus={e => e.target.select()}
                           onChange={e => {
-                            const val = parseFloat(e.target.value) || 0;
+                            const val = e.target.value;
+                            setVendedoresMetas(prev => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], monto: val };
+                              return next;
+                            });
+                          }}
+                          onBlur={e => {
+                            const val = e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0);
                             setVendedoresMetas(prev => {
                               const next = [...prev];
                               next[idx] = { ...next[idx], monto: val };

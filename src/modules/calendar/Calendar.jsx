@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import { STATUS_META } from './constants';
 import ReservationForm from './components/ReservationForm';
@@ -6,6 +7,7 @@ import MobileSalonesCalendar from './components/MobileSalonesCalendar';
 import DesktopTimelineView from './components/DesktopTimelineView';
 import { toast } from '../../utils/toast';
 import '../../styles/tooltips.css';
+import './components/reservationBento.css';
 
 const HOUR_HEIGHT = 84;
 const HOUR_START = 6;
@@ -2323,19 +2325,13 @@ export default function Calendar() {
       )}
 
       {/* Modal de reserva */}
-      {(location.pathname === '/nueva-reserva' || location.pathname.startsWith('/reserva/')) && (
-        <div className="reservation-modal-overlay" style={{
-          position: 'fixed', inset: 0, background: '#f1f5f9',
-          zIndex: 32000, display: 'flex', alignItems: 'stretch', justifyContent: 'stretch', padding: 0
-        }}>
-          <div className="reservation-modal-content" style={{
-            width: '100vw', height: '100vh', maxHeight: 'none', background: '#f8fafc',
-            borderRadius: 0, boxShadow: 'none',
-            overflow: 'hidden', display: 'flex', flexDirection: 'column'
-          }} onClick={e => e.stopPropagation()}>
+      {(location.pathname === '/nueva-reserva' || location.pathname.startsWith('/reserva/')) && createPortal(
+        <div className="reservation-modal-overlay" onClick={() => {}}>
+          <div className="reservation-modal-content" onClick={e => e.stopPropagation()}>
             <ReservationForm />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
 

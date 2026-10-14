@@ -220,6 +220,51 @@ body:not(.informes-theme) textarea.hab-input:focus,
   outline: none !important;
 }
 
+/* Validación No Nativa y Resaltado de Errores */
+body:not(.informes-theme) input.hab-input.is-invalid,
+body:not(.informes-theme) select.hab-select.is-invalid,
+body:not(.informes-theme) textarea.hab-input.is-invalid,
+.hab-input.is-invalid,
+.hab-select.is-invalid {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+  color: #991b1b !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.16) !important;
+}
+
+body:not(.informes-theme) input.hab-input.is-invalid:focus,
+body:not(.informes-theme) select.hab-select.is-invalid:focus,
+body:not(.informes-theme) textarea.hab-input.is-invalid:focus,
+.hab-input.is-invalid:focus,
+.hab-select.is-invalid:focus {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.28) !important;
+  background-color: #ffffff !important;
+}
+
+.hab-field-error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #dc2626;
+  margin-top: 5px;
+  line-height: 1.2;
+  animation: habErrorFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes habErrorFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Resaltado del Monto Total (Auto vs Manual) */
 .hab-input.hab-input-total {
   height: 38px !important;

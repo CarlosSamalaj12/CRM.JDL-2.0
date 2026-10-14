@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bed, Calendar, DollarSign, User, Building2, Phone, Mail, FileText, Check, X, Sparkles, Star } from 'lucide-react';
+import { Bed, Calendar, DollarSign, User, Building2, Phone, Mail, FileText, Check, X, Sparkles, Star, AlertCircle } from 'lucide-react';
 import { getHuespedHistorialApi } from '../../services/habitacionesService';
 import authService from '../../services/authService';
 import { toast } from '../../utils/toast';
@@ -11,6 +11,16 @@ function calculateDays(inStr, outStr) {
   const outD = new Date(outStr + 'T00:00:00');
   const diff = Math.round((outD.getTime() - inD.getTime()) / (1000 * 60 * 60 * 24));
   return Math.max(1, Number.isNaN(diff) ? 1 : diff);
+}
+
+function addDays(dateStr, days) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + Math.max(1, Number(days || 1)));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getTodayStr() {
@@ -79,8 +89,21 @@ export default function HabitacionModal({
   const [companySuggestions, setCompanySuggestions] = useState([]);
   const [showCompanyList, setShowCompanyList] = useState(false);
 
+  // Estado de validaciones no nativas con diseño y feedback reactivo
+  const [errors, setErrors] = useState({});
+
+  const clearError = (field) => {
+    setErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   // Inicialización
   useEffect(() => {
+    setErrors({});
     if (initialData) {
       const noches = Number(initialData.noches) || calculateDays(initialData.fecha_check_in, initialData.fecha_check_out);
       const habs = Number(initialData.cantidad_habitaciones || 1);
@@ -174,15 +197,189 @@ export default function HabitacionModal({
 
   // Recálculo reactivo de total si no está en modo manual
   const recalculateTotal = (noches, habs, tarifa, isManual, currentManualTotal) => {
-    if (isManual) return currentManualTotal;
-    return Math.max(0, Number(noches || 1) * Number(habs || 1) * Number(tarifa || 0));
+    // Si está en modo manual pero el monto manual es 0 o vacío, recalcular automáticamente
+    if (isManual && currentManualTotal !== 0 && currentManualTotal !== '0' && currentManualTotal !== '' && !isNaN(Number(currentManualTotal))) {
+      return currentManualTotal;
+    }
+    const n = Math.max(0, Number(noches || 0));
+    const h = Math.max(0, Number(habs || 0));
+    const t = Math.max(0, Number(tarifa || 0));
+    return n * h * t;
+  };
+
+  // Manejo de Noches (permite borrar libremente para ingresar la cantidad deseada)
+  const handleNochesChange = (val) => {
+    clearError('noches');
+    clearError('fecha_check_out');
+    if (val === '') {
+      setFormData(prev => ({
+        ...prev,
+        noches: '',
+        monto_total: recalculateTotal(0, prev.cantidad_habitaciones, prev.tarifa_diaria, prev.isManualTotal, prev.monto_total)
+      }));
+      return;
+    }
+    let cleanVal = val;
+    if (cleanVal.length > 1 && cleanVal.startsWith('0')) {
+      cleanVal = cleanVal.replace(/^0+/, '');
+      if (cleanVal === '') cleanVal = '0';
+    }
+    const n = parseInt(cleanVal, 10);
+    const newOut = formData.fecha_check_in && n > 0 ? addDays(formData.fecha_check_in, n) : formData.fecha_check_out;
+    setFormData(prev => ({
+      ...prev,
+      noches: cleanVal,
+      fecha_check_out: newOut,
+      monto_total: recalculateTotal(n > 0 ? n : 0, prev.cantidad_habitaciones, prev.tarifa_diaria, prev.isManualTotal, prev.monto_total)
+    }));
+  };
+
+  const handleNochesBlur = () => {
+    const parsed = parseInt(formData.noches, 10);
+    const fallback = isNaN(parsed) || parsed < 1 ? (calculateDays(formData.fecha_check_in, formData.fecha_check_out) || 1) : parsed;
+    const newOut = formData.fecha_check_in ? addDays(formData.fecha_check_in, fallback) : formData.fecha_check_out;
+    setFormData(prev => ({
+      ...prev,
+      noches: fallback,
+      fecha_check_out: newOut,
+      monto_total: recalculateTotal(fallback, prev.cantidad_habitaciones, prev.tarifa_diaria, prev.isManualTotal, prev.monto_total)
+    }));
+    if (fallback >= 1) {
+      clearError('noches');
+      clearError('fecha_check_out');
+    }
+  };
+
+  // Manejo de Cantidad de Habitaciones (permite borrar libremente)
+  const handleCantidadHabitacionesChange = (val) => {
+    clearError('cantidad_habitaciones');
+    if (val === '') {
+      setFormData(prev => ({
+        ...prev,
+        cantidad_habitaciones: '',
+        monto_total: recalculateTotal(prev.noches, 0, prev.tarifa_diaria, prev.isManualTotal, prev.monto_total)
+      }));
+      return;
+    }
+    let cleanVal = val;
+    if (cleanVal.length > 1 && cleanVal.startsWith('0')) {
+      cleanVal = cleanVal.replace(/^0+/, '');
+      if (cleanVal === '') cleanVal = '0';
+    }
+    const c = parseInt(cleanVal, 10);
+    setFormData(prev => ({
+      ...prev,
+      cantidad_habitaciones: cleanVal,
+      monto_total: recalculateTotal(prev.noches, c > 0 ? c : 0, prev.tarifa_diaria, prev.isManualTotal, prev.monto_total)
+    }));
+  };
+
+  const handleCantidadHabitacionesBlur = () => {
+    const parsed = parseInt(formData.cantidad_habitaciones, 10);
+    const fallback = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    setFormData(prev => ({
+      ...prev,
+      cantidad_habitaciones: fallback,
+      monto_total: recalculateTotal(prev.noches, fallback, prev.tarifa_diaria, prev.isManualTotal, prev.monto_total)
+    }));
+    if (fallback >= 1) {
+      clearError('cantidad_habitaciones');
+    }
+  };
+
+  // Manejo de Tarifa Diaria (permite borrar libremente sin prefijos '0450')
+  const handleTarifaDiariaChange = (val) => {
+    clearError('tarifa_diaria');
+    if (val === '') {
+      setFormData(prev => ({
+        ...prev,
+        tarifa_diaria: '',
+        monto_total: recalculateTotal(prev.noches, prev.cantidad_habitaciones, 0, prev.isManualTotal, prev.monto_total)
+      }));
+      return;
+    }
+    let cleanVal = val;
+    if (cleanVal.length > 1 && cleanVal.startsWith('0') && !cleanVal.startsWith('0.')) {
+      cleanVal = cleanVal.replace(/^0+/, '');
+      if (cleanVal === '') cleanVal = '0';
+    }
+    const t = parseFloat(cleanVal);
+    const numTarifa = isNaN(t) ? 0 : t;
+    setFormData(prev => ({
+      ...prev,
+      tarifa_diaria: cleanVal,
+      monto_total: recalculateTotal(prev.noches, prev.cantidad_habitaciones, numTarifa, prev.isManualTotal, prev.monto_total)
+    }));
+  };
+
+  const handleTarifaDiariaBlur = () => {
+    if (formData.tarifa_diaria === '' || isNaN(Number(formData.tarifa_diaria))) {
+      setFormData(prev => ({
+        ...prev,
+        tarifa_diaria: 0,
+        monto_total: recalculateTotal(prev.noches, prev.cantidad_habitaciones, 0, prev.isManualTotal, prev.monto_total)
+      }));
+    } else {
+      const cleanNum = Number(formData.tarifa_diaria);
+      setFormData(prev => ({
+        ...prev,
+        tarifa_diaria: cleanNum,
+        monto_total: recalculateTotal(prev.noches, prev.cantidad_habitaciones, cleanNum, prev.isManualTotal, prev.monto_total)
+      }));
+    }
+    clearError('tarifa_diaria');
+  };
+
+  // Manejo de Monto Total (permite borrar y escribir cantidad manual deseada)
+  const handleMontoTotalChange = (val) => {
+    clearError('monto_total');
+    if (val === '') {
+      setFormData(prev => ({
+        ...prev,
+        monto_total: '',
+        isManualTotal: true
+      }));
+      return;
+    }
+    let cleanVal = val;
+    if (cleanVal.length > 1 && cleanVal.startsWith('0') && !cleanVal.startsWith('0.')) {
+      cleanVal = cleanVal.replace(/^0+/, '');
+      if (cleanVal === '') cleanVal = '0';
+    }
+    setFormData(prev => ({
+      ...prev,
+      monto_total: cleanVal,
+      isManualTotal: true
+    }));
+  };
+
+  const handleMontoTotalBlur = () => {
+    if (formData.monto_total === '' || isNaN(Number(formData.monto_total))) {
+      const auto = (Number(formData.noches) || 1) * (Number(formData.cantidad_habitaciones) || 1) * (Number(formData.tarifa_diaria) || 0);
+      setFormData(prev => ({
+        ...prev,
+        monto_total: auto,
+        isManualTotal: false
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        monto_total: Number(formData.monto_total)
+      }));
+    }
+    clearError('monto_total');
   };
 
   // Manejo de Fechas
   const handleDateChange = (field, val) => {
     const updated = { ...formData, [field]: val };
     const inD = field === 'fecha_check_in' ? val : formData.fecha_check_in;
-    const outD = field === 'fecha_check_out' ? val : formData.fecha_check_out;
+    let outD = field === 'fecha_check_out' ? val : formData.fecha_check_out;
+
+    if (field === 'fecha_check_in' && outD && outD <= val) {
+      outD = addDays(val, Math.max(1, parseInt(updated.noches, 10) || 1));
+      updated.fecha_check_out = outD;
+    }
 
     const computedNoches = calculateDays(inD, outD);
     updated.noches = computedNoches;
@@ -194,6 +391,9 @@ export default function HabitacionModal({
       updated.monto_total
     );
     setFormData(updated);
+    clearError(field);
+    clearError('noches');
+    clearError('fecha_check_out');
   };
 
   // Manejo de Tipo de Habitación
@@ -268,18 +468,107 @@ export default function HabitacionModal({
     setShowCompanyList(false);
   };
 
+  // Validaciones no nativas con diseño y feedback reactivo
+  const validateForm = () => {
+    const newErrors = {};
+
+    // 1. Nombre del Huésped
+    if (!formData.nombre_huesped || !formData.nombre_huesped.trim()) {
+      newErrors.nombre_huesped = 'El nombre del huésped es obligatorio';
+    }
+
+    // 2. Fechas de Check-In y Check-Out
+    if (!formData.fecha_check_in) {
+      newErrors.fecha_check_in = 'La fecha de check-in es obligatoria';
+    }
+    if (!formData.fecha_check_out) {
+      newErrors.fecha_check_out = 'La fecha de check-out es obligatoria';
+    }
+    if (formData.fecha_check_in && formData.fecha_check_out && formData.fecha_check_out <= formData.fecha_check_in) {
+      newErrors.fecha_check_out = 'El check-out debe ser posterior al check-in';
+      newErrors.noches = 'La reserva debe tener al menos 1 noche';
+    }
+
+    // 3. Al menos 1 noche requerida
+    const numNoches = parseInt(formData.noches, 10);
+    if (formData.noches === '' || isNaN(numNoches) || numNoches < 1) {
+      newErrors.noches = 'La reserva debe tener al menos 1 noche';
+    }
+
+    // 4. Cantidad de Habitaciones (al menos 1)
+    const numHabs = parseInt(formData.cantidad_habitaciones, 10);
+    if (formData.cantidad_habitaciones === '' || isNaN(numHabs) || numHabs < 1) {
+      newErrors.cantidad_habitaciones = 'Debe registrar al menos 1 habitación';
+    }
+
+    // 5. Tarifa diaria (no negativa)
+    const numTarifa = parseFloat(formData.tarifa_diaria);
+    if (formData.tarifa_diaria === '' || isNaN(numTarifa) || numTarifa < 0) {
+      newErrors.tarifa_diaria = 'La tarifa diaria no puede ser negativa';
+    }
+
+    // 6. Monto total (no negativo)
+    const numTotal = parseFloat(formData.monto_total);
+    if (formData.monto_total === '' || isNaN(numTotal) || numTotal < 0) {
+      newErrors.monto_total = 'El monto total no puede ser negativo';
+    }
+
+    return newErrors;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.nombre_huesped.trim()) {
-      toast.error('El nombre del huésped es obligatorio');
-      return;
-    }
-    if (!formData.fecha_check_in || !formData.fecha_check_out) {
-      toast.error('Las fechas de check-in y check-out son obligatorias');
+
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+
+      // Feedback prioritario mediante toast corporativo
+      if (validationErrors.nombre_huesped) {
+        toast.error(validationErrors.nombre_huesped);
+      } else if (validationErrors.fecha_check_in) {
+        toast.error(validationErrors.fecha_check_in);
+      } else if (validationErrors.fecha_check_out) {
+        toast.error(validationErrors.fecha_check_out);
+      } else if (validationErrors.noches) {
+        toast.error(validationErrors.noches);
+      } else if (validationErrors.cantidad_habitaciones) {
+        toast.error(validationErrors.cantidad_habitaciones);
+      } else if (validationErrors.tarifa_diaria) {
+        toast.error(validationErrors.tarifa_diaria);
+      } else if (validationErrors.monto_total) {
+        toast.error(validationErrors.monto_total);
+      } else {
+        toast.error('Por favor completa los campos requeridos');
+      }
+
+      // Auto-enfoque al primer campo con error
+      setTimeout(() => {
+        const firstInvalid = document.querySelector('.hab-modal-card .is-invalid');
+        if (firstInvalid && typeof firstInvalid.focus === 'function') {
+          firstInvalid.focus();
+        }
+      }, 50);
       return;
     }
 
-    onSave(formData);
+    const nochesFinal = Math.max(1, parseInt(formData.noches, 10) || calculateDays(formData.fecha_check_in, formData.fecha_check_out) || 1);
+    const habsFinal = Math.max(1, parseInt(formData.cantidad_habitaciones, 10) || 1);
+    const tarifaFinal = Math.max(0, parseFloat(formData.tarifa_diaria) || 0);
+    const autoTotal = nochesFinal * habsFinal * tarifaFinal;
+    const montoFinal = formData.isManualTotal && formData.monto_total !== '' && !isNaN(Number(formData.monto_total))
+      ? Math.max(0, Number(formData.monto_total))
+      : autoTotal;
+
+    const payload = {
+      ...formData,
+      noches: nochesFinal,
+      cantidad_habitaciones: habsFinal,
+      tarifa_diaria: tarifaFinal,
+      monto_total: montoFinal
+    };
+
+    onSave(payload);
   };
 
   if (!isOpen) return null;
@@ -321,7 +610,7 @@ export default function HabitacionModal({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <form noValidate onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="hab-modal-body">
             {/* Banner Huésped Frecuente */}
             {huespedHistorial && huespedHistorial.totalEstancias > 0 && (
@@ -395,13 +684,21 @@ export default function HabitacionModal({
                   </label>
                   <input
                     type="text"
-                    className="hab-input"
+                    className={`hab-input ${errors.nombre_huesped ? 'is-invalid' : ''}`}
                     style={{ width: '100%' }}
                     placeholder="Ej. Juan Pérez"
                     value={formData.nombre_huesped ?? ''}
-                    onChange={e => setFormData({ ...formData, nombre_huesped: e.target.value })}
-                    required
+                    onChange={e => {
+                      setFormData({ ...formData, nombre_huesped: e.target.value });
+                      clearError('nombre_huesped');
+                    }}
                   />
+                  {errors.nombre_huesped && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.nombre_huesped}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -490,12 +787,17 @@ export default function HabitacionModal({
                   </label>
                   <input
                     type="date"
-                    className="hab-input"
+                    className={`hab-input ${errors.fecha_check_in ? 'is-invalid' : ''}`}
                     style={{ width: '100%' }}
                     value={formData.fecha_check_in ?? ''}
                     onChange={e => handleDateChange('fecha_check_in', e.target.value)}
-                    required
                   />
+                  {errors.fecha_check_in && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.fecha_check_in}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -504,51 +806,62 @@ export default function HabitacionModal({
                   </label>
                   <input
                     type="date"
-                    className="hab-input"
+                    className={`hab-input ${errors.fecha_check_out ? 'is-invalid' : ''}`}
                     style={{ width: '100%' }}
                     min={formData.fecha_check_in ?? ''}
                     value={formData.fecha_check_out ?? ''}
                     onChange={e => handleDateChange('fecha_check_out', e.target.value)}
-                    required
                   />
+                  {errors.fecha_check_out && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.fecha_check_out}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Noches
+                    Noches *
                   </label>
                   <input
                     type="number"
                     min="1"
-                    className="hab-input"
+                    className={`hab-input ${errors.noches ? 'is-invalid' : ''}`}
                     style={{ width: '100%' }}
-                    value={formData.noches ?? 1}
-                    onChange={e => {
-                      const n = Math.max(1, parseInt(e.target.value) || 1);
-                      const updated = { ...formData, noches: n };
-                      updated.monto_total = recalculateTotal(n, updated.cantidad_habitaciones, updated.tarifa_diaria, updated.isManualTotal, updated.monto_total);
-                      setFormData(updated);
-                    }}
+                    value={formData.noches ?? ''}
+                    onFocus={e => e.target.select()}
+                    onChange={e => handleNochesChange(e.target.value)}
+                    onBlur={handleNochesBlur}
                   />
+                  {errors.noches && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.noches}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Cant. Habitaciones
+                    Cant. Habitaciones *
                   </label>
                   <input
                     type="number"
                     min="1"
-                    className="hab-input"
+                    className={`hab-input ${errors.cantidad_habitaciones ? 'is-invalid' : ''}`}
                     style={{ width: '100%' }}
-                    value={formData.cantidad_habitaciones ?? 1}
-                    onChange={e => {
-                      const c = Math.max(1, parseInt(e.target.value) || 1);
-                      const updated = { ...formData, cantidad_habitaciones: c };
-                      updated.monto_total = recalculateTotal(updated.noches, c, updated.tarifa_diaria, updated.isManualTotal, updated.monto_total);
-                      setFormData(updated);
-                    }}
+                    value={formData.cantidad_habitaciones ?? ''}
+                    onFocus={e => e.target.select()}
+                    onChange={e => handleCantidadHabitacionesChange(e.target.value)}
+                    onBlur={handleCantidadHabitacionesBlur}
                   />
+                  {errors.cantidad_habitaciones && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.cantidad_habitaciones}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -583,16 +896,19 @@ export default function HabitacionModal({
                     type="number"
                     step="0.01"
                     min="0"
-                    className="hab-input"
+                    className={`hab-input ${errors.tarifa_diaria ? 'is-invalid' : ''}`}
                     style={{ width: '100%', height: 38 }}
-                    value={formData.tarifa_diaria ?? 0}
-                    onChange={e => {
-                      const t = parseFloat(e.target.value) || 0;
-                      const updated = { ...formData, tarifa_diaria: t };
-                      updated.monto_total = recalculateTotal(updated.noches, updated.cantidad_habitaciones, t, updated.isManualTotal, updated.monto_total);
-                      setFormData(updated);
-                    }}
+                    value={formData.tarifa_diaria ?? ''}
+                    onFocus={e => e.target.select()}
+                    onChange={e => handleTarifaDiariaChange(e.target.value)}
+                    onBlur={handleTarifaDiariaBlur}
                   />
+                  {errors.tarifa_diaria && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.tarifa_diaria}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Monto Total Dinámico con opción manual */}
@@ -605,11 +921,11 @@ export default function HabitacionModal({
                       type="button"
                       onClick={() => {
                         const nextManual = !formData.isManualTotal;
-                        const auto = (formData.noches || 1) * (formData.cantidad_habitaciones || 1) * (formData.tarifa_diaria || 0);
+                        const auto = (Number(formData.noches) || 1) * (Number(formData.cantidad_habitaciones) || 1) * (Number(formData.tarifa_diaria) || 0);
                         setFormData({
                           ...formData,
                           isManualTotal: nextManual,
-                          monto_total: nextManual ? (formData.monto_total ?? auto) : auto
+                          monto_total: nextManual ? (formData.monto_total !== '' && !isNaN(Number(formData.monto_total)) ? Number(formData.monto_total) : auto) : auto
                         });
                       }}
                       style={{
@@ -634,22 +950,24 @@ export default function HabitacionModal({
                     type="number"
                     step="0.01"
                     min="0"
-                    className={`hab-input hab-input-total ${formData.isManualTotal ? 'is-manual' : 'is-auto'}`}
+                    className={`hab-input hab-input-total ${formData.isManualTotal ? 'is-manual' : 'is-auto'} ${errors.monto_total ? 'is-invalid' : ''}`}
                     style={{
                       width: '100%',
                       height: 38,
                       fontSize: 14,
                       fontWeight: 800
                     }}
-                    value={formData.monto_total ?? 0}
-                    onChange={e => {
-                      setFormData({
-                        ...formData,
-                        monto_total: parseFloat(e.target.value) || 0,
-                        isManualTotal: true
-                      });
-                    }}
+                    value={formData.monto_total ?? ''}
+                    onFocus={e => e.target.select()}
+                    onChange={e => handleMontoTotalChange(e.target.value)}
+                    onBlur={handleMontoTotalBlur}
                   />
+                  {errors.monto_total && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.monto_total}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
