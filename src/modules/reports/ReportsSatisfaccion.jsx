@@ -912,24 +912,8 @@ export default function ReportsSatisfaccion({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
             type="button"
+            className="reports-btn-pdf"
             onClick={handleExportPDF}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 14px',
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              color: '#334155',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-            }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#cbd5e1'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
           >
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -943,24 +927,8 @@ export default function ReportsSatisfaccion({ onClose }) {
 
           <button
             type="button"
+            className="reports-btn-excel"
             onClick={handleExportExcel}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 14px',
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              color: '#334155',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-            }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#cbd5e1'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
           >
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -972,24 +940,8 @@ export default function ReportsSatisfaccion({ onClose }) {
 
           <button
             type="button"
+            className="reports-btn-alertas"
             onClick={() => setShowAlertModal(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 14px',
-              background: '#0f172a',
-              border: '1px solid #0f172a',
-              borderRadius: '8px',
-              color: '#ffffff',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 2px 4px rgba(15,23,42,0.15)',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = '#1e293b'}
-            onMouseLeave={e => e.currentTarget.style.background = '#0f172a'}
           >
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -1002,27 +954,14 @@ export default function ReportsSatisfaccion({ onClose }) {
 
           <button
             type="button"
+            className="reports-btn-back btn-exit"
             onClick={onClose}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '7px 12px',
-              background: 'transparent',
-              border: '1px solid transparent',
-              borderRadius: '8px',
-              color: '#64748b',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+            title="Volver a la selección de reportes"
           >
-            <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M13 4 7 9l6 5" />
             </svg>
-            Volver
+            <span>Volver a Reportes</span>
           </button>
         </div>
       </header>

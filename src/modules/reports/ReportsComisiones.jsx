@@ -509,99 +509,71 @@ th.right{text-align:right}</style></head><body>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
             type="button"
+            className="reports-btn-pdf"
             onClick={handleExportPDF}
             disabled={pdfLoading}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: '1px solid #fca5a5',
-              background: pdfLoading ? '#fee2e2' : '#ffffff',
-              color: '#dc2626',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: pdfLoading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s ease',
-            }}
           >
-            <IconDownload size={14} color="#dc2626" />
-            {pdfLoading ? 'Generando PDF...' : 'Exportar PDF'}
+            <IconDownload size={14} />
+            <span>{pdfLoading ? 'Generando PDF...' : 'Exportar PDF'}</span>
           </button>
 
           <button
             type="button"
+            className="reports-btn-excel"
             onClick={handleExportExcel}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: '1px solid #a7f3d0',
-              background: '#ffffff',
-              color: '#059669',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
           >
-            <IconDownload size={14} color="#059669" />
-            Exportar CSV
+            <IconDownload size={14} />
+            <span>Exportar CSV</span>
           </button>
 
           <ReportInfo reportKey="comisiones" />
 
           <button
-            className="btn-exit"
+            className="reports-btn-back btn-exit"
             type="button"
             onClick={onClose}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              background: '#f8fafc',
-              color: '#334155',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
+            title="Volver a la selección de reportes"
           >
-            <IconChevronLeft size={14} />
-            Volver
+            <IconChevronLeft size={16} />
+            <span>Volver a Reportes</span>
           </button>
         </div>
       </div>
 
       <div className="reports-page-body" style={{ padding: '24px 28px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
-        {/* ── Toolbar de Filtros ── */}
+        {/* ── Toolbar de Filtros Estandarizado ── */}
         <section className="comm-card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '8px' }}>
-                <IconCalendar size={14} color="#64748b" />
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Mes:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              
+              {/* Input Mes Estandarizado */}
+              <div className="reports-filter-input-wrap">
+                <IconCalendar size={15} color="#2563eb" />
+                <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700 }}>Mes:</span>
                 <input
                   type="month"
                   value={monthKey}
                   onChange={e => handleMonthChange(e.target.value)}
-                  style={{ border: 'none', background: 'transparent', fontSize: '12px', fontWeight: 700, color: '#0f172a', outline: 'none' }}
+                  style={{ border: 'none', background: 'transparent', fontSize: '12px', fontWeight: 700, color: '#0f172a', outline: 'none', cursor: 'pointer' }}
                 />
               </div>
 
+              {/* Presets Rápidos con Estado Activo */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                <button type="button" className="preset-btn" onClick={handleReset}>
+                <button
+                  type="button"
+                  className={`reports-preset-btn ${monthKey === initialMonthKey ? 'active' : ''}`}
+                  onClick={handleReset}
+                >
                   Mes Actual
                 </button>
                 <button
                   type="button"
-                  className="preset-btn"
+                  className={`reports-preset-btn ${(() => {
+                    const prevD = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    return monthKey === `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}` ? 'active' : '';
+                  })()}`}
                   onClick={() => {
                     const [y, m] = monthKey.split('-').map(Number);
                     const prev = new Date(y, m - 2, 1);
@@ -613,7 +585,8 @@ th.right{text-align:right}</style></head><body>
                 </button>
               </div>
 
-              <div style={{ minWidth: '220px' }}>
+              {/* Selector Vendedor */}
+              <div style={{ minWidth: '220px', display: 'inline-flex', alignItems: 'center' }}>
                 <MultiSelect
                   selected={userFilter}
                   onChange={setUserFilter}
@@ -624,6 +597,25 @@ th.right{text-align:right}</style></head><body>
                   width="100%"
                 />
               </div>
+
+              {/* Botón Limpiar Filtros si hay filtros activos */}
+              {(userFilter.size > 0 || monthKey !== initialMonthKey) && (
+                <button
+                  type="button"
+                  className="reports-btn-clear"
+                  onClick={() => {
+                    setUserFilter(new Set());
+                    handleReset();
+                  }}
+                  title="Restablecer filtros al mes actual y todos los vendedores"
+                >
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 4v6h-6" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  <span>Limpiar Filtros</span>
+                </button>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

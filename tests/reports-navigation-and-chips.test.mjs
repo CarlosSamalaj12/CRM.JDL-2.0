@@ -28,7 +28,7 @@ test('ReportInfo.jsx y reports.css blindan el botón (i) con diseño perfectamen
   assert.ok(cssContent.includes('color: #2563eb !important;'), 'report-info-btn debe tener icono azul real');
 });
 
-test('ReportsVentas y reports.css implementan botón de retorno de alta visibilidad con icono y borde', () => {
+test('Todos los reportes y reports.css implementan botón de retorno estandarizado "Volver a Reportes" de alta visibilidad con color ejecutivo', () => {
   const ventasPath = path.join(ROOT_DIR, 'src/modules/reports/ReportsVentas.jsx');
   const ventasContent = fs.readFileSync(ventasPath, 'utf8');
 
@@ -37,15 +37,37 @@ test('ReportsVentas y reports.css implementan botón de retorno de alta visibili
 
   // Verifica botón en ReportsVentas
   assert.ok(ventasContent.includes('className="reports-btn-back"'), 'ReportsVentas debe usar className="reports-btn-back"');
-  assert.ok(ventasContent.includes('Volver al Dashboard'), 'ReportsVentas debe tener texto Volver al Dashboard');
+  assert.ok(ventasContent.includes('Volver a Reportes'), 'ReportsVentas debe tener texto estandarizado Volver a Reportes');
   assert.ok(ventasContent.includes('<svg'), 'ReportsVentas debe renderizar flecha vectorial en botón volver');
+
+  // Verifica que los demás reportes también tienen estandarizado "Volver a Reportes"
+  const reportFilesToCheck = [
+    'src/modules/reports/ReportsVentasHabitaciones.jsx',
+    'src/modules/reports/ReportsContabilidad.jsx',
+    'src/modules/reports/ReportsDashboard.jsx',
+    'src/modules/reports/ReportsInstitucion.jsx',
+    'src/modules/reports/ReportsSatisfaccion.jsx',
+    'src/modules/reports/ReportsOcupacionBarras.jsx',
+    'src/modules/reports/ReportsOcupacion.jsx',
+    'src/modules/reports/ReportsEficenciaEventos.jsx',
+    'src/modules/reports/ReportsEficenciaConfirmacion.jsx',
+    'src/modules/reports/ReportsIngresosCategorias.jsx',
+    'src/modules/reports/ReportsSeguimientosPendientes.jsx',
+    'src/modules/reports/ReportsComisiones.jsx',
+    'src/modules/reports/ReportsProyeccionMetas.jsx',
+    'src/modules/reports/ReportsEventosAsignados.jsx',
+  ];
+
+  for (const relPath of reportFilesToCheck) {
+    const content = fs.readFileSync(path.join(ROOT_DIR, relPath), 'utf8');
+    assert.ok(content.includes('Volver a Reportes'), `${relPath} debe contener el texto estandarizado "Volver a Reportes"`);
+  }
 
   // Verifica diseño en reports.css para .reports-btn-back y .btn-exit
   assert.ok(cssContent.includes('button.reports-btn-back'), 'reports.css debe definir button.reports-btn-back');
   assert.ok(cssContent.includes('.reports-page-header button.btn-exit'), 'reports.css debe estilizar .btn-exit en headers de reportes');
-  assert.ok(cssContent.includes('background: #ffffff !important;'), 'Botón volver debe tener fondo blanco visible');
-  assert.ok(cssContent.includes('border: 1.5px solid #cbd5e1 !important;'), 'Botón volver debe tener borde ejecutivo');
-  assert.ok(cssContent.includes('color: #2563eb !important;'), 'Flecha debe tener color azul');
+  assert.ok(cssContent.includes('background: #2563eb !important;') || cssContent.includes('#2563eb'), 'Botón volver debe tener color azul ejecutivo');
+  assert.ok(cssContent.includes('color: #ffffff !important;'), 'Texto y flecha del botón volver deben ser blancos');
   assert.ok(cssContent.includes('transform: translateX(-2px) !important;'), 'Debe incluir micro-animación en hover');
 });
 

@@ -127,6 +127,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
 
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
+  const [activePreset, setActivePreset] = useState('currentMonth');
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -325,6 +326,7 @@ export default function ReportsOcupacionBarras({ onClose }) {
 
   // ── Quick Presets ──
   const setPreset = (type) => {
+    setActivePreset(type);
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
@@ -507,55 +509,24 @@ export default function ReportsOcupacionBarras({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
+            className="reports-btn-excel"
             onClick={handleExportExcel}
             disabled={exporting}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              background: '#ffffff',
-              color: '#0f172a',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: exporting ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-            }}
-            onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = '#f8fafc'; }}
-            onMouseLeave={e => { if (!exporting) e.currentTarget.style.background = '#ffffff'; }}
           >
-            <IconDownload size={14} color="#059669" />
-            {exporting ? 'Generando Excel...' : 'Descargar Excel'}
+            <IconDownload size={14} />
+            <span>{exporting ? 'Generando Excel...' : 'Descargar Excel'}</span>
           </button>
 
           <ReportInfo reportKey="ocupacionBarras" />
 
           <button
-            className="btn-exit"
+            className="reports-btn-back btn-exit"
             type="button"
             onClick={onClose}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              background: '#f8fafc',
-              color: '#334155',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+            title="Volver a la selección de reportes"
           >
-            <IconChevronLeft size={14} />
-            Volver
+            <IconChevronLeft size={16} />
+            <span>Volver a Reportes</span>
           </button>
         </div>
       </div>
@@ -573,24 +544,24 @@ export default function ReportsOcupacionBarras({ onClose }) {
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '4px 10px', borderRadius: '8px' }}>
-                  <IconCalendar size={13} color="#64748b" />
+                <div className="reports-filter-input-wrap">
+                  <IconCalendar size={13} color="#2563eb" />
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Desde</span>
                   <input
                     type="date"
                     value={fromDate}
-                    onChange={e => setFromDate(e.target.value)}
+                    onChange={e => { setFromDate(e.target.value); setActivePreset(''); }}
                     style={{ border: 'none', background: 'transparent', fontSize: '12px', fontWeight: 700, color: '#0f172a', outline: 'none' }}
                   />
                 </div>
                 <span style={{ color: '#94a3b8', fontWeight: 700 }}>—</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '4px 10px', borderRadius: '8px' }}>
-                  <IconCalendar size={13} color="#64748b" />
+                <div className="reports-filter-input-wrap">
+                  <IconCalendar size={13} color="#2563eb" />
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Hasta</span>
                   <input
                     type="date"
                     value={toDate}
-                    onChange={e => setToDate(e.target.value)}
+                    onChange={e => { setToDate(e.target.value); setActivePreset(''); }}
                     style={{ border: 'none', background: 'transparent', fontSize: '12px', fontWeight: 700, color: '#0f172a', outline: 'none' }}
                   />
                 </div>
@@ -598,16 +569,32 @@ export default function ReportsOcupacionBarras({ onClose }) {
 
               {/* Botones de Presets */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '6px', flexWrap: 'wrap' }}>
-                <button type="button" className="preset-btn" onClick={() => setPreset('currentMonth')}>
+                <button
+                  type="button"
+                  className={`reports-preset-btn ${activePreset === 'currentMonth' ? 'active' : ''}`}
+                  onClick={() => setPreset('currentMonth')}
+                >
                   Este Mes
                 </button>
-                <button type="button" className="preset-btn" onClick={() => setPreset('last3Months')}>
+                <button
+                  type="button"
+                  className={`reports-preset-btn ${activePreset === 'last3Months' ? 'active' : ''}`}
+                  onClick={() => setPreset('last3Months')}
+                >
                   Últimos 3M
                 </button>
-                <button type="button" className="preset-btn" onClick={() => setPreset('last6Months')}>
+                <button
+                  type="button"
+                  className={`reports-preset-btn ${activePreset === 'last6Months' ? 'active' : ''}`}
+                  onClick={() => setPreset('last6Months')}
+                >
                   Últimos 6M
                 </button>
-                <button type="button" className="preset-btn" onClick={() => setPreset('currentYear')}>
+                <button
+                  type="button"
+                  className={`reports-preset-btn ${activePreset === 'currentYear' ? 'active' : ''}`}
+                  onClick={() => setPreset('currentYear')}
+                >
                   Año {today.getFullYear()}
                 </button>
               </div>

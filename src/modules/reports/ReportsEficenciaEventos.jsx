@@ -97,6 +97,7 @@ export default function ReportsEficenciaEventos({ onClose }) {
 
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
+  const [activePreset, setActivePreset] = useState('thisMonth');
   const [hoveredSegment, setHoveredSegment] = useState(null); // { monthIdx, segIdx }
   const [hoveredSegPos, setHoveredSegPos] = useState(null);
   const [enabledStatuses, setEnabledStatuses] = useState(() => new Set(STATUS_META.map(s => s.key)));
@@ -272,12 +273,14 @@ export default function ReportsEficenciaEventos({ onClose }) {
   }, [chartData]);
 
   const handleReset = () => {
+    setActivePreset('thisMonth');
     const t = new Date();
     setFromDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth(), 1)));
     setToDate(getLocalDateStr(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
   };
 
   const setPreset = (preset) => {
+    setActivePreset(preset);
     const n = new Date();
     if (preset === 'thisMonth') {
       setFromDate(getLocalDateStr(new Date(n.getFullYear(), n.getMonth(), 1)));
@@ -317,11 +320,13 @@ export default function ReportsEficenciaEventos({ onClose }) {
             <div className="reports-subtitle">Distribución porcentual mensual de eventos por estado · 100% = total de eventos del mes</div>
           </div>
         </div>
-        <ReportInfo reportKey="eficienciaEventos" />
-        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <IconChevronLeft size={16} />
-          Volver
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ReportInfo reportKey="eficienciaEventos" />
+          <button className="reports-btn-back btn-exit" type="button" onClick={onClose} title="Volver a la selección de reportes">
+            <IconChevronLeft size={16} />
+            <span>Volver a Reportes</span>
+          </button>
+        </div>
       </div>
 
       <div className="reports-page-body">
@@ -447,49 +452,29 @@ export default function ReportsEficenciaEventos({ onClose }) {
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                className="preset-btn"
+                className={`reports-preset-btn ${activePreset === 'thisMonth' ? 'active' : ''}`}
                 onClick={() => setPreset('thisMonth')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
                 Este Mes
               </button>
               <button
                 type="button"
-                className="preset-btn"
+                className={`reports-preset-btn ${activePreset === 'lastMonth' ? 'active' : ''}`}
                 onClick={() => setPreset('lastMonth')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
                 Mes Anterior
               </button>
               <button
                 type="button"
-                className="preset-btn"
+                className={`reports-preset-btn ${activePreset === 'last3Months' ? 'active' : ''}`}
                 onClick={() => setPreset('last3Months')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
                 Últimos 3M
               </button>
               <button
                 type="button"
-                className="preset-btn"
+                className={`reports-preset-btn ${activePreset === 'year' ? 'active' : ''}`}
                 onClick={() => setPreset('year')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
                 Año
               </button>

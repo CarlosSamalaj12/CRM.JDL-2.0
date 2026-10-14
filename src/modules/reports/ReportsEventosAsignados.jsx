@@ -1032,8 +1032,13 @@ export default function ReportsEventosAsignados({ onClose }) {
               <div className="reports-subtitle">Fechas de asignación · Tiempo de respuesta · Distribución por vendedor</div>
             </div>
           </div>
-          <ReportInfo reportKey="eventosAsignados" />
-          <button className="btn-exit" type="button" onClick={onClose}>Volver</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ReportInfo reportKey="eventosAsignados" />
+            <button className="reports-btn-back btn-exit" type="button" onClick={onClose} title="Volver a la selección de reportes">
+              <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+              <span>Volver a Reportes</span>
+            </button>
+          </div>
         </div>
         <div className="reports-page-body" style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
           <span style={{ color: '#94a3b8', fontWeight: 700 }}>Cargando posibles ventas…</span>
@@ -1056,7 +1061,12 @@ export default function ReportsEventosAsignados({ onClose }) {
               </div>
             </div>
           </div>
-          <button className="btn-exit" type="button" onClick={onClose}>Volver</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button className="reports-btn-back btn-exit" type="button" onClick={onClose} title="Volver a la selección de reportes">
+              <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+              <span>Volver a Reportes</span>
+            </button>
+          </div>
         </div>
         <div className="reports-page-body">
           <section className="reports-hero-panel" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
@@ -1089,12 +1099,25 @@ export default function ReportsEventosAsignados({ onClose }) {
             <div className="reports-subtitle">Fechas de asignación · Tiempo de respuesta · Distribución por vendedor y estado</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
             type="button"
-            className="btn-exit"
+            className="reports-tool-btn"
             onClick={copyLink}
-            style={{ background: copied ? '#10b981' : undefined, color: copied ? '#fff' : undefined, borderColor: copied ? '#10b981' : undefined }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '0 12px',
+              height: '36px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: copied ? '1px solid #10b981' : '1px solid #cbd5e1',
+              background: copied ? '#10b981' : '#ffffff',
+              color: copied ? '#ffffff' : '#334155'
+            }}
             title="Copiar enlace con los filtros actuales"
           >
             {copied
@@ -1103,9 +1126,9 @@ export default function ReportsEventosAsignados({ onClose }) {
             }
           </button>
           <ReportInfo reportKey="eventosAsignados" />
-          <button className="btn-exit" type="button" onClick={onClose}>
-            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
-            Volver
+          <button className="reports-btn-back btn-exit" type="button" onClick={onClose} title="Volver a la selección de reportes">
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4 7 9l6 5" /></svg>
+            <span>Volver a Reportes</span>
           </button>
         </div>
       </div>
@@ -1170,21 +1193,17 @@ export default function ReportsEventosAsignados({ onClose }) {
                 <ListFilter size={13} strokeWidth={2.3} />
                 <strong style={{ color: '#0f172a' }}>{kpis.total}</strong> en rango
               </span>
-              <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                fontSize: '11.5px', fontWeight: 800, padding: '8px 14px',
-                borderRadius: '8px', border: '1.5px solid #dc2626',
-                background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#ffffff', cursor: pdfLoading ? 'wait' : 'pointer',
-                transition: 'all 0.15s', opacity: pdfLoading ? 0.85 : 1,
-              }}
-                onMouseEnter={e => { if (!pdfLoading) e.currentTarget.style.background = '#b91c1c'; }}
-                onMouseLeave={e => { if (!pdfLoading) e.currentTarget.style.background = '#dc2626'; }}
+              <button
+                type="button"
+                className="reports-btn-pdf"
+                onClick={handleExportPDF}
+                disabled={pdfLoading}
               >
                 {pdfLoading
                   ? <Loader2 size={14} strokeWidth={2.4} className="reports-ea-spin" />
                   : <FileText size={14} strokeWidth={2.4} />
                 }
-                {pdfLoading ? 'Generando PDF…' : 'Exportar PDF'}
+                <span>{pdfLoading ? 'Generando PDF…' : 'Exportar PDF'}</span>
               </button>
             </div>
           </div>

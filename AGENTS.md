@@ -32,6 +32,164 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Arquitectura Responsiva Móvil, Vista de Tarjetas, Eliminación de Insignia 'Data Grid' y Traducción Completa al Español en Búsqueda de Eventos (`SearchModule.jsx`, `search.css`, `tests/search-datagrid.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Eliminación de la insignia 'Data Grid'**: Remover la pastilla `<span className="search-badge-saas">Data Grid</span>` de la cabecera del módulo conforme a la solicitud directa del usuario.
+  2. **Traducción total al español**: Reemplazar textos y etiquetas en inglés en toda la interfaz de búsqueda:
+     - Buscador general: placeholder `"Search by Keywords..."` → `"Buscar cliente, evento o no. doc..."`.
+     - Barra de filtros: `"Filters"` → `"Filtros"`, `"Keywords :"` → `"Búsqueda :"`, `"Year :"` → `"Año :"`, `"Status :"` → `"Estado :"`, y botón dorado `"Clear All"` → `"Limpiar Todo"`.
+     - Paginación: `"Previous"` → `"Anterior"`, `"Next"` → `"Siguiente"`, `"Per Page"` → `"Por página:"`, contador `"Showing X to Y of Z"` → `"Mostrando X a Y de Z"`, y botón de salto `"Go"` → `"Ir"`.
+  3. **Optimización de visibilidad en versión móvil (`<= 768px`)**:
+     - En pantallas de celular, una tabla de 9 columnas comprimía las celdas, rompía los nombres en líneas verticales deformes (`BYRON RANGEL 15 AÑOS`), forzaba scroll horizontal incómodo y recortaba fechas, totales y botones.
+     - Implementación de la **Vista de Tarjetas Móviles (`search-mobile-card`)** como modo predeterminado en dispositivos móviles:
+       - Fila superior: No. Doc (pastilla azul clicable), estado (pastilla coloreada con punto) y monto total en Quetzales destacado (`Q 25,450.00`).
+       - Título del evento nítido y legible en negrita sin quiebres de palabras.
+       - Metadatos organizados con iconos vectoriales: Cliente, Fechas con horario, Salón(es) y Vendedor asignado con avatar de iniciales.
+       - Botones táctiles al pie: `Ver Detalle`, `Editar` y menú flotante `Más opciones` (`Ver Cotización`, `Copiar No. Doc`).
+     - **Conmutador de Vista Móvil (`datagrid-mobile-view-toggle`)**: Permite alternar instantáneamente entre `[ 📇 Tarjetas ]` y `[ 📑 Tabla ]` con contador integrado de resultados.
+     - Ocultación del atajo `Ctrl K` en móvil (`display: none !important;`) y expansión del buscador al 100% de ancho con altura de 38px.
+     - Botón "Nueva Cotización" en móvil adaptado a botón cuadrado táctil de 38x38px mostrando únicamente el icono `+` en blanco sobre degradado azul (`.search-btn-new-quote span { display: none !important; }`), evitando truncamientos del texto (`ueva Cotiza`) y alineándose perfectamente con el selector de año y botones de herramientas.
+     - Eliminación del botón manual de refresco (`RefreshCw`) por redundancia operativa (el sistema actualiza en tiempo real reactivamente).
+     - Estandarización de color institucional en botones de herramientas superiores:
+       - Exportar Excel: Verde esmeralda ejecutivo (`#059669` / `#047857`, icono blanco).
+       - Imprimir tabla: Rojo institucional ejecutivo (`#dc2626` / `#b91c1c`, icono blanco).
+     - Adición de `padding-bottom: 76px !important;` para garantizar que el botón flotante hamburguesa de navegación no tape la última tarjeta ni el paginador.
+- Validación: 161 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.19`).
+
+### Solución: Arquitectura Responsiva Móvil y Corrección de Desbordamientos en Módulo Eventos Asignados (`PosiblesVentasModule.jsx`, `posiblesVentas.css`, `tests/posibles-ventas-mobile-responsive.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Corrección de compresión severa en tarjetas de eventos (`LeadCard`)**: En pantallas móviles (`<= 768px`), las tarjetas distribuían el contenido y las acciones de forma horizontal rígida con `minWidth: 190px` en los botones de acción, comprimiendo el área de contenido a menos de 80px de ancho disponible.
+  2. **Corrección de quiebres de texto deformados**: Las fechas de eventos se partían entre renglones (ej. `2026-11-` / `23`), las notas se rompían a 1-2 palabras por línea vertical (ej. `PEDIDA` / `DE` / `MANO` / `Y` / `HABITACION`), y las pastillas de seguimiento (`Sin seguimiento programado`) se aplastaban.
+  3. **Reorganización ergonómica de botones de acción**: Mover los botones al pie de la tarjeta abarcando el 100% del ancho con una división superior suave (`border-top: 1px solid #f1f5f9; padding-top: 10px;`). La primera fila asigna `flex: 1` a `Ver detalle` flanqueado por botones cuadrados de 38x38px de Editar y Eliminar; la segunda fila expande el botón `Mensaje` / `Reactivar` al 100% de ancho con área táctil óptima (38px de alto).
+  4. **Adaptación de la barra de herramientas y filtros**:
+     - Las pestañas de estado (`Status tabs`) implementan desplazamiento horizontal táctil suave (`overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;`) sin amontonarse ni saltar renglones.
+     - Los selectores de `Vendedor` y `Salón` se organizan en cuadrícula fluida de ancho completo.
+     - El buscador se expande al 100% de ancho con altura estandarizada de 36px.
+  5. **Márgenes y padding móvil**: Reducción del padding horizontal general de 24px a 12px para aprovechar toda la pantalla táctil y adición de margen inferior de 28px para evitar que el botón flotante hamburguesa de navegación móvil tape la última tarjeta.
+- Solución:
+  1. Se creó `src/modules/posiblesVentas/posiblesVentas.css` con estilos semánticos dedicados y bloque `@media (max-width: 768px)` completo para `.pv-lead-card`, `.pv-lead-content`, `.pv-lead-header`, `.pv-lead-title`, `.pv-lead-assignment`, `.pv-lead-meta-row`, `.pv-lead-meta-item`, `.pv-lead-notes`, `.pv-lead-actions`, `.pv-lead-actions-row-1`, `.pv-lead-actions-row-2`, `.pv-header-container`, `.pv-header-wrap`, `.pv-header-actions`, `.pv-kpis-grid`, `.pv-toolbar-container`, `.pv-status-tabs-wrap`, `.pv-status-tabs-track`, `.pv-filter-controls`, `.pv-filter-dropdowns-row`, `.pv-search-wrap`, `.pv-leads-scroll-container`, y `.pv-modal-grid-2`.
+  2. En `src/modules/posiblesVentas/PosiblesVentasModule.jsx`:
+     - Se importó `posiblesVentas.css`.
+     - Se vincularon las clases semánticas responsivas a `LeadCard`, `LeadModal`, toolbar, selector de filtros y contenedor de tarjetas, migrando la etiqueta `<style>` inline previa.
+     - Se preservó íntegra la lógica de asignación y contacto probada en suites previas (`tests/posibles-ventas-vendedor-contacto.test.mjs`).
+  3. En `tests/posibles-ventas-mobile-responsive.test.mjs`:
+     - Se diseñó suite automatizada validando la importación de estilos, presencia de clases en JSX y reglas de flex-direction, min-width, nowrap y layout táctil en CSS.
+- Validación: 161 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso.
+
+### Solución: Arquitectura Responsiva Móvil y Corrección de Desbordamientos en Reporte de Proyección de Metas (`ReportsProyeccionMetas.jsx`, `reports.css`, `tests/reports-proyeccion-metas.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Corrección de desbordamiento horizontal en el conmutador de modos**: En pantallas móviles (`<= 768px`), el contenedor de 3 botones (`Consolidado`, `Solo Eventos`, `Solo Habitaciones`) excedía el ancho disponible de la tarjeta (~395px vs 320-375px), desbordándose hacia la derecha y truncando el texto "Solo Habitaciones" a "Solo Habitaci...".
+  2. **Eliminación del divisor vertical huérfano**: En pantallas móviles, la barra divisoria `|` quedaba flotando en una línea aislada antes del campo "DESDE".
+  3. **Simetría y orden en presets rápidos**: En lugar de que "Año" quedara huérfano y aislado en una segunda fila cuando los primeros 3 presets ocupaban el ancho, organizar los 4 presets en una cuadrícula simétrica 2x2 equilibrada.
+  4. **Alineación de selectores de fecha (`Desde` y `Hasta`)**: Mostrar ambos selectores en una fila simétrica de 2 columnas con campos de ancho completo.
+  5. **Adaptación al 100% de los filtros `VENDEDOR:` y `ESTADO:`**: Eliminar los anchos fijos de 220px/240px en móvil para que cada filtro se estructure verticalmente (etiqueta arriba, dropdown al 100% de ancho de la tarjeta).
+  6. **Botones de exportación simétricos**: `Exportar PDF` y `Exportar CSV` divididos en 2 columnas iguales (50% / 50%) alineados en la parte inferior.
+- Solución:
+  1. En `src/modules/reports/ReportsProyeccionMetas.jsx`:
+     - Se reemplazaron los estilos inline rígidos del toolbar por clases semánticas responsivas (`.proyeccion-row-1`, `.proyeccion-presets-group`, `.proyeccion-modes-dates-wrap`, `.proyeccion-desktop-prefix`, `.proyeccion-desktop-divider`, `.proyeccion-dates-row`, `.proyeccion-date-field`, `.proyeccion-row-2`, `.proyeccion-filters-group`, `.proyeccion-filter-item`, `.proyeccion-export-group`).
+     - Se encapsuló la palabra `"Solo "` dentro de `<span className="proyeccion-desktop-prefix">Solo </span>` para "Solo Eventos" y "Solo Habitaciones", manteniendo el texto completo en desktop y mostrando "Consolidado", "Eventos" y "Habitaciones" en móvil con sus iconos vectoriales.
+  2. En `src/modules/reports/reports.css`:
+     - Se crearon las reglas base para desktop garantizando que la distribución en 2 filas se mantenga 100% idéntica.
+     - Se añadió bloque `@media (max-width: 768px)` con:
+       - `.proyeccion-presets-group`: cuadrícula `grid-template-columns: repeat(2, 1fr)` con botones al 100% de ancho.
+       - `.proyeccion-segmented-container`: cuadrícula `grid-template-columns: repeat(3, 1fr)` al 100% de ancho y botones con `letter-spacing: -0.02em` y sin desbordamiento.
+       - `.proyeccion-desktop-prefix` y `.proyeccion-desktop-divider`: `display: none !important;` en móvil.
+       - `.proyeccion-dates-row`: cuadrícula `grid-template-columns: 1fr 1fr` con inputs al 100% de ancho.
+       - `.proyeccion-filter-item`: visualización en columna al 100% con `.multiselect-wrapper` expandido a `width: 100% !important; min-width: 0 !important;`.
+       - `.proyeccion-export-group`: cuadrícula `grid-template-columns: 1fr 1fr` con botones simétricos.
+  3. En `tests/reports-proyeccion-metas.test.mjs`:
+     - Se agregó suite de pruebas unitarias verificando la presencia de las clases responsivas en JSX y las reglas de media query en `reports.css`.
+- Validación: 159 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso.
+
+### Solución: Estandarización Global de Botones de Exportación (PDF Rojo, Excel Verde), Acciones de Cabecera (Kanban Índigo, Alertas Violeta), Presets Rápidos con Estado Activo y Limpieza de Filtros en Toda la Suite de Reportes (`reports.css`, `ReportsSatisfaccion.jsx`, `ReportsComisiones.jsx`, `ReportsDashboard.jsx`, `ReportsContabilidad.jsx`, `ReportsInstitucion.jsx`, `ReportsOcupacionBarras.jsx`, `ReportsEficenciaEventos.jsx`, `ReportsEficenciaConfirmacion.jsx`, `ReportsIngresosCategorias.jsx`, `ReportsSeguimientosPendientes.jsx`, `ReportsOcupacion.jsx`, `ReportsEventosAsignados.jsx`, `tests/reports-standardized-buttons.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Estandarización de botones de exportación con color corporativo**:
+     - Exportar PDF / Imprimir: Rojo ejecutivo institucional (`#dc2626`, borde `#b91c1c`, texto e icono `#ffffff`), altura fija de 36px, sombra suave y hover (`#b91c1c`, `translateY(-1px)`).
+     - Descargar / Exportar Excel / CSV: Verde esmeralda ejecutivo (`#059669`, borde `#047857`, texto e icono `#ffffff`), altura fija de 36px, sombra suave y hover (`#047857`, `translateY(-1px)`).
+  2. **Botones de acción rápida en cabecera**:
+     - "Pipeline Kanban" (en Dashboard): Índigo corporativo (`background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)`, borde `#4338ca`, icono y texto blanco).
+     - "Configurar Alertas" (en Auditoría & Calidad): Violeta ejecutivo (`background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)`, borde `#6d28d9`, icono y texto blanco).
+  3. **Presets rápidos de fecha y alineación simétrica en toolbars**:
+     - Presets (`[ Este Mes ]`, `[ Mes Anterior ]`, `[ Últimos 3M ]`, `[ Últimos 6M ]`, `[ Año ]`): Diseño píldora con altura uniforme de 36px, fondo blanco, borde `#cbd5e1`, tipografía `700`, hover `#f1f5f9` con resalte, y estado ACTIVO (`.active`) vibrante en Azul Real (`linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)`) con texto blanco y resplandor.
+     - Selectores de fecha/mes: contenedor `.reports-filter-input-wrap` con 36px de altura, icono `#2563eb`, borde `#cbd5e1` y focus ring suave.
+     - Botón "Limpiar Filtros" (`.reports-btn-clear`): diseño píldora ámbar/coral suave (`#fff7ed`, borde `#fdba74`, color `#c2410c`, icono `↺`), visible dinámicamente cuando hay filtros aplicados.
+- Archivos modificados:
+  - `src/modules/reports/reports.css`: Definición y blindaje de especificidad con `body:not(.informes-theme)` para `.reports-btn-pdf`, `.reports-btn-excel`, `.reports-btn-kanban`, `.reports-btn-alertas`, `.reports-preset-btn`, `.reports-btn-clear`, y `.reports-filter-input-wrap`.
+  - `src/modules/reports/ReportsSatisfaccion.jsx`: Exportar PDF rojo, Descargar Excel verde, Configurar Alertas violeta.
+  - `src/modules/reports/ReportsComisiones.jsx`: Exportar PDF rojo, Exportar CSV verde, alineación simétrica del toolbar (Mes, presets y vendedor a 38px), estado activo en presets y botón reactivo "Limpiar Filtros".
+  - `src/modules/reports/ReportsDashboard.jsx`: Pipeline Kanban índigo, Exportar Reporte rojo y Limpiar Filtros ámbar/coral.
+  - `src/modules/reports/ReportsContabilidad.jsx`: Exportar Excel verde esmeralda institucional.
+  - `src/modules/reports/ReportsInstitucion.jsx`: Exportar Excel verde esmeralda institucional.
+  - `src/modules/reports/ReportsOcupacionBarras.jsx`: Descargar Excel verde esmeralda, presets de rango rápido con seguimiento de estado activo e inputs con altura estandarizada.
+  - `src/modules/reports/ReportsEficenciaEventos.jsx`, `ReportsEficenciaConfirmacion.jsx`, `ReportsIngresosCategorias.jsx`: Presets estandarizados con estado activo e inputs protegidos.
+  - `src/modules/reports/ReportsSeguimientosPendientes.jsx`, `ReportsOcupacion.jsx`: Presets y botones de navegación rápida con estilos estandarizados.
+  - `src/modules/reports/ReportsEventosAsignados.jsx`: Exportar PDF estandarizado a `.reports-btn-pdf`.
+  - `tests/reports-standardized-buttons.test.mjs`: Suite de pruebas unitarias automatizadas validando las clases en `reports.css` y la adopción consistente en todos los módulos de reportería.
+- Validación: 158 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.13`).
+
+### Solución: Unificación de Título "Dashboard" y Corrección de Margen Superior (Headroom) / Cero PAX en Gráfico de Asistencia (`ReportsDashboard.jsx`, `ReportsModule.jsx`, `ReportsModuleContainer.jsx`, `ReportInfo.jsx`, `tests/reports-dashboard-pax.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Simplificación del título**: Renombrar el reporte a simplemente `"Dashboard"` en toda la suite (removiendo "Dashboard Ejecutivo" y "Dashboard Principal") tanto en la vista del reporte (`ReportsDashboard.jsx`), tarjeta del hub Bento (`ReportsModule.jsx`), listado central (`ReportsModuleContainer.jsx`) y panel de ayuda conceptual (`ReportInfo.jsx`).
+  2. **Corrección de etiquetas truncadas en días pico de PAX**: En el gráfico de barras "Asistencia total por día (todos los salones)", en los días con el número máximo de asistentes (como el día 10 con 1298 PAX en la imagen del usuario), la etiqueta numérica flotante sobre la barra quedaba recortada y oculta en la parte superior debido a que la barra alcanzaba el 100% de la altura y el contenedor con `overflow-x: auto` recortaba el eje vertical.
+  3. **Visualización de 0 PAX en días sin asistencia**: En lugar de omitir la etiqueta en días donde no hay eventos o asistencia registrada, mostrar el valor `0` sobre la base de la barra para informar explícitamente al usuario.
+- Causa raíz:
+  1. En `ReportsDashboard.jsx`, el porcentaje de altura de cada barra se calculaba estrictamente como `(pax / maxDayPax) * 100`. Para el día de mayor asistencia, la barra medía el 100% (170px de 170px), posicionando la etiqueta con `bottom: 100%` en coordenadas negativas fuera del contenedor. Al tener el contenedor `overflowX: 'auto'`, la especificación CSS fuerza el recorte en `overflow-y`, cortando la etiqueta por completo.
+  2. La etiqueta estaba condicionada a `{pax > 0 && <span ...>{pax}</span>}`, dejando los días con 0 PAX sin ningún indicador visual numérico.
+- Solución:
+  1. En `ReportsDashboard.jsx`:
+     - Se incorporó un margen superior (headroom) del 20% en `paxDayChartData`: `yAxisMax = maxDayPax > 0 ? Math.ceil(maxDayPax * 1.2) : 100`. Con esto, la barra del día pico alcanza ~83.3% de la altura del gráfico, garantizando más de 28px de espacio libre interno antes del borde superior.
+     - Se añadió `paddingTop: '16px'` al contenedor de scroll horizontal para otorgar respiro adicional.
+     - Se actualizó la escala del eje Y (ticks de 100%, 75%, 50%, 25%, 0) con base en `paxDayChartData.yAxisMax`.
+     - Se removió la condición restrictiva `{pax > 0 && ...}`, mostrando `{pax}` en todos los días: con azul `#2563eb` y peso `800` si `pax > 0`, y en gris slate `#94a3b8` con peso `600` cuando `pax === 0`.
+     - Se simplificó el título del reporte en el encabezado a `Dashboard`.
+  2. En `src/modules/reports/ReportsModule.jsx` y `src/modules/reports/ReportsModuleContainer.jsx`:
+     - Se actualizaron las tarjetas y etiquetas de `"Dashboard Principal"` a `"Dashboard"`.
+  3. En `src/modules/reports/components/ReportInfo.jsx`:
+     - Se actualizó el título informativo a `"Dashboard"`.
+  4. En `tests/reports-dashboard-pax.test.mjs`:
+     - Se añadieron 3 pruebas unitarias automatizadas blindando la unificación de nombres, el headroom del 20% y el renderizado incondicional de `0` en días sin PAX.
+- Validación: 156 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso.
+
+### Solución: Alineación de Controles, Reactividad de Filtros y Rediseño Ejecutivo del Conmutador de Modos en Reporte de Proyección de Metas (`ReportsProyeccionMetas.jsx`, `reports.css`, `tests/reports-proyeccion-metas.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Alineación de controles**: Organizar la barra de herramientas del Reporte de Proyección de Metas en 2 filas limpias, simétricas y perfectamente balanceadas:
+     - Fila 1: Presets rápidos (`Este Mes`, `Mes Anterior`, `Últimos 3M`, `Año`) a la izquierda, y a la derecha el conmutador segmentado de modos (`Consolidado` / `Solo Eventos` / `Solo Habitaciones`), divisor vertical y los selectores de fechas inline (`Desde` / `Hasta`).
+     - Fila 2: Filtros desplegables con etiquetas (`VENDEDOR:` y `ESTADO:`) alineados a la izquierda a la par, y botones de exportación ejecutiva (`Exportar PDF` en rojo y `Exportar CSV` en verde) alineados a la derecha. Todos los controles estandarizados a 38px de altura.
+  2. **Diseño y visibilidad del conmutador de modos**: Reemplazar los botones planos y desapercibidos anteriores por un conmutador segmentado de alta visibilidad:
+     - Contenedor con borde `#cbd5e1`, esquinas redondeadas y fondo `#f1f5f9`.
+     - Iconos vectoriales personalizados: `IconLayers` (Consolidado), `IconEventSparkles` (Solo Eventos) y `IconBed` (Solo Habitaciones).
+     - Estados activos vibrantes con degradados ejecutivos y sombras de resplandor: Consolidado en Azul Real (`#2563eb`), Solo Eventos en Violeta (`#7c3aed`) y Solo Habitaciones en Verde Esmeralda (`#059669`).
+     - Estados inactivos con fondo blanco nítido, borde sutil, cursor pointer, micro-animación hover y color de icono respectivo.
+  3. **Corrección de reactividad y lógica de negocio en filtros**:
+     - Causa raíz 1: `projectionData` carecía de `projectionMode`, `habitacionesList` y `habitacionesMetasMap` en su array de dependencias de `useMemo`, provocando que al alternar entre modos el cálculo de vendedores y metas no se actualizara en pantalla.
+     - Causa raíz 2: La llamada a `getHabitacionesApi` enviaba de forma rígida `estado: 'Confirmada'`, ignorando reservas en 'Pre reserva' a pesar de que el filtro de estados del usuario incluía Pre reserva.
+     - Causa raíz 3: `computeTeamData` (agrupamiento por equipos) y `potentialData` (tendencia mensual) calculaban únicamente eventos, omitiendo por completo las ventas de habitaciones y el `projectionMode`.
+     - Causa raíz 4: Normalización de estados con el helper `isHabitacionInStatusFilter` para conciliar diferencias morfológicas (ej. 'Confirmada' para habitación vs 'Confirmado' para evento).
+     - Causa raíz 5: Evaluación de metas en modo Solo Habitaciones: si el vendedor cuenta con una meta configurada en `habitacionesMetasMap`, se evalúa contra dicha meta al 100%; en caso contrario, se utiliza la escala de comisión general (`goalTiers`).
+- Archivos modificados:
+  - `src/modules/reports/ReportsProyeccionMetas.jsx`: Implementación de iconos vectoriales, normalizador de estados, corrección de llamadas a API, inclusión de dependencias reactivas completas y rediseño del toolbar en 2 filas estructuradas.
+  - `src/modules/reports/reports.css`: Estilos dedicados blindados con `body:not(.informes-theme)` para `.reports-toolbar--proyeccion`, `.proyeccion-preset-btn`, `.proyeccion-segmented-container`, `.proyeccion-segmented-btn`, variantes activas con degradados y botones ejecutivos de exportación.
+  - `tests/reports-proyeccion-metas.test.mjs`: Suite de pruebas unitarias automatizadas validando la presencia de iconos, opciones del conmutador, reactividad de dependencias, evaluación de metas de habitaciones y estilos CSS.
+- Validación: 153 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción.
+
+### Solución: Estandarización y Rediseño con Color Ejecutivo de Botones "Volver a Reportes" en Todos los Reportes (`ReportsVentas.jsx`, `ReportsVentasHabitaciones.jsx`, `ReportsContabilidad.jsx`, `ReportsDashboard.jsx`, `ReportsInstitucion.jsx`, etc., `reports.css`, `tests/reports-navigation-and-chips.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Estandarización de texto**: Unificar el texto de retorno en todos los 15 reportes del sistema a `"Volver a Reportes"`, eliminando inconsistencias confusas donde unos decían solo "Volver", otro "Volver al Dashboard" y otros "Volver a Reportes".
+  2. **Estandarización de posición (mismo lado)**: Ubicar el botón de retorno en todos los reportes sobre el **lado derecho** de la cabecera (`.reports-page-header`), junto a los controles de acción y el botón de información `(i)` (`ReportInfo`), dejando el lado izquierdo reservado para la identidad y títulos del reporte, corrigiendo la anomalía de `ReportsVentas.jsx` donde estaba en el lado izquierdo.
+  3. **Rediseño con color ejecutivo de alta visibilidad**: Reemplazar los botones pálidos y casi invisibles de fondo blanco y borde gris tenue por un diseño con color real y vibrante:
+     - Fondo con degradado azul corporativo ejecutivo: `linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;` y color base `#2563eb !important;`.
+     - Tipografía y flecha vectorial en blanco puro `#ffffff !important;` (`font-weight: 700 !important; font-size: 13px !important;`).
+     - Borde azul sólido `1px solid #1d4ed8 !important;` y sombra con resplandor `box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28) !important;`.
+     - Efecto hover con micro-animación de retorno `transform: translateX(-2px) !important;`, oscurecimiento a azul cobalto `linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)` y elevación de sombra `box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;`.
+     - Blindaje con `body:not(.informes-theme)` en `reports.css` para `.reports-btn-back`, `.reports-back-btn`, `.rhab-btn-back` y `.reports-page-header button.btn-exit`.
+- Archivos modificados:
+  - `src/modules/reports/reports.css`: Definición y blindaje de las reglas de color, degradado, icono blanco y hover para todas las clases de retorno.
+  - `src/modules/reports/ReportsVentas.jsx`: Reubicación del botón al lado derecho junto a `ReportInfo` y texto estandarizado "Volver a Reportes".
+  - `src/modules/reports/ReportsVentasHabitaciones.jsx`: Botón estandarizado con clases y diseño azul ejecutivo.
+  - `src/modules/reports/ReportsContabilidad.jsx`, `ReportsDashboard.jsx`, `ReportsInstitucion.jsx`, `ReportsSatisfaccion.jsx`, `ReportsOcupacionBarras.jsx`, `ReportsOcupacion.jsx`, `ReportsEficenciaEventos.jsx`, `ReportsEficenciaConfirmacion.jsx`, `ReportsIngresosCategorias.jsx`, `ReportsSeguimientosPendientes.jsx`, `ReportsComisiones.jsx`, `ReportsProyeccionMetas.jsx`, `ReportsEventosAsignados.jsx`: Texto unificado a "Volver a Reportes", eliminación de estilos inline obsoletos que forzaban fondo blanco o transparente y agrupación uniforme a la derecha junto a `ReportInfo`.
+  - `tests/reports-navigation-and-chips.test.mjs`: Prueba automatizada exhaustiva que verifica que los 14 archivos de sub-reportes contengan exactamente "Volver a Reportes" y que el CSS aplique el azul corporativo `#2563eb`.
+- Validación: 150 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción.
+
 ### Solución: Rediseño de Botón Volver, Círculo de Información (i) y Chips de Categorías en Reportes (`ReportsModule.jsx`, `ReportInfo.jsx`, `ReportsVentas.jsx`, `reports.css`, `tests/reports-navigation-and-chips.test.mjs`) (2026-10-13)
 - Requerimientos:
   1. **Opción Volver al Dashboard visible en todos los reportes**: Transformar la opción de "Volver al Dashboard" / "Volver a Reportes" en un botón real de alta visibilidad, con color, borde y diseño destacado, eliminando el estilo transparente/oculto anterior.

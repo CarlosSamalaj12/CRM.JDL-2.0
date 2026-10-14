@@ -3,7 +3,7 @@ import '../reports.css';
 
 const DESCRIPTIONS = {
   dashboard: {
-    title: 'Dashboard Ejecutivo',
+    title: 'Dashboard',
     desc: 'Panel general con métricas clave del periodo. Toma datos de eventos, cotizaciones, metas y checklists.',
     calculation: 'Metas: suma de montos de eventos Confirmado + Pre-reserva. Eficiencia: (confirmados / total) × 100. Satisfacción: promedio de ratings en checklists (Malo=2.5, Regular=5, Bueno=7.5, Excelente=10). Ocupación: PAX acumulado por día vs capacidad total de salones.',
     source: 'Eventos del rango filtrado por rol y vendedor. Cotizaciones (total de la cotización). Checklists de evaluación. Configuración de metas globales y capacidad de salones.',

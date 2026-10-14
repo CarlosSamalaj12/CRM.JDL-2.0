@@ -963,13 +963,15 @@ export default function ReportsInstitucion({ onClose }) {
             <div className="reports-subtitle">Analítica comercial de clientes corporativos, fidelidad y hábitos de consumo</div>
           </div>
         </div>
-        <ReportInfo reportKey="institucion" />
-        <button className="btn-exit" type="button" onClick={() => onClose?.()}>
-          <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M13 4 7 9l6 5" />
-          </svg>
-          Volver
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ReportInfo reportKey="institucion" />
+          <button className="reports-btn-back btn-exit" type="button" onClick={() => onClose?.()} title="Volver a la selección de reportes">
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13 4 7 9l6 5" />
+            </svg>
+            <span>Volver a Reportes</span>
+          </button>
+        </div>
       </div>
 
       <div className="reports-page-body">
@@ -1206,12 +1208,12 @@ export default function ReportsInstitucion({ onClose }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <button
                     type="button"
-                    className="inst-btn-excel"
+                    className="reports-btn-excel"
                     onClick={() => exportRankingToExcel(filteredRanking, periodLabel, statusLabel)}
                     title="Exportar tabla completa a Excel"
                   >
                     <FileSpreadsheet size={15} strokeWidth={2} />
-                    Exportar Excel
+                    <span>Exportar Excel</span>
                   </button>
                 </div>
               </div>

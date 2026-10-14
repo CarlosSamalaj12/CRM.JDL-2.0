@@ -400,18 +400,20 @@
    ============================================================ */
 body:not(.informes-theme) button.reports-btn-back,
 body:not(.informes-theme) button.reports-back-btn,
+body:not(.informes-theme) button.rhab-btn-back,
 body:not(.informes-theme) .reports-page-header button.btn-exit,
 button.reports-btn-back,
 button.reports-back-btn,
+button.rhab-btn-back,
 .reports-page-header button.btn-exit {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 8px !important;
-  background: #ffffff !important;
-  background-color: #ffffff !important;
-  background-image: none !important;
-  border: 1.5px solid #cbd5e1 !important;
+  background: #2563eb !important;
+  background-color: #2563eb !important;
+  background-image: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border: 1px solid #1d4ed8 !important;
   border-radius: 9px !important;
   padding: 0 16px !important;
   height: 36px !important;
@@ -419,9 +421,9 @@ button.reports-back-btn,
   max-height: 36px !important;
   font-size: 13px !important;
   font-weight: 700 !important;
-  color: #1e293b !important;
+  color: #ffffff !important;
   cursor: pointer !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28) !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   white-space: nowrap !important;
   line-height: 1 !important;
@@ -430,35 +432,42 @@ button.reports-back-btn,
 
 body:not(.informes-theme) button.reports-btn-back:hover,
 body:not(.informes-theme) button.reports-back-btn:hover,
+body:not(.informes-theme) button.rhab-btn-back:hover,
 body:not(.informes-theme) .reports-page-header button.btn-exit:hover,
 button.reports-btn-back:hover,
 button.reports-back-btn:hover,
+button.rhab-btn-back:hover,
 .reports-page-header button.btn-exit:hover {
-  background: #f8fafc !important;
-  background-color: #f8fafc !important;
-  border-color: #2563eb !important;
-  color: #2563eb !important;
+  background: #1d4ed8 !important;
+  background-color: #1d4ed8 !important;
+  background-image: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+  border-color: #1e3a8a !important;
+  color: #ffffff !important;
   transform: translateX(-2px) !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15) !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
 }
 
 body:not(.informes-theme) button.reports-btn-back svg,
 body:not(.informes-theme) button.reports-back-btn svg,
+body:not(.informes-theme) button.rhab-btn-back svg,
 body:not(.informes-theme) .reports-page-header button.btn-exit svg,
 button.reports-btn-back svg,
 button.reports-back-btn svg,
+button.rhab-btn-back svg,
 .reports-page-header button.btn-exit svg {
-  color: #2563eb !important;
-  stroke: #2563eb !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
   flex-shrink: 0 !important;
   transition: transform 0.2s ease !important;
 }
 
 body:not(.informes-theme) button.reports-btn-back:hover svg,
 body:not(.informes-theme) button.reports-back-btn:hover svg,
+body:not(.informes-theme) button.rhab-btn-back:hover svg,
 body:not(.informes-theme) .reports-page-header button.btn-exit:hover svg,
 button.reports-btn-back:hover svg,
 button.reports-back-btn:hover svg,
+button.rhab-btn-back:hover svg,
 .reports-page-header button.btn-exit:hover svg {
   transform: translateX(-2px) !important;
 }
@@ -6082,30 +6091,33 @@ button.rhab-btn-back {
   display: inline-flex !important;
   align-items: center !important;
   gap: 8px !important;
-  background: #ffffff !important;
-  background-color: #ffffff !important;
-  background-image: none !important;
-  border: 1px solid #cbd5e1 !important;
-  border-radius: 10px !important;
-  padding: 9px 18px !important;
+  background: #2563eb !important;
+  background-color: #2563eb !important;
+  background-image: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border: 1px solid #1d4ed8 !important;
+  border-radius: 9px !important;
+  padding: 0 16px !important;
   font-size: 13px !important;
   font-weight: 700 !important;
-  color: #475569 !important;
+  color: #ffffff !important;
   cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
-  min-height: auto !important;
-  height: 40px !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28) !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  max-height: 36px !important;
   line-height: 1 !important;
 }
 
 body:not(.informes-theme) button.rhab-btn-back:hover,
 button.rhab-btn-back:hover {
-  background: #f8fafc !important;
-  background-color: #f8fafc !important;
-  color: #0f172a !important;
-  border-color: #94a3b8 !important;
-  transform: translateY(-1px) !important;
+  background: #1d4ed8 !important;
+  background-color: #1d4ed8 !important;
+  background-image: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+  color: #ffffff !important;
+  border-color: #1e3a8a !important;
+  transform: translateX(-2px) !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
 }
 
 body:not(.informes-theme) button.rhab-btn-excel,
@@ -6901,5 +6913,698 @@ button.rhab-page-num-btn:not(.is-active):hover {
     align-items: flex-start;
   }
 }
+
+/* ==========================================================================
+   Reporte de Proyección de Metas - Toolbar y Conmutador Segmentado
+   ========================================================================== */
+body:not(.informes-theme) .reports-toolbar--proyeccion {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 16px 20px !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.02) !important;
+}
+
+body:not(.informes-theme) .proyeccion-preset-btn {
+  height: 36px !important;
+  min-height: 36px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.15s ease !important;
+}
+
+body:not(.informes-theme) .proyeccion-preset-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+  transform: translateY(-1px) !important;
+}
+
+body:not(.informes-theme) .proyeccion-segmented-container {
+  display: inline-flex !important;
+  align-items: center !important;
+  background: #f1f5f9 !important;
+  padding: 3px !important;
+  border-radius: 10px !important;
+  border: 1px solid #cbd5e1 !important;
+  gap: 3px !important;
+  height: 38px !important;
+  box-sizing: border-box !important;
+}
+
+body:not(.informes-theme) .proyeccion-segmented-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: 7px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  color: #475569 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+body:not(.informes-theme) .proyeccion-segmented-btn:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Modo Consolidado Activo (Azul Real Corporativo) */
+body:not(.informes-theme) .proyeccion-segmented-btn--consolidado.active {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35) !important;
+}
+
+body:not(.informes-theme) .proyeccion-segmented-btn--consolidado.active:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+  border-color: #1e40af !important;
+  color: #ffffff !important;
+}
+
+/* Modo Solo Eventos Activo (Violeta / Indigo) */
+body:not(.informes-theme) .proyeccion-segmented-btn--eventos.active {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  border-color: #6d28d9 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.35) !important;
+}
+
+body:not(.informes-theme) .proyeccion-segmented-btn--eventos.active:hover {
+  background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%) !important;
+  border-color: #5b21b6 !important;
+  color: #ffffff !important;
+}
+
+/* Modo Solo Habitaciones Activo (Verde Esmeralda) */
+body:not(.informes-theme) .proyeccion-segmented-btn--habitaciones.active {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  border-color: #047857 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35) !important;
+}
+
+body:not(.informes-theme) .proyeccion-segmented-btn--habitaciones.active:hover {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+  border-color: #065f46 !important;
+  color: #ffffff !important;
+}
+
+/* Botón Exportar PDF */
+body:not(.informes-theme) .proyeccion-btn-pdf {
+  height: 38px !important;
+  min-height: 38px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  border: 1.5px solid #dc2626 !important;
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25) !important;
+  transition: all 0.15s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+body:not(.informes-theme) .proyeccion-btn-pdf:hover:not(:disabled) {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.35) !important;
+}
+
+/* Botón Exportar CSV */
+body:not(.informes-theme) .proyeccion-btn-csv {
+  height: 38px !important;
+  min-height: 38px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  border: 1.5px solid #16a34a !important;
+  background: #16a34a !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25) !important;
+  transition: all 0.15s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+body:not(.informes-theme) .proyeccion-btn-csv:hover {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.35) !important;
+}
+
+/* --- Layout del Toolbar de Proyección de Metas --- */
+body:not(.informes-theme) .proyeccion-row-1 {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+  flex-wrap: wrap !important;
+}
+
+body:not(.informes-theme) .proyeccion-presets-group {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+}
+
+body:not(.informes-theme) .proyeccion-modes-dates-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+}
+
+body:not(.informes-theme) .proyeccion-desktop-prefix {
+  display: inline !important;
+}
+
+body:not(.informes-theme) .proyeccion-desktop-divider {
+  width: 1px !important;
+  height: 24px !important;
+  background: #cbd5e1 !important;
+  margin: 0 2px !important;
+  display: block !important;
+}
+
+body:not(.informes-theme) .proyeccion-dates-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+body:not(.informes-theme) .proyeccion-date-field {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+body:not(.informes-theme) .proyeccion-date-input {
+  height: 38px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  box-sizing: border-box !important;
+}
+
+body:not(.informes-theme) .proyeccion-field-label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  letter-spacing: 0.03em !important;
+}
+
+body:not(.informes-theme) .proyeccion-row-2 {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  width: 100% !important;
+  flex-wrap: wrap !important;
+}
+
+body:not(.informes-theme) .proyeccion-filters-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  flex-wrap: wrap !important;
+}
+
+body:not(.informes-theme) .proyeccion-filter-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+body:not(.informes-theme) .proyeccion-export-group {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+  margin-left: auto !important;
+}
+
+/* ==========================================================================
+   RESPONSIVE MOBILE RULES PARA PROYECCIÓN DE METAS (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  body:not(.informes-theme) .reports-toolbar--proyeccion {
+    padding: 12px !important;
+    gap: 12px !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-row-1 {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  /* Presets rápidos en cuadrícula 2x2 simétrica para no dejar ninguno huérfano */
+  body:not(.informes-theme) .proyeccion-presets-group {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-presets-group .proyeccion-preset-btn {
+    width: 100% !important;
+    height: 36px !important;
+    font-size: 11px !important;
+    text-align: center !important;
+    justify-content: center !important;
+    padding: 0 4px !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-modes-dates-wrap {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* Conmutador segmentado en 3 columnas iguales sin desbordamiento */
+  body:not(.informes-theme) .proyeccion-segmented-container {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 3px !important;
+    padding: 3px !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 38px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-segmented-btn {
+    width: 100% !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 4px !important;
+    font-size: 11px !important;
+    letter-spacing: -0.02em !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    gap: 4px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Ocultar la palabra "Solo " en móvil para que quepan "Consolidado", "Eventos", "Habitaciones" */
+  body:not(.informes-theme) .proyeccion-desktop-prefix {
+    display: none !important;
+  }
+
+  /* Ocultar divisor vertical en vista móvil */
+  body:not(.informes-theme) .proyeccion-desktop-divider {
+    display: none !important;
+  }
+
+  /* Selectores de fechas lado a lado en 2 columnas */
+  body:not(.informes-theme) .proyeccion-dates-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-date-field {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-date-input {
+    width: 100% !important;
+    height: 38px !important;
+    box-sizing: border-box !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-row-2 {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-filters-group {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* Filtros ocupando el 100% de ancho con etiqueta arriba y dropdown completo */
+  body:not(.informes-theme) .proyeccion-filter-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-filter-item .multiselect-wrapper {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-filter-item .multiselect-wrapper > div {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Botones de Exportar PDF y CSV simétricos en 2 columnas */
+  body:not(.informes-theme) .proyeccion-export-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  body:not(.informes-theme) .proyeccion-btn-pdf,
+  body:not(.informes-theme) .proyeccion-btn-csv {
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 0 8px !important;
+  }
+}
+
+/* ==========================================================================
+   ESTANDARIZACIÓN GLOBAL DE BOTONES Y FILTROS PARA TODOS LOS REPORTES
+   ========================================================================== */
+
+/* 1. Botón Exportar PDF / Imprimir (Rojo Ejecutivo Blindado) */
+body:not(.informes-theme) button.reports-btn-pdf,
+body:not(.informes-theme) .reports-btn-pdf {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 14px !important;
+  background: #dc2626 !important;
+  background-color: #dc2626 !important;
+  background-image: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  border: 1px solid #b91c1c !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25) !important;
+  transition: all 0.15s ease !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+body:not(.informes-theme) button.reports-btn-pdf:hover:not(:disabled),
+body:not(.informes-theme) .reports-btn-pdf:hover:not(:disabled) {
+  background: #b91c1c !important;
+  background-color: #b91c1c !important;
+  border-color: #991b1b !important;
+  box-shadow: 0 4px 10px rgba(185, 28, 28, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+body:not(.informes-theme) button.reports-btn-pdf svg,
+body:not(.informes-theme) .reports-btn-pdf svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* 2. Botón Exportar Excel / CSV (Verde Esmeralda Blindado) */
+body:not(.informes-theme) button.reports-btn-excel,
+body:not(.informes-theme) .reports-btn-excel {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 14px !important;
+  background: #059669 !important;
+  background-color: #059669 !important;
+  background-image: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  border: 1px solid #047857 !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.25) !important;
+  transition: all 0.15s ease !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+body:not(.informes-theme) button.reports-btn-excel:hover:not(:disabled),
+body:not(.informes-theme) .reports-btn-excel:hover:not(:disabled) {
+  background: #047857 !important;
+  background-color: #047857 !important;
+  border-color: #065f46 !important;
+  box-shadow: 0 4px 10px rgba(4, 120, 87, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+body:not(.informes-theme) button.reports-btn-excel svg,
+body:not(.informes-theme) .reports-btn-excel svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* 3. Botón Pipeline Kanban en Cabecera (Índigo Ejecutivo) */
+body:not(.informes-theme) button.reports-btn-kanban,
+body:not(.informes-theme) .reports-btn-kanban {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 14px !important;
+  background: #4f46e5 !important;
+  background-color: #4f46e5 !important;
+  background-image: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  border: 1px solid #4338ca !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.25) !important;
+  transition: all 0.15s ease !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+body:not(.informes-theme) button.reports-btn-kanban:hover,
+body:not(.informes-theme) .reports-btn-kanban:hover {
+  background: #4338ca !important;
+  border-color: #3730a3 !important;
+  box-shadow: 0 4px 10px rgba(67, 56, 202, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+body:not(.informes-theme) button.reports-btn-kanban svg,
+body:not(.informes-theme) .reports-btn-kanban svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* 4. Botón Configurar Alertas en Cabecera (Violeta Ejecutivo) */
+body:not(.informes-theme) button.reports-btn-alertas,
+body:not(.informes-theme) .reports-btn-alertas {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 14px !important;
+  background: #7c3aed !important;
+  background-color: #7c3aed !important;
+  background-image: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  border: 1px solid #6d28d9 !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 4px rgba(124, 58, 237, 0.25) !important;
+  transition: all 0.15s ease !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+body:not(.informes-theme) button.reports-btn-alertas:hover,
+body:not(.informes-theme) .reports-btn-alertas:hover {
+  background: #6d28d9 !important;
+  border-color: #5b21b6 !important;
+  box-shadow: 0 4px 10px rgba(109, 40, 217, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+body:not(.informes-theme) button.reports-btn-alertas svg,
+body:not(.informes-theme) .reports-btn-alertas svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* 5. Presets Rápidos de Fecha (Píldoras Modernas Interactivas) */
+body:not(.informes-theme) button.reports-preset-btn,
+body:not(.informes-theme) .preset-btn,
+.reports-preset-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #475569 !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+body:not(.informes-theme) button.reports-preset-btn:hover,
+body:not(.informes-theme) .preset-btn:hover,
+.reports-preset-btn:hover {
+  background: #f1f5f9 !important;
+  background-color: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+}
+
+body:not(.informes-theme) button.reports-preset-btn.active,
+body:not(.informes-theme) button.reports-preset-btn.is-active,
+body:not(.informes-theme) .preset-btn.active,
+body:not(.informes-theme) .preset-btn.is-active,
+.reports-preset-btn.active {
+  background: #2563eb !important;
+  background-color: #2563eb !important;
+  background-image: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3) !important;
+}
+
+/* 6. Botón Limpiar Filtros (Ámbar / Coral Elegante) */
+body:not(.informes-theme) button.reports-btn-clear,
+body:not(.informes-theme) .reports-btn-clear {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  background: #fff7ed !important;
+  background-color: #fff7ed !important;
+  border: 1px solid #fdba74 !important;
+  color: #c2410c !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 1px 2px rgba(194, 65, 12, 0.1) !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+body:not(.informes-theme) button.reports-btn-clear:hover,
+body:not(.informes-theme) .reports-btn-clear:hover {
+  background: #ffedd5 !important;
+  background-color: #ffedd5 !important;
+  border-color: #fb923c !important;
+  color: #9a3412 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 5px rgba(194, 65, 12, 0.2) !important;
+}
+
+/* 7. Input de Mes / Fecha Estilizado con Altura Estándar de 36px */
+body:not(.informes-theme) .reports-filter-input-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 0 12px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  box-sizing: border-box !important;
+}
+
+body:not(.informes-theme) .reports-filter-input-wrap:focus-within {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
 
 

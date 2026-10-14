@@ -12,6 +12,7 @@ import api from '../../services/api';
 import authService from '../../services/authService';
 import MultiSelect from '../reports/components/MultiSelect';
 import { useToast } from '../informes/context/ToastContext';
+import './posiblesVentas.css';
 
 // ─── Wrapper de iconos minimalistas con color ─────────────────
 const ICONS = {
@@ -571,20 +572,7 @@ function LeadCard({
 
   return (
     <div
-      style={{
-        position: 'relative',
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: '12px',
-        padding: '16px 20px 16px 22px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-        display: 'flex',
-        alignItems: 'stretch',
-        justifyContent: 'space-between',
-        gap: '16px',
-        overflow: 'hidden',
-        transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s',
-      }}
+      className="pv-lead-card"
       onMouseEnter={e => {
         e.currentTarget.style.borderColor = '#cbd5e1';
         e.currentTarget.style.boxShadow = '0 4px 14px rgba(15,23,42,0.06)';
@@ -607,9 +595,9 @@ function LeadCard({
       />
 
       {/* Contenido Principal Izquierdo */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+      <div className="pv-lead-content">
         {/* Cabecera: Avatar Iniciales + Cliente + Estado + Vinculada + Info Asignado */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="pv-lead-header">
           <div
             style={{
               width: '32px',
@@ -630,7 +618,7 @@ function LeadCard({
             {initials}
           </div>
 
-          <span style={{ fontSize: '15.5px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
+          <span className="pv-lead-title">
             {lead.nombreCliente}
           </span>
 
@@ -656,7 +644,7 @@ function LeadCard({
             </span>
           )}
 
-          <span style={{ fontSize: '12px', color: '#64748b' }}>
+          <span className="pv-lead-assignment">
             {lead.vendedorNombre ? (
               <>
                 Asignado a: <strong style={{ color: '#334155' }}>{lead.vendedorNombre}</strong>
@@ -682,34 +670,23 @@ function LeadCard({
         </div>
 
         {/* Metadatos con iconos limpios (Fecha, Salón, Pax, Teléfono, Correo) */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '14px',
-            fontSize: '12px',
-            color: '#475569',
-            fontWeight: 500,
-            marginTop: '2px',
-          }}
-        >
+        <div className="pv-lead-meta-row">
           {lead.fechaEvento && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <span className="pv-lead-meta-item">
               <Icon name="calendar" size={13} color="#94a3b8" strokeWidth={2} />
               <span>{lead.fechaEvento}</span>
             </span>
           )}
 
           {(lead.salones || []).length > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <span className="pv-lead-meta-item">
               <Icon name="mapPin" size={13} color="#94a3b8" strokeWidth={2} />
               <span>{(lead.salones || []).join(', ')}</span>
             </span>
           )}
 
           {lead.pax ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <span className="pv-lead-meta-item">
               <Icon name="users" size={13} color="#94a3b8" strokeWidth={2} />
               <span>{lead.pax} pax</span>
             </span>
@@ -718,10 +695,8 @@ function LeadCard({
           {lead.telefono && (
             <a
               href={`tel:${lead.telefono}`}
+              className="pv-lead-meta-item"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
                 color: '#475569',
                 textDecoration: 'none',
               }}
@@ -736,10 +711,8 @@ function LeadCard({
           {lead.correo && (
             <a
               href={`mailto:${lead.correo}`}
+              className="pv-lead-meta-item"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
                 color: '#475569',
                 textDecoration: 'none',
               }}
@@ -754,19 +727,7 @@ function LeadCard({
 
         {/* Burbuja de notas / cotización */}
         {lead.notas && (
-          <div
-            style={{
-              background: '#f8fafc',
-              border: '1px solid #f1f5f9',
-              borderRadius: '8px',
-              padding: '7px 12px',
-              fontSize: '12px',
-              color: '#475569',
-              lineHeight: 1.45,
-              marginTop: '4px',
-              marginBottom: '4px',
-            }}
-          >
+          <div className="pv-lead-notes">
             <span style={{ color: '#0d9488', fontWeight: 800, fontSize: '14px', marginRight: '5px' }}>“</span>
             {lead.notas}
           </div>
@@ -828,19 +789,9 @@ function LeadCard({
       </div>
 
       {/* Columna Derecha: Botones de Acción */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'stretch',
-          gap: '8px',
-          minWidth: (canEdit || canDelete) ? '190px' : '130px',
-          flexShrink: 0,
-        }}
-      >
+      <div className="pv-lead-actions">
         {/* Fila de acción principal + Editar + Eliminar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="pv-lead-actions-row-1">
           {lead.eventoId ? (
             <button
               type="button"
@@ -975,47 +926,19 @@ function LeadCard({
         </div>
 
         {/* Fila secundaria: Reactivar o Mensaje */}
-        {lead.estado === 'perdida' ? (
-          <button
-            type="button"
-            onClick={onReactivar || onEdit}
-            title="Reactivar evento"
-            style={{
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: '8px',
-              color: '#334155',
-              fontSize: '12px',
-              fontWeight: 600,
-              height: '34px',
-              padding: '0 12px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              transition: 'all 0.12s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-          >
-            <Icon name="rotateCcw" size={13} color="#475569" strokeWidth={2.2} />
-            Reactivar
-          </button>
-        ) : (
-          canSendMessage && (
+        <div className="pv-lead-actions-row-2">
+          {lead.estado === 'perdida' ? (
             <button
               type="button"
-              onClick={onSendMessage}
-              title="Enviar mensaje recordatorio al vendedor"
+              onClick={onReactivar || onEdit}
+              title="Reactivar evento"
               style={{
-                background: '#ecfdf5',
-                border: '1px solid #a7f3d0',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
                 borderRadius: '8px',
-                color: '#059669',
+                color: '#334155',
                 fontSize: '12px',
-                fontWeight: 700,
+                fontWeight: 600,
                 height: '34px',
                 padding: '0 12px',
                 cursor: 'pointer',
@@ -1023,17 +946,49 @@ function LeadCard({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
-                boxShadow: '0 1px 2px rgba(5,150,105,0.08)',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                 transition: 'all 0.12s',
+                width: '100%',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#d1fae5'; e.currentTarget.style.borderColor = '#6ee7b7'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#ecfdf5'; e.currentTarget.style.borderColor = '#a7f3d0'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
             >
-              <Icon name="mail" size={13} color="#059669" strokeWidth={2.2} />
-              Mensaje
+              <Icon name="rotateCcw" size={13} color="#475569" strokeWidth={2.2} />
+              Reactivar
             </button>
-          )
-        )}
+          ) : (
+            canSendMessage && (
+              <button
+                type="button"
+                onClick={onSendMessage}
+                title="Enviar mensaje recordatorio al vendedor"
+                style={{
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: '8px',
+                  color: '#059669',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  height: '34px',
+                  padding: '0 12px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 1px 2px rgba(5,150,105,0.08)',
+                  transition: 'all 0.12s',
+                  width: '100%',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#d1fae5'; e.currentTarget.style.borderColor = '#6ee7b7'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#ecfdf5'; e.currentTarget.style.borderColor = '#a7f3d0'; }}
+              >
+                <Icon name="mail" size={13} color="#059669" strokeWidth={2.2} />
+                Mensaje
+              </button>
+            )
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1696,13 +1651,8 @@ export default function PosiblesVentasModule() {
       }}>
 
         {/* ── 1. ENCABEZADO MODERNO: PIPELINE ACTIVO + ACCIONES ── */}
-        <div style={{
-          padding: '16px 24px',
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div className="pv-header-container">
+          <div className="pv-header-wrap">
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
@@ -1726,7 +1676,7 @@ export default function PosiblesVentasModule() {
               </p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div className="pv-header-actions">
               <button
                 type="button"
                 onClick={exportToExcel}
@@ -1807,15 +1757,7 @@ export default function PosiblesVentasModule() {
 
         {/* ── 2. KPIS REDISEÑADOS: TARJETAS EN FILA HORIZONTAL ── */}
         {vista === 'activas' && (
-          <div style={{
-            padding: '12px 24px',
-            background: '#ffffff',
-            borderBottom: '1px solid #e2e8f0',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
-            gap: '10px',
-            flexShrink: 0,
-          }}>
+          <div className="pv-kpis-grid">
             <MetricCardClean
               label="TOTAL PROSPECTOS"
               value={stats.total}
@@ -1878,27 +1820,10 @@ export default function PosiblesVentasModule() {
         )}
 
         {/* ── 3. TOOLBAR: TABS TIPO CÁPSULA + VENDEDORES + SALONES + VISTA + BUSCADOR ── */}
-        <div style={{
-          padding: '12px 24px',
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          flexShrink: 0,
-        }}>
+        <div className="pv-toolbar-container">
           {/* Lado izquierdo: Tabs redondeados */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              background: '#f1f5f9',
-              borderRadius: '999px',
-              padding: '3px 4px',
-              gap: '2px',
-            }}>
+          <div className="pv-status-tabs-wrap">
+            <div className="pv-status-tabs-track">
               <button
                 type="button"
                 onClick={() => { setVista('activas'); setEstadoFilter('all'); }}
@@ -2009,133 +1934,135 @@ export default function PosiblesVentasModule() {
           </div>
 
           {/* Lado derecho: Vendedores dropdown + Salones dropdown + Vista List/Grid + Buscador */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-              <div style={{
-                position: 'absolute',
-                left: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                pointerEvents: 'none',
-              }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0d9488', border: '1.5px solid #fff' }} />
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', border: '1.5px solid #fff', marginLeft: '-3px' }} />
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8b5cf6', border: '1.5px solid #fff', marginLeft: '-3px' }} />
+          <div className="pv-filter-controls">
+            <div className="pv-filter-dropdowns-row">
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <div style={{
+                  position: 'absolute',
+                  left: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  pointerEvents: 'none',
+                }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0d9488', border: '1.5px solid #fff' }} />
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', border: '1.5px solid #fff', marginLeft: '-3px' }} />
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8b5cf6', border: '1.5px solid #fff', marginLeft: '-3px' }} />
+                </div>
+                <select
+                  value={vendedorFilter}
+                  onChange={e => setVendedorFilter(e.target.value)}
+                  style={{
+                    height: '34px',
+                    padding: '0 28px 0 34px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    background: '#ffffff',
+                    color: '#334155',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    appearance: 'none',
+                  }}
+                >
+                  <option value="all">Vendedores ({vendedores.length})</option>
+                  <option value="mine">👤 Mis asignaciones</option>
+                  {vendedores.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.fullName || v.name}
+                    </option>
+                  ))}
+                </select>
+                <span style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }}>
+                  <Icon name="chevronDown" size={13} color="#64748b" strokeWidth={2.4} />
+                </span>
               </div>
-              <select
-                value={vendedorFilter}
-                onChange={e => setVendedorFilter(e.target.value)}
-                style={{
-                  height: '34px',
-                  padding: '0 28px 0 34px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  background: '#ffffff',
-                  color: '#334155',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  appearance: 'none',
-                }}
-              >
-                <option value="all">Vendedores ({vendedores.length})</option>
-                <option value="mine">👤 Mis asignaciones</option>
-                {vendedores.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.fullName || v.name}
-                  </option>
-                ))}
-              </select>
-              <span style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }}>
-                <Icon name="chevronDown" size={13} color="#64748b" strokeWidth={2.4} />
-              </span>
+
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <span style={{ position: 'absolute', left: '10px', pointerEvents: 'none' }}>
+                  <Icon name="mapPin" size={13} color="#64748b" strokeWidth={2.2} />
+                </span>
+                <select
+                  value={salonFilter}
+                  onChange={e => setSalonFilter(e.target.value)}
+                  style={{
+                    height: '34px',
+                    padding: '0 28px 0 28px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    background: '#ffffff',
+                    color: '#334155',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    appearance: 'none',
+                    maxWidth: '180px',
+                  }}
+                >
+                  <option value="all">Todos los salones</option>
+                  {salones.map(s => {
+                    const name = typeof s === 'string' ? s : (s.nombre || s.name);
+                    return <option key={name} value={name}>{name}</option>;
+                  })}
+                </select>
+                <span style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }}>
+                  <Icon name="chevronDown" size={13} color="#64748b" strokeWidth={2.4} />
+                </span>
+              </div>
+
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: '#f1f5f9',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '2px',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode('list')}
+                  title="Vista de lista"
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: layoutMode === 'list' ? '#ffffff' : 'transparent',
+                    color: layoutMode === 'list' ? '#0f172a' : '#64748b',
+                    boxShadow: layoutMode === 'list' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Icon name="clipboard" size={13} strokeWidth={2.3} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode('grid')}
+                  title="Vista de cuadrícula"
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: layoutMode === 'grid' ? '#ffffff' : 'transparent',
+                    color: layoutMode === 'grid' ? '#0f172a' : '#64748b',
+                    boxShadow: layoutMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Icon name="barChart" size={13} strokeWidth={2.3} />
+                </button>
+              </div>
             </div>
 
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-              <span style={{ position: 'absolute', left: '10px', pointerEvents: 'none' }}>
-                <Icon name="mapPin" size={13} color="#64748b" strokeWidth={2.2} />
-              </span>
-              <select
-                value={salonFilter}
-                onChange={e => setSalonFilter(e.target.value)}
-                style={{
-                  height: '34px',
-                  padding: '0 28px 0 28px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  background: '#ffffff',
-                  color: '#334155',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  appearance: 'none',
-                  maxWidth: '180px',
-                }}
-              >
-                <option value="all">Todos los salones</option>
-                {salones.map(s => {
-                  const name = typeof s === 'string' ? s : (s.nombre || s.name);
-                  return <option key={name} value={name}>{name}</option>;
-                })}
-              </select>
-              <span style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }}>
-                <Icon name="chevronDown" size={13} color="#64748b" strokeWidth={2.4} />
-              </span>
-            </div>
-
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              background: '#f1f5f9',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              padding: '2px',
-            }}>
-              <button
-                type="button"
-                onClick={() => setLayoutMode('list')}
-                title="Vista de lista"
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: layoutMode === 'list' ? '#ffffff' : 'transparent',
-                  color: layoutMode === 'list' ? '#0f172a' : '#64748b',
-                  boxShadow: layoutMode === 'list' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <Icon name="clipboard" size={13} strokeWidth={2.3} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setLayoutMode('grid')}
-                title="Vista de cuadrícula"
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: layoutMode === 'grid' ? '#ffffff' : 'transparent',
-                  color: layoutMode === 'grid' ? '#0f172a' : '#64748b',
-                  boxShadow: layoutMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <Icon name="barChart" size={13} strokeWidth={2.3} />
-              </button>
-            </div>
-
-            <div style={{ position: 'relative', minWidth: '200px', display: 'flex', alignItems: 'center' }}>
+            <div className="pv-search-wrap">
               <span style={{ position: 'absolute', left: '10px', display: 'inline-flex', pointerEvents: 'none' }}>
                 <Icon name="search" size={13} color="#94a3b8" strokeWidth={2.3} />
               </span>
@@ -2182,7 +2109,7 @@ export default function PosiblesVentasModule() {
         )}
 
         {/* ── 5. LISTA PRINCIPAL DE TARJETAS DE EVENTOS ASIGNADOS ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px 24px', background: '#f8fafc' }}>
+        <div className="pv-leads-scroll-container">
           {vista === 'activas' ? (
             loading ? (
               <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
@@ -2444,7 +2371,7 @@ export default function PosiblesVentasModule() {
                   style={inputStyle} placeholder="Ej. Juan Pérez / Banco Industrial" autoFocus />
               </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="pv-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Teléfono</span>
                   <input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })}
@@ -2457,7 +2384,7 @@ export default function PosiblesVentasModule() {
                 </label>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="pv-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Fecha tentativa del evento</span>
                   <input type="date" value={form.fechaEvento} onChange={e => setForm({ ...form, fechaEvento: e.target.value })}
@@ -2668,100 +2595,6 @@ export default function PosiblesVentasModule() {
           </div>
         </div>
       )}
-
-      <style>{`
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        @media (max-width: 640px) {
-          .pv-module-wrapper { padding: 8px !important; }
-        }
-        @keyframes pv-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .pv-spin { animation: pv-spin 1s linear infinite; transform-origin: center; }
-        .pv-swal-title {
-          font-size: 19px !important;
-          font-weight: 800 !important;
-          color: #0f172a !important;
-        }
-        .pv-swal-html {
-          font-size: 13.5px !important;
-          color: #475569 !important;
-          line-height: 1.5 !important;
-          margin-top: 4px !important;
-        }
-        .pv-swal-confirm, .pv-swal-cancel {
-          font-size: 12.5px !important;
-          font-weight: 700 !important;
-          padding: 8px 16px !important;
-          border-radius: 8px !important;
-          border: none !important;
-          cursor: pointer !important;
-          margin: 0 4px !important;
-        }
-        .pv-swal-confirm {
-          background: linear-gradient(135deg, #14b8a6, #0f766e) !important;
-          color: #fff !important;
-        }
-        .pv-swal-cancel {
-          background: #fff !important;
-          color: #475569 !important;
-          border: 1.5px solid #cbd5e1 !important;
-        }
-        .pv-swal-popup {
-          border-radius: 14px !important;
-          border: 1px solid #e2e8f0 !important;
-          box-shadow: 0 12px 36px rgba(15, 23, 42, 0.12) !important;
-          padding: 28px 24px 20px !important;
-        }
-        .pv-swal-popup .swal2-title {
-          padding-top: 0 !important;
-        }
-        .pv-swal-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 5px 12px;
-          background: #f1f5f9;
-          border-radius: 999px;
-          font-size: 11.5px;
-          color: #475569;
-          margin-bottom: 12px;
-          font-weight: 500;
-          line-height: 1.2;
-        }
-        .pv-swal-pill strong {
-          color: #0f172a;
-          font-weight: 700;
-        }
-        .pv-swal-pill svg {
-          flex-shrink: 0;
-          color: #7c3aed;
-        }
-        .pv-swal-counter {
-          font-size: 10.5px;
-          color: #94a3b8;
-          text-align: right;
-          margin-top: 6px;
-          font-weight: 500;
-          font-variant-numeric: tabular-nums;
-        }
-        .swal2-textarea {
-          border: 1.5px solid #cbd5e1 !important;
-          border-radius: 10px !important;
-          padding: 12px !important;
-          transition: border-color 0.15s, box-shadow 0.15s !important;
-          margin: 0 !important;
-        }
-        .swal2-textarea:focus {
-          border-color: #14b8a6 !important;
-          box-shadow: 0 0 0 3px rgba(20,184,166,0.15) !important;
-          outline: none !important;
-        }
-        .swal2-loader {
-          border-color: #14b8a6 transparent #14b8a6 transparent !important;
-        }
-      `}</style>
     </div>
   );
 }

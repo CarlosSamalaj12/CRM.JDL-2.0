@@ -102,6 +102,51 @@ function IconCheckCircle({ size = 14, color = 'currentColor' }) {
   );
 }
 
+function IconLayers({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
+function IconEventSparkles({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <circle cx="12" cy="15" r="1.5" fill={color} />
+    </svg>
+  );
+}
+
+function IconBed({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7v14M21 7v14M3 13h18M6 13V9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4" />
+      <circle cx="9" cy="10" r="1" fill={color} />
+    </svg>
+  );
+}
+
+function isHabitacionInStatusFilter(habEstado, statusFilter) {
+  if (!statusFilter || statusFilter.size === 0) return true;
+  const raw = String(habEstado || '').trim().toLowerCase();
+  for (const sf of statusFilter) {
+    const s = String(sf).trim().toLowerCase();
+    if (raw === s) return true;
+    if (s === 'confirmado' && (raw === 'confirmada' || raw === 'confirmado')) return true;
+    if (s === 'confirmada' && (raw === 'confirmada' || raw === 'confirmado')) return true;
+    if (s === 'pre reserva' && (raw === 'pre reserva' || raw === 'pre-reserva' || raw === 'prereserva')) return true;
+    if (s === 'cancelado' && (raw === 'cancelada' || raw === 'cancelado')) return true;
+  }
+  return false;
+}
+
 function getLocalDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -196,7 +241,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     (async () => {
       try {
         const [habRes, metasRes] = await Promise.all([
-          getHabitacionesApi({ desde: fromDate, hasta: toDate, estado: 'Confirmada' }),
+          getHabitacionesApi({ desde: fromDate, hasta: toDate }),
           getMetasHabitacionesApi()
         ]);
         if (!isCancelled) {
@@ -347,15 +392,28 @@ export default function ReportsProyeccionMetas({ onClose }) {
       }
     }
 
-    // Acumular ventas de habitaciones por vendedor
+    // Acumular ventas y potencial de habitaciones por vendedor
     const roomSalesByUser = {};
     const roomCountByUser = {};
+    const roomPotentialByUser = {};
+    const roomPotentialCountByUser = {};
+
     for (const hab of habitacionesList) {
       const uId = String(hab.id_vendedor || '').trim();
       if (!uId) continue;
+      if (usersWithGoalIds.size > 0 && !usersWithGoalIds.has(uId)) continue;
+      if (userFilter.size > 0 && !userFilter.has(uId)) continue;
       const m = Number(hab.monto_total || 0);
-      roomSalesByUser[uId] = (roomSalesByUser[uId] || 0) + m;
-      roomCountByUser[uId] = (roomCountByUser[uId] || 0) + 1;
+      const habEst = String(hab.estado || '').trim();
+      if (isHabitacionInStatusFilter(habEst, statusFilter)) {
+        roomSalesByUser[uId] = (roomSalesByUser[uId] || 0) + m;
+        roomCountByUser[uId] = (roomCountByUser[uId] || 0) + 1;
+      }
+      const rawEst = habEst.toLowerCase();
+      if (rawEst.includes('pre') || (rawEst.includes('reserva') && !rawEst.includes('confirm'))) {
+        roomPotentialByUser[uId] = (roomPotentialByUser[uId] || 0) + m;
+        roomPotentialCountByUser[uId] = (roomPotentialCountByUser[uId] || 0) + 1;
+      }
     }
 
     const rows = [];
@@ -368,17 +426,33 @@ export default function ReportsProyeccionMetas({ onClose }) {
 
       let currentSales = 0;
       let eventCount = 0;
+      let userPotential = 0;
+      let userPotentialCount = 0;
+
       if (projectionMode === 'eventos') {
         currentSales = salesByUser[userId] || 0;
         eventCount = eventsByUser[userId] || 0;
+        userPotential = potentialByUser[userId] || 0;
+        userPotentialCount = potentialEventsByUser[userId] || 0;
       } else if (projectionMode === 'habitaciones') {
         currentSales = roomSalesByUser[userId] || 0;
         eventCount = roomCountByUser[userId] || 0;
+        userPotential = roomPotentialByUser[userId] || 0;
+        userPotentialCount = roomPotentialCountByUser[userId] || 0;
       } else { // 'consolidado'
         currentSales = (salesByUser[userId] || 0) + (roomSalesByUser[userId] || 0);
         eventCount = (eventsByUser[userId] || 0) + (roomCountByUser[userId] || 0);
+        userPotential = (potentialByUser[userId] || 0) + (roomPotentialByUser[userId] || 0);
+        userPotentialCount = (potentialEventsByUser[userId] || 0) + (roomPotentialCountByUser[userId] || 0);
       }
-      const tiers = Array.isArray(user.goalTiers) ? [...user.goalTiers].filter(t => t.amount > 0).sort((a, b) => a.amount - b.amount) : [];
+
+      let tiers = [];
+      if (projectionMode === 'habitaciones' && habitacionesMetasMap.has(userId) && habitacionesMetasMap.get(userId) > 0) {
+        const habTarget = habitacionesMetasMap.get(userId);
+        tiers = [{ name: 'Meta Habitaciones', amount: habTarget, percentage: 100 }];
+      } else {
+        tiers = Array.isArray(user.goalTiers) ? [...user.goalTiers].filter(t => t.amount > 0).sort((a, b) => a.amount - b.amount) : [];
+      }
       const hasTiers = tiers.length > 0;
 
       // Find current tier and next tier
@@ -427,8 +501,8 @@ export default function ReportsProyeccionMetas({ onClose }) {
         pctToNext,
         gapStatus: neededForNext === 0 ? 'complete' : (dailyNeeded <= dailyAvg ? 'on_track' : 'needs_boost'),
         potentialCommissionNext,
-        potential: potentialByUser[userId] || 0,  // dinero en pendiente (4 estados)
-        potentialEventCount: potentialEventsByUser[userId] || 0,
+        potential: userPotential,
+        potentialEventCount: userPotentialCount,
       });
     }
 
@@ -440,7 +514,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     });
 
     return { userRows: rows };
-  }, [events, monthList, users, periodInfo, userFilter, statusFilter, usersWithGoalIds]);
+  }, [events, monthList, users, periodInfo, userFilter, statusFilter, usersWithGoalIds, fromDate, toDate, projectionMode, habitacionesList, habitacionesMetasMap]);
 
   const { userRows } = projectionData;
 
@@ -507,38 +581,68 @@ export default function ReportsProyeccionMetas({ onClose }) {
 
     // Usar el set compartido de usersWithGoalIds (definido fuera)
 
-    const seenForMonths = new Set();
-    for (const ev of events) {
-      const reservationKey = ev.groupId || ev.id;
-      if (reservationKey) {
-        if (seenForMonths.has(reservationKey)) continue;
-        seenForMonths.add(reservationKey);
+    if (projectionMode !== 'habitaciones' && events) {
+      const seenForMonths = new Set();
+      for (const ev of events) {
+        const reservationKey = ev.groupId || ev.id;
+        if (reservationKey) {
+          if (seenForMonths.has(reservationKey)) continue;
+          seenForMonths.add(reservationKey);
+        }
+
+        const financialMeta = getEventSeriesFinancialMeta(ev, events);
+        const primaryEvent = financialMeta.primaryEvent || ev;
+        const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
+        if (!d || d < fromDate || d > toDate) continue;
+
+        const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
+        // Solo contar eventos de usuarios con meta habilitada
+        if (!usersWithGoalIds.has(userId)) continue;
+        if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+
+        const quote = primaryEvent?.quote || ev?.quote;
+        const amount = Math.max(0, getQuoteTotalGtq(quote));
+        if (amount <= 0) continue;
+
+        const status = String(primaryEvent?.status || ev?.status || '').trim();
+        const monthKey = d.substring(0, 7);
+        if (monthActual[monthKey] === undefined) continue;
+
+        if (statusFilter.has(status)) {
+          monthActual[monthKey] += amount;
+          monthCounts.actual += 1;
+        } else if (POTENTIAL_STATUSES.includes(status)) {
+          monthPotential[monthKey] += amount;
+          monthCounts.potential += 1;
+        }
       }
+    }
 
-      const financialMeta = getEventSeriesFinancialMeta(ev, events);
-      const primaryEvent = financialMeta.primaryEvent || ev;
-      const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
-      if (!d || d < fromDate || d > toDate) continue;
+    if (projectionMode !== 'eventos' && habitacionesList) {
+      for (const hab of habitacionesList) {
+        const userId = String(hab.id_vendedor || '').trim();
+        if (!usersWithGoalIds.has(userId)) continue;
+        if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
-      const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
-      // Solo contar eventos de usuarios con meta habilitada
-      if (!usersWithGoalIds.has(userId)) continue;
-      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+        const d = String(hab.fecha_check_in || hab.fecha_checkin || hab.fecha_inicio || hab.fecha_reserva || '').trim().slice(0, 10);
+        if (!d || d < fromDate || d > toDate) continue;
 
-      const quote = primaryEvent?.quote || ev?.quote;
-      const amount = Math.max(0, getQuoteTotalGtq(quote));
-      if (amount <= 0) continue;
+        const monthKey = d.substring(0, 7);
+        if (monthActual[monthKey] === undefined) continue;
 
-      const status = String(primaryEvent?.status || ev?.status || '').trim();
-      const monthKey = d.substring(0, 7);
-      if (monthActual[monthKey] === undefined) continue;
+        const amount = Number(hab.monto_total || 0);
+        if (amount <= 0) continue;
 
-      if (statusFilter.has(status)) {
-        monthActual[monthKey] += amount;
-        monthCounts.actual += 1;
-      } else if (POTENTIAL_STATUSES.includes(status)) {
-        monthPotential[monthKey] += amount;
-        monthCounts.potential += 1;
+        const habEst = String(hab.estado || '').trim();
+        if (isHabitacionInStatusFilter(habEst, statusFilter)) {
+          monthActual[monthKey] += amount;
+          monthCounts.actual += 1;
+        }
+        const rawEst = habEst.toLowerCase();
+        if (rawEst.includes('pre') || (rawEst.includes('reserva') && !rawEst.includes('confirm'))) {
+          monthPotential[monthKey] += amount;
+          monthCounts.potential += 1;
+        }
       }
     }
 
@@ -561,7 +665,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const crecimientoPct = totalActual > 0 ? (totalPotential / totalActual) * 100 : 0;
 
     return { months, totalActual, totalPotential, coveragePct, crecimientoPct, monthCounts };
-  }, [events, monthList, userFilter, statusFilter, fromDate, toDate, usersWithGoalIds]);
+  }, [events, monthList, userFilter, statusFilter, fromDate, toDate, usersWithGoalIds, projectionMode, habitacionesList]);
 
   // ── Tooltip data ──
   const hoveredRow = useMemo(
@@ -643,48 +747,76 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const computeTeamData = useCallback((teamUsers, goalIdsSet) => {
     const goalIds = goalIdsSet || usersWithGoalIds;
     const emptyPotential = { months: [], totalActual: 0, totalPotential: 0, coveragePct: 0, crecimientoPct: 0, monthCounts: { actual: 0, potential: 0 } };
-    if (!events || !monthList.length || !teamUsers || teamUsers.length === 0) {
+    if (!teamUsers || teamUsers.length === 0) {
       return { userRows: [], potentialData: emptyPotential, allTiers: [], maxBarAmount: 1 };
     }
 
-    // Aggregate sales + potential by user
+    const teamUserIds = new Set(teamUsers.map(u => String(u.id)));
+
+    // Aggregate sales + potential by user from events
     const salesByUser = {};
     const eventsByUser = {};
     const potentialByUser = {};
     const potentialEventsByUser = {};
     const seenReservations = new Set();
     
-    for (const ev of events) {
-      const reservationKey = ev.groupId || ev.id;
-      if (reservationKey) {
-        if (seenReservations.has(reservationKey)) continue;
-        seenReservations.add(reservationKey);
+    if (events && projectionMode !== 'habitaciones') {
+      for (const ev of events) {
+        const reservationKey = ev.groupId || ev.id;
+        if (reservationKey) {
+          if (seenReservations.has(reservationKey)) continue;
+          seenReservations.add(reservationKey);
+        }
+
+        const financialMeta = getEventSeriesFinancialMeta(ev, events);
+        const primaryEvent = financialMeta.primaryEvent || ev;
+        const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
+        if (!d || d < fromDate || d > toDate) continue;
+
+        const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
+        // Solo contar eventos de usuarios con meta habilitada
+        if (!goalIds.has(userId) || !teamUserIds.has(userId)) continue;
+        if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+
+        const quote = primaryEvent?.quote || ev?.quote;
+        const amount = Math.max(0, getQuoteTotalGtq(quote));
+        if (amount <= 0) continue;
+
+        const status = String(primaryEvent?.status || ev?.status || '').trim();
+
+        if (statusFilter.has(status)) {
+          salesByUser[userId] = (salesByUser[userId] || 0) + amount;
+          eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
+        }
+        if (POTENTIAL_STATUSES.includes(status)) {
+          potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
+          potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
+        }
       }
+    }
 
-      const financialMeta = getEventSeriesFinancialMeta(ev, events);
-      const primaryEvent = financialMeta.primaryEvent || ev;
-      const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
-      if (!d || d < fromDate || d > toDate) continue;
+    // Room sales & potential for team
+    const roomSalesByUser = {};
+    const roomCountByUser = {};
+    const roomPotentialByUser = {};
+    const roomPotentialCountByUser = {};
 
-      const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
-      // Solo contar eventos de usuarios con meta habilitada
-      if (!goalIds.has(userId)) continue;
-      if (!userId) continue;
-      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
-
-      const quote = primaryEvent?.quote || ev?.quote;
-      const amount = Math.max(0, getQuoteTotalGtq(quote));
-      if (amount <= 0) continue;
-
-      const status = String(primaryEvent?.status || ev?.status || '').trim();
-
-      if (statusFilter.has(status)) {
-        salesByUser[userId] = (salesByUser[userId] || 0) + amount;
-        eventsByUser[userId] = (eventsByUser[userId] || 0) + 1;
-      }
-      if (POTENTIAL_STATUSES.includes(status)) {
-        potentialByUser[userId] = (potentialByUser[userId] || 0) + amount;
-        potentialEventsByUser[userId] = (potentialEventsByUser[userId] || 0) + 1;
+    if (projectionMode !== 'eventos' && habitacionesList) {
+      for (const hab of habitacionesList) {
+        const uId = String(hab.id_vendedor || '').trim();
+        if (!uId || !teamUserIds.has(uId) || !goalIds.has(uId)) continue;
+        if (userFilter.size > 0 && !userFilter.has(uId)) continue;
+        const m = Number(hab.monto_total || 0);
+        const habEst = String(hab.estado || '').trim();
+        if (isHabitacionInStatusFilter(habEst, statusFilter)) {
+          roomSalesByUser[uId] = (roomSalesByUser[uId] || 0) + m;
+          roomCountByUser[uId] = (roomCountByUser[uId] || 0) + 1;
+        }
+        const rawEst = habEst.toLowerCase();
+        if (rawEst.includes('pre') || (rawEst.includes('reserva') && !rawEst.includes('confirm'))) {
+          roomPotentialByUser[uId] = (roomPotentialByUser[uId] || 0) + m;
+          roomPotentialCountByUser[uId] = (roomPotentialCountByUser[uId] || 0) + 1;
+        }
       }
     }
 
@@ -693,9 +825,36 @@ export default function ReportsProyeccionMetas({ onClose }) {
     for (const user of teamUsers) {
       const userId = String(user.id).trim();
       if (!userId) continue;
-      const currentSales = salesByUser[userId] || 0;
-      const eventCount = eventsByUser[userId] || 0;
-      const tiers = Array.isArray(user.goalTiers) ? [...user.goalTiers].filter(t => t.amount > 0).sort((a, b) => a.amount - b.amount) : [];
+
+      let currentSales = 0;
+      let eventCount = 0;
+      let userPotential = 0;
+      let userPotentialCount = 0;
+
+      if (projectionMode === 'eventos') {
+        currentSales = salesByUser[userId] || 0;
+        eventCount = eventsByUser[userId] || 0;
+        userPotential = potentialByUser[userId] || 0;
+        userPotentialCount = potentialEventsByUser[userId] || 0;
+      } else if (projectionMode === 'habitaciones') {
+        currentSales = roomSalesByUser[userId] || 0;
+        eventCount = roomCountByUser[userId] || 0;
+        userPotential = roomPotentialByUser[userId] || 0;
+        userPotentialCount = roomPotentialCountByUser[userId] || 0;
+      } else { // 'consolidado'
+        currentSales = (salesByUser[userId] || 0) + (roomSalesByUser[userId] || 0);
+        eventCount = (eventsByUser[userId] || 0) + (roomCountByUser[userId] || 0);
+        userPotential = (potentialByUser[userId] || 0) + (roomPotentialByUser[userId] || 0);
+        userPotentialCount = (potentialEventsByUser[userId] || 0) + (roomPotentialCountByUser[userId] || 0);
+      }
+
+      let tiers = [];
+      if (projectionMode === 'habitaciones' && habitacionesMetasMap.has(userId) && habitacionesMetasMap.get(userId) > 0) {
+        const habTarget = habitacionesMetasMap.get(userId);
+        tiers = [{ name: 'Meta Habitaciones', amount: habTarget, percentage: 100 }];
+      } else {
+        tiers = Array.isArray(user.goalTiers) ? [...user.goalTiers].filter(t => t.amount > 0).sort((a, b) => a.amount - b.amount) : [];
+      }
       const hasTiers = tiers.length > 0;
 
       let reachedTier = null;
@@ -730,8 +889,8 @@ export default function ReportsProyeccionMetas({ onClose }) {
         neededForNext, dailyNeeded, canReachNext, pctToNext,
         gapStatus: neededForNext === 0 ? 'complete' : (dailyNeeded <= dailyAvg ? 'on_track' : 'needs_boost'),
         potentialCommissionNext,
-        potential: potentialByUser[userId] || 0,
-        potentialEventCount: potentialEventsByUser[userId] || 0,
+        potential: userPotential,
+        potentialEventCount: userPotentialCount,
       });
     }
     rows.sort((a, b) => {
@@ -742,9 +901,8 @@ export default function ReportsProyeccionMetas({ onClose }) {
 
     // Tiers únicos del equipo
     const tierMap = new Map();
-    for (const u of teamUsers) {
-      const tiers = Array.isArray(u.goalTiers) ? u.goalTiers : [];
-      for (const t of tiers) {
+    for (const r of rows) {
+      for (const t of (r.tiers || [])) {
         if (t && t.amount > 0) {
           const key = `${t.name || 'Tier'}_${t.amount}`;
           if (!tierMap.has(key)) {
@@ -764,51 +922,80 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const maxTier = allTiers.length > 0 ? Math.max(...allTiers.map(t => t.amount)) : 0;
     const maxBarAmount = Math.max(maxSalesTeam, maxTier) * 1.1 || 1;
 
-    // Potencial por mes del equipo (usar el MISMO set de dedup que salesByUser para consistencia)
-    const teamUserIds = new Set(teamUsers.map(u => String(u.id)));
+    // Potencial por mes del equipo
     const monthActual = {};
     const monthPotential = {};
     const monthCounts = { actual: 0, potential: 0 };
-    for (const m of monthList) {
+    for (const m of (monthList || [])) {
       monthActual[m.key] = 0;
       monthPotential[m.key] = 0;
     }
-    // Re-correr eventos con el MISMO dedup y filtro usado para salesByUser,
-    // pero SÓLO para los miembros de ESTE equipo (no todos los goalIds).
-    const seenForMonths = new Set();
-    for (const ev of events) {
-      const reservationKey = ev.groupId || ev.id;
-      if (reservationKey) {
-        if (seenForMonths.has(reservationKey)) continue;
-        seenForMonths.add(reservationKey);
-      }
 
-      const financialMeta = getEventSeriesFinancialMeta(ev, events);
-      const primaryEvent = financialMeta.primaryEvent || ev;
-      const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
-      if (!d || d < fromDate || d > toDate) continue;
+    if (events && projectionMode !== 'habitaciones') {
+      const seenForMonths = new Set();
+      for (const ev of events) {
+        const reservationKey = ev.groupId || ev.id;
+        if (reservationKey) {
+          if (seenForMonths.has(reservationKey)) continue;
+          seenForMonths.add(reservationKey);
+        }
 
-      const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
-      if (!teamUserIds.has(userId)) continue;
-      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+        const financialMeta = getEventSeriesFinancialMeta(ev, events);
+        const primaryEvent = financialMeta.primaryEvent || ev;
+        const d = String(financialMeta.startDate || primaryEvent?.eventDateStart || primaryEvent?.date || ev?.eventDateStart || ev?.date || '').trim();
+        if (!d || d < fromDate || d > toDate) continue;
 
-      const quote = primaryEvent?.quote || ev?.quote;
-      const amount = Math.max(0, getQuoteTotalGtq(quote));
-      if (amount <= 0) continue;
+        const userId = String(primaryEvent?.userId || ev?.userId || '').trim();
+        if (!teamUserIds.has(userId)) continue;
+        if (userFilter.size > 0 && !userFilter.has(userId)) continue;
 
-      const status = String(primaryEvent?.status || ev?.status || '').trim();
-      const monthKey = d.substring(0, 7);
-      if (monthActual[monthKey] === undefined) continue;
-      
-      if (statusFilter.has(status)) {
-        monthActual[monthKey] += amount;
-        monthCounts.actual += 1;
-      } else if (POTENTIAL_STATUSES.includes(status)) {
-        monthPotential[monthKey] += amount;
-        monthCounts.potential += 1;
+        const quote = primaryEvent?.quote || ev?.quote;
+        const amount = Math.max(0, getQuoteTotalGtq(quote));
+        if (amount <= 0) continue;
+
+        const status = String(primaryEvent?.status || ev?.status || '').trim();
+        const monthKey = d.substring(0, 7);
+        if (monthActual[monthKey] === undefined) continue;
+        
+        if (statusFilter.has(status)) {
+          monthActual[monthKey] += amount;
+          monthCounts.actual += 1;
+        } else if (POTENTIAL_STATUSES.includes(status)) {
+          monthPotential[monthKey] += amount;
+          monthCounts.potential += 1;
+        }
       }
     }
-    const months = monthList.map(m => {
+
+    if (projectionMode !== 'eventos' && habitacionesList) {
+      for (const hab of habitacionesList) {
+        const userId = String(hab.id_vendedor || '').trim();
+        if (!teamUserIds.has(userId)) continue;
+        if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+
+        const d = String(hab.fecha_check_in || hab.fecha_checkin || hab.fecha_inicio || hab.fecha_reserva || '').trim().slice(0, 10);
+        if (!d || d < fromDate || d > toDate) continue;
+
+        const monthKey = d.substring(0, 7);
+        if (monthActual[monthKey] === undefined) continue;
+
+        const amount = Number(hab.monto_total || 0);
+        if (amount <= 0) continue;
+
+        const habEst = String(hab.estado || '').trim();
+        if (isHabitacionInStatusFilter(habEst, statusFilter)) {
+          monthActual[monthKey] += amount;
+          monthCounts.actual += 1;
+        }
+        const rawEst = habEst.toLowerCase();
+        if (rawEst.includes('pre') || (rawEst.includes('reserva') && !rawEst.includes('confirm'))) {
+          monthPotential[monthKey] += amount;
+          monthCounts.potential += 1;
+        }
+      }
+    }
+
+    const months = (monthList || []).map(m => {
       const actual = monthActual[m.key] || 0;
       const potential = monthPotential[m.key] || 0;
       return { ...m, actual, potential, total: actual + potential, ratio: actual + potential > 0 ? (actual / (actual + potential)) * 100 : 0 };
@@ -821,7 +1008,7 @@ export default function ReportsProyeccionMetas({ onClose }) {
     const potentialData = { months, totalActual, totalPotential, coveragePct, crecimientoPct, monthCounts };
 
     return { userRows: rows, potentialData, allTiers, maxBarAmount };
-  }, [events, monthList, fromDate, toDate, userFilter, statusFilter, periodInfo, usersWithGoalIds]);
+  }, [events, monthList, fromDate, toDate, userFilter, statusFilter, periodInfo, usersWithGoalIds, projectionMode, habitacionesList, habitacionesMetasMap]);
 
   // ── Agrupa usuarios por equipo y calcula proyección por equipo ──
   const teamProjections = useMemo(() => {
@@ -1060,11 +1247,13 @@ th.right{text-align:right}</style></head><body>
             <div className="reports-subtitle">¿Cuánto necesita vender cada vendedor para alcanzar el siguiente nivel?</div>
           </div>
         </div>
-        <ReportInfo reportKey="proyeccion" />
-        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <IconChevronLeft size={16} />
-          Volver
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ReportInfo reportKey="proyeccion" />
+          <button className="reports-btn-back btn-exit" type="button" onClick={onClose} title="Volver a la selección de reportes">
+            <IconChevronLeft size={16} />
+            <span>Volver a Reportes</span>
+          </button>
+        </div>
       </div>
 
       <div className="reports-page-body">
@@ -1212,183 +1401,159 @@ th.right{text-align:right}</style></head><body>
             </div>
           </div>
 
-          {/* Toolbar */}
-          <div className="reports-toolbar" style={{ gap: '12px', padding: '12px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="preset-btn"
-                onClick={() => setPreset('thisMonth')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
-              >
-                Este Mes
-              </button>
-              <button
-                type="button"
-                className="preset-btn"
-                onClick={() => setPreset('lastMonth')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
-              >
-                Mes Anterior
-              </button>
-              <button
-                type="button"
-                className="preset-btn"
-                onClick={() => setPreset('last3Months')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
-              >
-                Últimos 3M
-              </button>
-              <button
-                type="button"
-                className="preset-btn"
-                onClick={() => setPreset('year')}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
-              >
-                Año
-              </button>
+          {/* Toolbar de 2 filas con diseño ejecutivo y soporte responsivo móvil */}
+          <div className="reports-toolbar reports-toolbar--proyeccion">
+            {/* Fila 1: Presets rápidos (izquierda) + Conmutador de Modo Segmentado y Fechas inline (derecha) */}
+            <div className="proyeccion-row-1">
+              {/* Presets */}
+              <div className="proyeccion-presets-group">
+                <button
+                  type="button"
+                  className="preset-btn proyeccion-preset-btn"
+                  onClick={() => setPreset('thisMonth')}
+                >
+                  Este Mes
+                </button>
+                <button
+                  type="button"
+                  className="preset-btn proyeccion-preset-btn"
+                  onClick={() => setPreset('lastMonth')}
+                >
+                  Mes Anterior
+                </button>
+                <button
+                  type="button"
+                  className="preset-btn proyeccion-preset-btn"
+                  onClick={() => setPreset('last3Months')}
+                >
+                  Últimos 3M
+                </button>
+                <button
+                  type="button"
+                  className="preset-btn proyeccion-preset-btn"
+                  onClick={() => setPreset('year')}
+                >
+                  Año
+                </button>
+              </div>
+
+              {/* Conmutador Segmentado de Proyección + Fechas */}
+              <div className="proyeccion-modes-dates-wrap">
+                <div className="proyeccion-segmented-container">
+                  <button
+                    type="button"
+                    className={`proyeccion-segmented-btn proyeccion-segmented-btn--consolidado ${projectionMode === 'consolidado' ? 'active' : ''}`}
+                    onClick={() => setProjectionMode('consolidado')}
+                    title="Ver proyección consolidada (Eventos + Habitaciones)"
+                  >
+                    <IconLayers size={14} color={projectionMode === 'consolidado' ? '#ffffff' : '#2563eb'} />
+                    <span>Consolidado</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`proyeccion-segmented-btn proyeccion-segmented-btn--eventos ${projectionMode === 'eventos' ? 'active' : ''}`}
+                    onClick={() => setProjectionMode('eventos')}
+                    title="Ver proyección únicamente de Eventos"
+                  >
+                    <IconEventSparkles size={14} color={projectionMode === 'eventos' ? '#ffffff' : '#7c3aed'} />
+                    <span><span className="proyeccion-desktop-prefix">Solo </span>Eventos</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`proyeccion-segmented-btn proyeccion-segmented-btn--habitaciones ${projectionMode === 'habitaciones' ? 'active' : ''}`}
+                    onClick={() => setProjectionMode('habitaciones')}
+                    title="Ver proyección únicamente de Habitaciones"
+                  >
+                    <IconBed size={14} color={projectionMode === 'habitaciones' ? '#ffffff' : '#059669'} />
+                    <span><span className="proyeccion-desktop-prefix">Solo </span>Habitaciones</span>
+                  </button>
+                </div>
+
+                <div className="proyeccion-desktop-divider" />
+
+                <div className="proyeccion-dates-row">
+                  <div className="proyeccion-date-field">
+                    <span className="proyeccion-field-label">Desde</span>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={e => setFromDate(e.target.value)}
+                      className="proyeccion-date-input"
+                    />
+                  </div>
+                  <div className="proyeccion-date-field">
+                    <span className="proyeccion-field-label">Hasta</span>
+                    <input
+                      type="date"
+                      value={toDate}
+                      onChange={e => setToDate(e.target.value)}
+                      className="proyeccion-date-input"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Conmutador de Proyección de Metas */}
-            <div style={{
-              display: 'inline-flex',
-              background: '#f1f5f9',
-              padding: '3px',
-              borderRadius: '10px',
-              border: '1px solid #e2e8f0',
-              gap: '2px'
-            }}>
-              <button
-                type="button"
-                onClick={() => setProjectionMode('consolidado')}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  border: 'none',
-                  background: projectionMode === 'consolidado' ? '#ffffff' : 'transparent',
-                  color: projectionMode === 'consolidado' ? '#0f172a' : '#64748b',
-                  boxShadow: projectionMode === 'consolidado' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Consolidado
-              </button>
-              <button
-                type="button"
-                onClick={() => setProjectionMode('eventos')}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  border: 'none',
-                  background: projectionMode === 'eventos' ? '#ffffff' : 'transparent',
-                  color: projectionMode === 'eventos' ? '#2563eb' : '#64748b',
-                  boxShadow: projectionMode === 'eventos' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Solo Eventos
-              </button>
-              <button
-                type="button"
-                onClick={() => setProjectionMode('habitaciones')}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  border: 'none',
-                  background: projectionMode === 'habitaciones' ? '#ffffff' : 'transparent',
-                  color: projectionMode === 'habitaciones' ? '#059669' : '#64748b',
-                  boxShadow: projectionMode === 'habitaciones' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Solo Habitaciones
-              </button>
-            </div>
+            {/* Fila 2: Filtros Vendedor + Estado (izquierda) y Botones de Exportar (derecha) */}
+            <div className="proyeccion-row-2">
+              <div className="proyeccion-filters-group">
+                {/* Filtro por vendedor */}
+                <div className="proyeccion-filter-item">
+                  <span className="proyeccion-field-label">VENDEDOR:</span>
+                  <MultiSelect
+                    selected={userFilter}
+                    onChange={setUserFilter}
+                    options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || String(u.id) }))}
+                    placeholder="Vendedor"
+                    emptyLabel="Todos"
+                    searchable
+                    hideLabel
+                    minWidth={200}
+                    width={220}
+                    className="proyeccion-multiselect"
+                    triggerStyle={{ height: '38px', minHeight: '38px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  />
+                </div>
 
-            <div style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 4px' }} />
+                {/* Filtro por estado */}
+                <div className="proyeccion-filter-item">
+                  <span className="proyeccion-field-label">ESTADO:</span>
+                  <MultiSelect
+                    selected={statusFilter}
+                    onChange={setStatusFilter}
+                    options={ALL_STATUSES.map(s => ({ value: s, label: s, color: STATUS_COLORS[s]?.border || '#64748b' }))}
+                    placeholder="Estado"
+                    emptyLabel="Todos los estados"
+                    hideLabel
+                    minWidth={220}
+                    width={240}
+                    className="proyeccion-multiselect"
+                    triggerStyle={{ height: '38px', minHeight: '38px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  />
+                </div>
+              </div>
 
-            <label className="field" style={{ flex: '0 0 142px' }}>
-              <span>Desde</span>
-              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
-            </label>
-            <label className="field" style={{ flex: '0 0 142px' }}>
-              <span>Hasta</span>
-              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
-            </label>
-
-            {/* Filtro por vendedor */}
-            <div className="field" style={{ minWidth: 160 }}>
-              <MultiSelect
-                selected={userFilter}
-                onChange={setUserFilter}
-                options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || String(u.id) }))}
-                placeholder="Vendedor"
-                emptyLabel="Todos"
-                searchable
-              />
-            </div>
-            {/* Status dropdown */}
-            <div className="field" style={{ minWidth: 200 }}>
-              <MultiSelect
-                selected={statusFilter}
-                onChange={setStatusFilter}
-                options={ALL_STATUSES.map(s => ({ value: s, label: s, color: STATUS_COLORS[s]?.border || '#64748b' }))}
-                placeholder="Estado"
-                emptyLabel="Todos los estados"
-              />
-            </div>
-
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {/* Export PDF */}
-              <button type="button" onClick={handleExportPDF} disabled={pdfLoading} style={{
-                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-                borderRadius: '8px', border: '1.5px solid #dc2626',
-                background: pdfLoading ? '#fca5a5' : '#dc2626', color: '#fff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '5px',
-                transition: 'all 0.15s ease',
-                opacity: pdfLoading ? 0.7 : 1,
-              }}
-                onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.borderColor = '#b91c1c'; }}}
-                onMouseLeave={e => { if (!pdfLoading) { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}}
-              >
-                <IconDownload size={14} color="#fff" />
-                {pdfLoading ? 'Generando...' : 'Exportar PDF'}
-              </button>
-              <button type="button" onClick={handleExportExcel} style={{
-                fontSize: '11px', fontWeight: 800, padding: '7px 14px',
-                borderRadius: '8px', border: '1.5px solid #16a34a',
-                background: '#16a34a', color: '#fff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '5px',
-                transition: 'all 0.15s ease',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.borderColor = '#15803d'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.borderColor = '#16a34a'; }}
-              >
-                <IconDownload size={14} color="#fff" />
-                Exportar CSV
-              </button>
+              {/* Botones de Exportar alineados a la derecha */}
+              <div className="proyeccion-export-group">
+                <button
+                  type="button"
+                  className="proyeccion-btn-pdf"
+                  onClick={handleExportPDF}
+                  disabled={pdfLoading}
+                  style={{ opacity: pdfLoading ? 0.7 : 1 }}
+                >
+                  <IconDownload size={14} color="#ffffff" />
+                  <span>{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="proyeccion-btn-csv"
+                  onClick={handleExportExcel}
+                >
+                  <IconDownload size={14} color="#ffffff" />
+                  <span>Exportar CSV</span>
+                </button>
+              </div>
             </div>
           </div>
         </section>

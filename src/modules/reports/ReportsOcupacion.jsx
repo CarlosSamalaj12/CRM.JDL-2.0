@@ -275,11 +275,13 @@ export default function ReportsOcupacion({ onClose }) {
             <div className="reports-subtitle">Semana del {weekDays[0]} al {weekDays[6]} (Lunes a Domingo)</div>
           </div>
         </div>
-        <ReportInfo reportKey="ocupacion" />
-        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <IconChevronLeft size={16} />
-          Volver
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ReportInfo reportKey="ocupacion" />
+          <button className="reports-btn-back btn-exit" type="button" onClick={onClose} title="Volver a la selección de reportes">
+            <IconChevronLeft size={16} />
+            <span>Volver a Reportes</span>
+          </button>
+        </div>
       </div>
 
       <div className="reports-page-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -302,41 +304,24 @@ export default function ReportsOcupacion({ onClose }) {
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
               <button
                 type="button"
-                className="preset-btn"
+                className="reports-preset-btn"
                 onClick={handlePrevWeek}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '4px',
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
-                <IconChevronLeft size={14} /> Anterior
+                <IconChevronLeft size={14} /> <span>Anterior</span>
               </button>
               <button
                 type="button"
-                className="preset-btn"
+                className="reports-preset-btn"
                 onClick={handleGoToday}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
-                Hoy
+                <span>Hoy</span>
               </button>
               <button
                 type="button"
-                className="preset-btn"
+                className="reports-preset-btn"
                 onClick={handleNextWeek}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '4px',
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
-                Siguiente <IconChevronRight size={14} />
+                <span>Siguiente</span> <IconChevronRight size={14} />
               </button>
             </div>
           </div>

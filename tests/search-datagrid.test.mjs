@@ -11,17 +11,20 @@ test('SearchModule.jsx implementa la arquitectura Data Grid moderna según la im
 
   // 1. Barra Superior con Buscador, Atajo Ctrl+K, Año y Botones de Herramienta
   assert.ok(code.includes('className="datagrid-topbar"'), 'Debe incluir la barra superior datagrid-topbar');
-  assert.ok(code.includes('placeholder="Search by Keywords..."'), 'Debe tener el placeholder Search by Keywords...');
+  assert.ok(code.includes('placeholder="Buscar cliente, evento o no. doc..."'), 'Debe tener el placeholder en español');
+  assert.ok(!code.includes('>Data Grid</span>'), 'No debe incluir la insignia Data Grid');
   assert.ok(code.includes('datagrid-search-kbd'), 'Debe mostrar el atajo Ctrl+K');
   assert.ok(code.includes('className="datagrid-year-select"'), 'Debe incluir el selector de año');
-  assert.ok(code.includes('className="datagrid-tool-btn"'), 'Debe incluir botones de herramientas');
+  assert.ok(code.includes('datagrid-tool-btn'), 'Debe incluir botones de herramientas');
+  assert.ok(code.includes('datagrid-tool-btn--excel'), 'Debe incluir botón de Excel con clase verde');
+  assert.ok(code.includes('datagrid-tool-btn--print'), 'Debe incluir botón de Imprimir con clase roja');
   assert.ok(code.includes('className="search-btn-new-quote"'), 'Debe incluir el botón de Nueva Cotización');
 
-  // 2. Barra de Filtros Activos con Pastillas Carbón y Botón Clear All
+  // 2. Barra de Filtros Activos con Pastillas Carbón y Botón Limpiar Todo
   assert.ok(code.includes('className="datagrid-active-filters-bar"'), 'Debe incluir la barra de filtros activos');
   assert.ok(code.includes('className="datagrid-chip"'), 'Debe incluir pastillas de filtros activos datagrid-chip');
   assert.ok(code.includes('className="datagrid-btn-clear-all"'), 'Debe incluir el botón ámbar datagrid-btn-clear-all');
-  assert.ok(code.includes('Clear All'), 'Debe incluir el texto Clear All');
+  assert.ok(code.includes('Limpiar Todo'), 'Debe incluir el texto Limpiar Todo en español');
 
   // 3. Encabezados Data Grid con Ordenación y Popover de Filtro por Columna
   assert.ok(code.includes('className="datagrid-table"'), 'Debe definir la tabla datagrid-table');
@@ -32,19 +35,25 @@ test('SearchModule.jsx implementa la arquitectura Data Grid moderna según la im
   assert.ok(code.includes('className="datagrid-popover-btn-clear"'), 'Debe incluir botón Limpiar en el popover');
   assert.ok(code.includes('className="datagrid-popover-btn-apply"'), 'Debe incluir botón Aplicar en el popover');
 
-  // 4. Filas y Botones de Acción Rápida (Lupa azul, Lápiz verde, Basurero rojo)
+  // 4. Filas y Botones de Acción Rápida (Lupa azul, Lápiz verde, Basurero rojo) y Tarjetas Móviles
   assert.ok(code.includes('className="datagrid-action-btn btn-view"'), 'Debe incluir botón Ver (Lupa azul)');
   assert.ok(code.includes('className="datagrid-action-btn btn-edit"'), 'Debe incluir botón Editar (Lápiz verde)');
   assert.ok(code.includes('className="datagrid-action-btn btn-delete"'), 'Debe incluir botón Eliminar (Basurero rojo)');
+  assert.ok(code.includes('className="search-mobile-card"'), 'Debe incluir vista de tarjetas móviles');
+  assert.ok(code.includes('className="datagrid-mobile-view-toggle"'), 'Debe incluir conmutador de vista móvil');
 
-  // 5. Paginación Data Grid al Pie
+  // 5. Paginación Data Grid al Pie en Español
   assert.ok(code.includes('className="datagrid-pagination-footer"'), 'Debe incluir el footer de paginación');
-  assert.ok(code.includes('className="datagrid-page-btn"'), 'Debe incluir botones de Previous y Next');
+  assert.ok(code.includes('className="datagrid-page-btn"'), 'Debe incluir botones de Anterior y Siguiente');
+  assert.ok(code.includes('Anterior'), 'Debe incluir botón Anterior');
+  assert.ok(code.includes('Siguiente'), 'Debe incluir botón Siguiente');
   assert.ok(code.includes('datagrid-page-num'), 'Debe incluir botones numéricos de página');
-  assert.ok(code.includes('className="datagrid-per-page-select"'), 'Debe incluir selector de Per Page');
-  assert.ok(code.includes('Showing'), 'Debe incluir contador Showing X to Y of Z');
+  assert.ok(code.includes('className="datagrid-per-page-select"'), 'Debe incluir selector de Por página');
+  assert.ok(code.includes('Por página:'), 'Debe incluir texto Por página:');
+  assert.ok(code.includes('Mostrando'), 'Debe incluir contador Mostrando X a Y de Z');
   assert.ok(code.includes('className="datagrid-goto-input"'), 'Debe incluir input para salto directo de página');
-  assert.ok(code.includes('className="datagrid-goto-btn"'), 'Debe incluir botón Go');
+  assert.ok(code.includes('className="datagrid-goto-btn"'), 'Debe incluir botón Ir');
+  assert.ok(/className="datagrid-goto-btn"[^>]*>\s*Ir\s*<\/button>/.test(code), 'Debe incluir texto de botón Ir');
 });
 
 test('search.css define estilos del Data Grid y blindaje de especificidad contra botones inflados', () => {

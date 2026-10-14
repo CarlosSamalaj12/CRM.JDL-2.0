@@ -110,7 +110,7 @@ const BENTO_CARDS = [
     iconName: 'bed', variant: 'emerald', category: 'Ventas', featured: true,
   },
   {
-    id: 'dashboard', title: 'Dashboard Principal',
+    id: 'dashboard', title: 'Dashboard',
     desc: 'Vista ejecutiva consolidada de métricas críticas diarias, KPIs, metas comerciales y rendimiento ejecutivo.',
     badge: 'Resumen • KPIs • Metas',
     iconName: 'target', variant: 'amber', category: 'KPIs', featured: true,

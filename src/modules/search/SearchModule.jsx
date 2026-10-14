@@ -9,7 +9,6 @@ import {
   ArrowDown,
   Download,
   Printer,
-  RefreshCw,
   Plus,
   Calendar,
   User,
@@ -21,7 +20,10 @@ import {
   Trash2,
   MoreVertical,
   FileText,
-  ChevronDown
+  ChevronDown,
+  MapPin,
+  LayoutList,
+  Table
 } from 'lucide-react';
 import { STATUS_META } from '../calendar/constants';
 import './search.css';
@@ -81,6 +83,7 @@ export default function SearchModule() {
 
   // Responsividad móvil
   const [isMobileView, setIsMobileView] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
+  const [mobileViewMode, setMobileViewMode] = useState('cards'); // 'cards' | 'table'
 
   useEffect(() => {
     const handleResize = () => setIsMobileView(window.innerWidth <= 768);
@@ -741,7 +744,6 @@ export default function SearchModule() {
           <div className="datagrid-topbar">
             <div className="datagrid-topbar-title-wrap">
               <h2 className="datagrid-title">Búsqueda de Eventos</h2>
-              <span className="search-badge-saas">Data Grid</span>
             </div>
 
             <div className="datagrid-topbar-actions">
@@ -752,7 +754,7 @@ export default function SearchModule() {
                   ref={searchInputRef}
                   type="text"
                   className="datagrid-search-input"
-                  placeholder="Search by Keywords..."
+                  placeholder="Buscar cliente, evento o no. doc..."
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -794,34 +796,24 @@ export default function SearchModule() {
                 ))}
               </select>
 
-              {/* Botón Exportar a Excel */}
+              {/* Botón Exportar a Excel (Verde) */}
               <button
                 type="button"
-                className="datagrid-tool-btn"
+                className="datagrid-tool-btn datagrid-tool-btn--excel"
                 onClick={handleExportExcel}
                 title="Exportar a Excel (.xlsx)"
               >
-                <Download size={16} strokeWidth={2.2} />
+                <Download size={16} strokeWidth={2.4} />
               </button>
 
-              {/* Botón Imprimir */}
+              {/* Botón Imprimir (Rojo) */}
               <button
                 type="button"
-                className="datagrid-tool-btn"
+                className="datagrid-tool-btn datagrid-tool-btn--print"
                 onClick={handlePrint}
                 title="Imprimir vista de la tabla"
               >
-                <Printer size={16} strokeWidth={2.2} />
-              </button>
-
-              {/* Botón Refrescar */}
-              <button
-                type="button"
-                className="datagrid-tool-btn"
-                onClick={clearAllFilters}
-                title="Refrescar y limpiar filtros"
-              >
-                <RefreshCw size={16} strokeWidth={2.2} />
+                <Printer size={16} strokeWidth={2.4} />
               </button>
 
               {/* Botón Nueva Cotización */}
@@ -832,25 +824,54 @@ export default function SearchModule() {
                 title="Crear nueva reserva / cotización"
                 style={{ height: 38 }}
               >
-                <Plus size={16} strokeWidth={2.5} />
-                <span>Nueva Cotización</span>
+                <Plus size={18} strokeWidth={2.6} />
+                <span className="search-btn-new-quote-label">Nueva Cotización</span>
               </button>
             </div>
           </div>
 
-          {/* ── BARRA DE CHIPS DE FILTROS ACTIVOS CON BOTÓN CLEAR ALL ── */}
+          {/* Conmutador de vista en versión móvil */}
+          {isMobileView && (
+            <div className="datagrid-mobile-controls-bar">
+              <div className="datagrid-mobile-view-toggle">
+                <button
+                  type="button"
+                  className={`datagrid-view-toggle-btn ${mobileViewMode === 'cards' ? 'is-active' : ''}`}
+                  onClick={() => setMobileViewMode('cards')}
+                  title="Vista en tarjetas"
+                >
+                  <LayoutList size={14} />
+                  <span>Tarjetas</span>
+                </button>
+                <button
+                  type="button"
+                  className={`datagrid-view-toggle-btn ${mobileViewMode === 'table' ? 'is-active' : ''}`}
+                  onClick={() => setMobileViewMode('table')}
+                  title="Vista en tabla"
+                >
+                  <Table size={14} />
+                  <span>Tabla</span>
+                </button>
+              </div>
+              <div className="datagrid-mobile-count-pill">
+                <strong>{totalItems}</strong> {totalItems === 1 ? 'evento' : 'eventos'}
+              </div>
+            </div>
+          )}
+
+          {/* ── BARRA DE CHIPS DE FILTROS ACTIVOS CON BOTÓN LIMPIAR TODO ── */}
           {hasActiveFilters && (
             <div className="datagrid-active-filters-bar">
               <div className="datagrid-filters-label">
                 <Filter size={14} strokeWidth={2.5} />
-                <span>Filters</span>
+                <span>Filtros</span>
               </div>
 
               <div className="datagrid-chips-wrap">
                 {/* Chip de Búsqueda Global */}
                 {query && (
                   <span className="datagrid-chip">
-                    <span>Keywords : {query}</span>
+                    <span>Búsqueda : {query}</span>
                     <button
                       type="button"
                       className="datagrid-chip-remove"
@@ -865,7 +886,7 @@ export default function SearchModule() {
                 {/* Chip de Año */}
                 {yearFilter !== 'all' && (
                   <span className="datagrid-chip">
-                    <span>Year : {yearFilter}</span>
+                    <span>Año : {yearFilter}</span>
                     <button
                       type="button"
                       className="datagrid-chip-remove"
@@ -880,7 +901,7 @@ export default function SearchModule() {
                 {/* Chips de Estados */}
                 {statusFilter.size > 0 && (
                   <span className="datagrid-chip">
-                    <span>Status : {Array.from(statusFilter).join(', ')}</span>
+                    <span>Estado : {Array.from(statusFilter).join(', ')}</span>
                     <button
                       type="button"
                       className="datagrid-chip-remove"
@@ -999,22 +1020,212 @@ export default function SearchModule() {
                   </span>
                 )}
 
-                {/* Botón Dorado Ámbar Clear All */}
+                {/* Botón Dorado Ámbar Limpiar Todo */}
                 <button
                   type="button"
                   className="datagrid-btn-clear-all"
                   onClick={clearAllFilters}
                   title="Limpiar todos los filtros aplicados"
                 >
-                  Clear All
+                  Limpiar Todo
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── 2. TABLA DATA GRID CON ENCABEZADOS AZULES ── */}
-          <div className="datagrid-table-container">
-            <table className="datagrid-table">
+          {/* ── 2. VISTA DE DATOS (MÓVIL EN TARJETAS O TABLA DATA GRID) ── */}
+          {isMobileView && mobileViewMode === 'cards' ? (
+            <div className="datagrid-mobile-cards-container">
+              {paginatedEvents.length === 0 ? (
+                <div className="datagrid-mobile-empty">
+                  <Search size={32} color="#94a3b8" />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                    No se encontraron eventos
+                  </div>
+                  <div style={{ fontSize: 13, color: '#64748b' }}>
+                    Intenta ajustar o limpiar tus filtros de búsqueda.
+                  </div>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      className="datagrid-btn-clear-all"
+                      onClick={clearAllFilters}
+                      style={{ marginTop: 6 }}
+                    >
+                      Restablecer todos los filtros
+                    </button>
+                  )}
+                </div>
+              ) : (
+                paginatedEvents.map(ev => {
+                  const assignedUser = users?.find(u => String(u.id) === String(ev.userId));
+                  const docCode = ev.quote?.code || ev.id?.substring(0, 12) || '-';
+                  const isMultiSalon = ev._subEvents?.length > 1;
+                  const statusColor = getStatusColor(ev.status);
+                  const totalNum = typeof ev.quote?.total === 'number'
+                    ? ev.quote.total
+                    : Number(String(ev.quote?.total || '0').replace(/[^0-9.-]+/g, '')) || 0;
+
+                  return (
+                    <div key={ev.id} className="search-mobile-card">
+                      {/* Cabecera de la tarjeta: No. Doc + Estado + Total */}
+                      <div className="search-mcard-topbar">
+                        <div className="search-mcard-tags">
+                          <span
+                            className="datagrid-doc-pill"
+                            onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search' } })}
+                            title="Ver detalles de la reserva"
+                          >
+                            {docCode}
+                          </span>
+                          <span
+                            className="datagrid-status-pill"
+                            style={{
+                              background: `${statusColor}18`,
+                              color: statusColor,
+                              borderColor: `${statusColor}40`
+                            }}
+                            title={STATUS_DESCRIPTIONS[ev.status] || ev.status}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
+                            <span>{ev.status}</span>
+                          </span>
+                        </div>
+                        <div className="search-mcard-total">
+                          {formatCurrency(totalNum)}
+                        </div>
+                      </div>
+
+                      {/* Nombre del Evento */}
+                      <h4
+                        className="search-mcard-title"
+                        onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search' } })}
+                      >
+                        {ev.name || 'Sin Título'}
+                      </h4>
+
+                      {/* Metadatos */}
+                      <div className="search-mcard-meta-list">
+                        <div className="search-mcard-meta-item">
+                          <User size={13} className="search-mcard-icon" />
+                          <span className="search-mcard-meta-val">{ev.clientName || 'Particular'}</span>
+                        </div>
+
+                        <div className="search-mcard-meta-item">
+                          <Calendar size={13} className="search-mcard-icon" />
+                          <span className="search-mcard-meta-val">
+                            {ev._dateStart || '—'}{ev._dateStart !== ev._dateEnd && ev._dateEnd ? ` al ${ev._dateEnd}` : ''}
+                            <span className="search-mcard-time"> • {ev.startTime || '00:00'} - {ev.endTime || '00:00'}</span>
+                          </span>
+                        </div>
+
+                        <div className="search-mcard-meta-item">
+                          <MapPin size={13} className="search-mcard-icon" />
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {isMultiSalon ? (
+                              ev._salonList.map((s, idx) => (
+                                <span key={idx} className="datagrid-salon-pill">{s}</span>
+                              ))
+                            ) : ev.salon ? (
+                              <span className="datagrid-salon-pill">{ev.salon}</span>
+                            ) : (
+                              <span style={{ fontSize: 11, color: '#94a3b8' }}>Según Disponibilidad</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="search-mcard-meta-item">
+                          <div className="datagrid-user-cell" style={{ margin: 0 }}>
+                            <div className="datagrid-user-avatar" style={{ width: 22, height: 22, fontSize: 10 }}>
+                              {getInitials(assignedUser?.fullName || assignedUser?.name || 'Sin asignar')}
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
+                              {assignedUser?.fullName || assignedUser?.name || 'Sin asignar'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Acciones al pie */}
+                      <div className="search-mcard-actions">
+                        <button
+                          type="button"
+                          className="search-mcard-btn-view"
+                          onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search' } })}
+                        >
+                          <Eye size={14} />
+                          <span>Ver Detalle</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="search-mcard-btn-edit"
+                          onClick={() => navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`, { state: { from: 'search', edit: true } })}
+                          title="Editar reserva"
+                        >
+                          <Edit2 size={13} />
+                          <span>Editar</span>
+                        </button>
+
+                        <div style={{ position: 'relative' }} ref={activeActionMenu === `m-${ev.id}` ? actionMenuRef : null}>
+                          <button
+                            type="button"
+                            className="search-mcard-btn-more"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveActionMenu(activeActionMenu === `m-${ev.id}` ? null : `m-${ev.id}`);
+                            }}
+                            title="Más opciones"
+                          >
+                            <MoreVertical size={15} />
+                          </button>
+
+                          {activeActionMenu === `m-${ev.id}` && (
+                            <div className="action-dropdown-popover" style={{ right: 0, bottom: '100%', marginBottom: 6, zIndex: 100 }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveActionMenu(null);
+                                  navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}`);
+                                }}
+                              >
+                                <FileText size={14} />
+                                <span>Ver Detalles</span>
+                              </button>
+                              {ev.quote?.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveActionMenu(null);
+                                    navigate(`/reserva/${ev._subEvents[0]?.id || ev.id}?tab=quote`);
+                                  }}
+                                >
+                                  <DollarSign size={14} />
+                                  <span>Ver Cotización</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveActionMenu(null);
+                                  navigator.clipboard.writeText(docCode);
+                                }}
+                              >
+                                <Check size={14} />
+                                <span>Copiar No. Doc</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            <div className="datagrid-table-container">
+              <table className="datagrid-table">
               <thead style={{ backgroundColor: '#2563eb' }}>
                 <tr style={{ backgroundColor: '#2563eb' }}>
                   {/* 1. NO. DOC */}
@@ -1894,10 +2105,11 @@ export default function SearchModule() {
               </tbody>
             </table>
           </div>
+        )}
 
           {/* ── 3. PAGINACIÓN DATAGRID AL PIE (Fiel a la Referencia) ── */}
           <div className="datagrid-pagination-footer">
-            {/* Izquierda: Previous, Páginas numéricas, Next */}
+            {/* Izquierda: Anterior, Páginas numéricas, Siguiente */}
             <div className="datagrid-pagination-left">
               <button
                 type="button"
@@ -1905,7 +2117,7 @@ export default function SearchModule() {
                 disabled={validCurrentPage <= 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               >
-                Previous
+                Anterior
               </button>
 
               {Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 7).map(pageNum => (
@@ -1929,15 +2141,15 @@ export default function SearchModule() {
                 disabled={validCurrentPage >= totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               >
-                Next
+                Siguiente
               </button>
             </div>
 
-            {/* Derecha: Per Page, Contador, Go to */}
+            {/* Derecha: Por Página, Contador, Ir a */}
             <div className="datagrid-pagination-right">
-              {/* Selector Per Page */}
+              {/* Selector Por Página */}
               <div className="datagrid-per-page-wrap">
-                <span>Per Page</span>
+                <span>Por página:</span>
                 <select
                   className="datagrid-per-page-select"
                   value={pageSize}
@@ -1955,18 +2167,18 @@ export default function SearchModule() {
 
               {/* Contador de resultados */}
               <div>
-                Showing{' '}
+                Mostrando{' '}
                 <strong>
                   {totalItems === 0 ? 0 : (validCurrentPage - 1) * pageSize + 1}
                 </strong>{' '}
-                to{' '}
+                a{' '}
                 <strong>
                   {Math.min(validCurrentPage * pageSize, totalItems)}
                 </strong>{' '}
-                of <strong>{totalItems}</strong>
+                de <strong>{totalItems}</strong>
               </div>
 
-              {/* Salto a Página con Go */}
+              {/* Salto a Página con Ir */}
               <div className="datagrid-goto-wrap">
                 <input
                   type="number"
@@ -1983,7 +2195,7 @@ export default function SearchModule() {
                   className="datagrid-goto-btn"
                   onClick={handleGoToPage}
                 >
-                  Go
+                  Ir
                 </button>
               </div>
             </div>

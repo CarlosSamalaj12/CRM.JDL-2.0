@@ -251,11 +251,13 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
             <div className="reports-subtitle">Eventos en pipeline comercial por vendedor · Pre-Reserva · Negociación · 1ra Cotización · Reserva sin Cot. · Lista Espera</div>
           </div>
         </div>
-        <ReportInfo reportKey="seguimientos" />
-        <button className="btn-exit" type="button" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <IconChevronLeft size={16} />
-          Volver
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ReportInfo reportKey="seguimientos" />
+          <button className="reports-btn-back btn-exit" type="button" onClick={onClose} title="Volver a la selección de reportes">
+            <IconChevronLeft size={16} />
+            <span>Volver a Reportes</span>
+          </button>
+        </div>
       </div>
 
       <div className="reports-page-body">
@@ -381,37 +383,22 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                className="preset-btn"
+                className="reports-preset-btn"
                 onClick={() => navigateMonth(-1)}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
                 Mes Anterior
               </button>
               <button
                 type="button"
-                className="preset-btn"
+                className={`reports-preset-btn ${monthKey === defaultMonth && !userIdFilter ? 'active' : ''}`}
                 onClick={() => { handleReset(); setUserIdFilter(null); }}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
                 Mes Actual
               </button>
               <button
                 type="button"
-                className="preset-btn"
+                className="reports-preset-btn"
                 onClick={() => navigateMonth(1)}
-                style={{
-                  fontSize: '11px', fontWeight: 700, padding: '6px 12px',
-                  borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: '#ffffff', color: '#334155', cursor: 'pointer'
-                }}
               >
                 Próximo Mes
               </button>

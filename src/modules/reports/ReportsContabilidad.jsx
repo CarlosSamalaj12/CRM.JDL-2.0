@@ -1811,29 +1811,20 @@ export default function ReportsContabilidad({ onClose }) {
 
           <button
             type="button"
-            className="btn-exit"
+            className="reports-btn-back btn-exit"
             onClick={onClose}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px',
-              padding: '7px 14px', fontSize: '12px', fontWeight: 700, color: '#475569', cursor: 'pointer'
-            }}
+            title="Volver a la selección de reportes"
           >
-            <ArrowLeft size={14} strokeWidth={2.2} />
-            <span>Volver</span>
+            <ArrowLeft size={16} strokeWidth={2.2} />
+            <span>Volver a Reportes</span>
           </button>
 
           <button
             type="button"
+            className="reports-btn-excel"
             onClick={handleExportExcel}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              background: '#0f172a', color: '#ffffff', border: 'none', borderRadius: '8px',
-              padding: '7px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)'
-            }}
           >
-            <Download size={14} strokeWidth={2.2} color="#4ade80" />
+            <Download size={14} strokeWidth={2.2} />
             <span>Exportar Excel</span>
           </button>
         </div>

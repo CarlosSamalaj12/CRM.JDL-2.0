@@ -665,8 +665,9 @@ export default function ReportsDashboard({ onClose }) {
       }
     }
     const totalPax = Object.values(dayPax).reduce((a, b) => a + b, 0);
-    const maxDayPax = Math.max(1, ...Object.values(dayPax));
-    return { dayList, dayPax, dayEvents, totalPax, maxDayPax };
+    const maxDayPax = Math.max(0, ...Object.values(dayPax));
+    const yAxisMax = maxDayPax > 0 ? Math.ceil(maxDayPax * 1.2) : 100;
+    return { dayList, dayPax, dayEvents, totalPax, maxDayPax, yAxisMax };
   }, [events, getDateRange]);
 
   return (
@@ -775,7 +776,7 @@ export default function ReportsDashboard({ onClose }) {
               EMS RESERVAS — JARDINES DEL LAGO
             </div>
             <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>
-              Dashboard Ejecutivo
+              Dashboard
             </h1>
           </div>
         </div>
@@ -784,28 +785,28 @@ export default function ReportsDashboard({ onClose }) {
           <ReportInfo reportKey="dashboard" />
           <button
             type="button"
-            className="rd-btn"
+            className="reports-btn-kanban"
             onClick={() => navigate('/kanban')}
           >
-            <IconKanban size={15} color="#475569" />
-            Pipeline Kanban
+            <IconKanban size={15} />
+            <span>Pipeline Kanban</span>
           </button>
           <button
             type="button"
-            className="rd-btn"
+            className="reports-btn-pdf"
             onClick={() => window.print()}
           >
-            <IconDownload size={15} color="#475569" />
-            Exportar Reporte
+            <IconDownload size={15} />
+            <span>Exportar Reporte</span>
           </button>
           <button
             type="button"
-            className="rd-btn reports-btn-back"
+            className="reports-btn-back rd-btn"
             onClick={() => { if (onClose) onClose(); else navigate(-1); }}
-            title="Volver al Dashboard de Reportes"
+            title="Volver a la selección de reportes"
           >
-            <IconChevronLeft size={16} color="#2563eb" />
-            <span>Volver</span>
+            <IconChevronLeft size={16} />
+            <span>Volver a Reportes</span>
           </button>
         </div>
       </div>
@@ -928,12 +929,12 @@ export default function ReportsDashboard({ onClose }) {
 
             <button
               type="button"
-              className="rd-btn"
+              className="reports-btn-clear"
               onClick={handleReset}
               style={{ height: '38px', alignSelf: 'flex-end', whiteSpace: 'nowrap' }}
             >
-              <IconTrash size={14} color="#64748b" />
-              Limpiar filtros
+              <IconTrash size={14} />
+              <span>Limpiar filtros</span>
             </button>
           </div>
         </section>
@@ -1364,14 +1365,14 @@ export default function ReportsDashboard({ onClose }) {
                 </div>
               </div>
 
-              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', paddingTop: '16px' }}>
                 <div style={{ display: 'flex', gap: '8px', minWidth: '600px' }}>
                   {/* Y-axis */}
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '32px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '24px' }}>
-                    <span>{paxDayChartData.maxDayPax}</span>
-                    <span>{Math.round(paxDayChartData.maxDayPax * 0.75)}</span>
-                    <span>{Math.round(paxDayChartData.maxDayPax * 0.5)}</span>
-                    <span>{Math.round(paxDayChartData.maxDayPax * 0.25)}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: '36px', fontSize: '9px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', paddingBottom: '24px' }}>
+                    <span>{paxDayChartData.yAxisMax}</span>
+                    <span>{Math.round(paxDayChartData.yAxisMax * 0.75)}</span>
+                    <span>{Math.round(paxDayChartData.yAxisMax * 0.5)}</span>
+                    <span>{Math.round(paxDayChartData.yAxisMax * 0.25)}</span>
                     <span style={{ color: '#cbd5e1' }}>0</span>
                   </div>
 
@@ -1388,7 +1389,7 @@ export default function ReportsDashboard({ onClose }) {
                         const pad2 = (n) => String(n).padStart(2, '0');
                         const dStr = `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`;
                         const pax = paxDayChartData.dayPax[dStr] || 0;
-                        const pct = (pax / paxDayChartData.maxDayPax) * 100;
+                        const pct = (pax / paxDayChartData.yAxisMax) * 100;
                         const nowDate = new Date();
                         const isToday = dStr === `${nowDate.getFullYear()}-${pad2(nowDate.getMonth() + 1)}-${pad2(nowDate.getDate())}`;
                         const dayNum = dateObj.getDate();
@@ -1413,20 +1414,20 @@ export default function ReportsDashboard({ onClose }) {
                               boxShadow: isToday ? '0 0 6px rgba(37,99,235,0.3)' : 'none',
                               position: 'relative',
                             }}>
-                              {pax > 0 && (
-                                <span style={{
-                                  position: 'absolute',
-                                  bottom: '100%',
-                                  left: '50%',
-                                  transform: 'translateX(-50%)',
-                                  fontSize: '8.5px', fontWeight: 800,
-                                  color: '#2563eb',
-                                  marginBottom: '3px',
-                                  whiteSpace: 'nowrap',
-                                }}>
-                                  {pax}
-                                </span>
-                              )}
+                              <span style={{
+                                position: 'absolute',
+                                bottom: '100%',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                fontSize: '8.5px',
+                                fontWeight: pax > 0 ? 800 : 600,
+                                color: pax > 0 ? '#2563eb' : '#94a3b8',
+                                marginBottom: '3px',
+                                whiteSpace: 'nowrap',
+                                pointerEvents: 'none',
+                              }}>
+                                {pax}
+                              </span>
                             </div>
                             {/* Day number */}
                             <div style={{
