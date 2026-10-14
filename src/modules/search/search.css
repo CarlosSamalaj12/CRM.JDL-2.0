@@ -2161,6 +2161,7 @@ button.datagrid-btn-clear-all:hover {
   overflow-x: auto;
   position: relative;
   background: #ffffff;
+  min-height: 380px;
 }
 
 .datagrid-table {
@@ -2269,14 +2270,13 @@ button.datagrid-th-btn.is-active {
 }
 
 /* ── 4. Popover Flotante de Filtro por Columna ── */
-/* ── 4. Popover Flotante de Filtro por Columna ── */
 .datagrid-popover-portal {
-  position: absolute;
-  z-index: 99999;
+  position: fixed;
+  z-index: 999999;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 14px;
-  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22), 0 4px 12px rgba(15, 23, 42, 0.08);
   width: 310px;
   min-width: 280px;
   max-width: 360px;
@@ -2550,6 +2550,43 @@ button.datagrid-popover-btn-apply:hover {
   padding: 3px 8px;
   border-radius: 6px;
   border: 1px solid #e2e8f0;
+}
+
+/* Pastilla de más salones (+N más) */
+.datagrid-salon-more-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px dashed #cbd5e1;
+  cursor: help;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.datagrid-salon-more-pill:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* Badge de Jornadas */
+.datagrid-jornadas-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 /* Total Moneda */

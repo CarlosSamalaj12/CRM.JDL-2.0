@@ -2445,16 +2445,40 @@ export default function ReservationForm() {
                 </span>
               </div>
               <div className="res-bento-subtitle">
-                <span style={{ color: '#eab308' }}>★</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#eab308" stroke="#ca8a04" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
                 <span style={{ fontWeight: 700, color: '#334155' }}>
                   Principal: {principalSlot?.salon || slots[0]?.salon || 'Sin salón'}
                 </span>
                 <span>·</span>
-                <span>📅 {formattedHeaderDate}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {formattedHeaderDate}
+                </span>
                 <span>·</span>
-                <span>🕒 {principalSlot?.startTime || slots[0]?.startTime || '10:00'} - {principalSlot?.endTime || slots[0]?.endTime || '12:00'}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  {principalSlot?.startTime || slots[0]?.startTime || '10:00'} - {principalSlot?.endTime || slots[0]?.endTime || '12:00'}
+                </span>
                 <span>·</span>
-                <span>👥 Total: <strong>{formData.pax || 0} PAX</strong></span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  Total: <strong>{formData.pax || 0} PAX</strong>
+                </span>
                 <span style={{ color: '#64748b' }}>
                   ({formData.paxCompartido === true ? 'Compartido' : formData.paxCompartido === false ? 'No Compartido' : 'Principal'})
                 </span>
@@ -2547,8 +2571,13 @@ export default function ReservationForm() {
             {/* Validation errors alert */}
             {validationErrors.length > 0 && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px' }}>
-                <div style={{ color: '#dc2626', fontWeight: '800', marginBottom: '4px', fontSize: '13px' }}>
-                  ⚠️ Faltan datos por completar:
+                <div style={{ color: '#dc2626', fontWeight: '800', marginBottom: '4px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>Faltan datos por completar:</span>
                 </div>
                 <ul style={{ margin: 0, paddingLeft: '18px', color: '#991b1b', fontSize: '12.5px', lineHeight: 1.5 }}>
                   {validationErrors.slice(0, 4).map((err, i) => <li key={i}>{err}</li>)}
@@ -2583,12 +2612,19 @@ export default function ReservationForm() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
                       {formData.clientName && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          👤 <strong>{formData.clientName}</strong>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                          <strong>{formData.clientName}</strong>
                         </span>
                       )}
                       {formData.clientPhone && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          📞 {formData.clientPhone}
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                          </svg>
+                          {formData.clientPhone}
                         </span>
                       )}
                     </div>
@@ -2600,7 +2636,14 @@ export default function ReservationForm() {
                   <div className="res-bento-salones-header">
                     <div className="res-bento-salones-title-box">
                       <div className="res-bento-salones-main-title">
-                        <span style={{ fontSize: '16px' }}>🏢</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#007A64" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <path d="M9 3v18" />
+                          <path d="M14 9h3" />
+                          <path d="M14 15h3" />
+                          <path d="M5 9h2" />
+                          <path d="M5 15h2" />
+                        </svg>
                         <span>Salones y Horarios</span>
                         <span className="res-bento-badge">
                           {slots.length} {slots.length === 1 ? 'espacio asignado' : 'espacios asignados'}
@@ -2637,7 +2680,14 @@ export default function ReservationForm() {
 
                   {slotConflicts.length > 0 && (
                     <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '10px 14px', fontSize: '11.5px' }}>
-                      <div style={{ fontWeight: '800', color: '#dc2626', marginBottom: '3px' }}>⚠️ Conflictos detectados en horarios:</div>
+                      <div style={{ fontWeight: '800', color: '#dc2626', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="12" />
+                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <span>Conflictos detectados en horarios:</span>
+                      </div>
                       {slotConflicts.map((r, i) => (
                         <div key={i} style={{ color: '#991b1b' }}>
                           • Salón {r.index + 1}: {r.message || r.hint}
@@ -2650,7 +2700,11 @@ export default function ReservationForm() {
                   <div className="res-bento-table-wrap">
                     <div className="res-bento-table-inner">
                       <div className="res-bento-table-head">
-                        <span style={{ textAlign: 'center' }} title="Salón Principal">★</span>
+                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Salón Principal">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                          </svg>
+                        </span>
                         <span>Salón / Espacio</span>
                         <span style={{ textAlign: 'center' }}>PAX</span>
                         <span>Fechas (Desde - Hasta)</span>
@@ -2844,7 +2898,11 @@ export default function ReservationForm() {
                             }}
                             className={`res-bento-seg-pill ${formData.paxCompartido === true ? 'active-compartido' : ''}`}
                           >
-                            {formData.paxCompartido === true && <span>✓</span>}
+                            {formData.paxCompartido === true && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
                             <span>Compartido ({formData.pax || 0})</span>
                           </div>
 
@@ -2856,7 +2914,11 @@ export default function ReservationForm() {
                             }}
                             className={`res-bento-seg-pill ${formData.paxCompartido === false ? 'active-no-compartido' : ''}`}
                           >
-                            {formData.paxCompartido === false && <span>✓</span>}
+                            {formData.paxCompartido === false && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
                             <span>No Compartido ({sumaPaxSalones})</span>
                           </div>
 
@@ -2869,7 +2931,11 @@ export default function ReservationForm() {
                             }}
                             className={`res-bento-seg-pill ${formData.paxCompartido === 'principal' || formData.paxCompartido === 2 ? 'active-principal' : ''}`}
                           >
-                            {(formData.paxCompartido === 'principal' || formData.paxCompartido === 2) && <span>★</span>}
+                            {(formData.paxCompartido === 'principal' || formData.paxCompartido === 2) && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="#eab308" stroke="#ca8a04" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                              </svg>
+                            )}
                             <span>Principal ({principalSlot?.pax || 0})</span>
                           </div>
                         </div>
@@ -2877,7 +2943,11 @@ export default function ReservationForm() {
                     </div>
 
                     <div className="res-bento-aforo-note">
-                      <span style={{ fontSize: '13px' }}>ℹ</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007A64" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '1px' }}>
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
                       <span>
                         {formData.paxCompartido === true && 'Modo Compartido: Aforo unificado del evento. Si cambias de estado a un salón individual, la facturación desglosa cada tarifa por separado manteniendo el cupo.'}
                         {formData.paxCompartido === false && 'Modo No Compartido: Cada salón tiene su propio cupo independiente y se suman para el aforo total del evento.'}
@@ -2895,7 +2965,12 @@ export default function ReservationForm() {
                 <div className="res-bento-card">
                   <div className="res-bento-card-header">
                     <div className="res-bento-card-title-group">
-                      <span style={{ fontSize: '14px' }}>📅</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007A64" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
                       <span className="res-bento-card-title">Periodo Global del Evento</span>
                     </div>
                     <span className="res-bento-badge green">
@@ -2995,7 +3070,10 @@ export default function ReservationForm() {
                 <div className="res-bento-card">
                   <div className="res-bento-card-header">
                     <div className="res-bento-card-title-group">
-                      <span style={{ fontSize: '13px' }}>✍️</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007A64" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
                       <span className="res-bento-card-title">Notas y Requerimientos</span>
                     </div>
                     <span className="res-bento-badge">Autoguardado</span>

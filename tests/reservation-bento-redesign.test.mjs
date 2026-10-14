@@ -136,3 +136,33 @@ test('Rediseño Bento de Reserva: Calendar.jsx monta el modal flotante centrado 
   assert.match(code, /className="reservation-modal-content"/);
   assert.match(code, /document\.body/);
 });
+
+test('Rediseño Bento de Reserva: Erradicación total de emojis en layout Bento y uso de iconos SVG minimalistas', () => {
+  const jsx = fs.readFileSync(RESERVATION_FORM_PATH, 'utf-8');
+  const bentoStartIdx = jsx.indexOf('className="res-bento-window"');
+  assert.ok(bentoStartIdx > -1, 'Debe existir res-bento-window');
+  const bentoContent = jsx.slice(bentoStartIdx);
+
+  // No deben existir emojis en la vista Bento de escritorio
+  const emojiRegex = /[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+  assert.ok(!emojiRegex.test(bentoContent), 'El layout bento no debe contener emojis, solo SVG minimalistas');
+});
+
+test('Rediseño Bento de Reserva: CSS previene desbordamiento horizontal, toma pantalla completa y alinea columnas', () => {
+  const css = fs.readFileSync(BENTO_CSS_PATH, 'utf-8');
+
+  // No debe tener min-width rígido de 820px que cause desbordamiento
+  assert.doesNotMatch(css, /min-width:\s*820px/);
+  // Pantalla completa en ancho y alto
+  assert.match(css, /width:\s*100vw\s*!important/);
+  assert.match(css, /height:\s*100vh\s*!important/);
+  // res-bento-table-wrap con control de overflow
+  assert.match(css, /\.res-bento-table-wrap/);
+  // res-bento-table-head con grid de 7 columnas
+  assert.match(css, /\.res-bento-table-head/);
+  assert.match(css, /grid-template-columns:\s*28px/);
+  // Botones de acción del footer
+  assert.match(css, /\.res-bento-btn-descartar/);
+  assert.match(css, /\.res-bento-btn-guardar/);
+});
+

@@ -32,6 +32,82 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Filtros de Columna Flotantes con React Portal Encima de la Tabla y Erradicación de Cortes por Overflow (`SearchModule.jsx`, `search.css`, `tests/search-datagrid.test.mjs`) (2026-10-14)
+- Requerimiento del usuario:
+  - En el módulo de "Búsqueda de Eventos", al filtrar cuando hay pocos registros (o 1 solo registro), el menú/popover de filtro de columna aparecía atrapado dentro del contenedor de la tabla ("sale adentro no encima") y se cortaba por el límite inferior de la tabla (`overflow-x: auto`), ocultando los campos de fecha, inputs y botones de "Limpiar" y "Aplicar".
+- Causa raíz:
+  - Los popovers `.datagrid-popover-portal` estaban renderizados directamente dentro de cada celda `<th>` dentro de `.datagrid-table-container`.
+  - En la especificación W3C de CSS, cualquier elemento con `overflow-x: auto` convierte automáticamente su eje vertical a `overflow-y: auto`, creando un contexto de recorte (clipping context). Con 1 sola fila en la tabla, la altura del contenedor era inferior a 100px, cortando por completo los popovers de 200px-380px.
+- Solución:
+  1. En `src/modules/search/SearchModule.jsx`:
+     - Se integró `createPortal` de `react-dom` para montar los popovers de filtro de columna directamente en `document.body`.
+     - Se implementó `calculatePopoverCoords(buttonEl, colKey)` calculando dinámicamente las coordenadas en pantalla con `getBoundingClientRect()` y posicionamiento inteligente `position: fixed; z-index: 999999;` (despliegue hacia abajo o hacia arriba según el espacio disponible en viewport, y protección contra desbordamiento horizontal).
+     - Se añadió listener de reposicionamiento reactivo en `scroll` (modo captura) y `resize`.
+     - Se limpió el `<thead>`, extrayendo los 8 bloques de popovers de los `<th>` y centralizándolos en el portal unificado en `document.body`.
+     - Se añadió lógica inteligente al menú de 3 puntos de acciones en las filas para desplegarse hacia arriba si se encuentra en las últimas filas.
+  2. En `src/modules/search/search.css`:
+     - Se configuró `.datagrid-popover-portal` con `position: fixed; z-index: 999999; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22)...` para flotar con máxima prioridad sobre cualquier elemento.
+     - Se añadió `min-height: 380px;` a `.datagrid-table-container` garantizando un lienzo amplio y despejado sin importar si hay 0, 1 o múltiples registros.
+  3. En `tests/search-datagrid.test.mjs`:
+     - Se agregaron aserciones validando el uso de `createPortal` con `document.body`, `position: fixed` en CSS y `min-height: 380px`.
+- Validación: 174 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.26`).
+
+### Solución: Consolidación de Reservas Multi-Día y Multi-Salón en Búsqueda de Eventos (`SearchModule.jsx`, `search.css`, `tests/search-datagrid.test.mjs`) (2026-10-14)
+- Requerimientos del usuario:
+  1. En el módulo de "Búsqueda de Eventos", las reservas multi-día aparecían fragmentadas en múltiples filas (un registro por cada día del evento, ej. 2026-12-07, 2026-12-08, 2026-12-09 con el mismo número de documento `COT-172803` y repitiendo el monto total `Q 89,635.00` en cada fila).
+  2. Consolidar los registros para mostrar únicamente una sola fila por reserva con sus datos unificados.
+  3. Formato de fechas consolidado: Mostrar el rango global de fechas con badge de jornadas (`07/12/2026 al 09/12/2026 • 3 Jornadas`) y horario general.
+  4. Formato de salones: Mostrar el Salón Principal y, si hay espacios adicionales, una pastilla informativa `+N más` con tooltip interactivo con los demás espacios.
+  5. Exportación e Impresión: Consolidar también en la exportación a Excel y en la vista de impresión, exportando 1 sola fila por reserva con el monto exacto sin duplicar sumas.
+- Solución:
+  1. En `src/modules/search/SearchModule.jsx`:
+     - Se refactorizó `processedEvents` para agrupar canónicamente los eventos por reserva mediante `getReservationKey(ev)` (evaluando `groupId`, `quote.code`, o `parent_id`).
+     - Se extrajo el rango global de fechas `_dateStart` (fecha mínima) y `_dateEnd` (fecha máxima), calculando dinámicamente `_jornadas` a partir del número de fechas únicas en la serie.
+     - Se unificó la lista de salones (`_salonList`), designando el salón principal y calculando `_additionalSalonsCount` y `_additionalSalonsList`.
+     - Se tomó el monto de la cotización canónica (`totalNum`) una sola vez sin duplicaciones ni inflación de totales.
+     - Se actualizó el renderizado en la tabla desktop y en las tarjetas móviles para mostrar el rango global con `<span className="datagrid-jornadas-badge">{ev._jornadas} Jornadas</span>` y la pastilla `<span className="datagrid-salon-more-pill">+{ev._additionalSalonsCount} más</span>`.
+     - El filtro de año se adaptó para evaluar si la reserva inicia o concluye en el año seleccionado.
+  2. En `src/modules/search/search.css`:
+     - Se diseñaron las clases `.datagrid-jornadas-badge` (azul pastel `#eff6ff` con borde `#bfdbfe` y texto `#1d4ed8`) y `.datagrid-salon-more-pill` (gris pizarra tenue con borde discontinuo `#cbd5e1` y hover interactivo).
+  3. En `tests/search-datagrid.test.mjs`:
+     - Se añadió prueba unitaria automatizada comprobando la consolidación por clave, cálculo de jornadas y existencia de las clases visuales.
+- Validación: 174 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.25`).
+
+### Solución: Pantalla Completa (100vw × 100vh) Sin Márgenes Flotantes, Botones Pastel Ejecutivos y Erradicación de Desbordamientos en Fechas de Salones (`reservationBento.css`, `Calendar.jsx`, `ReservationForm.jsx`, `tests/reservation-bento-redesign.test.mjs`) (2026-10-14)
+- Requerimientos del usuario:
+  1. El formulario de reserva no tomaba la pantalla completa en escritorio (mostraba bordes y overlay oscuros perimetrales flotantes estilo popup).
+  2. Los botones de acción inferiores no se veían estéticos (fondos blancos planos con bordes toscos de alambre y texto 'Descartar' desalineado sin peso de botón).
+  3. En la tabla de "Salones y Horarios", el año en los selectores de fecha nativos se cortaba (`12/10/202📅`), solapándose el texto con el icono de calendario, y existía desbordamiento horizontal.
+- Solución:
+  1. En `src/modules/calendar/components/reservationBento.css`:
+     - Se configuraron `.reservation-modal-overlay`, `.reservation-modal-content` y `.res-bento-window` para ocupar el 100% de la pantalla (`width: 100vw !important; height: 100vh !important; max-width: 100vw !important; max-height: 100vh !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important;`) erradicando fondos oscuros, filtros de desenfoque y márgenes perimetrales.
+     - Se rediseñaron los botones de acción del footer (`.res-bento-btn-action`): altura estandarizada a `36px`, esquinas redondeadas de `8px`, sombras suaves y paletas pastel sólidas de alto nivel ejecutivo (`Mantenimiento` en gris pizarra sobre blanco con icono `#64748b`; `+ Cita` en verde menta `#ecfdf5` con borde `#a7f3d0` e icono `#059669`; `Cotizar` en azul hielo `#eff6ff` con borde `#bfdbfe` e icono `#2563eb`; `Historial` en lavanda `#f5f3ff` con borde `#ddd6fe` e icono `#9333ea`; `Cancelar` en rosa carmesí `#fef2f2` con borde `#fecaca` e icono `#dc2626`).
+     - Se rediseñó el botón `Descartar` como botón secundario ejecutivo formal (`background: #ffffff`, borde `#cbd5e1`, texto `#475569`, `36px` de altura y esquinas de `8px`) evitando que parezca un enlace suelto.
+     - Se rediseñó el botón principal `Guardar Cambios` (`background: #007A64`, borde `#006653`, texto blanco, `38px` de altura, esquinas de `8px` y checkmark SVG).
+     - Se reestructuró `.res-bento-cell-range` con `display: grid !important; grid-template-columns: 1fr auto 1fr !important;` y estilo controlado para el indicador de calendario `::-webkit-calendar-picker-indicator`, garantizando ancho simétrico para ambas fechas y erradicando cualquier corte de texto o colisión con el icono.
+     - Se ajustó la plantilla de columnas de la tabla a `28px minmax(130px, 1.3fr) 54px minmax(285px, 2fr) minmax(180px, 1.2fr) minmax(135px, 1fr) 30px;` con `padding: 10px 20px;` en el encabezado y `padding: 8px 12px;` en las filas (dentro de wrapper con padding `8px`), logrando alineación milimétrica con el encabezado y `overflow-x: hidden !important;`.
+  2. En `tests/reservation-bento-redesign.test.mjs`:
+     - Se actualizaron las aserciones para validar pantalla completa (`width: 100vw`, `height: 100vh`), eliminación de `max-width: 1380px` y persistencia de las clases de botones de acción.
+- Validación: 173 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.23`).
+- Requerimientos del usuario:
+  1. En el modal "Editar Reserva" (y Nueva Reserva), la sección "Salones y Horarios" presentaba columnas desalineadas con los encabezados y un desbordamiento horizontal (`overflow-x: auto`) que forzaba barra de scroll y ocultaba el salón o comprimía los inputs.
+  2. Ajustar las dimensiones de la ventana modal en escritorio para mantener el diseño flotante centrado con bordes redondeados y fondo oscuro difuminado (acorde a la maqueta de referencia), con ancho óptimo (`95vw`, `max-width: 1380px`, `height: 90vh`, `max-height: 860px`) para que todas las columnas encajen fluidamente.
+  3. Erradicación total de emojis en todo el layout Bento y reemplazo exclusivo por iconos vectoriales SVG minimalistas tipo trazo fino (estilo Lucide/Feather).
+- Solución:
+  1. En `src/modules/calendar/components/reservationBento.css`:
+     - Se eliminó el `min-width: 820px` rígido de `.res-bento-table-inner`, reemplazándolo por `width: 100%; min-width: 0;` y `.res-bento-table-wrap` con `overflow-x: hidden;` en resoluciones de escritorio normales.
+     - Se ajustó el ratio de columnas de la cuadrícula Bento `.res-bento-grid` a `minmax(0, 1.95fr) minmax(320px, 1fr)` con `gap: 20px`, otorgando amplitud total a la columna izquierda.
+     - Se sincronizaron las 7 columnas de `.res-bento-table-head` y `.res-bento-table-row` con la plantilla exacta `28px minmax(130px, 1.4fr) 56px minmax(200px, 1.8fr) minmax(170px, 1.4fr) 135px 30px; gap: 8px;` y padding perimétrico `10px 21px;` en el encabezado, alineándolo al píxel con el inicio de cada input dentro de las filas.
+     - Se normalizó el ancho del input de PAX a `56px` con texto centrado, y se aplicó regla flex proporcional (`.res-bento-cell-range > div { flex: 1; min-width: 0; }`) para que los dos selectores `TimeSelect` se expandan armónicamente.
+     - Se actualizaron las dimensiones de `.reservation-modal-content` y `.res-bento-window` a `width: 95vw !important; max-width: 1380px !important; height: 90vh !important; max-height: 860px !important;`.
+  2. En `src/modules/calendar/components/ReservationForm.jsx`:
+     - Se erradicaron todos los emojis del layout Bento (`★`, `📅`, `🕒`, `👥`, `👤`, `📞`, `🏢`, `ℹ`, `✍️`, `⚠️`, `✓`) reemplazándolos por iconos vectoriales SVG minimalistas ultra-limpios con trazos refinados (1.6px - 1.8px).
+  3. En `src/components/TimeSelect.jsx`:
+     - Se reemplazó el emoji `🕒` en el disparador del dropdown de horario por un icono SVG de reloj minimalista.
+  4. En `tests/reservation-bento-redesign.test.mjs`:
+     - Se incorporaron pruebas automatizadas validando la erradicación total de emojis en el layout Bento y la ausencia de anchos rígidos (`min-width: 820px`) en el CSS.
+- Validación: 173 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso.
+
 ### Solución: Rediseño Bento Ejecutivo Moderno del Modal de Reserva (Edición y Nueva) Basado en Maqueta de Referencia con Preservación Estricta de Colores del CRM (`ReservationForm.jsx`, `Calendar.jsx`, `reservationBento.css`, `tests/reservation-bento-redesign.test.mjs`) (2026-10-14)
 - Requerimientos del usuario:
   1. Rediseñar el modal de "Editar Reserva" (aplicado de manera simétrica a "Nueva Reserva") basado en la maqueta de referencia proporcionada.

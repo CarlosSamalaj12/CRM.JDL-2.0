@@ -212,12 +212,17 @@ export default function TimeSelect({ value, onChange, disabled, style }) {
             position: 'absolute',
             right: '6px',
             cursor: disabled ? 'not-allowed' : 'pointer',
-            fontSize: '11px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             opacity: 0.6,
             userSelect: 'none'
           }}
         >
-          🕒
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
         </span>
       </div>
 

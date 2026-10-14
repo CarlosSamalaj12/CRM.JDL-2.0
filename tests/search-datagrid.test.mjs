@@ -32,6 +32,7 @@ test('SearchModule.jsx implementa la arquitectura Data Grid moderna según la im
   assert.ok(code.includes('className="datagrid-th-btn"'), 'Debe tener botones de acción en encabezados');
   assert.ok(code.includes('handleToggleSort'), 'Debe implementar ordenación dinámica');
   assert.ok(code.includes('className="datagrid-popover-portal"'), 'Debe incluir popovers de filtrado por columna');
+  assert.ok(code.includes('createPortal(') && code.includes('document.body'), 'Debe portaler los popovers a document.body para evitar recortes');
   assert.ok(code.includes('className="datagrid-popover-btn-clear"'), 'Debe incluir botón Limpiar en el popover');
   assert.ok(code.includes('className="datagrid-popover-btn-apply"'), 'Debe incluir botón Aplicar en el popover');
 
@@ -74,6 +75,8 @@ test('search.css define estilos del Data Grid y blindaje de especificidad contra
   // Encabezados Azules y Popovers
   assert.ok(css.includes('.datagrid-th'), 'Debe definir .datagrid-th');
   assert.ok(css.includes('.datagrid-popover-portal'), 'Debe definir .datagrid-popover-portal');
+  assert.ok(css.includes('position: fixed'), 'Popover debe tener position: fixed para flotar sobre todo');
+  assert.ok(css.includes('min-height: 380px'), 'datagrid-table-container debe definir min-height para espacio adecuado');
 
   // Acciones por fila
   assert.ok(css.includes('.datagrid-action-btn'), 'Debe definir .datagrid-action-btn');
@@ -127,5 +130,26 @@ test('SearchModule.jsx y search.css garantizan ancho completo al 100% y encabeza
   assert.ok(css.includes('background: #2563eb !important') || css.includes('background-color: #2563eb !important'), 'Debe forzar fondo azul #2563eb');
   assert.ok(jsx.includes("backgroundColor: '#2563eb'"), 'JSX debe tener backgroundColor azul inline');
   assert.ok(jsx.includes("color: '#ffffff'"), 'JSX debe tener color blanco inline');
+});
+
+test('SearchModule.jsx y search.css consolidan reservas multi-día/multi-salón en un único registro', () => {
+  const compPath = path.join(projectRoot, 'src', 'modules', 'search', 'SearchModule.jsx');
+  const jsx = fs.readFileSync(compPath, 'utf8');
+  const cssPath = path.join(projectRoot, 'src', 'modules', 'search', 'search.css');
+  const css = fs.readFileSync(cssPath, 'utf8');
+
+  // Lógica de consolidación por groupId, quote.code y parentId
+  assert.ok(jsx.includes('getReservationKey'), 'Debe definir getReservationKey para consolidar series');
+  assert.ok(jsx.includes('group_${gId}') || jsx.includes('group_'), 'Debe agrupar por groupId');
+  assert.ok(jsx.includes('quote_${qCode}') || jsx.includes('quote_'), 'Debe agrupar por quote.code');
+  assert.ok(jsx.includes('_jornadas'), 'Debe calcular el número de jornadas');
+
+  // Renderizado de badge de jornadas y salones adicionales
+  assert.ok(jsx.includes('datagrid-jornadas-badge'), 'Debe renderizar la insignia de jornadas');
+  assert.ok(jsx.includes('datagrid-salon-more-pill'), 'Debe renderizar la pastilla de salones adicionales (+N más)');
+
+  // Clases CSS presentes
+  assert.ok(css.includes('.datagrid-jornadas-badge'), 'search.css debe definir .datagrid-jornadas-badge');
+  assert.ok(css.includes('.datagrid-salon-more-pill'), 'search.css debe definir .datagrid-salon-more-pill');
 });
 

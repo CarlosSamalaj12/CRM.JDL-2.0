@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
@@ -122,6 +123,8 @@ export default function SearchModule() {
   const [tempMaxTotal, setTempMaxTotal] = useState(colFilterMaxTotal);
 
   const columnFilterPopRef = useRef(null);
+  const popoverAnchorRef = useRef(null);
+  const [popoverCoords, setPopoverCoords] = useState(null);
   const searchInputRef = useRef(null);
 
   // ── 3. Ordenación Dinámica por Columna ──
@@ -161,10 +164,14 @@ export default function SearchModule() {
       if (columnFilterPopRef.current && !columnFilterPopRef.current.contains(e.target)) {
         if (!e.target.closest('.datagrid-th-btn')) {
           setOpenColumnFilter(null);
+          setPopoverCoords(null);
+          popoverAnchorRef.current = null;
         }
       }
       if (actionMenuRef.current && !actionMenuRef.current.contains(e.target)) {
-        setActiveActionMenu(null);
+        if (!e.target.closest('.datagrid-action-btn') && !e.target.closest('.search-mcard-btn-more')) {
+          setActiveActionMenu(null);
+        }
       }
     };
     document.addEventListener('mousedown', handleDocClick);
@@ -209,50 +216,135 @@ export default function SearchModule() {
     return Array.from(years).sort((a, b) => Number(b) - Number(a));
   }, [events]);
 
-  // Procesar eventos agrupando sub-eventos
+  // Procesar y consolidar eventos por reserva completa (evitando duplicar días o slots de la misma reserva)
   const processedEvents = useMemo(() => {
-    const eventMap = new Map();
-    const baseEvents = events.filter(e => !e.parent_id && !e.parentId);
+    if (!events || !events.length) return [];
 
-    baseEvents.forEach(ev => {
-      eventMap.set(String(ev.id), {
-        ...ev,
-        _subEvents: [ev],
-        _salonList: [ev.salon].filter(Boolean),
-        _dateStart: ev.start ? String(ev.start).slice(0, 10) : (ev.date ? String(ev.date).slice(0, 10) : ''),
-        _dateEnd: ev.end ? String(ev.end).slice(0, 10) : (ev.date ? String(ev.date).slice(0, 10) : '')
+    const getReservationKey = (ev) => {
+      if (!ev) return '';
+      const gId = String(ev.groupId || ev.id_grupo || ev.idGroup || '').trim();
+      if (gId) return `group_${gId}`;
+
+      const qCode = String(ev.quote?.code || '').trim();
+      if (qCode) return `quote_${qCode}`;
+
+      const pId = String(ev.parent_id || ev.parentId || '').trim();
+      if (pId) return `event_${pId}`;
+
+      return `event_${ev.id}`;
+    };
+
+    const extractEventDate = (e) => {
+      if (!e) return '';
+      const raw = e.start || e.date || e.eventDateStart || e.FechaEvento || '';
+      if (typeof raw === 'string' && raw.length >= 10) {
+        return raw.slice(0, 10);
+      }
+      return '';
+    };
+
+    const extractEventEndDate = (e) => {
+      if (!e) return '';
+      const raw = e.end || e.endDate || e.eventDateEnd || e.FechaSalida || e.date || e.start || '';
+      if (typeof raw === 'string' && raw.length >= 10) {
+        return raw.slice(0, 10);
+      }
+      return '';
+    };
+
+    // Agrupar todos los eventos que pertenecen a la misma reserva
+    const groups = new Map();
+    events.forEach(ev => {
+      const key = getReservationKey(ev);
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key).push(ev);
+    });
+
+    const consolidated = [];
+
+    groups.forEach((seriesEvents) => {
+      // Ordenar cronológicamente
+      seriesEvents.sort((a, b) => {
+        const dA = extractEventDate(a);
+        const dB = extractEventDate(b);
+        if (dA !== dB) return dA.localeCompare(dB);
+        return String(a.startTime || '').localeCompare(String(b.startTime || ''));
+      });
+
+      // Evento canónico o principal
+      const primaryEvent = seriesEvents.find(e => e.isPrincipal || e.is_principal)
+        || seriesEvents.find(e => e.quote && (e.quote.code || e.quote.total))
+        || seriesEvents[0];
+
+      // Fechas y cálculo de jornadas
+      const dateSet = new Set();
+      let minDate = '';
+      let maxDate = '';
+
+      seriesEvents.forEach(e => {
+        const dStart = extractEventDate(e);
+        const dEnd = extractEventEndDate(e) || dStart;
+        if (dStart) {
+          dateSet.add(dStart);
+          if (!minDate || dStart < minDate) minDate = dStart;
+          if (!maxDate || dStart > maxDate) maxDate = dStart;
+        }
+        if (dEnd) {
+          dateSet.add(dEnd);
+          if (!minDate || dEnd < minDate) minDate = dEnd;
+          if (!maxDate || dEnd > maxDate) maxDate = dEnd;
+        }
+      });
+
+      const jornadas = Math.max(1, dateSet.size);
+
+      // Salones únicos utilizados en la serie
+      const salonSet = new Set();
+      seriesEvents.forEach(e => {
+        if (Array.isArray(e.salones)) {
+          e.salones.forEach(s => {
+            if (s && String(s).trim()) salonSet.add(String(s).trim());
+          });
+        }
+        if (e.salon && String(e.salon).trim()) {
+          salonSet.add(String(e.salon).trim());
+        }
+      });
+      const uniqueSalones = Array.from(salonSet);
+      const explicitMain = String(primaryEvent.mainSalon || primaryEvent.salon || '').trim();
+      const mainSalon = explicitMain || uniqueSalones[0] || 'Según Disponibilidad';
+      const additionalSalons = uniqueSalones.filter(s => s !== mainSalon);
+
+      // Cotización y Monto canónico
+      const quote = primaryEvent.quote || seriesEvents.find(e => e.quote)?.quote || {};
+      const totalNum = typeof quote.total === 'number'
+        ? quote.total
+        : Number(String(quote.total || '0').replace(/[^0-9.-]+/g, '')) || 0;
+
+      // Horarios canónicos
+      const startTime = primaryEvent.startTime || seriesEvents[0]?.startTime || '00:00';
+      const endTime = primaryEvent.endTime || seriesEvents[seriesEvents.length - 1]?.endTime || '00:00';
+
+      consolidated.push({
+        ...primaryEvent,
+        _subEvents: seriesEvents,
+        _salonList: uniqueSalones.length ? uniqueSalones : [mainSalon],
+        salon: mainSalon,
+        _additionalSalonsCount: additionalSalons.length,
+        _additionalSalonsList: additionalSalons,
+        _dateStart: minDate || extractEventDate(primaryEvent),
+        _dateEnd: maxDate || extractEventEndDate(primaryEvent) || minDate,
+        _jornadas: jornadas,
+        startTime,
+        endTime,
+        quote,
+        _totalNum: totalNum
       });
     });
 
-    const childEvents = events.filter(e => e.parent_id || e.parentId);
-    childEvents.forEach(child => {
-      const parentId = String(child.parent_id || child.parentId);
-      if (eventMap.has(parentId)) {
-        const parent = eventMap.get(parentId);
-        parent._subEvents.push(child);
-        if (child.salon && !parent._salonList.includes(child.salon)) {
-          parent._salonList.push(child.salon);
-        }
-        const childStart = child.start ? String(child.start).slice(0, 10) : '';
-        const childEnd = child.end ? String(child.end).slice(0, 10) : '';
-        if (childStart && (!parent._dateStart || childStart < parent._dateStart)) {
-          parent._dateStart = childStart;
-        }
-        if (childEnd && (!parent._dateEnd || childEnd > parent._dateEnd)) {
-          parent._dateEnd = childEnd;
-        }
-      } else {
-        eventMap.set(String(child.id), {
-          ...child,
-          _subEvents: [child],
-          _salonList: [child.salon].filter(Boolean),
-          _dateStart: child.start ? String(child.start).slice(0, 10) : (child.date ? String(child.date).slice(0, 10) : ''),
-          _dateEnd: child.end ? String(child.end).slice(0, 10) : (child.date ? String(child.date).slice(0, 10) : '')
-        });
-      }
-    });
-
-    return Array.from(eventMap.values());
+    return consolidated;
   }, [events]);
 
   // Conteo de eventos por estado
@@ -301,8 +393,9 @@ export default function SearchModule() {
 
       // 2. Filtro de Año
       if (yearFilter !== 'all') {
-        const evYear = ev._dateStart ? ev._dateStart.slice(0, 4) : '';
-        if (evYear !== yearFilter) return false;
+        const startYear = ev._dateStart ? ev._dateStart.slice(0, 4) : '';
+        const endYear = ev._dateEnd ? ev._dateEnd.slice(0, 4) : '';
+        if (startYear !== yearFilter && endYear !== yearFilter) return false;
       }
 
       // 3. Filtro de Estados
@@ -459,12 +552,44 @@ export default function SearchModule() {
     colFilterMaxTotal !== ''
   );
 
+  // Calcular posición del popover respecto a la ventana del navegador
+  const calculatePopoverCoords = (buttonEl, colKey) => {
+    if (!buttonEl) return null;
+    const rect = buttonEl.getBoundingClientRect();
+    const popoverWidth = colKey === 'status' ? 300 : (colKey === 'user' || colKey === 'salon' ? 290 : 310);
+
+    // Posición horizontal calculada respecto a la ventana (evita desbordes)
+    let left = rect.left;
+    if (left + popoverWidth > window.innerWidth - 16) {
+      left = Math.max(16, rect.right - popoverWidth);
+    }
+    if (left < 16) left = 16;
+
+    let top = rect.bottom + 6;
+    // Si no cabe hacia abajo en la pantalla, abrir hacia arriba
+    const estimatedHeight = colKey === 'status' ? 380 : (colKey === 'date' ? 240 : 200);
+    if (top + estimatedHeight > window.innerHeight && rect.top > estimatedHeight) {
+      top = Math.max(10, rect.top - estimatedHeight - 6);
+    }
+
+    return { top, left };
+  };
+
   // Abrir popover de columna inicializando estados temporales
-  const handleOpenColFilter = (colKey) => {
+  const handleOpenColFilter = (colKey, e) => {
     if (openColumnFilter === colKey) {
       setOpenColumnFilter(null);
+      setPopoverCoords(null);
+      popoverAnchorRef.current = null;
       return;
     }
+
+    const buttonEl = e?.currentTarget || null;
+    popoverAnchorRef.current = buttonEl;
+    if (buttonEl) {
+      setPopoverCoords(calculatePopoverCoords(buttonEl, colKey));
+    }
+
     if (colKey === 'status') setTempStatusFilter(new Set(statusFilter));
     if (colKey === 'user') setTempUserFilter(userFilter);
     if (colKey === 'salon') setTempSalonFilter(salonFilter);
@@ -481,6 +606,22 @@ export default function SearchModule() {
     }
     setOpenColumnFilter(colKey);
   };
+
+  // Reposicionar el popover dinámicamente si el usuario hace scroll o cambia de tamaño la pantalla
+  useEffect(() => {
+    if (!openColumnFilter || !popoverAnchorRef.current) return;
+    const handleReposition = () => {
+      const coords = calculatePopoverCoords(popoverAnchorRef.current, openColumnFilter);
+      if (coords) setPopoverCoords(coords);
+    };
+
+    window.addEventListener('scroll', handleReposition, true);
+    window.addEventListener('resize', handleReposition);
+    return () => {
+      window.removeEventListener('scroll', handleReposition, true);
+      window.removeEventListener('resize', handleReposition);
+    };
+  }, [openColumnFilter]);
 
   // Salto rápido a página
   const handleGoToPage = () => {
@@ -1115,21 +1256,26 @@ export default function SearchModule() {
                           <Calendar size={13} className="search-mcard-icon" />
                           <span className="search-mcard-meta-val">
                             {ev._dateStart || '—'}{ev._dateStart !== ev._dateEnd && ev._dateEnd ? ` al ${ev._dateEnd}` : ''}
+                            {ev._jornadas > 1 && (
+                              <span className="datagrid-jornadas-badge" style={{ marginLeft: 6 }}>
+                                {ev._jornadas} Jornadas
+                              </span>
+                            )}
                             <span className="search-mcard-time"> • {ev.startTime || '00:00'} - {ev.endTime || '00:00'}</span>
                           </span>
                         </div>
 
                         <div className="search-mcard-meta-item">
                           <MapPin size={13} className="search-mcard-icon" />
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                            {isMultiSalon ? (
-                              ev._salonList.map((s, idx) => (
-                                <span key={idx} className="datagrid-salon-pill">{s}</span>
-                              ))
-                            ) : ev.salon ? (
-                              <span className="datagrid-salon-pill">{ev.salon}</span>
-                            ) : (
-                              <span style={{ fontSize: 11, color: '#94a3b8' }}>Según Disponibilidad</span>
+                          <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span className="datagrid-salon-pill">{ev.salon || 'Según Disponibilidad'}</span>
+                            {ev._additionalSalonsCount > 0 && (
+                              <span
+                                className="datagrid-salon-more-pill"
+                                title={`Otros espacios: ${ev._additionalSalonsList.join(', ')}`}
+                              >
+                                +{ev._additionalSalonsCount} más
+                              </span>
                             )}
                           </div>
                         </div>
@@ -1248,57 +1394,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${colFilterDoc ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('doc')}
+                          onClick={(e) => handleOpenColFilter('doc', e)}
                           title="Filtrar por No. Doc"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover de Filtro No. Doc */}
-                    {openColumnFilter === 'doc' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', left: 0 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Filtrar No. Doc</span>
-                          <button type="button" onClick={() => setOpenColumnFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                        </div>
-                        <input
-                          type="text"
-                          className="datagrid-popover-search"
-                          placeholder="Buscar código o ID..."
-                          value={tempDocQuery}
-                          onChange={(e) => setTempDocQuery(e.target.value)}
-                          style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-                          autoFocus
-                        />
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setTempDocQuery('');
-                              setColFilterDoc('');
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setColFilterDoc(tempDocQuery);
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 2. EVENTO */}
@@ -1321,57 +1423,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${colFilterEvent ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('event')}
+                          onClick={(e) => handleOpenColFilter('event', e)}
                           title="Filtrar por Nombre de Evento"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover Evento */}
-                    {openColumnFilter === 'event' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', left: 0 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Filtrar Evento</span>
-                          <button type="button" onClick={() => setOpenColumnFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                        </div>
-                        <input
-                          type="text"
-                          className="datagrid-popover-search"
-                          placeholder="Nombre del evento..."
-                          value={tempEventQuery}
-                          onChange={(e) => setTempEventQuery(e.target.value)}
-                          style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-                          autoFocus
-                        />
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setTempEventQuery('');
-                              setColFilterEvent('');
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setColFilterEvent(tempEventQuery);
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 3. CLIENTE / EMPRESA */}
@@ -1394,57 +1452,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${colFilterClient ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('client')}
+                          onClick={(e) => handleOpenColFilter('client', e)}
                           title="Filtrar por Cliente"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover Cliente */}
-                    {openColumnFilter === 'client' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', left: 0 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Filtrar Cliente</span>
-                          <button type="button" onClick={() => setOpenColumnFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                        </div>
-                        <input
-                          type="text"
-                          className="datagrid-popover-search"
-                          placeholder="Nombre del cliente o empresa..."
-                          value={tempClientQuery}
-                          onChange={(e) => setTempClientQuery(e.target.value)}
-                          style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-                          autoFocus
-                        />
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setTempClientQuery('');
-                              setColFilterClient('');
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setColFilterClient(tempClientQuery);
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 4. VENDEDOR */}
@@ -1467,70 +1481,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${userFilter !== 'all' ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('user')}
+                          onClick={(e) => handleOpenColFilter('user', e)}
                           title="Filtrar por Vendedor"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover Vendedor */}
-                    {openColumnFilter === 'user' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', left: 0 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Filtrar Vendedor</span>
-                          <button type="button" onClick={() => setOpenColumnFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                        </div>
-                        <div className="datagrid-popover-list">
-                          <label className="datagrid-popover-item">
-                            <input
-                              type="radio"
-                              name="popover-user"
-                              checked={tempUserFilter === 'all'}
-                              onChange={() => setTempUserFilter('all')}
-                            />
-                            <span>Todos los Vendedores</span>
-                          </label>
-                          {sellerUsers.map(u => (
-                            <label key={u.id} className="datagrid-popover-item">
-                              <input
-                                type="radio"
-                                name="popover-user"
-                                checked={String(tempUserFilter) === String(u.id)}
-                                onChange={() => setTempUserFilter(String(u.id))}
-                              />
-                              <span>{u.fullName || u.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setUserFilter('all');
-                              setTempUserFilter('all');
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setUserFilter(tempUserFilter);
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 5. SALÓN */}
@@ -1553,70 +1510,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${salonFilter !== 'all' ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('salon')}
+                          onClick={(e) => handleOpenColFilter('salon', e)}
                           title="Filtrar por Salón"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover Salón */}
-                    {openColumnFilter === 'salon' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', left: 0 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Filtrar Salón</span>
-                          <button type="button" onClick={() => setOpenColumnFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                        </div>
-                        <div className="datagrid-popover-list">
-                          <label className="datagrid-popover-item">
-                            <input
-                              type="radio"
-                              name="popover-salon"
-                              checked={tempSalonFilter === 'all'}
-                              onChange={() => setTempSalonFilter('all')}
-                            />
-                            <span>Todos los Salones</span>
-                          </label>
-                          {(salones || []).map(s => (
-                            <label key={s} className="datagrid-popover-item">
-                              <input
-                                type="radio"
-                                name="popover-salon"
-                                checked={tempSalonFilter === s}
-                                onChange={() => setTempSalonFilter(s)}
-                              />
-                              <span>{s}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setSalonFilter('all');
-                              setTempSalonFilter('all');
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setSalonFilter(tempSalonFilter);
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 6. FECHAS */}
@@ -1639,73 +1539,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${(dateFrom || dateTo) ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('date')}
+                          onClick={(e) => handleOpenColFilter('date', e)}
                           title="Filtrar por Rango de Fechas"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover Fechas */}
-                    {openColumnFilter === 'date' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', left: 0 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Rango de Fechas</span>
-                          <button type="button" onClick={() => setOpenColumnFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-                          <div className="datagrid-date-field-wrap">
-                            <span className="datagrid-date-label">Desde:</span>
-                            <input
-                              type="date"
-                              className="datagrid-popover-date-input"
-                              value={tempDateFrom}
-                              onChange={(e) => setTempDateFrom(e.target.value)}
-                              style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-                            />
-                          </div>
-                          <div className="datagrid-date-field-wrap">
-                            <span className="datagrid-date-label">Hasta:</span>
-                            <input
-                              type="date"
-                              className="datagrid-popover-date-input"
-                              value={tempDateTo}
-                              onChange={(e) => setTempDateTo(e.target.value)}
-                              style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-                            />
-                          </div>
-                        </div>
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setDateFrom('');
-                              setDateTo('');
-                              setTempDateFrom('');
-                              setTempDateTo('');
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setDateFrom(tempDateFrom);
-                              setDateTo(tempDateTo);
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 7. TOTAL COTIZACIÓN */}
@@ -1728,69 +1568,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${(colFilterMinTotal !== '' || colFilterMaxTotal !== '') ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('total')}
+                          onClick={(e) => handleOpenColFilter('total', e)}
                           title="Filtrar por Rango de Monto"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover Total */}
-                    {openColumnFilter === 'total' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', right: 0 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Rango de Monto (Q)</span>
-                          <button type="button" onClick={() => setOpenColumnFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                          <input
-                            type="number"
-                            className="datagrid-popover-search"
-                            placeholder="Mínimo (Q)"
-                            value={tempMinTotal}
-                            onChange={(e) => setTempMinTotal(e.target.value)}
-                            style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-                          />
-                          <input
-                            type="number"
-                            className="datagrid-popover-search"
-                            placeholder="Máximo (Q)"
-                            value={tempMaxTotal}
-                            onChange={(e) => setTempMaxTotal(e.target.value)}
-                            style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-                          />
-                        </div>
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setColFilterMinTotal('');
-                              setColFilterMaxTotal('');
-                              setTempMinTotal('');
-                              setTempMaxTotal('');
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setColFilterMinTotal(tempMinTotal);
-                              setColFilterMaxTotal(tempMaxTotal);
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 8. ESTADO */}
@@ -1813,84 +1597,13 @@ export default function SearchModule() {
                         <button
                           type="button"
                           className={`datagrid-th-btn ${statusFilter.size > 0 ? 'is-active' : ''}`}
-                          onClick={() => handleOpenColFilter('status')}
+                          onClick={(e) => handleOpenColFilter('status', e)}
                           title="Filtrar por Estados"
                         >
                           <Filter size={11} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
-
-                    {/* Popover Estado */}
-                    {openColumnFilter === 'status' && (
-                      <div className="datagrid-popover-portal" ref={columnFilterPopRef} style={{ top: '100%', right: 0, width: 300 }}>
-                        <div className="datagrid-popover-header">
-                          <span className="datagrid-popover-title">Filtrar Estados</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (tempStatusFilter.size === ALL_STATUS_KEYS.length) {
-                                setTempStatusFilter(new Set());
-                              } else {
-                                setTempStatusFilter(new Set(ALL_STATUS_KEYS));
-                              }
-                            }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#2563eb' }}
-                          >
-                            {tempStatusFilter.size === ALL_STATUS_KEYS.length ? 'Deseleccionar' : 'Todos'}
-                          </button>
-                        </div>
-                        <div className="datagrid-popover-list" style={{ maxHeight: 240 }}>
-                          {ALL_STATUS_KEYS.map(st => {
-                            const isChecked = tempStatusFilter.has(st);
-                            const count = statusCounts[st] || 0;
-                            const dotColor = getStatusColor(st);
-                            return (
-                              <label key={st} className="datagrid-popover-item">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    const next = new Set(tempStatusFilter);
-                                    if (next.has(st)) next.delete(st);
-                                    else next.add(st);
-                                    setTempStatusFilter(next);
-                                  }}
-                                />
-                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st}</span>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>{count}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                        <div className="datagrid-popover-footer">
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-clear"
-                            onClick={() => {
-                              setStatusFilter(new Set());
-                              setTempStatusFilter(new Set());
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Limpiar
-                          </button>
-                          <button
-                            type="button"
-                            className="datagrid-popover-btn-apply"
-                            onClick={() => {
-                              setStatusFilter(new Set(tempStatusFilter));
-                              setOpenColumnFilter(null);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            Aplicar ({tempStatusFilter.size})
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </th>
 
                   {/* 9. ACCIÓN */}
@@ -1926,7 +1639,7 @@ export default function SearchModule() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedEvents.map(ev => {
+                  paginatedEvents.map((ev, idx) => {
                     const assignedUser = users?.find(u => String(u.id) === String(ev.userId));
                     const docCode = ev.quote?.code || ev.id?.substring(0, 12) || '-';
                     const isMultiSalon = ev._subEvents?.length > 1;
@@ -1974,27 +1687,34 @@ export default function SearchModule() {
 
                         {/* Salón */}
                         <td className="datagrid-td">
-                          {isMultiSalon ? (
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                              {ev._salonList.map((s, idx) => (
-                                <span key={idx} className="datagrid-salon-pill">
-                                  {s}
-                                </span>
-                              ))}
-                            </div>
-                          ) : ev.salon ? (
-                            <span className="datagrid-salon-pill">{ev.salon}</span>
-                          ) : (
-                            <span style={{ fontSize: 11, color: '#94a3b8' }}>Según Disponibilidad</span>
-                          )}
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span className="datagrid-salon-pill">
+                              {ev.salon || 'Según Disponibilidad'}
+                            </span>
+                            {ev._additionalSalonsCount > 0 && (
+                              <span
+                                className="datagrid-salon-more-pill"
+                                title={`Otros espacios asignados: ${ev._additionalSalonsList.join(', ')}`}
+                              >
+                                +{ev._additionalSalonsCount} más
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Fechas */}
                         <td className="datagrid-td">
-                          <div style={{ fontWeight: 600, fontSize: 12, color: '#1e293b' }}>
-                            {ev._dateStart || '—'}{ev._dateStart !== ev._dateEnd && ev._dateEnd ? ` al ${ev._dateEnd}` : ''}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, fontSize: 12, color: '#1e293b' }}>
+                              {ev._dateStart || '—'}{ev._dateStart !== ev._dateEnd && ev._dateEnd ? ` al ${ev._dateEnd}` : ''}
+                            </span>
+                            {ev._jornadas > 1 && (
+                              <span className="datagrid-jornadas-badge" title={`Reserva consolidada de ${ev._jornadas} jornadas`}>
+                                {ev._jornadas} Jornadas
+                              </span>
+                            )}
                           </div>
-                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
                             {ev.startTime || '00:00'} - {ev.endTime || '00:00'}
                           </div>
                         </td>
@@ -2060,7 +1780,16 @@ export default function SearchModule() {
                               </button>
 
                               {activeActionMenu === ev.id && (
-                                <div className="action-dropdown-popover" style={{ right: 0, top: '100%', zIndex: 100 }}>
+                                <div
+                                  className="action-dropdown-popover"
+                                  style={{
+                                    right: 0,
+                                    ...(idx >= paginatedEvents.length - 2 && paginatedEvents.length > 2
+                                      ? { bottom: '100%', top: 'auto', marginBottom: 4 }
+                                      : { top: '100%' }),
+                                    zIndex: 100
+                                  }}
+                                >
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2106,6 +1835,470 @@ export default function SearchModule() {
             </table>
           </div>
         )}
+
+          {/* Popover Flotante Portaleado a document.body — Aparece libremente por encima de la tabla sin recortes ni scroll */}
+          {openColumnFilter && popoverCoords && typeof document !== 'undefined' && createPortal(
+            <div
+              className="datagrid-popover-portal"
+              ref={columnFilterPopRef}
+              style={{
+                position: 'fixed',
+                top: `${popoverCoords.top}px`,
+                left: `${popoverCoords.left}px`,
+                zIndex: 999999
+              }}
+            >
+              {/* 1. Popover No. Doc */}
+              {openColumnFilter === 'doc' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Filtrar No. Doc</span>
+                    <button type="button" onClick={() => { setOpenColumnFilter(null); setPopoverCoords(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                  </div>
+                  <input
+                    type="text"
+                    className="datagrid-popover-search"
+                    placeholder="Buscar código o ID..."
+                    value={tempDocQuery}
+                    onChange={(e) => setTempDocQuery(e.target.value)}
+                    style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                    autoFocus
+                  />
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setTempDocQuery('');
+                        setColFilterDoc('');
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setColFilterDoc(tempDocQuery);
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* 2. Popover Evento */}
+              {openColumnFilter === 'event' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Filtrar Evento</span>
+                    <button type="button" onClick={() => { setOpenColumnFilter(null); setPopoverCoords(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                  </div>
+                  <input
+                    type="text"
+                    className="datagrid-popover-search"
+                    placeholder="Nombre del evento..."
+                    value={tempEventQuery}
+                    onChange={(e) => setTempEventQuery(e.target.value)}
+                    style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                    autoFocus
+                  />
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setTempEventQuery('');
+                        setColFilterEvent('');
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setColFilterEvent(tempEventQuery);
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* 3. Popover Cliente */}
+              {openColumnFilter === 'client' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Filtrar Cliente</span>
+                    <button type="button" onClick={() => { setOpenColumnFilter(null); setPopoverCoords(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                  </div>
+                  <input
+                    type="text"
+                    className="datagrid-popover-search"
+                    placeholder="Nombre del cliente o empresa..."
+                    value={tempClientQuery}
+                    onChange={(e) => setTempClientQuery(e.target.value)}
+                    style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                    autoFocus
+                  />
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setTempClientQuery('');
+                        setColFilterClient('');
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setColFilterClient(tempClientQuery);
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* 4. Popover Vendedor */}
+              {openColumnFilter === 'user' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Filtrar Vendedor</span>
+                    <button type="button" onClick={() => { setOpenColumnFilter(null); setPopoverCoords(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                  </div>
+                  <div className="datagrid-popover-list">
+                    <label className="datagrid-popover-item">
+                      <input
+                        type="radio"
+                        name="popover-user"
+                        checked={tempUserFilter === 'all'}
+                        onChange={() => setTempUserFilter('all')}
+                      />
+                      <span>Todos los Vendedores</span>
+                    </label>
+                    {sellerUsers.map(u => (
+                      <label key={u.id} className="datagrid-popover-item">
+                        <input
+                          type="radio"
+                          name="popover-user"
+                          checked={String(tempUserFilter) === String(u.id)}
+                          onChange={() => setTempUserFilter(String(u.id))}
+                        />
+                        <span>{u.fullName || u.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setUserFilter('all');
+                        setTempUserFilter('all');
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setUserFilter(tempUserFilter);
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* 5. Popover Salón */}
+              {openColumnFilter === 'salon' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Filtrar Salón</span>
+                    <button type="button" onClick={() => { setOpenColumnFilter(null); setPopoverCoords(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                  </div>
+                  <div className="datagrid-popover-list">
+                    <label className="datagrid-popover-item">
+                      <input
+                        type="radio"
+                        name="popover-salon"
+                        checked={tempSalonFilter === 'all'}
+                        onChange={() => setTempSalonFilter('all')}
+                      />
+                      <span>Todos los Salones</span>
+                    </label>
+                    {(salones || []).map(s => (
+                      <label key={s} className="datagrid-popover-item">
+                        <input
+                          type="radio"
+                          name="popover-salon"
+                          checked={tempSalonFilter === s}
+                          onChange={() => setTempSalonFilter(s)}
+                        />
+                        <span>{s}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setSalonFilter('all');
+                        setTempSalonFilter('all');
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setSalonFilter(tempSalonFilter);
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* 6. Popover Fechas */}
+              {openColumnFilter === 'date' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Rango de Fechas</span>
+                    <button type="button" onClick={() => { setOpenColumnFilter(null); setPopoverCoords(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                    <div className="datagrid-date-field-wrap">
+                      <span className="datagrid-date-label">Desde:</span>
+                      <input
+                        type="date"
+                        className="datagrid-popover-date-input"
+                        value={tempDateFrom}
+                        onChange={(e) => setTempDateFrom(e.target.value)}
+                        style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                      />
+                    </div>
+                    <div className="datagrid-date-field-wrap">
+                      <span className="datagrid-date-label">Hasta:</span>
+                      <input
+                        type="date"
+                        className="datagrid-popover-date-input"
+                        value={tempDateTo}
+                        onChange={(e) => setTempDateTo(e.target.value)}
+                        style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setDateFrom('');
+                        setDateTo('');
+                        setTempDateFrom('');
+                        setTempDateTo('');
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setDateFrom(tempDateFrom);
+                        setDateTo(tempDateTo);
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* 7. Popover Total */}
+              {openColumnFilter === 'total' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Rango de Monto (Q)</span>
+                    <button type="button" onClick={() => { setOpenColumnFilter(null); setPopoverCoords(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                    <input
+                      type="number"
+                      className="datagrid-popover-search"
+                      placeholder="Mínimo (Q)"
+                      value={tempMinTotal}
+                      onChange={(e) => setTempMinTotal(e.target.value)}
+                      style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                    />
+                    <input
+                      type="number"
+                      className="datagrid-popover-search"
+                      placeholder="Máximo (Q)"
+                      value={tempMaxTotal}
+                      onChange={(e) => setTempMaxTotal(e.target.value)}
+                      style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                    />
+                  </div>
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setColFilterMinTotal('');
+                        setColFilterMaxTotal('');
+                        setTempMinTotal('');
+                        setTempMaxTotal('');
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setColFilterMinTotal(tempMinTotal);
+                        setColFilterMaxTotal(tempMaxTotal);
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* 8. Popover Estados */}
+              {openColumnFilter === 'status' && (
+                <>
+                  <div className="datagrid-popover-header">
+                    <span className="datagrid-popover-title">Filtrar Estados</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (tempStatusFilter.size === ALL_STATUS_KEYS.length) {
+                          setTempStatusFilter(new Set());
+                        } else {
+                          setTempStatusFilter(new Set(ALL_STATUS_KEYS));
+                        }
+                      }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#2563eb' }}
+                    >
+                      {tempStatusFilter.size === ALL_STATUS_KEYS.length ? 'Deseleccionar' : 'Todos'}
+                    </button>
+                  </div>
+                  <div className="datagrid-popover-list" style={{ maxHeight: 240 }}>
+                    {ALL_STATUS_KEYS.map(st => {
+                      const isChecked = tempStatusFilter.has(st);
+                      const count = statusCounts[st] || 0;
+                      const dotColor = getStatusColor(st);
+                      return (
+                        <label key={st} className="datagrid-popover-item">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              const next = new Set(tempStatusFilter);
+                              if (next.has(st)) next.delete(st);
+                              else next.add(st);
+                              setTempStatusFilter(next);
+                            }}
+                          />
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>{count}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="datagrid-popover-footer">
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-clear"
+                      onClick={() => {
+                        setStatusFilter(new Set());
+                        setTempStatusFilter(new Set());
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      className="datagrid-popover-btn-apply"
+                      onClick={() => {
+                        setStatusFilter(new Set(tempStatusFilter));
+                        setOpenColumnFilter(null);
+                        setPopoverCoords(null);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Aplicar ({tempStatusFilter.size})
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>,
+            document.body
+          )}
 
           {/* ── 3. PAGINACIÓN DATAGRID AL PIE (Fiel a la Referencia) ── */}
           <div className="datagrid-pagination-footer">
