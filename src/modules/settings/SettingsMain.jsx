@@ -28,7 +28,8 @@ import {
   TrendingUp,
   Info,
   Lock,
-  Percent
+  Percent,
+  Bed
 } from 'lucide-react';
 import SettingsChecklist, { ChecklistTemplateEditor } from './SettingsChecklist';
 import SettingsEmpresas from './SettingsEmpresas';
@@ -48,6 +49,7 @@ import SettingsCitas from './SettingsCitas';
 import SettingsMantenimiento from './SettingsMantenimiento';
 import SettingsUpdateCheck from './SettingsUpdateCheck';
 import SettingsPropinas from './SettingsPropinas';
+import SettingsHabitaciones from './SettingsHabitaciones';
 import authService from '../../services/authService';
 import '../reports/reports.css';
 import './settings.css';
@@ -373,6 +375,19 @@ export default function SettingsMain() {
         <div className="settings-page-body" style={{ padding: '20px 28px', overflowY: 'auto' }}>
           <div style={{ maxWidth: '960px', margin: '0 auto', width: '100%' }}>
             <SettingsPropinas inline onBack={closeView} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeInlineView === 'habitaciones') {
+    return (
+      <div className="settings-page">
+        {renderInlineHeader('Panel de Configuración', 'Catálogos, tarifas, plantillas y metas de habitaciones')}
+        <div className="settings-page-body" style={{ padding: '20px 28px', overflowY: 'auto' }}>
+          <div style={{ maxWidth: '960px', margin: '0 auto', width: '100%' }}>
+            <SettingsHabitaciones inline onBack={closeView} />
           </div>
         </div>
       </div>
@@ -860,6 +875,31 @@ export default function SettingsMain() {
                     </div>
                     <button type="button" className="settings-action-btn" onClick={(e) => { e.stopPropagation(); openView('formas-pago'); }}>
                       <span>Configurar Pagos</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
+
+                  {/* Tarjeta: Configuración de Habitaciones */}
+                  <div className="settings-bento-card" onClick={() => openView('habitaciones')}>
+                    <div className="settings-bento-left">
+                      <div className="settings-bento-icon-box is-teal" style={{ background: '#ecfdf5', color: '#059669', borderColor: '#a7f3d0' }}>
+                        <Bed size={22} strokeWidth={2.2} />
+                      </div>
+                      <div className="settings-bento-info">
+                        <div className="settings-bento-header-row">
+                          <h3 className="settings-bento-title">Configuración de Habitaciones</h3>
+                          <span className="settings-bento-badge badge-green">Centro Unificado</span>
+                        </div>
+                        <p className="settings-bento-desc">
+                          Catálogos de medios de contacto, tipos de habitación con tarifas, tipos de cliente, formas de pago, plantillas y metas de habitaciones.
+                        </p>
+                        <div className="settings-bento-meta-row">
+                          <span className="settings-meta-pill-green"><span className="dot" /> Tarifas base, WhatsApp, correo y metas mensuales</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" className="settings-action-btn" onClick={(e) => { e.stopPropagation(); openView('habitaciones'); }}>
+                      <span>Gestionar Habitaciones</span>
                       <ArrowRight size={14} />
                     </button>
                   </div>

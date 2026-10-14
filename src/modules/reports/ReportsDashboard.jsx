@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { loadState } from '../../services/stateService';
+import { getHabitacionesApi } from '../../services/habitacionesService';
 import ReportInfo from './components/ReportInfo';
 import { getEventSeriesFinancialMeta, getQuoteTotalGtq } from './components/eventSeriesUtils';
 
@@ -242,6 +243,26 @@ export default function ReportsDashboard({ onClose }) {
     return { from: fromDate, to: toDate, label: `${fmtShort(fromDate)} → ${fmtShort(toDate)}` };
   }, [monthKey, fromDate, toDate]);
 
+  // ── Ventas de Habitaciones para consolidar en la Meta Global ──
+  const [habitacionesTotal, setHabitacionesTotal] = useState(0);
+
+  useEffect(() => {
+    let isCancelled = false;
+    (async () => {
+      try {
+        const { from, to } = getDateRange();
+        const res = await getHabitacionesApi({ desde: from, hasta: to, estado: 'Confirmada' });
+        if (!isCancelled) {
+          const sum = (res?.reservas || []).reduce((acc, r) => acc + Number(r.monto_total || 0), 0);
+          setHabitacionesTotal(sum);
+        }
+      } catch (err) {
+        console.warn('No se pudieron cargar habitaciones para consolidado:', err);
+      }
+    })();
+    return () => { isCancelled = true; };
+  }, [getDateRange]);
+
   const filteredUsers = useMemo(() => (users||[]).filter(u => String(u.role||'').toLowerCase() === (role === USER_ROLES.SELLER ? 'vendedor' : 'recepcionista')), [users, role]);
 
   const dashboardRows = useMemo(() => {
@@ -332,7 +353,8 @@ export default function ReportsDashboard({ onClose }) {
     return { amount: totalAmount, monthsCount: months.length, months };
   }, [globalMonthlyGoals, getDateRange, globalGoalsLoading]);
   const settingsGoalAmount = settingsGlobalGoal?.amount || 0;
-  const settingsGoalProgress = settingsGoalAmount > 0 ? (globalAchieved / settingsGoalAmount) * 100 : 0;
+  const totalConsolidado = globalAchieved + habitacionesTotal;
+  const settingsGoalProgress = settingsGoalAmount > 0 ? (totalConsolidado / settingsGoalAmount) * 100 : 0;
 
   // ── PAX del mes + % Ocupación de eventos ──
   // Misma lógica que "PAX por día" pero sumando todo el rango.
@@ -532,7 +554,7 @@ export default function ReportsDashboard({ onClose }) {
 
   const visSeg = statusSummary.seg.filter(s => s.count > 0);
   const dateRange = getDateRange();
-  const gapAmount = Math.max(0, settingsGoalAmount - globalAchieved);
+  const gapAmount = Math.max(0, settingsGoalAmount - totalConsolidado);
   const gapPct = settingsGoalAmount > 0 ? (gapAmount / settingsGoalAmount) * 100 : 0;
 
   // ── Motivational Ribbon & Projections ──
@@ -545,7 +567,7 @@ export default function ReportsDashboard({ onClose }) {
   const daysLeft = Math.max(0, daysInMo - day);
   const daysEl = day;
   const needDaily = daysLeft > 0 ? gapAmount / daysLeft : 0;
-  const currDaily = daysEl > 0 ? globalAchieved / daysEl : 0;
+  const currDaily = daysEl > 0 ? totalConsolidado / daysEl : 0;
   const projected = currDaily * daysInMo;
   const projPct = settingsGoalAmount > 0 ? (projected / settingsGoalAmount) * 100 : 0;
   const onPace = currDaily >= needDaily;
@@ -561,7 +583,7 @@ export default function ReportsDashboard({ onClose }) {
   if (settingsGoalProgress >= 100) {
     mot = {
       title: '¡META SUPERADA! Increíble trabajo en equipo',
-      sub: `Superada por ${formatMoneyGT(globalAchieved - settingsGoalAmount)} · Ritmo sobresaliente`,
+      sub: `Superada por ${formatMoneyGT(totalConsolidado - settingsGoalAmount)} · Ritmo sobresaliente`,
       badge: `+${(settingsGoalProgress - 100).toFixed(0)}% de Meta`,
       color: '#16a34a',
       bg: '#f0fdf4',
@@ -778,11 +800,12 @@ export default function ReportsDashboard({ onClose }) {
           </button>
           <button
             type="button"
-            className="rd-btn"
+            className="rd-btn reports-btn-back"
             onClick={() => { if (onClose) onClose(); else navigate(-1); }}
+            title="Volver al Dashboard de Reportes"
           >
-            <IconChevronLeft size={14} color="#475569" />
-            Volver
+            <IconChevronLeft size={16} color="#2563eb" />
+            <span>Volver</span>
           </button>
         </div>
       </div>
@@ -1014,14 +1037,42 @@ export default function ReportsDashboard({ onClose }) {
               </span>
             </div>
 
-            {/* Main Amount */}
-            <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px' }}>
-              <strong style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', lineHeight: 1 }}>
-                {formatMoneyGT(globalAchieved)}
-              </strong>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
-                de {formatMoneyGT(settingsGoalAmount)} meta total
-              </span>
+            {/* Main Amount Consolidado */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px' }}>
+                <strong style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                  {formatMoneyGT(totalConsolidado)}
+                </strong>
+                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
+                  de {formatMoneyGT(settingsGoalAmount)} meta consolidada
+                </span>
+              </div>
+
+              {/* Desglose consolidado: Eventos + Habitaciones */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                marginTop: '10px',
+                padding: '10px 14px',
+                background: '#f8fafc',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                fontSize: '12px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                  <span>Ventas Eventos:</span>
+                  <strong>{formatMoneyGT(globalAchieved)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669' }}>
+                  <span>+ Ventas Habitaciones:</span>
+                  <strong>{formatMoneyGT(habitacionesTotal)}</strong>
+                </div>
+                <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', color: '#0f172a', fontWeight: 800 }}>
+                  <span>Total Ingresos Consolidados:</span>
+                  <span style={{ color: '#059669' }}>{formatMoneyGT(totalConsolidado)}</span>
+                </div>
+              </div>
             </div>
 
             {/* Meta badges row */}

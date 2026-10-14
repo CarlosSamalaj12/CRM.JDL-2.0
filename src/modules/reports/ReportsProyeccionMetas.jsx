@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
 import { getEquipos } from '../../services/api.js';
+import { getHabitacionesApi, getMetasHabitacionesApi } from '../../services/habitacionesService';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 import { getEventSeriesFinancialMeta, getQuoteTotalGtq } from './components/eventSeriesUtils';
@@ -180,12 +181,38 @@ export default function ReportsProyeccionMetas({ onClose }) {
 
   const [fromDate, setFromDate] = useState(getLocalDateStr(firstOfMonth));
   const [toDate, setToDate] = useState(getLocalDateStr(lastOfMonth));
+  const [projectionMode, setProjectionMode] = useState('consolidado'); // 'consolidado' | 'eventos' | 'habitaciones'
+  const [habitacionesList, setHabitacionesList] = useState([]);
+  const [habitacionesMetasMap, setHabitacionesMetasMap] = useState(new Map());
   const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
   const [statusFilter, setStatusFilter] = useState(new Set(['Confirmado', 'Pre reserva']));
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredBarPos, setHoveredBarPos] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const reportRef = useRef(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+    (async () => {
+      try {
+        const [habRes, metasRes] = await Promise.all([
+          getHabitacionesApi({ desde: fromDate, hasta: toDate, estado: 'Confirmada' }),
+          getMetasHabitacionesApi()
+        ]);
+        if (!isCancelled) {
+          setHabitacionesList(habRes?.reservas || []);
+          const mMap = new Map();
+          (metasRes?.todas || []).forEach(m => {
+            if (m.id_usuario) mMap.set(String(m.id_usuario), Number(m.monto || 0));
+          });
+          setHabitacionesMetasMap(mMap);
+        }
+      } catch (err) {
+        console.warn('Error cargando habitaciones para proyección de metas:', err);
+      }
+    })();
+    return () => { isCancelled = true; };
+  }, [fromDate, toDate]);
 
   // ── Compute days elapsed and remaining ──
   // Los rangos de fechas son INCLUSIVOS en ambos extremos (e.g. 1-31 de julio = 31 días).
@@ -320,6 +347,17 @@ export default function ReportsProyeccionMetas({ onClose }) {
       }
     }
 
+    // Acumular ventas de habitaciones por vendedor
+    const roomSalesByUser = {};
+    const roomCountByUser = {};
+    for (const hab of habitacionesList) {
+      const uId = String(hab.id_vendedor || '').trim();
+      if (!uId) continue;
+      const m = Number(hab.monto_total || 0);
+      roomSalesByUser[uId] = (roomSalesByUser[uId] || 0) + m;
+      roomCountByUser[uId] = (roomCountByUser[uId] || 0) + 1;
+    }
+
     const rows = [];
     for (const user of users) {
       const role = String(user.role || '').toLowerCase();
@@ -327,8 +365,19 @@ export default function ReportsProyeccionMetas({ onClose }) {
       if ((role !== 'vendedor' && role !== 'admin') || user.salesTargetEnabled !== true) continue;
       const userId = String(user.id).trim();
       if (!userId) continue;
-      const currentSales = salesByUser[userId] || 0;
-      const eventCount = eventsByUser[userId] || 0;
+
+      let currentSales = 0;
+      let eventCount = 0;
+      if (projectionMode === 'eventos') {
+        currentSales = salesByUser[userId] || 0;
+        eventCount = eventsByUser[userId] || 0;
+      } else if (projectionMode === 'habitaciones') {
+        currentSales = roomSalesByUser[userId] || 0;
+        eventCount = roomCountByUser[userId] || 0;
+      } else { // 'consolidado'
+        currentSales = (salesByUser[userId] || 0) + (roomSalesByUser[userId] || 0);
+        eventCount = (eventsByUser[userId] || 0) + (roomCountByUser[userId] || 0);
+      }
       const tiers = Array.isArray(user.goalTiers) ? [...user.goalTiers].filter(t => t.amount > 0).sort((a, b) => a.amount - b.amount) : [];
       const hasTiers = tiers.length > 0;
 
@@ -1213,6 +1262,68 @@ th.right{text-align:right}</style></head><body>
                 }}
               >
                 Año
+              </button>
+            </div>
+
+            {/* Conmutador de Proyección de Metas */}
+            <div style={{
+              display: 'inline-flex',
+              background: '#f1f5f9',
+              padding: '3px',
+              borderRadius: '10px',
+              border: '1px solid #e2e8f0',
+              gap: '2px'
+            }}>
+              <button
+                type="button"
+                onClick={() => setProjectionMode('consolidado')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  border: 'none',
+                  background: projectionMode === 'consolidado' ? '#ffffff' : 'transparent',
+                  color: projectionMode === 'consolidado' ? '#0f172a' : '#64748b',
+                  boxShadow: projectionMode === 'consolidado' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Consolidado
+              </button>
+              <button
+                type="button"
+                onClick={() => setProjectionMode('eventos')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  border: 'none',
+                  background: projectionMode === 'eventos' ? '#ffffff' : 'transparent',
+                  color: projectionMode === 'eventos' ? '#2563eb' : '#64748b',
+                  boxShadow: projectionMode === 'eventos' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Solo Eventos
+              </button>
+              <button
+                type="button"
+                onClick={() => setProjectionMode('habitaciones')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  border: 'none',
+                  background: projectionMode === 'habitaciones' ? '#ffffff' : 'transparent',
+                  color: projectionMode === 'habitaciones' ? '#059669' : '#64748b',
+                  boxShadow: projectionMode === 'habitaciones' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Solo Habitaciones
               </button>
             </div>
 

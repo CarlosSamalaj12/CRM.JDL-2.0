@@ -32,6 +32,16 @@ const formatMoney = (amount) => {
   return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
 };
 
+// Helper: Escapar caracteres HTML para salida segura
+const escapeHtml = (unsafe) => {
+  return String(unsafe ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 // Formato corto dd-mm-yy
 const formatDateShort = (dateStr) => {
   if (dateStr === null || dateStr === undefined || dateStr === '') return '';
@@ -890,7 +900,473 @@ export default function ReportsVentas({ onClose }) {
   };
 
   const handlePrint = () => {
-    window.print();
+    const now = new Date();
+    const fechaGen = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+    // Filtros activos formateados
+    const filterSegments = [];
+    if (search) filterSegments.push(`<strong>Búsqueda:</strong> "${escapeHtml(search)}"`);
+    if (dateFrom || dateTo) filterSegments.push(`<strong>Fechas:</strong> ${dateFrom || 'Inicio'} a ${dateTo || 'Fin'}`);
+    if (userFilter.size > 0) {
+      const uNames = users?.filter(u => userFilter.has(String(u.id))).map(u => u.fullName || u.name).filter(Boolean);
+      if (uNames?.length) filterSegments.push(`<strong>Vendedores:</strong> ${escapeHtml(uNames.join(', '))}`);
+    }
+    if (statusFilter.size > 0) filterSegments.push(`<strong>Estados:</strong> ${escapeHtml([...statusFilter].join(', '))}`);
+    if (salonFilter.size > 0) filterSegments.push(`<strong>Salones:</strong> ${escapeHtml([...salonFilter].join(', '))}`);
+
+    const filtrosHtml = filterSegments.length > 0 
+      ? filterSegments.map(f => `<span class="filter-chip">${f}</span>`).join(' ')
+      : '<span class="filter-chip">Todos los registros (sin filtros)</span>';
+
+    // Generar filas de tabla con las 12 columnas exactas del reporte de Excel
+    const rowsHtml = reportData.map((r, idx) => {
+      const statusColor = STATUS_COLORS[r.status] || { color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' };
+      const fechaI = formatDateShort(r.eventDate) || '—';
+      const fechaF = formatDateShort(r.endDate || r.eventDate) || '—';
+      const paxVal = Number(r.pax || 0);
+      const totalVal = Number(r.total || 0);
+      const folioStr = r.folio ? (String(r.folio).startsWith('NOG') ? r.folio : `NOG: ${r.folio}`) : '0';
+      const clienteStr = r.institucion || r.clientName || r.name || 'Sin cliente';
+      const eventoStr = r.eventType || r.name || 'Servicio de Banquetes y Eventos';
+      const salonStr = r.salon || '(sin salón)';
+
+      return `
+        <tr>
+          <td class="text-center text-muted font-mono">${idx + 1}</td>
+          <td class="text-center">
+            <span class="status-badge" style="color:${statusColor.color}; background:${statusColor.bg}; border: 1px solid ${statusColor.border};">
+              ● ${escapeHtml(r.status || 'Confirmado')}
+            </span>
+          </td>
+          <td class="text-center font-mono font-bold" style="color:#2563eb;">${escapeHtml(r.refId || '—')}</td>
+          <td class="text-center font-mono font-bold" style="color:#334155;">${escapeHtml(folioStr)}</td>
+          <td>
+            <div class="client-name">${escapeHtml(clienteStr)}</div>
+          </td>
+          <td>
+            <div class="seller-cell">
+              <span class="seller-avatar" style="background:${getAvatarColor(r.userName)};">${getInitials(r.userName)}</span>
+              <span>${escapeHtml(r.userName || 'Sin asignar')}</span>
+            </div>
+          </td>
+          <td class="text-center text-nowrap font-mono">${escapeHtml(fechaI)}</td>
+          <td class="text-center text-nowrap font-mono">${escapeHtml(fechaF)}</td>
+          <td>
+            <div class="event-desc" style="font-weight:600;color:#334155;">${escapeHtml(eventoStr)}</div>
+          </td>
+          <td>${escapeHtml(salonStr)}</td>
+          <td class="text-center font-mono font-bold">${paxVal.toLocaleString('es-GT')}</td>
+          <td class="text-right font-mono font-bold" style="color:#0f172a;">${formatMoney(totalVal)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const totalGeneralPAX = reportData.reduce((acc, r) => acc + (Number(r.pax) || 0), 0);
+    const totalGeneralMonto = reportData.reduce((acc, r) => acc + (Number(r.total) || 0), 0);
+
+    const printHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Reporte de Ventas - Jardines del Lago</title>
+  <style>
+    @page {
+      size: landscape;
+      margin: 8mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      margin: 0;
+      padding: 12px;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #0d7a64;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-logo {
+      height: 48px;
+      max-width: 140px;
+      object-fit: contain;
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+      margin: 0;
+      line-height: 1.2;
+    }
+    .brand-badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #bfdbfe;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .brand-subtitle {
+      font-size: 10.5px;
+      color: #64748b;
+      margin-top: 3px;
+    }
+    .meta-section {
+      text-align: right;
+      font-size: 10.5px;
+      color: #475569;
+    }
+    .meta-item {
+      margin-bottom: 2px;
+    }
+    .meta-item strong {
+      color: #0f172a;
+    }
+
+    .filters-bar {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 6px 10px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+    }
+    .filters-title {
+      font-weight: 800;
+      color: #475569;
+      text-transform: uppercase;
+      font-size: 9.5px;
+      letter-spacing: 0.04em;
+      margin-right: 4px;
+    }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      padding: 2px 7px;
+      border-radius: 6px;
+      color: #334155;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .kpi-title {
+      font-size: 9px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 3px;
+    }
+    .kpi-val {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      line-height: 1.2;
+    }
+    .kpi-sub {
+      font-size: 9px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+      font-size: 10px;
+    }
+    thead {
+      display: table-header-group;
+    }
+    tr {
+      page-break-inside: avoid;
+    }
+    th {
+      background: #1e293b;
+      color: #ffffff;
+      padding: 7px 8px;
+      text-align: left;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border-top: 1px solid #0f172a;
+      border-bottom: 1px solid #0f172a;
+      border-right: 1px solid #334155;
+    }
+    th:last-child {
+      border-right: none;
+    }
+    td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      border-right: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    td:last-child {
+      border-right: none;
+    }
+    tbody tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .text-muted { color: #64748b; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .font-bold { font-weight: 700; }
+    .text-nowrap { white-space: nowrap; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 1.5px 6px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .client-name {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .client-sub {
+      font-size: 8.5px;
+      color: #64748b;
+    }
+    .seller-cell {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .seller-avatar {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      color: #ffffff;
+      font-size: 8px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .total-row td {
+      background: #f1f5f9;
+      font-weight: 800;
+      border-top: 2px solid #0f172a;
+      border-bottom: 2px double #0f172a;
+      padding: 8px 8px;
+      font-size: 11px;
+    }
+
+    .report-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 8px;
+      font-size: 9px;
+      color: #64748b;
+    }
+    .preview-bar {
+      background: #f8fafc;
+      border-bottom: 1px solid #cbd5e1;
+      padding: 8px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: -12px -12px 14px -12px;
+    }
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print preview-bar">
+    <span style="font-weight:700;color:#0f172a;font-size:12px;">Vista previa de impresión · Reporte de Ventas JDL</span>
+    <div style="display:flex;gap:8px;">
+      <button onclick="window.print()" style="padding:6px 16px;background:#dc2626;color:#ffffff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">🖨️ Imprimir / Guardar como PDF</button>
+      <button onclick="window.close()" style="padding:6px 14px;background:#e2e8f0;color:#334155;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✕ Cerrar</button>
+    </div>
+  </div>
+
+  <div class="report-header">
+    <div class="brand-section">
+      <img class="brand-logo" src="${baseUrl}/Oficial_JDL_acua.png" alt="Jardines del Lago" onerror="this.style.display='none'">
+      <div>
+        <h1 class="brand-title">
+          JARDINES DEL LAGO
+          <span class="brand-badge">Reporte de Ventas</span>
+        </h1>
+        <div class="brand-subtitle">
+          Pipeline Comercial Unificado, Cotizaciones y Control de Facturación Proyectada
+        </div>
+      </div>
+    </div>
+    <div class="meta-section">
+      <div class="meta-item"><strong>Emisión:</strong> ${fechaGen}</div>
+      <div class="meta-item"><strong>Registros:</strong> ${reportData.length} cotizaciones activas</div>
+      <div class="meta-item"><strong>Sistema:</strong> EMS Reservas · CRM Corporativo</div>
+    </div>
+  </div>
+
+  <div class="filters-bar">
+    <span class="filters-title">Filtros Activos:</span>
+    ${filtrosHtml}
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-title">Eventos Cartera</div>
+      <div class="kpi-val">${summary.totalEvents}</div>
+      <div class="kpi-sub">Total en selección</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Total Ventas (GTQ)</div>
+      <div class="kpi-val" style="color:#059669;">${formatMoney(summary.totalVentas)}</div>
+      <div class="kpi-sub">Valor cotizado</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">PAX Totales</div>
+      <div class="kpi-val" style="color:#2563eb;">${summary.totalPax.toLocaleString('es-GT')}</div>
+      <div class="kpi-sub">Aforo acumulado</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Ticket Prom. PAX</div>
+      <div class="kpi-val">${formatMoney(avgTicket)}</div>
+      <div class="kpi-sub">Gasto promedio / pers.</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Conversión</div>
+      <div class="kpi-val" style="color:#7c3aed;">${conversionPct}%</div>
+      <div class="kpi-sub">${confirmedPipelineCount} conf. de ${pipelineCount}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Vendedor Top</div>
+      <div class="kpi-val" style="font-size:12px;font-family:inherit;">${escapeHtml(topSellerData.name)}</div>
+      <div class="kpi-sub" style="color:#059669;font-weight:700;">${formatMoney(topSellerData.amount)}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="text-center" style="width:25px;">#</th>
+        <th class="text-center" style="width:95px;">ESTADO</th>
+        <th class="text-center" style="width:80px;">COTIZACIÓN</th>
+        <th class="text-center" style="width:80px;">NO. FOLIO / NOG</th>
+        <th style="min-width:150px;">INSTITUCIÓN / CLIENTE</th>
+        <th style="min-width:120px;">VENDEDOR ASIGNADO</th>
+        <th class="text-center" style="width:75px;">FECHA INICIO</th>
+        <th class="text-center" style="width:75px;">FECHA FIN</th>
+        <th style="min-width:130px;">EVENTO</th>
+        <th style="min-width:100px;">SALÓN PRINCIPAL</th>
+        <th class="text-center" style="width:45px;">PAX</th>
+        <th class="text-right" style="width:105px;">MONTO TOTAL (GTQ)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml || '<tr><td colspan="12" class="text-center text-muted" style="padding:20px;">No se encontraron registros con los filtros seleccionados</td></tr>'}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="10" class="text-center font-bold">TOTAL GENERAL (${reportData.length} EVENTOS / COTIZACIONES EN SELECCIÓN)</td>
+        <td class="text-center font-mono font-bold">${totalGeneralPAX.toLocaleString('es-GT')}</td>
+        <td class="text-right font-mono font-bold" style="color:#059669;">${formatMoney(totalGeneralMonto)}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="report-footer">
+    <div>Jardines del Lago — Panajachel, Sololá · PBX: (502) 7762-6171 · info@jardinesdellago.com</div>
+    <div>Documento confidencial emitido por EMS Reservas CRM JDL</div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 300);
+    };
+  <\/script>
+</body>
+</html>`;
+
+    const printWindow = window.open('', '_blank', 'width=1150,height=800');
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(printHtml);
+      printWindow.document.close();
+    } else {
+      const printFrame = document.createElement('iframe');
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      document.body.appendChild(printFrame);
+      printFrame.contentDocument.open();
+      printFrame.contentDocument.write(printHtml);
+      printFrame.contentDocument.close();
+      setTimeout(() => {
+        try {
+          printFrame.contentWindow.focus();
+          printFrame.contentWindow.print();
+        } catch (e) {
+          console.error('Error al imprimir por iframe:', e);
+        }
+        setTimeout(() => {
+          if (document.body.contains(printFrame)) {
+            document.body.removeChild(printFrame);
+          }
+        }, 3000);
+      }, 400);
+    }
   };
 
   return (
@@ -987,23 +1463,14 @@ export default function ReportsVentas({ onClose }) {
           <button
             type="button"
             onClick={onClose}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'transparent',
-              border: 'none',
-              color: '#475569',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: '6px',
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = '#0f172a'}
-            onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+            className="reports-btn-back"
+            title="Volver al Dashboard de Reportes"
           >
-            ← Volver al Dashboard
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            <span>Volver al Dashboard</span>
           </button>
 
           {/* Cápsula de Sincronización en Tiempo Real */}
@@ -1026,64 +1493,8 @@ export default function ReportsVentas({ onClose }) {
           </div>
         </div>
 
-        {/* Lado Derecho: Acciones de Exportación */}
+        {/* Lado Derecho: Info del Reporte */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            type="button"
-            onClick={handlePrint}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 14px',
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: '8px',
-              color: '#334155',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
-            Imprimir / PDF
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 15px',
-              background: '#059669',
-              border: '1px solid #059669',
-              borderRadius: '8px',
-              color: '#ffffff',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(5,150,105,0.2)',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = '#047857'}
-            onMouseLeave={e => e.currentTarget.style.background = '#059669'}
-          >
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="12" y1="18" x2="12" y2="12" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-            </svg>
-            Exportar Excel
-          </button>
-
           <ReportInfo reportKey="ventas" />
         </div>
       </header>
@@ -1604,8 +2015,10 @@ export default function ReportsVentas({ onClose }) {
                 }))}
                 placeholder="Estados"
                 emptyLabel="Todos los estados"
+                hideLabel
                 width="auto"
                 minWidth={170}
+                wrapperStyle={{ display: 'inline-flex' }}
                 triggerStyle={{
                   height: '32px',
                   minHeight: '32px',
@@ -1622,36 +2035,54 @@ export default function ReportsVentas({ onClose }) {
                 return (
                   <span
                     key={st}
+                    className="rpt-filter-chip"
                     style={{
                       background: conf.bg,
                       border: `1px solid ${conf.border}`,
                       color: conf.color,
                       fontSize: '11px',
                       fontWeight: 700,
-                      padding: '3px 9px',
+                      height: '25px',
+                      minHeight: '25px',
+                      maxHeight: '25px',
+                      padding: '0 7px 0 9px',
                       borderRadius: '9999px',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '5px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                      boxSizing: 'border-box'
                     }}
                   >
-                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: conf.color }} />
-                    {st}
+                    <span className="rpt-filter-chip-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', background: conf.color }} />
+                    <span>{st}</span>
                     <button
                       type="button"
+                      className="rpt-filter-chip-btn"
                       onClick={() => toggleStatusChip(st)}
                       style={{
                         background: 'transparent',
                         border: 'none',
                         color: conf.color,
                         cursor: 'pointer',
-                        padding: '0 2px',
-                        fontSize: '12px',
+                        padding: 0,
+                        margin: '0 0 0 1px',
+                        width: '15px',
+                        height: '15px',
+                        minHeight: '15px',
+                        maxHeight: '15px',
+                        minWidth: '15px',
+                        maxWidth: '15px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
                         lineHeight: 1,
                         fontWeight: 900,
+                        borderRadius: '50%'
                       }}
                       title={`Quitar ${st}`}
+                      aria-label={`Quitar ${st}`}
                     >
                       ✕
                     </button>
@@ -1666,31 +2097,59 @@ export default function ReportsVentas({ onClose }) {
                 return (
                   <span
                     key={uid}
+                    className="rpt-filter-chip"
                     style={{
                       background: '#eff6ff',
                       border: '1px solid #bfdbfe',
                       color: '#1d4ed8',
                       fontSize: '11px',
                       fontWeight: 700,
-                      padding: '3px 9px',
+                      height: '25px',
+                      minHeight: '25px',
+                      maxHeight: '25px',
+                      padding: '0 7px 0 9px',
                       borderRadius: '9999px',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '5px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                      boxSizing: 'border-box'
                     }}
                   >
-                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#2563eb' }} />
-                    {name}
+                    <span className="rpt-filter-chip-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#2563eb' }} />
+                    <span>{name}</span>
                     <button
                       type="button"
+                      className="rpt-filter-chip-btn"
                       onClick={() => {
                         const next = new Set(userFilter);
                         next.delete(uid);
                         setUserFilter(next);
                         setCurrentPage(1);
                       }}
-                      style={{ background: 'transparent', border: 'none', color: '#1d4ed8', cursor: 'pointer', padding: '0 2px', fontSize: '12px', fontWeight: 900 }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#1d4ed8',
+                        cursor: 'pointer',
+                        padding: 0,
+                        margin: '0 0 0 1px',
+                        width: '15px',
+                        height: '15px',
+                        minHeight: '15px',
+                        maxHeight: '15px',
+                        minWidth: '15px',
+                        maxWidth: '15px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        lineHeight: 1,
+                        fontWeight: 900,
+                        borderRadius: '50%'
+                      }}
                       title={`Quitar ${name}`}
+                      aria-label={`Quitar ${name}`}
                     >
                       ✕
                     </button>
@@ -1702,31 +2161,59 @@ export default function ReportsVentas({ onClose }) {
               {Array.from(salonFilter).map(sal => (
                 <span
                   key={sal}
+                  className="rpt-filter-chip"
                   style={{
                     background: '#f0fdf4',
                     border: '1px solid #bbf7d0',
                     color: '#15803d',
                     fontSize: '11px',
                     fontWeight: 700,
-                    padding: '3px 9px',
+                    height: '25px',
+                    minHeight: '25px',
+                    maxHeight: '25px',
+                    padding: '0 7px 0 9px',
                     borderRadius: '9999px',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '5px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    boxSizing: 'border-box'
                   }}
                 >
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#16a34a' }} />
-                  {sal}
+                  <span className="rpt-filter-chip-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#16a34a' }} />
+                  <span>{sal}</span>
                   <button
                     type="button"
+                    className="rpt-filter-chip-btn"
                     onClick={() => {
                       const next = new Set(salonFilter);
                       next.delete(sal);
                       setSalonFilter(next);
                       setCurrentPage(1);
                     }}
-                    style={{ background: 'transparent', border: 'none', color: '#15803d', cursor: 'pointer', padding: '0 2px', fontSize: '12px', fontWeight: 900 }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#15803d',
+                      cursor: 'pointer',
+                      padding: 0,
+                      margin: '0 0 0 1px',
+                      width: '15px',
+                      height: '15px',
+                      minHeight: '15px',
+                      maxHeight: '15px',
+                      minWidth: '15px',
+                      maxWidth: '15px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      lineHeight: 1,
+                      fontWeight: 900,
+                      borderRadius: '50%'
+                    }}
                     title={`Quitar ${sal}`}
+                    aria-label={`Quitar ${sal}`}
                   >
                     ✕
                   </button>
@@ -1819,49 +2306,133 @@ export default function ReportsVentas({ onClose }) {
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowColModal(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                border: isAnyHidden ? '1px solid #93c5fd' : '1px solid #cbd5e1',
-                background: isAnyHidden ? '#eff6ff' : '#ffffff',
-                color: isAnyHidden ? '#1d4ed8' : '#334155',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: isAnyHidden ? '0 1px 3px rgba(37, 99, 235, 0.12)' : 'none',
-              }}
-              title="Configurar qué columnas se muestran en la tabla"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="4" y1="21" x2="4" y2="14" />
-                <line x1="4" y1="10" x2="4" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="12" />
-                <line x1="12" y1="8" x2="12" y2="3" />
-                <line x1="20" y1="21" x2="20" y2="16" />
-                <line x1="20" y1="12" x2="20" y2="3" />
-                <line x1="1" y1="14" x2="7" y2="14" />
-                <line x1="9" y1="8" x2="15" y2="8" />
-                <line x1="17" y1="16" x2="23" y2="16" />
-              </svg>
-              <span>Columnas</span>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                padding: '1px 7px',
-                borderRadius: '9999px',
-                background: isAnyHidden ? '#2563eb' : '#f1f5f9',
-                color: isAnyHidden ? '#ffffff' : '#64748b',
-              }}>
-                {visibleCount}/{totalColumns}
-              </span>
-            </button>
+            {/* Acciones de la tabla: Imprimir / PDF, Exportar Excel y Columnas con el mismo tamaño */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="rv-btn-print"
+                style={{
+                  height: '34px',
+                  minHeight: '34px',
+                  maxHeight: '34px',
+                  padding: '0 14px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  background: '#dc2626',
+                  border: '1px solid #b91c1c',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)',
+                  boxSizing: 'border-box',
+                  lineHeight: 1,
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Imprimir reporte oficial o guardar como PDF"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9" />
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                  <rect x="6" y="14" width="12" height="8" />
+                </svg>
+                <span>Imprimir / PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="rv-btn-excel"
+                style={{
+                  height: '34px',
+                  minHeight: '34px',
+                  maxHeight: '34px',
+                  padding: '0 14px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  background: '#059669',
+                  border: '1px solid #047857',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(5, 150, 105, 0.2)',
+                  boxSizing: 'border-box',
+                  lineHeight: 1,
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Descargar datos en formato Excel (.xlsx)"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="8" y1="13" x2="16" y2="13" />
+                  <line x1="8" y1="17" x2="16" y2="17" />
+                  <line x1="10" y1="9" x2="8" y2="9" />
+                </svg>
+                <span>Exportar Excel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowColModal(true)}
+                style={{
+                  height: '34px',
+                  minHeight: '34px',
+                  maxHeight: '34px',
+                  padding: '0 14px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  borderRadius: '8px',
+                  border: isAnyHidden ? '1px solid #93c5fd' : '1px solid #cbd5e1',
+                  background: isAnyHidden ? '#eff6ff' : '#ffffff',
+                  color: isAnyHidden ? '#1d4ed8' : '#334155',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                  lineHeight: 1,
+                  transition: 'all 0.15s ease',
+                  boxShadow: isAnyHidden ? '0 1px 3px rgba(37, 99, 235, 0.12)' : 'none',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Configurar qué columnas se muestran en la tabla"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="4" y1="21" x2="4" y2="14" />
+                  <line x1="4" y1="10" x2="4" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12" y2="3" />
+                  <line x1="20" y1="21" x2="20" y2="16" />
+                  <line x1="20" y1="12" x2="20" y2="3" />
+                  <line x1="1" y1="14" x2="7" y2="14" />
+                  <line x1="9" y1="8" x2="15" y2="8" />
+                  <line x1="17" y1="16" x2="23" y2="16" />
+                </svg>
+                <span>Columnas</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '1px 7px',
+                  borderRadius: '9999px',
+                  background: isAnyHidden ? '#2563eb' : '#f1f5f9',
+                  color: isAnyHidden ? '#ffffff' : '#64748b',
+                }}>
+                  {visibleCount}/{totalColumns}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Tabla de Registros */}

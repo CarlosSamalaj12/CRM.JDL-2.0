@@ -23,9 +23,13 @@ class ApiClient {
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
-      'Content-Type': 'application/json',
       ...options.headers,
     };
+
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    if (!isFormData && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     const activeToken = localStorage.getItem('token') || this.token;
     if (activeToken) {
@@ -89,12 +93,30 @@ class ApiClient {
     return this.request(url, { method: 'GET', headers: { ...extraHeaders } });
   }
 
-  post(endpoint, data) {
-    return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
+  post(endpoint, data, extraOptions = {}) {
+    const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+    return this.request(endpoint, {
+      method: 'POST',
+      body: isFormData ? data : JSON.stringify(data),
+      ...extraOptions
+    });
   }
 
-  put(endpoint, data) {
-    return this.request(endpoint, { method: 'PUT', body: JSON.stringify(data) });
+  postForm(endpoint, formData, extraOptions = {}) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body: formData,
+      ...extraOptions
+    });
+  }
+
+  put(endpoint, data, extraOptions = {}) {
+    const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+    return this.request(endpoint, {
+      method: 'PUT',
+      body: isFormData ? data : JSON.stringify(data),
+      ...extraOptions
+    });
   }
 
   patch(endpoint, data) {

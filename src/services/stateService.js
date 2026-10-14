@@ -1,4 +1,20 @@
 import api from './api';
+import {
+  getHabitacionesApi,
+  getHabitacionApi,
+  createHabitacionApi,
+  updateHabitacionApi,
+  deleteHabitacionApi,
+  registrarContactoApi,
+  getHuespedHistorialApi,
+  getCatalogosHabitacionesApi,
+  getCatalogoItemUsageApi,
+  createCatalogoHabitacionApi,
+  updateCatalogoHabitacionApi,
+  deleteCatalogoHabitacionApi,
+  getMetasHabitacionesApi,
+  updateMetasHabitacionesApi
+} from './habitacionesService';
 
 let stateEtag = null;
 let cachedState = null;
@@ -764,6 +780,37 @@ const stateService = {
   addEventAdvanceApi,
   updateEventAdvanceApi,
   deleteEventAdvanceApi,
+  getHabitacionesApi,
+  getHabitacionApi,
+  createHabitacionApi,
+  updateHabitacionApi,
+  deleteHabitacionApi,
+  registrarContactoApi,
+  getHuespedHistorialApi,
+  getCatalogosHabitacionesApi,
+  getCatalogoItemUsageApi,
+  createCatalogoHabitacionApi,
+  updateCatalogoHabitacionApi,
+  deleteCatalogoHabitacionApi,
+  getMetasHabitacionesApi,
+  updateMetasHabitacionesApi,
+};
+
+export {
+  getHabitacionesApi,
+  getHabitacionApi,
+  createHabitacionApi,
+  updateHabitacionApi,
+  deleteHabitacionApi,
+  registrarContactoApi,
+  getHuespedHistorialApi,
+  getCatalogosHabitacionesApi,
+  getCatalogoItemUsageApi,
+  createCatalogoHabitacionApi,
+  updateCatalogoHabitacionApi,
+  deleteCatalogoHabitacionApi,
+  getMetasHabitacionesApi,
+  updateMetasHabitacionesApi
 };
 
 export default stateService;

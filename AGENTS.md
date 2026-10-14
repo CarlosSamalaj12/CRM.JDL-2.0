@@ -32,6 +32,392 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Rediseño de Botón Volver, Círculo de Información (i) y Chips de Categorías en Reportes (`ReportsModule.jsx`, `ReportInfo.jsx`, `ReportsVentas.jsx`, `reports.css`, `tests/reports-navigation-and-chips.test.mjs`) (2026-10-13)
+- Requerimientos:
+  1. **Opción Volver al Dashboard visible en todos los reportes**: Transformar la opción de "Volver al Dashboard" / "Volver a Reportes" en un botón real de alta visibilidad, con color, borde y diseño destacado, eliminando el estilo transparente/oculto anterior.
+  2. **Círculo de información `(i)` perfectamente redondo y con color**: Corregir la deformación del botón `(i)` de información de cálculo de reportes (`ReportInfo.jsx`), el cual aparecía ovalado y estirado por reglas globales de botones, otorgándole una geometría 100% circular (`border-radius: 50% !important; aspect-ratio: 1 / 1 !important; width: 32px; height: 32px; padding: 0 !important;`), icono SVG vectorial nítido, fondo azul hielo `#eff6ff`, borde azul `#bfdbfe`, color azul real `#2563eb` y micro-animación en hover (`scale(1.08)`).
+  3. **Rediseño de los botones del menú de reportes (`ReportsModule.jsx`)**: Adaptar la barra de categorías con máxima fidelidad a la imagen de referencia ("Reportes Generales"):
+     - Píldoras redondeadas (`border-radius: 12px`, `height: 40px`, padding `0 14px 0 8px`).
+     - Cajita de icono con esquinas redondeadas (`width: 26px; height: 26px; border-radius: 7px;`) e iconos vectoriales dedicados (`grid-all`, `trending-up`, `card`, `calendar`, `target`, `grid-dots`, `star`, `filter`).
+     - Paleta pastel suave por categoría (Ventas menta `#ecfdf5`, Finanzas ámbar `#fffbeb`, Operación celeste `#f0f9ff`, KPIs índigo `#eef2ff`, Clientes violeta `#f5f3ff`, Calidad rosa `#fff1f2`, Pipeline cian `#ecfeff`).
+     - Insignia píldora (`.reports-hub-chip-badge`) con el conteo dinámico exacto de reportes disponibles por categoría.
+     - Estado ACTIVO (`.reports-hub-chip--active`) en estilo oscuro elegante (`#0f172a`), texto blanco, borde slate `#334155` y badge oscuro translúcido `#1e293b`.
+- Causa raíz:
+  1. En `design-system-scoped.css`, la regla `body:not(.informes-theme) button` aplicaba forzosamente `min-height: 40px !important;` y `padding: 0 14px !important;`. Al no tener especificidad ni `!important` en el inline style de `ReportInfo.jsx`, el botón de 28px se estiraba a 40px de alto y más de 56px de ancho, desfigurándolo como un óvalo achatado en vez de un círculo.
+  2. En `ReportsVentas.jsx`, el botón "Volver al Dashboard" tenía `background: transparent; border: none; color: #475569`, y en los demás reportes la regla `.btn-exit` en `reports.css` forzaba `background: transparent !important; border: none !important; color: #64748b !important;`, volviéndolo casi invisible para el usuario.
+- Solución:
+  1. En `src/modules/reports/components/ReportInfo.jsx` y `reports.css`:
+     - Se creó la clase `.report-info-btn` blindada con `body:not(.informes-theme)` que impone `width: 32px !important; height: 32px !important; min-width: 32px !important; min-height: 32px !important; border-radius: 50% !important; aspect-ratio: 1 / 1 !important; padding: 0 !important;`.
+     - Se reemplazó el carácter textual `i` por un SVG vectorial elegante con círculo concéntrico e indicador central.
+  2. En `src/modules/reports/ReportsVentas.jsx`, `ReportsDashboard.jsx` y `reports.css`:
+     - Se implementó la clase `.reports-btn-back` y se blindaron `.reports-btn-back`, `.reports-back-btn` y `.reports-page-header .btn-exit` con fondo `#ffffff`, borde `1.5px solid #cbd5e1`, color `#1e293b`, icono con trazo azul `#2563eb`, altura 36px y micro-desplazamiento suave `translateX(-2px)` en hover.
+  3. En `src/modules/reports/ReportsModule.jsx` y `reports.css`:
+     - Se estructuraron los chips de categorías con `.reports-hub-chip-icon-box`, `.reports-hub-chip-label` y `.reports-hub-chip-badge`.
+     - Se implementó cálculo reactivo con `useMemo` de `categoryCounts` para alimentar los badges numéricos.
+     - Se implementaron las clases de color pastel individuales (`.reports-hub-chip--ventas`, etc.) y el estilo oscuro activo (`.reports-hub-chip--active`) fiel a la imagen.
+  4. En `tests/reports-navigation-and-chips.test.mjs`:
+     - Se crearon 3 pruebas unitarias exhaustivas blindando la geometría circular de `(i)`, el botón de navegación visible y los chips con conteos y paleta pastel.
+- Validación: 150 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.219`).
+
+### Solución: Botones Imprimir / PDF y Exportar Excel al lado de Columnas con Mismo Tamaño y Reporte PDF Idéntico a Excel (`ReportsVentas.jsx`, `reports.css`, `tests/reports-ventas-columns.test.mjs`) (2026-10-13)
+- Requerimiento:
+  1. En el módulo de Reporte de Ventas (`ReportsVentas.jsx`), transformar el botón "Imprimir / PDF" a color ROJO ejecutivo (`#dc2626`) y reubicarlo junto al botón de "Exportar Excel" para que ambos estén situados **a la par del botón `Columnas 9/9`** en la cabecera de la tabla de registros.
+  2. Ambos botones ("Imprimir / PDF" y "Exportar Excel") deben tener exactamente el **mismo tamaño y proporciones** (`height: 34px`, padding uniforme, tipografía consistente e iconos SVG del mismo tamaño).
+  3. Corregir el fallo por el cual al presionar "Imprimir / PDF" salía en BLANCO: debe generarse con su diseño institucional completo (logotipo, membrete, metadatos, filtros activos, KPIs) y contener **exactamente las mismas 12 columnas contables y datos filtrados** que el reporte de Excel (`#`, `Estado`, `Cotización`, `No. Folio / NOG`, `Institución / Cliente`, `Vendedor Asignado`, `Fecha Inicio`, `Fecha Fin`, `Evento`, `Salón Principal`, `PAX`, `Monto Total (GTQ)` y fila de `TOTAL GENERAL`).
+- Causa raíz de la hoja en blanco:
+  1. En `src/modules/reports/reports.css`, la regla `@media print` contenía `body * { visibility: hidden !important; }` incondicionalmente, diseñada para un modal contable aislado. Al importarse `reports.css` en `ReportsVentas.jsx`, esa regla forzaba que absolutamente todo el contenido de la página se ocultara al dispararse el diálogo de impresión, resultando en páginas 100% en blanco.
+  2. La función `handlePrint` se limitaba a invocar `window.print()`, truncando los datos a 10 filas de la vista de pantalla en vez de imprimir toda la cartera filtrada.
+- Solución:
+  1. En `src/modules/reports/reports.css`:
+     - Se corrigió la regla `@media print` reemplazando `body * { visibility: hidden !important; }` por `body:has(.printable-event-statement-modal) *`, permitiendo que la ventana normal imprima sin ocultarse.
+     - Se crearon y blindaron las clases `.rv-btn-print` (`#dc2626 !important`, borde `#b91c1c`) y `.rv-btn-excel` (`#059669 !important`, borde `#047857`), forzando exactamente `height: 34px !important`, `min-height: 34px !important`, `max-height: 34px !important`, `padding: 0 14px !important`, `border-radius: 8px !important` y trazos de SVG en blanco puro.
+  2. En `src/modules/reports/ReportsVentas.jsx`:
+     - Se reubicaron los botones "Imprimir / PDF" y "Exportar Excel" directamente en la cabecera de "Detalle de Operaciones y Reservas", colocándolos a la par del botón `Columnas {visibleCount}/{totalColumns}` en un flex container unificado.
+     - Se limpió el encabezado superior de la página, dejando únicamente el indicador de sincronización y el botón informativo.
+     - Se reconstruyó `handlePrint` con un documento imprimible que incluye las **12 columnas idénticas a Excel** (`#`, `Estado`, `Cotización`, `No. Folio / NOG`, `Institución / Cliente`, `Vendedor Asignado`, `Fecha Inicio`, `Fecha Fin`, `Evento`, `Salón Principal`, `PAX`, `Monto Total (GTQ)`), cabecera institucional JDL, filtros activos, 6 tarjetas KPI y fila de `TOTAL GENERAL` contable.
+     - Soporte para apertura directa en ventana emergente con barra de vista previa `.no-print` y fallback transparente por iframe en navegadores con bloqueo de popups.
+  3. En `tests/reports-ventas-columns.test.mjs`:
+     - Se blindaron pruebas unitarias validando la agrupación de los botones al lado de Columnas, el mismo tamaño de 34px en CSS y las 12 columnas exactas de Excel en `handlePrint`.
+- Validación: 147 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.218`).
+
+### Solución: Rediseño Data Grid y Filtros Interactivos en Buscar Eventos (`SearchModule.jsx`, `search.css`, `tests/search-datagrid.test.mjs`) (2026-10-13)
+- Requerimiento:
+  Rediseñar el módulo de Buscar Eventos implementando una arquitectura interactiva tipo **Data Grid** con máxima fidelidad a la imagen de referencia ("DATAGRID FILTER UI/UX WITH USER FLOW ANIMATION"):
+  1. Barra superior: Título con badge "Data Grid", buscador por palabras clave (`Search by Keywords...`) con atajo visual `Ctrl+K`, selector desplegable de año, botones de herramientas (Exportar a Excel, Imprimir, Refrescar) y botón para "Nueva Cotización".
+  2. Barra de filtros activos: Icono `Filters`, chips oscuros alargados (`#334155`) con texto blanco y botón circular de remoción `✕`, más botón ámbar/dorado `Clear All` para restablecer todos los filtros.
+  3. Encabezados Data Grid en azul real (`#2563eb`): Flechas de ordenación dinámica `↓↑` en cada columna e icono de embudo `[Y]` interactivo con popover flotante por columna (con botones "Limpiar" y "Aplicar").
+  4. Columnas desagregadas con tipografía ejecutiva: `No. Doc` (pill monospace azul), `Evento`, `Cliente / Empresa`, `Vendedor` (avatar circular de iniciales), `Salón`, `Fechas`, `Total (Q)` (monospace verde menta), `Estado` (pastilla con badge de color) y `Acción`.
+  5. Tres botones de acción rápida por fila: Lupa azul para Ver (`.btn-view`), Lápiz verde para Editar (`.btn-edit`) y Basurero rojo para Eliminar (`.btn-delete`).
+  6. Pie de paginación Data Grid: Botón `Previous`, números de página interactivos (`.datagrid-page-num`), botón `Next`, selector `Per Page [ 05 / 10 / 25 / 50 ]`, contador `Showing X to Y of Z`, e input de salto directo de página con botón `[ Go ]`.
+- Solución:
+  1. En `src/modules/search/search.css`:
+     - Se crearon las clases `.datagrid-wrapper`, `.datagrid-topbar`, `.datagrid-search-box`, `.datagrid-search-kbd`, `.datagrid-active-filters-bar`, `.datagrid-chip`, `.datagrid-btn-clear-all`, `.datagrid-th`, `.datagrid-th-btn`, `.datagrid-popover-portal`, `.datagrid-td`, `.datagrid-doc-pill`, `.datagrid-amount-mono`, `.datagrid-action-btn`, `.datagrid-pagination-footer`, etc.
+     - Se eliminó el `max-width: 1440px` y `margin: 0 auto` restrictivo en `.search-saas-container`, configurando `width: 100% !important` y `max-width: 100% !important` para erradicar el espacio desperdiciado y expandir el Data Grid al 100% del viewport.
+     - Se fijó `select.datagrid-year-select` a `width: auto !important` y `.datagrid-topbar-actions` con `flex-wrap: nowrap` para alinear el buscador, selector de año y botones en una sola fila horizontal sin saltos ni desbordes.
+     - Se blindó `.datagrid-table thead`, `tr` y `th.datagrid-th` con `background: #2563eb !important`, `background-color: #2563eb !important` y `color: #ffffff !important` contra `design-system-scoped.css` y estilos heredados.
+     - Se blindaron con `body:not(.informes-theme)` todos los botones (`.datagrid-btn-clear-all`, `.datagrid-action-btn`, `.datagrid-tool-btn`, `.datagrid-page-btn`, `.datagrid-goto-btn`).
+  2. En `src/modules/search/SearchModule.jsx`:
+     - Se implementó la arquitectura Data Grid con ordenación reactiva por columna (`sortField`, `sortDirection`), filtrado por columna individual mediante popovers flotantes con click-outside, filtrado por año y texto global, atajo `Ctrl+K`, paginación completa en cliente y exportación ejecutiva a Excel con `ExcelJS` y fallback a `XLSX`.
+     - Se corrigió el diseño de los popovers de filtro por columna: textboxes con fondo blanco limpio (`#ffffff`) y texto oscuro contrastado (`#0f172a`), inputs de fechas con layout vertical contenido (`.datagrid-date-field-wrap`) sin desbordes laterales, y lista de vendedores con ancho expandido a 310px con `overflow-x: hidden` y `white-space: normal` para leer nombres completos sin scroll horizontal.
+  3. En `tests/search-datagrid.test.mjs`: Se incorporaron 4 pruebas unitarias exhaustivas blindando la arquitectura Data Grid, los estilos full-width, el color de cabeceras y la exportación.
+- Validación: 146 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.216`).
+
+### Solución: Exportación a Excel Institucional con Membrete y Corrección de Buffer en Reporte de Ventas de Habitaciones (`ReportsVentasHabitaciones.jsx`, `tests/reports-ventas-habitaciones.test.mjs`) (2026-10-13)
+- Requerimiento / Síntoma:
+  Al presionar el botón "Exportar a Excel" en el Reporte de Ventas de Habitaciones, la descarga no se iniciaba o arrojaba error, y el archivo carecía del diseño ejecutivo, membrete y encabezado institucional presente en el Reporte de Ventas de eventos.
+- Causa raíz:
+  1. En `handleExportExcel`, el código intentaba escribir el buffer ejecutando `ws.xlsx.writeBuffer()`. En la librería `exceljs`, `ws` es una instancia de `Worksheet` (la cual carece de la propiedad `.xlsx`), por lo que `ws.xlsx` era `undefined`, provocando la excepción `TypeError: Cannot read properties of undefined (reading 'writeBuffer')` que interrumpía la descarga.
+  2. El enlace de descarga temporal `downloadAnchor` no se agregaba al DOM (`document.body.appendChild`), lo cual en navegadores modernos puede bloquear el disparo de `downloadAnchor.click()`.
+  3. No se contaba con estructura de banner institucional, filtros aplicados, formato de moneda `Q #,##0.00` en celdas, ni fila de `TOTAL GENERAL:` con fórmulas contables `SUM()`.
+- Solución:
+  1. En `src/modules/reports/ReportsVentasHabitaciones.jsx`:
+     - Se corrigió la invocación de buffer a `workbook.xlsx.writeBuffer()`.
+     - Se estructuró el archivo Excel con diseño ejecutivo idéntico al de eventos:
+       - Banner superior institucional en verde esmeralda corporativo JDL (`A1:N1`, font 13pt negrita blanca, altura 34px).
+       - Fila de metadatos (`A2:N2`) con fecha/hora de generación, conteo de transacciones y filtros activos (período fiscal, vendedor, tipo de habitación, término de búsqueda).
+       - 14 columnas estilizadas (`#`, `No. Folio`, `Estado`, `Huésped`, `Teléfono / Correo`, `Empresa`, `Check-In`, `Check-Out`, `Noches`, `Cant. Hab`, `Tipo de Habitación`, `Vendedor Asignado`, `Forma de Pago`, `Monto Total (GTQ)`).
+       - Filas de datos con estados coloreados (Confirmada verde menta, Cancelada rojo pastel, Pre reserva ámbar suave) y alternancia de fondo (`#FFFFFF` y `#F8FAFC`).
+       - Fila de `TOTAL GENERAL:` con fórmulas Excel automáticas `SUM()` para Noches, Habitaciones y Monto Total, con doble línea contable inferior y fondo esmeralda.
+       - Autofiltros integrados y fallback resiliente con `XLSX` (SheetJS) en bloque catch.
+       - Descarga segura mediante inserción y remoción limpia de `downloadAnchor` en el DOM.
+  2. En `tests/reports-ventas-habitaciones.test.mjs`: Se incorporaron pruebas unitarias validando la presencia del banner superior, metadatos, fórmulas `SUM()`, `workbook.xlsx.writeBuffer()` y fallback con SheetJS.
+- Validación: 142 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.213`).
+### Solución: Alineación Perfecta del Filtro de Estados y Chips en Reporte de Ventas (`ReportsVentas.jsx`, `tests/reports-ventas-columns.test.mjs`) (2026-10-13)
+- Requerimiento / Síntoma:
+  En la barra de filtros del Reporte de Ventas, los chips de estados activos aparecían desalineados verticalmente respecto al selector desplegable de estados y al texto `FILTRO ESTADO:`.
+- Causa raíz:
+  El componente `MultiSelect` renderizaba por defecto una etiqueta superior `<span>{placeholder}</span>` ("Estados") con `display: block; margin-bottom: 4px;` a menos que se le pasara la prop `hideLabel`. Dado que la fila ya contenía el label horizontal explícito `FILTRO ESTADO:` a la izquierda, la presencia de la etiqueta superior duplicada "Estados" aumentaba la altura total del contenedor del MultiSelect a ~52px y empujaba el botón trigger hacia abajo. Al tener el contenedor flex padre `align-items: center`, los chips laterales (`height: 25px`) y el texto `FILTRO ESTADO:` se alineaban verticalmente con el punto medio de los 52px (es decir, en el espacio entre la etiqueta "Estados" y el selector), provocando que los chips flotaran en la parte superior y quedaran completamente desalineados respecto al trigger.
+- Solución:
+  1. En `src/modules/reports/ReportsVentas.jsx`:
+     - Se añadió la propiedad `hideLabel` y `wrapperStyle={{ display: 'inline-flex' }}` al `MultiSelect` de `statusFilter`.
+     - Esto eliminó el texto duplicado "Estados" y ajustó la altura total del componente a los 32px exactos del trigger, permitiendo que `FILTRO ESTADO:`, el selector de estados y los chips se alineen limpiamente en una sola línea horizontal uniforme.
+  2. En `tests/reports-ventas-columns.test.mjs`: Se incorporó una prueba unitaria para verificar la presencia de `hideLabel` en el `MultiSelect` de estados.
+- Validación: 141 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.212`).
+
+### Solución: Rediseño Bento Ejecutivo del Reporte de Ventas de Habitaciones (`ReportsVentasHabitaciones.jsx`, `reports.css`, `tests/reports-ventas-habitaciones.test.mjs`) (2026-10-13)
+- Requerimiento:
+  Rediseñar el módulo del Reporte de Ventas de Habitaciones para adaptarlo con máxima fidelidad a la imagen de referencia:
+  1. Encabezado institucional Bento: tarjeta blanca con icono de casita esmeralda (`<Home />`), título con badge pill `Live`, subtítulo descriptivo, botón `Volver a Reportes` (outline gris) y botón `Exportar a Excel` (verde esmeralda).
+  2. Cuadrícula de 4 KPI Cards Bento: Ingresos Totales Hospedaje (con badge verde `100% cobrado` y leyenda de período), Noches Vendidas (icono calendario azul), Habitaciones Reservadas (icono lavanda/cama) y Ticket Promedio / Noche (icono ámbar tendencia).
+  3. Barra de filtros Bento en 4 columnas: Período Fiscal (con selector nativo transparente y etiqueta en español formateada ej. "octubre de 2026"), Vendedor (`Todos los Vendedores`), Tipo de Habitación (`Todos los Tipos de Habitación`), y Búsqueda Rápida con lupa y botón reactivo para limpiar.
+  4. Dos paneles analíticos lado a lado (grid 2 columnas):
+     - `Ingresos por Tipo de Habitación` con badge de categorías, montos en verde, barras de progreso esmeralda y pie con participación neta y total.
+     - `Rendimiento por Vendedor` con badge de ejecutivos, montos en azul real, barras de progreso azul y pie con comisión/cierre de ventas y total.
+  5. Tabla Bento de Transacciones de Hospedaje: cabecera con punto verde indicador `●`, columnas estilizadas (No. Folio pill monospace, Huésped con avatar circular de iniciales y teléfono, Empresa pill suave, Fechas con pill verde menta `⏱ X noche(s)`, Habitación `Xx Tipo`, Vendedor con avatar circular azul, Total Facturado en monospace negrita y Estado en pill verde menta `● Confirmada`), y paginador numérico (`Mostrando X a Y de Z`, `Anterior`, números de página interactivos y `Siguiente`).
+- Solución:
+  1. En `src/modules/reports/reports.css`:
+     - Se crearon las clases `.rhab-container`, `.rhab-header-card`, `.rhab-kpi-grid`, `.rhab-kpi-card`, `.rhab-filters-card`, `.rhab-split-grid`, `.rhab-panel-card`, `.rhab-table-card`, `.rhab-avatar-guest`, `.rhab-avatar-seller`, etc.
+     - Se blindaron con alta especificidad (`body:not(.informes-theme)`) todos los botones (`.rhab-btn-excel`, `.rhab-btn-back`, `.rhab-page-nav-btn`, `.rhab-page-num-btn`, `.rhab-search-clear`) y controles de formulario (`.rhab-select`, `.rhab-search-input`) contra sobrescrituras de `design-system-scoped.css`.
+  2. En `src/modules/reports/ReportsVentasHabitaciones.jsx`:
+     - Se implementó la estructura de 5 bloques Bento, cálculo reactivo de iniciales `getInitials`, formateo de mes `formatMonthLabel`, paginación en cliente (`currentPage`, `pageSize = 10`, `paginatedReservas`), y exportación a Excel impecable.
+  3. En `tests/reports-ventas-habitaciones.test.mjs`: Se incorporaron pruebas unitarias completas para blindar los 5 bloques Bento y el CSS.
+- Validación: 141 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build de producción limpio (versión `2.1.211`).
+
+### Solución: Rediseño Compacto y Blindaje de Chips de Estado en Reporte de Ventas (`ReportsVentas.jsx`, `reports.css`, `tests/reports-ventas-columns.test.mjs`) (2026-10-13)
+- Requerimiento / Síntoma:
+  En la barra de filtros del Reporte de Ventas, los chips de estado activo (ej. `● Confirmado ✕`, `● Pre reserva ✕`) aparecían inflados, gigantescos y toscos, desentonando con el selector MultiSelect y los botones de preset de fecha.
+- Causa raíz:
+  La regla global `body:not(.informes-theme) button` en `design-system-scoped.css` aplicaba forzosamente `min-height: 40px` y `padding: 0 14px` a todos los botones. Al contener cada chip un botón interno `<button type="button">✕</button>` para remover el filtro, el botón se expandía a 40px de alto y más de 30px de ancho, estirando e inflando el contenedor padre `<span>` hasta convertirlo en una cápsula enorme.
+- Solución:
+  1. En `src/modules/reports/reports.css`:
+     - Se crearon las clases `.rpt-filter-chip`, `.rpt-filter-chip-dot` y `.rpt-filter-chip-btn` con máxima especificidad (`body:not(.informes-theme) .rpt-filter-chip`, `body:not(.informes-theme) button.rpt-filter-chip-btn`).
+     - Se forzó con `!important`: altura compacta de 25px (`height: 25px`), padding simétrico (`0 7px 0 9px`), tipografía refinada (11px, weight 700), punto indicador de 5x5px y botón circular de remoción de 15x15px (`padding: 0`, `margin: 0 0 0 1px`) con micro-hover (`scale(1.15)`) y opacidad suave.
+  2. En `src/modules/reports/ReportsVentas.jsx`:
+     - Se aplicaron las clases `.rpt-filter-chip`, `.rpt-filter-chip-dot` y `.rpt-filter-chip-btn` con estilos inline protectores en los chips de estados (`statusFilter`), vendedores (`userFilter`) y salones (`salonFilter`).
+  3. En `tests/reports-ventas-columns.test.mjs`: Se incorporó prueba unitaria para verificar la presencia de las clases compactas y el blindaje en CSS y JSX.
+- Validación: 139 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.210`).
+
+### Solución: Blindaje de Inputs Controlados contra Prop Null al Editar Reservas (`HabitacionModal.jsx`, `tests/habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento / Síntoma:
+  Al presionar "Editar" en una reserva de habitación, la consola de React mostraba:
+  `'value' prop on 'input' should not be null. Consider using an empty string to clear the component or 'undefined' for uncontrolled components.`
+  `A component is changing a controlled input to be uncontrolled. This is likely caused by the value changing from a defined to undefined... at HabitacionModal.jsx:401`
+- Causa raíz:
+  En MariaDB, las columnas opcionales de una reserva (`correo`, `telefono`, `no_folio`, `observaciones`, `empresa_nombre`, `modulo`) se almacenan como `NULL`. Al abrir el modal para editar, `HabitacionModal.jsx` ejecutaba `setFormData({ ...initialData })` directamente, propagando los valores `null` en el estado `formData`. Al renderizarse el `<input type="email" value={formData.correo} />`, React 19 detectó una prop `value={null}`, disparando la advertencia de componente controlado inválido y provocando desincronización de estado controlado a no controlado.
+- Solución:
+  1. En `src/modules/habitaciones/HabitacionModal.jsx`:
+     - En el `useEffect` de carga de `initialData`, se normalizaron de forma explícita todos los campos usando coalescencia nula (`correo: initialData.correo ?? ''`, `telefono: initialData.telefono ?? ''`, `observaciones: initialData.observaciones ?? ''`, etc.), impidiendo la entrada de `null` en el estado del formulario.
+     - En todos los `<input>`, `<select>` y `<textarea>` del formulario se agregaron salvaguardas directas en sus props `value={formData.xxx ?? ''}` (y `?? 0` para valores numéricos), garantizando que ningún input reciba jamás `null` ni `undefined`.
+  2. En `tests/habitaciones-system.test.mjs`: Se incorporó prueba unitaria que verifica la sanitización de `initialData` y las props `value` seguras en `HabitacionModal.jsx`.
+- Validación: 138 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.209`).
+
+### Solución: Corrección de Diseño de Botón de Cerrar y Buscador Bento en Lanzar Ofertas y Promociones (`HabitacionCampanaModal.jsx`, `habitaciones.css`, `tests/habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento:
+  1. En el encabezado morado de Lanzar Ofertas o Promociones, el botón de cerrar aparecía distorsionado/aplastado como un círculo con un punto diminuto sin la 'X' visible.
+  2. En la barra de progreso, el textbox de buscar cliente salía con la lupa (`Search`) montada directamente encima de las letras del texto placeholder "Buscar cliente...", con bordes toscos y sin botón de limpieza.
+- Causa raíz:
+  1. La regla global `body:not(.informes-theme) button` en `design-system-scoped.css` aplicaba `padding: 0 14px`, `min-height: 40px` y `background: var(--ui-surface-muted)`. En un botón con ancho fijo de 32px, el padding horizontal de 14px redujo el espacio interior a solo 4px de ancho utilizable, aplastando el SVG `<X />` hasta verse como un punto vertical diminuto.
+  2. En `habitaciones.css`, la regla `body:not(.informes-theme) input.hab-input:not(.hab-search-input)` aplicaba `padding: 8px 12px !important;`. Al tener `.hab-input` sin la clase `.hab-search-input`, el selector con `!important` anulaba el `paddingLeft: 34` inline, forzando que el placeholder arrancara a los 12px desde la izquierda, coincidiendo exactamente con la coordenada de la lupa (`left: 12px`).
+- Solución:
+  1. En `src/modules/habitaciones/habitaciones.css`:
+     - Se creó la clase `.hab-campana-close-btn` con máxima especificidad (`body:not(.informes-theme) button.hab-campana-close-btn`), forzando con `!important`: `width: 36px`, `height: 36px`, `padding: 0`, `margin: 0`, `background: rgba(255, 255, 255, 0.2)`, `border: 1px solid rgba(255, 255, 255, 0.35)`, `borderRadius: 11px`, `color: #ffffff`, micro-hover (`scale(1.06)`) y dimensiones explícitas de 20x20px en el SVG interior para garantizar que la 'X' sea nítida y perfectamente centrada.
+     - Se crearon las clases `.hab-campana-search-wrap` y su foco temático en violeta `#7c3aed`.
+  2. En `src/modules/habitaciones/HabitacionCampanaModal.jsx`:
+     - Se conectó `hab-campana-close-btn` en el botón superior con `<X size={20} strokeWidth={2.5} color="#ffffff" />`.
+     - Se transformó el buscador en un componente Bento fluido (`.hab-search-wrap hab-campana-search-wrap`) con `.hab-search-icon` alineado (`left: 14`), input `.hab-input hab-search-input` con `padding-left: 42px !important` inmune a solapamientos, y botón reactivo `.hab-search-clear` para vaciar el texto.
+     - Se refinó el botón inferior "Cerrar Panel" con sombra suave y estilo ejecutivo Bento.
+  3. En `tests/habitaciones-system.test.mjs`: Se incorporaron validaciones para `.hab-campana-close-btn`, `.hab-campana-search-wrap` y `.hab-search-clear`.
+- Validación: 137 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.208`).
+
+### Solución: Campañas de Marketing y Ofertas por Segmento de Cliente (WhatsApp, Correo, Flyers e Integridad Blindada) (`HabitacionCampanaModal.jsx`, `HabitacionContactModal.jsx`, `SettingsHabitaciones.jsx`, `HabitacionesModule.jsx`, `habitacionesController.js`, `habitacionesRoutes.js`, `server.cjs`, `habitaciones.css`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento:
+  1. Permitir el envío de promociones y ofertas (no solo confirmación de reservas) por WhatsApp y Correo a clientes de habitaciones, guardándolos en base de datos para marketing.
+  2. Ofrecer soporte para fotografías o flyers promocionales adjuntos con sugerencias de valor agregado (copia directa al portapapeles para WhatsApp Web y enlace al catálogo).
+  3. Clasificar a clientes y empresas por segmento/sector (ej. Bancos, ONGs, Corporativo, Gobierno, Turismo, etc.).
+  4. Agregar en Configuración la administración de estos segmentos con integridad referencial (no poder eliminar sectores en uso en reservas) y capacidad de lanzar campañas dirigidas a un sector específico.
+- Solución:
+  1. En `server.cjs` y base de datos:
+     - Migración que extiende `habitacion_catalogos` con `tipo_plantilla VARCHAR(50) DEFAULT 'confirmacion'` e `imagen_url TEXT NULL`.
+     - Semillas para `tipos_cliente` ("Bancos", "ONGs", "Corporativo", "Gobierno", "Turismo", "Agencias") y plantilla de promoción `cat_pl_promo_1` ("Oferta Especial de Temporada").
+  2. En `backend/src/controllers/habitacionesController.js` y `habitacionesRoutes.js`:
+     - Endpoint `GET /api/habitaciones/campanas/segmento/:idSegmento` (`getCampanaClientesPorSegmento`): consulta y agrupa clientes únicos con teléfono, correo, historial de estancias y último contacto filtrados por el sector.
+     - Endpoint `POST /api/habitaciones/catalogos/upload-imagen` (`uploadPromocionImagen`): recibe imágenes rasterizadas con `multer` y genera `dataUrl` en base64 de alta fidelidad. También soporta payloads JSON directos `{ dataUrl }` y fallback en `createCatalogoItem` para prevenir falsos 400 por colisión de categoría `upload-imagen`.
+     - Integridad referencial reforzada: `deleteCatalogoItem` y `getCatalogoItemUsage` verifican `categoria === 'tipos_cliente'` consultando `habitacion_reservas WHERE id_tipo_cliente = ? OR tipo_cliente_nombre = ?` respondiendo `409 Conflict` si el segmento está en uso.
+  3. En `src/services/api.js` y `src/services/habitacionesService.js`:
+     - `api.js` soporta `FormData` de forma nativa sin serialización forzada a JSON ni sobrescritura de `Content-Type`, y expone `api.postForm`.
+     - `uploadPromocionImagenApi` implementa arquitectura resiliente de lectura inmediata con `FileReader` y subida dual a backend, garantizando que el usuario siempre obtenga la URL de imagen sin bloqueos.
+  4. En `src/modules/settings/SettingsHabitaciones.jsx`:
+     - Pestaña renombrada formalmente a "Segmentos de Cliente" (`tipos_cliente`).
+     - Soporte completo en el formulario de plantillas para propósito (Confirmación vs Promoción / Oferta), uploader y preview de flyer promocional, y catálogo de variables dinámicas (`{segmento}`, `{descuento}`, `{vigencia}`, `{enlace_promo}`).
+  5. En `src/modules/habitaciones/HabitacionContactModal.jsx`:
+     - Selector de propósito (Confirmación de Reserva vs Oferta / Promoción) con ajuste de variables dinámicas.
+     - Soporte para flyer con visor Bento y botón `copyImageToClipboard` (conversión automática a `image/png` para pegar con `Ctrl+V` directamente en WhatsApp Web).
+  6. En `src/modules/habitaciones/HabitacionCampanaModal.jsx`:
+     - Componente Bento para campañas dirigidas por segmento: selector de sector, selector de plantilla de promo, edición de variables en vivo, visor y uploader de flyer.
+     - Conteo y búsqueda rápida de clientes del sector con barra de progreso interactiva ("X de Y contactados").
+     - Tarjetas Bento individuales por cliente con iniciales armónicas, estancias históricas y botones rápidos de WhatsApp (abre chat con mensaje personalizado y copia flyer al portapapeles) y Correo (abre cliente con asunto y cuerpo).
+  7. En `src/modules/habitaciones/HabitacionesModule.jsx` y `habitaciones.css`:
+     - Botón Bento "Lanzar Promoción" (`.hab-btn-campana` en degradado violeta/índigo `#7c3aed`) en el encabezado superior con adaptación responsive para móvil.
+     - Selector de "Segmento de Cliente" en el modal de Filtros Avanzados para filtrar reservas por sector.
+  8. En `tests/habitaciones-system.test.mjs`: Se incorporó prueba unitaria exhaustiva validando las nuevas rutas, integridad referencial de segmentos, plantillas con flyer y apertura de campañas.
+- Validación: 137 pruebas automáticas superadas (`node --test tests/*.test.mjs`), columnas `tipo_plantilla` e `imagen_url` (MEDIUMTEXT) aplicadas en MariaDB mediante migración de startup en `server.cjs`, build limpio de producción (versión `2.1.207`).
+
+### Solución: Corrección de Desborde Móvil y Selector Bento de Período Anti-Colisiones (`habitaciones.css`, `HabitacionesModule.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Resolver defectos visuales en la versión móvil de Ingreso y Ventas de Habitaciones:
+  1. El icono verde de la camita y el encabezado superior se desbordaban horizontalmente hacia la derecha (el título, badge y botones "Exportar a Excel" y "Nueva Reserva" se cortaban en pantallas pequeñas).
+  2. En "Período de Análisis", aparecían dos iconos de calendario y el icono de Lucide quedaba montado directamente tapando las letras "oc" de "octubre de 2026".
+- Causa raíz:
+  1. `.hab-brand-box` no tenía `min-width: 0` ni `word-break: break-word` en el bloque de texto del encabezado, y los botones de acción tenían texto largo con `white-space: nowrap` forzando un ancho superior a 390px que desbordaba el viewport móvil.
+  2. El campo `<input type="month">` en navegadores webkit pinta su propio icono nativo a la derecha y alinea el texto del mes a la izquierda; la presencia simultánea de un `<Calendar size={15}>` posicionado absolutamente en `left: 11px` colisionaba directamente sobre el texto nativo, generando un doble icono y texto ilegible.
+- Solución:
+  1. En `src/modules/habitaciones/habitaciones.css`:
+     - Se crearon las clases `.hab-month-picker-wrap`, `.hab-month-picker-text` y `.hab-month-native-input` (input nativo superpuesto con `opacity: 0; position: absolute; inset: 0; cursor: pointer;`), permitiendo un diseño Bento impecable con un solo icono verde esmeralda visible, texto limpio ("Octubre de 2026") y flecha desplegable (`ChevronDown`), abriendo reactivamente el selector nativo al tocar cualquier parte.
+     - En `@media (max-width: 768px)`: se aseguraron `overflow-x: hidden`, `min-width: 0`, `word-break: break-word` para `.hab-brand-title` y se configuraron las clases adaptativas `.hab-btn-label-desktop` y `.hab-btn-label-mobile` ("+ Nueva Reserva" en móvil) junto a un grid simétrico de 2 columnas para los botones de acción superior.
+  2. En `src/modules/habitaciones/HabitacionesModule.jsx`:
+     - Se envolvieron el título y la descripción en `.hab-brand-info` y las acciones en `.hab-header-right`.
+     - Se reemplazó el input de período por el componente Bento `.hab-month-picker-wrap` con capitalización elegante del mes.
+  3. En `tests/habitaciones-system.test.mjs`: Se agregaron aserciones para verificar el selector de mes Bento y las clases anti-desborde móvil.
+- Validación: 136 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.202`).
+
+### Solución: Rediseño Ejecutivo Bento de Ingreso y Ventas de Habitaciones (Socket.IO en Vivo, 5 KPIs, Filtros Avanzados, Paginador Numérico y Tarjetas Móviles) (`HabitacionesModule.jsx`, `habitacionesController.js`, `habitaciones.css`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Mejorar sustancialmente el diseño visual del módulo de Ingreso y Ventas de Habitaciones adaptándolo 100% a las maquetas de referencia Desktop y Mobile provistas por el usuario:
+  1. Conectar Socket.IO en tiempo real con indicador "● En Vivo - Sincronizado" pulsante y marca temporal de última actualización.
+  2. Implementar las 5 KPI Cards Bento (Ingresos con % de meta y barra de progreso, Habitaciones Vendidas, Noches Vendidas con ticket promedio, Huéspedes Recurrentes VIP, Tasa de Ocupación con ADR diario basado en capacidad estándar de 24 habitaciones).
+  3. Reestructurar la barra de filtros eliminando el botón "Restablecer" y proveyendo 4 selectores superiores (Período, Vendedor, Tipo, Estado) y botón Bento "Filtros" con modal emergente para filtros avanzados (Módulo, Forma de Pago, Empresa y rango de fechas exacto).
+  4. Rediseñar la tabla Desktop con mayor contraste y color Bento: Folio dark pill (`#0f172a`), avatares con iniciales armónicas, pastillas suaves para empresa y canal, monto destacado en verde esmeralda y botones de acción temáticos.
+  5. Agregar barra de paginación numérica (`Mostrando X - Y de Z`, selector de 10/25/50 y botones numéricos `< 1 2 3 ... >`).
+  6. Adaptar la visualización para dispositivos móviles (< 768px) transformando automáticamente la tabla en tarjetas Bento individuales de Folios Activos con acciones rápidas de llamada y WhatsApp.
+- Solución:
+  1. En `backend/src/controllers/habitacionesController.js`: Se aseguraron emisiones de Socket.IO `emitChange(req, 'habitaciones', ...)` en `createHabitacion`, `updateHabitacion`, `deleteHabitacion`, `registrarContacto`, `createCatalogoItem`, `updateCatalogoItem`, `deleteCatalogoItem` y `updateMetas`.
+  2. En `src/modules/habitaciones/HabitacionesModule.jsx`:
+     - Se integró `socketService` escuchando `entity:changed` y `state-updated` para recargar reactivamente datos en segundo plano sin parpadeos, reflejando el estado de conexión y hora de última sincronización.
+     - Se calculó la Tasa de Ocupación, ADR, meta mensual y conteo de suites para alimentar las 5 KPI Cards Bento con barras de progreso animadas.
+     - Se configuró la paginación con estado `currentPage` y `pageSize`, calculando páginas de forma reactiva.
+     - Se implementó el modal emergente para filtros avanzados adicionales y se removió el botón "Restablecer".
+     - Se diseñó la vista responsiva móvil de Folios Activos Bento con avatares, pastillas de estado y atajos de contacto.
+  3. En `src/modules/habitaciones/habitaciones.css`: Se crearon las clases `.hab-sync-badge`, `.hab-sync-dot` con `@keyframes habPulseDot`, `.hab-kpi-grid-5`, `.hab-kpi-card-bento`, `.hab-folio-pill`, `.hab-avatar`, `.hab-status-pill`, `.hab-pagination-container`, `.hab-page-btn` y la sección responsive `@media (max-width: 768px)` para `.hab-mobile-folios-card`.
+  4. En `tests/habitaciones-system.test.mjs`: Se incorporó prueba unitaria para validar la integración de Socket.IO, las 5 KPIs Bento, paginación numérica y diseño móvil de Folios Activos.
+- Validación: 136 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.201`).
+
+### Solución: Blindaje de Contraste y Color en Botones de Habitaciones contra Sobrescritura de design-system-scoped (`habitaciones.css`, `HabitacionesModule.jsx`, `HabitacionModal.jsx`, `HabitacionContactModal.jsx`, `ReportsVentasHabitaciones.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Resolver defecto visual donde los botones "Exportar a Excel", "Nueva Reserva", "Cancelar" y "Registrar Reserva" aparecían descoloridos (fondo gris/celeste muy claro `#eef2f8` con texto blanco, casi invisibles e ilegibles), y eliminar el símbolo `+` duplicado en "+ + Nueva Reserva".
+- Causa raíz: En `src/styles/design-system-scoped.css` (línea 103), la regla global `body:not(.informes-theme) button` posee especificidad `(0, 1, 2)`, aplicando `background: var(--ui-surface-muted)` (`#eef2f8`). Mientras que `color: #ffffff !important` se mantenía en los botones de habitaciones, la falta de mayor especificidad en las propiedades de `background`, `background-color` y `background-image` provocó que el CSS global sustituyera el color corporativo por el fondo claro, resultando en texto blanco sobre fondo blanco.
+- Solución:
+  1. En `src/modules/habitaciones/habitaciones.css`: Se reforzaron las reglas CSS con máxima especificidad (`body:not(.informes-theme) .hab-container button.hab-btn-primary`, `body:not(.informes-theme) button.hab-btn-primary`, `.hab-btn-primary`, etc.) forzando con `!important`: `background`, `background-color`, `background-image`, `color`, `border` y `box-shadow` tanto en estado base como en `:hover` y `:active` para `.hab-btn-excel` (Verde Excel), `.hab-btn-primary` (Azul Zafiro), `.hab-btn-submit` (Verde Esmeralda), `.hab-btn-cancel` (Gris Neutro con texto legible `#334155`) y `.hab-action-btn` (WhatsApp, Email, Edit, Delete).
+  2. En `HabitacionesModule.jsx`, `HabitacionModal.jsx`, `HabitacionContactModal.jsx` y `ReportsVentasHabitaciones.jsx`: Se inyectaron estilos en línea directos (`style={{ ... }}`) como escudo infalible y se importó `habitaciones.css` en `HabitacionModal.jsx`.
+  3. En `HabitacionesModule.jsx`: Se corrigió el texto de `<span>+ Nueva Reserva de Habitación</span>` a `<span>Nueva Reserva de Habitación</span>`, evitando la duplicación visual con el icono `<Plus />`.
+- Validación: 135 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.200`).
+
+### Solución: Rediseño Ejecutivo de Botones de Acción (WhatsApp, Email, Edit, Delete) y Botones Temáticos (Excel, Nueva Reserva, Cancelar, Registrar) (`habitaciones.css`, `HabitacionesModule.jsx`, `HabitacionModal.jsx`, `HabitacionContactModal.jsx`, `ReportsVentasHabitaciones.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Rediseñar los botones de acción de fila (mensaje WhatsApp, correo, editar, bote de basura) que lucían planos y toscos, mejorando su diseño con Bento action pills, colores pastel vibrantes y micro-animaciones al hacer hover. Además, asignar colores corporativos temáticos a los botones de "Exportar a Excel" (verde corporativo de Excel), "Nueva Reserva" (azul cielo zafiro), "Cancelar" (gris neutro refinado) y "Registrar Reserva / Guardar Cambios" (verde esmeralda radiante).
+- Causa raíz:
+  1. En `src/modules/habitaciones/habitaciones.css`, `.hab-action-btn` carecía de dimensiones fijas, bordes sutiles y fondos base (`background: none; border: none; padding: 6px;`), provocando un aspecto apagado y comprimido en la tabla de reservas.
+  2. Los botones de exportar y cancelar usaban estilos neutros o genéricos sin jerarquía visual ni distinción semántica clara.
+- Solución:
+  1. En `src/modules/habitaciones/habitaciones.css`:
+     - Se crearon las clases Bento `.hab-action-group` y `.hab-action-btn` con `width: 34px`, `height: 34px`, `borderRadius: 9px`, micro-elevación suave (`translateY(-2px)`) y sombras exclusivas para cada acción: Verde Esmeralda para WhatsApp (`#ecfdf5`, `#a7f3d0`, `#16a34a`), Azul Royal para Correo (`#eff6ff`, `#bfdbfe`, `#2563eb`), Azul Celeste para Editar (`#f0f9ff`, `#bae6fd`, `#0284c7`) y Rojo Coral para Cancelar/Eliminar (`#fef2f2`, `#fecaca`, `#ef4444`).
+     - Se implementó `.hab-btn-excel` con degradado verde Excel (`#107c41` → `#059669`), bordes precisos y sombra verde corporativa.
+     - Se fortaleció `.hab-btn-primary` para "Nueva Reserva" con degradado azul zafiro (`#0284c7` → `#0369a1`).
+     - Se definió `.hab-btn-submit` para "Registrar Reserva" / "Guardar Cambios" con degradado esmeralda radiante (`#059669` → `#10b981`) y `.hab-btn-cancel` para modales con estilo neutral ejecutivo.
+  2. En `HabitacionesModule.jsx`, `HabitacionModal.jsx`, `HabitacionContactModal.jsx` y `ReportsVentasHabitaciones.jsx`:
+     - Se conectó `hab-action-group` en la tabla de reservas con tooltips explicativos y strokes nítidos en los íconos de Lucide.
+     - Se integró `hab-btn-excel` con ícono `FileSpreadsheet` / `Download`.
+     - Se aplicaron `hab-btn-cancel` y `hab-btn-submit` en los pies de página de los modales.
+  3. En `tests/habitaciones-system.test.mjs`: Se incorporó prueba unitaria para verificar las 4 variantes de `.hab-action-btn`, `.hab-btn-excel`, `.hab-btn-submit`, `.hab-btn-cancel` y su consumo en los módulos.
+- Validación: 135 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.198`).
+
+### Solución: Pestañas Bento con Colores Temáticos Diferenciados y Diseño Anti-Recorte en Configuración de Habitaciones (`SettingsHabitaciones.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Resolver defecto visual donde las letras al final de los botones de las pestañas en el centro de configuración de habitaciones se cortaban o salían apretadas contra el borde derecho (ej. la 'o' en Medios de Contacto, la 'n' en Tipos de Habitación, la 's' en Metas de Habitaciones), y asignar un color distintivo propio a cada una de las 7 pestañas.
+- Causa raíz: Los botones de las pestañas no contaban con `flex-shrink: 0`, tenían un padding horizontal reducido (`8px 14px`) y carecían de `box-sizing: border-box`, provocando que en anchos reducidos el flex container horizontal comprimiera los botones recortando el texto en los bordes y ocultando los badges de los íconos.
+- Solución:
+  1. En `src/modules/settings/SettingsHabitaciones.jsx`:
+     - Se dotó a cada pestaña en `TABS` de su paleta cromática exclusiva (`color`, `bgActive`, `borderActive`, `bgBadge`, `badgeColor`): Sky Blue para Medios de Contacto, Esmeralda para Tipos de Habitación, Púrpura para Módulos / Sectores, Ámbar para Tipos de Cliente, Teal para Formas de Pago, Rose para Plantillas Mensajes e Índigo para Metas de Habitaciones.
+     - Se rediseñaron los botones con `display: inline-flex`, `flexShrink: 0`, `padding: 10px 18px`, `borderRadius: 12`, `boxSizing: border-box`, y un badge contenedor de ícono Bento (`26x26px`, `borderRadius: 8`) con el ícono Lucide siempre visible y nítido.
+     - Se conectaron dinámicamente el avatar de cabecera superior, el botón "+ Agregar a..." y los botones de guardado para adoptar el color temático de la pestaña activa.
+  2. En `tests/habitaciones-system.test.mjs`: Se incorporó prueba unitaria para verificar la paleta de colores temáticos de cada pestaña, `flexShrink: 0`, padding holgado y badge de ícono.
+- Validación: 134 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.196`).
+
+### Solución: Catálogo CRUD de Módulos/Sectores, Protección de Integridad Referencial y Selector Desplegable (`server.cjs`, `habitacionesController.js`, `SettingsHabitaciones.jsx`, `HabitacionesModule.jsx`, `HabitacionModal.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Convertir el campo `Módulo / Sector` en una lista desplegable (`<select>`) igual que Vendedor y Tipo de Habitación en el modal de reserva, y habilitar su catálogo CRUD completo en el panel de configuración de habitaciones (`SettingsHabitaciones.jsx`) con protección de integridad referencial para impedir la eliminación si el módulo ya está asignado a reservas.
+- Solución:
+  1. En `server.cjs`: Se añadieron semillas predeterminadas para la categoría `modulos` ("Módulo Jardín", "Módulo Lago", "Módulo Principal", "Sector Cabañas") tanto en el bootstrap inicial como en bases de datos existentes si la categoría no cuenta con registros.
+  2. En `backend/src/controllers/habitacionesController.js`: Se incorporó soporte para `categoria === 'modulos'` en `getCatalogos`, `getCatalogoItemUsage` y `deleteCatalogoItem`, calculando reactivamente el número de reservas asociadas mediante `r.modulo = c.nombre OR r.modulo = c.id`. Si el módulo está en uso (`usageCount > 0`), el endpoint responde `409 Conflict` bloqueando la eliminación.
+  3. En `src/modules/settings/SettingsHabitaciones.jsx`: Se añadió la pestaña `Módulos / Sectores` con ícono `Layers` en `TABS`, permitiendo crear, editar descripción/orden y eliminar módulos con el modal Bento diseñado de protección de integridad (`ShieldAlert` y badge de candado).
+  4. En `src/modules/habitaciones/HabitacionesModule.jsx`: Se integró la carga asíncrona de `modulos` en `loadAuxData` y se suministró al estado de `catalogos`.
+  5. En `src/modules/habitaciones/HabitacionModal.jsx`: Se reemplazó el `<input type="text">` de `Módulo / Sector` por un `<select className="hab-select">` conectado a `catalogos.modulos`, con selección automática del primer módulo al crear y preservación de valores preexistentes al editar.
+- Validación: 133 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.194`).
+
+### Solución: Unificación de Folio, Eliminación de no_reserva y solicito en BD/UI, y Alineación Perfecta de Monto Total (`server.cjs`, `habitacionesController.js`, `HabitacionModal.jsx`, `habitaciones.css`, `HabitacionesModule.jsx`, `ReportsVentasHabitaciones.jsx`, `HabitacionContactModal.jsx`, `SettingsHabitaciones.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento:
+  1. Conservar `No. Folio` como único identificador unificado y eliminar `No. Reserva` (`no_reserva`) tanto de la interfaz como de la base de datos MariaDB.
+  2. Eliminar el campo `Solicitó (Detalle)` (`solicito`) de la interfaz y de la base de datos MariaDB.
+  3. Corregir el desalineamiento visual del campo `Monto Total (Q)` en el modal de reserva respecto a `Tipo de Habitación` y `Tarifa Diaria (Q)`.
+- Causa raíz:
+  1. En `habitacion_reservas` existían redundantemente las columnas `no_reserva` y `solicito`, presentes en los queries SQL (`SELECT`, `INSERT`, `UPDATE`), formularios y tablas.
+  2. En `HabitacionModal.jsx`, el contenedor de `Monto Total (Q)` incluía un `div flex` con un botón de auto-cálculo que tenía mayor altura de línea y padding nativo (~26px) en comparación con los simples `<label display: block; margin-bottom: 4>` (~16px) de `Tipo de Habitación` y `Tarifa Diaria`, empujando el input de monto total 10px hacia abajo. Además, el input total tenía `fontSize: 15` sin altura física explícita unificada con el `hab-select` y el `hab-input` adyacentes.
+- Solución:
+  1. En `server.cjs`: Se removieron `no_reserva` y `solicito` del esquema inicial de `habitacion_reservas` y se agregó una migración defensiva que ejecuta `ALTER TABLE habitacion_reservas DROP COLUMN no_reserva` y `DROP COLUMN solicito` verificando previamente su existencia en `information_schema.COLUMNS`. Las semillas de plantillas se actualizaron para usar `{no_folio}`.
+  2. En `backend/src/controllers/habitacionesController.js`: Se erradicaron `no_reserva` y `solicito` de `getHabitaciones`, `getHabitacion`, `createHabitacion`, `updateHabitacion` y `getHuespedHistorial`, unificando las búsquedas y respuestas hacia `no_folio`.
+  3. En `src/modules/habitaciones/habitaciones.css`: Se fijó `height: 38px !important; box-sizing: border-box !important;` tanto para `.hab-input`, `.hab-select` como para `.hab-input-total`.
+  4. En `src/modules/habitaciones/HabitacionModal.jsx`:
+     - Se estandarizó el encabezado de las 3 columnas de la fila de estancia (`Tipo de Habitación`, `Tarifa Diaria`, `Monto Total`) con `display: flex; align-items: center; justify-content: space-between; height: 20px; minHeight: 20px; marginBottom: 5px;` y los 3 controles con `height: 38px`, logrando alineación visual idéntica y simétrica.
+     - En la sección "Control Comercial, Recepción y Folios", se eliminaron `No. Reserva (Voucher)` y `Solicitó (Detalle)` y se renombró `No. Folio Físico` a `No. Folio`, organizando los 6 campos restantes en una cuadrícula simétrica de 3 columnas (2 filas completas de 3 campos) sobre las Observaciones Internas.
+  5. En `HabitacionesModule.jsx`, `ReportsVentasHabitaciones.jsx`, `HabitacionContactModal.jsx` y `SettingsHabitaciones.jsx`: Se homologó la visualización a `No. Folio`, se eliminó `solicito` y se actualizaron las plantillas y exportación a Excel.
+- Validación: 132 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build de producción limpio (versión `2.1.193`).
+
+### Solución: Corrección Definitiva de Apilamiento, Fondo Claro e Integración Visual del Buscador de Habitaciones (`habitaciones.css`, `HabitacionesModule.jsx`, `ReportsVentasHabitaciones.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Resolver defecto visual donde el ícono de la lupa (`Search`) salía tapado detrás del texto en el campo de búsqueda ("Buscar por huésped, voucher, folio, empresa...") y, al excluir la regla genérica de padding, el fondo del input heredaba el degradado oscuro de `global-scoped.css`.
+- Causa raíz:
+  1. En `src/modules/habitaciones/habitaciones.css`, la regla genérica `body:not(.informes-theme) .hab-container input` forzaba `padding: 8px 12px !important;`. Al excluirla con `:not(.hab-search-input)`, el input perdió el `background: #ffffff !important` de esa regla y fue capturado por `global-scoped.css` (degradado oscuro `#1e293b`).
+  2. En el árbol DOM, el `<span className="hab-search-icon">` estaba posicionado antes del `<input>`, quedando la lupa tapada por el texto.
+- Solución:
+  1. En `src/modules/habitaciones/habitaciones.css`: Se blindó `.hab-search-input` con máxima especificidad fijando `background: #ffffff !important; background-color: #ffffff !important; background-image: none !important; color: #0f172a !important; color-scheme: light !important; border: 1px solid #cbd5e1 !important; padding-left: 46px !important; padding-right: 36px !important;`, junto a sus pseudoclases `:focus` y `::placeholder`. Para `.hab-search-icon`, se fijó `position: absolute !important; left: 14px !important; z-index: 10 !important; pointer-events: none !important;`.
+  2. En `src/modules/habitaciones/HabitacionesModule.jsx` y `src/modules/reports/ReportsVentasHabitaciones.jsx`: Se reordenó el JSX colocando primero el `<input>` (con `backgroundColor: '#ffffff'`, `color: '#0f172a'` y `paddingLeft: 46`) y después el `<span className="hab-search-icon">`.
+- Validación: 131 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build de producción limpio (versión `2.1.192`).
+
+### Solución: Corrección de ReferenceError en Inicialización de getDateRange en ReportsDashboard (`ReportsDashboard.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Resolver error de tiempo de ejecución en consola `ReferenceError: Cannot access 'getDateRange' before initialization at ReportsDashboard (ReportsDashboard.jsx:241:7)` al cargar el Dashboard Principal en el apartado de reportes.
+- Causa raíz: En `src/modules/reports/ReportsDashboard.jsx`, el `useEffect` que carga las ventas de habitaciones para consolidar en la meta global se encontraba posicionado antes de la declaración `const getDateRange = useCallback(...)`. Al inicializar el componente, el array de dependencias del efecto `[getDateRange]` intentó evaluar la variable mientras se encontraba en la Zona Muerta Temporal (Temporal Dead Zone - TDZ) de JavaScript, gatillando el `ReferenceError` capturado por el `ErrorBoundary`.
+- Solución:
+  1. En `src/modules/reports/ReportsDashboard.jsx`: Se reordenaron las declaraciones léxicas colocando las funciones auxiliares de fecha (`fmtShort`) y la función memorizada `getDateRange` antes del estado y efecto de `habitacionesTotal`.
+  2. En `tests/habitaciones-system.test.mjs`: Se incorporó aserción estricta de orden de inicialización para prevenir regresiones por TDZ.
+- Validación: 131 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.189`).
+
+### Solución: Protección de Integridad de Datos en Catálogos de Habitaciones y Modales de Confirmación Diseñados (`habitacionesController.js`, `habitacionesRoutes.js`, `habitacionesService.js`, `stateService.js`, `SettingsHabitaciones.jsx`, `HabitacionesModule.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Proteger la integridad referencial de los catálogos en el Panel de Configuración de Habitaciones: si algún registro (tipo de habitación, medio de contacto, tipo de cliente, forma de pago) ya está siendo utilizado en reservas (`habitacion_reservas`), impedir su eliminación. Además, erradicar los mensajes de confirmación nativos del navegador (`window.confirm`) al eliminar o cancelar, reemplazándolos con modales de confirmación con diseño ejecutivo personalizado acorde a la estética Bento del CRM.
+- Causa raíz:
+  1. `habitacionesController.js` ejecutaba la desactivación del elemento sin verificar si el registro ya tenía reservas asociadas en `habitacion_reservas`.
+  2. `SettingsHabitaciones.jsx` y `HabitacionesModule.jsx` invocaban `window.confirm(...)` nativo del navegador para pedir confirmación al usuario, mostrando el diálogo tosco de `localhost:5173 dice...`.
+- Solución:
+  1. En `backend/src/controllers/habitacionesController.js`:
+     - En `getCatalogos`: Inyección reactiva de `usage_count` por subconsulta SQL para cada categoría de catálogo.
+     - Nuevo endpoint `getCatalogoItemUsage`: Consulta en tiempo real de reservas asociadas por ID y nombre.
+     - En `deleteCatalogoItem`: Validación estricta de integridad; si `usageCount > 0`, responde con `HTTP 409 Conflict` impidiendo la eliminación e informando la cantidad exacta de reservas vinculadas.
+  2. En `backend/src/routes/habitacionesRoutes.js`, `src/services/habitacionesService.js` y `src/services/stateService.js`:
+     - Registrado y expuesto `getCatalogoItemUsageApi(categoria, id)`.
+  3. En `src/modules/settings/SettingsHabitaciones.jsx`:
+     - Erradicado `window.confirm`.
+     - Implementado modal diseñado `deleteModal` con animación suave y estética Bento.
+     - Si el elemento tiene reservas vinculadas (`usageCount > 0`): Muestra alerta de "Protección de Integridad" con ícono `ShieldAlert` y `Lock`, detallando el número de reservas vinculadas y botón "Entendido, conservar registro".
+     - Si el elemento no tiene reservas (`usageCount === 0`): Muestra modal de confirmación con verificación de integridad en verde ("✓ 0 dependencias activas") y botones estilizados de "Cancelar" y "Eliminar Elemento".
+     - En la tabla de catálogo, indicador visual de reservas asociadas y candado de protección.
+  4. En `src/modules/habitaciones/HabitacionesModule.jsx`:
+     - Erradicado `window.confirm` en la cancelación de reservas, sustituido por modal diseñado `cancelModal`.
+- Validación: 131 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.188`).
+
+### Solución: Compatibilidad de Métodos Atómicos en Utilidad Toast (`src/utils/toast.jsx`, `SettingsHabitaciones.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Resolver error en tiempo de ejecución en consola `TypeError: toast.success is not a function at handleSaveCatalogItem (SettingsHabitaciones.jsx:178:15)` y posterior `TypeError: toast.error is not a function` al guardar un nuevo tipo de habitación o elementos del catálogo.
+- Causa raíz: En `src/utils/toast.jsx`, la función exportada `toast(msg, options)` envolvía `react-hot-toast`, pero no exponía como propiedades estáticas los métodos de conveniencia `.success`, `.error`, `.warning`, `.info` y `.dismiss`. Al invocar `toast.success(...)`, el intérprete arrojaba `TypeError` al no ser funciones definidas en el objeto `toast`.
+- Solución:
+  1. En `src/utils/toast.jsx`: Se adjuntaron directamente al objeto de función `toast` los métodos `toast.success`, `toast.error`, `toast.warning`, `toast.info` (inyectando automáticamente la opción `type` respectiva) y `toast.dismiss(id)` apuntando a `toastLib.dismiss`. Además, se agregó exportación default `export default toast` para interoperabilidad total.
+  2. En `tests/habitaciones-system.test.mjs`: Se incorporó prueba unitaria para verificar la existencia de todos los métodos atómicos de la utilidad.
+- Validación: 130 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.186`).
+
+### Solución: Blindaje de Modo Claro en Inputs de Habitaciones y Reportería contra Estilos Oscuros Heredados (`habitaciones.css`, `HabitacionModal.jsx`, `SettingsHabitaciones.jsx`, `ReportsVentasHabitaciones.jsx`) (2026-10-13)
+- Requerimiento: Resolver apariencia visual discordante donde en el nuevo modal de reserva de habitaciones, en la barra de filtros/búsqueda, en catálogos de configuración y en reportería de habitaciones, los campos de texto, fechas, correos, teléfonos y áreas de texto aparecían con fondo gris oscuro/negro (`#1e293b`) mientras otros campos numéricos y selectores eran blancos.
+- Causa raíz: En la hoja de estilos global `src/styles/global-scoped.css` (línea 839), la regla `body:not(.informes-theme) input:not(...):not(...)` y `textarea` aplicaba con alta especificidad CSS un degradado oscuro `background: linear-gradient(180deg, rgba(30, 41, 59, 0.78), rgba(15, 23, 42, 0.72))` y texto claro, sobrepasando las clases básicas de los nuevos componentes.
+- Solución:
+  1. En `src/modules/habitaciones/habitaciones.css`: Se implementó la salvaguarda de alta especificidad para `.hab-container`, `.hab-modal-backdrop`, `.hab-modal-card`, `.hab-input` y `.hab-select` forzando `background: #ffffff !important`, `color: #0f172a !important`, `border: 1px solid #cbd5e1 !important`, `color-scheme: light !important`, placeholders claros y anillo de enfoque esmeralda `#059669`.
+  2. En `HabitacionModal.jsx`: Se aplicaron las clases `.hab-input-total.is-auto` y `.is-manual` para conservar el resalte suave esmeralda/ámbar en el total de la reserva, y `.hab-company-item` para sugerencias con hover interactivo.
+  3. En `SettingsHabitaciones.jsx` y `ReportsVentasHabitaciones.jsx`: Se importó `habitaciones.css` y se homologaron los inputs, selectores y textarea a las clases protegidas `.hab-input` y `.hab-select`.
+- Validación: 129 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build limpio de producción (versión `2.1.184`).
+
+### Solución: Corrección de ReferenceError por Re-exportación en Ámbito Local de stateService (`stateService.js`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Resolver error en tiempo de ejecución en consola del navegador `Uncaught ReferenceError: getHabitacionesApi is not defined at stateService.js:767:3`.
+- Causa raíz: En `src/services/stateService.js`, se utilizaba la sintaxis de re-exportación directa `export { getHabitacionesApi, ... } from './habitacionesService';`. En la especificación ECMAScript, este tipo de exportación agregada no vincula los identificadores en el ámbito léxico del módulo actual. Al evaluar la constante `const stateService = { ... getHabitacionesApi ... }`, el motor de JavaScript lanzaba `ReferenceError` porque `getHabitacionesApi` no existía en el ámbito local.
+- Solución:
+  1. En `src/services/stateService.js`: Se importaron explícitamente todas las funciones desde `./habitacionesService` al inicio del archivo.
+  2. Se expusieron en el objeto `stateService` por defecto y se exportaron como named exports.
+  3. En `tests/habitaciones-system.test.mjs`: Se incorporó una prueba unitaria para verificar la importación y vinculación en ámbito sin errores.
+- Validación: 129 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build de producción completado en 3.25s (versión `2.1.181`).
+
+### Solución: Implementación Integral del Módulo de Ingreso de Habitaciones y Metas Comerciales (`server.cjs`, `habitacionesController.js`, `habitacionesRoutes.js`, `habitacionesService.js`, `HabitacionesModule.jsx`, `HabitacionModal.jsx`, `HabitacionContactModal.jsx`, `SettingsHabitaciones.jsx`, `SettingsMain.jsx`, `ReportsModule.jsx`, `ReportsVentasHabitaciones.jsx`, `ReportsDashboard.jsx`, `ReportsProyeccionMetas.jsx`, `Sidebar.jsx`, `App.jsx`, `habitaciones-system.test.mjs`) (2026-10-13)
+- Requerimiento: Implementar el módulo de ingreso de habitaciones acordado para el CRM de Jardines del Lago:
+  1. Base de datos MariaDB: tablas `habitacion_reservas`, `habitacion_catalogos` (con semillas de medios de contacto, tipos de habitación con tarifas, tipos de cliente, formas de pago y plantillas) y `habitacion_metas` (metas mensuales globales y por vendedor).
+  2. Endpoints backend: CRUD completo de reservas, catálogos, metas, directorio inteligente de huéspedes con historial por teléfono/correo, y registro de último contacto. Creación al vuelo de empresas en MariaDB.
+  3. Configuración Frontend: `SettingsHabitaciones.jsx` conectado en `SettingsMain.jsx` con Bento tabs para gestionar los catálogos de habitaciones y sus metas.
+  4. Módulo principal: `HabitacionesModule.jsx` en `/habitaciones` accesible desde el Sidebar (bajo Tablero Ocupación) con KPIs del mes, filtros, tabla con acciones rápidas, modal de reserva con cálculo reactivo de noches/totales y sobreescritura manual, modal interactivo de WhatsApp/Correo con plantillas dinámicas, y exportación a Excel.
+  5. Reportería y metas: Renombrar en `ReportsModule.jsx` a "Reporte de Ventas de Eventos", crear "Reporte de Ventas de Habitaciones" (`ReportsVentasHabitaciones.jsx`), consolidar ingresos de habitaciones a la Meta Global Mensual en `ReportsDashboard.jsx` con desglose visual, e integrar selector de proyecciones (`Consolidado`, `Solo Eventos`, `Solo Habitaciones`) en `ReportsProyeccionMetas.jsx`.
+- Solución:
+  1. En `server.cjs`: Implementada migración `ensureHabitacionesStructure` registrada en `MIGRATIONS` y `CANONICAL_MIGRATIONS` que asegura la creación de `habitacion_reservas`, `habitacion_catalogos` con semillas predeterminadas, y `habitacion_metas`.
+  2. En `backend/src/controllers/habitacionesController.js` y `backend/src/routes/habitacionesRoutes.js`: Endpoints REST atómicos protegidos con JWT. Montados en `backend/src/app_routes.js` bajo `/habitaciones`.
+  3. En `src/services/habitacionesService.js` y `src/services/stateService.js`: Funciones atómicas de consumo de API y despacho de eventos en tiempo real.
+  4. En `src/modules/settings/SettingsHabitaciones.jsx` y `src/modules/settings/SettingsMain.jsx`: Panel de configuración con sub-pestañas para medios de contacto, tipos de habitación (tarifas base), tipos de cliente, formas de pago, plantillas dinámicas con variables interactivas y metas mensuales.
+  5. En `src/layouts/MainLayout/components/Sidebar.jsx` y `src/App.jsx`: Acceso a `/habitaciones` en menú móvil y desktop debajo de Tablero Ocupación con ícono `bed` y precarga lazy.
+  6. En `src/modules/habitaciones/HabitacionesModule.jsx`, `HabitacionModal.jsx`, `HabitacionContactModal.jsx` y `habitaciones.css`: Módulo ejecutivo responsivo, detección de huéspedes frecuentes, creación de empresas al vuelo, cálculo reactivo de noches y total con sobreescritura manual, plantillas de WhatsApp/Correo y exportación a Excel con ExcelJS.
+  7. En `src/modules/reports/ReportsModule.jsx`, `ReportsVentasHabitaciones.jsx`, `ReportsDashboard.jsx` y `ReportsProyeccionMetas.jsx`: Renombrado de ventas de eventos, nuevo reporte transaccional y analítico de habitaciones, suma consolidada a la meta global en el dashboard ejecutivo, y conmutador de proyecciones.
+- Validación: 128 pruebas automáticas superadas (`node --test tests/*.test.mjs`), build de producción limpio (versión `2.1.180`).
+
 ### Solución: Auditoría Integral de Seguridad (Cloudflare Security Audit Skill) y Blindaje Defensivo del Backend (`server.cjs`, `events.js`, `catalogRoutes.js`, `platilloRoutes.js`, `tareasRoutes.js`, `userRoutes.js`, `imagenesRoutes.js`, `authService.js`, `socketService.js`, `security-audit-remediations.test.mjs`) (2026-10-13)
 - Requerimiento: Instalar la habilidad de auditoría de seguridad de Cloudflare (`cloudflare/security-audit-skill`), adaptarla a entornos Windows, auditar exhaustivamente la aplicación y subsanar todas las vulnerabilidades detectadas en autenticación, autorización, CSP, Socket.IO, subida de archivos y fuerza bruta.
 - Vulnerabilidades detectadas y remediadas:

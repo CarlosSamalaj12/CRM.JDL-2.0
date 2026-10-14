@@ -23,6 +23,7 @@ const CustomersModule = lazy(() => import('./modules/customers/CustomersModule')
 const ReportsModule = lazy(() => import('./modules/reports/ReportsModule'));
 const SearchModule = lazy(() => import('./modules/search/SearchModule'));
 const PosiblesVentasModule = lazy(() => import('./modules/posiblesVentas/PosiblesVentasModule'));
+const HabitacionesModule = lazy(() => import('./modules/habitaciones/HabitacionesModule'));
 const SettingsMain = lazy(() => import('./modules/settings/SettingsMain'));
 const Catalog = lazy(() => import('./modules/informes/pages/Catalog'));
 const ConstructorInforme = lazy(() => import('./modules/informes/pages/ConstructorInforme'));
@@ -118,6 +119,7 @@ function App() {
       import('./modules/search/SearchModule');
       import('./modules/settings/SettingsMain');
       import('./modules/posiblesVentas/PosiblesVentasModule');
+      import('./modules/habitaciones/HabitacionesModule');
     }, 300);
 
     return () => {
@@ -202,6 +204,7 @@ function App() {
                   <Route path="support" element={<SupportModule />} />
                   <Route path="search" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><SearchModule /></SafeRoute></RoleRoute>} />
                   <Route path="posibles-ventas" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><PosiblesVentasModule /></SafeRoute></RoleRoute>} />
+                  <Route path="habitaciones" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><HabitacionesModule /></SafeRoute></RoleRoute>} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/login" replace />} />

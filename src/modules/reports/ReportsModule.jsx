@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 
 import ReportsVentas from './ReportsVentas';
+import ReportsVentasHabitaciones from './ReportsVentasHabitaciones';
 import ReportsContabilidad from './ReportsContabilidad';
 import ReportsOcupacion from './ReportsOcupacion';
 import ReportsInstitucion from './ReportsInstitucion';
@@ -20,6 +21,42 @@ import './reports.css';
 const HubIcon = ({ name, size = 20, stroke = 'currentColor', fill = 'none' }) => {
   const props = { width: size, height: size, viewBox: '0 0 24 24', fill, stroke, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
   switch (name) {
+    case 'grid-all':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={stroke} stroke="none">
+          <circle cx="5" cy="5" r="2.2" />
+          <circle cx="12" cy="5" r="2.2" />
+          <circle cx="19" cy="5" r="2.2" />
+          <circle cx="5" cy="12" r="2.2" />
+          <circle cx="12" cy="12" r="2.2" />
+          <circle cx="19" cy="12" r="2.2" />
+          <circle cx="5" cy="19" r="2.2" />
+          <circle cx="12" cy="19" r="2.2" />
+          <circle cx="19" cy="19" r="2.2" />
+        </svg>
+      );
+    case 'grid-dots':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={stroke} stroke="none">
+          <rect x="3" y="3" width="7.5" height="7.5" rx="2" />
+          <rect x="13.5" y="3" width="7.5" height="7.5" rx="2" />
+          <rect x="3" y="13.5" width="7.5" height="7.5" rx="2" />
+          <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" />
+        </svg>
+      );
+    case 'filter':
+      return (
+        <svg {...props}>
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+      );
+    case 'card':
+      return (
+        <svg {...props}>
+          <rect x="2" y="5" width="20" height="14" rx="2.5" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      );
     case 'trending-up':
       return <svg {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>;
     case 'wallet':
@@ -27,7 +64,7 @@ const HubIcon = ({ name, size = 20, stroke = 'currentColor', fill = 'none' }) =>
     case 'calendar':
       return <svg {...props}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
     case 'target':
-      return <svg {...props}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;
+      return <svg {...props}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" fill="currentColor" /></svg>;
     case 'building':
       return <svg {...props}><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="9" y1="22" x2="9" y2="2" /><line x1="15" y1="22" x2="15" y2="2" /><line x1="4" y1="12" x2="20" y2="12" /></svg>;
     case 'star':
@@ -52,6 +89,8 @@ const HubIcon = ({ name, size = 20, stroke = 'currentColor', fill = 'none' }) =>
       return <svg {...props}><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></svg>;
     case 'search':
       return <svg {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
+    case 'bed':
+      return <svg {...props}><path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9" /></svg>;
     default:
       return null;
   }
@@ -59,10 +98,16 @@ const HubIcon = ({ name, size = 20, stroke = 'currentColor', fill = 'none' }) =>
 
 const BENTO_CARDS = [
   {
-    id: 'ventas', title: 'Reporte de Ventas',
+    id: 'ventas', title: 'Reporte de Ventas de Eventos',
     desc: 'Análisis detallado de transacciones, conversiones por canal, ticket promedio y comparativa histórica de ingresos operativos.',
     badge: 'Ventas • Cotizaciones • Comisiones',
     iconName: 'trending-up', variant: 'blue', category: 'Ventas', featured: true,
+  },
+  {
+    id: 'ventasHabitaciones', title: 'Reporte de Ventas de Habitaciones',
+    desc: 'Desglose comercial de hospedaje, tarifas diarias, noches vendidas, huéspedes frecuentes y análisis de ingresos por habitación.',
+    badge: 'Hospedajes • Tarifas • Noches',
+    iconName: 'bed', variant: 'emerald', category: 'Ventas', featured: true,
   },
   {
     id: 'dashboard', title: 'Dashboard Principal',
@@ -146,6 +191,7 @@ const BENTO_CARDS = [
 
 const reports = {
   ventas: (handleClose) => <ReportsVentas onClose={handleClose} />,
+  ventasHabitaciones: (handleClose) => <ReportsVentasHabitaciones onClose={handleClose} />,
   contabilidad: (handleClose) => <ReportsContabilidad onClose={handleClose} />,
   ocupacion: (handleClose) => <ReportsOcupacion onClose={handleClose} />,
   dashboard: (handleClose) => <ReportsDashboard onClose={handleClose} />,
@@ -163,20 +209,29 @@ const reports = {
 
 // ─── Chips de filtro ───
 const FILTER_CHIPS = [
-  { id: 'all',       label: 'Todos',     iconName: 'sparkles' },
-  { id: 'Ventas',    label: 'Ventas',    iconName: 'trending-up' },
-  { id: 'Finanzas',  label: 'Finanzas',  iconName: 'wallet' },
-  { id: 'Operación', label: 'Operación', iconName: 'calendar' },
-  { id: 'KPIs',      label: 'KPIs',      iconName: 'target' },
-  { id: 'Clientes',  label: 'Clientes',  iconName: 'building' },
-  { id: 'Calidad',   label: 'Calidad',   iconName: 'star' },
-  { id: 'Pipeline',  label: 'Pipeline',  iconName: 'clipboard' },
+  { id: 'all',       label: 'Todos',     iconName: 'grid-all',    chipClass: 'all',       iconBg: '#0f172a', iconColor: '#38bdf8' },
+  { id: 'Ventas',    label: 'Ventas',    iconName: 'trending-up', chipClass: 'ventas',    iconBg: '#10b981', iconColor: '#ffffff' },
+  { id: 'Finanzas',  label: 'Finanzas',  iconName: 'card',        chipClass: 'finanzas',  iconBg: '#f59e0b', iconColor: '#ffffff' },
+  { id: 'Operación', label: 'Operación', iconName: 'calendar',    chipClass: 'operacion', iconBg: '#0284c7', iconColor: '#ffffff' },
+  { id: 'KPIs',      label: 'KPIs',      iconName: 'target',      chipClass: 'kpis',      iconBg: '#6366f1', iconColor: '#ffffff' },
+  { id: 'Clientes',  label: 'Clientes',  iconName: 'grid-dots',   chipClass: 'clientes',  iconBg: '#8b5cf6', iconColor: '#ffffff' },
+  { id: 'Calidad',   label: 'Calidad',   iconName: 'star',        chipClass: 'calidad',   iconBg: '#f43f5e', iconColor: '#ffffff', iconFill: '#ffffff' },
+  { id: 'Pipeline',  label: 'Pipeline',  iconName: 'filter',      chipClass: 'pipeline',  iconBg: '#06b6d4', iconColor: '#ffffff' },
 ];
 
 export default function ReportsModule() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [activeChip, setActiveChip] = useState('all');
   const chipsRef = useRef(null);
+
+  // Conteo reactivo de reportes por categoría
+  const categoryCounts = useMemo(() => {
+    const counts = { all: BENTO_CARDS.length };
+    BENTO_CARDS.forEach((card) => {
+      counts[card.category] = (counts[card.category] || 0) + 1;
+    });
+    return counts;
+  }, []);
 
   // Drag horizontal para los chips
   useEffect(() => {
@@ -244,15 +299,30 @@ export default function ReportsModule() {
         <div className="reports-hub-chips-bar" ref={chipsRef}>
           {FILTER_CHIPS.map((chip) => {
             const isActive = activeChip === chip.id;
+            const count = categoryCounts[chip.id] ?? 0;
             return (
               <button
                 key={chip.id}
                 type="button"
-                className={`reports-hub-chip ${isActive ? 'reports-hub-chip--active' : ''}`}
+                className={`reports-hub-chip reports-hub-chip--${chip.chipClass} ${isActive ? 'reports-hub-chip--active' : ''}`}
                 onClick={() => setActiveChip(chip.id)}
+                aria-pressed={isActive}
               >
-                <HubIcon name={chip.iconName} size={14} />
-                <span>{chip.label}</span>
+                <div
+                  className="reports-hub-chip-icon-box"
+                  style={{
+                    background: isActive && chip.id === 'all' ? 'transparent' : chip.iconBg,
+                  }}
+                >
+                  <HubIcon
+                    name={chip.iconName}
+                    size={15}
+                    stroke={isActive && chip.id === 'all' ? '#38bdf8' : chip.iconColor}
+                    fill={chip.iconFill || 'none'}
+                  />
+                </div>
+                <span className="reports-hub-chip-label">{chip.label}</span>
+                <span className="reports-hub-chip-badge">{count}</span>
               </button>
             );
           })}

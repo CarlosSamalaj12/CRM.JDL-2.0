@@ -397,6 +397,14 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
                 <span>Tablero Ocupación</span>
               </button>
 
+              <button 
+                className={`drawer-nav-item ${location.pathname === '/habitaciones' ? 'isActive' : ''}`} 
+                onClick={() => { setIsMobileOpen(false); navigate('/habitaciones'); }}
+              >
+                <span className="material-symbols-outlined">bed</span>
+                <span>Ingreso de Habitaciones</span>
+              </button>
+
               {isAdmin && (
                 <button 
                   className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
@@ -1248,6 +1256,16 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
         >
           <span className="material-symbols-outlined">grid_view</span>
           <span>Tablero Ocupación</span>
+        </button>
+
+        <button 
+          className={`lum-sideItem ${location.pathname === '/habitaciones' ? 'isActive' : ''}`} 
+          type="button"
+          onMouseEnter={() => import('../../../modules/habitaciones/HabitacionesModule')}
+          onClick={() => navigate('/habitaciones')}
+        >
+          <span className="material-symbols-outlined">bed</span>
+          <span>Ingreso de Habitaciones</span>
         </button>
 
         {isAdmin && (

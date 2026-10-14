@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import '../reports.css';
 
 const DESCRIPTIONS = {
   dashboard: {
@@ -102,19 +103,17 @@ export default function ReportInfo({ reportKey }) {
     <>
       <button
         type="button"
+        className="report-info-btn"
         onClick={() => setOpen(true)}
-        style={{
-          width: '28px', height: '28px', borderRadius: '50%',
-          border: `2px solid #cbd5e1`, background: '#fff',
-          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '13px', fontWeight: '800', color: '#94a3b8',
-          transition: 'all 0.15s ease', flexShrink: 0, lineHeight: 1,
-          fontFamily: 'serif', fontStyle: 'italic',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.color = '#2563eb'; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#94a3b8'; }}
         title="¿Cómo se calcula este reporte?"
-      >i</button>
+        aria-label="¿Cómo se calcula este reporte?"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+      </button>
 
       {open && (
         <div

@@ -1887,6 +1887,293 @@ async function ensureMenuMontajeCatalogStructure() {
   // Catalogo de menus y montajes deshabilitado / removido.
 }
 
+async function ensureHabitacionesStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // 1. habitacion_reservas
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS habitacion_reservas (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        nombre_huesped VARCHAR(255) NOT NULL,
+        telefono VARCHAR(50) NULL,
+        correo VARCHAR(150) NULL,
+        id_vendedor VARCHAR(100) NULL,
+        vendedor_nombre VARCHAR(150) NULL,
+        id_medio_contacto VARCHAR(100) NULL,
+        medio_contacto_nombre VARCHAR(100) NULL,
+        fecha_check_in DATE NOT NULL,
+        fecha_check_out DATE NOT NULL,
+        noches INT NOT NULL DEFAULT 1,
+        cantidad_habitaciones INT NOT NULL DEFAULT 1,
+        no_folio VARCHAR(100) NULL,
+        id_tipo_cliente VARCHAR(100) NULL,
+        tipo_cliente_nombre VARCHAR(100) NULL,
+        id_tipo_habitacion VARCHAR(100) NULL,
+        tipo_habitacion_nombre VARCHAR(150) NULL,
+        modulo VARCHAR(100) NULL,
+        tarifa_diaria DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        monto_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        id_empresa VARCHAR(200) NULL,
+        empresa_nombre VARCHAR(255) NULL,
+        id_forma_pago VARCHAR(100) NULL,
+        forma_pago_nombre VARCHAR(100) NULL,
+        estado VARCHAR(50) NOT NULL DEFAULT 'Confirmada',
+        observaciones TEXT NULL,
+        ultimo_contacto DATETIME NULL,
+        ultimo_contacto_tipo VARCHAR(50) NULL,
+        creado_por VARCHAR(100) NULL,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_hab_checkin (fecha_check_in),
+        INDEX idx_hab_checkout (fecha_check_out),
+        INDEX idx_hab_vendedor (id_vendedor),
+        INDEX idx_hab_telefono (telefono),
+        INDEX idx_hab_correo (correo),
+        INDEX idx_hab_empresa (id_empresa),
+        INDEX idx_hab_estado (estado)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Migración defensiva: asegurar eliminación física de columnas no_reserva y solicito si existen
+    try {
+      const [hasNoReserva] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'habitacion_reservas' AND COLUMN_NAME = 'no_reserva'`
+      );
+      if (hasNoReserva && hasNoReserva.length > 0) {
+        await conn.query('ALTER TABLE habitacion_reservas DROP COLUMN no_reserva');
+      }
+    } catch (_) {}
+
+    try {
+      const [hasSolicito] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'habitacion_reservas' AND COLUMN_NAME = 'solicito'`
+      );
+      if (hasSolicito && hasSolicito.length > 0) {
+        await conn.query('ALTER TABLE habitacion_reservas DROP COLUMN solicito');
+      }
+    } catch (_) {}
+
+    // Migración defensiva: asegurar columnas tipo_plantilla e imagen_url en habitacion_catalogos
+    try {
+      const [hasTipoPlantilla] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'habitacion_catalogos' AND COLUMN_NAME = 'tipo_plantilla'`
+      );
+      if (!hasTipoPlantilla || hasTipoPlantilla.length === 0) {
+        await conn.query(`ALTER TABLE habitacion_catalogos ADD COLUMN tipo_plantilla VARCHAR(50) NOT NULL DEFAULT 'confirmacion' AFTER descripcion`);
+      }
+    } catch (_) {}
+
+    try {
+      const [hasImagenUrl] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'habitacion_catalogos' AND COLUMN_NAME = 'imagen_url'`
+      );
+      if (!hasImagenUrl || hasImagenUrl.length === 0) {
+        await conn.query(`ALTER TABLE habitacion_catalogos ADD COLUMN imagen_url TEXT NULL AFTER plantilla_correo_cuerpo`);
+      }
+    } catch (_) {}
+
+    // 2. habitacion_catalogos
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS habitacion_catalogos (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        categoria VARCHAR(50) NOT NULL,
+        nombre VARCHAR(150) NOT NULL,
+        descripcion VARCHAR(255) NULL,
+        tipo_plantilla VARCHAR(50) NOT NULL DEFAULT 'confirmacion',
+        tarifa_base DECIMAL(12,2) NULL DEFAULT 0.00,
+        plantilla_whatsapp TEXT NULL,
+        plantilla_correo_asunto VARCHAR(255) NULL,
+        plantilla_correo_cuerpo TEXT NULL,
+        imagen_url TEXT NULL,
+        activo TINYINT(1) NOT NULL DEFAULT 1,
+        orden INT NOT NULL DEFAULT 0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_cat_categoria (categoria, activo)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 3. habitacion_metas
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS habitacion_metas (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        mes VARCHAR(7) NOT NULL,
+        id_usuario VARCHAR(100) NULL,
+        monto DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_hab_meta (mes, id_usuario)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 4. Semillas predeterminadas de catalogos si la tabla esta vacia
+    const [countRows] = await conn.query('SELECT COUNT(*) as cnt FROM habitacion_catalogos');
+    const cntVal = countRows && countRows.length > 0 ? (countRows[0].cnt ?? countRows[0].CNT ?? 0) : 0;
+    if (cntVal === 0) {
+      const defaultCatalogos = [
+        // Medios de contacto
+        { id: 'cat_mc_1', categoria: 'medios_contacto', nombre: 'Llamada Recepción', orden: 1 },
+        { id: 'cat_mc_2', categoria: 'medios_contacto', nombre: 'WhatsApp Recepción', orden: 2 },
+        { id: 'cat_mc_3', categoria: 'medios_contacto', nombre: 'Correo Recepción', orden: 3 },
+        { id: 'cat_mc_4', categoria: 'medios_contacto', nombre: 'WhatsApp Vendedor', orden: 4 },
+        { id: 'cat_mc_5', categoria: 'medios_contacto', nombre: 'Presencial / Walk-in', orden: 5 },
+        { id: 'cat_mc_6', categoria: 'medios_contacto', nombre: 'Booking / OTA', orden: 6 },
+
+        // Tipos de habitacion
+        { id: 'cat_th_1', categoria: 'tipos_habitacion', nombre: 'Habitación Sencilla', descripcion: '1 Cama Matrimonial o Queen', tarifa_base: 450.00, orden: 1 },
+        { id: 'cat_th_2', categoria: 'tipos_habitacion', nombre: 'Habitación Doble', descripcion: '2 Camas Matrimoniales', tarifa_base: 650.00, orden: 2 },
+        { id: 'cat_th_3', categoria: 'tipos_habitacion', nombre: 'Habitación Triple', descripcion: '3 Camas o Suite Familiar', tarifa_base: 850.00, orden: 3 },
+        { id: 'cat_th_4', categoria: 'tipos_habitacion', nombre: 'Suite Nupcial', descripcion: 'Cama King con vista al lago', tarifa_base: 1100.00, orden: 4 },
+
+        // Segmentos / Tipos de cliente (Bancos, ONGs, Corporativo, etc.)
+        { id: 'cat_seg_bancos', categoria: 'tipos_cliente', nombre: 'Bancos e Instituciones Financieras', descripcion: 'Sector bancario, cooperativas y microfinanzas', orden: 1 },
+        { id: 'cat_seg_ong', categoria: 'tipos_cliente', nombre: 'ONGs y Cooperación Internacional', descripcion: 'Organizaciones no gubernamentales y agencias de desarrollo', orden: 2 },
+        { id: 'cat_seg_corp', categoria: 'tipos_cliente', nombre: 'Corporativo / Empresas Privadas', descripcion: 'Empresas comerciales, industriales y servicios corporativos', orden: 3 },
+        { id: 'cat_seg_gob', categoria: 'tipos_cliente', nombre: 'Gobierno e Instituciones Públicas', descripcion: 'Ministerios, secretarías y entidades del estado', orden: 4 },
+        { id: 'cat_seg_tur', categoria: 'tipos_cliente', nombre: 'Turismo y Particulares', descripcion: 'Huéspedes particulares, parejas y familias por turismo', orden: 5 },
+        { id: 'cat_seg_agen', categoria: 'tipos_cliente', nombre: 'Agencias y Tour Operadores', descripcion: 'Agencias de viajes, mayoristas y operadores turísticos', orden: 6 },
+
+        // Formas de pago
+        { id: 'cat_fp_1', categoria: 'formas_pago', nombre: 'Efectivo', orden: 1 },
+        { id: 'cat_fp_2', categoria: 'formas_pago', nombre: 'Tarjeta de Crédito / Débito', orden: 2 },
+        { id: 'cat_fp_3', categoria: 'formas_pago', nombre: 'Transferencia Bancaria', orden: 3 },
+        { id: 'cat_fp_4', categoria: 'formas_pago', nombre: 'Cheque', orden: 4 },
+        { id: 'cat_fp_5', categoria: 'formas_pago', nombre: 'Crédito Corporativo', orden: 5 },
+        { id: 'cat_fp_6', categoria: 'formas_pago', nombre: 'Pendiente de Pago', orden: 6 },
+
+        // Plantillas
+        {
+          id: 'cat_pl_1',
+          categoria: 'plantillas',
+          tipo_plantilla: 'confirmacion',
+          nombre: 'Confirmación de Reservación',
+          plantilla_whatsapp: '¡Hola {nombre_huesped}! Te confirmamos tu reservación con Folio #{no_folio} en Jardines del Lago del {check_in} al {check_out} ({noches} noche(s)) en {tipo_habitacion}. Total: Q{monto_total}. ¡Esperamos darte la bienvenida!',
+          plantilla_correo_asunto: 'Confirmación de Reservación (Folio #{no_folio}) - Jardines del Lago',
+          plantilla_correo_cuerpo: 'Estimado/a {nombre_huesped},\\n\\nEs un placer confirmar su reservación en Jardines del Lago.\\n\\nDetalles de su estadía:\\n- No. Folio: {no_folio}\\n- Fechas: Del {check_in} al {check_out} ({noches} noche(s))\\n- Tipo de Habitación: {tipo_habitacion}\\n- Cantidad: {cantidad_habitaciones}\\n- Monto Total: Q{monto_total}\\n\\nSi tiene alguna consulta o requerimiento especial, con gusto le atenderemos.\\n\\nAtentamente,\\nJardines del Lago',
+          orden: 1
+        },
+        {
+          id: 'cat_pl_2',
+          categoria: 'plantillas',
+          tipo_plantilla: 'confirmacion',
+          nombre: 'Recordatorio de Check-in',
+          plantilla_whatsapp: 'Hola {nombre_huesped}, te recordamos que tu check-in en Jardines del Lago está programado para el {check_in}. Tu reservación Folio #{no_folio} ({tipo_habitacion}) está lista. ¡Te esperamos!',
+          plantilla_correo_asunto: 'Recordatorio de Check-in para el {check_in} - Jardines del Lago',
+          plantilla_correo_cuerpo: 'Estimado/a {nombre_huesped},\\n\\nLe recordamos que su estadía con nosotros inicia este {check_in}.\\n\\nSu reservación Folio #{no_folio} en {tipo_habitacion} se encuentra debidamente confirmada.\\n\\n¡Le deseamos un excelente viaje!\\nJardines del Lago',
+          orden: 2
+        },
+        {
+          id: 'cat_pl_promo_1',
+          categoria: 'plantillas',
+          tipo_plantilla: 'promocion',
+          nombre: 'Oferta Especial de Temporada',
+          descripcion: 'Plantilla para lanzamiento de promociones con descuento a sectores específicos',
+          plantilla_whatsapp: '¡Hola {nombre_huesped}! 🌿 En Jardines del Lago tenemos una tarifa especial exclusiva para el sector {segmento}: {descuento}% de descuento en estadías. Válido hasta: {vigencia}. Vive una experiencia inolvidable frente al lago. Consulta fechas disponibles respondiendo a este mensaje.',
+          plantilla_correo_asunto: 'Oferta Especial Exclusiva ({segmento}) - Jardines del Lago',
+          plantilla_correo_cuerpo: 'Estimado/a {nombre_huesped},\\n\\nEn Jardines del Lago queremos premiar su preferencia con una promoción especial diseñada para el sector {segmento}:\\n\\n✨ {descuento}% de descuento en su próxima estadía de habitación\\n📅 Vigencia de la oferta: {vigencia}\\n\\nIncluye:\\n- Habitación con vista privilegiada al lago\\n- Desayuno típico incluido\\n- Acceso a todas nuestras áreas de relajación y jardines\\n\\nPara hacer válida su reserva o solicitar una cotización especial, no dude en contactarnos respondiendo a este correo o al WhatsApp 59511723.\\n\\n¡Esperamos recibirle pronto!\\nAtentamente,\\nEquipo de Reservaciones - Jardines del Lago',
+          orden: 3
+        },
+
+        // Módulos / Sectores
+        { id: 'cat_mod_1', categoria: 'modulos', nombre: 'Módulo Jardín', descripcion: 'Frente a áreas verdes y jardines', orden: 1 },
+        { id: 'cat_mod_2', categoria: 'modulos', nombre: 'Módulo Lago', descripcion: 'Frente al lago / vista panorámica', orden: 2 },
+        { id: 'cat_mod_3', categoria: 'modulos', nombre: 'Módulo Principal', descripcion: 'Cercano a recepción y restaurante', orden: 3 },
+        { id: 'cat_mod_4', categoria: 'modulos', nombre: 'Sector Cabañas', descripcion: 'Área privada de cabañas', orden: 4 }
+      ];
+
+      for (const item of defaultCatalogos) {
+        await conn.query(
+          `INSERT INTO habitacion_catalogos (id, categoria, nombre, descripcion, tipo_plantilla, tarifa_base, plantilla_whatsapp, plantilla_correo_asunto, plantilla_correo_cuerpo, orden, activo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [
+            item.id,
+            item.categoria,
+            item.nombre,
+            item.descripcion || null,
+            item.tipo_plantilla || 'confirmacion',
+            item.tarifa_base || 0.00,
+            item.plantilla_whatsapp || null,
+            item.plantilla_correo_asunto || null,
+            item.plantilla_correo_cuerpo || null,
+            item.orden || 0
+          ]
+        );
+      }
+    } else {
+      // Asegurar semillas de modulos si no existen aun en la BD existente
+      const [modulosRows] = await conn.query('SELECT COUNT(*) as cnt FROM habitacion_catalogos WHERE categoria = "modulos"');
+      const modCnt = modulosRows && modulosRows.length > 0 ? (modulosRows[0].cnt ?? modulosRows[0].CNT ?? 0) : 0;
+      if (modCnt === 0) {
+        const defaultModulos = [
+          { id: 'cat_mod_1', categoria: 'modulos', nombre: 'Módulo Jardín', descripcion: 'Frente a áreas verdes y jardines', orden: 1 },
+          { id: 'cat_mod_2', categoria: 'modulos', nombre: 'Módulo Lago', descripcion: 'Frente al lago / vista panorámica', orden: 2 },
+          { id: 'cat_mod_3', categoria: 'modulos', nombre: 'Módulo Principal', descripcion: 'Cercano a recepción y restaurante', orden: 3 },
+          { id: 'cat_mod_4', categoria: 'modulos', nombre: 'Sector Cabañas', descripcion: 'Área privada de cabañas', orden: 4 }
+        ];
+        for (const m of defaultModulos) {
+          await conn.query(
+            `INSERT INTO habitacion_catalogos (id, categoria, nombre, descripcion, orden, activo)
+             VALUES (?, ?, ?, ?, ?, 1)`,
+            [m.id, m.categoria, m.nombre, m.descripcion, m.orden]
+          );
+        }
+      }
+
+      // Asegurar semillas de segmentos (Bancos, ONGs, etc.) en BD existente si no existen
+      try {
+        const defaultSegmentos = [
+          { id: 'cat_seg_bancos', nombre: 'Bancos e Instituciones Financieras', descripcion: 'Sector bancario, cooperativas y microfinanzas', orden: 1 },
+          { id: 'cat_seg_ong', nombre: 'ONGs y Cooperación Internacional', descripcion: 'Organizaciones no gubernamentales y agencias de desarrollo', orden: 2 },
+          { id: 'cat_seg_corp', nombre: 'Corporativo / Empresas Privadas', descripcion: 'Empresas comerciales, industriales y servicios corporativos', orden: 3 },
+          { id: 'cat_seg_gob', nombre: 'Gobierno e Instituciones Públicas', descripcion: 'Ministerios, secretarías y entidades del estado', orden: 4 },
+          { id: 'cat_seg_tur', nombre: 'Turismo y Particulares', descripcion: 'Huéspedes particulares, parejas y familias por turismo', orden: 5 },
+          { id: 'cat_seg_agen', nombre: 'Agencias y Tour Operadores', descripcion: 'Agencias de viajes, mayoristas y operadores turísticos', orden: 6 }
+        ];
+        for (const seg of defaultSegmentos) {
+          const [exists] = await conn.query(
+            'SELECT id FROM habitacion_catalogos WHERE categoria = "tipos_cliente" AND (nombre = ? OR id = ?)',
+            [seg.nombre, seg.id]
+          );
+          if (!exists || exists.length === 0) {
+            await conn.query(
+              `INSERT INTO habitacion_catalogos (id, categoria, nombre, descripcion, orden, activo)
+               VALUES (?, 'tipos_cliente', ?, ?, ?, 1)`,
+              [seg.id, seg.nombre, seg.descripcion, seg.orden]
+            );
+          }
+        }
+      } catch (_) {}
+
+      // Asegurar plantilla de promocion en BD existente si no existe
+      try {
+        const [hasPromoTmpl] = await conn.query(
+          'SELECT id FROM habitacion_catalogos WHERE categoria = "plantillas" AND (tipo_plantilla = "promocion" OR id = "cat_pl_promo_1")'
+        );
+        if (!hasPromoTmpl || hasPromoTmpl.length === 0) {
+          await conn.query(
+            `INSERT INTO habitacion_catalogos (id, categoria, tipo_plantilla, nombre, descripcion, plantilla_whatsapp, plantilla_correo_asunto, plantilla_correo_cuerpo, orden, activo)
+             VALUES (?, 'plantillas', 'promocion', ?, ?, ?, ?, ?, 3, 1)`,
+            [
+              'cat_pl_promo_1',
+              'Oferta Especial de Temporada',
+              'Plantilla para lanzamiento de promociones con descuento a sectores específicos',
+              '¡Hola {nombre_huesped}! 🌿 En Jardines del Lago tenemos una tarifa especial exclusiva para el sector {segmento}: {descuento}% de descuento en estadías. Válido hasta: {vigencia}. Vive una experiencia inolvidable frente al lago. Consulta fechas disponibles respondiendo a este mensaje.',
+              'Oferta Especial Exclusiva ({segmento}) - Jardines del Lago',
+              'Estimado/a {nombre_huesped},\\n\\nEn Jardines del Lago queremos premiar su preferencia con una promoción especial diseñada para el sector {segmento}:\\n\\n✨ {descuento}% de descuento en su próxima estadía de habitación\\n📅 Vigencia de la oferta: {vigencia}\\n\\nIncluye:\\n- Habitación con vista privilegiada al lago\\n- Desayuno típico incluido\\n- Acceso a todas nuestras áreas de relajación y jardines\\n\\nPara hacer válida su reserva o solicitar una cotización especial, no dude en contactarnos respondiendo a este correo o al WhatsApp 59511723.\\n\\n¡Esperamos recibirle pronto!\\nAtentamente,\\nEquipo de Reservaciones - Jardines del Lago'
+            ]
+          );
+        }
+      } catch (_) {}
+    }
+  } catch (err) {
+    console.error('[MIGRACIÓN] Error en ensureHabitacionesStructure:', err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureQuoteItemPrimaryKeyColumnSize() {
   let conn;
   try {
@@ -8230,6 +8517,7 @@ const MIGRATIONS = [
   { name: 'UnifyPushSubscriptions', fn: ensureUnifyPushSubscriptions },
   { name: 'RepairDesyncedInformes', fn: ensureRepairDesyncedInformes },
   { name: 'InformeConflictGuardStructure', fn: ensureInformeConflictGuardStructure },
+  { name: 'HabitacionesStructure', fn: ensureHabitacionesStructure },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -8242,6 +8530,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureEventDateRangeStructure',
   'ensureAdvancesStructure',
   'ensureMenuMontajeCatalogStructure',
+  'ensureHabitacionesStructure',
   'ensureDocumentSequenceStructure',
   'ensureUsersExtendedStructure',
   'ensureEquiposTrabajoStructure',
@@ -8361,6 +8650,31 @@ async function start() {
       }
     } catch (migErr) {
       console.log('[MIGRACIÓN] No se pudo agregar columna finalizado:', migErr.message);
+    }
+
+    // Migración defensiva: asegurar columnas tipo_plantilla e imagen_url en habitacion_catalogos
+    try {
+      const result = await pool.query(
+        `SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'habitacion_catalogos'`
+      );
+      const rows = Array.isArray(result) ? (Array.isArray(result[0]) && typeof result[0][0] === 'object' ? result[0] : result) : [];
+      const colMap = new Set(rows.map(c => c.COLUMN_NAME));
+      if (!colMap.has('tipo_plantilla')) {
+        await pool.query(`ALTER TABLE habitacion_catalogos ADD COLUMN tipo_plantilla VARCHAR(50) NOT NULL DEFAULT 'confirmacion' AFTER descripcion`);
+        console.log('[MIGRACIÓN] Columna tipo_plantilla agregada a habitacion_catalogos.');
+      }
+      if (!colMap.has('imagen_url')) {
+        await pool.query(`ALTER TABLE habitacion_catalogos ADD COLUMN imagen_url MEDIUMTEXT NULL AFTER plantilla_correo_cuerpo`);
+        console.log('[MIGRACIÓN] Columna imagen_url agregada a habitacion_catalogos.');
+      } else {
+        // Asegurar MEDIUMTEXT para soportar DataURLs de flyers
+        try {
+          await pool.query(`ALTER TABLE habitacion_catalogos MODIFY COLUMN imagen_url MEDIUMTEXT NULL`);
+        } catch (_) {}
+      }
+    } catch (migErr) {
+      console.log('[MIGRACIÓN] Error asegurando columnas en habitacion_catalogos:', migErr.message);
     }
 
     // Recrear vista tbl_seguimientocotizaciones para incluir Mantenimiento

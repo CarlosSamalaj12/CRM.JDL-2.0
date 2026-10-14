@@ -27,10 +27,19 @@ export function toast(msg, options = {}) {
   setTimeout(() => {
     if (tipo === 'success') toastLib.success(text, { duration: options.duration || DEFAULT_DURATION });
     else if (tipo === 'error') toastLib.error(text, { duration: options.duration || DEFAULT_DURATION });
-    else if (tipo === 'warning') toastLib(text, { duration: options.duration || DEFAULT_DURATION, icon: '\u26A0\uFE0F' });
-    else toastLib(text, { duration: options.duration || DEFAULT_DURATION, icon: '\u2139\uFE0F' });
+    else if (tipo === 'warning') toastLib(text, { duration: options.duration || DEFAULT_DURATION, icon: '⚠️' });
+    else toastLib(text, { duration: options.duration || DEFAULT_DURATION, icon: 'ℹ️' });
   }, 0);
 }
+
+toast.success = (msg, options = {}) => toast(msg, { ...options, type: 'success' });
+toast.error = (msg, options = {}) => toast(msg, { ...options, type: 'error' });
+toast.warning = (msg, options = {}) => toast(msg, { ...options, type: 'warning' });
+toast.info = (msg, options = {}) => toast(msg, { ...options, type: 'info' });
+toast.dismiss = (id) => toastLib.dismiss(id);
+
+export default toast;
+
 
 export function modernAlert({ icon = "info", title = "", text = "", html = "" }) {
   return new Promise((resolve) => {
