@@ -5400,6 +5400,79 @@ app.get("/api/maintenance-status", async (_req, res) => {
   }
 });
 
+const MAINTENANCE_ADMIN_CODE = "JDL-ADMIN-2026";
+
+app.post("/api/maintenance/disable", async (req, res) => {
+  const code = str(req.body?.code || req.query?.code || "").trim().toUpperCase();
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
+  let isAuthorized = false;
+
+  // 1. Autorizado si ingresa el código maestro de administrador
+  if (code === MAINTENANCE_ADMIN_CODE) {
+    isAuthorized = true;
+  }
+
+  // 2. O si tiene un token válido con rol de administrador
+  if (!isAuthorized && token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const role = String(decoded?.role || "").trim().toLowerCase();
+      if (['admin', 'administrador', 'superadmin'].includes(role)) {
+        isAuthorized = true;
+      }
+    } catch (_) {}
+  }
+
+  if (!isAuthorized) {
+    return res.status(401).json({
+      ok: false,
+      message: "Código de administrador incorrecto o no autorizado."
+    });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('maintenanceMode', 'false')
+        ON DUPLICATE KEY UPDATE valor_json = 'false'
+      `
+    );
+
+    if (io) {
+      io.emit("maintenance-status-changed", { maintenanceMode: false });
+      io.emit("state-updated", { timestamp: Date.now(), key: "maintenanceMode", value: false });
+    }
+
+    return res.json({
+      ok: true,
+      maintenanceMode: false,
+      message: "Modo mantenimiento desactivado correctamente."
+    });
+  } catch (error) {
+    console.error("Error al desactivar modo mantenimiento:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Error interno al desactivar modo mantenimiento.",
+      detail: error.message
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.post("/api/maintenance/verify-code", (req, res) => {
+  const code = str(req.body?.code || req.query?.code || "").trim().toUpperCase();
+  if (code === MAINTENANCE_ADMIN_CODE) {
+    return res.json({ ok: true, valid: true, message: "Código verificado correctamente." });
+  }
+  return res.status(401).json({ ok: false, valid: false, message: "Código incorrecto." });
+});
+
+
 
 // ==================== VERSIÓN DE LA APP (control de actualizaciones) ====================
 // El script `npm run build` (vía bump-sw-version.cjs) escribe dist/version.json
@@ -7183,6 +7256,9 @@ const handleSaveSetting = async (req, res) => {
 
     if (io) {
       io.emit("state-updated", { timestamp: Date.now(), key });
+      if (key === 'maintenanceMode') {
+        io.emit("maintenance-status-changed", { maintenanceMode: JSON.parse(serialized) });
+      }
     }
 
     return res.json({ ok: true, key, value: JSON.parse(serialized), message: "Configuración guardada correctamente." });

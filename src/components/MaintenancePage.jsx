@@ -2,18 +2,25 @@ import React, { useEffect, useState } from 'react';
 
 const ADMIN_CODE = 'JDL-ADMIN-2026';
 
-export default function MaintenancePage() {
+export default function MaintenancePage({ onBypassSuccess }) {
   const [timeLeft, setTimeLeft] = useState(30);
-  const [bypassing, setBypassing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [inputCode, setInputCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
+  // Soportar activación/desactivación automática vía query param ?admin-code=JDL-ADMIN-2026
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('admin-code');
-    if (code === ADMIN_CODE) {
-      doBypass();
+    if (code && code.trim().toUpperCase() === ADMIN_CODE) {
+      handleDisableMaintenance(code.trim().toUpperCase());
     }
   }, []);
 
+  // Polling automático cada 30s para detectar cuando se desactive el modo mantenimiento
   useEffect(() => {
     const interval = setInterval(async () => {
       setTimeLeft(prev => {
@@ -42,39 +49,109 @@ export default function MaintenancePage() {
     window.location.reload();
   };
 
-  async function doBypass() {
-    setBypassing(true);
+  async function handleDisableMaintenance(codeToUse) {
+    const code = String(codeToUse || inputCode || '').trim().toUpperCase();
+    if (!code) {
+      setErrorMsg('Ingresa la contraseña de administrador.');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
     try {
       const token = localStorage.getItem('token');
       const headers = {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
-      const res = await fetch('/api/state', { headers });
-      const data = await res.json();
-      const currentState = data && typeof data.state === 'object' ? data.state : data;
-      currentState.maintenanceMode = false;
-      await fetch('/api/state', {
-        method: 'PUT',
+
+      // 1. Llamar al endpoint dedicado del servidor
+      let res = await fetch('/api/maintenance/disable', {
+        method: 'POST',
         headers,
-        body: JSON.stringify({ state: currentState })
+        body: JSON.stringify({ code })
       });
-      window.location.href = '/settings';
+
+      // 2. Fallback a PUT /api/settings/maintenanceMode si el endpoint no existiera
+      if (!res.ok && res.status === 404) {
+        res = await fetch('/api/settings/maintenanceMode', {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ value: false })
+        });
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Contraseña de administrador incorrecta.');
+      }
+
+      setSuccessMsg('✅ Modo mantenimiento desactivado. Entrando al sistema...');
+      sessionStorage.setItem('crm_maintenance_bypass', 'true');
+      window.dispatchEvent(new CustomEvent('maintenanceStatusChanged', { detail: { maintenanceMode: false } }));
+
+      if (onBypassSuccess) {
+        onBypassSuccess();
+      }
+
+      setTimeout(() => {
+        const currentUser = localStorage.getItem('user');
+        window.location.href = currentUser ? '/settings' : '/login';
+      }, 600);
     } catch (err) {
       console.error('Error al desactivar mantenimiento:', err);
-      setBypassing(false);
-      alert('Error al desactivar. Intenta de nuevo.');
+      setErrorMsg(err.message || 'Error al desactivar el modo mantenimiento.');
+      setLoading(false);
     }
   }
 
-  const handleAdminBypass = () => {
-    const code = prompt('Ingresa el código de administrador:');
-    if (code === ADMIN_CODE) {
-      doBypass();
-    } else if (code !== null) {
-      alert('Código incorrecto');
+  async function handleBypassOnly(codeToUse) {
+    const code = String(codeToUse || inputCode || '').trim().toUpperCase();
+    if (!code) {
+      setErrorMsg('Ingresa la contraseña de administrador.');
+      return;
     }
-  };
+
+    setLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/maintenance/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      }).catch(() => null);
+
+      let isValid = false;
+      if (res && res.ok) {
+        isValid = true;
+      } else if (code === ADMIN_CODE) {
+        isValid = true;
+      }
+
+      if (!isValid) {
+        throw new Error('Contraseña de administrador incorrecta.');
+      }
+
+      setSuccessMsg('✅ Acceso de administrador verificado. Abriendo CRM...');
+      sessionStorage.setItem('crm_maintenance_bypass', 'true');
+
+      if (onBypassSuccess) {
+        onBypassSuccess();
+      }
+
+      setTimeout(() => {
+        const currentUser = localStorage.getItem('user');
+        window.location.href = currentUser ? '/settings' : '/login';
+      }, 500);
+    } catch (err) {
+      setErrorMsg(err.message || 'Contraseña de administrador incorrecta.');
+      setLoading(false);
+    }
+  }
 
   return (
     <div style={{
@@ -234,22 +311,251 @@ export default function MaintenancePage() {
         </div>
 
         <button
-          onClick={handleAdminBypass}
-          disabled={bypassing}
+          onClick={() => {
+            setShowModal(true);
+            setErrorMsg('');
+            setSuccessMsg('');
+            setInputCode('');
+          }}
+          disabled={loading}
           style={{
             marginTop: '20px',
             background: 'none',
             border: 'none',
-            color: '#94a3b8',
-            fontSize: '12px',
+            color: '#64748b',
+            fontSize: '13px',
+            fontWeight: 600,
             cursor: 'pointer',
             textDecoration: 'underline',
-            textUnderlineOffset: '3px'
+            textUnderlineOffset: '3px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px'
           }}
         >
-          {bypassing ? 'Desactivando...' : 'Acceso de administrador'}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          {loading ? 'Procesando...' : 'Acceso de administrador'}
         </button>
       </div>
+
+      {/* Modal interactivo de Acceso de Administrador */}
+      {showModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          zIndex: 999999
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            width: '100%',
+            maxWidth: '430px',
+            padding: '24px',
+            textAlign: 'left',
+            position: 'relative'
+          }}>
+            {/* Cabecera del Modal */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: '#eff6ff',
+                color: '#2563eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                  Acceso de Administrador
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  Ingresa la contraseña para quitar el modo mantenimiento.
+                </p>
+              </div>
+            </div>
+
+            {/* Mensajes de Alerta */}
+            {errorMsg && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#991b1b',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span>⚠️</span>
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div style={{
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                color: '#166534',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                marginBottom: '14px'
+              }}>
+                {successMsg}
+              </div>
+            )}
+
+            {/* Input de Contraseña */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Contraseña / Código de Administrador:
+              </label>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleDisableMaintenance();
+                    }
+                  }}
+                  autoFocus
+                  placeholder="Ej: JDL-ADMIN-2026"
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    padding: '10px 40px 10px 12px',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    color: '#0f172a',
+                    fontWeight: 600,
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    padding: '4px'
+                  }}
+                >
+                  {showPassword ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Acciones */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => handleDisableMaintenance()}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '11px',
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                {loading ? 'Procesando...' : '🔓 Quitar Modo Mantenimiento'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleBypassOnly()}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: '#f8fafc',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                🔑 Solo Entrar como Administrador (Bypass)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowModal(false);
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                }}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  background: 'transparent',
+                  color: '#64748b',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

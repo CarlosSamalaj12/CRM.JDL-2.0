@@ -32,6 +32,28 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Corrección y Restauración de Desactivación de Modo Mantenimiento con Contraseña de Administrador JDL-ADMIN-2026 (`server.cjs`, `MaintenancePage.jsx`, `App.jsx`, `stateService.js`, `tests/maintenance-mode-admin.test.mjs`) (2026-10-13)
+- Causa raíz identificada:
+  1. **Falta de endpoint dedicado en backend**: El backend no tenía ninguna ruta que validara la clave de administrador `JDL-ADMIN-2026`.
+  2. **Dependencia errónea de JWT en pantalla de mantenimiento**: La función `doBypass()` en `MaintenancePage.jsx` intentaba consultar `GET /api/state` y enviar `PUT /api/state` completos. Como ambos endpoints exigen `authenticateJWT`, si el usuario tenía la sesión cerrada, expirada o purgada por una actualización, el servidor devolvía 401 Unauthorized sin tocar la base de datos MariaDB. Al no lanzar error `fetch()`, la app redirigía ciegamente a `/settings`, donde `App.jsx` volvía a consultar `/api/maintenance-status` y bloqueaba al usuario en la misma pantalla.
+  3. **Bloqueo universal sin bypass para administradores en `App.jsx`**: `App.jsx` renderizaba incondicionalmente `<MaintenancePage />` ante cualquier `maintenanceMode === true`, sin verificar si el usuario era Administrador ni si contaba con bypass activo en `sessionStorage`, impidiendo incluso a los administradores entrar a la configuración para desactivarlo.
+  4. **Rigidez de mayúsculas/espacios**: La validación previa con `prompt()` fallaba si el usuario copiaba la clave con espacios o minúsculas (`JDL-ADMIN-2026 `).
+- Solución implementada:
+  1. **Backend (`server.cjs`)**:
+     - Se creó `POST /api/maintenance/disable`: Valida el código maestro `JDL-ADMIN-2026` (o token JWT de rol administrador), actualiza directamente `app_state_kv` (`maintenanceMode = 'false'`) y emite en tiempo real `io.emit('maintenance-status-changed', { maintenanceMode: false })` y `io.emit('state-updated')`.
+     - Se creó `POST /api/maintenance/verify-code`: Valida el código para bypass temporal sin modificar el estado global si se desea.
+     - Se vinculó la emisión de `maintenance-status-changed` en `handleSaveSetting` para que desactivarlo desde la UI de configuración actualice a todos los clientes conectados de inmediato.
+  2. **Página de Mantenimiento (`MaintenancePage.jsx`)**:
+     - Se reemplazó el `prompt()` nativo por un modal interactivo ejecutivo con diseño minimalista, botón de ver/ocultar contraseña, advertencias de error/éxito y soporte para tecla Enter.
+     - Botón principal: **"🔓 Quitar Modo Mantenimiento"** (llama atómicamente a `/api/maintenance/disable`, actualiza `sessionStorage`, despacha `maintenanceStatusChanged` y redirige).
+     - Botón secundario: **"🔑 Solo Entrar como Administrador (Bypass)"** (permite al administrador entrar al CRM mientras el resto de usuarios se mantiene en mantenimiento).
+     - Soporte para URL con query param `?admin-code=JDL-ADMIN-2026` para desbloqueo automático directo.
+  3. **Control de Rutas (`App.jsx`)**:
+     - `isBlocked = maintenance && !isAdmin && !bypassActive`: Los administradores y usuarios con bypass ya no son bloqueados.
+     - Barra de notificación roja en la parte superior para administradores cuando el sistema está en mantenimiento, con botón directo de 1 clic: "Desactivar para todos".
+     - `stateService.js`: Se exportó `disableMaintenanceApi`.
+- Validación: 165 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.20`).
+
 ### Solución: Arquitectura Responsiva Móvil, Vista de Tarjetas, Eliminación de Insignia 'Data Grid' y Traducción Completa al Español en Búsqueda de Eventos (`SearchModule.jsx`, `search.css`, `tests/search-datagrid.test.mjs`) (2026-10-13)
 - Requerimientos:
   1. **Eliminación de la insignia 'Data Grid'**: Remover la pastilla `<span className="search-badge-saas">Data Grid</span>` de la cabecera del módulo conforme a la solicitud directa del usuario.

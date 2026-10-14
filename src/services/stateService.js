@@ -682,6 +682,24 @@ export async function saveSettingApi(key, value) {
   return savedVal;
 }
 
+export async function disableMaintenanceApi(code) {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+  const res = await fetch('/api/maintenance/disable', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ code: String(code || '').trim().toUpperCase() })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Error al desactivar el modo mantenimiento.');
+  }
+  return data;
+}
+
 export async function getTipConfigApi() {
   try {
     const res = await api.get('/api/settings/propina');
@@ -774,6 +792,7 @@ const stateService = {
   resolveExchangeRateAtDateApi,
   getSettingApi,
   saveSettingApi,
+  disableMaintenanceApi,
   getTipConfigApi,
   saveTipConfigApi,
   getEventAdvancesApi,
