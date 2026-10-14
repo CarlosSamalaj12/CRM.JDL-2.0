@@ -1257,6 +1257,44 @@ async function ensureQuoteVersionStructure() {
   }
 }
 
+async function ensureQuotePropinasStructure() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const cotizacionCols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'cotizaciones_evento'`,
+      [DB_NAME]
+    );
+    const cotizacionColSet = new Set((cotizacionCols || []).map((r) => String(r.column_name || "").toLowerCase()));
+    if (!cotizacionColSet.has("propina_tipo")) {
+      await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_tipo VARCHAR(12) NOT NULL DEFAULT 'PERCENT'");
+    }
+    if (!cotizacionColSet.has("propina_valor")) {
+      await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_valor DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
+    if (!cotizacionColSet.has("propina_monto")) {
+      await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_monto DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
+
+    const versionCols = await conn.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = 'cotizacion_versiones_evento'`,
+      [DB_NAME]
+    );
+    const versionColSet = new Set((versionCols || []).map((r) => String(r.column_name || "").toLowerCase()));
+    if (!versionColSet.has("propina_tipo")) {
+      await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_tipo VARCHAR(12) NOT NULL DEFAULT 'PERCENT'");
+    }
+    if (!versionColSet.has("propina_valor")) {
+      await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_valor DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
+    if (!versionColSet.has("propina_monto")) {
+      await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_monto DECIMAL(12,2) NOT NULL DEFAULT 0");
+    }
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureEventDateRangeStructure() {
   let conn;
   try {
@@ -8594,6 +8632,7 @@ const MIGRATIONS = [
   { name: 'RepairDesyncedInformes', fn: ensureRepairDesyncedInformes },
   { name: 'InformeConflictGuardStructure', fn: ensureInformeConflictGuardStructure },
   { name: 'HabitacionesStructure', fn: ensureHabitacionesStructure },
+  { name: 'QuotePropinasStructure', fn: ensureQuotePropinasStructure },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -8603,6 +8642,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureExchangeRateHistoryStructure',
   'ensurePlantillasStructure',
   'ensureQuoteVersionStructure',
+  'ensureQuotePropinasStructure',
   'ensureEventDateRangeStructure',
   'ensureAdvancesStructure',
   'ensureMenuMontajeCatalogStructure',

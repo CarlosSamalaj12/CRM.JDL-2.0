@@ -32,6 +32,26 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Auto-Migración de Propinas, Blindaje Defensivo en updateEventQuote y Desacoplamiento de Guardado de Cotizaciones contra Falsos Conflictos 409 (`server.cjs`, `eventsController.js`, `eventService.js`, `quote-save-conflict-guard.test.mjs`) (2026-10-14)
+- Requerimiento del usuario:
+  - Al editar una cotización y agregar o modificar únicamente el "No. Folio" en Datos de Empresa (sin alterar fechas ni salones), el sistema arrojaba el error: `HTTP 409 Conflict: "La modificación desvincula fechas o salones con informes de evento activos"`, impidiendo guardar la cotización.
+- Causa raíz:
+  1. En `server.cjs`: la migración `QuoteVersion` ya estaba registrada en la tabla `migration_log` de producción. Cuando posteriormente se incorporaron las columnas de propina (`propina_tipo`, `propina_valor`, `propina_monto`) dentro de `ensureQuoteVersionStructure`, el servidor omitía su ejecución al arrancar (`applied.has(m.name)`), dejando la tabla `cotizaciones_evento` y `cotizacion_versiones_evento` en producción sin esas columnas.
+  2. En `backend/src/controllers/eventsController.js` (`updateEventQuote`): al guardar la cotización vía `PUT /api/events/:id/quote`, MariaDB arrojaba `HTTP 500: Unknown column 'propina_tipo' in 'INSERT INTO'`.
+  3. En `src/services/eventService.js` (`saveQuote`): al fallar el endpoint atómico, el bloque `catch` invocaba un fallback tradicional a `this.update(rawId, { quote, status })` (`PUT /api/events/:id`).
+  4. En `updateEvent`: al recibir una actualización sin la lista explícita de slots del evento, el validador antidesfase comparaba los slots contra los informes existentes del evento (los cuales, en eventos históricos o modificados previamente, podían tener días en fechas no alineadas con la reserva actual), rechazando con `HTTP 409 Conflict`.
+- Solución:
+  1. En `server.cjs`:
+     - Creada la migración canónica dedicada `ensureQuotePropinasStructure` y registrada en `MIGRATIONS` y `CANONICAL_MIGRATIONS` para forzar la creación inmediata de las columnas `propina_tipo`, `propina_valor` y `propina_monto` tanto en `cotizaciones_evento` como en `cotizacion_versiones_evento`.
+  2. En `backend/src/controllers/eventsController.js`:
+     - En `updateEventQuote`: implementada auto-recuperación ante `ER_BAD_FIELD_ERROR` de propinas con ejecución inmediata de `ALTER TABLE` y reintento atómico sin fallar la petición.
+     - En `updateEvent`: incorporada la bandera `isQuoteOnly`, omitiendo el chequeo de conflicto de informes cuando solo se actualiza la cotización sin modificar salones ni fechas.
+  3. En `src/services/eventService.js`:
+     - En `saveQuote`: añadido `isQuoteOnly: true` en el fallback de actualización para garantizar que jamás detone un falso conflicto 409 de salones.
+  4. En `tests/quote-save-conflict-guard.test.mjs`:
+     - Agregadas pruebas unitarias validando la existencia de la migración `QuotePropinasStructure`, la bandera `isQuoteOnly` y la auto-recuperación defensiva.
+- Validación: 177 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.226`).
+
 ### Solución: Diseño Adaptativo (Adaptive Design) en Editar Reserva y Erradicación de Doble Barra de Scroll (`reservationBento.css`, `tests/reservation-bento-redesign.test.mjs`) (2026-10-14)
 - Requerimientos del usuario:
   - Al reducir el tamaño de la ventana en escritorio o en pantallas laptop, los controles de la tarjeta "Salones y Horarios" se cortaban.

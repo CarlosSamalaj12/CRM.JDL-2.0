@@ -73,3 +73,25 @@ test('server.cjs asegura nulabilidad de id_empresa e id_encargado en cotizacione
   assert.ok(content.includes('MODIFY COLUMN id_encargado VARCHAR(200) NULL DEFAULT NULL'), 'Debe incluir migración para id_encargado NULL');
 });
 
+test('server.cjs registra ensureQuotePropinasStructure en MIGRATIONS y CANONICAL_MIGRATIONS', () => {
+  const serverPath = path.join(projectRoot, 'server.cjs');
+  const content = fs.readFileSync(serverPath, 'utf8');
+
+  assert.ok(content.includes("async function ensureQuotePropinasStructure()"), 'Debe existir ensureQuotePropinasStructure');
+  assert.ok(content.includes("{ name: 'QuotePropinasStructure', fn: ensureQuotePropinasStructure }"), 'Debe registrarse en MIGRATIONS');
+  assert.ok(content.includes("'ensureQuotePropinasStructure'"), 'Debe registrarse en CANONICAL_MIGRATIONS');
+});
+
+test('eventsController.js y eventService.js protegen guardado de cotizaciones con isQuoteOnly y auto-migración de propinas', () => {
+  const evCtrlPath = path.join(projectRoot, 'backend', 'src', 'controllers', 'eventsController.js');
+  const evCtrlCode = fs.readFileSync(evCtrlPath, 'utf8');
+
+  assert.ok(evCtrlCode.includes('const isQuoteOnly = !!(req.body?.isQuoteOnly || eventData?.isQuoteOnly || req.body?.quoteOnly);'), 'updateEvent debe detectar isQuoteOnly');
+  assert.ok(evCtrlCode.includes('(!isQuoteOnly && informesActivos.length > 0)'), 'updateEvent debe omitir conflicto de informes cuando isQuoteOnly es true');
+  assert.ok(evCtrlCode.includes('Columnas de propina faltantes en cotizaciones_evento'), 'updateEventQuote debe tener auto-recuperación ante columnas faltantes');
+
+  const evSvcPath = path.join(projectRoot, 'src', 'services', 'eventService.js');
+  const evSvcCode = fs.readFileSync(evSvcPath, 'utf8');
+  assert.ok(evSvcCode.includes('isQuoteOnly: true'), 'eventService.saveQuote debe enviar isQuoteOnly: true en el fallback');
+});
+

@@ -277,6 +277,7 @@ async getAll() {
       // Fallback transparente al método tradicional
       const updated = await this.update(rawId, {
         quote: quoteData,
+        isQuoteOnly: true,
         ...(status ? { status } : {})
       });
       return updated?.quote || quoteData;

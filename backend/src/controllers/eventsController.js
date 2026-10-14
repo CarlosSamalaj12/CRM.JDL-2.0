@@ -422,84 +422,181 @@ export async function updateEventQuote(req, res, next) {
       );
     }
 
-    // 2. UPSERT en cotizaciones_evento
-    await conn.query(
-      `INSERT INTO cotizaciones_evento
-        (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         id_empresa = VALUES(id_empresa),
-         id_encargado = VALUES(id_encargado),
-         nombre_empresa = VALUES(nombre_empresa),
-         nombre_encargado = VALUES(nombre_encargado),
-         contacto = VALUES(contacto),
-         correo = VALUES(correo),
-         facturar_a = VALUES(facturar_a),
-         direccion = VALUES(direccion),
-         tipo_evento = VALUES(tipo_evento),
-         lugar = VALUES(lugar),
-         horario_texto = VALUES(horario_texto),
-         codigo = VALUES(codigo),
-         fecha_documento = VALUES(fecha_documento),
-         telefono = VALUES(telefono),
-         nit = VALUES(nit),
-         personas = VALUES(personas),
-         fecha_evento = VALUES(fecha_evento),
-         folio = VALUES(folio),
-         fecha_fin = VALUES(fecha_fin),
-         fecha_max_pago = VALUES(fecha_max_pago),
-         tipo_pago = VALUES(tipo_pago),
-         notas_internas = VALUES(notas_internas),
-         notas = VALUES(notas),
-         version_actual = VALUES(version_actual),
-         subtotal = VALUES(subtotal),
-         descuento_tipo = VALUES(descuento_tipo),
-         descuento_valor = VALUES(descuento_valor),
-         descuento_monto = VALUES(descuento_monto),
-         propina_tipo = VALUES(propina_tipo),
-         propina_valor = VALUES(propina_valor),
-         propina_monto = VALUES(propina_monto),
-         total_neto = VALUES(total_neto),
-         cotizado_en_iso = VALUES(cotizado_en_iso),
-         json_crudo = VALUES(json_crudo)`,
-      [
-        baseId,
-        str(q.companyId) || null,
-        str(q.managerId) || null,
-        str(q.companyName) || null,
-        str(q.managerName) || null,
-        str(q.contact) || null,
-        str(q.email) || null,
-        str(q.billTo) || null,
-        str(q.address) || null,
-        str(q.eventType) || null,
-        str(q.venue) || null,
-        str(q.schedule) || null,
-        str(q.code) || null,
-        asDate(q.docDate),
-        str(q.phone) || null,
-        str(q.nit) || null,
-        q.people === null || q.people === undefined || q.people === '' ? null : Math.max(0, Number(q.people)),
-        asDate(q.eventDate),
-        str(q.folio) || null,
-        asDate(q.endDate),
-        asDate(q.dueDate),
-        str(q.paymentType) || null,
-        str(q.internalNotes) || null,
-        str(q.notes) || null,
-        currentVersion,
-        Number(subtotal || 0),
-        discountType,
-        Number(discountValue || 0),
-        Number(discountAmount || 0),
-        tipType,
-        Number(tipValue || 0),
-        Number(tipAmount || 0),
-        Number(total || 0),
-        str(q.quotedAt) || null,
-        JSON.stringify(q)
-      ]
-    );
+    // 2. UPSERT en cotizaciones_evento (con auto-recuperación si MariaDB aún no tiene propina_*)
+    try {
+      await conn.query(
+        `INSERT INTO cotizaciones_evento
+          (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           id_empresa = VALUES(id_empresa),
+           id_encargado = VALUES(id_encargado),
+           nombre_empresa = VALUES(nombre_empresa),
+           nombre_encargado = VALUES(nombre_encargado),
+           contacto = VALUES(contacto),
+           correo = VALUES(correo),
+           facturar_a = VALUES(facturar_a),
+           direccion = VALUES(direccion),
+           tipo_evento = VALUES(tipo_evento),
+           lugar = VALUES(lugar),
+           horario_texto = VALUES(horario_texto),
+           codigo = VALUES(codigo),
+           fecha_documento = VALUES(fecha_documento),
+           telefono = VALUES(telefono),
+           nit = VALUES(nit),
+           personas = VALUES(personas),
+           fecha_evento = VALUES(fecha_evento),
+           folio = VALUES(folio),
+           fecha_fin = VALUES(fecha_fin),
+           fecha_max_pago = VALUES(fecha_max_pago),
+           tipo_pago = VALUES(tipo_pago),
+           notas_internas = VALUES(notas_internas),
+           notas = VALUES(notas),
+           version_actual = VALUES(version_actual),
+           subtotal = VALUES(subtotal),
+           descuento_tipo = VALUES(descuento_tipo),
+           descuento_valor = VALUES(descuento_valor),
+           descuento_monto = VALUES(descuento_monto),
+           propina_tipo = VALUES(propina_tipo),
+           propina_valor = VALUES(propina_valor),
+           propina_monto = VALUES(propina_monto),
+           total_neto = VALUES(total_neto),
+           cotizado_en_iso = VALUES(cotizado_en_iso),
+           json_crudo = VALUES(json_crudo)`,
+        [
+          baseId,
+          str(q.companyId) || null,
+          str(q.managerId) || null,
+          str(q.companyName) || null,
+          str(q.managerName) || null,
+          str(q.contact) || null,
+          str(q.email) || null,
+          str(q.billTo) || null,
+          str(q.address) || null,
+          str(q.eventType) || null,
+          str(q.venue) || null,
+          str(q.schedule) || null,
+          str(q.code) || null,
+          asDate(q.docDate),
+          str(q.phone) || null,
+          str(q.nit) || null,
+          q.people === null || q.people === undefined || q.people === '' ? null : Math.max(0, Number(q.people)),
+          asDate(q.eventDate),
+          str(q.folio) || null,
+          asDate(q.endDate),
+          asDate(q.dueDate),
+          str(q.paymentType) || null,
+          str(q.internalNotes) || null,
+          str(q.notes) || null,
+          currentVersion,
+          Number(subtotal || 0),
+          discountType,
+          Number(discountValue || 0),
+          Number(discountAmount || 0),
+          tipType,
+          Number(tipValue || 0),
+          Number(tipAmount || 0),
+          Number(total || 0),
+          str(q.quotedAt) || null,
+          JSON.stringify(q)
+        ]
+      );
+    } catch (upsertErr) {
+      if (upsertErr.code === 'ER_BAD_FIELD_ERROR' && String(upsertErr.message).includes('propina_')) {
+        console.warn('[updateEventQuote] Columnas de propina faltantes en cotizaciones_evento, ejecutando auto-migración...');
+        try {
+          await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_tipo VARCHAR(12) NOT NULL DEFAULT 'PERCENT'");
+          await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_valor DECIMAL(12,2) NOT NULL DEFAULT 0");
+          await conn.query("ALTER TABLE cotizaciones_evento ADD COLUMN propina_monto DECIMAL(12,2) NOT NULL DEFAULT 0");
+          await conn.query(
+            `INSERT INTO cotizaciones_evento
+              (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               id_empresa = VALUES(id_empresa),
+               id_encargado = VALUES(id_encargado),
+               nombre_empresa = VALUES(nombre_empresa),
+               nombre_encargado = VALUES(nombre_encargado),
+               contacto = VALUES(contacto),
+               correo = VALUES(correo),
+               facturar_a = VALUES(facturar_a),
+               direccion = VALUES(direccion),
+               tipo_evento = VALUES(tipo_evento),
+               lugar = VALUES(lugar),
+               horario_texto = VALUES(horario_texto),
+               codigo = VALUES(codigo),
+               fecha_documento = VALUES(fecha_documento),
+               telefono = VALUES(telefono),
+               nit = VALUES(nit),
+               personas = VALUES(personas),
+               fecha_evento = VALUES(fecha_evento),
+               folio = VALUES(folio),
+               fecha_fin = VALUES(fecha_fin),
+               fecha_max_pago = VALUES(fecha_max_pago),
+               tipo_pago = VALUES(tipo_pago),
+               notas_internas = VALUES(notas_internas),
+               notas = VALUES(notas),
+               version_actual = VALUES(version_actual),
+               subtotal = VALUES(subtotal),
+               descuento_tipo = VALUES(descuento_tipo),
+               descuento_valor = VALUES(descuento_valor),
+               descuento_monto = VALUES(descuento_monto),
+               propina_tipo = VALUES(propina_tipo),
+               propina_valor = VALUES(propina_valor),
+               propina_monto = VALUES(propina_monto),
+               total_neto = VALUES(total_neto),
+               cotizado_en_iso = VALUES(cotizado_en_iso),
+               json_crudo = VALUES(json_crudo)`,
+            [
+              baseId, str(q.companyId) || null, str(q.managerId) || null, str(q.companyName) || null, str(q.managerName) || null, str(q.contact) || null, str(q.email) || null, str(q.billTo) || null, str(q.address) || null, str(q.eventType) || null, str(q.venue) || null, str(q.schedule) || null, str(q.code) || null, asDate(q.docDate), str(q.phone) || null, str(q.nit) || null, q.people === null || q.people === undefined || q.people === '' ? null : Math.max(0, Number(q.people)), asDate(q.eventDate), str(q.folio) || null, asDate(q.endDate), asDate(q.dueDate), str(q.paymentType) || null, str(q.internalNotes) || null, str(q.notes) || null, currentVersion, Number(subtotal || 0), discountType, Number(discountValue || 0), Number(discountAmount || 0), tipType, Number(tipValue || 0), Number(tipAmount || 0), Number(total || 0), str(q.quotedAt) || null, JSON.stringify(q)
+            ]
+          );
+        } catch {
+          await conn.query(
+            `INSERT INTO cotizaciones_evento
+              (id_evento, id_empresa, id_encargado, nombre_empresa, nombre_encargado, contacto, correo, facturar_a, direccion, tipo_evento, lugar, horario_texto, codigo, fecha_documento, telefono, nit, personas, fecha_evento, folio, fecha_fin, fecha_max_pago, tipo_pago, notas_internas, notas, version_actual, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               id_empresa = VALUES(id_empresa),
+               id_encargado = VALUES(id_encargado),
+               nombre_empresa = VALUES(nombre_empresa),
+               nombre_encargado = VALUES(nombre_encargado),
+               contacto = VALUES(contacto),
+               correo = VALUES(correo),
+               facturar_a = VALUES(facturar_a),
+               direccion = VALUES(direccion),
+               tipo_evento = VALUES(tipo_evento),
+               lugar = VALUES(lugar),
+               horario_texto = VALUES(horario_texto),
+               codigo = VALUES(codigo),
+               fecha_documento = VALUES(fecha_documento),
+               telefono = VALUES(telefono),
+               nit = VALUES(nit),
+               personas = VALUES(personas),
+               fecha_evento = VALUES(fecha_evento),
+               folio = VALUES(folio),
+               fecha_fin = VALUES(fecha_fin),
+               fecha_max_pago = VALUES(fecha_max_pago),
+               tipo_pago = VALUES(tipo_pago),
+               notas_internas = VALUES(notas_internas),
+               notas = VALUES(notas),
+               version_actual = VALUES(version_actual),
+               subtotal = VALUES(subtotal),
+               descuento_tipo = VALUES(descuento_tipo),
+               descuento_valor = VALUES(descuento_valor),
+               descuento_monto = VALUES(descuento_monto),
+               total_neto = VALUES(total_neto),
+               cotizado_en_iso = VALUES(cotizado_en_iso),
+               json_crudo = VALUES(json_crudo)`,
+            [
+              baseId, str(q.companyId) || null, str(q.managerId) || null, str(q.companyName) || null, str(q.managerName) || null, str(q.contact) || null, str(q.email) || null, str(q.billTo) || null, str(q.address) || null, str(q.eventType) || null, str(q.venue) || null, str(q.schedule) || null, str(q.code) || null, asDate(q.docDate), str(q.phone) || null, str(q.nit) || null, q.people === null || q.people === undefined || q.people === '' ? null : Math.max(0, Number(q.people)), asDate(q.eventDate), str(q.folio) || null, asDate(q.endDate), asDate(q.dueDate), str(q.paymentType) || null, str(q.internalNotes) || null, str(q.notes) || null, currentVersion, Number(subtotal || 0), discountType, Number(discountValue || 0), Number(discountAmount || 0), Number(total || 0), str(q.quotedAt) || null, JSON.stringify(q)
+            ]
+          );
+        }
+      } else {
+        throw upsertErr;
+      }
+    }
 
     // 3. Diff delete e inserción de ítems en items_cotizacion_evento
     const incomingItemIds = [];
@@ -607,23 +704,87 @@ export async function updateEventQuote(req, res, next) {
           JSON.stringify(v.snapshot)
         );
       }
-      await conn.query(
-        `INSERT INTO cotizacion_versiones_evento
-          (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
-         VALUES ${vValues.join(',')}
-         ON DUPLICATE KEY UPDATE
-           subtotal = VALUES(subtotal),
-           descuento_tipo = VALUES(descuento_tipo),
-           descuento_valor = VALUES(descuento_valor),
-           descuento_monto = VALUES(descuento_monto),
-           propina_tipo = VALUES(propina_tipo),
-           propina_valor = VALUES(propina_valor),
-           propina_monto = VALUES(propina_monto),
-           total_neto = VALUES(total_neto),
-           cotizado_en_iso = VALUES(cotizado_en_iso),
-           json_crudo = VALUES(json_crudo)`,
-        vParams
-      );
+      try {
+        await conn.query(
+          `INSERT INTO cotizacion_versiones_evento
+            (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
+           VALUES ${vValues.join(',')}
+           ON DUPLICATE KEY UPDATE
+             subtotal = VALUES(subtotal),
+             descuento_tipo = VALUES(descuento_tipo),
+             descuento_valor = VALUES(descuento_valor),
+             descuento_monto = VALUES(descuento_monto),
+             propina_tipo = VALUES(propina_tipo),
+             propina_valor = VALUES(propina_valor),
+             propina_monto = VALUES(propina_monto),
+             total_neto = VALUES(total_neto),
+             cotizado_en_iso = VALUES(cotizado_en_iso),
+             json_crudo = VALUES(json_crudo)`,
+          vParams
+        );
+      } catch (verErr) {
+        if (verErr.code === 'ER_BAD_FIELD_ERROR' && String(verErr.message).includes('propina_')) {
+          console.warn('[updateEventQuote] Columnas de propina faltantes en cotizacion_versiones_evento, ejecutando auto-migración...');
+          try {
+            await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_tipo VARCHAR(12) NOT NULL DEFAULT 'PERCENT'");
+            await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_valor DECIMAL(12,2) NOT NULL DEFAULT 0");
+            await conn.query("ALTER TABLE cotizacion_versiones_evento ADD COLUMN propina_monto DECIMAL(12,2) NOT NULL DEFAULT 0");
+            await conn.query(
+              `INSERT INTO cotizacion_versiones_evento
+                (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, propina_tipo, propina_valor, propina_monto, total_neto, cotizado_en_iso, json_crudo)
+               VALUES ${vValues.join(',')}
+               ON DUPLICATE KEY UPDATE
+                 subtotal = VALUES(subtotal),
+                 descuento_tipo = VALUES(descuento_tipo),
+                 descuento_valor = VALUES(descuento_valor),
+                 descuento_monto = VALUES(descuento_monto),
+                 propina_tipo = VALUES(propina_tipo),
+                 propina_valor = VALUES(propina_valor),
+                 propina_monto = VALUES(propina_monto),
+                 total_neto = VALUES(total_neto),
+                 cotizado_en_iso = VALUES(cotizado_en_iso),
+                 json_crudo = VALUES(json_crudo)`,
+              vParams
+            );
+          } catch {
+            const fallbackValues = [];
+            const fallbackParams = [];
+            for (const v of versionRows) {
+              const vItems = Array.isArray(v.snapshot?.items) ? v.snapshot.items : [];
+              const vSub = vItems.reduce((acc, x) => acc + Number(x?.qty || 0) * Number(x?.price || 0), 0);
+              const vDisType = String(v.snapshot?.discountType || 'AMOUNT').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT';
+              const vDisVal = Math.max(0, Number(v.snapshot?.discountValue || 0));
+              const vDisAmt = vDisType === 'PERCENT'
+                ? Math.max(0, Math.min(vSub, (vSub * Math.min(100, vDisVal)) / 100))
+                : Math.max(0, Math.min(vSub, vDisVal));
+              const vNetSub = Math.max(0, vSub - vDisAmt);
+              const vTipType = String(v.snapshot?.tipType || 'PERCENT').toUpperCase() === 'AMOUNT' ? 'AMOUNT' : 'PERCENT';
+              const vTipVal = Math.max(0, Number(v.snapshot?.tipValue || 0));
+              const vTipAmt = vTipType === 'PERCENT' ? Math.round(vNetSub * vTipVal / 100 * 100) / 100 : Math.round(vTipVal * 100) / 100;
+              const vTot = Math.max(0, vNetSub + vTipAmt);
+
+              fallbackValues.push('(?, ?, ?, ?, ?, ?, ?, ?, ?)');
+              fallbackParams.push(baseId, Number(v.version), Number(vSub || 0), vDisType, Number(vDisVal || 0), Number(vDisAmt || 0), Number(vTot || 0), str(v.snapshot?.quotedAt) || null, JSON.stringify(v.snapshot));
+            }
+            await conn.query(
+              `INSERT INTO cotizacion_versiones_evento
+                (id_evento, version_num, subtotal, descuento_tipo, descuento_valor, descuento_monto, total_neto, cotizado_en_iso, json_crudo)
+               VALUES ${fallbackValues.join(',')}
+               ON DUPLICATE KEY UPDATE
+                 subtotal = VALUES(subtotal),
+                 descuento_tipo = VALUES(descuento_tipo),
+                 descuento_valor = VALUES(descuento_valor),
+                 descuento_monto = VALUES(descuento_monto),
+                 total_neto = VALUES(total_neto),
+                 cotizado_en_iso = VALUES(cotizado_en_iso),
+                 json_crudo = VALUES(json_crudo)`,
+              fallbackParams
+            );
+          }
+        } else {
+          throw verErr;
+        }
+      }
     }
 
     // 5. Anticipos si vienen incluidos
@@ -860,7 +1021,8 @@ export async function updateEvent(req, res, next) {
     await conn.beginTransaction();
 
     // ─── BLINDAJE ANTIDESFASE DE INFORMES (Validación & Intercepción 409) ───
-    const [informesActivos] = await conn.query(`
+    const isQuoteOnly = !!(req.body?.isQuoteOnly || eventData?.isQuoteOnly || req.body?.quoteOnly);
+    const [informesActivos] = (!isQuoteOnly) ? await conn.query(`
       SELECT i.id, i.id_ocupacion, i.version, i.estado
       FROM informes_eventos i
       WHERE (i.id_ocupacion = ? OR i.id_ocupacion = ? OR i.id_ocupacion LIKE CONCAT(?, '_%'))
@@ -874,10 +1036,10 @@ export async function updateEvent(req, res, next) {
           ORDER BY i2.version DESC, i2.id DESC
           LIMIT 1
         )
-    `, [rawId, baseId, baseId, rawId, baseId, baseId]);
+    `, [rawId, baseId, baseId, rawId, baseId, baseId]) : [[]];
 
     let dias = [];
-    if (informesActivos.length > 0) {
+    if (!isQuoteOnly && informesActivos.length > 0) {
       const infIds = informesActivos.map(inf => inf.id);
       const [diasResult] = await conn.query(`
         SELECT idd.id AS dia_id, idd.informe_id,
