@@ -166,3 +166,18 @@ test('Rediseño Bento de Reserva: CSS previene desbordamiento horizontal, toma p
   assert.match(css, /\.res-bento-btn-guardar/);
 });
 
+test('Rediseño Bento de Reserva: Diseño adaptativo desktop para pantallas medianas y laptops', () => {
+  const css = fs.readFileSync(BENTO_CSS_PATH, 'utf-8');
+
+  // Tabla con scroll horizontal auto para no cortar controles
+  assert.match(css, /\.res-bento-table-wrap\s*\{[^}]*overflow-x:\s*auto\s*!important/);
+  // Erradicación de doble barra de scroll en filas
+  assert.match(css, /\.res-bento-table-rows\s*\{[^}]*overflow-x:\s*hidden\s*!important/);
+  // Ancho mínimo seguro para mantener legibilidad
+  assert.match(css, /\.res-bento-table-inner\s*\{[^}]*min-width:\s*760px/);
+  // Grid responsivo en pantallas medianas (< 1260px)
+  assert.match(css, /@media\s*\(\s*max-width:\s*1260px\s*\)/);
+  // Columna lateral adaptativa en cuadrícula
+  assert.match(css, /\.res-bento-side-column/);
+});
+

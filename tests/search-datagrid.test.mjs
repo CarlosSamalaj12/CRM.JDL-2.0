@@ -125,10 +125,10 @@ test('SearchModule.jsx y search.css garantizan ancho completo al 100% y encabeza
   assert.ok(css.includes('max-width: 100% !important'), 'search-saas-container debe usar max-width: 100% !important');
   assert.ok(css.includes('width: 100% !important'), 'Debe expandirse al 100% de la pantalla');
 
-  // Thead y th en azul real con texto blanco
+  // Thead y th en azul marino mate con texto blanco
   assert.ok(css.includes('.datagrid-table thead'), 'Debe blindar .datagrid-table thead');
-  assert.ok(css.includes('background: #2563eb !important') || css.includes('background-color: #2563eb !important'), 'Debe forzar fondo azul #2563eb');
-  assert.ok(jsx.includes("backgroundColor: '#2563eb'"), 'JSX debe tener backgroundColor azul inline');
+  assert.ok(css.includes('background: #1e3a8a !important') || css.includes('background-color: #1e3a8a !important'), 'Debe forzar fondo azul marino #1e3a8a');
+  assert.ok(jsx.includes("backgroundColor: '#1e3a8a'"), 'JSX debe tener backgroundColor azul marino inline');
   assert.ok(jsx.includes("color: '#ffffff'"), 'JSX debe tener color blanco inline');
 });
 

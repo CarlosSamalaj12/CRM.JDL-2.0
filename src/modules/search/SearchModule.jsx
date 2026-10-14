@@ -1372,10 +1372,10 @@ export default function SearchModule() {
           ) : (
             <div className="datagrid-table-container">
               <table className="datagrid-table">
-              <thead style={{ backgroundColor: '#2563eb' }}>
-                <tr style={{ backgroundColor: '#2563eb' }}>
+              <thead style={{ backgroundColor: '#1e3a8a' }}>
+                <tr style={{ backgroundColor: '#1e3a8a' }}>
                   {/* 1. NO. DOC */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">No. Doc</span>
                       <div className="datagrid-th-actions">
@@ -1404,7 +1404,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 2. EVENTO */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">Evento</span>
                       <div className="datagrid-th-actions">
@@ -1433,7 +1433,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 3. CLIENTE / EMPRESA */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">Cliente / Empresa</span>
                       <div className="datagrid-th-actions">
@@ -1462,7 +1462,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 4. VENDEDOR */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">Vendedor</span>
                       <div className="datagrid-th-actions">
@@ -1491,7 +1491,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 5. SALÓN */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">Salón</span>
                       <div className="datagrid-th-actions">
@@ -1520,7 +1520,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 6. FECHAS */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">Fechas</span>
                       <div className="datagrid-th-actions">
@@ -1549,7 +1549,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 7. TOTAL COTIZACIÓN */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">Total (Q)</span>
                       <div className="datagrid-th-actions">
@@ -1578,7 +1578,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 8. ESTADO */}
-                  <th className="datagrid-th" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <div className="datagrid-th-inner">
                       <span className="datagrid-th-title">Estado</span>
                       <div className="datagrid-th-actions">
@@ -1607,7 +1607,7 @@ export default function SearchModule() {
                   </th>
 
                   {/* 9. ACCIÓN */}
-                  <th className="datagrid-th" style={{ textAlign: 'center', width: 110, backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  <th className="datagrid-th" style={{ textAlign: 'center', width: 110, backgroundColor: '#1e3a8a', color: '#ffffff' }}>
                     <span className="datagrid-th-title">Acción</span>
                   </th>
                 </tr>

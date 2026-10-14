@@ -47,12 +47,12 @@
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 8px 20px rgba(30, 58, 138, 0.22);
   flex-shrink: 0;
 }
 
@@ -139,8 +139,8 @@ body:not(.informes-theme) .search-page-saas .search-btn-export:hover,
 
 body:not(.informes-theme) .search-page-saas .search-btn-new-quote,
 .search-btn-new-quote {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-  background-color: #2563eb !important;
+  background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%) !important;
+  background-color: #1e3a8a !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 10px !important;
@@ -155,7 +155,7 @@ body:not(.informes-theme) .search-page-saas .search-btn-new-quote,
   justify-content: center !important;
   gap: 8px !important;
   cursor: pointer !important;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3) !important;
+  box-shadow: 0 4px 14px rgba(30, 58, 138, 0.22) !important;
   transition: all 0.15s ease !important;
   font-family: inherit !important;
   transform: none !important;
@@ -164,9 +164,9 @@ body:not(.informes-theme) .search-page-saas .search-btn-new-quote,
 
 body:not(.informes-theme) .search-page-saas .search-btn-new-quote:hover,
 .search-btn-new-quote:hover {
-  filter: brightness(1.06) !important;
+  filter: brightness(1.08) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.38) !important;
+  box-shadow: 0 6px 18px rgba(30, 58, 138, 0.3) !important;
 }
 
 /* ── 2. Filters Card ── */
@@ -2175,14 +2175,14 @@ button.datagrid-btn-clear-all:hover {
 /* Blindaje Thead y Filas de Encabezado */
 body:not(.informes-theme) .datagrid-table thead,
 .datagrid-table thead {
-  background: #2563eb !important;
-  background-color: #2563eb !important;
+  background: #1e3a8a !important;
+  background-color: #1e3a8a !important;
 }
 
 body:not(.informes-theme) .datagrid-table thead tr,
 .datagrid-table thead tr {
-  background: #2563eb !important;
-  background-color: #2563eb !important;
+  background: #1e3a8a !important;
+  background-color: #1e3a8a !important;
 }
 
 /* Encabezados Azules de Alta Fidelidad */
@@ -2190,8 +2190,8 @@ body:not(.informes-theme) th.datagrid-th,
 body:not(.informes-theme) .datagrid-table th,
 body:not(.informes-theme) .datagrid-table thead th,
 .datagrid-th {
-  background: #2563eb !important;
-  background-color: #2563eb !important;
+  background: #1e3a8a !important;
+  background-color: #1e3a8a !important;
   color: #ffffff !important;
   padding: 12px 14px !important;
   font-size: 12px !important;

@@ -1624,6 +1624,18 @@ export default function ReservationForm() {
     { key: 'Confirmado', label: '5. Confirmado', stageNumber: 5, stageName: 'ETAPA 5' }
   ];
 
+  const PIPELINE_MATTE_COLORS = {
+    'Reserva sin Cotizacion': '#0284c7', // Azul pizarra mate sobrio (reemplaza celeste brillante #00A3FF)
+    '1er Cotizacion': '#007A64',         // Esmeralda corporativo elegante
+    'Seguimiento': '#d97706',            // Ámbar cálido mate ejecutivo (reemplaza naranja neón #FF8C00)
+    'Pre reserva': '#7c3aed',            // Ciruela / púrpura sobrio (reemplaza fucsia chillante #FF00CC)
+    'Confirmado': '#16a34a'              // Verde bosque mate ejecutivo (reemplaza verde lima eléctrico #00CC66)
+  };
+
+  const getBentoStatusColor = (statusKey) => {
+    return PIPELINE_MATTE_COLORS[statusKey] || STATUS_META[statusKey]?.color || '#007A64';
+  };
+
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === formData.status);
 
   const assignedUser = useMemo(() => {
@@ -2428,14 +2440,14 @@ export default function ReservationForm() {
                 <span
                   className="res-bento-status-pill"
                   style={{
-                    color: STATUS_META[formData.status]?.color || '#00CC66',
-                    background: `${STATUS_META[formData.status]?.color || '#00CC66'}14`,
-                    borderColor: `${STATUS_META[formData.status]?.color || '#00CC66'}40`
+                    color: getBentoStatusColor(formData.status),
+                    background: `${getBentoStatusColor(formData.status)}14`,
+                    borderColor: `${getBentoStatusColor(formData.status)}40`
                   }}
                 >
                   <span
                     className="res-bento-status-dot"
-                    style={{ background: STATUS_META[formData.status]?.color || '#00CC66' }}
+                    style={{ background: getBentoStatusColor(formData.status) }}
                   />
                   {formData.status}
                 </span>
@@ -2514,11 +2526,11 @@ export default function ReservationForm() {
             </button>
           </div>
 
-          {/* 2. Pipeline Stepper (Chevron Bar con colores exactos de estado del CRM) */}
+          {/* 2. Pipeline Stepper (Chevron Bar con colores mate ejecutivos) */}
           <div className="res-bento-stepper-wrap">
             <div className="res-bento-stepper">
               {PIPELINE_STEPS.map((step, idx) => {
-                const stepColor = STATUS_META[step.key]?.color || '#00A3FF';
+                const stepColor = getBentoStatusColor(step.key);
                 const isCompleted = idx < currentIdx;
                 const isActive = idx === currentIdx;
 

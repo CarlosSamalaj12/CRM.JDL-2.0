@@ -32,6 +32,44 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Diseño Adaptativo (Adaptive Design) en Editar Reserva y Erradicación de Doble Barra de Scroll (`reservationBento.css`, `tests/reservation-bento-redesign.test.mjs`) (2026-10-14)
+- Requerimientos del usuario:
+  - Al reducir el tamaño de la ventana en escritorio o en pantallas laptop, los controles de la tarjeta "Salones y Horarios" se cortaban.
+  - Luego de habilitar scroll horizontal, aparecían dos barras de desplazamiento horizontales superpuestas ("salen dos barras desplazarse no se ve bien").
+- Causa raíz:
+  - `.res-bento-table-rows` tenía `overflow-y: auto;` junto a `overflow-x: visible;`. En la especificación W3C de CSS, `visible` combinado con `auto` en el otro eje se convierte forzosamente en `auto`, provocando que el contenedor de filas generara una primera barra de scroll horizontal mientras el contenedor exterior `.res-bento-table-wrap` generaba una segunda barra de scroll.
+  - El ancho mínimo rígido de 850px forzaba scroll en resoluciones de laptop (1280px-1366px) donde los controles caben cómodamente si se optimizan las columnas.
+- Solución:
+  1. En `src/modules/calendar/components/reservationBento.css`:
+     - Se fijó `overflow-x: hidden !important; overflow-y: auto !important;` en `.res-bento-table-rows`, erradicando por completo la barra de scroll duplicada.
+     - Se unificó el desplazamiento horizontal exclusivamente en `.res-bento-table-wrap` (`overflow-x: auto !important; overflow-y: hidden !important;`) con barra fina y estilizada de 6px.
+     - Se optimizaron las columnas de la tabla a proporciones compactas ejecutivas (`28px minmax(110px, 1.3fr) 50px minmax(230px, 1.8fr) minmax(160px, 1.2fr) minmax(125px, 1fr) 28px`), reduciendo el `min-width` a 760px.
+     - Se ajustó `.res-bento-grid` a `minmax(0, 2.3fr) minmax(310px, 1fr)`, otorgando mayor amplitud a la columna izquierda para que en laptops quepa todo sin necesidad de mostrar barra de desplazamiento.
+     - Se mantuvo el breakpoint `@media (max-width: 1260px)` para conmutar a 1 columna fluida con cuadrícula 2x2 en la columna lateral en pantallas reducidas.
+  2. En `tests/reservation-bento-redesign.test.mjs`:
+     - Se añadieron aserciones comprobando `overflow-x: hidden !important` en `.res-bento-table-rows`, `min-width: 760px` y `overflow-x: auto !important` en `.res-bento-table-wrap`.
+- Validación: 175 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.29`).
+
+### Solución: Atenuación de Colores Chillantes por Paleta Ejecutiva Mate en Búsqueda de Eventos y Editar Reserva (`SearchModule.jsx`, `search.css`, `ReservationForm.jsx`, `tests/search-datagrid.test.mjs`) (2026-10-14)
+- Requerimientos del usuario:
+  1. En la tabla de "Búsqueda de Eventos", el encabezado azul brillante (`#2563eb`) y el botón `+ Nueva Cotización` resultaban demasiado chillantes / saturados. Solicita un tono más opaco / mate.
+  2. En el modal "Editar Reserva", los chevrons de las 5 etapas comerciales tenían colores neón hiper-saturados (`#00A3FF`, `#FF8C00`, `#FF00CC`, `#00CC66`), cansando la vista. Solicita atenuarlos a tonos más opacos.
+- Solución:
+  1. En `src/modules/search/SearchModule.jsx` y `src/modules/search/search.css`:
+     - Se reemplazó el azul eléctrico `#2563eb` en `.datagrid-table thead`, `tr` y `th.datagrid-th` por **Azul Marino Ejecutivo Mate** (`#1e3a8a`), sobrio, elegante y con contraste nítido (WCAG AAA).
+     - Se actualizó `.search-btn-new-quote` y `.search-brand-icon` a gradiente mate `linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)` con sombra suave ejecutiva `rgba(30, 58, 138, 0.22)`.
+  2. En `src/modules/calendar/components/ReservationForm.jsx`:
+     - Se integró `PIPELINE_MATTE_COLORS` y la función auxiliar `getBentoStatusColor(statusKey)` para aplicar colores desaturados y mate en los chevrons del Stepper y en la pastilla superior:
+       - Contacto (`Reserva sin Cotizacion`): `#0284c7` (Azul pizarra mate en lugar de azul celeste neón `#00A3FF`).
+       - Cotizado (`1er Cotizacion`): `#007A64` (Verde esmeralda institucional sobrio).
+       - Seguimiento (`Seguimiento`): `#d97706` (Ámbar cálido mate en lugar de naranja neón `#FF8C00`).
+       - Pre-Reserva (`Pre reserva`): `#7c3aed` (Ciruela / violeta ejecutivo en lugar de fucsia neón `#FF00CC`).
+       - Confirmado (`Confirmado`): `#16a34a` (Verde bosque sobrio en lugar de verde lima chillante `#00CC66`).
+     - Se mantuvieron intactos los valores en `constants.js` (`STATUS_META`) preservando la compatibilidad global del CRM y suites de pruebas existentes.
+  3. En `tests/search-datagrid.test.mjs`:
+     - Se actualizaron las aserciones para validar el azul marino `#1e3a8a`.
+- Validación: 174 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso.
+
 ### Solución: Filtros de Columna Flotantes con React Portal Encima de la Tabla y Erradicación de Cortes por Overflow (`SearchModule.jsx`, `search.css`, `tests/search-datagrid.test.mjs`) (2026-10-14)
 - Requerimiento del usuario:
   - En el módulo de "Búsqueda de Eventos", al filtrar cuando hay pocos registros (o 1 solo registro), el menú/popover de filtro de columna aparecía atrapado dentro del contenedor de la tabla ("sale adentro no encima") y se cortaba por el límite inferior de la tabla (`overflow-x: auto`), ocultando los campos de fecha, inputs y botones de "Limpiar" y "Aplicar".
