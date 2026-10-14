@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { CURRENT_VERSION } from '../services/versionService';
+import './maintenance.css';
 
 const ADMIN_CODE = 'JDL-ADMIN-2026';
 
 export default function MaintenancePage({ onBypassSuccess }) {
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [retrying, setRetrying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [inputCode, setInputCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [copiedId, setCopiedId] = useState(null);
 
   // Soportar activación/desactivación automática vía query param ?admin-code=JDL-ADMIN-2026
   useEffect(() => {
@@ -20,33 +23,41 @@ export default function MaintenancePage({ onBypassSuccess }) {
     }
   }, []);
 
-  // Polling automático cada 30s para detectar cuando se desactive el modo mantenimiento
+  // Polling silencioso en segundo plano para recargar automáticamente si otro admin quita el mantenimiento
   useEffect(() => {
     const interval = setInterval(async () => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          fetch('/api/maintenance-status')
-            .then(r => r.json())
-            .then(data => {
-              if (data.maintenanceMode === false) {
-                window.location.reload();
-              } else {
-                setTimeLeft(30);
-              }
-            })
-            .catch(() => {
-              setTimeLeft(30);
-            });
-          return 30;
+      try {
+        const res = await fetch('/api/maintenance-status');
+        const data = await res.json();
+        if (data && data.maintenanceMode === false) {
+          window.location.reload();
         }
-        return prev - 1;
-      });
-    }, 1000);
+      } catch (_) {}
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleRetry = () => {
-    window.location.reload();
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      const res = await fetch('/api/maintenance-status');
+      const data = await res.json();
+      if (data && data.maintenanceMode === false) {
+        window.location.reload();
+        return;
+      }
+    } catch (_) {}
+    setTimeout(() => {
+      setRetrying(false);
+    }, 700);
+  };
+
+  const handleCopyEmail = (email, id) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(email);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
   };
 
   async function handleDisableMaintenance(codeToUse) {
@@ -153,163 +164,225 @@ export default function MaintenancePage({ onBypassSuccess }) {
     }
   }
 
+  const displayVersion = CURRENT_VERSION && CURRENT_VERSION !== '0.0.0-dev' 
+    ? (CURRENT_VERSION.startsWith('v') ? CURRENT_VERSION : `v${CURRENT_VERSION}`)
+    : 'v2.1.20';
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      background: '#f8fafc',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '24px',
-      textAlign: 'center'
-    }}>
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        maxWidth: '460px',
-        width: '100%'
-      }}>
-        <div style={{
-          width: '72px',
-          height: '72px',
-          borderRadius: '50%',
-          background: '#fef3c7',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '20px'
-        }}>
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-          </svg>
+    <div className="maint-page-root">
+      {/* Barra superior con marca institucional y badge global */}
+      <header className="maint-top-bar">
+        <div className="maint-brand">
+          <div className="maint-logo-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+              <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+              <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+            </svg>
+          </div>
+          <div className="maint-brand-text">
+            <span className="maint-brand-name">Jardines del Lago</span>
+            <span className="maint-brand-sub">HOTEL & RESORT LAKE VIEW</span>
+          </div>
         </div>
 
-        <h1 style={{
-          fontSize: '26px',
-          fontWeight: 800,
-          margin: '0 0 6px',
-          color: '#0f172a',
-          letterSpacing: '-0.5px'
-        }}>
-          Sistema en Mantenimiento
-        </h1>
+        <div className="maint-badge-global">
+          <span className="maint-dot-amber"></span>
+          <span>Mantenimiento Preventivo Global</span>
+        </div>
+      </header>
 
-        <p style={{
-          fontSize: '15px',
-          color: '#475569',
-          lineHeight: 1.7,
-          margin: '0 0 28px'
-        }}>
-          Estamos realizando tareas de mantenimiento programadas.
-          El sistema estar&aacute; disponible nuevamente en unos momentos.
-        </p>
+      {/* Tarjeta Bento Ejecutiva */}
+      <main className="maint-card">
+        {/* Cinta superior ámbar */}
+        <div className="maint-card-ribbon">
+          <div className="maint-ribbon-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Optimización y despliegue de infraestructura de alta disponibilidad</span>
+          </div>
+          <span className="maint-ribbon-badge">Fase 2 de 2</span>
+        </div>
 
-        <div style={{
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'center',
-          marginBottom: '28px'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-            fontSize: '13px',
-            color: '#64748b'
-          }}>
-            Reintentando en
-            <span style={{
-              fontVariantNumeric: 'tabular-nums',
-              fontWeight: 700,
-              fontSize: '16px',
-              color: '#d97706',
-              minWidth: '28px',
-              display: 'inline-block'
-            }}>
-              {timeLeft}s
-            </span>
+        {/* Cuerpo de la tarjeta */}
+        <div className="maint-card-body">
+          {/* Ícono de herramienta con versión */}
+          <div className="maint-icon-wrap">
+            <div className="maint-icon-box">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+            </div>
+            <span className="maint-version-pill">{displayVersion}</span>
           </div>
 
-          <button
-            onClick={handleRetry}
-            style={{
-              padding: '8px 20px',
-              background: '#2563eb',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            Reintentar ahora
-          </button>
-        </div>
-
-        <div style={{
-          padding: '16px 20px',
-          background: '#ffffff',
-          border: '1px solid #e2e8f0',
-          borderRadius: '12px',
-          width: '100%'
-        }}>
-          <p style={{
-            fontSize: '12px',
-            color: '#64748b',
-            margin: '0 0 12px',
-            lineHeight: 1.6,
-            textAlign: 'center'
-          }}>
-            Soporte t&eacute;cnico:
+          <h1 className="maint-title">Sistema en Mantenimiento</h1>
+          <p className="maint-subtitle">
+            Estamos realizando tareas de mantenimiento programadas para mejorar tu experiencia.
+            El sistema estar&aacute; disponible nuevamente en unos momentos.
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '20px',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', minWidth: '70px', textAlign: 'right' }}>Sistemas</div>
-              <a href="tel:54140195" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', color: '#0f172a', fontSize: '13px', fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>5414 0195
-              </a>
-              <a href="mailto:sistemas@jardinesdellago.com" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', color: '#0f172a', fontSize: '13px', fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>sistemas@jardinesdellago.com
-              </a>
-              <a href="https://wa.me/50254140195" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', color: '#0f172a', fontSize: '13px', fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>5414 0195
-              </a>
+
+          {/* Botón único de Reintentar ahora */}
+          <div className="maint-action-wrap">
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              className="maint-btn-retry"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  animation: retrying ? 'spin 1s linear infinite' : 'none',
+                  transition: 'transform 0.3s'
+                }}
+              >
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                <path d="M16 16h5v5"/>
+              </svg>
+              <span>{retrying ? 'Verificando servicio...' : 'Reintentar ahora'}</span>
+            </button>
+          </div>
+
+          {/* Divisor canales de soporte */}
+          <div className="maint-divider-row">
+            <div className="maint-divider-line"></div>
+            <span className="maint-divider-text">Canales de Soporte Directo</span>
+            <div className="maint-divider-line"></div>
+          </div>
+
+          {/* Cuadrícula de tarjetas de soporte */}
+          <div className="maint-support-grid">
+            {/* Tarjeta 1: Área de Sistemas */}
+            <div className="maint-support-card">
+              <div className="maint-support-header">
+                <div className="maint-support-title-wrap">
+                  <div className="maint-support-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                      <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                      <line x1="6" y1="6" x2="6.01" y2="6"/>
+                      <line x1="6" y1="18" x2="6.01" y2="18"/>
+                    </svg>
+                  </div>
+                  <div className="maint-support-titles">
+                    <span className="maint-support-name">&Aacute;rea de Sistemas</span>
+                    <span className="maint-support-dept">Soporte t&eacute;cnico TI</span>
+                  </div>
+                </div>
+                <span className="maint-status-pill">Disponible</span>
+              </div>
+
+              {/* Teléfono y WhatsApp */}
+              <div className="maint-contact-row">
+                <div className="maint-contact-info">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  </svg>
+                  <span>5414 0195</span>
+                </div>
+                <div className="maint-contact-actions">
+                  <a href="tel:54140195" className="maint-pill-btn">Llamar</a>
+                  <a href="https://wa.me/50254140195" target="_blank" rel="noopener noreferrer" className="maint-pill-btn maint-pill-btn-wa">WhatsApp</a>
+                </div>
+              </div>
+
+              {/* Correo y Copiar */}
+              <div className="maint-contact-row">
+                <div className="maint-contact-info">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  <span>sistemas@jardinesdellago.com</span>
+                </div>
+                <div className="maint-contact-actions">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyEmail('sistemas@jardinesdellago.com', 'sistemas')}
+                    className="maint-pill-btn"
+                  >
+                    {copiedId === 'sistemas' ? '¡Copiado!' : 'Copiar'}
+                  </button>
+                </div>
+              </div>
             </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '20px',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', minWidth: '70px', textAlign: 'right' }}>Hotel</div>
-              <a href="tel:55178100" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', color: '#0f172a', fontSize: '13px', fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>5517 8100
-              </a>
-              <a href="mailto:sistemashotel@jardinesdellago.com" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', color: '#0f172a', fontSize: '13px', fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>sistemashotel@jardinesdellago.com
-              </a>
-              <a href="https://wa.me/50255178100" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none', color: '#0f172a', fontSize: '13px', fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>5517 8100
-              </a>
+
+            {/* Tarjeta 2: Recepción & Hotel */}
+            <div className="maint-support-card">
+              <div className="maint-support-header">
+                <div className="maint-support-title-wrap">
+                  <div className="maint-support-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 21h18"/>
+                      <path d="M19 21v-4"/>
+                      <path d="M19 11V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"/>
+                      <path d="M9 7h2"/>
+                      <path d="M13 7h2"/>
+                      <path d="M9 11h2"/>
+                      <path d="M13 11h2"/>
+                      <path d="M9 15h2"/>
+                      <path d="M13 15h2"/>
+                    </svg>
+                  </div>
+                  <div className="maint-support-titles">
+                    <span className="maint-support-name">Recepci&oacute;n & Hotel</span>
+                    <span className="maint-support-dept">Operaciones y Reservas</span>
+                  </div>
+                </div>
+                <span className="maint-status-pill">24/7 Activo</span>
+              </div>
+
+              {/* Teléfono y WhatsApp */}
+              <div className="maint-contact-row">
+                <div className="maint-contact-info">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  </svg>
+                  <span>5517 8100</span>
+                </div>
+                <div className="maint-contact-actions">
+                  <a href="tel:55178100" className="maint-pill-btn">Llamar</a>
+                  <a href="https://wa.me/50255178100" target="_blank" rel="noopener noreferrer" className="maint-pill-btn maint-pill-btn-wa">WhatsApp</a>
+                </div>
+              </div>
+
+              {/* Correo y Copiar */}
+              <div className="maint-contact-row">
+                <div className="maint-contact-info">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  <span>sistemashotel@jardinesdellago.com</span>
+                </div>
+                <div className="maint-contact-actions">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyEmail('sistemashotel@jardinesdellago.com', 'hotel')}
+                    className="maint-pill-btn"
+                  >
+                    {copiedId === 'hotel' ? '¡Copiado!' : 'Copiar'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      </main>
 
+      {/* Pie de página con botón de Administrador y Derechos Reservados */}
+      <footer className="maint-footer">
         <button
           onClick={() => {
             setShowModal(true);
@@ -318,55 +391,24 @@ export default function MaintenancePage({ onBypassSuccess }) {
             setInputCode('');
           }}
           disabled={loading}
-          style={{
-            marginTop: '20px',
-            background: 'none',
-            border: 'none',
-            color: '#64748b',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            textDecoration: 'underline',
-            textUnderlineOffset: '3px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
+          className="maint-btn-admin"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
-          {loading ? 'Procesando...' : 'Acceso de administrador'}
+          <span>{loading ? 'Procesando...' : 'Acceso de administrador'}</span>
         </button>
-      </div>
+
+        <p className="maint-copyright">
+          &copy; 2026 Jardines del Lago. Todos los derechos reservados.
+        </p>
+      </footer>
 
       {/* Modal interactivo de Acceso de Administrador */}
       {showModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px',
-          zIndex: 999999
-        }}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '16px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            width: '100%',
-            maxWidth: '430px',
-            padding: '24px',
-            textAlign: 'left',
-            position: 'relative'
-          }}>
+        <div className="maint-modal-backdrop">
+          <div className="maint-modal-dialog">
             {/* Cabecera del Modal */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
               <div style={{
@@ -389,7 +431,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
                   Acceso de Administrador
                 </h3>
                 <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
-                  Ingresa la contraseña para quitar el modo mantenimiento.
+                  Ingresa tu contrase&ntilde;a para autorizar acciones administrativas.
                 </p>
               </div>
             </div>
@@ -429,10 +471,10 @@ export default function MaintenancePage({ onBypassSuccess }) {
               </div>
             )}
 
-            {/* Input de Contraseña */}
+            {/* Input de Contraseña (sin revelar la clave en placeholder) */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Contraseña / Código de Administrador:
+                Contrase&ntilde;a de Administrador:
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <input
@@ -446,7 +488,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
                     }
                   }}
                   autoFocus
-                  placeholder="Ej: JDL-ADMIN-2026"
+                  placeholder="••••••••••••"
                   disabled={loading}
                   style={{
                     width: '100%',
