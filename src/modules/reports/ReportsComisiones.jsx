@@ -1,6 +1,8 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { formatMoney } from '../../utils/numberToWords';
+import { getEquipos } from '../../services/api.js';
+import { getHabitacionesApi } from '../../services/habitacionesService';
 import ReportInfo from './components/ReportInfo';
 import MultiSelect from './components/MultiSelect';
 import { getEventSeriesFinancialMeta, getQuoteTotalGtq } from './components/eventSeriesUtils';
@@ -31,6 +33,35 @@ function IconAward({ size = 16, color = 'currentColor' }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="8" r="7" />
       <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+  );
+}
+
+function IconBriefcase({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </svg>
+  );
+}
+
+function IconUsers({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function IconBed({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7v14M21 7v14M3 13h18M6 13V9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4" />
+      <circle cx="9" cy="10" r="1" fill={color} />
     </svg>
   );
 }
@@ -90,6 +121,14 @@ const ACTIVE_STATUSES = new Set([
   'Confirmado',
 ]);
 
+const VALID_ROOM_STATUSES = new Set([
+  'confirmada',
+  'confirmado',
+  'en casa',
+  'completada',
+  'completado',
+]);
+
 // ── Commission calculation logic ──
 function calcCommission(totalSales, tiers) {
   if (!tiers || !tiers.length || totalSales <= 0) {
@@ -123,10 +162,25 @@ function calcCommission(totalSales, tiers) {
 
 export default function ReportsComisiones({ onClose }) {
   const { events, users } = useOutletContext();
-  const sellerUsers = useMemo(() => (users || []).filter(u => {
-    const r = String(u.role || '').toLowerCase();
-    return r === 'vendedor' || r === 'admin';
-  }), [users]);
+  const [groupTab, setGroupTab] = useState('todos'); // 'todos' | 'vendedores' | 'recepcionistas'
+  const [habitacionesList, setHabitacionesList] = useState([]);
+  const [equipos, setEquipos] = useState([]);
+
+  // Cargar catálogo de equipos de trabajo
+  useEffect(() => {
+    let isCancelled = false;
+    (async () => {
+      try {
+        const data = await getEquipos();
+        if (!isCancelled) {
+          setEquipos(Array.isArray(data) ? data : (data?.equipos || []));
+        }
+      } catch (err) {
+        console.warn('No se pudieron cargar los equipos en comisiones:', err);
+      }
+    })();
+    return () => { isCancelled = true; };
+  }, []);
 
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -141,6 +195,65 @@ export default function ReportsComisiones({ onClose }) {
   const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
   const [pdfLoading, setPdfLoading] = useState(false);
   const reportRef = useRef(null);
+
+  // Cargar reservas de habitaciones para el período evaluado
+  useEffect(() => {
+    let isCancelled = false;
+    (async () => {
+      try {
+        const habRes = await getHabitacionesApi({ desde: fromDate, hasta: toDate });
+        if (!isCancelled) {
+          setHabitacionesList(habRes?.reservas || []);
+        }
+      } catch (err) {
+        console.warn('Error cargando habitaciones para comisiones:', err);
+      }
+    })();
+    return () => { isCancelled = true; };
+  }, [fromDate, toDate]);
+
+  // Mapeo equipoId → info del equipo
+  const equipoMap = useMemo(() => {
+    const map = new Map();
+    for (const eq of equipos) {
+      const id = Number(eq.id ?? eq.equipo_id ?? 0);
+      if (id) {
+        map.set(id, {
+          id,
+          nombre: eq.nombre || eq.name || '',
+        });
+      }
+    }
+    return map;
+  }, [equipos]);
+
+  // Clasificador de usuario de recepción
+  const isReceptionistUser = useCallback((u) => {
+    const tId = u.teamId ? Number(u.teamId) : null;
+    const tName = tId && equipoMap.has(tId) ? String(equipoMap.get(tId).nombre).toLowerCase() : '';
+    const r = String(u.role || '').toLowerCase();
+    return tId === 20 || tName.includes('recepcion') || r === 'recepcionista';
+  }, [equipoMap]);
+
+  // Clasificador de vendedor de eventos / comercial
+  const isSalespersonUser = useCallback((u) => {
+    if (isReceptionistUser(u)) return false;
+    const tId = u.teamId ? Number(u.teamId) : null;
+    const tName = tId && equipoMap.has(tId) ? String(equipoMap.get(tId).nombre).toLowerCase() : '';
+    const r = String(u.role || '').toLowerCase();
+    return tId === 22 || tId === 2 || tName.includes('vendedor') || tName.includes('ventas') || r === 'vendedor' || r === 'admin';
+  }, [isReceptionistUser, equipoMap]);
+
+  // Usuarios con metas configuradas filtrados dinámicamente según la pestaña activa
+  const sellerUsers = useMemo(() => {
+    return (users || []).filter(u => {
+      const tiers = Array.isArray(u.goalTiers) ? u.goalTiers.filter(t => t.amount > 0) : [];
+      if (tiers.length === 0) return false;
+      if (groupTab === 'vendedores') return isSalespersonUser(u);
+      if (groupTab === 'recepcionistas') return isReceptionistUser(u);
+      return true;
+    });
+  }, [users, groupTab, isSalespersonUser, isReceptionistUser]);
 
   // ── Generate months ──
   const monthList = useMemo(() => {
@@ -171,10 +284,7 @@ export default function ReportsComisiones({ onClose }) {
     const from = monthList[0].key + '-01';
     const to = monthList[monthList.length - 1].key + '-' + String(monthList[monthList.length - 1].daysInMonth).padStart(2, '0');
 
-    // Aggregate sales by userId (deduplicando por groupId igual que Reporte de Ventas)
-    // IMPORTANTE: dedup PRIMERO, fecha después — si no, una reserva multi-slot que
-    // arranca antes del rango (ej. Jul 30 + Aug 5) pero tiene slots dentro del
-    // rango quedaría doble-contada acá y excluida en Ventas, rompiendo los números.
+    // 1. Acumulación de ventas de eventos cotizados por userId
     const salesByUser = {};
     const seenReservations = new Set();
     for (const ev of events) {
@@ -183,8 +293,6 @@ export default function ReportsComisiones({ onClose }) {
       if (seenReservations.has(groupKey)) continue;
       seenReservations.add(groupKey);
 
-      // Mismo "primary event" que usa Reporte de Ventas → mismo userId y misma fecha
-      // de referencia (la más temprana de la serie, ordenada por date + startTime + salon).
       const financialMeta = getEventSeriesFinancialMeta(ev, events);
       const primaryEvent = financialMeta.primaryEvent || ev;
       const eventDate = String(financialMeta.startDate || ev.date || '').trim();
@@ -203,7 +311,28 @@ export default function ReportsComisiones({ onClose }) {
       salesByUser[userId] = (salesByUser[userId] || 0) + amount;
     }
 
-    // Build rows with commission calculation
+    // 2. Acumulación de reservas individuales de habitaciones por id_vendedor
+    const roomSalesByUser = {};
+    if (Array.isArray(habitacionesList)) {
+      for (const hab of habitacionesList) {
+        const checkIn = String(hab.fecha_check_in || hab.fecha_checkin || hab.fecha_inicio || '').trim().slice(0, 10);
+        if (!checkIn || checkIn < from || checkIn > to) continue;
+
+        const rawEst = String(hab.estado || '').trim().toLowerCase();
+        if (!VALID_ROOM_STATUSES.has(rawEst)) continue;
+
+        const amount = Math.max(0, Number(hab.monto_total || 0));
+        if (amount <= 0) continue;
+
+        const userId = String(hab.id_vendedor || '').trim();
+        if (!userId) continue;
+        if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+
+        roomSalesByUser[userId] = (roomSalesByUser[userId] || 0) + amount;
+      }
+    }
+
+    // 3. Construir filas calculando comisiones con venta total sumada (eventos + habitaciones)
     const rows = [];
     let totalSales = 0;
     let totalCommission = 0;
@@ -215,13 +344,26 @@ export default function ReportsComisiones({ onClose }) {
       const tiers = Array.isArray(user.goalTiers) ? user.goalTiers.filter(t => t.amount > 0) : [];
       if (tiers.length === 0) continue;
 
-      const salesAmount = salesByUser[userId] || 0;
-      const { reachedTier, commissionAmount, nextTier, progressToNext } = calcCommission(salesAmount, tiers);
+      // Filtrado por grupo activo (Vendedores vs Recepcionistas vs Todos)
+      if (groupTab === 'vendedores' && !isSalespersonUser(user)) continue;
+      if (groupTab === 'recepcionistas' && !isReceptionistUser(user)) continue;
+
+      // Filtrado individual
+      if (userFilter.size > 0 && !userFilter.has(userId)) continue;
+
+      const eventSales = salesByUser[userId] || 0;
+      const roomSales = roomSalesByUser[userId] || 0;
+      const totalSalesAmount = eventSales + roomSales;
+
+      const { reachedTier, commissionAmount, nextTier, progressToNext } = calcCommission(totalSalesAmount, tiers);
 
       rows.push({
         userId,
         name: user.fullName || user.name || userId,
-        salesAmount,
+        salesAmount: totalSalesAmount,
+        eventSalesAmount: eventSales,
+        roomSalesAmount: roomSales,
+        isReception: isReceptionistUser(user),
         hasTiers: true,
         tiers,
         reachedTier,
@@ -231,12 +373,12 @@ export default function ReportsComisiones({ onClose }) {
         progressToNext,
       });
 
-      totalSales += salesAmount;
+      totalSales += totalSalesAmount;
       totalCommission += commissionAmount;
       totalUsersWithTiers++;
     }
 
-    // Sort: users with sales first, then by commission amount desc
+    // Sort: usuarios con ventas primero, luego por monto de comisión descendente
     rows.sort((a, b) => {
       if (a.salesAmount > 0 && b.salesAmount === 0) return -1;
       if (a.salesAmount === 0 && b.salesAmount > 0) return 1;
@@ -244,7 +386,8 @@ export default function ReportsComisiones({ onClose }) {
     });
 
     return { userRows: rows, totalSales, totalCommission, totalUsersWithTiers };
-  }, [events, monthList, users, userFilter]);
+  }, [events, habitacionesList, monthList, users, userFilter, groupTab, isReceptionistUser, isSalespersonUser]);
+
 
   const { userRows, totalSales, totalCommission, totalUsersWithTiers } = commissionData;
 
@@ -349,7 +492,7 @@ export default function ReportsComisiones({ onClose }) {
         pdf.addImage(imgData, 'PNG', 0, position, pdfW, pdfH);
         heightLeft -= pageH;
       }
-      pdf.save(`comisiones_${fromDate}_a_${toDate}.pdf`);
+      pdf.save(`comisiones_${groupTab}_${fromDate}_a_${toDate}.pdf`);
     } catch (err) {
       console.error('Error al exportar PDF:', err);
     } finally {
@@ -361,10 +504,12 @@ export default function ReportsComisiones({ onClose }) {
     const now = new Date();
     const dateStr = now.toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' });
     const timeStr = now.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+    const groupLabel = groupTab === 'recepcionistas' ? 'Equipo de Recepción' : groupTab === 'vendedores' ? 'Equipo de Vendedores' : 'Todos los Colaboradores';
+    const roleHeader = groupTab === 'recepcionistas' ? 'Recepcionista' : groupTab === 'vendedores' ? 'Vendedor' : 'Colaborador';
 
     const rowsHtml = userRows.map((r, i) => `<tr${i % 2 === 1 ? ' style="background:#f8fafc"' : ''}>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;color:#0f172a">${r.name}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${r.salesAmount.toFixed(2)}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#059669">Q ${r.salesAmount.toFixed(2)}${r.roomSalesAmount > 0 ? `<br/><span style="font-size:9px;color:#64748b;font-weight:600">(Eventos: Q ${r.eventSalesAmount.toFixed(2)} · Hab: Q ${r.roomSalesAmount.toFixed(2)})</span>` : ''}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:10px;color:#92400e;font-weight:600">${r.reachedTier?.name || (r.hasTiers ? 'Ninguno' : '-')}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:center;color:#2563eb">${r.reachedTier ? r.reachedTier.percentage + '%' : (r.hasTiers ? '0%' : '-')}</td>
         <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:700;text-align:right;color:#6366f1">Q ${r.commissionAmount.toFixed(2)}</td>
@@ -380,13 +525,13 @@ th.right{text-align:right}</style></head><body>
 <table>
   <tr><td colspan="7" style="padding:14px 10px 4px;font-size:9px;color:#64748b;font-weight:700;border:none">EMS RESERVAS - JARDINES DEL LAGO</td></tr>
   <tr><td colspan="7" style="padding:0 10px 2px;font-size:16px;font-weight:900;color:#0f172a;border:none;letter-spacing:-0.02em">Reporte de Comisiones</td></tr>
-  <tr><td colspan="7" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} → ${toDate} - Generado: ${dateStr} - ${timeStr}</td></tr>
+  <tr><td colspan="7" style="padding:0 10px 14px;font-size:11px;color:#475569;border:none">Período: ${fromDate} → ${toDate} · Grupo: ${groupLabel} · Generado: ${dateStr} - ${timeStr}</td></tr>
   <tr>
-    <th>Vendedor</th><th class="right">Ventas (Q)</th><th>Nivel</th><th>%</th><th class="right">Comisión</th><th>Siguiente</th><th>Progreso</th>
+    <th>${roleHeader}</th><th class="right">Ventas (Q)</th><th>Nivel</th><th>%</th><th class="right">Comisión</th><th>Siguiente</th><th>Progreso</th>
   </tr>
   ${rowsHtml || '<tr><td colspan="7" style="padding:20px;text-align:center;border:1px solid #d1d5db;color:#94a3b8;font-size:12px">Sin datos.</td></tr>'}
   <tr>
-    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9">Total - ${userRows.length} vendedor(es)</td>
+    <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:11px;font-weight:800;color:#0f172a;background:#f1f5f9">Total - ${userRows.length} ${groupTab === 'recepcionistas' ? 'recepcionista(s)' : groupTab === 'vendedores' ? 'vendedor(es)' : 'colaborador(es)'}</td>
     <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#059669;background:#f1f5f9">Q ${new Intl.NumberFormat('es-GT',{minimumFractionDigits:2}).format(totalSales)}</td>
     <td colspan="2" style="padding:8px 10px;border:1px solid #d1d5db;background:#f1f5f9"></td>
     <td style="padding:8px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:900;text-align:right;color:#6366f1;background:#f1f5f9">Q ${new Intl.NumberFormat('es-GT',{minimumFractionDigits:2}).format(totalCommission)}</td>
@@ -398,7 +543,7 @@ th.right{text-align:right}</style></head><body>
     const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Comisiones_${fromDate}_a_${toDate}.xls`;
+    link.download = `Comisiones_${groupTab}_${fromDate}_a_${toDate}.xls`;
     link.click();
   };
 
@@ -585,29 +730,90 @@ th.right{text-align:right}</style></head><body>
                 </button>
               </div>
 
-              {/* Selector Vendedor */}
-              <div style={{ minWidth: '220px', display: 'inline-flex', alignItems: 'center' }}>
-                <MultiSelect
-                  selected={userFilter}
-                  onChange={setUserFilter}
-                  options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || u.username }))}
-                  placeholder="Vendedor"
-                  emptyLabel="Todos los vendedores"
-                  searchable
-                  width="100%"
-                />
+              {/* Conmutador Segmentado de Grupo (Todos / Vendedores / Recepcionistas) */}
+              <div className="comisiones-segmented-container">
+                <button
+                  type="button"
+                  className={`comisiones-segmented-btn comisiones-segmented-btn--todos ${groupTab === 'todos' ? 'active' : ''}`}
+                  onClick={() => {
+                    setGroupTab('todos');
+                    setUserFilter(new Set());
+                  }}
+                  title="Ver comisiones de todos los colaboradores con metas"
+                >
+                  <IconUsers size={14} color={groupTab === 'todos' ? '#ffffff' : '#2563eb'} />
+                  <span>Todos</span>
+                </button>
+                <button
+                  type="button"
+                  className={`comisiones-segmented-btn comisiones-segmented-btn--vendedores ${groupTab === 'vendedores' ? 'active' : ''}`}
+                  onClick={() => {
+                    setGroupTab('vendedores');
+                    setUserFilter(new Set());
+                  }}
+                  title="Ver únicamente equipo de Vendedores"
+                >
+                  <IconBriefcase size={14} color={groupTab === 'vendedores' ? '#ffffff' : '#059669'} />
+                  <span>Vendedores</span>
+                </button>
+                <button
+                  type="button"
+                  className={`comisiones-segmented-btn comisiones-segmented-btn--recepcion ${groupTab === 'recepcionistas' ? 'active' : ''}`}
+                  onClick={() => {
+                    setGroupTab('recepcionistas');
+                    setUserFilter(new Set());
+                  }}
+                  title="Ver únicamente equipo de Recepcionistas"
+                >
+                  <IconBed size={14} color={groupTab === 'recepcionistas' ? '#ffffff' : '#7c3aed'} />
+                  <span>Recepcionistas</span>
+                </button>
+              </div>
+
+              {/* Selector Colaborador Alineado */}
+              <div className="comisiones-filter-colaborador">
+                <span className="comisiones-filter-colaborador-label">
+                  {groupTab === 'recepcionistas' ? 'Recepcionista:' : groupTab === 'vendedores' ? 'Vendedor:' : 'Colaborador:'}
+                </span>
+                <div style={{ width: '220px', display: 'inline-flex', alignItems: 'center', height: '36px' }}>
+                  <MultiSelect
+                    selected={userFilter}
+                    onChange={setUserFilter}
+                    options={sellerUsers.map(u => ({ value: String(u.id), label: u.fullName || u.name || u.username }))}
+                    placeholder={groupTab === 'recepcionistas' ? 'Recepcionista' : groupTab === 'vendedores' ? 'Vendedor' : 'Colaborador'}
+                    emptyLabel={groupTab === 'recepcionistas' ? 'Todas las recepcionistas' : groupTab === 'vendedores' ? 'Todos los vendedores' : 'Todos'}
+                    searchable
+                    hideLabel
+                    width="100%"
+                    wrapperStyle={{ height: '36px', display: 'inline-flex', alignItems: 'center' }}
+                    triggerStyle={{
+                      height: '36px',
+                      minHeight: '36px',
+                      maxHeight: '36px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '12px',
+                      background: '#ffffff',
+                      padding: '0 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
               </div>
 
               {/* Botón Limpiar Filtros si hay filtros activos */}
-              {(userFilter.size > 0 || monthKey !== initialMonthKey) && (
+              {(userFilter.size > 0 || monthKey !== initialMonthKey || groupTab !== 'todos') && (
                 <button
                   type="button"
                   className="reports-btn-clear"
                   onClick={() => {
                     setUserFilter(new Set());
+                    setGroupTab('todos');
                     handleReset();
                   }}
-                  title="Restablecer filtros al mes actual y todos los vendedores"
+                  title="Restablecer filtros al mes actual y todos los colaboradores"
                 >
                   <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M23 4v6h-6" />
@@ -620,7 +826,9 @@ th.right{text-align:right}</style></head><body>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                {userFilter.size > 0 ? `Filtrando: ${userFilter.size} vendedor(es)` : 'Todos los vendedores evaluados'}
+                {userFilter.size > 0
+                  ? `Filtrando: ${userFilter.size} ${groupTab === 'recepcionistas' ? 'recepcionista(s)' : groupTab === 'vendedores' ? 'vendedor(es)' : 'colaborador(es)'}`
+                  : `Evaluando: ${userRows.length} ${groupTab === 'recepcionistas' ? 'recepcionista(s)' : groupTab === 'vendedores' ? 'vendedor(es)' : 'colaborador(es)'}`}
               </span>
             </div>
           </div>
@@ -643,7 +851,7 @@ th.right{text-align:right}</style></head><body>
                 {formatMoney(totalSales)}
               </div>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                Total eventos confirmados
+                {groupTab === 'recepcionistas' ? 'Ventas equipo recepción' : groupTab === 'vendedores' ? 'Ventas equipo vendedores' : 'Eventos y habitaciones confirmadas'}
               </div>
             </div>
           </div>
@@ -668,11 +876,11 @@ th.right{text-align:right}</style></head><body>
             </div>
           </div>
 
-          {/* KPI 3: Vendedores con Metas */}
+          {/* KPI 3: Personal con Metas */}
           <div className="comm-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
-                Vendedores Evaluados
+                {groupTab === 'recepcionistas' ? 'Recepcionistas Evaluadas' : groupTab === 'vendedores' ? 'Vendedores Evaluados' : 'Personal Evaluado'}
               </span>
               <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <IconTarget size={16} color="#2563eb" />
@@ -714,12 +922,13 @@ th.right{text-align:right}</style></head><body>
           <span className="reports-eyebrow" style={{ display: 'block', marginBottom: '4px' }}>Análisis del período</span>
           <p className="reports-story-text">
             En el rango del <strong className="highlight-slate">{fromDate}</strong> al <strong className="highlight-slate">{toDate}</strong> se registraron <strong className="highlight-blue">{formatMoney(totalSales)}</strong> en ventas
-            generando <strong className="highlight-green">{formatMoney(totalCommission)}</strong> en comisiones.
+            generando <strong className="highlight-green">{formatMoney(totalCommission)}</strong> en comisiones
+            {groupTab === 'vendedores' ? ' para el Equipo de Vendedores' : groupTab === 'recepcionistas' ? ' para el Equipo de Recepción' : ''}.
             {totalUsersWithTiers > 0
-              ? <> <strong className="highlight-slate">{totalUsersWithTiers}</strong> vendedores tienen niveles de meta configurados.</>
-              : <> Ningún vendedor tiene niveles de meta configurados. Ve a Configuración → Usuarios para agregarlos.</>}
+              ? <> <strong className="highlight-slate">{totalUsersWithTiers}</strong> {groupTab === 'recepcionistas' ? 'recepcionistas tienen' : groupTab === 'vendedores' ? 'vendedores tienen' : 'colaboradores tienen'} niveles de meta configurados.</>
+              : <> Ningún colaborador tiene niveles de meta configurados. Ve a Configuración → Usuarios para agregarlos.</>}
             {topByCommission && topByCommission.commissionAmount > 0
-              ? <> El vendedor con mayor comisión es <strong className="highlight-blue">{topByCommission.name}</strong> con <strong className="highlight-green">{formatMoney(topByCommission.commissionAmount)}</strong>.</>
+              ? <> Quien lidera en comisión es <strong className="highlight-blue">{topByCommission.name}</strong> con <strong className="highlight-green">{formatMoney(topByCommission.commissionAmount)}</strong>.</>
               : ''}
             La tasa de comisión promedio es de <strong className="highlight-accent">{totalSales > 0 ? ((totalCommission / totalSales) * 100).toFixed(2) : '0'}%</strong>.
           </p>
@@ -730,7 +939,13 @@ th.right{text-align:right}</style></head><body>
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Gráfico de barras</span>
-              <h3 className="reports-section-title">Ventas vs Comisiones × Vendedor</h3>
+              <h3 className="reports-section-title">
+                {groupTab === 'recepcionistas'
+                  ? 'Ventas vs Comisiones × Recepcionista'
+                  : groupTab === 'vendedores'
+                  ? 'Ventas vs Comisiones × Vendedor'
+                  : 'Ventas vs Comisiones × Vendedor'}
+              </h3>
               <p className="reports-section-text">Barra verde = ventas totales · Barra azul = comisión generada · Pasa el mouse para detalles</p>
             </div>
             {/* Legend */}
@@ -941,6 +1156,14 @@ th.right{text-align:right}</style></head><body>
                   <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: '10px', color: '#cbd5e1' }}>
                     <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ventas</span>
                     <span style={{ fontWeight: 800, color: '#10b981' }}>{formatMoney(r.salesAmount)}</span>
+                    {r.roomSalesAmount > 0 && (
+                      <>
+                        <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Desglose</span>
+                        <span style={{ fontWeight: 600, color: '#cbd5e1', fontSize: '9.5px' }}>
+                          Eventos: {formatMoney(r.eventSalesAmount)} · Hab: {formatMoney(r.roomSalesAmount)}
+                        </span>
+                      </>
+                    )}
                     <span style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Comisión</span>
                     <span style={{ fontWeight: 800, color: '#60a5fa' }}>{formatMoney(r.commissionAmount)}</span>
                     {r.hasTiers ? (
@@ -981,7 +1204,13 @@ th.right{text-align:right}</style></head><body>
           <div className="reports-section-intro">
             <div>
               <span className="reports-eyebrow">Tabla detallada</span>
-              <h3 className="reports-section-title">Desglose de ventas y comisiones por vendedor</h3>
+              <h3 className="reports-section-title">
+                {groupTab === 'recepcionistas'
+                  ? 'Desglose de ventas y comisiones - Equipo de Recepción'
+                  : groupTab === 'vendedores'
+                  ? 'Desglose de ventas y comisiones - Equipo de Vendedores'
+                  : 'Desglose de ventas y comisiones por vendedor'}
+              </h3>
             </div>
           </div>
 
@@ -989,7 +1218,7 @@ th.right{text-align:right}</style></head><body>
             <table className="reports-table" style={{ minWidth: '800px' }}>
               <thead>
                 <tr>
-                  <th>Vendedor</th>
+                  <th>{groupTab === 'recepcionistas' ? 'Recepcionista' : groupTab === 'vendedores' ? 'Vendedor' : 'Vendedor'}</th>
                   <th>Ventas (Q)</th>
                   <th>Nivel alcanzado</th>
                   <th>% Comisión</th>
@@ -1004,7 +1233,14 @@ th.right{text-align:right}</style></head><body>
                   return (
                     <tr key={r.userId} style={{ background: r.salesAmount === 0 && noSalesTiers ? '#fafafa' : 'transparent' }}>
                       <td style={{ fontWeight: 700 }}>{r.name}</td>
-                      <td style={{ fontWeight: 700, color: '#059669' }}>{r.salesAmount > 0 ? formatMoney(r.salesAmount) : '—'}</td>
+                      <td style={{ fontWeight: 700, color: '#059669' }}>
+                        {r.salesAmount > 0 ? formatMoney(r.salesAmount) : '—'}
+                        {r.roomSalesAmount > 0 && (
+                          <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', marginTop: '2px' }}>
+                            Eventos: {formatMoney(r.eventSalesAmount)} · Hab: {formatMoney(r.roomSalesAmount)}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         {r.hasTiers ? (
                           <span style={{
@@ -1059,7 +1295,9 @@ th.right{text-align:right}</style></head><body>
               </tbody>
               <tfoot>
                 <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
-                  <td style={{ fontWeight: 800, color: '#0f172a' }}>Total</td>
+                  <td style={{ fontWeight: 800, color: '#0f172a' }}>
+                    Total ({userRows.length} {groupTab === 'recepcionistas' ? 'recepcionista(s)' : groupTab === 'vendedores' ? 'vendedor(es)' : 'colaborador(es)'})
+                  </td>
                   <td style={{ fontWeight: 800, color: '#059669' }}>{formatMoney(totalSales)}</td>
                   <td></td>
                   <td style={{ textAlign: 'center', fontWeight: 700, color: '#2563eb' }}>

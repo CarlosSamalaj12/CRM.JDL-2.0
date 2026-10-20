@@ -32,6 +32,70 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Aislamiento Estricto de Vistas Activas y Eliminadas, Erradicación de Fuga de Eventos Eliminados y Keys Unívocas (`posiblesVentasController.js`, `PosiblesVentasModule.jsx`, `tests/posibles-ventas-filter-freeze.test.mjs`) (2026-10-20)
+- Requerimiento del usuario:
+  - Al filtrar por `Ganada`, la vista se quedaba estancada y aparecía incorrectamente en la lista un evento eliminado y marcado como perdido (`Prueba 2 sistemas • 🗑 Eliminada • Perdida` con botón `↩ Restaurar`).
+- Causa raíz:
+  1. En `src/modules/posiblesVentas/PosiblesVentasModule.jsx`:
+     - El contenedor de la lista en `.pv-leads-scroll-container` alternaba condicionalmente entre un Fragment (`<> <div style={...}> ... </div> <div style={footer}> ... </div> </>`) para `vista === 'activas'` y un `<div>` (`<div style={{ display: 'flex', ... }}>`) para `vista === 'eliminadas'`.
+     - Ninguno de los dos contenedores poseía atributo `key`. Al alternar entre `Eliminadas` y los filtros de estado activos (`Ganada`, `Pendiente`, etc.), el reconciliador de React 19 reutilizaba el mismo elemento DOM `div`, reconciliando los componentes funcionales `<DeletedLeadCard key={lead.id}>` con los elementos host `<div key={lead.id}>`.
+     - Esto dejaba nodos DOM huérfanos de tarjetas eliminadas (como `Prueba 2 sistemas`) en la vista activa y provocaba colisiones de claves en React (`Encountered two children with the same key`), congelando la actualización de los filtros.
+     - Además, los clics en las tarjetas KPI (`MetricCardClean`) ejecutaban `setEstadoFilter(...)` sin invocar `setVista('activas')`, dejando `vista` desincronizada si el usuario venía de la pestaña de eliminadas.
+  2. En `backend/src/controllers/posiblesVentasController.js`:
+     - `LINKED_EVENT_JOIN` permitía coincidencia simultánea si un evento poseía id exacto y slots (`e_direct.id = pv.evento_id OR e_direct.id = SUBSTRING_INDEX(...)`). Se blindó con subconsulta guardiana `AND NOT EXISTS` para garantizar una única fila estricta por lead.
+- Solución:
+  1. En `src/modules/posiblesVentas/PosiblesVentasModule.jsx`:
+     - Se reemplazó el Fragment unkeyed por contenedores con `key`s únicas y explícitas (`key={`pv-view-activas-${estadoFilter}-${vendedorFilter}-${salonFilter}-${currentPage}`}` y `key="pv-view-eliminadas"`), forzando a React a desmontar y montar limpiamente el árbol DOM al conmutar vistas.
+     - Se prefijaron las claves de las tarjetas para garantizar unicidad absoluta: `key={`pv-active-lead-${lead.id}`}` para activas y `key={`pv-deleted-lead-${lead.id}`}` para eliminadas.
+     - Se forzó `setVista('activas')` en todos los manejadores de clic de las tarjetas KPI (`MetricCardClean`).
+     - Se añadió exclusión defensiva `!item.deletedAt` tanto en `loadLeads` como en `filteredLeads`.
+  2. En `backend/src/controllers/posiblesVentasController.js`:
+     - Se aplicó subconsulta defensiva `AND NOT EXISTS (SELECT 1 FROM eventos e_sub WHERE e_sub.id = pv.evento_id)` en `LINKED_EVENT_JOIN` y `syncAllEstados`.
+  3. En `tests/posibles-ventas-filter-freeze.test.mjs`:
+     - Se incorporaron pruebas unitarias validando la exclusión de `deletedAt`, la presencia de keys de vista unívocas y los prefijos de tarjetas.
+- Validación: 181 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`), build de producción exitoso (versión `2.1.233`) y verificación funcional en navegador confirmando aislamiento total de vistas, desaparición inmediata de la tarjeta eliminada en `Ganada` y alternancia de filtros sin congelamiento.
+
+### Solución: Corrección de Congelamiento de Filtros por Duplicación de Filas y Eliminación del Botón Sincronizar en Eventos Asignados (`posiblesVentasController.js`, `PosiblesVentasModule.jsx`, `tests/posibles-ventas-filter-freeze.test.mjs`) (2026-10-20)
+- Requerimientos del usuario:
+  - Al alternar entre los filtros de estado (Pendiente → En proceso → Ganada → Perdida → Pendiente), la vista se congelaba o quedaba estancada, desincronizando la pestaña activa con los registros mostrados y forzando a recargar la página.
+  - El botón "Sincronizar" en la cabecera superior era innecesario, ya que el sistema actualiza en tiempo real vía WebSockets.
+- Causa raíz:
+  1. En `backend/src/controllers/posiblesVentasController.js`: `LINKED_EVENT_JOIN` realizaba `LEFT JOIN eventos e_direct ON ... OR e_direct.id_grupo = pv.evento_id ...`. En reservas de eventos multi-día o multi-slot (por ejemplo, el evento `evt_f23b5f8a` con 7 slots con el mismo `id_grupo`), la consulta multiplicaba las filas (el lead 58 se repetía 7 veces, el lead 32 dos veces, etc., inflando el total de prospectos de 83 reales a 91).
+  2. En `src/modules/posiblesVentas/PosiblesVentasModule.jsx`:
+     - Al renderizar `<div key={lead.id}>`, los IDs duplicados producían colisiones de claves en React (`Encountered two children with the same key`), corrompiendo el árbol fiber del reconciliador al conmutar entre filtros y provocando que el renderizado de la lista quedara atascado.
+     - La paginación conservaba un `currentPage` fuera de rango durante el cambio de pestaña antes de que el efecto reactivo lo corrigiera.
+- Solución:
+  1. En `backend/src/controllers/posiblesVentasController.js`:
+     - Se limpió `LINKED_EVENT_JOIN` para unir exclusivamente por el ID primario del evento o baseId (`e_direct.id = pv.evento_id OR e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)`), erradicando las uniones por `id_grupo` que duplicaban filas. La consulta ahora devuelve exactamente los 83 prospectos únicos.
+  2. En `src/modules/posiblesVentas/PosiblesVentasModule.jsx`:
+     - Se eliminó por completo el botón manual "Sincronizar" de la barra superior, confiando plenamente en la sincronización reactiva por WebSockets (`entity:changed`).
+     - Se añadió deduplicación defensiva en `loadLeads` utilizando un `Map` por ID.
+     - Se implementó acotación segura de página (`safePage = Math.min(Math.max(1, currentPage), totalPages)`) en `paginatedLeads`.
+     - Se forzó el reinicio síncrono a página 1 (`setCurrentPage(1)`) en los manejadores de clic de todas las pestañas y tarjetas KPI.
+  3. En `tests/posibles-ventas-filter-freeze.test.mjs`:
+     - Pruebas unitarias automatizadas validando la no duplicación en el controlador, la ausencia del botón Sincronizar, la deduplicación defensiva y la sincronización de página.
+- Validación: 181 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`), build de producción exitoso (versión `2.1.232`) y verificación funcional en navegador sin advertencias de React ni bloqueos.
+
+### Solución: Integración de Habitaciones Individuales en Comisiones por Vendedor y Conmutador Segmentado de Equipos (Vendedores vs Recepcionistas) (`ReportsComisiones.jsx`, `reports.css`, `tests/reports-comisiones-groups.test.mjs`) (2026-10-20)
+- Requerimiento del usuario:
+  - En el reporte "Desglose de ventas y comisiones por vendedor", permitir que la venta individual de habitaciones ingresadas desde el módulo de Habitaciones (`habitacion_reservas`) sume a las ventas y comisiones de los colaboradores correspondientes.
+  - Las habitaciones que formen parte de cotizaciones de eventos se mantienen intactas dentro del cálculo de eventos como hasta ahora, sin alterarlas ni mezclarlas.
+  - Ofrecer una diferenciación clara entre dos grupos de trabajo (Vendedores y Recepcionistas) mediante un control/filtro para visualizar las comisiones por equipo o de forma global.
+- Solución:
+  1. En `src/modules/reports/ReportsComisiones.jsx`:
+     - Se incorporó la consulta de `habitacion_reservas` (`getHabitacionesApi`) y `equipos_trabajo` (`getEquipos`).
+     - Se respetó la lógica existente de eventos y cotizaciones: las habitaciones empaquetadas en cotizaciones de eventos se procesan fielmente como parte de `events`.
+     - Para las reservas de hotel independientes (`habitacion_reservas`), se filtran por fecha de check-in dentro del rango temporal seleccionado y por estados válidos de liquidación (`Confirmada`, `En Casa`, `Completada`).
+     - Se acumulan los montos de habitaciones por `id_vendedor`, sumándose de manera transparente al `salesAmount` total de cada colaborador para el cálculo de su escala de comisiones.
+     - En la tabla de comisiones, la columna de ventas totales muestra el monto consolidado y, si el vendedor registra ventas de habitaciones, despliega debajo un desglose discreto en texto mate (`Eventos: Q ... · Hab: Q ...`).
+     - Se implementó un control segmentado en el toolbar: `[Todos]`, `[Vendedores]` y `[Recepcionistas]`, sincronizado reactivamente con el dropdown `MultiSelect` de colaboradores, las tarjetas de KPI, el gráfico comparativo, la tabla detallada y las exportaciones a PDF y Excel.
+     - Solo se muestran colaboradores con escalas de comisiones configuradas (`goalTiers.length > 0`), manteniendo el reporte limpio y libre de usuarios inactivos o sin metas.
+  2. En `src/modules/reports/reports.css`:
+     - Se crearon las clases `.comisiones-segmented-container`, `.comisiones-segmented-btn` y sus variantes activas con paletas mate sobrias (Azul para Todos, Verde Esmeralda para Vendedores y Violeta para Recepción).
+  3. En `tests/reports-comisiones-groups.test.mjs`:
+     - Pruebas unitarias automatizadas verificando la integración de la API de habitaciones, el filtro de estados, el cálculo de ventas consolidado y la presencia del conmutador segmentado.
+- Validación: 179 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.228`).
+
 ### Solución: Auto-Migración de Propinas, Blindaje Defensivo en updateEventQuote y Desacoplamiento de Guardado de Cotizaciones contra Falsos Conflictos 409 (`server.cjs`, `eventsController.js`, `eventService.js`, `quote-save-conflict-guard.test.mjs`) (2026-10-14)
 - Requerimiento del usuario:
   - Al editar una cotización y agregar o modificar únicamente el "No. Folio" en Datos de Empresa (sin alterar fechas ni salones), el sistema arrojaba el error: `HTTP 409 Conflict: "La modificación desvincula fechas o salones con informes de evento activos"`, impidiendo guardar la cotización.

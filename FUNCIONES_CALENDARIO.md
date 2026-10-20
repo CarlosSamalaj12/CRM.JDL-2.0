@@ -314,5 +314,5 @@ const FALLBACK_MAX_PAX_PER_SLOT = 2000;   // PAX máximo por defecto
 
 ---
 
-*Documento generado para参考 durante la migración a React*
+*Documento generado para JDL durante la migración a React*
 *Última actualización: Mayo 2026*

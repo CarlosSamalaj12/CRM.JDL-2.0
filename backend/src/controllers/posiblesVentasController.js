@@ -121,18 +121,24 @@ const LINKED_EVENT_SELECT = `
   ) AS linked_cotizacion_en
 `;
 
-/** Para el listado principal: une con la tabla eventos y tbl_seguimientocotizaciones si existe. */
+/** Para el listado principal: une con la tabla eventos y tbl_seguimientocotizaciones si existe.
+ * NOTA CRÍTICA: Se une exclusivamente por el id primario (o baseId sin sufijo _s) para evitar
+ * duplicación de filas en eventos multi-día/multi-slot que comparten id_grupo. */
 const LINKED_EVENT_JOIN = `
   LEFT JOIN eventos e_direct
     ON e_direct.id = pv.evento_id
-    OR e_direct.id_grupo = pv.evento_id
-    OR e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
-    OR e_direct.id_grupo = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+    OR (
+      e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+      AND NOT EXISTS (SELECT 1 FROM eventos e_sub WHERE e_sub.id = pv.evento_id)
+    )
   LEFT JOIN usuarios u_direct
     ON u_direct.id = e_direct.id_usuario
   LEFT JOIN tbl_seguimientocotizaciones ev
     ON ev.Idocupacion = pv.evento_id
-    OR ev.Idocupacion = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+    OR (
+      ev.Idocupacion = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+      AND NOT EXISTS (SELECT 1 FROM tbl_seguimientocotizaciones ev_sub WHERE ev_sub.Idocupacion = pv.evento_id)
+    )
   LEFT JOIN usuarios u_legacy
     ON TRIM(u_legacy.nombre) = TRIM(ev.Vendedor)
 `;
@@ -283,10 +289,16 @@ export async function syncAllEstados({ onlyIds = null } = {}) {
          FROM posibles_ventas pv
          LEFT JOIN eventos e_direct
            ON e_direct.id = pv.evento_id
-           OR e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+           OR (
+             e_direct.id = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+             AND NOT EXISTS (SELECT 1 FROM eventos e_sub WHERE e_sub.id = pv.evento_id)
+           )
          LEFT JOIN tbl_seguimientocotizaciones ev
            ON ev.Idocupacion = pv.evento_id
-           OR ev.Idocupacion = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+           OR (
+             ev.Idocupacion = SUBSTRING_INDEX(pv.evento_id, '_s', 1)
+             AND NOT EXISTS (SELECT 1 FROM tbl_seguimientocotizaciones ev_sub WHERE ev_sub.Idocupacion = pv.evento_id)
+           )
          ${where}`,
       onlyIds && onlyIds.length ? onlyIds : []
     );

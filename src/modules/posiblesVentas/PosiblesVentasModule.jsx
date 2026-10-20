@@ -1181,7 +1181,15 @@ export default function PosiblesVentasModule() {
     setLoading(true);
     try {
       const data = await api.get('/api/posibles-ventas');
-      setLeads(Array.isArray(data) ? data : []);
+      const raw = Array.isArray(data) ? data : [];
+      // Garantizar unicidad defensiva por ID y exclusión estricta de eliminadas
+      const map = new Map();
+      for (const item of raw) {
+        if (item && item.id && !item.deletedAt && !map.has(item.id)) {
+          map.set(item.id, item);
+        }
+      }
+      setLeads([...map.values()]);
     } catch (err) {
       console.error('Error cargando posibles ventas:', err);
       toast.error('No se pudieron cargar las posibles ventas');
@@ -1194,7 +1202,14 @@ export default function PosiblesVentasModule() {
     setLoadingEliminadas(true);
     try {
       const data = await api.get('/api/posibles-ventas/eliminadas');
-      setEliminadas(Array.isArray(data) ? data : []);
+      const raw = Array.isArray(data) ? data : [];
+      const map = new Map();
+      for (const item of raw) {
+        if (item && item.id && !map.has(item.id)) {
+          map.set(item.id, item);
+        }
+      }
+      setEliminadas([...map.values()]);
     } catch (err) {
       console.error('Error cargando posibles ventas eliminadas:', err);
       await swalError('No se pudieron cargar las eliminadas', err.message || 'Error inesperado.');
@@ -1371,7 +1386,7 @@ export default function PosiblesVentasModule() {
   }, [leads, vendedorFilter, currentUser?.id]);
 
   const filteredLeads = useMemo(() => {
-    let items = leadsForVendorFilter;
+    let items = leadsForVendorFilter.filter(l => !l.deletedAt);
     if (estadoFilter === 'sin_seguimiento') {
       items = items.filter(l => !l.ultimoSeguimientoEn);
     } else if (estadoFilter !== 'all') {
@@ -1404,9 +1419,10 @@ export default function PosiblesVentasModule() {
   }, [estadoFilter, vendedorFilter, salonFilter, search]);
 
   const paginatedLeads = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
+    const safePage = Math.min(Math.max(1, currentPage), totalPages);
+    const start = (safePage - 1) * pageSize;
     return filteredLeads.slice(start, start + pageSize);
-  }, [filteredLeads, currentPage, pageSize]);
+  }, [filteredLeads, currentPage, pageSize, totalPages]);
 
   const exportToExcel = async () => {
     try {
@@ -1688,11 +1704,6 @@ export default function PosiblesVentasModule() {
                   borderRadius: '8px',
                   fontWeight: 600,
                   fontSize: '12.5px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                   transition: 'all 0.12s',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
@@ -1700,31 +1711,6 @@ export default function PosiblesVentasModule() {
               >
                 <Icon name="download" size={14} color="#64748b" strokeWidth={2.2} />
                 Exportar
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSync}
-                style={{
-                  background: '#ffffff',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  padding: '7px 14px',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '12.5px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                  transition: 'all 0.12s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-              >
-                <Icon name="refresh" size={14} color="#64748b" strokeWidth={2.2} />
-                Sincronizar
               </button>
 
               {canCreate && (
@@ -1763,7 +1749,7 @@ export default function PosiblesVentasModule() {
               value={stats.total}
               pill={stats.sinSeguimiento > 0 ? { text: `${stats.sinSeguimiento} s/seg`, bg: '#fef3c7', color: '#b45309' } : null}
               active={estadoFilter === 'all'}
-              onClick={() => setEstadoFilter('all')}
+              onClick={() => { setVista('activas'); setEstadoFilter('all'); setCurrentPage(1); }}
             />
             <MetricCardClean
               label="PENDIENTE"
@@ -1771,7 +1757,7 @@ export default function PosiblesVentasModule() {
               subtitle={`${stats.pctOf('pendiente')}%`}
               dotColor="#f59e0b"
               active={estadoFilter === 'pendiente'}
-              onClick={() => setEstadoFilter('pendiente')}
+              onClick={() => { setVista('activas'); setEstadoFilter('pendiente'); setCurrentPage(1); }}
             />
             <MetricCardClean
               label="EN PROCESO"
@@ -1779,7 +1765,7 @@ export default function PosiblesVentasModule() {
               subtitle={{ text: `${stats.pctOf('en_proceso')}%`, color: '#2563eb' }}
               dotColor="#3b82f6"
               active={estadoFilter === 'en_proceso'}
-              onClick={() => setEstadoFilter('en_proceso')}
+              onClick={() => { setVista('activas'); setEstadoFilter('en_proceso'); setCurrentPage(1); }}
             />
             <MetricCardClean
               label="GANADA"
@@ -1787,7 +1773,7 @@ export default function PosiblesVentasModule() {
               subtitle={`${stats.pctOf('ganada')}%`}
               dotColor="#10b981"
               active={estadoFilter === 'ganada'}
-              onClick={() => setEstadoFilter('ganada')}
+              onClick={() => { setVista('activas'); setEstadoFilter('ganada'); setCurrentPage(1); }}
             />
             <MetricCardClean
               label="PERDIDA"
@@ -1795,7 +1781,7 @@ export default function PosiblesVentasModule() {
               subtitle={`${stats.pctOf('perdida')}%`}
               dotColor="#ef4444"
               active={estadoFilter === 'perdida'}
-              onClick={() => setEstadoFilter('perdida')}
+              onClick={() => { setVista('activas'); setEstadoFilter('perdida'); setCurrentPage(1); }}
             />
             <MetricCardClean
               label="CONVERSIÓN"
@@ -1814,7 +1800,7 @@ export default function PosiblesVentasModule() {
               dotColor="#e11d48"
               isAttention={stats.sinSeguimiento > 0}
               active={estadoFilter === 'sin_seguimiento'}
-              onClick={() => setEstadoFilter(f => f === 'sin_seguimiento' ? 'all' : 'sin_seguimiento')}
+              onClick={() => { setVista('activas'); setEstadoFilter(f => f === 'sin_seguimiento' ? 'all' : 'sin_seguimiento'); setCurrentPage(1); }}
             />
           </div>
         )}
@@ -1826,7 +1812,7 @@ export default function PosiblesVentasModule() {
             <div className="pv-status-tabs-track">
               <button
                 type="button"
-                onClick={() => { setVista('activas'); setEstadoFilter('all'); }}
+                onClick={() => { setVista('activas'); setEstadoFilter('all'); setCurrentPage(1); }}
                 style={{
                   padding: '5px 12px',
                   borderRadius: '999px',
@@ -1863,7 +1849,7 @@ export default function PosiblesVentasModule() {
                   <button
                     key={e.key}
                     type="button"
-                    onClick={() => { setVista('activas'); setEstadoFilter(e.key); }}
+                    onClick={() => { setVista('activas'); setEstadoFilter(e.key); setCurrentPage(1); }}
                     style={{
                       padding: '5px 12px',
                       borderRadius: '999px',
@@ -1898,7 +1884,7 @@ export default function PosiblesVentasModule() {
               {isAdmin && (
                 <button
                   type="button"
-                  onClick={() => setVista(v => v === 'eliminadas' ? 'activas' : 'eliminadas')}
+                  onClick={() => { setVista(v => v === 'eliminadas' ? 'activas' : 'eliminadas'); setCurrentPage(1); }}
                   style={{
                     padding: '5px 12px',
                     borderRadius: '999px',
@@ -2112,14 +2098,14 @@ export default function PosiblesVentasModule() {
         <div className="pv-leads-scroll-container">
           {vista === 'activas' ? (
             loading ? (
-              <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
+              <div key="pv-loading" style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
                 <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
                   <Icon name="loader" size={32} color="#94a3b8" className="pv-spin" strokeWidth={2} />
                 </div>
                 <div>Cargando eventos asignados...</div>
               </div>
             ) : filteredLeads.length === 0 ? (
-              <div style={{
+              <div key="pv-empty" style={{
                 textAlign: 'center', color: '#94a3b8', padding: '50px 20px',
                 border: '2px dashed #cbd5e1', borderRadius: '14px', background: '#ffffff',
               }}>
@@ -2136,19 +2122,22 @@ export default function PosiblesVentasModule() {
                 )}
               </div>
             ) : (
-              <>
-                <div style={layoutMode === 'grid' ? {
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))',
-                  gap: '12px',
-                } : {
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                }}>
+              <div key={`pv-view-activas-${estadoFilter}-${vendedorFilter}-${salonFilter}-${currentPage}`}>
+                <div
+                  key={`pv-grid-mode-${layoutMode}`}
+                  style={layoutMode === 'grid' ? {
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))',
+                    gap: '12px',
+                  } : {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
                   {paginatedLeads.map(lead => (
                     <div
-                      key={lead.id}
+                      key={`pv-active-lead-${lead.id}`}
                       id={`pv-lead-${lead.id}`}
                       style={{
                         borderRadius: '12px',
@@ -2188,7 +2177,7 @@ export default function PosiblesVentasModule() {
 
                 {/* ── FOOTER DE PAGINACIÓN ── */}
                 {totalLeadsCount > 0 && (
-                  <div style={{
+                  <div key="pv-pagination-footer" style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -2227,7 +2216,7 @@ export default function PosiblesVentasModule() {
 
                         {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                           <button
-                            key={page}
+                            key={`pv-page-${page}`}
                             type="button"
                             onClick={() => setCurrentPage(page)}
                             style={{
@@ -2272,19 +2261,19 @@ export default function PosiblesVentasModule() {
                     )}
                   </div>
                 )}
-              </>
+              </div>
             )
           ) : (
             /* Vista eliminadas */
             loadingEliminadas ? (
-              <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
+              <div key="pv-loading-eliminadas" style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>
                 <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
                   <Icon name="loader" size={32} color="#94a3b8" className="pv-spin" strokeWidth={2} />
                 </div>
                 <div>Cargando eventos eliminados...</div>
               </div>
             ) : eliminadas.length === 0 ? (
-              <div style={{
+              <div key="pv-empty-eliminadas" style={{
                 textAlign: 'center', color: '#94a3b8', padding: '50px 20px',
                 border: '2px dashed #fecaca', borderRadius: '14px', background: '#ffffff',
               }}>
@@ -2299,7 +2288,7 @@ export default function PosiblesVentasModule() {
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div key="pv-view-eliminadas" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {eliminadas
                   .filter(l => {
                     if (!search) return true;
@@ -2314,7 +2303,7 @@ export default function PosiblesVentasModule() {
                   })
                   .map(lead => (
                     <DeletedLeadCard
-                      key={lead.id}
+                      key={`pv-deleted-lead-${lead.id}`}
                       lead={lead}
                       restoring={restoringId === lead.id}
                       onRestore={() => handleRestore(lead)}
