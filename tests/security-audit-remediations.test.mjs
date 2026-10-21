@@ -45,11 +45,19 @@ test('Seguridad: Endpoints críticos de estado y empresas están protegidos con 
   assert.ok(serverContent.includes('app.get("/api/anticipos/:id/evidencia", authenticateJWT'), 'server.cjs debe proteger evidencia con authenticateJWT');
 });
 
-test('Seguridad: Renderizado de impresión aplica Content Security Policy estricto', () => {
+test('Seguridad: Renderizado de impresión aplica Content Security Policy estricto y permite impresión', () => {
   const serverContent = fs.readFileSync(path.resolve('server.cjs'), 'utf-8');
   assert.ok(serverContent.includes("app.post(\"/api/print/prepare\", authenticateJWT"), 'server.cjs debe proteger POST /api/print/prepare');
   assert.ok(serverContent.includes("Content-Security-Policy"), 'server.cjs debe emitir Content-Security-Policy en render/:id');
   assert.ok(serverContent.includes("default-src 'none'"), 'CSP debe bloquear default-src con none');
+  assert.ok(serverContent.includes("script-src 'unsafe-inline'"), 'CSP debe permitir scripts para ejecutar window.print()');
+
+  const printUtilsContent = fs.readFileSync(path.resolve('src/utils/printUtils.js'), 'utf-8');
+  assert.ok(printUtilsContent.includes('class="print-toolbar-sticky"'), 'printUtils.js debe incluir la barra superior sticky de impresión');
+  assert.ok(printUtilsContent.includes('id="btnPrintTop"'), 'printUtils.js debe incluir el botón superior de imprimir');
+  assert.ok(printUtilsContent.includes('id="btnPrintBottom"'), 'printUtils.js debe incluir el botón inferior de imprimir');
+  assert.ok(printUtilsContent.includes('window.print()'), 'printUtils.js debe invocar window.print');
+  assert.ok(printUtilsContent.includes('.print-toolbar-sticky, .actions{ display:none !important; }'), 'printUtils.js debe ocultar controles al imprimir');
 });
 
 test('Seguridad: Autenticación Firebase en backend valida idToken criptográficamente', () => {

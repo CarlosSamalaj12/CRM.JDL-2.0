@@ -26,11 +26,15 @@ test('ReportsVentasHabitaciones.jsx implementa la arquitectura Bento de 5 bloque
   assert.ok(code.includes('Ticket Promedio / Noche'), 'Debe incluir la KPI de Ticket Promedio / Noche');
   assert.ok(code.includes('100% cobrado'), 'Debe incluir el badge de cobro');
 
-  // 3. Barra de 4 Filtros Bento
+  // 3. Barra de 5 Filtros Bento con Rango de Fechas
   assert.ok(code.includes('className="rhab-filters-card"'), 'Debe tener la tarjeta rhab-filters-card');
-  assert.ok(code.includes('className="rhab-month-picker-wrap"'), 'Debe incluir el selector Bento de período fiscal');
-  assert.ok(code.includes('className="rhab-month-native-input"'), 'Debe incluir el input nativo transparente para selección ágil de mes');
-  assert.ok(code.includes('formatMonthLabel'), 'Debe formatear el mes a español legible');
+  assert.ok(code.includes('Fecha Inicial'), 'Debe incluir el label de Fecha Inicial');
+  assert.ok(code.includes('Fecha Final'), 'Debe incluir el label de Fecha Final');
+  assert.ok(code.includes('className="rhab-date-input"'), 'Debe usar input con clase rhab-date-input');
+  assert.ok(code.includes('handleFechaInicioChange'), 'Debe incluir manejador handleFechaInicioChange');
+  assert.ok(code.includes('handleFechaFinChange'), 'Debe incluir manejador handleFechaFinChange');
+  assert.ok(code.includes('desde: fechaInicio'), 'Debe enviar parámetro desde a getHabitacionesApi');
+  assert.ok(code.includes('hasta: fechaFin'), 'Debe enviar parámetro hasta a getHabitacionesApi');
   assert.ok(code.includes('className="rhab-search-wrap"'), 'Debe incluir contenedor de búsqueda rápida');
   assert.ok(code.includes('className="rhab-search-clear"'), 'Debe incluir botón para limpiar búsqueda');
 
@@ -62,6 +66,8 @@ test('reports.css contiene estilos dedicados y blindaje de especificidad para el
   assert.ok(css.includes('.rhab-header-card'), 'reports.css debe definir .rhab-header-card');
   assert.ok(css.includes('.rhab-kpi-grid'), 'reports.css debe definir .rhab-kpi-grid');
   assert.ok(css.includes('.rhab-filters-card'), 'reports.css debe definir .rhab-filters-card');
+  assert.ok(css.includes('input.rhab-date-input'), 'reports.css debe definir input.rhab-date-input');
+  assert.ok(css.includes('body:not(.informes-theme) input[type="date"].rhab-date-input'), 'Debe blindar input.rhab-date-input con body:not(.informes-theme)');
   assert.ok(css.includes('.rhab-split-grid'), 'reports.css debe definir .rhab-split-grid');
   assert.ok(css.includes('.rhab-table-card'), 'reports.css debe definir .rhab-table-card');
 
@@ -96,4 +102,25 @@ test('ReportsVentasHabitaciones.jsx genera exportación Excel institucional idé
   assert.ok(code.includes('document.body.appendChild(downloadAnchor)'), 'Debe adjuntar enlace de descarga al DOM para compatibilidad');
   assert.ok(code.includes("import('xlsx')"), 'Debe proveer fallback de respaldo con XLSX');
 });
+
+test('ReportsVentasHabitaciones.jsx aplica validaciones interactivas min/max y auto-ajuste de fechas', () => {
+  const compPath = path.join(projectRoot, 'src', 'modules', 'reports', 'ReportsVentasHabitaciones.jsx');
+  const code = fs.readFileSync(compPath, 'utf8');
+
+  // Restricciones min/max en los inputs
+  assert.ok(code.includes('max={fechaFin || undefined}'), 'Fecha inicial debe restringirse con max={fechaFin}');
+  assert.ok(code.includes('min={fechaInicio || undefined}'), 'Fecha final debe restringirse con min={fechaInicio}');
+
+  // Auto-ajuste cuando fecha inicial > fecha final
+  assert.ok(code.includes('if (val && fechaFin && val > fechaFin)'), 'handleFechaInicioChange debe validar si val > fechaFin');
+  assert.ok(code.includes('setFechaFin(val)'), 'handleFechaInicioChange debe auto-ajustar fechaFin');
+
+  // Auto-ajuste cuando fecha final < fecha inicial
+  assert.ok(code.includes('if (val && fechaInicio && val < fechaInicio)'), 'handleFechaFinChange debe validar si val < fechaInicio');
+  assert.ok(code.includes('setFechaInicio(val)'), 'handleFechaFinChange debe auto-ajustar fechaInicio');
+
+  // Inicialización por defecto en mes actual
+  assert.ok(code.includes('getInitialDates'), 'Debe calcular fechas iniciales basadas en el mes en curso');
+});
+
 

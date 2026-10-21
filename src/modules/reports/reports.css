@@ -6256,7 +6256,7 @@ button.rhab-btn-excel:hover {
   border-radius: 16px;
   padding: 16px 20px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
   align-items: flex-end;
@@ -6275,6 +6275,55 @@ button.rhab-btn-excel:hover {
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+body:not(.informes-theme) input[type="date"].rhab-date-input,
+body:not(.informes-theme) input.rhab-date-input,
+input[type="date"].rhab-date-input,
+input.rhab-date-input {
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  cursor: pointer !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  font-family: inherit !important;
+}
+
+body:not(.informes-theme) input[type="date"].rhab-date-input:hover,
+body:not(.informes-theme) input.rhab-date-input:hover,
+input[type="date"].rhab-date-input:hover,
+input.rhab-date-input:hover {
+  border-color: #94a3b8 !important;
+}
+
+body:not(.informes-theme) input[type="date"].rhab-date-input:focus,
+body:not(.informes-theme) input.rhab-date-input:focus,
+input[type="date"].rhab-date-input:focus,
+input.rhab-date-input:focus {
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12) !important;
+}
+
+body:not(.informes-theme) input[type="date"].rhab-date-input::-webkit-calendar-picker-indicator,
+input[type="date"].rhab-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer !important;
+  opacity: 0.65 !important;
+  transition: opacity 0.15s ease !important;
+}
+
+body:not(.informes-theme) input[type="date"].rhab-date-input::-webkit-calendar-picker-indicator:hover,
+input[type="date"].rhab-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1 !important;
 }
 
 .rhab-month-picker-wrap {

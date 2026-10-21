@@ -6057,7 +6057,10 @@ app.get("/api/print/render/:id", (req, res) => {
     `);
   }
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline' https:; img-src data: https:; font-src https: data:;");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'none'; script-src 'unsafe-inline' 'self' 'unsafe-eval'; style-src 'unsafe-inline' https: http:; img-src 'self' data: blob: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: ws: wss:;"
+  );
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   return res.send(item.html);

@@ -21,13 +21,43 @@ import { toast } from '../../utils/toast';
 import './reports.css';
 
 export default function ReportsVentasHabitaciones({ onClose }) {
-  const today = new Date();
-  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  // Fechas iniciales por defecto: mes en curso
+  const getInitialDates = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return {
+      desde: toISO(start),
+      hasta: toISO(end)
+    };
+  };
 
-  const [mes, setMes] = useState(currentMonth);
+  const initialDates = getInitialDates();
+  const [fechaInicio, setFechaInicio] = useState(initialDates.desde);
+  const [fechaFin, setFechaFin] = useState(initialDates.hasta);
   const [vendedorFilter, setVendedorFilter] = useState('');
   const [tipoHabFilter, setTipoHabFilter] = useState('');
   const [search, setSearch] = useState('');
+
+  // Validación interactiva con auto-ajuste de rango de fechas
+  const handleFechaInicioChange = (val) => {
+    setFechaInicio(val);
+    setCurrentPage(1);
+    if (val && fechaFin && val > fechaFin) {
+      setFechaFin(val);
+    }
+  };
+
+  const handleFechaFinChange = (val) => {
+    setFechaFin(val);
+    setCurrentPage(1);
+    if (val && fechaInicio && val < fechaInicio) {
+      setFechaInicio(val);
+    }
+  };
 
   const [reservas, setReservas] = useState([]);
   const [metricas, setMetricas] = useState({
@@ -45,16 +75,14 @@ export default function ReportsVentasHabitaciones({ onClose }) {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  // Formateador de mes legible estilo "octubre de 2026"
-  const formatMonthLabel = (mesStr) => {
-    if (!mesStr) return 'Todos los períodos';
+  // Formateador de fechas legible estilo "01/10/2026"
+  const formatDateDisplay = (dateStr) => {
+    if (!dateStr) return '';
     try {
-      const [year, month] = mesStr.split('-');
-      const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
-      const monthName = date.toLocaleDateString('es-GT', { month: 'long' });
-      return `${monthName} de ${year}`;
+      const [year, month, day] = dateStr.split('-');
+      return `${day}/${month}/${year}`;
     } catch {
-      return mesStr;
+      return dateStr;
     }
   };
 
@@ -73,7 +101,8 @@ export default function ReportsVentasHabitaciones({ onClose }) {
     try {
       const [res, tiposData, stateData] = await Promise.all([
         getHabitacionesApi({
-          mes: mes || undefined,
+          desde: fechaInicio || undefined,
+          hasta: fechaFin || undefined,
           vendedor: vendedorFilter || undefined,
           tipo_habitacion: tipoHabFilter || undefined,
           search: search.trim() || undefined
@@ -102,7 +131,7 @@ export default function ReportsVentasHabitaciones({ onClose }) {
     } finally {
       setLoading(false);
     }
-  }, [mes, vendedorFilter, tipoHabFilter, search]);
+  }, [fechaInicio, fechaFin, vendedorFilter, tipoHabFilter, search]);
 
   useEffect(() => {
     fetchData();
@@ -185,7 +214,9 @@ export default function ReportsVentasHabitaciones({ onClose }) {
       const subCell = worksheet.getCell('A2');
 
       const filterSegments = [];
-      if (mes) filterSegments.push(`Período: ${formatMonthLabel(mes)}`);
+      if (fechaInicio || fechaFin) {
+        filterSegments.push(`Rango: ${formatDateDisplay(fechaInicio) || 'Inicio'} al ${formatDateDisplay(fechaFin) || 'Fin'}`);
+      }
       if (vendedorFilter) {
         const selObj = sellers.find(s => String(s.id) === String(vendedorFilter));
         filterSegments.push(`Vendedor: ${selObj?.name || vendedorFilter}`);
@@ -438,7 +469,8 @@ export default function ReportsVentasHabitaciones({ onClose }) {
       const downloadUrl = window.URL.createObjectURL(blob);
       const downloadAnchor = document.createElement('a');
       downloadAnchor.href = downloadUrl;
-      downloadAnchor.download = `Reporte_Ventas_Habitaciones_${mes || nowStr}.xlsx`;
+      const fileRangeSuffix = fechaInicio && fechaFin ? `${fechaInicio}_al_${fechaFin}` : (fechaInicio || fechaFin || nowStr);
+      downloadAnchor.download = `Reporte_Ventas_Habitaciones_${fileRangeSuffix}.xlsx`;
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       document.body.removeChild(downloadAnchor);
@@ -467,7 +499,8 @@ export default function ReportsVentasHabitaciones({ onClose }) {
         const ws = XLSX.utils.json_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Ventas de Habitaciones');
-        XLSX.writeFile(wb, `Reporte_Ventas_Habitaciones_${mes || nowStr}.xlsx`);
+        const fileRangeSuffix = fechaInicio && fechaFin ? `${fechaInicio}_al_${fechaFin}` : (fechaInicio || fechaFin || nowStr);
+        XLSX.writeFile(wb, `Reporte_Ventas_Habitaciones_${fileRangeSuffix}.xlsx`);
         toast.success('Reporte exportado exitosamente a Excel');
       } catch (fallbackErr) {
         console.error('Error generando archivo Excel fallback:', fallbackErr);
@@ -598,31 +631,35 @@ export default function ReportsVentasHabitaciones({ onClose }) {
         </div>
       </div>
 
-      {/* 3. Barra de Filtros Bento (4 Columnas) */}
+      {/* 3. Barra de Filtros Bento (5 Columnas) */}
       <div className="rhab-filters-card">
-        {/* Columna 1: Período Fiscal */}
+        {/* Columna 1: Fecha Inicial */}
         <div className="rhab-filter-group">
-          <label className="rhab-filter-label">Período Fiscal</label>
-          <div className="rhab-month-picker-wrap">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <Calendar size={16} color="#64748b" style={{ flexShrink: 0 }} />
-              <span className="rhab-month-picker-text">{formatMonthLabel(mes)}</span>
-            </div>
-            <ChevronsUpDown size={15} color="#94a3b8" style={{ flexShrink: 0 }} />
-            <input
-              type="month"
-              className="rhab-month-native-input"
-              value={mes}
-              onChange={e => {
-                setMes(e.target.value);
-                setCurrentPage(1);
-              }}
-              title="Seleccionar mes y año"
-            />
-          </div>
+          <label className="rhab-filter-label">Fecha Inicial</label>
+          <input
+            type="date"
+            className="rhab-date-input"
+            value={fechaInicio}
+            max={fechaFin || undefined}
+            onChange={e => handleFechaInicioChange(e.target.value)}
+            title="Seleccionar fecha inicial"
+          />
         </div>
 
-        {/* Columna 2: Vendedor */}
+        {/* Columna 2: Fecha Final */}
+        <div className="rhab-filter-group">
+          <label className="rhab-filter-label">Fecha Final</label>
+          <input
+            type="date"
+            className="rhab-date-input"
+            value={fechaFin}
+            min={fechaInicio || undefined}
+            onChange={e => handleFechaFinChange(e.target.value)}
+            title="Seleccionar fecha final"
+          />
+        </div>
+
+        {/* Columna 3: Vendedor */}
         <div className="rhab-filter-group">
           <label className="rhab-filter-label">Vendedor</label>
           <select
@@ -640,7 +677,7 @@ export default function ReportsVentasHabitaciones({ onClose }) {
           </select>
         </div>
 
-        {/* Columna 3: Tipo de Habitación */}
+        {/* Columna 4: Tipo de Habitación */}
         <div className="rhab-filter-group">
           <label className="rhab-filter-label">Tipo de Habitación</label>
           <select
@@ -658,7 +695,7 @@ export default function ReportsVentasHabitaciones({ onClose }) {
           </select>
         </div>
 
-        {/* Columna 4: Búsqueda Rápida */}
+        {/* Columna 5: Búsqueda Rápida */}
         <div className="rhab-filter-group">
           <label className="rhab-filter-label">Búsqueda Rápida</label>
           <div className="rhab-search-wrap">

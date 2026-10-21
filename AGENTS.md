@@ -32,6 +32,48 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Corrección del Botón Imprimir en Vista Previa de Cotizaciones y Adición de Sticky Toolbar con Auto-Apertura (`server.cjs`, `printUtils.js`, `tests/security-audit-remediations.test.mjs`) (2026-10-21)
+- Requerimiento del usuario:
+  - Al generar la cotización, el botón "Imprimir" ubicado al pie del documento no funcionaba al presionarlo (no abría la ventana de impresión ni el cuadro de diálogo del navegador).
+- Causa raíz:
+  - En `server.cjs`, el endpoint `GET /api/print/render/:id` emitía una cabecera `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline' https:; img-src data: https:; font-src https: data:;`.
+  - Al carecer de la directiva `script-src` y tener `default-src 'none'`, el navegador bloqueaba estrictamente cualquier script o manejador en línea (`onclick="window.print()"`), ignorando el clic del usuario.
+  - Además, para documentos extensos con contratos y cláusulas, el usuario debía desplazarse hasta el final para encontrar el botón.
+- Solución:
+  1. En `server.cjs`:
+     - Se actualizó la cabecera CSP en `/api/print/render/:id` para incluir `script-src 'unsafe-inline';`, permitiendo la ejecución de `window.print()` y scripts de interfaz autorizados manteniendo el bloqueo de orígenes no permitidos (`default-src 'none'`).
+  2. En `src/utils/printUtils.js`:
+     - Se diseñó e implementó una barra superior fija institucional (`.print-toolbar-sticky`) visible en todo momento durante el scroll, con identificación de cotización, botón institucional **"🖨️ Imprimir / Guardar como PDF"** (`#btnPrintTop`) y botón de **"✕ Cerrar"** (`#btnCloseTop`).
+     - Se actualizó el botón inferior `#btnPrintBottom` en `.actions`.
+     - Se incorporó un bloque `<script>` que asocia los manejadores `addEventListener` a los botones y dispara la auto-apertura asistida de `window.print()` tras 500 ms de completarse la carga de imágenes y estilos.
+     - Se configuró la regla `@media print { .print-toolbar-sticky, .actions { display: none !important; } }` para asegurar que ningún botón de acción aparezca en el PDF ni en la hoja impresa.
+  3. En `tests/security-audit-remediations.test.mjs`:
+     - Se actualizaron las pruebas unitarias para validar que el CSP permite `script-src 'unsafe-inline'`, que se incluye la barra sticky y que se ocultan los controles en `@media print`.
+- Validación: 182 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.237`).
+
+### Solución: Sustitución de Período Fiscal por Rango de Fechas (Fecha Inicial y Fecha Final) con Validación Interactiva y Auto-Ajuste en Reporte de Ventas de Habitaciones (`ReportsVentasHabitaciones.jsx`, `reports.css`, `tests/reports-ventas-habitaciones.test.mjs`) (2026-10-21)
+- Requerimiento del usuario:
+  - En el apartado de reporte de ventas de habitaciones, reemplazar el filtro estático/rígido de "Período Fiscal" por la opción de escoger libremente en qué rango de fechas buscar.
+  - Implementar validaciones para que la fecha inicial no sea inconsistente respecto a la fecha final.
+- Causa raíz:
+  - El filtro utilizaba un input nativo `<input type="month">` transparente superpuesto que no permitía una selección flexible de fechas arbitrarias ni selecciones multi-mes/días exactos.
+  - El backend ya disponía de soporte para `desde` y `hasta`, pero el módulo de frontend enviaba exclusivamente el parámetro `mes`.
+- Solución:
+  1. En `src/modules/reports/ReportsVentasHabitaciones.jsx`:
+     - Se reemplazó el estado de `mes` por `fechaInicio` y `fechaFin`, inicializados por defecto en el primer y último día del mes en curso.
+     - Se implementaron los manejadores `handleFechaInicioChange` y `handleFechaFinChange` con validación interactiva y auto-ajuste:
+       - Si la fecha inicial seleccionada es mayor a la final, la final se auto-ajusta a dicha fecha inicial.
+       - Si la fecha final seleccionada es menor a la inicial, la inicial se auto-ajusta a dicha fecha final.
+       - Restricción visual de selección mediante `max={fechaFin}` y `min={fechaInicio}`.
+     - Se conectaron los parámetros `desde: fechaInicio` y `hasta: fechaFin` a `getHabitacionesApi`.
+     - Se actualizó la exportación institucional a Excel para reflejar el rango seleccionado tanto en los metadatos de la hoja como en el nombre de archivo descargado (`Reporte_Ventas_Habitaciones_${fechaInicio}_al_${fechaFin}.xlsx`).
+  2. En `src/modules/reports/reports.css`:
+     - Se reconfiguró `.rhab-filters-card` con `grid-template-columns: repeat(5, minmax(0, 1fr))` para albergar simétricamente Fecha Inicial, Fecha Final, Vendedor, Tipo de Habitación y Búsqueda Rápida.
+     - Se crearon las reglas blindadas con especificidad `body:not(.informes-theme) input[type="date"].rhab-date-input` con acabado Bento, altura de 40px y foco temático verde esmeralda.
+  3. En `tests/reports-ventas-habitaciones.test.mjs`:
+     - Se actualizaron las pruebas unitarias y se incorporó un test específico validando las restricciones `min`/`max`, los manejadores de auto-ajuste y la inicialización de fechas.
+- Validación: 182 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.236`).
+
 ### Solución: Aislamiento Estricto de Vistas Activas y Eliminadas, Erradicación de Fuga de Eventos Eliminados y Keys Unívocas (`posiblesVentasController.js`, `PosiblesVentasModule.jsx`, `tests/posibles-ventas-filter-freeze.test.mjs`) (2026-10-20)
 - Requerimiento del usuario:
   - Al filtrar por `Ganada`, la vista se quedaba estancada y aparecía incorrectamente en la lista un evento eliminado y marcado como perdido (`Prueba 2 sistemas • 🗑 Eliminada • Perdida` con botón `↩ Restaurar`).

@@ -1175,6 +1175,84 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             }
             .templateAttach{ border-top:1px solid var(--line); background:#f5f7fa; padding:14px 14px 0; }
             .templateAttachBody{ background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:visible; font-size:10.5px; line-height:1.2; }
+            .print-toolbar-sticky {
+              position: sticky;
+              top: 0;
+              left: 0;
+              right: 0;
+              z-index: 99999;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 12px 24px;
+              background: #0f172a;
+              color: #ffffff;
+              box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+              box-sizing: border-box;
+            }
+            .print-toolbar-info {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              font-size: 13.5px;
+              font-weight: 700;
+              color: #f8fafc;
+              letter-spacing: -0.01em;
+            }
+            .print-toolbar-badge {
+              background: rgba(16, 185, 129, 0.2);
+              border: 1px solid rgba(16, 185, 129, 0.45);
+              color: #34d399;
+              padding: 3px 10px;
+              border-radius: 999px;
+              font-size: 11px;
+              font-weight: 800;
+              letter-spacing: 0.04em;
+              text-transform: uppercase;
+            }
+            .print-toolbar-actions {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .print-btn-primary {
+              background: linear-gradient(135deg, #059669 0%, #047857 100%);
+              border: 1px solid #047857;
+              color: #ffffff;
+              border-radius: 8px;
+              padding: 9px 18px;
+              font-weight: 700;
+              font-size: 13px;
+              cursor: pointer;
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35);
+              transition: all 0.15s ease;
+            }
+            .print-btn-primary:hover {
+              background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+              transform: translateY(-1px);
+              box-shadow: 0 4px 10px rgba(5, 150, 105, 0.45);
+            }
+            .print-btn-close {
+              background: #334155;
+              border: 1px solid #475569;
+              color: #e2e8f0;
+              border-radius: 8px;
+              padding: 9px 15px;
+              font-weight: 600;
+              font-size: 13px;
+              cursor: pointer;
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              transition: all 0.15s ease;
+            }
+            .print-btn-close:hover {
+              background: #475569;
+              color: #ffffff;
+            }
             .actions{
               padding:14px;
               display:flex;
@@ -1205,7 +1283,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             }
             @media print{
               html,body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; background:#fff; margin:0; padding:0; }
-              .actions{ display:none !important; }
+              .print-toolbar-sticky, .actions{ display:none !important; }
               .page-break{ break-before:page; page-break-before:always; }
               .doc{ box-shadow:none; margin:0; padding:0; background:transparent; }
               
@@ -1296,6 +1374,20 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
           </style>
         </head>
         <body>
+          <div class="print-toolbar-sticky">
+            <div class="print-toolbar-info">
+              <span class="print-toolbar-badge">Vista Previa</span>
+              <span>Jardines del Lago — Cotización ${escapeHtml(quote.code || "")}</span>
+            </div>
+            <div class="print-toolbar-actions">
+              <button type="button" id="btnPrintTop" class="print-btn-primary" onclick="window.print()">
+                🖨️ Imprimir / Guardar como PDF
+              </button>
+              <button type="button" id="btnCloseTop" class="print-btn-close" onclick="window.close()">
+                ✕ Cerrar
+              </button>
+            </div>
+          </div>
           <div class="doc">
             <div class="quoteContractHeader">
               <img src="${escapeHtml(quoteHeaderSrc)}" alt="Encabezado cotización" />
@@ -1531,9 +1623,54 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
             ` : ""}
 
             <div class="actions">
-              <button onclick="window.print()">Imprimir</button>
+              <button type="button" id="btnPrintBottom" class="print-btn-primary" onclick="window.print()">
+                🖨️ Imprimir / Guardar como PDF
+              </button>
             </div>
           </div>
+
+          <script>
+            (function() {
+              function doPrint() {
+                try {
+                  window.print();
+                } catch (e) {
+                  console.error('Error al invocar window.print():', e);
+                }
+              }
+              function doClose() {
+                try {
+                  window.close();
+                } catch (e) {
+                  console.error('Error al cerrar ventana:', e);
+                }
+              }
+
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initEvents);
+              } else {
+                initEvents();
+              }
+
+              function initEvents() {
+                var btnTop = document.getElementById('btnPrintTop');
+                if (btnTop) btnTop.addEventListener('click', doPrint);
+
+                var btnClose = document.getElementById('btnCloseTop');
+                if (btnClose) btnClose.addEventListener('click', doClose);
+
+                var btnBottom = document.getElementById('btnPrintBottom');
+                if (btnBottom) btnBottom.addEventListener('click', doPrint);
+              }
+
+              // Auto-apertura asistida tras carga completa de recursos y estilos
+              window.addEventListener('load', function() {
+                setTimeout(function() {
+                  doPrint();
+                }, 500);
+              });
+            })();
+          </script>
         </body>
       </html>
     `;
