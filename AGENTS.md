@@ -32,6 +32,28 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Impresión Autónoma Client-Side mediante Blob URL, Incrustación de Encabezado Data URL y Blindaje contra CSP de Servidor Remoto (`printUtils.js`, `server.cjs`, `tests/security-audit-remediations.test.mjs`) (2026-10-21)
+- Requerimiento del usuario:
+  - Al abrir la vista previa de la cotización, los botones "🖨️ Imprimir / Guardar como PDF" y "✕ Cerrar" seguían sin responder y la consola arrojaba:
+    - `Loading the image 'http://localhost:5173/templates/Encabezadojdl.png' violates the following Content Security Policy directive: "img-src data: https:". The action has been blocked.`
+    - `Executing inline script violates the following Content Security Policy directive 'default-src 'none''. Note also that 'script-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.`
+    - `Executing inline event handler violates the following Content Security Policy directive 'default-src 'none''.`
+- Causa raíz:
+  - En `.env`, `VITE_API_URL=https://www.appjardinesdellago.tech`.
+  - En `src/utils/printUtils.js`, `generateQuotePrintDocument` enviaba el HTML compilado a `${apiBase}/api/print/prepare` y navegaba la pestaña a `https://www.appjardinesdellago.tech/api/print/render/:id`.
+  - Dado que el servidor remoto de producción (`appjardinesdellago.tech`) ejecutaba una compilación previa (`2.0.57`) sin la actualización local de CSP de `server.cjs`, el servidor remoto respondía con el CSP antiguo estricto (`default-src 'none'`), bloqueando completamente cualquier ejecución de JavaScript (`window.print()`, `window.close()`, event listeners) y bloqueando la carga de imágenes `http://` del entorno local.
+  - Además, transferir cientos de kilobytes de HTML al backend para una caché temporal en memoria de 5 minutos generaba latencia innecesaria y dependencia frágil del backend remoto.
+- Solución:
+  1. En `src/utils/printUtils.js`:
+     - Se convirtió la generación de impresión a un flujo 100% autónomo del lado del cliente utilizando `Blob URL` (`URL.createObjectURL(new Blob([finalHtml], { type: 'text/html;charset=utf-8' }))`).
+     - Al servirse como Blob URL con el mismo origen de la app, el documento no hereda las cabeceras CSP restrictivas del servidor remoto, permitiendo la ejecución inmediata y sin restricciones de los manejadores `window.print()`, `window.close()` y la auto-apertura asistida.
+     - Se implementó la pre-conversión automática de la imagen de encabezado institucional (`docHeaderImage`) a Data URL base64 (`reader.readAsDataURL(imgBlob)`), garantizando carga instantánea a 0 ms sin peticiones de red ni bloqueos de protocolo (`http:` vs `https:`).
+     - Se añadió `<base href="...">` en el `<head>` del documento HTML para resolución segura de recursos relativos.
+     - Se preservó un fallback secundario a `/api/print/prepare` para entornos sin soporte de Blob URL.
+  2. En `tests/security-audit-remediations.test.mjs`:
+     - Se incorporaron aserciones unitarias validando la presencia de `URL.createObjectURL(blob)`, `reader.readAsDataURL` y `<base href=` en `printUtils.js`.
+- Validación: 182 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.238`).
+
 ### Solución: Corrección del Botón Imprimir en Vista Previa de Cotizaciones y Adición de Sticky Toolbar con Auto-Apertura (`server.cjs`, `printUtils.js`, `tests/security-audit-remediations.test.mjs`) (2026-10-21)
 - Requerimiento del usuario:
   - Al generar la cotización, el botón "Imprimir" ubicado al pie del documento no funcionaba al presionarlo (no abría la ventana de impresión ni el cuadro de diálogo del navegador).

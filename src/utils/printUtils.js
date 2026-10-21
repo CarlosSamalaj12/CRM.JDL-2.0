@@ -674,7 +674,25 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
     const saldoAFavorDoc = Math.max(0, totalAnticiposDoc - totalDoc);
     const docDate = normalizeDocDate(quote.docDate || quote.quotedAt?.split("T")[0] || new Date().toISOString().slice(0, 10));
     const docHeaderImage = quoteHeaderImage || 'Encabezadojdl.png';
-    const quoteHeaderSrc = `/templates/${docHeaderImage}`;
+    let quoteHeaderSrc = `/templates/${docHeaderImage}`;
+    if (typeof window !== 'undefined' && typeof fetch === 'function') {
+      try {
+        const origin = window.location.origin || '';
+        const imgResp = await fetch(`${origin}/templates/${docHeaderImage}`);
+        if (imgResp.ok) {
+          const imgBlob = await imgResp.blob();
+          quoteHeaderSrc = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result || `${origin}/templates/${docHeaderImage}`);
+            reader.onerror = () => resolve(`${origin}/templates/${docHeaderImage}`);
+            reader.readAsDataURL(imgBlob);
+          });
+        }
+      } catch (imgErr) {
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        quoteHeaderSrc = `${origin}/templates/${docHeaderImage}`;
+      }
+    }
     
     // Determinar el prefijo según el formato de impresión
     let docPrefix = "COTIZACIÓN";
@@ -883,6 +901,7 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       <html lang="es">
         <head>
           <meta charset="utf-8" />
+          <base href="${typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''}/" />
           <title>${docPrefix} ${escapeHtml(quote.code || "")}</title>
           <style>
             :root{
@@ -1675,20 +1694,34 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       </html>
     `;
 
-    const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
-    const token = localStorage.getItem('token');
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    };
-    const res = await fetch(`${apiBase}/api/print/prepare`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ html: finalHtml })
-    });
-    if (!res.ok) throw new Error("Error al preparar la impresión en el servidor");
-    const data = await res.json();
-    return `${apiBase}/api/print/render/${data.id}`;
+    // 1. En entorno de navegador, generamos un Blob URL autónomo para visualización e impresión instantánea sin depender de red ni del CSP del backend
+    if (typeof window !== 'undefined' && typeof Blob !== 'undefined' && window.URL && typeof window.URL.createObjectURL === 'function') {
+      const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
+      return URL.createObjectURL(blob);
+    }
+
+    // 2. Fallback backend: solo para entornos sin soporte de Blob URL
+    try {
+      const apiBase = (typeof window !== 'undefined' && window.location?.origin) || '';
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+      const res = await fetch(`${apiBase}/api/print/prepare`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ html: finalHtml })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return `${apiBase}/api/print/render/${data.id}`;
+      }
+    } catch (fallbackErr) {
+      console.warn("Fallback de impresión en backend no disponible:", fallbackErr);
+    }
+
+    return false;
   } catch (err) {
     console.error("Error generating print document:", err);
     return false;

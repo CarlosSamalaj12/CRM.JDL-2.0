@@ -58,6 +58,9 @@ test('Seguridad: Renderizado de impresión aplica Content Security Policy estric
   assert.ok(printUtilsContent.includes('id="btnPrintBottom"'), 'printUtils.js debe incluir el botón inferior de imprimir');
   assert.ok(printUtilsContent.includes('window.print()'), 'printUtils.js debe invocar window.print');
   assert.ok(printUtilsContent.includes('.print-toolbar-sticky, .actions{ display:none !important; }'), 'printUtils.js debe ocultar controles al imprimir');
+  assert.ok(printUtilsContent.includes('URL.createObjectURL(blob)'), 'printUtils.js debe generar Blob URL autónomo en el navegador');
+  assert.ok(printUtilsContent.includes('reader.readAsDataURL'), 'printUtils.js debe incrustar encabezado como Data URL');
+  assert.ok(printUtilsContent.includes('<base href='), 'printUtils.js debe definir base href para resolución segura de recursos');
 });
 
 test('Seguridad: Autenticación Firebase en backend valida idToken criptográficamente', () => {
