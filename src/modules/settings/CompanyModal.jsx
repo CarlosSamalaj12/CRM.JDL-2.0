@@ -76,7 +76,8 @@ export default function CompanyModal({ onClose }) {
   }, [selectedCompany, disabledCompanies]);
 
   const handleClose = () => {
-    document.getElementById('companyBackdrop').hidden = true;
+    const backdrop = document.getElementById('companyBackdrop');
+    if (backdrop) backdrop.hidden = true;
     if (onClose) onClose();
   };
 

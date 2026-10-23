@@ -2689,9 +2689,9 @@ async function readStateFromTables() {
         } catch (_) { }
         return {
           id: str(u.id),
-          name: str(u.nombre),
+          name: str(u.nombre || u.nombre_completo),
           username: str(u.nombre_usuario),
-          fullName: str(u.nombre_completo) || str(u.nombre),
+          fullName: str(u.nombre_completo || u.nombre),
           email: str(u.correo),
           phone: str(u.telefono),
           password: str(u.contrasena),
@@ -2706,7 +2706,7 @@ async function readStateFromTables() {
           canAuthorizeDiscount: Number(u.puede_autorizar_descuento) !== 0,
           canUseChecklist: Number(u.puede_usar_checklist) !== 0,
         };
-      }).filter((u) => u.id && u.name),
+      }).filter((u) => u.id && (u.name || u.fullName)),
       companies: empresas.map((c) => ({
         id: str(c.id),
         name: str(c.nombre),

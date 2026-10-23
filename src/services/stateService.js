@@ -53,13 +53,20 @@ export async function loadState({ cacheBust = false } = {}) {
         return cachedState;
       }
 
+      if (!response.ok) {
+        console.warn(`[loadState] Respuesta HTTP ${response.status} al consultar estado. Preservando estado en caché.`);
+        return cachedState || {};
+      }
+
       const newEtag = response.headers.get('ETag');
       if (newEtag && !cacheBust) stateEtag = newEtag;
 
       const data = await response.json();
       const state = data?.state || data || {};
-      cachedState = state;
-      cacheTimestamp = Date.now();
+      if (state && (Array.isArray(state.users) || Array.isArray(state.events) || Array.isArray(state.salones))) {
+        cachedState = state;
+        cacheTimestamp = Date.now();
+      }
       return state;
     } catch (error) {
       console.error('loadState error:', error);

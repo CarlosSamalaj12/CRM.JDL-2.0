@@ -32,6 +32,44 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Corrección de Error `Cannot set properties of null (setting 'hidden')` en Pre-registro de Usuarios y Blindaje contra Vaciamiento de Lista (`UserModal.jsx`, `SettingsUsers.jsx`, `stateService.js`, `server.cjs`, `tests/user-modal-hidden-fix.test.mjs`) (2026-10-22)
+- Requerimiento del usuario:
+  - Al crear usuarios en el CRM, repentinamente ya no aparecían los usuarios en la tabla y se arrojaba en consola:
+    - `Error saving user to database: TypeError: Cannot set properties of null (setting 'hidden') at ae (SettingsMain-D66UY-wH.js:248:5685) at onSubmit (`
+- Causa raíz:
+  1. En `src/modules/settings/UserModal.jsx`:
+     - Al guardar un usuario (`handleSave`), tras completar el guardado en base de datos se ejecutaba `handleClose()`.
+     - `handleClose()` ejecutaba `document.getElementById('userBackdrop').hidden = true;` directamente en el DOM sin validar si el elemento existía ni contar con un `ref` de React.
+     - Si el elemento DOM `#userBackdrop` retornaba `null` (por desmonte, asincronía de `fetchUsers()` o ciclo de vida en React 19), la instrucción lanzaba un `TypeError: Cannot set properties of null (setting 'hidden')`.
+     - Al lanzarse dentro del bloque `try` de `handleSave`, la excepción era capturada por el `catch (err)`, emitiendo un toast de error que impedía cerrar el modal y daba la falsa impresión de que el usuario no se había guardado.
+  2. En `src/services/stateService.js`:
+     - `loadState()` no validaba `response.ok`. Si una petición a `/api/state` devolvía un código de error HTTP (ej. 401, 500), la respuesta de error en JSON (`{ message: "..." }`) se asignaba a `cachedState`.
+     - Al no contener la propiedad `users`, cualquier llamada subsecuente evaluaba `state?.users` como `undefined`, provocando que `setUsers([])` vaciara la tabla y los usuarios desaparecieran de la interfaz con "No hay usuarios registrados aún".
+  3. En `src/modules/settings/SettingsUsers.jsx`:
+     - `fetchUsersAndTeams()` no protegía la promesa secundaria `getEquipos()`, causando que cualquier error de red en equipos hiciera fallar `Promise.all` y abortara la carga de usuarios.
+     - `sortedUsers` no verificaba si `equipos` o `users` eran arrays estrictos, susceptible a errores de tipo `equipos.find is not a function`.
+  4. En `server.cjs` (`readStateFromTables`):
+     - La consulta filtraba con `.filter((u) => u.id && u.name)`. Si un usuario tenía `nombre` nulo/vacío pero `nombre_completo` poblado, `readStateFromTables` lo descartaba silenciosamente.
+- Solución:
+  1. En `src/modules/settings/UserModal.jsx`:
+     - Se añadió un `backdropRef = useRef(null)` y estado reactivo `isOpen` (`useState(false)`).
+     - Se blindó `handleClose()` con `setIsOpen(false)` y verificación defensiva `if (backdrop) backdrop.hidden = true;`.
+     - En `handleSave()`, se cierra el modal de inmediato con `handleClose()` antes de invalidar la caché y re-consultar usuarios.
+     - Se vinculó el JSX con `ref={backdropRef}`, `hidden={!isOpen}` y `style={{ display: isOpen ? 'flex' : 'none' }}`.
+  2. En `src/modules/settings/CompanyModal.jsx`:
+     - Se protegió `handleClose()` con chequeo condicional antes de mutar `hidden`.
+  3. En `src/services/stateService.js`:
+     - Se validó `if (!response.ok)` en `loadState()`, preservando `cachedState` y evitando sobreescribirlo con respuestas de error.
+     - Solo se actualiza la memoria caché si la respuesta contiene estructuras válidas (`users`, `events` o `salones`).
+  4. En `src/modules/settings/SettingsUsers.jsx`:
+     - Se agregó `.catch(() => [])` a `getEquipos()` para aislar la carga de usuarios ante fallos de equipos.
+     - Se normalizó la asignación de `setUsers` y se protegieron `safeUsers` y `safeEquipos`.
+  5. En `server.cjs`:
+     - Se unificó `name: str(u.nombre || u.nombre_completo)` y `.filter((u) => u.id && (u.name || u.fullName))`.
+  6. En `tests/user-modal-hidden-fix.test.mjs`:
+     - 5 pruebas unitarias automatizadas validando la resolución.
+- Validación: 187 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.239`).
+
 ### Solución: Impresión Autónoma Client-Side mediante Blob URL, Incrustación de Encabezado Data URL y Blindaje contra CSP de Servidor Remoto (`printUtils.js`, `server.cjs`, `tests/security-audit-remediations.test.mjs`) (2026-10-21)
 - Requerimiento del usuario:
   - Al abrir la vista previa de la cotización, los botones "🖨️ Imprimir / Guardar como PDF" y "✕ Cerrar" seguían sin responder y la consola arrojaba:

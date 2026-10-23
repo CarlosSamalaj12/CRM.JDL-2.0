@@ -32,10 +32,20 @@ export default function SettingsUsers() {
     try {
       const [state, teamsData] = await Promise.all([
         loadCrmState(),
-        getEquipos()
+        getEquipos().catch(err => {
+          console.warn('Error al cargar equipos en SettingsUsers:', err);
+          return [];
+        })
       ]);
-      setUsers(state?.users || []);
-      setEquipos(teamsData || []);
+      const fetchedUsers = Array.isArray(state?.users)
+        ? state.users
+        : (state?.users && typeof state.users === 'object' ? Object.values(state.users) : null);
+      if (fetchedUsers) {
+        setUsers(fetchedUsers);
+      }
+      if (Array.isArray(teamsData)) {
+        setEquipos(teamsData);
+      }
     } catch (e) {
       console.error('Error cargando usuarios o equipos:', e);
     } finally {
@@ -105,9 +115,12 @@ export default function SettingsUsers() {
   const avatarFor = (u) => u.avatarDataUrl ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || u.name || '?')}&background=0ea5e9&color=fff&size=80`;
 
-  const sortedUsers = [...users].sort((a, b) => {
-    const teamA = equipos.find(eq => eq.id === a.teamId)?.nombre || 'Z_Sin equipo';
-    const teamB = equipos.find(eq => eq.id === b.teamId)?.nombre || 'Z_Sin equipo';
+  const safeEquipos = Array.isArray(equipos) ? equipos : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+
+  const sortedUsers = [...safeUsers].sort((a, b) => {
+    const teamA = safeEquipos.find(eq => eq.id === a.teamId)?.nombre || 'Z_Sin equipo';
+    const teamB = safeEquipos.find(eq => eq.id === b.teamId)?.nombre || 'Z_Sin equipo';
     const compTeam = teamA.localeCompare(teamB, 'es', { sensitivity: 'base' });
     if (compTeam !== 0) return compTeam;
     const nameA = a.fullName || a.name || '';
@@ -117,7 +130,7 @@ export default function SettingsUsers() {
 
   const filteredUsers = sortedUsers.filter(u => {
     const term = searchTerm.toLowerCase();
-    const teamName = equipos.find(eq => eq.id === u.teamId)?.nombre || 'Sin equipo';
+    const teamName = safeEquipos.find(eq => eq.id === u.teamId)?.nombre || 'Sin equipo';
     const roleLabel = ROLE_LABELS[u.role] || 'Vendedor';
     return (
       (u.fullName || u.name || '').toLowerCase().includes(term) ||

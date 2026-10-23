@@ -38,6 +38,8 @@ export default function UserModal({ onClose }) {
   const [canUseChecklist, setCanUseChecklist] = useState(false);
 
   const userModalRef = useRef(null);
+  const backdropRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   const formatNumberWithCommas = (value) => {
     if (value === null || value === undefined || value === '') return '';
@@ -106,7 +108,8 @@ export default function UserModal({ onClose }) {
 
   useEffect(() => {
     const handleOpenAddUser = () => {
-      const backdrop = document.getElementById('userBackdrop');
+      setIsOpen(true);
+      const backdrop = backdropRef.current || document.getElementById('userBackdrop');
       if (backdrop) backdrop.hidden = false;
       resetForm();
       fetchUsers();
@@ -114,7 +117,8 @@ export default function UserModal({ onClose }) {
     };
 
     const handleEditUser = (e) => {
-      const backdrop = document.getElementById('userBackdrop');
+      setIsOpen(true);
+      const backdrop = backdropRef.current || document.getElementById('userBackdrop');
       if (backdrop) backdrop.hidden = false;
       if (e.detail && e.detail.userId) {
         setSelectedUserId(e.detail.userId);
@@ -216,7 +220,11 @@ export default function UserModal({ onClose }) {
   };
 
   const handleClose = () => {
-    document.getElementById('userBackdrop').hidden = true;
+    setIsOpen(false);
+    const backdrop = backdropRef.current || document.getElementById('userBackdrop');
+    if (backdrop) {
+      backdrop.hidden = true;
+    }
     if (onClose) onClose();
   };
 
@@ -412,12 +420,12 @@ export default function UserModal({ onClose }) {
         console.warn('No se pudo actualizar localStorage user:', err);
       }
 
+      handleClose();
       invalidateStateCache();
       toast.success(selectedUserId ? `Datos de ${fullName} actualizados.` : `${fullName} pre-registrado y autorizado.`, { duration: 2000 });
 
       window.dispatchEvent(new CustomEvent('usersUpdated'));
       await fetchUsers();
-      handleClose();
 
     } catch (err) {
       console.error('Error saving user to database:', err);
@@ -429,9 +437,11 @@ export default function UserModal({ onClose }) {
 
   return (
     <div 
+      ref={backdropRef}
       className="modalBackdrop" 
       id="userBackdrop" 
-      hidden 
+      hidden={!isOpen}
+      style={{ display: isOpen ? 'flex' : 'none' }}
       onClick={(e) => { if (userModalRef.current && !userModalRef.current.contains(e.target)) handleClose(); }}
     >
       <div ref={userModalRef} className="modal settings-user-modal" role="dialog" aria-modal="true" aria-labelledby="userTitle">
