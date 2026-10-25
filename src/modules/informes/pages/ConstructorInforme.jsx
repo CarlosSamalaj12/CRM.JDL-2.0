@@ -2062,7 +2062,7 @@ export default function ConstructorInforme() {
       </div>
 
       {/* ─── BOTTOM ACTIONS ─── */}
-      <div className="pos-bottom-actions" style={{paddingLeft: '5rem'}}>
+      <div className="pos-bottom-actions">
         <button className="pos-bottom-btn" onClick={async () => {
           if (!informeId) { toast.info('Guarda primero el informe'); return; }
           await loadHistorial();

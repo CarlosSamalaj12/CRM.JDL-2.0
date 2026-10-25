@@ -30,6 +30,7 @@ export default function ReportsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const isInformeView = /^\/informe\/[^/]+$/.test(location.pathname);
+  const isPosView = location.pathname.startsWith('/informe/pos') || location.pathname.startsWith('/informe/create');
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   // Sistema de control de versiones: polling cada 3h
@@ -66,15 +67,6 @@ export default function ReportsLayout() {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, []);
-
-  // Safety net: resetear overflow del body periódicamente
-  useEffect(() => {
-    const interval = setInterval(() => {
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-    }, 2000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -151,15 +143,17 @@ export default function ReportsLayout() {
 
   return (
     <InformeActionsContext.Provider value={useMemo(() => ({ setInformeActions }), [])}>
-    <div className={`reports-root app-shell informes-shell${isInformeView ? ' is-informe-view' : ''}`}>
-      {/* Botón de Hamburguesa Flotante en Móvil */}
-      <button
-        className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
-        onClick={() => setIsMobileOpen(true)}
-        aria-label="Abrir menú"
-      >
-        <span className="material-symbols-outlined">menu</span>
-      </button>
+    <div className={`reports-root app-shell informes-shell${isInformeView ? ' is-informe-view' : ''}${isPosView ? ' is-pos-view' : ''}`}>
+      {/* Botón de Hamburguesa Flotante en Móvil (oculto en constructor POS para no tapar botón Guardar) */}
+      {isMobile && !isPosView && (
+        <button
+          className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
+          onClick={() => setIsMobileOpen(true)}
+          aria-label="Abrir menú"
+        >
+          <span className="material-symbols-outlined">menu</span>
+        </button>
+      )}
 
       {/* Cajón de Navegación (Drawer) en Móvil */}
       {isMobileOpen && (
@@ -458,26 +452,33 @@ export default function ReportsLayout() {
       {/* Footer con versión (esquina inferior derecha) */}
 
       <style>{`
-        @media screen {
-          .reports-root .mobile-hamburger-btn,
-          .informes-shell .mobile-hamburger-btn {
-            display: flex !important;
-            position: fixed !important;
-            bottom: 16px !important;
-            right: 16px !important;
-            width: 44px !important;
-            height: 44px !important;
-            border-radius: 50% !important;
-            background: rgba(20, 184, 166, 0.86) !important;
-            color: #ffffff !important;
-            border: none !important;
-            box-shadow: 0 3px 10px rgba(20, 184, 166, 0.28) !important;
-            z-index: 10001 !important;
-            align-items: center !important;
-            justify-content: center !important;
-            cursor: pointer !important;
-            padding: 0 !important;
-            transition: transform 0.25s ease, opacity 0.25s ease, background 0.2s ease, box-shadow 0.2s ease !important;
+        @media (max-width: 767px) {
+            .reports-root .mobile-hamburger-btn,
+            .informes-shell .mobile-hamburger-btn {
+              display: flex !important;
+              position: fixed !important;
+              bottom: 16px !important;
+              right: 16px !important;
+              width: 44px !important;
+              height: 44px !important;
+              border-radius: 50% !important;
+              background: rgba(20, 184, 166, 0.86) !important;
+              color: #ffffff !important;
+              border: none !important;
+              box-shadow: 0 3px 10px rgba(20, 184, 166, 0.28) !important;
+              z-index: 10001 !important;
+              align-items: center !important;
+              justify-content: center !important;
+              cursor: pointer !important;
+              padding: 0 !important;
+              transition: transform 0.25s ease, opacity 0.25s ease, background 0.2s ease, box-shadow 0.2s ease !important;
+            }
+          }
+          @media (min-width: 768px) {
+            .reports-root .mobile-hamburger-btn,
+            .informes-shell .mobile-hamburger-btn {
+              display: none !important;
+            }
           }
           @media (max-width: 767px) {
             .informes-shell .app-header {
@@ -1057,7 +1058,6 @@ export default function ReportsLayout() {
           .drawer-footer-btn.danger:hover span {
             color: #f87171 !important;
           }
-        }
 
         /* Header de dos líneas: menú arriba, botones abajo - STICKY */
         .informes-shell .app-header {
@@ -1282,10 +1282,40 @@ export default function ReportsLayout() {
             gap: 0.4rem;
             padding-top: 0.5rem;
           }
-          .informe-actions-bar .btn-secondary,
-          .informe-actions-bar .btn-primary,
-          .informe-actions-bar .btn-success,
-          .informe-actions-bar .btn {
+          .informe-actions-bar .pos-topbar {
+            flex-wrap: wrap !important;
+            align-items: flex-start !important;
+            gap: 0.5rem !important;
+          }
+          .informe-actions-bar .pos-topbar > button:first-child {
+            order: 1 !important;
+            flex: 0 0 36px !important;
+            width: 36px !important;
+            height: 36px !important;
+            min-height: 36px !important;
+            max-width: 36px !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin-top: 2px !important;
+          }
+          .informe-actions-bar .pos-topbar-info {
+            order: 2 !important;
+            flex: 1 1 calc(100% - 46px) !important;
+            min-width: 0 !important;
+          }
+          .informe-actions-bar .pos-topbar-right {
+            order: 3 !important;
+            width: 100% !important;
+            justify-content: flex-end !important;
+            margin-top: 0.25rem !important;
+            gap: 0.35rem !important;
+          }
+          .informe-actions-bar:not(:has(.pos-topbar)) .btn-secondary,
+          .informe-actions-bar:not(:has(.pos-topbar)) .btn-primary,
+          .informe-actions-bar:not(:has(.pos-topbar)) .btn-success,
+          .informe-actions-bar:not(:has(.pos-topbar)) .btn {
             padding: 0.5rem 0.8rem;
             font-size: 0.78rem;
             min-height: 40px;

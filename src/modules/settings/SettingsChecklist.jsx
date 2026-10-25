@@ -585,23 +585,10 @@ export default function SettingsChecklist() {
   const [isOpen, setIsOpen] = useState(false);
   const styleElRef = useRef(null);
 
-  // Contador de locks para evitar corrupción del overflow en ciclos rápidos
-  const scrollLockCount = useRef(0);
-
-  const restoreBodyScroll = () => {
-    scrollLockCount.current = Math.max(0, scrollLockCount.current - 1);
-    if (scrollLockCount.current === 0) {
-      document.body.style.overflow = '';
-    }
-  };
-
-  // Inyectar/remover estilos del modal directamente en <head>
+  // Inyectar/remover estilos del modal directamente en <head> y bloquear scroll del body
   useEffect(() => {
     if (isOpen) {
-      if (scrollLockCount.current === 0) {
-        document.body.style.overflow = 'hidden';
-      }
-      scrollLockCount.current += 1;
+      document.body.style.overflow = 'hidden';
       // Crear el elemento <style> si no existe
       if (!styleElRef.current) {
         const el = document.createElement('style');
@@ -685,16 +672,19 @@ export default function SettingsChecklist() {
         styleElRef.current = el;
       }
     } else {
-      restoreBodyScroll();
-      if (styleElRef.current) {
+      document.body.style.overflow = '';
+      if (styleElRef.current && document.head.contains(styleElRef.current)) {
         document.head.removeChild(styleElRef.current);
         styleElRef.current = null;
       }
     }
     return () => {
-      restoreBodyScroll();
-      // Safety net: asegurar scroll tras 2s por si el cleanup falla
-      setTimeout(() => { document.body.style.overflow = ''; }, 2000);
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      if (styleElRef.current && document.head.contains(styleElRef.current)) {
+        document.head.removeChild(styleElRef.current);
+        styleElRef.current = null;
+      }
     };
   }, [isOpen]);
 
@@ -1551,6 +1541,7 @@ export default function SettingsChecklist() {
     <>
       <div
         id="eventChecklistBackdrop"
+        hidden={!isOpen}
         onClick={e => { if (checklistModalRef.current && !checklistModalRef.current.contains(e.target)) closeEvent(); }}
         style={{
           display: isOpen ? 'flex' : 'none',
@@ -3076,7 +3067,7 @@ export default function SettingsChecklist() {
 
   return (
     <>
-      {ReactDOM.createPortal(modalContent, document.body)}
+      {isOpen && ReactDOM.createPortal(modalContent, document.body)}
       {ReactDOM.createPortal(pinDialogContent, document.body)}
       {ReactDOM.createPortal(tplConfirmDialogContent, document.body)}
     </>

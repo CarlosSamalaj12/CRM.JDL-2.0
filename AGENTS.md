@@ -32,6 +32,86 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Corrección de Deformación de Cabecera Superior, Arquitectura 2-Tier Ejecutiva con MCP Stitch y Blindaje Responsivo Móvil (`ReportsLayout.jsx`, `styles.css`, `styles.scss`, `tests/informes-scroll-fix.test.mjs`) (2026-10-24)
+- Requerimiento del usuario:
+  - "se arruino todo el diseño ahora la parte superior se deformo todo usar MCP stich para arreglar el diseño siempre toma en cuenta la version mobil".
+  - La cabecera superior de la aplicación (`.app-header`) se deformó completamente: la fila inferior de controles y metadatos (`.informe-actions-bar`) se colocó al lado derecho de la fila superior de navegación en lugar de ubicarse debajo.
+  - En Kanban, los botones de vista y el conmutador de semana se compactaron en la esquina superior derecha.
+  - En el constructor de informes (`/informe/pos/:id`), los datos del evento ("C. 11 pax - No usa Salon...") quedaron aplastados en una columna vertical de 40px con texto letra por letra y un enorme vacío blanco en el centro.
+  - Reparar el diseño utilizando las especificaciones de diseño ejecutivo de MCP Stitch garantizando soporte y adaptabilidad completa para la versión móvil (`< 768px`).
+- Causa raíz:
+  1. En `src/modules/informes/components/ReportsLayout.jsx`:
+     - El bloque `<style>` del componente tenía una llave de cierre extra (`}`) que reducía el conteo de profundidad a -1, cerrando prematuramente el bloque CSS e invalidando más de 30 reglas CSS clave posteriores.
+     - La regla `.informes-shell .app-header { flex-direction: column !important; }` dejó de aplicarse, provocando que la cabecera cayera de vuelta al valor por defecto `.app-header { display: flex; align-items: center; justify-content: space-between; }` (`flex-direction: row`).
+     - Al tener `flex-direction: row`, `.header-top-row` (Fila 1) y `.informe-actions-bar` (Fila 2) se convirtieron en elementos adyacentes horizontales.
+  2. En `src/modules/informes/styles.css` y `styles.scss`:
+     - No existían reglas defensivas a nivel de hoja de estilo para `.informes-shell .app-header`, `.header-top-row` y `.informe-actions-bar`, dependiendo únicamente del `<style>` inline del componente.
+     - Además, en pantallas móviles (`@media (max-width: 600px)`), existía una regla genérica `.informe-actions-bar button { flex: 1 1 calc(50% - 0.4rem) !important; }` que inflaba el botón de retroceso (`button:first-child` en `.pos-topbar`) al 50% del ancho, empujando el título institucional del evento a la siguiente línea y desalineando la cabecera móvil.
+     - El botón flotante `.mobile-hamburger-btn` permanecía montado en el DOM en mobile incluso dentro de la vista POS, situándose sobre el botón fijo de acción primaria ("Crear Informe" / "Guardar").
+- Solución:
+  1. Integración con MCP Stitch:
+     - Se creó el proyecto `projects/4307895673819063361` y se generó la pantalla de referencia ejecutiva `7f3f3fd1c0244daba5cd8f4b1d4f7cd8` bajo el sistema de diseño "Executive Event Intelligence".
+     - Se adoptó la jerarquía de 2 niveles: Fila 1 (Marca, Navegación de módulos, Búsqueda rápida, Perfil y controles de usuario) y Fila 2 (Barra de acciones contextuales: conmutadores de vista, filtros, selector semanal o metadatos POS completos).
+  2. En `src/modules/informes/components/ReportsLayout.jsx`:
+     - Se desanidaron los media queries y se reparó el balance estricto de llaves CSS (`depth: 0`, `minDepth: 0`).
+     - Se condicionó el botón flotante en móvil: `{isMobile && !isPosView && <button className="mobile-hamburger-btn"...}`, eliminándolo por completo en la pantalla del constructor de informes para no tapar el botón "Guardar".
+     - Se ajustó el botón de retroceso en `.pos-topbar > button:first-child` en móvil a dimensiones compactas fijas (`flex: 0 0 36px !important; width: 36px !important; height: 36px !important;`), permitiendo que el nombre del evento y su aforo queden alineados a su derecha en una misma fila armónica.
+  3. En `src/modules/informes/styles.css` y `styles.scss`:
+     - Se blindó la arquitectura 2-tier a nivel de hoja de estilo:
+       ```css
+       .informes-shell .app-header { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 0.5rem !important; }
+       .informes-shell .header-top-row { display: flex !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; }
+       .informes-shell .informe-actions-bar { display: flex !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; }
+       .informes-shell.is-pos-view .mobile-hamburger-btn { display: none !important; }
+       ```
+     - Se delimitó la regla de botones móviles con selector de exclusión `.informe-actions-bar:not(:has(.pos-topbar)) button`, preservando los botones institucionales compactos dentro de la vista POS.
+  4. En `tests/informes-scroll-fix.test.mjs`:
+     - Pruebas unitarias ampliadas validando la ausencia del botón flotante en `isPosView`, el balance de llaves CSS (`depth === 0`, `minDepth === 0`) y la presencia de la arquitectura 2-tier en CSS y SCSS.
+- Validación: 194 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`), build de producción exitoso (versión `2.1.32`) y verificación visual interactiva en desktop (1536x826) y mobile (390x844) en Kanban y POS.
+
+### Solución: Corrección de Bloqueo de Scroll en Informes, Erradicación de Fuga de Backdrops de Checklist y Calibración Viewport 100vh en Constructor de Informes (`SettingsChecklist.jsx`, `ReportsLayout.jsx`, `ConstructorInforme.jsx`, `styles.css`, `styles.scss`, `global.css`, `tests/informes-scroll-fix.test.mjs`) (2026-10-24)
+- Requerimiento del usuario:
+  - En el sistema de informes, el scroll de la página fallaba o se bloqueaba aleatoriamente (quedaba congelado hasta recargar).
+  - En el apartado donde se crea/edita el informe (`/informe/pos/:id`), no se podía hacer scroll para alcanzar o presionar el botón "Guardar" / "Crear Informe", el cual quedaba cortado abajo o bloqueado por el botón flotante verde.
+  - Ajustar para que en desktop el constructor de informes quepa al 100% de la altura de la pantalla (100vh) sin barra de scroll de ventana, manteniendo el encabezado y la barra de Guardar siempre visibles, con scroll interno en el ticket y columnas, y ocultando el botón flotante en desktop.
+- Causa raíz:
+  1. En `src/modules/settings/SettingsChecklist.jsx`:
+     - El componente monta un portal en `document.body` (`ReactDOM.createPortal(modalContent, document.body)`) de forma incondicional, incluso cuando `isOpen === false`.
+     - `global.css` declaraba `#checklistTemplateBackdrop, #eventChecklistBackdrop { overflow: hidden !important; display: flex !important; }`. Debido a la especificidad `!important`, la regla de CSS anulaba `style={{ display: isOpen ? 'flex' : 'none' }}`, dejando un backdrop transparente o fantasma permanente en `document.body`.
+     - Además, al desmontarse el componente mientras estaba abierto, el elemento `<style id="checklist-modal-styles">` inyectado en `<head>` con `#eventChecklistBackdrop { position: fixed !important; inset: 0 !important; overflow: hidden !important; }` no se removía en el cleanup.
+     - `SettingsChecklist` está montado en `Kanban.jsx`, provocando que al interactuar o navegar, `document.body.style.overflow = 'hidden'` o el backdrop con `overflow: hidden` bloqueara todo el scroll de la ventana.
+  2. En `src/modules/informes/components/ReportsLayout.jsx`:
+     - Existía un `setInterval` cada 2000 ms ejecutando `document.body.style.overflow = ''` como parche de mitigación anterior, lo que reiniciaba el momentum de desplazamiento de los motores Chromium/WebKit e interrumpía el scroll continuo con la rueda del ratón.
+     - El botón flotante `.mobile-hamburger-btn` estaba configurado bajo `@media screen` con `position: fixed; bottom: 16px; right: 16px; z-index: 10001;`, superponiéndose directamente sobre el botón "Guardar" en la esquina inferior derecha en pantallas de escritorio.
+  3. En `ConstructorInforme.jsx`, `styles.css` y `styles.scss`:
+     - El contenedor de la app `.app-shell` tenía `min-height: 100vh; padding: 1rem 1.5rem;`, y `.app-header` tenía `margin-bottom: 1.5rem;`. Al sumarse la barra de acciones y el contenido, la altura total excedía la ventana (938px en pantallas de 826px de viewport).
+     - `.pos-body-3col` tenía `overflow: hidden;` sin permitir propagación de rueda hacia la ventana ni restringir las columnas.
+     - `.pos-ticket-body` carecía de `min-height: 0;` y `overflow-y: auto;`, provocando que listas largas de ítems empujaran hacia abajo la barra `.pos-bottom-actions` fuera del viewport visible.
+     - `.pos-bottom-actions` tenía un `style={{paddingLeft: '5rem'}}` inline hardcodeado que distorsionaba la alineación horizontal de los botones.
+  4. En `src/modules/informes/styles.css`:
+     - `.kanban-board` tenía `overflow-y: hidden;` en una de las media queries responsivas, atrapando el scroll de la rueda cuando el cursor se encontraba sobre el tablero.
+- Solución:
+  1. En `src/modules/settings/SettingsChecklist.jsx`:
+     - Se condicionó el portal: `{isOpen && ReactDOM.createPortal(modalContent, document.body)}`, impidiendo cualquier inserción en el DOM cuando el modal está cerrado.
+     - Se añadió `hidden={!isOpen}` a `#eventChecklistBackdrop`.
+     - Se limpió el efecto de inyección de estilos: si `isOpen === false` o al desmontarse el componente (`return () => ...`), se remueve `<style id="checklist-modal-styles">` del `<head>` y se restablece de inmediato `document.body.style.overflow = ''` y `document.documentElement.style.overflow = ''`.
+  2. En `src/styles/global.css`:
+     - Se blindaron los selectores: `#checklistTemplateBackdrop[hidden], #eventChecklistBackdrop[hidden] { display: none !important; }` y `#checklistTemplateBackdrop:not([hidden]), #eventChecklistBackdrop:not([hidden]) { overflow: hidden !important; display: flex !important; }`.
+  3. En `src/modules/informes/components/ReportsLayout.jsx`:
+     - Se eliminó el `setInterval` de 2000 ms.
+     - Se detectaron las rutas del constructor (`const isPosView = location.pathname.startsWith('/informe/pos') || location.pathname.startsWith('/informe/create');`) y se añadió la clase `is-pos-view` al shell.
+     - Se restringió el botón de hamburguesa flotante estrictamente a mobile (`{isMobile && <button className="mobile-hamburger-btn"...}` y `@media (min-width: 768px) { display: none !important; }`).
+  4. En `src/modules/informes/pages/ConstructorInforme.jsx`:
+     - Se removió el padding inline de 5rem en `.pos-bottom-actions`.
+  5. En `src/modules/informes/styles.css` y `styles.scss`:
+     - Se eliminó `overflow-y: hidden;` de `.kanban-board`.
+     - Se agregó `min-height: 0;` y `overflow-y: auto;` a `.pos-ticket-body`.
+     - Se implementó la calibración viewport 100vh para desktop (`@media (min-width: 768px) .informes-shell.is-pos-view`): altura `100vh`/`100dvh`, `overflow: hidden`, header y `.pos-bottom-actions` compactos y fijos, con scroll vertical interno en ticket (`.pos-ticket-body`), categorías (`.pos-categorias`) y cuadrícula de elementos (`.pos-elem-grid`).
+     - En mobile (`@media (max-width: 767px)`), se mantiene el scroll vertical natural de página con la barra inferior fija.
+  6. En `tests/informes-scroll-fix.test.mjs`:
+     - 6 pruebas unitarias automatizadas validando las protecciones.
+- Validación: 193 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`), build de producción exitoso (versión `2.1.31`), y verificación automatizada en navegador con subagente confirmando `diff: 0px` entre scrollHeight y viewport, barra de Guardar 100% visible y botón flotante desaparecido en desktop.
+
 ### Solución: Corrección de Error `Cannot set properties of null (setting 'hidden')` en Pre-registro de Usuarios y Blindaje contra Vaciamiento de Lista (`UserModal.jsx`, `SettingsUsers.jsx`, `stateService.js`, `server.cjs`, `tests/user-modal-hidden-fix.test.mjs`) (2026-10-22)
 - Requerimiento del usuario:
   - Al crear usuarios en el CRM, repentinamente ya no aparecían los usuarios en la tabla y se arrojaba en consola:

@@ -9229,8 +9229,13 @@ body div.swal2-container div.swal2-popup.swal2-modal:not(.qformat-swal-popup):no
 
 
 /* === CHECKLIST MODALS SCROLL FIX === */
-#checklistTemplateBackdrop,
-#eventChecklistBackdrop {
+#checklistTemplateBackdrop[hidden],
+#eventChecklistBackdrop[hidden] {
+  display: none !important;
+}
+
+#checklistTemplateBackdrop:not([hidden]),
+#eventChecklistBackdrop:not([hidden]) {
   overflow: hidden !important;
   display: flex !important;
   align-items: center !important;
