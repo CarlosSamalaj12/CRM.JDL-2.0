@@ -803,7 +803,12 @@ export default function ReservationForm() {
           paxCompartido: paxModeValue,
           notes: existingEvent.notes || '',
           userId: existingEvent.userId || '',
-          quote: existingEvent.quote || null,
+          quote: (existingEvent.quote && Array.isArray(existingEvent.quote.items) && existingEvent.quote.items.length > 0)
+            ? existingEvent.quote
+            : (series.find(ev => ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0)?.quote
+               || events.find(ev => (ev.groupId === existingEvent.groupId || ev.id === (existingEvent.groupId || String(id).replace(/_(s|slot)\d+.*$/, ''))) && ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0)?.quote
+               || existingEvent.quote
+               || null),
           clientName: existingEvent.clientName || '',
           clientPhone: existingEvent.clientPhone || ''
         };
@@ -828,6 +833,25 @@ export default function ReservationForm() {
       }
     }
   }, [id, events, salones, urlDate, urlEndDate, urlStart, urlEnd, getDefaultDate, getDefaultEndDate, pvLead]);
+
+  const resolvedQuote = useMemo(() => {
+    if (formData.quote && Array.isArray(formData.quote.items) && formData.quote.items.length > 0) {
+      return formData.quote;
+    }
+    const curr = events.find(ev => String(ev.id) === String(id));
+    if (curr?.quote && Array.isArray(curr.quote.items) && curr.quote.items.length > 0) {
+      return curr.quote;
+    }
+    const series = getSeriesForEvent(events, id);
+    const fromSeries = series.find(ev => ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0);
+    if (fromSeries?.quote) return fromSeries.quote;
+
+    const baseId = String(id || '').replace(/_(s|slot)\d+.*$/, '');
+    const fromBase = events.find(ev => (String(ev.id) === baseId || String(ev.groupId || '') === baseId) && ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0);
+    if (fromBase?.quote) return fromBase.quote;
+
+    return formData.quote || curr?.quote || fromBase?.quote || null;
+  }, [formData.quote, events, id]);
 
   const hasChanges = useMemo(() => {
     const current = normalizeReservationSnapshot({ formData, slots });
@@ -1430,7 +1454,7 @@ export default function ReservationForm() {
         slots: cleanedSlots,
         mainSalon: principalSlot?.salon || formData.salon || '',
         salon: principalSlot?.salon || cleanedSlots.map(s => s.salon).join(', '),
-        quote: formData.quote || existingEvent?.quote || undefined
+        quote: (resolvedQuote && Array.isArray(resolvedQuote.items) && resolvedQuote.items.length > 0) ? resolvedQuote : (formData.quote || existingEvent?.quote || undefined)
       };
 
       // Si es una edición y existen informes activos, verificar granularmente si algún día/informe fue afectado
@@ -3242,7 +3266,7 @@ export default function ReservationForm() {
         <QuoteModal
           event={{
             ...(events.find(ev => String(ev.id) === String(id)) || { ...formData, id, slots }),
-            quote: formData.quote || events.find(ev => String(ev.id) === String(id))?.quote || null
+            quote: resolvedQuote
           }}
           eventData={formData}
           slots={slots}
@@ -3256,7 +3280,7 @@ export default function ReservationForm() {
           <QuoteModal
             event={{
               ...(events.find(ev => String(ev.id) === String(id)) || { ...formData, id, slots }),
-              quote: formData.quote || events.find(ev => String(ev.id) === String(id))?.quote || null
+              quote: resolvedQuote
             }}
             eventData={formData}
             slots={slots}

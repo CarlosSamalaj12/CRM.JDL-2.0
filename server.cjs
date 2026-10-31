@@ -2797,6 +2797,22 @@ async function readStateFromTables() {
           return { rate: match.tasa, effectiveDate: match.fechaVigencia };
         }
 
+        // Pre-indexar cotizaciones con items por evento base y grupo para herencia automática
+        const quotesByBaseEvent = new Map();
+        for (const ev of eventos) {
+          if (ev.cotizacion_json) {
+            try {
+              const parsed = JSON.parse(ev.cotizacion_json);
+              if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+                const bId = str(ev.id).replace(/_(s|slot)\d+.*$/, '');
+                const gId = str(ev.id_grupo || '').trim();
+                if (bId && !quotesByBaseEvent.has(bId)) quotesByBaseEvent.set(bId, parsed);
+                if (gId && !quotesByBaseEvent.has(gId)) quotesByBaseEvent.set(gId, parsed);
+              }
+            } catch (_) {}
+          }
+        }
+
         return eventos.map((e) => {
           let quote = null;
           if (e.cotizacion_json) {
@@ -4510,7 +4526,13 @@ function isEventUnchanged(e, oldEvent) {
             pax_compartido = VALUES(pax_compartido),
             slot_pax = VALUES(slot_pax),
             notas = VALUES(notas),
-            cotizacion_json = VALUES(cotizacion_json)
+            cotizacion_json = CASE
+              WHEN VALUES(cotizacion_json) IS NOT NULL AND JSON_VALID(VALUES(cotizacion_json)) AND JSON_LENGTH(JSON_EXTRACT(VALUES(cotizacion_json), '$.items')) > 0
+                THEN VALUES(cotizacion_json)
+              WHEN eventos.cotizacion_json IS NOT NULL AND JSON_VALID(eventos.cotizacion_json) AND JSON_LENGTH(JSON_EXTRACT(eventos.cotizacion_json, '$.items')) > 0
+                THEN eventos.cotizacion_json
+              ELSE COALESCE(VALUES(cotizacion_json), eventos.cotizacion_json)
+            END
         `,
         [
           id,

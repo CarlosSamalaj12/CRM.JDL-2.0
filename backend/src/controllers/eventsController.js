@@ -888,6 +888,37 @@ async function upsertEventSlot(conn, e) {
   const id = toStr(e?.id);
   if (!id) return;
 
+  const groupId = toStr(e?.groupId) || id;
+  const baseId = id.replace(/_(s|slot)\d+.*$/, '');
+
+  // Preparar cotizacion_json entrante
+  let quoteJson = null;
+  const hasIncomingItems = e?.quote && Array.isArray(e.quote.items) && e.quote.items.length > 0;
+  if (e?.quote && typeof e.quote === 'object') {
+    quoteJson = JSON.stringify(Object.assign({}, e.quote, { advances: undefined }));
+  } else if (e?.quote) {
+    quoteJson = JSON.stringify(e.quote);
+  }
+
+  // Herencia automática: si el slot no trae cotización con items, intentar heredar del padre o grupo existente
+  if (!hasIncomingItems) {
+    try {
+      const [parentQuotes] = await conn.query(
+        `SELECT cotizacion_json FROM eventos 
+         WHERE (id = ? OR id = ? OR id_grupo = ?) 
+           AND cotizacion_json IS NOT NULL 
+           AND cotizacion_json != ''
+           AND JSON_VALID(cotizacion_json)
+           AND JSON_LENGTH(JSON_EXTRACT(cotizacion_json, '$.items')) > 0
+         ORDER BY (id = ?) DESC LIMIT 1`,
+        [baseId, groupId, groupId, baseId]
+      );
+      if (parentQuotes && parentQuotes.length > 0 && parentQuotes[0].cotizacion_json) {
+        quoteJson = parentQuotes[0].cotizacion_json;
+      }
+    } catch (_) {}
+  }
+
   await conn.query(
     `INSERT INTO eventos
       (id, id_grupo, nombre, nombre_salon, salon_principal, fecha_evento, fecha_inicio_reserva, fecha_fin_reserva, hora_inicio, hora_fin, estado, id_usuario, pax, pax_compartido, slot_pax, notas, cotizacion_json)
@@ -908,10 +939,16 @@ async function upsertEventSlot(conn, e) {
       pax_compartido = VALUES(pax_compartido),
       slot_pax = VALUES(slot_pax),
       notas = VALUES(notas),
-      cotizacion_json = VALUES(cotizacion_json)`,
+      cotizacion_json = CASE
+        WHEN VALUES(cotizacion_json) IS NOT NULL AND JSON_VALID(VALUES(cotizacion_json)) AND JSON_LENGTH(JSON_EXTRACT(VALUES(cotizacion_json), '$.items')) > 0
+          THEN VALUES(cotizacion_json)
+        WHEN eventos.cotizacion_json IS NOT NULL AND JSON_VALID(eventos.cotizacion_json) AND JSON_LENGTH(JSON_EXTRACT(eventos.cotizacion_json, '$.items')) > 0
+          THEN eventos.cotizacion_json
+        ELSE COALESCE(VALUES(cotizacion_json), eventos.cotizacion_json)
+      END`,
     [
       id,
-      toStr(e?.groupId) || id,
+      groupId,
       toStr(e?.name) || '(sin nombre)',
       toStr(e?.salon) || '(sin salon)',
       toStr(e?.mainSalon) || toStr(e?.salon) || null,
@@ -928,7 +965,7 @@ async function upsertEventSlot(conn, e) {
         : (e?.paxCompartido === true || Number(e?.paxCompartido) === 1 || Number(e?.pax_compartido) === 1 ? 1 : 0),
       e?.slotPax === null || e?.slotPax === undefined || e?.slotPax === '' ? null : Math.max(0, Number(e.slotPax)),
       toStr(e?.notes) || null,
-      e?.quote && typeof e.quote === 'object' ? JSON.stringify(Object.assign({}, e.quote, { advances: undefined })) : e?.quote ? JSON.stringify(e.quote) : null
+      quoteJson
     ]
   );
 }
