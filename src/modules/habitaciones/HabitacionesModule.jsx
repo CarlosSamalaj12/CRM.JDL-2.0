@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Bed,
   Plus,
@@ -26,7 +26,8 @@ import {
   Check,
   ExternalLink,
   ChevronDown,
-  Megaphone
+  Megaphone,
+  AlertTriangle
 } from 'lucide-react';
 import {
   getHabitacionesApi,
@@ -251,9 +252,21 @@ export default function HabitacionesModule() {
     }
   };
 
-  // Filtrado en memoria de filtros avanzados adicionales (módulo, forma de pago, empresa, segmento)
+  // Filtrado en memoria de filtros avanzados adicionales y ordenamiento por Folio
+  const parseFolioNumber = (val, id) => {
+    if (val) {
+      const digits = String(val).replace(/\D/g, '');
+      if (digits) return parseInt(digits, 10);
+    }
+    if (id) {
+      const digits = String(id).replace(/\D/g, '');
+      if (digits) return parseInt(digits.slice(-6), 10);
+    }
+    return 0;
+  };
+
   const reservasFiltradas = useMemo(() => {
-    return reservas.filter(r => {
+    const list = reservas.filter(r => {
       if (filterModulo && (r.modulo !== filterModulo && r.modulo !== filterModulo)) return false;
       if (filterFormaPago && (r.id_forma_pago !== filterFormaPago && r.forma_pago_nombre !== filterFormaPago)) return false;
       if (filterEmpresa) {
@@ -262,6 +275,14 @@ export default function HabitacionesModule() {
       }
       if (filterSegmento && (r.id_tipo_cliente !== filterSegmento && r.tipo_cliente_nombre !== filterSegmento)) return false;
       return true;
+    });
+
+    // Ordenar por No. Folio de mayor a menor (descendente)
+    return list.sort((a, b) => {
+      const numA = parseFolioNumber(a.no_folio, a.id);
+      const numB = parseFolioNumber(b.no_folio, b.id);
+      if (numA !== numB) return numB - numA;
+      return String(b.no_folio || b.id || '').localeCompare(String(a.no_folio || a.id || ''), undefined, { numeric: true });
     });
   }, [reservas, filterModulo, filterFormaPago, filterEmpresa, filterSegmento]);
 
@@ -350,7 +371,11 @@ export default function HabitacionesModule() {
     setIsModalOpen(true);
   };
 
+  const isSavingReservaRef = useRef(false);
+
   const handleSaveReserva = async (formData) => {
+    if (isSavingReservaRef.current) return;
+    isSavingReservaRef.current = true;
     try {
       if (editingReserva?.id) {
         await updateHabitacionApi(editingReserva.id, formData);
@@ -360,10 +385,13 @@ export default function HabitacionesModule() {
         toast.success('Reserva de habitación registrada exitosamente ✓');
       }
       setIsModalOpen(false);
-      fetchReservas();
+      await fetchReservas();
     } catch (err) {
       console.error('Error guardando reserva:', err);
       toast.error('Error al guardar reserva: ' + (err.message || ''));
+      throw err;
+    } finally {
+      isSavingReservaRef.current = false;
     }
   };
 
@@ -380,18 +408,18 @@ export default function HabitacionesModule() {
     setCancelModal({ isOpen: false, reserva: null, loading: false });
   };
 
-  const handleConfirmCancelReserva = async () => {
+  const handleConfirmCancelReserva = async (isHard = false) => {
     if (!cancelModal.reserva) return;
-    setCancelModal(prev => ({ ...prev, loading: true }));
+    setCancelModal(prev => ({ ...prev, loading: true, loadingHard: isHard }));
     try {
-      await deleteHabitacionApi(cancelModal.reserva.id);
-      toast.success('Reserva cancelada exitosamente');
+      await deleteHabitacionApi(cancelModal.reserva.id, { hard: isHard });
+      toast.success(isHard ? 'Reserva eliminada permanentemente ✓' : 'Reserva cancelada exitosamente ✓');
       handleCloseCancelModal();
-      fetchReservas();
+      await fetchReservas();
     } catch (err) {
-      console.error('Error cancelando reserva:', err);
-      toast.error('Error al cancelar reserva: ' + (err.message || ''));
-      setCancelModal(prev => ({ ...prev, loading: false }));
+      console.error('Error al procesar reserva:', err);
+      toast.error('Error al procesar reserva: ' + (err.message || ''));
+      setCancelModal(prev => ({ ...prev, loading: false, loadingHard: false }));
     }
   };
 
@@ -931,13 +959,25 @@ export default function HabitacionesModule() {
                   const isRecurrente = (r.telefono && reservas.filter(x => x.telefono === r.telefono).length > 1);
                   const st = String(r.estado || 'Confirmada').toLowerCase();
 
+                  const isCancelada = st.includes('cancel');
+
                   return (
-                    <tr key={r.id}>
+                    <tr key={r.id} style={{ opacity: isCancelada ? 0.6 : 1 }}>
                       {/* No. Folio */}
                       <td>
-                        <span className="hab-folio-pill">
-                          #{r.no_folio || r.id.substring(4, 9)}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                          <span className="hab-folio-pill">
+                            #{r.no_folio || r.id.substring(4, 9)}
+                          </span>
+                          <span className={`hab-status-pill ${
+                            isCancelada ? 'cancelada' :
+                            st.includes('casa') || st.includes('check-in') ? 'encasa' :
+                            st.includes('completada') || st.includes('check-out') ? 'completada' :
+                            st.includes('pendiente') ? 'pendiente' : 'confirmada'
+                          }`} style={{ fontSize: 10, padding: '2px 7px' }}>
+                            ● {r.estado || 'Confirmada'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Huésped & Contacto */}
@@ -1248,7 +1288,7 @@ export default function HabitacionesModule() {
             <h2 style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', margin: 0 }}>
               Folios Activos
             </h2>
-            <span style={{ fontSize: 11, color: '#64748b' }}>Ordenado por fecha · {reservasFiltradas.length} reservas</span>
+            <span style={{ fontSize: 11, color: '#64748b' }}>Ordenado por No. Folio (mayor a menor) · {reservasFiltradas.length} reservas</span>
           </div>
 
           <div style={{ display: 'flex', gap: 6 }}>
@@ -1269,17 +1309,25 @@ export default function HabitacionesModule() {
           paginatedReservas.map(r => {
             const palette = getAvatarPalette(r.nombre_huesped);
             const st = String(r.estado || 'Confirmada').toLowerCase();
+            const isCancelada = st.includes('cancel');
             const isEnCasa = st.includes('casa') || st.includes('check-in');
+            const isCompletada = st.includes('completada') || st.includes('check-out');
+            const isPendiente = st.includes('pendiente');
 
             return (
-              <div key={r.id} className="hab-mobile-item-card">
+              <div key={r.id} className="hab-mobile-item-card" style={{ opacity: isCancelada ? 0.6 : 1 }}>
                 {/* Fila 1: Folio, Estado y Monto */}
                 <div className="hab-mobile-card-row1">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span className="hab-folio-pill" style={{ fontSize: 11, padding: '3px 8px' }}>
                       #{r.no_folio || r.id.substring(4, 9)}
                     </span>
-                    <span className={`hab-status-pill ${isEnCasa ? 'encasa' : 'confirmada'}`}>
+                    <span className={`hab-status-pill ${
+                      isCancelada ? 'cancelada' :
+                      isEnCasa ? 'encasa' :
+                      isCompletada ? 'completada' :
+                      isPendiente ? 'pendiente' : 'confirmada'
+                    }`}>
                       ● {r.estado || 'Confirmada'}
                     </span>
                   </div>
@@ -1667,39 +1715,87 @@ export default function HabitacionesModule() {
             </div>
 
             <div style={{
-              padding: '14px 24px',
+              padding: '16px 24px',
               background: '#f8fafc',
               borderTop: '1px solid #e2e8f0',
               display: 'flex',
-              justifyContent: 'flex-end',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
               gap: 10
             }}>
               <button
                 type="button"
-                className="hab-btn-cancel"
-                onClick={handleCloseCancelModal}
+                className="hab-btn-delete-hard"
+                onClick={() => handleConfirmCancelReserva(true)}
                 disabled={cancelModal.loading}
-              >
-                No cancelar
-              </button>
-              <button
-                type="button"
-                className="hab-action-btn delete"
-                onClick={handleConfirmCancelReserva}
-                disabled={cancelModal.loading}
+                title="Elimina permanentemente el registro de la base de datos (ideal si se duplicó por error)"
                 style={{
-                  width: 'auto',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
                   height: 38,
-                  padding: '0 18px',
+                  padding: '0 14px',
                   borderRadius: 11,
-                  fontWeight: 800,
-                  fontSize: 13,
-                  gap: 6
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: '#ffffff',
+                  color: '#dc2626',
+                  border: '1px solid #fca5a5',
+                  cursor: cancelModal.loading ? 'not-allowed' : 'pointer',
+                  opacity: cancelModal.loading ? 0.6 : 1
                 }}
               >
-                <Trash2 size={15} />
-                <span>{cancelModal.loading ? 'Cancelando...' : 'Sí, cancelar reserva'}</span>
+                <Trash2 size={14} />
+                <span>{cancelModal.loading && cancelModal.loadingHard ? 'Eliminando...' : 'Eliminar Duplicado'}</span>
               </button>
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="hab-btn-cancel"
+                  onClick={handleCloseCancelModal}
+                  disabled={cancelModal.loading}
+                  style={{
+                    height: 38,
+                    padding: '0 16px',
+                    borderRadius: 11,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    cursor: cancelModal.loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  No cancelar
+                </button>
+                <button
+                  type="button"
+                  className="hab-btn-confirm-cancel"
+                  onClick={() => handleConfirmCancelReserva(false)}
+                  disabled={cancelModal.loading}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    height: 38,
+                    padding: '0 18px',
+                    borderRadius: 11,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    background: '#dc2626',
+                    color: '#ffffff',
+                    border: '1px solid #b91c1c',
+                    cursor: cancelModal.loading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
+                    opacity: cancelModal.loading ? 0.7 : 1
+                  }}
+                >
+                  <AlertTriangle size={15} />
+                  <span>{cancelModal.loading && !cancelModal.loadingHard ? 'Cancelando...' : 'Sí, cancelar reserva'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

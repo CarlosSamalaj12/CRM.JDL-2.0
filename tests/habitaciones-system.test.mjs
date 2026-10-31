@@ -508,3 +508,61 @@ test('Habitaciones: HabitacionModal implementa validaciones no nativas, al menos
   assert.ok(cssCode.includes('.hab-field-error'), 'habitaciones.css debe definir .hab-field-error');
   assert.ok(cssCode.includes('@keyframes habErrorFadeIn'), 'habitaciones.css debe incluir micro-animación habErrorFadeIn');
 });
+
+test('Habitaciones: Seguridad anti-duplicados, bloqueo de scroll en campos numéricos, cancelación/eliminación y orden por No. Folio descendente', () => {
+  // 1. Modal anti-duplicados e isSaving
+  const modalPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'HabitacionModal.jsx');
+  const modalCode = fs.readFileSync(modalPath, 'utf8');
+
+  assert.ok(modalCode.includes('const [isSaving, setIsSaving] = useState(false);'), 'Modal debe definir estado isSaving');
+  assert.ok(modalCode.includes('if (isSaving) return;'), 'handleSubmit debe ignorar llamadas concurrentes si isSaving es true');
+  assert.ok(modalCode.includes('setIsSaving(true);'), 'handleSubmit debe activar isSaving antes de llamar a onSave');
+  assert.ok(modalCode.includes('setIsSaving(false);'), 'handleSubmit debe liberar isSaving en finally');
+  assert.ok(modalCode.includes('disabled={isSaving}'), 'Botones de submit, cancelar y cerrar deben desactivarse durante guardado');
+  assert.ok(modalCode.includes('Registrando reserva...') || modalCode.includes('Guardando cambios...'), 'Debe mostrar texto indicador de progreso durante el guardado');
+
+  // 2. Bloqueo de scroll de ratón en campos numéricos
+  assert.ok(modalCode.includes('onWheel={e => e.target.blur()}'), 'Debe bloquear la alteración de números al hacer scroll');
+  assert.ok(modalCode.includes('step="1"'), 'Noches y habitaciones deben forzar enteros');
+
+  // 3. Módulo: Bloqueo a nivel de contenedor e integración con backend
+  const modPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'HabitacionesModule.jsx');
+  const modCode = fs.readFileSync(modPath, 'utf8');
+
+  assert.ok(modCode.includes('isSavingReservaRef'), 'HabitacionesModule debe proteger handleSaveReserva contra doble envío');
+  assert.ok(modCode.includes('hab-btn-delete-hard'), 'Modal de cancelación debe incluir botón de eliminación física para duplicados');
+  assert.ok(modCode.includes('hab-btn-confirm-cancel'), 'Botón de cancelar debe tener clase hab-btn-confirm-cancel de tamaño completo');
+  assert.ok(!modCode.includes('className="hab-action-btn delete"\n                onClick={handleConfirmCancelReserva}'), 'No debe usar hab-action-btn de 34px en el botón del modal de cancelación');
+
+  // 4. Ordenamiento por No. Folio de mayor a menor
+  assert.ok(modCode.includes('parseFolioNumber'), 'HabitacionesModule debe implementar parseFolioNumber');
+  assert.ok(modCode.includes('numB - numA'), 'Debe ordenar reservas de mayor a menor según el número de folio');
+
+  // 5. Backend: Ordenamiento en SQL
+  const ctrlPath = path.join(projectRoot, 'backend', 'src', 'controllers', 'habitacionesController.js');
+  const ctrlCode = fs.readFileSync(ctrlPath, 'utf8');
+  assert.ok(ctrlCode.includes('ORDER BY CAST(no_folio AS UNSIGNED) DESC'), 'getHabitaciones debe ordenar por No. Folio descendente en BD');
+
+  // 6. CSS: Clases de botones y spinner
+  const cssPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'habitaciones.css');
+  const cssCode = fs.readFileSync(cssPath, 'utf8');
+  assert.ok(cssCode.includes('.hab-btn-confirm-cancel'), 'habitaciones.css debe definir .hab-btn-confirm-cancel');
+  assert.ok(cssCode.includes('.hab-btn-delete-hard'), 'habitaciones.css debe definir .hab-btn-delete-hard');
+  assert.ok(cssCode.includes('@keyframes habSpin'), 'habitaciones.css debe definir animación habSpin');
+
+  // 7. Sección 3 obligatoria: Folio, Vendedor, Medio, Tipo de Cliente, Forma de Pago, Módulo
+  assert.ok(modalCode.includes('No. Folio *'), 'Label debe indicar No. Folio obligatorio');
+  assert.ok(modalCode.includes('Vendedor Asignado *'), 'Label debe indicar Vendedor Asignado obligatorio');
+  assert.ok(modalCode.includes('Medio de Contacto *'), 'Label debe indicar Medio de Contacto obligatorio');
+  assert.ok(modalCode.includes('Tipo de Cliente *'), 'Label debe indicar Tipo de Cliente obligatorio');
+  assert.ok(modalCode.includes('Forma de Pago *'), 'Label debe indicar Forma de Pago obligatoria');
+  assert.ok(modalCode.includes('Módulo / Sector *'), 'Label debe indicar Módulo / Sector obligatorio');
+  assert.ok(modalCode.includes("newErrors.no_folio = 'El número de folio es obligatorio'"), 'Debe validar no_folio obligatorio');
+  assert.ok(modalCode.includes("newErrors.id_vendedor = 'Debe seleccionar un vendedor asignado'"), 'Debe validar id_vendedor obligatorio');
+  assert.ok(modalCode.includes("newErrors.id_medio_contacto = 'El medio de contacto es obligatorio'"), 'Debe validar id_medio_contacto obligatorio');
+  assert.ok(modalCode.includes("newErrors.id_tipo_cliente = 'El tipo de cliente es obligatorio'"), 'Debe validar id_tipo_cliente obligatorio');
+  assert.ok(modalCode.includes("newErrors.id_forma_pago = 'La forma de pago es obligatoria'"), 'Debe validar id_forma_pago obligatoria');
+  assert.ok(modalCode.includes("newErrors.modulo = 'El módulo / sector es obligatorio'"), 'Debe validar modulo obligatorio');
+  assert.ok(ctrlCode.includes("!toSafeString(b.no_folio)"), 'Backend debe validar no_folio obligatorio');
+  assert.ok(ctrlCode.includes("!toSafeString(b.modulo)"), 'Backend debe validar modulo obligatorio');
+});

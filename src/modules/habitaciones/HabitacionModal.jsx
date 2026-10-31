@@ -91,6 +91,7 @@ export default function HabitacionModal({
 
   // Estado de validaciones no nativas con diseño y feedback reactivo
   const [errors, setErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
   const clearError = (field) => {
     setErrors(prev => {
@@ -513,11 +514,42 @@ export default function HabitacionModal({
       newErrors.monto_total = 'El monto total no puede ser negativo';
     }
 
+    // 7. No. Folio obligatorio
+    if (!formData.no_folio || !String(formData.no_folio).trim()) {
+      newErrors.no_folio = 'El número de folio es obligatorio';
+    }
+
+    // 8. Vendedor Asignado obligatorio
+    if (!formData.id_vendedor || !String(formData.id_vendedor).trim()) {
+      newErrors.id_vendedor = 'Debe seleccionar un vendedor asignado';
+    }
+
+    // 9. Medio de Contacto obligatorio
+    if (!formData.id_medio_contacto || !String(formData.id_medio_contacto).trim()) {
+      newErrors.id_medio_contacto = 'El medio de contacto es obligatorio';
+    }
+
+    // 10. Tipo de Cliente obligatorio
+    if (!formData.id_tipo_cliente || !String(formData.id_tipo_cliente).trim()) {
+      newErrors.id_tipo_cliente = 'El tipo de cliente es obligatorio';
+    }
+
+    // 11. Forma de Pago obligatoria
+    if (!formData.id_forma_pago || !String(formData.id_forma_pago).trim()) {
+      newErrors.id_forma_pago = 'La forma de pago es obligatoria';
+    }
+
+    // 12. Módulo / Sector obligatorio
+    if (!formData.modulo || !String(formData.modulo).trim()) {
+      newErrors.modulo = 'El módulo / sector es obligatorio';
+    }
+
     return newErrors;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSaving) return;
 
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
@@ -538,6 +570,18 @@ export default function HabitacionModal({
         toast.error(validationErrors.tarifa_diaria);
       } else if (validationErrors.monto_total) {
         toast.error(validationErrors.monto_total);
+      } else if (validationErrors.no_folio) {
+        toast.error(validationErrors.no_folio);
+      } else if (validationErrors.id_vendedor) {
+        toast.error(validationErrors.id_vendedor);
+      } else if (validationErrors.id_medio_contacto) {
+        toast.error(validationErrors.id_medio_contacto);
+      } else if (validationErrors.id_tipo_cliente) {
+        toast.error(validationErrors.id_tipo_cliente);
+      } else if (validationErrors.id_forma_pago) {
+        toast.error(validationErrors.id_forma_pago);
+      } else if (validationErrors.modulo) {
+        toast.error(validationErrors.modulo);
       } else {
         toast.error('Por favor completa los campos requeridos');
       }
@@ -568,7 +612,14 @@ export default function HabitacionModal({
       monto_total: montoFinal
     };
 
-    onSave(payload);
+    try {
+      setIsSaving(true);
+      await onSave(payload);
+    } catch (err) {
+      console.error('Error guardando reserva en modal:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -603,7 +654,8 @@ export default function HabitacionModal({
           <button
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+            disabled={isSaving}
+            style={{ background: 'none', border: 'none', cursor: isSaving ? 'not-allowed' : 'pointer', color: '#64748b', opacity: isSaving ? 0.4 : 1 }}
           >
             <X size={22} />
           </button>
@@ -831,6 +883,8 @@ export default function HabitacionModal({
                     style={{ width: '100%' }}
                     value={formData.noches ?? ''}
                     onFocus={e => e.target.select()}
+                    step="1"
+                    onWheel={e => e.target.blur()}
                     onChange={e => handleNochesChange(e.target.value)}
                     onBlur={handleNochesBlur}
                   />
@@ -853,6 +907,8 @@ export default function HabitacionModal({
                     style={{ width: '100%' }}
                     value={formData.cantidad_habitaciones ?? ''}
                     onFocus={e => e.target.select()}
+                    step="1"
+                    onWheel={e => e.target.blur()}
                     onChange={e => handleCantidadHabitacionesChange(e.target.value)}
                     onBlur={handleCantidadHabitacionesBlur}
                   />
@@ -900,6 +956,7 @@ export default function HabitacionModal({
                     style={{ width: '100%', height: 38 }}
                     value={formData.tarifa_diaria ?? ''}
                     onFocus={e => e.target.select()}
+                    onWheel={e => e.target.blur()}
                     onChange={e => handleTarifaDiariaChange(e.target.value)}
                     onBlur={handleTarifaDiariaBlur}
                   />
@@ -959,6 +1016,7 @@ export default function HabitacionModal({
                     }}
                     value={formData.monto_total ?? ''}
                     onFocus={e => e.target.select()}
+                    onWheel={e => e.target.blur()}
                     onChange={e => handleMontoTotalChange(e.target.value)}
                     onBlur={handleMontoTotalBlur}
                   />
@@ -981,27 +1039,37 @@ export default function HabitacionModal({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    No. Folio
+                    No. Folio *
                   </label>
                   <input
                     type="text"
-                    className="hab-input"
+                    className={`hab-input ${errors.no_folio ? 'is-invalid' : ''}`}
                     style={{ width: '100%', height: 38 }}
                     placeholder="Ej. F-10492"
                     value={formData.no_folio ?? ''}
-                    onChange={e => setFormData({ ...formData, no_folio: e.target.value })}
+                    onChange={e => {
+                      clearError('no_folio');
+                      setFormData({ ...formData, no_folio: e.target.value });
+                    }}
                   />
+                  {errors.no_folio && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.no_folio}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Vendedor Asignado
+                    Vendedor Asignado *
                   </label>
                   <select
-                    className="hab-select"
+                    className={`hab-select ${errors.id_vendedor ? 'is-invalid' : ''}`}
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_vendedor ?? ''}
                     onChange={e => {
+                      clearError('id_vendedor');
                       const u = (sellers || []).find(s => String(s.id) === e.target.value);
                       setFormData({
                         ...formData,
@@ -1010,21 +1078,29 @@ export default function HabitacionModal({
                       });
                     }}
                   >
+                    <option value="">Seleccione vendedor...</option>
                     {(sellers || []).map(s => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
+                  {errors.id_vendedor && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.id_vendedor}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Medio de Contacto
+                    Medio de Contacto *
                   </label>
                   <select
-                    className="hab-select"
+                    className={`hab-select ${errors.id_medio_contacto ? 'is-invalid' : ''}`}
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_medio_contacto ?? ''}
                     onChange={e => {
+                      clearError('id_medio_contacto');
                       const m = (catalogos.mediosContacto || []).find(mc => mc.id === e.target.value);
                       setFormData({
                         ...formData,
@@ -1033,21 +1109,29 @@ export default function HabitacionModal({
                       });
                     }}
                   >
+                    <option value="">Seleccione medio de contacto...</option>
                     {(catalogos.mediosContacto || []).map(m => (
                       <option key={m.id} value={m.id}>{m.nombre}</option>
                     ))}
                   </select>
+                  {errors.id_medio_contacto && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.id_medio_contacto}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Tipo de Cliente
+                    Tipo de Cliente *
                   </label>
                   <select
-                    className="hab-select"
+                    className={`hab-select ${errors.id_tipo_cliente ? 'is-invalid' : ''}`}
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_tipo_cliente ?? ''}
                     onChange={e => {
+                      clearError('id_tipo_cliente');
                       const tc = (catalogos.tiposCliente || []).find(c => c.id === e.target.value);
                       setFormData({
                         ...formData,
@@ -1056,21 +1140,29 @@ export default function HabitacionModal({
                       });
                     }}
                   >
+                    <option value="">Seleccione tipo de cliente...</option>
                     {(catalogos.tiposCliente || []).map(tc => (
                       <option key={tc.id} value={tc.id}>{tc.nombre}</option>
                     ))}
                   </select>
+                  {errors.id_tipo_cliente && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.id_tipo_cliente}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Forma de Pago
+                    Forma de Pago *
                   </label>
                   <select
-                    className="hab-select"
+                    className={`hab-select ${errors.id_forma_pago ? 'is-invalid' : ''}`}
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_forma_pago ?? ''}
                     onChange={e => {
+                      clearError('id_forma_pago');
                       const fp = (catalogos.formasPago || []).find(p => p.id === e.target.value);
                       setFormData({
                         ...formData,
@@ -1079,21 +1171,31 @@ export default function HabitacionModal({
                       });
                     }}
                   >
+                    <option value="">Seleccione forma de pago...</option>
                     {(catalogos.formasPago || []).map(fp => (
                       <option key={fp.id} value={fp.id}>{fp.nombre}</option>
                     ))}
                   </select>
+                  {errors.id_forma_pago && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.id_forma_pago}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Módulo / Sector
+                    Módulo / Sector *
                   </label>
                   <select
-                    className="hab-select"
+                    className={`hab-select ${errors.modulo ? 'is-invalid' : ''}`}
                     style={{ width: '100%', height: 38 }}
                     value={formData.modulo ?? ''}
-                    onChange={e => setFormData({ ...formData, modulo: e.target.value })}
+                    onChange={e => {
+                      clearError('modulo');
+                      setFormData({ ...formData, modulo: e.target.value });
+                    }}
                   >
                     <option value="">Seleccione módulo / sector...</option>
                     {(catalogos.modulos || []).map(m => (
@@ -1105,6 +1207,12 @@ export default function HabitacionModal({
                       <option value={formData.modulo}>{formData.modulo}</option>
                     )}
                   </select>
+                  {errors.modulo && (
+                    <div className="hab-field-error">
+                      <AlertCircle size={12} strokeWidth={2.4} />
+                      <span>{errors.modulo}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1130,16 +1238,17 @@ export default function HabitacionModal({
               type="button"
               className="hab-btn-cancel"
               onClick={onClose}
+              disabled={isSaving}
               style={{
                 background: '#f1f5f9',
-                backgroundColor: '#f1f5f9',
-                color: '#334155',
+                color: isSaving ? '#94a3b8' : '#334155',
                 border: '1px solid #cbd5e1',
                 padding: '10px 20px',
                 borderRadius: 11,
                 fontSize: 13,
                 fontWeight: 700,
-                cursor: 'pointer'
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                opacity: isSaving ? 0.6 : 1
               }}
             >
               Cancelar
@@ -1147,24 +1256,42 @@ export default function HabitacionModal({
             <button
               type="submit"
               className="hab-btn-submit"
+              disabled={isSaving}
               style={{
-                background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                backgroundColor: '#059669',
+                background: isSaving ? '#059669' : 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
                 color: '#ffffff',
                 border: '1px solid #059669',
                 borderRadius: 11,
                 padding: '10px 24px',
                 fontSize: 13,
                 fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 3px 14px rgba(5, 150, 105, 0.38)',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                boxShadow: isSaving ? 'none' : '0 3px 14px rgba(5, 150, 105, 0.38)',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 8
+                gap: 8,
+                opacity: isSaving ? 0.85 : 1
               }}
             >
-              <Check size={16} strokeWidth={2.4} />
-              <span>{initialData ? 'Guardar Cambios' : 'Registrar Reserva'}</span>
+              {isSaving ? (
+                <>
+                  <span style={{
+                    width: 14,
+                    height: 14,
+                    border: '2px solid rgba(255,255,255,0.4)',
+                    borderTopColor: '#ffffff',
+                    borderRadius: '50%',
+                    display: 'inline-block',
+                    animation: 'habSpin 0.7s linear infinite'
+                  }} />
+                  <span>{initialData ? 'Guardando cambios...' : 'Registrando reserva...'}</span>
+                </>
+              ) : (
+                <>
+                  <Check size={16} strokeWidth={2.4} />
+                  <span>{initialData ? 'Guardar Cambios' : 'Registrar Reserva'}</span>
+                </>
+              )}
             </button>
           </div>
         </form>

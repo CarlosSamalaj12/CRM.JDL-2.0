@@ -130,7 +130,7 @@ export async function getHabitaciones(req, res) {
         actualizado_en
       FROM habitacion_reservas
       ${whereClause}
-      ORDER BY fecha_check_in DESC, creado_en DESC
+      ORDER BY CAST(no_folio AS UNSIGNED) DESC, no_folio DESC, creado_en DESC
     `;
 
     const [rows] = await conn.query(query, params);
@@ -234,6 +234,24 @@ export async function createHabitacion(req, res) {
     }
     if (!checkIn || !checkOut) {
       return res.status(400).json({ message: 'Las fechas de check-in y check-out son obligatorias' });
+    }
+    if (!toSafeString(b.no_folio)) {
+      return res.status(400).json({ message: 'El número de folio es obligatorio' });
+    }
+    if (!toSafeString(b.id_vendedor) && !toSafeString(b.vendedor_nombre)) {
+      return res.status(400).json({ message: 'Debe seleccionar un vendedor asignado' });
+    }
+    if (!toSafeString(b.id_medio_contacto) && !toSafeString(b.medio_contacto_nombre)) {
+      return res.status(400).json({ message: 'El medio de contacto es obligatorio' });
+    }
+    if (!toSafeString(b.id_tipo_cliente) && !toSafeString(b.tipo_cliente_nombre)) {
+      return res.status(400).json({ message: 'El tipo de cliente es obligatorio' });
+    }
+    if (!toSafeString(b.id_forma_pago) && !toSafeString(b.forma_pago_nombre)) {
+      return res.status(400).json({ message: 'La forma de pago es obligatoria' });
+    }
+    if (!toSafeString(b.modulo)) {
+      return res.status(400).json({ message: 'El módulo / sector es obligatorio' });
     }
 
     conn = await pool.getConnection();
