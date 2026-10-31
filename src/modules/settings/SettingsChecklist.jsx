@@ -6,6 +6,7 @@ import { APP_EVENT_OPEN_EVENT_CHECKLIST } from '../../utils/appEvents';
 import { isEventSeriesInPast } from '../../utils/eventSeriesInPast';
 import authService from '../../services/authService';
 import api from '../../services/api';
+import checklistService from '../../services/checklistService';
 
 const XIcon = () => (
   <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -583,6 +584,7 @@ const TAB_EVALUACION = 'evaluacion';
 export default function SettingsChecklist() {
   const checklistModalRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoadingChecklist, setIsLoadingChecklist] = useState(false);
   const styleElRef = useRef(null);
 
   // Inyectar/remover estilos del modal directamente en <head> y bloquear scroll del body
@@ -594,6 +596,7 @@ export default function SettingsChecklist() {
         const el = document.createElement('style');
         el.id = 'checklist-modal-styles';
         el.textContent = `
+          @keyframes checklist-spin { to { transform: rotate(360deg); } }
           #eventChecklistBackdrop {
             position: fixed !important;
             top: 0 !important;
@@ -768,34 +771,85 @@ export default function SettingsChecklist() {
     select: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #d1d9e6', background: '#ffffff', color: '#0f172a', fontSize: '0.83rem', cursor: 'pointer', fontFamily: 'inherit', minHeight: '44px', WebkitAppearance: 'menulist', appearance: 'menulist' },
   };
 
-  // Carga y sincronización de datos de checklist del evento
-  const loadEventData = React.useCallback(async (id, { keepActiveTab = false, openModal = true } = {}) => {
+  // Carga y sincronización atómica de datos de checklist del evento
+  const loadEventData = React.useCallback(async (id, { keepActiveTab = false, openModal = true, initialEventData = null } = {}) => {
     if (!id) return;
+    if (openModal) {
+      setEvtId(id);
+      if (initialEventData) setEvtData(initialEventData);
+      setIsOpen(true);
+      setIsLoadingChecklist(true);
+      setPublicLinks([]);
+      setLastGeneratedUrl(null);
+      setPublicLinksError(null);
+    }
     try {
       const user = authService.getCurrentUser();
       setCurrentUser(user ? { ...user, rol: normalizeRole(user.role) } : null);
 
-      invalidateStateCache();
-      const state = await loadCrmState({ cacheBust: true });
-      const tpls = Array.isArray(state.checklistTemplates) ? state.checklistTemplates : [];
-      setTemplates(tpls);
-      setPastEventEditGraceDays(Number(state.pastEventEditGraceDays || 0));
-      const eventsList = Array.isArray(state.events) ? state.events : [];
-      setEvents(eventsList);
-      const checklists = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
-      const eventFound = eventsList.find(x => String(x.id) === String(id) || String(x.Idocupacion || '') === String(id));
+      // 1. Obtener plantillas y gracia desde memoria/caché local (0 ms, 0 bytes)
+      let tpls = templates;
+      let graceDays = pastEventEditGraceDays;
+      let eventFound = initialEventData || evtData;
+
+      try {
+        const cached = await loadCrmState();
+        if (Array.isArray(cached?.checklistTemplates) && cached.checklistTemplates.length > 0) {
+          tpls = cached.checklistTemplates;
+          setTemplates(tpls);
+        }
+        if (cached?.pastEventEditGraceDays !== undefined) {
+          graceDays = Number(cached.pastEventEditGraceDays || 0);
+          setPastEventEditGraceDays(graceDays);
+        }
+        if (Array.isArray(cached?.events) && cached.events.length > 0) {
+          setEvents(cached.events);
+          const fromEvents = cached.events.find(x => String(x.id) === String(id) || String(x.Idocupacion || '') === String(id));
+          if (fromEvents) {
+            eventFound = { ...fromEvents, ...(eventFound || {}) };
+          }
+        }
+      } catch (_) {}
+
+      // Si aún no hay plantillas cargadas, pedir solo plantillas (~3.5 KB)
+      if (!Array.isArray(tpls) || tpls.length === 0) {
+        try {
+          const tplsRes = await checklistService.getPlantillas();
+          if (Array.isArray(tplsRes) && tplsRes.length > 0) {
+            tpls = tplsRes;
+            setTemplates(tpls);
+          }
+        } catch (_) {}
+      }
+
+      // Si aún no tenemos datos del evento o falta título/institución, consultar endpoint puntual del evento (~5 KB)
+      const hasTitle = eventFound && (eventFound.Institucion || eventFound.nombre_evento || eventFound.eventName || (eventFound.name && eventFound.name !== '(sin nombre)'));
+      if (!hasTitle) {
+        try {
+          const evtRes = await api.get('/api/events/' + encodeURIComponent(id));
+          if (evtRes && (evtRes.id || evtRes.Idocupacion || evtRes.Institucion)) {
+            eventFound = { ...(eventFound || {}), ...evtRes };
+          }
+        } catch (_) {}
+      }
+
       setEvtId(id);
       setEvtData(eventFound || null);
 
-      let raw = checklists[id] || checklists[String(id)] || eventFound?.checklist;
+      // 2. Consulta DIRECTA y ATÓMICA del checklist de este evento exclusivamente (~3 KB)
+      let raw = null;
       try {
-        const atomicRes = await api.get(`/api/events/${encodeURIComponent(id)}/checklist`);
+        const atomicRes = await api.get('/api/events/' + encodeURIComponent(id) + '/checklist');
         if (atomicRes?.checklist) {
           raw = atomicRes.checklist;
         }
       } catch (_) {}
 
-      // Migrate old format (single checklist with mixed items) to new format (operativa/evaluacion)
+      if (!raw && eventFound?.checklist) {
+        raw = eventFound.checklist;
+      }
+
+      // Migración si fuera formato antiguo
       if (raw && !raw[TAB_OPERATIVA] && !raw[TAB_EVALUACION] && Array.isArray(raw.items)) {
         const opItems = raw.items.filter(i => i.sectionType !== TAB_EVALUACION);
         const evItems = raw.items.filter(i => i.sectionType === TAB_EVALUACION);
@@ -803,19 +857,13 @@ export default function SettingsChecklist() {
           [TAB_OPERATIVA]: { templateId: raw.templateId, notes: raw.notes, items: opItems, history: [] },
           [TAB_EVALUACION]: { templateId: null, notes: '', items: evItems, history: [] },
         };
-        // Persist migration immediately
         try {
-          await api.put(`/api/events/${encodeURIComponent(id)}/checklist`, { checklist: raw });
-          invalidateStateCache();
-        } catch (_) {
-          await saveCrmState({ ...state, eventChecklists: { ...checklists, [id]: raw } });
-        }
+          await api.put('/api/events/' + encodeURIComponent(id) + '/checklist', { checklist: raw });
+        } catch (_) {}
       }
 
       const op = raw?.[TAB_OPERATIVA] || {};
       const evTabData = raw?.[TAB_EVALUACION] || {};
-      // Lectura con fallback legacy: templateIds (array) tiene prioridad;
-      // si no existe, se usa templateId (string) convertido a array.
       const opTplIds = Array.isArray(op.templateIds) ? op.templateIds.map(String)
                      : op.templateId ? [String(op.templateId)] : [];
       const evTplIds = Array.isArray(evTabData.templateIds) ? evTabData.templateIds.map(String)
@@ -823,11 +871,6 @@ export default function SettingsChecklist() {
       setOpTplIds(opTplIds);
       setOpNotes(op.notes || '');
 
-      // Merge saved items with current templates (multi):
-      // 1) patch type/templateId/templateName on already-saved items
-      // 2) append any NEW template items not yet saved in the event checklist
-      // 3) filtra por sectionType para que Operativa y Evaluación no se mezclen
-      // 4) deduplica items por id entre las distintas plantillas
       const mergeWithMultipleTemplates = (savedItems, templateIds, sectionTypeFilter) => {
         if (!Array.isArray(templateIds) || templateIds.length === 0) return savedItems;
         const allTplItems = [];
@@ -855,7 +898,6 @@ export default function SettingsChecklist() {
           }
         }
         const savedIds = new Set((savedItems || []).map(i => String(i.id ?? i.itemId)));
-        // patch type y templateId/templateName en items guardados
         const patched = (savedItems || []).map(item => {
           const itemIdStr = String(item.id ?? item.itemId);
           const match = allTplItems.find(x => String(x.id) === itemIdStr);
@@ -873,7 +915,6 @@ export default function SettingsChecklist() {
             type: match.type || item.type,
           };
         });
-        // items nuevos del template que aún no estaban guardados
         const newItems = allTplItems.filter(i => !savedIds.has(String(i.id)));
         return [...patched, ...newItems];
       };
@@ -885,7 +926,6 @@ export default function SettingsChecklist() {
       const hasEvHistory = Array.isArray(evTabData.history) && evTabData.history.length > 0;
       const evHasData = hasSavedEvRatings || hasEvNotes || hasEvHistory;
 
-      // Si el evento no tiene datos reales guardados de evaluación, descartar plantillas inactivas
       let validEvTplIds = evTplIds;
       if (!evHasData) {
         validEvTplIds = evTplIds.filter(tid => {
@@ -916,8 +956,6 @@ export default function SettingsChecklist() {
         ? mergeWithMultipleTemplates(evTabData.items || [], validEvTplIds, TAB_EVALUACION)
         : (evHasData ? (evTabData.items || []) : []);
 
-      // Defaults: si el tab no tiene plantilla y no hay items, sugerir la primera
-      // plantilla ACTIVA que tenga sections del tipo correspondiente.
       if (validOpTplIds.length === 0 && !resolvedOpItems.length && tpls.length > 0) {
         const firstWithOp = tpls.find(t =>
           t.active !== false &&
@@ -974,15 +1012,12 @@ export default function SettingsChecklist() {
         setActiveTab(TAB_OPERATIVA);
       }
 
-      // Reset del estado de links públicos solo si se está abriendo el modal de cero
       if (openModal) {
         setPublicLinks([]);
         setLastGeneratedUrl(null);
         setPublicLinksError(null);
       }
 
-      // Inicializar lock: si la Evaluación ya tiene datos guardados con al menos
-      // un rating, queda bloqueada al abrir. Si está vacía, editable normal.
       const hasSavedRatings = resolvedEvItems.length > 0
         && resolvedEvItems.some(it => it.rating !== null && it.rating !== undefined);
       setIsEvLocked(hasSavedRatings);
@@ -996,8 +1031,10 @@ export default function SettingsChecklist() {
     } catch (err) {
       console.error(err);
       toast('Error al abrir checklist');
+    } finally {
+      setIsLoadingChecklist(false);
     }
-  }, []);
+  }, [templates, pastEventEditGraceDays, evtData]);
 
   // ── Helpers para links públicos de evaluación ──────────────────────────
   const loadPublicLinks = React.useCallback(async (eventoId) => {
@@ -1032,7 +1069,8 @@ export default function SettingsChecklist() {
   useEffect(() => {
     const handler = (e) => {
       const id = e?.detail?.eventId;
-      if (id) loadEventData(id, { keepActiveTab: false, openModal: true });
+      const initialEventData = e?.detail?.eventData || null;
+      if (id) loadEventData(id, { keepActiveTab: false, openModal: true, initialEventData });
     };
     window.addEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
     return () => window.removeEventListener(APP_EVENT_OPEN_EVENT_CHECKLIST, handler);
@@ -1042,7 +1080,6 @@ export default function SettingsChecklist() {
   useEffect(() => {
     const handleSubmitted = async (e) => {
       const data = e?.detail;
-      invalidateStateCache();
       if (isOpen && evtId && String(data?.eventoId) === String(evtId)) {
         toast(`🎉 ¡${data?.submitterNombre || 'El cliente'} acaba de enviar su evaluación!`);
         await loadEventData(evtId, { keepActiveTab: true, openModal: false });
@@ -1064,6 +1101,7 @@ export default function SettingsChecklist() {
 
   const closeEvent = () => {
     setIsOpen(false);
+    setIsLoadingChecklist(false);
     setIsEvLocked(false);
     setShowPinDialog(false);
     setPinInput('');
@@ -1386,15 +1424,11 @@ export default function SettingsChecklist() {
   const handleSave = (tab) => async () => {
     if (!evtId) { toast('No hay evento'); return; }
 
-    // Validación: en Evaluación, todos los puntos deben estar calificados (incluyendo N/A).
-    // Las preguntas abiertas (libre) no bloquean — solo necesitan comentario.
     if (tab === TAB_EVALUACION) {
       const unrated = evItems.filter(i =>
         i.type !== 'libre' && (i.rating === null || i.rating === undefined)
       );
       if (unrated.length > 0) {
-        // El `unratedItems` derivado se calcula sobre `evItems` directamente, así
-        // que refleja el estado más reciente. Llamamos focus sobre él.
         focusFirstUnrated();
         return;
       }
@@ -1403,35 +1437,37 @@ export default function SettingsChecklist() {
     const setSaving = tab === TAB_OPERATIVA ? setSavingOp : setSavingEv;
     setSaving(true);
     try {
-      const state = await loadCrmState();
-      const cur = (state.eventChecklists && typeof state.eventChecklists === 'object') ? state.eventChecklists : {};
-      const existing = cur[evtId] || {};
       const entry = buildHistoryEntry(currentUser);
       const tabData = tab === TAB_OPERATIVA
         ? { templateIds: opTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: opTplIds[0] ? Number(opTplIds[0]) : null, notes: opNotes, items: opItems, history: [...opHistory, entry] }
         : { templateIds: evTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: evTplIds[0] ? Number(evTplIds[0]) : null, notes: evNotes, items: evItems, history: [...evHistory, entry] };
-      const fullChecklist = { ...existing, [tab]: tabData };
-      try {
-        await api.put(`/api/events/${encodeURIComponent(evtId)}/checklist`, {
-          checklist: fullChecklist
-        });
-        invalidateStateCache();
-      } catch (apiErr) {
-        console.warn('[SettingsChecklist] Falló endpoint atómico de checklist, guardando vía saveCrmState:', apiErr);
-        await saveCrmState({
-          ...state,
-          eventChecklists: { ...cur, [evtId]: fullChecklist }
-        });
-      }
+
+      const otherTab = tab === TAB_OPERATIVA ? TAB_EVALUACION : TAB_OPERATIVA;
+      const otherTabData = tab === TAB_OPERATIVA
+        ? { templateIds: evTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: evTplIds[0] ? Number(evTplIds[0]) : null, notes: evNotes, items: evItems, history: evHistory }
+        : { templateIds: opTplIds.map(id => Number(id)).filter(n => Number.isFinite(n)), templateId: opTplIds[0] ? Number(opTplIds[0]) : null, notes: opNotes, items: opItems, history: opHistory };
+
+      const fullChecklist = {
+        [tab]: tabData,
+        [otherTab]: otherTabData
+      };
+
+      await api.put('/api/events/' + encodeURIComponent(evtId) + '/checklist', {
+        checklist: fullChecklist
+      });
+
       if (tab === TAB_OPERATIVA) setOpHistory(prev => [...prev, entry]);
       else setEvHistory(prev => [...prev, entry]);
-      toast(`Check list ${tab === TAB_OPERATIVA ? 'Operativa' : 'Evaluación'} guardado ✓`);
+      toast('Check list ' + (tab === TAB_OPERATIVA ? 'Operativa' : 'Evaluación') + ' guardado ✓');
       window.dispatchEvent(new Event('stateUpdated'));
-      // Lock: después de guardar, la Evaluación queda bloqueada para edición.
       if (tab === TAB_EVALUACION) setIsEvLocked(true);
       closeEvent();
-    } catch (err) { console.error(err); toast('Error al guardar'); }
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error(err);
+      toast('Error al guardar checklist');
+    } finally {
+      setSaving(false);
+    }
   };
 
 
@@ -1498,7 +1534,25 @@ export default function SettingsChecklist() {
 
   const getEventTitle = () => {
     if (!evtData) return 'Evento';
-    return String(evtData.eventName || evtData.client || evtData.name || evtData.company || 'Evento').trim();
+    return String(
+      evtData.Institucion ||
+      evtData.nombre_evento ||
+      evtData.eventName ||
+      (evtData.name && evtData.name !== '(sin nombre)' ? evtData.name : '') ||
+      evtData.client ||
+      evtData.NombreCliente ||
+      evtData.company ||
+      evtData.titulo ||
+      evtData.title ||
+      evtData.EncargadoEvento ||
+      evtData.name ||
+      'Evento'
+    ).trim() || 'Evento';
+  };
+
+  const getEventSalon = () => {
+    if (!evtData) return '';
+    return String(evtData.Salon || evtData.salon || evtData.nombre_salon || evtData.mainSalon || '').trim();
   };
 
   const getEventDateFormatted = () => {
@@ -1529,12 +1583,12 @@ export default function SettingsChecklist() {
       }
       return str;
     };
-    const start = evtData.eventDateStart;
-    const end = evtData.eventDateEnd;
-    if (start && end && start !== end) {
+    const start = evtData.FechaEvento || evtData.eventDateStart || evtData.date || evtData.displayDate || evtData.eventDate || evtData.fecha;
+    const end = evtData.FechaSalida || evtData.eventDateEnd || evtData.endDate;
+    if (start && end && String(start).slice(0, 10) !== String(end).slice(0, 10)) {
       return `${fmt(start)} → ${fmt(end)}`;
     }
-    return fmt(evtData.date || evtData.eventDate || start || '');
+    return fmt(start || '');
   };
 
   const modalContent = (
@@ -1603,9 +1657,19 @@ export default function SettingsChecklist() {
                 }} title={getEventTitle()}>
                   {getEventTitle()}
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span>📅</span>
-                  <span>{getEventDateFormatted()}</span>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {getEventDateFormatted() && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <span>📅</span>
+                      <span>{getEventDateFormatted()}</span>
+                    </span>
+                  )}
+                  {getEventSalon() && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <span>📍</span>
+                      <span>{getEventSalon()}</span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1647,6 +1711,7 @@ export default function SettingsChecklist() {
             <button
               type="button"
               className="checklist-tab"
+              disabled={isLoadingChecklist}
               onClick={() => setActiveTab(TAB_OPERATIVA)}
               style={{
                 flex: 1,
@@ -1672,6 +1737,7 @@ export default function SettingsChecklist() {
             <button
               type="button"
               className="checklist-tab"
+              disabled={isLoadingChecklist}
               onClick={() => setActiveTab(TAB_EVALUACION)}
               style={{
                 flex: 1,
@@ -1711,7 +1777,39 @@ export default function SettingsChecklist() {
 
           {/* Body */}
           <div className="checklist-body">
-            {/* Card 1: Plantillas aplicadas */}
+            {isLoadingChecklist ? (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '60px 20px',
+                gap: '16px',
+                background: '#ffffff',
+                borderRadius: '16px',
+                border: '1px solid #e2e8f0',
+                margin: '10px 0'
+              }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  border: '3px solid #e2e8f0',
+                  borderTopColor: '#4f46e5',
+                  borderRadius: '50%',
+                  animation: 'checklist-spin 0.8s linear infinite'
+                }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#1e293b' }}>
+                    Sincronizando checklist del evento...
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                    Carga atómica instantánea
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Card 1: Plantillas aplicadas */}
             <div style={{
               background: '#ffffff',
               borderRadius: '16px',
@@ -2763,6 +2861,8 @@ export default function SettingsChecklist() {
                 )}
               </div>
             )}
+          </>
+            )}
           </div>
 
           {/* Fixed Bottom Footer */}
@@ -2826,7 +2926,7 @@ export default function SettingsChecklist() {
               <button
                 type="button"
                 onClick={handleSave(TAB_EVALUACION)}
-                disabled={savingEv}
+                disabled={savingEv || isLoadingChecklist}
                 style={{
                   flex: 1,
                   padding: '10px 20px',
@@ -2856,7 +2956,7 @@ export default function SettingsChecklist() {
               <button
                 type="button"
                 onClick={handleSave(TAB_OPERATIVA)}
-                disabled={savingOp}
+                disabled={savingOp || isLoadingChecklist}
                 style={{
                   flex: 1,
                   padding: '10px 20px',

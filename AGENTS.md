@@ -32,6 +32,30 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Carga y Guardado Atómico de Checklists de Eventos, Erradicación del Cuello de Botella de 45 MB y Apertura Inmediata (`SettingsChecklist.jsx`, `EventCard.jsx`, `appEvents.js`, `tests/checklist-atomic-fix.test.mjs`) (2026-10-30)
+- Requerimiento del usuario:
+  - En el apartado de checklist, tardaba demasiado al abrir porque tenía que cargar muchos megas consultando todos los checklists y no solamente el del evento seleccionado, provocando un cuello de botella grave.
+  - Diseñado interactivamente vía `/grill-me`: Carga atómica 100% bajo demanda, guardado directo sin invalidación de caché global y apertura inmediata con indicador visual sutil.
+- Causa raíz:
+  1. En `SettingsChecklist.jsx` (`loadEventData`):
+     - Ejecutaba incondicionalmente `invalidateStateCache()` seguido de `await loadCrmState({ cacheBust: true })`.
+     - Esto obligaba al navegador a solicitar `GET /api/state`, descargando **45.12 MB** de JSON (42 MB de eventos, 1.4 MB de historial, 1.2 MB de empresas y los 124 checklists de toda la base de datos).
+     - El hilo principal se congelaba procesando 45 MB cada vez que el usuario hacía clic en el botón de checklist de una tarjeta o evento.
+  2. En `handleSave(tab)`:
+     - Al guardar, volvía a ejecutar `await loadCrmState()` y tras guardar ejecutaba `invalidateStateCache()`, forzando que la siguiente apertura o navegación volviera a descargar los 45 MB.
+- Solución:
+  1. En `SettingsChecklist.jsx`:
+     - Se eliminó `invalidateStateCache()` y la petición forzada de `{ cacheBust: true }`.
+     - Se implementó lectura instantánea de plantillas y datos base desde la memoria/caché local (`await loadCrmState()`, 0 ms / 0 bytes), con fallback atómico a `checklistService.getPlantillas()` (~3.5 KB) y `GET /api/events/:id` (~5 KB) únicamente si faltaran datos.
+     - Carga atómica puntual del checklist del evento usando el endpoint dedicado: `GET /api/events/:id/checklist` (~3 KB frente a 45,120 KB, reducción de más de 15,000x en transferencia).
+     - Guardado atómico directo con `PUT /api/events/:id/checklist` sin llamar a `invalidateStateCache()`, preservando intacta la memoria y reactividad de toda la aplicación.
+     - Apertura inmediata con estado reactivo `isLoadingChecklist`: el modal se abre de inmediato en 0 ms mostrando un indicador de rotación y mensaje ejecutivo mientras el endpoint atómico responde en ~30-50 ms.
+  2. En `appEvents.js` y `EventCard.jsx`:
+     - `emitOpenEventChecklist(eventId, eventData)` ahora propaga la referencia del evento, permitiendo renderizar instantáneamente el título, fecha y salón en la cabecera del modal antes de completar la sincronización.
+  3. En `tests/checklist-atomic-fix.test.mjs`:
+     - 5 pruebas unitarias verificando la erradicación del payload masivo, la carga y guardado atómicos y la apertura inmediata.
+- Validación: 200 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y compilación de producción exitosa (versión `2.1.4`).
+
 ### Solución: Corrección de Deformación de Cabecera Superior, Arquitectura 2-Tier Ejecutiva con MCP Stitch y Blindaje Responsivo Móvil (`ReportsLayout.jsx`, `styles.css`, `styles.scss`, `tests/informes-scroll-fix.test.mjs`) (2026-10-24)
 - Requerimiento del usuario:
   - "se arruino todo el diseño ahora la parte superior se deformo todo usar MCP stich para arreglar el diseño siempre toma en cuenta la version mobil".

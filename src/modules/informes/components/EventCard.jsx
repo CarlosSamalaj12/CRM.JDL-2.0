@@ -349,7 +349,7 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
         >
           <IconEye size={13} />
         </button>
-        <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion)} data-tooltip="Abrir check list del evento" style={{flex:'0 0 32px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
+        <button type="button" onClick={() => emitOpenEventChecklist(event.Idocupacion, event)} data-tooltip="Abrir check list del evento" style={{flex:'0 0 32px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent'}}>
           <IconClipboardList size={13} />
         </button>
         <button type="button" className={`tareas-btn ${tareasCount > 0 ? 'has-tareas' : ''}`} onClick={() => onNavigateToTareas?.(event.Idocupacion)} data-tooltip={tareasCount > 0 ? `${tareasCount} tarea(s) pendiente(s)` : 'Ir a tareas semanales'} style={{flex:'0 0 30px',justifyContent:'center',padding:'0.4rem 0',background:'var(--primary-bg)',color:'var(--primary)',borderColor:'transparent',position:'relative'}}>
