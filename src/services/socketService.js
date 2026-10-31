@@ -55,6 +55,10 @@ class SocketService {
     this.socket.on('state-updated', (data) => {
       window.dispatchEvent(new CustomEvent('state-updated', { detail: data }));
     });
+
+    this.socket.on('maintenance-status-changed', (data) => {
+      window.dispatchEvent(new CustomEvent('maintenanceStatusChanged', { detail: data }));
+    });
   }
 
   disconnect() {

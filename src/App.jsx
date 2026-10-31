@@ -3,10 +3,12 @@ import React, { Suspense, lazy } from 'react';
 import MainLayout from './layouts/MainLayout/MainLayout';
 import { SupportModule } from './modules/shared/GenericModule';
 import authService from './services/authService';
+import socketService from './services/socketService';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import SafeRoute from './components/SafeRoute';
 import MaintenancePage from './components/MaintenancePage';
+import MaintenanceCountdownBanner from './components/MaintenanceCountdownBanner';
 import UpdateBanner from './components/UpdateBanner';
 import ProtectedRoute from './modules/informes/components/ProtectedRoute';
 import Kanban from './modules/informes/pages/Kanban';
@@ -70,6 +72,8 @@ function HomeRedirect() {
 
 function App() {
   const [maintenance, setMaintenance] = React.useState(false);
+  const [maintenanceStartsAt, setMaintenanceStartsAt] = React.useState(null);
+  const [gracePeriodExpired, setGracePeriodExpired] = React.useState(false);
   const [bypassActive, setBypassActive] = React.useState(() => {
     return typeof window !== 'undefined' && sessionStorage.getItem('crm_maintenance_bypass') === 'true';
   });
@@ -78,7 +82,10 @@ function App() {
     fetch('/api/maintenance-status')
       .then(r => r.json())
       .then(data => {
-        setMaintenance(data.maintenanceMode === true);
+        const isMaint = data.maintenanceMode === true;
+        setMaintenance(isMaint);
+        setMaintenanceStartsAt(data.startsAt ? Number(data.startsAt) : null);
+        if (!isMaint) setGracePeriodExpired(false);
       })
       .catch(() => setMaintenance(false));
   }, []);
@@ -86,7 +93,10 @@ function App() {
   React.useEffect(() => {
     const handleMaintenanceEvent = (e) => {
       if (e?.detail?.maintenanceMode !== undefined) {
-        setMaintenance(Boolean(e.detail.maintenanceMode));
+        const isMaint = Boolean(e.detail.maintenanceMode);
+        setMaintenance(isMaint);
+        setMaintenanceStartsAt(e.detail.startsAt ? Number(e.detail.startsAt) : null);
+        if (!isMaint) setGracePeriodExpired(false);
       } else {
         checkMaintenance();
       }
@@ -123,8 +133,29 @@ function App() {
   }, []);
 
   React.useEffect(() => {
+    // Inicializar conexión de sockets globalmente para que todas las rutas (incluyendo Kanban e Informes)
+    // reciban eventos en tiempo real inmediatamente
+    socketService.connect();
+
     checkMaintenance();
     window.addEventListener('focus', checkMaintenance);
+
+    // Sondeo de respaldo cada 6s para asegurar sincronización en todas las ventanas y pestañas
+    const maintInterval = setInterval(checkMaintenance, 6000);
+
+    // Sincronización instantánea inter-pestañas mediante evento storage (0ms entre pestañas)
+    const handleStorage = (e) => {
+      if (e.key === 'crm_maintenance_sync' && e.newValue) {
+        try {
+          const sync = JSON.parse(e.newValue);
+          const isMaint = Boolean(sync.maintenanceMode);
+          setMaintenance(isMaint);
+          setMaintenanceStartsAt(sync.startsAt ? Number(sync.startsAt) : null);
+          if (!isMaint) setGracePeriodExpired(false);
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
 
     // Precargar módulos principales en segundo plano para navegación instantánea (0ms)
     const preloadTimer = setTimeout(() => {
@@ -139,6 +170,8 @@ function App() {
 
     return () => {
       window.removeEventListener('focus', checkMaintenance);
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(maintInterval);
       clearTimeout(preloadTimer);
     };
   }, [checkMaintenance]);
@@ -183,11 +216,21 @@ function App() {
 
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser && ['admin', 'administrador', 'superadmin'].includes(String(currentUser.rol || currentUser.role || '').trim().toLowerCase());
-  const isBlocked = maintenance && !isAdmin && !bypassActive;
+
+  const now = Date.now();
+  const isGracePeriod = maintenance && maintenanceStartsAt && (maintenanceStartsAt > now) && !gracePeriodExpired;
+  const isBlocked = maintenance && !isAdmin && !bypassActive && !isGracePeriod;
 
   return (
     <Router>
       <UpdateBanner />
+      {isGracePeriod && (
+        <MaintenanceCountdownBanner
+          startsAt={maintenanceStartsAt}
+          onCountdownEnd={() => setGracePeriodExpired(true)}
+          onImmediateLock={!isAdmin ? () => setGracePeriodExpired(true) : undefined}
+        />
+      )}
       <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
@@ -196,6 +239,7 @@ function App() {
               <MaintenancePage onBypassSuccess={() => {
                 setBypassActive(true);
                 setMaintenance(false);
+                setGracePeriodExpired(false);
               }} />
             ) : (
               <>

@@ -27,7 +27,8 @@ import {
   ExternalLink,
   ChevronDown,
   Megaphone,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import {
   getHabitacionesApi,
@@ -146,54 +147,50 @@ export default function HabitacionesModule() {
     loadAuxData();
   }, []);
 
-  // Sincronización en Tiempo Real con Socket.IO
+  // Referencia mutable a filtros para evitar stale closures en listeners de Socket.IO
+  const filtersRef = useRef({
+    filterMes,
+    filterVendedor,
+    filterTipoHab,
+    filterEstado,
+    filterDesde,
+    filterHasta,
+    searchQuery
+  });
+
   useEffect(() => {
-    socketService.connect();
-    setIsLiveConnected(Boolean(socketService.socket?.connected));
-
-    const handleConnect = () => setIsLiveConnected(true);
-    const handleDisconnect = () => setIsLiveConnected(false);
-
-    const handleEntityChange = (payload) => {
-      if (payload?.entity === 'habitaciones' || payload?.entity === 'habitacion_catalogos') {
-        fetchReservas();
-        loadAuxData();
-        setLastSyncTime(formatTimeAMPM());
-      }
+    filtersRef.current = {
+      filterMes,
+      filterVendedor,
+      filterTipoHab,
+      filterEstado,
+      filterDesde,
+      filterHasta,
+      searchQuery
     };
-
-    const handleStateUpdated = (payload) => {
-      if (!payload?.entity || payload.entity === 'habitaciones') {
-        fetchReservas();
-        setLastSyncTime(formatTimeAMPM());
-      }
-    };
-
-    const unsubConnect = socketService.on('connect', handleConnect);
-    const unsubDisconnect = socketService.on('disconnect', handleDisconnect);
-    const unsubEntity = socketService.on('entity:changed', handleEntityChange);
-    const unsubState = socketService.on('state-updated', handleStateUpdated);
-
-    return () => {
-      unsubConnect();
-      unsubDisconnect();
-      unsubEntity();
-      unsubState();
-    };
-  }, []);
+  }, [filterMes, filterVendedor, filterTipoHab, filterEstado, filterDesde, filterHasta, searchQuery]);
 
   // Carga de reservas filtradas
-  const fetchReservas = useCallback(async () => {
+  const fetchReservas = useCallback(async (customFilters = null) => {
     setLoading(true);
+    const f = customFilters || filtersRef.current || {};
+    const mesParam = f.filterMes !== undefined ? f.filterMes : filterMes;
+    const vendParam = f.filterVendedor !== undefined ? f.filterVendedor : filterVendedor;
+    const tipoHabParam = f.filterTipoHab !== undefined ? f.filterTipoHab : filterTipoHab;
+    const estadoParam = f.filterEstado !== undefined ? f.filterEstado : filterEstado;
+    const desdeParam = f.filterDesde !== undefined ? f.filterDesde : filterDesde;
+    const hastaParam = f.filterHasta !== undefined ? f.filterHasta : filterHasta;
+    const searchParam = f.searchQuery !== undefined ? f.searchQuery : searchQuery;
+
     try {
       const res = await getHabitacionesApi({
-        mes: filterMes || undefined,
-        vendedor: filterVendedor || undefined,
-        tipo_habitacion: filterTipoHab || undefined,
-        estado: filterEstado || undefined,
-        desde: filterDesde || undefined,
-        hasta: filterHasta || undefined,
-        search: searchQuery.trim() || undefined
+        mes: mesParam || undefined,
+        vendedor: vendParam || undefined,
+        tipo_habitacion: tipoHabParam || undefined,
+        estado: estadoParam || undefined,
+        desde: desdeParam || undefined,
+        hasta: hastaParam || undefined,
+        search: searchParam?.trim() || undefined
       });
       setReservas(res?.reservas || []);
       setMetricas(res?.metricas || {
@@ -210,6 +207,42 @@ export default function HabitacionesModule() {
       setLoading(false);
     }
   }, [filterMes, filterVendedor, filterTipoHab, filterEstado, filterDesde, filterHasta, searchQuery]);
+
+  // Sincronización en Tiempo Real con Socket.IO (preservando filtros activos)
+  useEffect(() => {
+    socketService.connect();
+    setIsLiveConnected(Boolean(socketService.socket?.connected));
+
+    const handleConnect = () => setIsLiveConnected(true);
+    const handleDisconnect = () => setIsLiveConnected(false);
+
+    const handleEntityChange = (payload) => {
+      if (payload?.entity === 'habitaciones' || payload?.entity === 'habitacion_catalogos') {
+        fetchReservas(filtersRef.current);
+        loadAuxData();
+        setLastSyncTime(formatTimeAMPM());
+      }
+    };
+
+    const handleStateUpdated = (payload) => {
+      if (!payload?.entity || payload.entity === 'habitaciones') {
+        fetchReservas(filtersRef.current);
+        setLastSyncTime(formatTimeAMPM());
+      }
+    };
+
+    const unsubConnect = socketService.on('connect', handleConnect);
+    const unsubDisconnect = socketService.on('disconnect', handleDisconnect);
+    const unsubEntity = socketService.on('entity:changed', handleEntityChange);
+    const unsubState = socketService.on('state-updated', handleStateUpdated);
+
+    return () => {
+      unsubConnect();
+      unsubDisconnect();
+      unsubEntity();
+      unsubState();
+    };
+  }, [fetchReservas]);
 
   useEffect(() => {
     fetchReservas();
@@ -267,13 +300,52 @@ export default function HabitacionesModule() {
 
   const reservasFiltradas = useMemo(() => {
     const list = reservas.filter(r => {
-      if (filterModulo && (r.modulo !== filterModulo && r.modulo !== filterModulo)) return false;
+      // 1. Filtrado defensivo de Vendedor (por ID o por Nombre del vendedor)
+      if (filterVendedor) {
+        const selectedSeller = sellers.find(s => String(s.id) === String(filterVendedor));
+        const sellerName = selectedSeller ? selectedSeller.name : '';
+        const matchId = String(r.id_vendedor || '').trim() === String(filterVendedor).trim();
+        const matchName = sellerName && String(r.vendedor_nombre || '').toLowerCase().includes(sellerName.toLowerCase());
+        const matchDirect = String(r.vendedor_nombre || '').toLowerCase().includes(String(filterVendedor).toLowerCase());
+        if (!matchId && !matchName && !matchDirect) return false;
+      }
+
+      // 2. Filtrado defensivo de Tipo de Habitación
+      if (filterTipoHab && (String(r.id_tipo_habitacion) !== String(filterTipoHab) && String(r.tipo_habitacion_nombre) !== String(filterTipoHab))) {
+        return false;
+      }
+
+      // 3. Filtrado defensivo de Estado
+      if (filterEstado && String(r.estado || '').toLowerCase() !== String(filterEstado).toLowerCase()) {
+        return false;
+      }
+
+      // 4. Filtro por módulo
+      if (filterModulo && (r.modulo !== filterModulo)) return false;
+
+      // 5. Filtro por forma de pago
       if (filterFormaPago && (r.id_forma_pago !== filterFormaPago && r.forma_pago_nombre !== filterFormaPago)) return false;
+
+      // 6. Filtro por empresa
       if (filterEmpresa) {
         if (filterEmpresa === 'particular' && r.empresa_nombre) return false;
         if (filterEmpresa !== 'particular' && r.id_empresa !== filterEmpresa && r.empresa_nombre !== filterEmpresa) return false;
       }
+
+      // 7. Filtro por segmento / tipo cliente
       if (filterSegmento && (r.id_tipo_cliente !== filterSegmento && r.tipo_cliente_nombre !== filterSegmento)) return false;
+
+      // 8. Búsqueda libre
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const matchSearch = String(r.nombre_huesped || '').toLowerCase().includes(q) ||
+          String(r.no_folio || '').toLowerCase().includes(q) ||
+          String(r.telefono || '').toLowerCase().includes(q) ||
+          String(r.correo || '').toLowerCase().includes(q) ||
+          String(r.empresa_nombre || '').toLowerCase().includes(q);
+        if (!matchSearch) return false;
+      }
+
       return true;
     });
 
@@ -284,7 +356,27 @@ export default function HabitacionesModule() {
       if (numA !== numB) return numB - numA;
       return String(b.no_folio || b.id || '').localeCompare(String(a.no_folio || a.id || ''), undefined, { numeric: true });
     });
-  }, [reservas, filterModulo, filterFormaPago, filterEmpresa, filterSegmento]);
+  }, [reservas, sellers, filterVendedor, filterTipoHab, filterEstado, filterModulo, filterFormaPago, filterEmpresa, filterSegmento, searchQuery]);
+
+  // Métricas dinámicas calculadas sobre las reservas visibles/filtradas (KPIs reactivos al vendedor)
+  const displayMetricas = useMemo(() => {
+    let totalNoches = 0;
+    let totalHabitaciones = 0;
+    let totalMonto = 0;
+    reservasFiltradas.forEach(r => {
+      totalNoches += Number(r.noches || 0);
+      totalHabitaciones += Number(r.cantidad_habitaciones || 0);
+      if (String(r.estado || '').toLowerCase() !== 'cancelada') {
+        totalMonto += Number(r.monto_total || 0);
+      }
+    });
+    return {
+      totalReservas: reservasFiltradas.length,
+      totalNoches,
+      totalHabitaciones,
+      totalMonto
+    };
+  }, [reservasFiltradas]);
 
   // Contadores de estado para leyenda superior
   const estadoStats = useMemo(() => {
@@ -335,18 +427,18 @@ export default function HabitacionesModule() {
       if (y && m) diasEnMes = new Date(y, m, 0).getDate();
     }
     const capacidadInstaladaTotal = 24 * diasEnMes;
-    const nochesVendidas = Number(metricas.totalNoches || 0);
+    const nochesVendidas = Number(displayMetricas.totalNoches || 0);
     const tasaOcupacion = Math.min(100, (nochesVendidas / Math.max(1, capacidadInstaladaTotal)) * 100);
-    const adr = nochesVendidas > 0 ? Number(metricas.totalMonto || 0) / nochesVendidas : 0;
+    const adr = nochesVendidas > 0 ? Number(displayMetricas.totalMonto || 0) / nochesVendidas : 0;
     const metaMonto = 50000;
-    const porcentajeMeta = Math.min(100, Math.round((Number(metricas.totalMonto || 0) / metaMonto) * 100));
+    const porcentajeMeta = Math.min(100, Math.round((Number(displayMetricas.totalMonto || 0) / metaMonto) * 100));
 
     return {
       tasaOcupacion: tasaOcupacion.toFixed(1),
       adr: adr.toFixed(2),
       porcentajeMeta: Math.max(12, porcentajeMeta)
     };
-  }, [metricas, filterMes]);
+  }, [displayMetricas, filterMes]);
 
   // Contador de filtros avanzados activos
   const activeAdvancedFiltersCount = useMemo(() => {
@@ -622,7 +714,7 @@ export default function HabitacionesModule() {
           <div>
             <div className="hab-kpi-label-bento">Ingresos de Habitaciones</div>
             <div className="hab-kpi-val-bento">
-              Q {Number(metricas.totalMonto || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              Q {Number(displayMetricas.totalMonto || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="hab-kpi-sub-bento">
               <span>Total facturado en el período</span>
@@ -649,15 +741,15 @@ export default function HabitacionesModule() {
           </div>
           <div>
             <div className="hab-kpi-label-bento">Habitaciones Vendidas</div>
-            <div className="hab-kpi-val-bento">{metricas.totalHabitaciones}</div>
+            <div className="hab-kpi-val-bento">{displayMetricas.totalHabitaciones}</div>
             <div className="hab-kpi-sub-bento">
-              <span>{metricas.totalReservas} reserva(s) registradas</span>
+              <span>{displayMetricas.totalReservas} reserva(s) registradas</span>
               <span style={{ fontWeight: 800, color: '#2563eb' }}>{suitesCount} Suites</span>
             </div>
             <div className="hab-kpi-progress-track">
               <div
                 className="hab-kpi-progress-bar"
-                style={{ width: `${Math.min(100, (metricas.totalHabitaciones / 24) * 100)}%`, background: 'linear-gradient(90deg, #2563eb, #38bdf8)' }}
+                style={{ width: `${Math.min(100, (displayMetricas.totalHabitaciones / 24) * 100)}%`, background: 'linear-gradient(90deg, #2563eb, #38bdf8)' }}
               />
             </div>
           </div>
@@ -670,19 +762,19 @@ export default function HabitacionesModule() {
               <Calendar size={20} strokeWidth={2.5} />
             </div>
             <span className="hab-kpi-pill-badge purple">
-              {metricas.totalNoches > 3 ? 'Estancia Media' : 'Estancia Corta'}
+              {displayMetricas.totalNoches > 3 ? 'Estancia Media' : 'Estancia Corta'}
             </span>
           </div>
           <div>
             <div className="hab-kpi-label-bento">Total Noches Vendidas</div>
-            <div className="hab-kpi-val-bento">{metricas.totalNoches}</div>
+            <div className="hab-kpi-val-bento">{displayMetricas.totalNoches}</div>
             <div className="hab-kpi-sub-bento">
-              <span>Ticket prom: Q {metricas.totalNoches > 0 ? (metricas.totalMonto / metricas.totalNoches).toFixed(2) : '0.00'} / noche</span>
+              <span>Ticket prom: Q {displayMetricas.totalNoches > 0 ? (displayMetricas.totalMonto / displayMetricas.totalNoches).toFixed(2) : '0.00'} / noche</span>
             </div>
             <div className="hab-kpi-progress-track">
               <div
                 className="hab-kpi-progress-bar"
-                style={{ width: `${Math.min(100, metricas.totalNoches * 4)}%`, background: 'linear-gradient(90deg, #7c3aed, #a855f7)' }}
+                style={{ width: `${Math.min(100, displayMetricas.totalNoches * 4)}%`, background: 'linear-gradient(90deg, #7c3aed, #a855f7)' }}
               />
             </div>
           </div>
@@ -814,7 +906,7 @@ export default function HabitacionesModule() {
           </div>
 
           {/* Botón Filtros Avanzados */}
-          <div className="hab-filter-item" style={{ alignSelf: 'flex-end' }}>
+          <div className="hab-filter-item" style={{ alignSelf: 'flex-end', display: 'flex', gap: 6 }}>
             <button
               type="button"
               className="hab-btn-filter-trigger"
@@ -841,6 +933,34 @@ export default function HabitacionesModule() {
                 </span>
               )}
             </button>
+
+            {(Boolean(filterVendedor) || Boolean(filterTipoHab) || Boolean(filterEstado) || activeAdvancedFiltersCount > 0 || Boolean(searchQuery)) && (
+              <button
+                type="button"
+                className="hab-btn-filter-trigger"
+                onClick={() => {
+                  setFilterVendedor('');
+                  setFilterTipoHab('');
+                  setFilterEstado('');
+                  setFilterDesde('');
+                  setFilterHasta('');
+                  setFilterModulo('');
+                  setFilterFormaPago('');
+                  setFilterEmpresa('');
+                  setFilterSegmento('');
+                  setSearchQuery('');
+                }}
+                style={{
+                  background: '#fff1f2',
+                  color: '#e11d48',
+                  borderColor: '#fecdd3'
+                }}
+                title="Limpiar todos los filtros"
+              >
+                <RotateCcw size={14} strokeWidth={2.4} />
+                <span>Limpiar</span>
+              </button>
+            )}
           </div>
         </div>
 

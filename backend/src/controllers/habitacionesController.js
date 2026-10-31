@@ -73,8 +73,21 @@ export async function getHabitaciones(req, res) {
     }
 
     if (vendedor) {
-      conditions.push('id_vendedor = ?');
-      params.push(vendedor);
+      let sellerName = null;
+      try {
+        const [userRows] = await conn.query('SELECT nombre, nombre_completo FROM usuarios WHERE id = ?', [vendedor]);
+        if (userRows && userRows.length > 0) {
+          sellerName = userRows[0].nombre_completo || userRows[0].nombre;
+        }
+      } catch (_) {}
+
+      if (sellerName) {
+        conditions.push('(id_vendedor = ? OR vendedor_nombre = ? OR vendedor_nombre LIKE ?)');
+        params.push(vendedor, sellerName, `%${sellerName}%`);
+      } else {
+        conditions.push('(id_vendedor = ? OR vendedor_nombre LIKE ?)');
+        params.push(vendedor, `%${vendedor}%`);
+      }
     }
 
     if (estado) {

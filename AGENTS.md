@@ -32,6 +32,93 @@ Cómo forzar actualización de clientes y cierre de sesión limpio desde cada bu
   - Si el Service Worker cambia de controlador (`controllerchange`) en producción, ejecuta `forcePurgeAndLogout(CURRENT_VERSION)`.
 
 ## Bugs históricos resueltos
+### Solución: Preservación Estricta de Datos, Erradicación de Reseteo Involuntario y Recálculo Inteligente en Modal de Habitaciones (`HabitacionModal.jsx`, `tests/habitaciones-system.test.mjs`) (2026-10-31)
+- Requerimiento del usuario:
+  - En el apartado de ingreso de habitaciones, al ingresar el nombre del huésped y comenzar a editar la tarifa o precio vendido de la habitación, el formulario borraba los datos previos ingresados (nombre, teléfono, etc.).
+  - Diseñado interactivamente vía `/grill-me`: Preservación estricta de datos ingresados, actualización funcional de campos (`prev => ({ ...prev })`), respeto al monto manual personalizado y actualización de tarifa base al cambiar tipo de habitación.
+- Causa raíz:
+  1. En `src/modules/habitaciones/HabitacionModal.jsx`:
+     - El `useEffect` de inicialización del formulario incluía `catalogos` en sus dependencias: `useEffect(..., [initialData, catalogos, isOpen])`.
+     - Cuando `HabitacionesModule` terminaba de cargar catálogos auxiliares o recibía actualizaciones por WebSocket en segundo plano, la referencia del objeto `catalogos` cambiaba, provocando que el `useEffect` se volviera a ejecutar mientras el usuario estaba escribiendo con el modal abierto, restableciendo `formData` al estado en blanco (`nombre_huesped: ''`, `telefono: ''`, etc.).
+     - Además, varios campos como `nombre_huesped`, `telefono`, `correo`, `no_folio` y `observaciones` utilizaban `setFormData({ ...formData, ... })` en lugar de la función actualizadora funcional `setFormData(prev => ({ ...prev, ... }))`, lo que causaba condiciones de carrera y *stale closures* al interactuar rápidamente entre la tarifa y los datos del huésped.
+- Solución:
+  1. En `src/modules/habitaciones/HabitacionModal.jsx`:
+     - Se implementó detección estricta de evento de apertura mediante `prevIsOpenRef` y `prevInitialIdRef`. El formulario se inicializa ÚNICAMENTE cuando el modal pasa de cerrado a abierto (`isOpening && !prevIsOpenRef.current`) o cuando cambia la reserva a editar (`initialData?.id !== prevInitialIdRef.current`). Se eliminó `catalogos` de las dependencias.
+     - Se migraron todos los handlers de entrada (`nombre_huesped`, `telefono`, `correo`, `no_folio`, `id_vendedor`, `id_medio_contacto`, `id_tipo_cliente`, `id_forma_pago`, `modulo`, `observaciones`, `handleDateChange`, `handleTipoHabitacionChange`, etc.) al patrón funcional `setFormData(prev => ({ ...prev, [field]: value }))`.
+     - Se preservó el Monto Total personalizado (`isManualTotal`) respetando el valor manual congelado al ajustar otros campos, permitiendo volver a auto-cálculo mediante el botón `⚡ Auto`.
+  2. En `tests/habitaciones-system.test.mjs`:
+     - Nueva prueba unitaria verificando la presencia de `prevIsOpenRef`, `prevInitialIdRef`, la exclusión de `catalogos` en dependencias y el uso de actualizadores funcionales en todos los campos.
+- Validación: 208 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.9`).
+
+### Solución: Filtrado Híbrido Estricto de Vendedores, KPIs Reactivos y Erradicación de Stale Closures en Habitaciones (`HabitacionesModule.jsx`, `habitacionesController.js`, `tests/habitaciones-system.test.mjs`) (2026-10-31)
+- Requerimiento del usuario:
+  - Al filtrar por vendedor en el apartado de Ingreso de Habitaciones (ej. "Ruben Abdiel Sosof Pacheco"), en ocasiones el filtro fallaba y seguían apareciendo ingresos de otros vendedores (ej. Wendy Mendez, Yeimy Xon, etc.) mostrando las 418 reservas completas.
+  - Diseñado interactivamente vía `/grill-me`: Filtrado estricto híbrido (Backend SQL + Memoria defensiva), resolución dual por ID o Nombre del vendedor, recalculo dinámico de KPIs y botón rápido para limpiar filtros.
+- Causa raíz:
+  1. En `src/modules/habitaciones/HabitacionesModule.jsx`:
+     - El `useEffect` del socket de tiempo real (`socketService.on('state-updated')` y `entity:changed`) se montaba con dependencias vacías `[]`. Al dispararse un evento en segundo plano, ejecutaba `fetchReservas()` con el closure inicial donde `filterVendedor` estaba vacío (`''`), sobreescribiendo el listado con las 418 reservas sin alterar el dropdown del select.
+     - `reservasFiltradas` (en memoria con `useMemo`) no aplicaba filtro de vendedor ni de tipo de habitación en el cliente, confiando únicamente en la respuesta del backend.
+  2. En `backend/src/controllers/habitacionesController.js`:
+     - El query solo buscaba `id_vendedor = ?`. Si llegaba el nombre de vendedor o un identificador histórico, no realizaba la coincidencia por texto en `vendedor_nombre`.
+- Solución:
+  1. En `backend/src/controllers/habitacionesController.js`:
+     - Al recibir `vendedor`, resuelve el nombre del usuario y filtra en SQL mediante `(id_vendedor = ? OR vendedor_nombre = ? OR vendedor_nombre LIKE ?)`.
+  2. En `src/modules/habitaciones/HabitacionesModule.jsx`:
+     - Se introdujo `filtersRef` mutable para evitar *stale closures* en el socket: ante cualquier actualización en vivo en segundo plano, `fetchReservas(filtersRef.current)` preserva exactamente los filtros activos sin resetear la vista.
+     - Se añadió filtrado defensivo en memoria en `reservasFiltradas` que valida tanto el `id_vendedor` como el `vendedor_nombre`, garantizando que ninguna reserva de otro vendedor pueda renderizarse.
+     - Se creó `displayMetricas` reactivo sobre las reservas visibles para que los KPIs superiores (Total Reservas, Noches, Habitaciones y Monto Total) reflejen exactamente lo vendido por el vendedor seleccionado.
+     - Se integró un botón ejecutivo "Limpiar" para restablecer los filtros de un clic cuando haya filtros aplicados.
+  3. En `tests/habitaciones-system.test.mjs`:
+     - Prueba unitaria validando el filtrado dual en backend, la presencia de `filtersRef`, el filtrado defensivo en cliente, las métricas reactivas y el botón de restablecimiento.
+- Validación: 208 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.8`).
+
+### Solución: Sincronización Universal y Visibilidad Garantizada del Conteo de Mantenimiento en Kanban e Informes (`App.jsx`, `SettingsMantenimiento.jsx`, `server.cjs`, `tests/maintenance-countdown.test.mjs`) (2026-10-31)
+- Requerimiento del usuario:
+  - En pruebas locales, el banner de conteo regresivo de 30s de modo mantenimiento aparecía en el CRM (`/settings`), pero no se visualizaba en el Sistema de Informes (`/kanban`, `/informes`).
+- Causa raíz:
+  1. En `src/layouts/MainLayout/MainLayout.jsx`: `socketService.connect()` solo se ejecutaba en rutas envueltas por `MainLayout` (CRM legado). Al navegar o abrir directamente `/kanban`, `MainLayout` no se montaba y el socket global no se conectaba.
+  2. En `src/App.jsx`: No contaba con conexión de sockets a nivel raíz ni con sincronización inter-pestañas. Si el usuario activaba mantenimiento en una pestaña de administración, las demás pestañas del navegador solo dependían de recuperar foco (`window focus`).
+  3. En `server.cjs`: `app.get("/api/maintenance-status")` evaluaba `r.clave === 'maintenanceMode'` directamente sin `str(r.clave)` ni `str(r.valor_json)`, susceptible a discrepancias de tipo Buffer de MariaDB. Además, el daemon de Node en memoria no se había reiniciado tras los cambios anteriores.
+- Solución:
+  1. En `src/App.jsx`:
+     - Se inicializó `socketService.connect()` en el nivel raíz de la aplicación para que todas las pantallas (Kanban, Informes, Login, Habitaciones, etc.) mantengan el canal de WebSocket activo desde el primer milisegundo.
+     - Se implementó sincronización inter-pestañas de latencia cero (0 ms) mediante el evento de navegador `storage` escuchando `crm_maintenance_sync`.
+     - Se agregó sondeo de respaldo periódico cada 6 segundos (`setInterval(checkMaintenance, 6000)`) para sincronización infalible incluso ante pérdidas temporales de conexión o ventanas sin foco.
+  2. En `src/modules/settings/SettingsMantenimiento.jsx`:
+     - Al iniciar mantenimiento, forzar bloqueo inmediato o desactivarlo, emite de inmediato `window.dispatchEvent(new CustomEvent('maintenanceStatusChanged', ...))` y propaga el estado instantáneamente a través de `localStorage.setItem('crm_maintenance_sync', ...)`.
+  3. En `server.cjs`:
+     - Se blindó la lectura en `GET /api/maintenance-status` con `str(r.clave)` y `str(r.valor_json)` y se reinició el servidor backend Node.
+  4. En `tests/maintenance-countdown.test.mjs`:
+     - Se ampliaron las pruebas unitarias validando la inicialización global de sockets, el sondeo de respaldo y la sincronización inter-pestañas en `App.jsx` y `SettingsMantenimiento`.
+- Validación: 207 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.7`).
+
+### Solución: Modo Mantenimiento con Conteo Regresivo de 30 Segundos, Sincronización en Tiempo Real y Bloqueo Inmediato (`MaintenanceCountdownBanner.jsx`, `App.jsx`, `SettingsMantenimiento.jsx`, `server.cjs`, `tests/maintenance-countdown.test.mjs`) (2026-10-30)
+- Requerimiento del usuario:
+  - Al entrar al modo mantenimiento, otorgar a los usuarios conectados 30 segundos de conteo regresivo para que les dé tiempo de dejar de usar el sistema, guardar formularios y no perder información.
+  - Diseñado interactivamente vía `/grill-me`: Banner superior fijo no invasivo con tono de aviso sonoro suave y barra de progreso, preservación de sesión al bloquearse para reanudar sin reingreso de contraseña, y panel de administrador con botón de "Forzar Bloqueo Inmediato" en caso de emergencias técnicas.
+- Arquitectura e Implementación:
+  1. En `server.cjs`:
+     - Se introdujo `maintenanceStartsAt` en `app_state_kv`.
+     - `GET /api/maintenance-status` retorna `{ maintenanceMode, startsAt }`.
+     - `PUT/POST /api/settings/maintenanceMode` calcula `startsAt = Date.now() + 30000` (o `Date.now()` si se solicita `immediate: true`).
+     - Al desactivarse o desactivar vía `/api/maintenance/disable`, limpia `maintenanceStartsAt = null` y emite `maintenance-status-changed` con `{ maintenanceMode: false, startsAt: null }`.
+  2. En `src/services/socketService.js` y `src/modules/informes/context/SocketContext.jsx`:
+     - Escucha `maintenance-status-changed` y propaga el evento de navegador `maintenanceStatusChanged` en tiempo real a todos los clientes.
+  3. En `src/components/MaintenanceCountdownBanner.jsx`:
+     - Banner fijo de alerta (`z-index: 9999999`) con degradado rojo/ámbar, badge animado con segundos restantes (`⏳ XXs`), texto explicativo y barra de progreso continua.
+     - Reproducción de tono sonoro de aviso sutil mediante Web Audio API autónomo (880Hz a 660Hz) sin dependencias externas.
+     - `pointer-events: auto` únicamente en el banner: toda la aplicación inferior permanece completamente clickeable para que los usuarios puedan guardar formularios o cerrar ventanas modales.
+  4. En `src/App.jsx`:
+     - Durante el período de gracia (`hasGrace = maintenance && startsAt > now && !gracePeriodExpired`), monta el banner de cuenta regresiva sin bloquear la interfaz.
+     - Al expirar los 30 segundos (`secondsLeft <= 0`), transiciona suavemente a `<MaintenancePage />`.
+     - La sesión del usuario se mantiene intacta para que al desactivarse el mantenimiento regresen de inmediato a su trabajo.
+  5. En `src/modules/settings/SettingsMantenimiento.jsx`:
+     - Activar mantenimiento despliega confirmación explicando el aviso de 30s a los usuarios.
+     - Muestra estado en tiempo real: `⏳ En cuenta regresiva (XXs)` y botón `⚡ Forzar Bloqueo Inmediato` para casos de emergencia, así como `✕ Cancelar Mantenimiento`.
+  6. En `tests/maintenance-countdown.test.mjs`:
+     - 5 pruebas unitarias automatizadas validando endpoints, sockets, banner, período de gracia en App.jsx y control administrativo.
+- Validación: 206 pruebas unitarias aprobadas (`node --test tests/*.test.mjs`) y build de producción exitoso (versión `2.1.6`).
+
 ### Solución: Carga y Guardado Atómico de Checklists de Eventos, Erradicación del Cuello de Botella de 45 MB y Apertura Inmediata (`SettingsChecklist.jsx`, `EventCard.jsx`, `appEvents.js`, `tests/checklist-atomic-fix.test.mjs`) (2026-10-30)
 - Requerimiento del usuario:
   - En el apartado de checklist, tardaba demasiado al abrir porque tenía que cargar muchos megas consultando todos los checklists y no solamente el del evento seleccionado, provocando un cuello de botella grave.

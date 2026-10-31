@@ -215,6 +215,10 @@ export function SocketProvider({ children }) {
       window.dispatchEvent(new CustomEvent('system:force-logout', { detail: data }));
     });
 
+    socket.on('maintenance-status-changed', (data) => {
+      window.dispatchEvent(new CustomEvent('maintenanceStatusChanged', { detail: data }));
+    });
+
     socketRef.current = socket;
     globalSocket = socket;
 

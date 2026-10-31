@@ -102,8 +102,21 @@ export default function HabitacionModal({
     });
   };
 
-  // Inicialización
+  const prevIsOpenRef = useRef(false);
+  const prevInitialIdRef = useRef(null);
+
+  // Inicialización (se ejecuta ÚNICAMENTE al abrir el modal o cambiar de reserva a editar, nunca por cambios de catálogo en segundo plano)
   useEffect(() => {
+    const isOpening = isOpen && !prevIsOpenRef.current;
+    const isChangingInitial = isOpen && initialData?.id !== prevInitialIdRef.current;
+
+    prevIsOpenRef.current = isOpen;
+    prevInitialIdRef.current = initialData?.id || null;
+
+    if (!isOpening && !isChangingInitial) {
+      return;
+    }
+
     setErrors({});
     if (initialData) {
       const noches = Number(initialData.noches) || calculateDays(initialData.fecha_check_in, initialData.fecha_check_out);
@@ -194,7 +207,7 @@ export default function HabitacionModal({
       setCompanySearch('');
       setHuespedHistorial(null);
     }
-  }, [initialData, catalogos, isOpen]);
+  }, [initialData, isOpen]);
 
   // Recálculo reactivo de total si no está en modo manual
   const recalculateTotal = (noches, habs, tarifa, isManual, currentManualTotal) => {
@@ -371,50 +384,54 @@ export default function HabitacionModal({
     clearError('monto_total');
   };
 
-  // Manejo de Fechas
+  // Manejo de Fechas con estado funcional para nunca perder datos ingresados
   const handleDateChange = (field, val) => {
-    const updated = { ...formData, [field]: val };
-    const inD = field === 'fecha_check_in' ? val : formData.fecha_check_in;
-    let outD = field === 'fecha_check_out' ? val : formData.fecha_check_out;
+    setFormData(prev => {
+      const updated = { ...prev, [field]: val };
+      const inD = field === 'fecha_check_in' ? val : prev.fecha_check_in;
+      let outD = field === 'fecha_check_out' ? val : prev.fecha_check_out;
 
-    if (field === 'fecha_check_in' && outD && outD <= val) {
-      outD = addDays(val, Math.max(1, parseInt(updated.noches, 10) || 1));
-      updated.fecha_check_out = outD;
-    }
+      if (field === 'fecha_check_in' && outD && outD <= val) {
+        outD = addDays(val, Math.max(1, parseInt(updated.noches, 10) || 1));
+        updated.fecha_check_out = outD;
+      }
 
-    const computedNoches = calculateDays(inD, outD);
-    updated.noches = computedNoches;
-    updated.monto_total = recalculateTotal(
-      computedNoches,
-      updated.cantidad_habitaciones,
-      updated.tarifa_diaria,
-      updated.isManualTotal,
-      updated.monto_total
-    );
-    setFormData(updated);
+      const computedNoches = calculateDays(inD, outD);
+      updated.noches = computedNoches;
+      updated.monto_total = recalculateTotal(
+        computedNoches,
+        updated.cantidad_habitaciones,
+        updated.tarifa_diaria,
+        updated.isManualTotal,
+        updated.monto_total
+      );
+      return updated;
+    });
     clearError(field);
     clearError('noches');
     clearError('fecha_check_out');
   };
 
-  // Manejo de Tipo de Habitación
+  // Manejo de Tipo de Habitación (actualiza tarifa base y recalcula total respetando todos los datos previos)
   const handleTipoHabitacionChange = (id) => {
-    const selected = (catalogos.tiposHabitacion || []).find(t => t.id === id);
-    const tarifa = selected ? Number(selected.tarifa_base || 0) : formData.tarifa_diaria;
-    const updated = {
-      ...formData,
-      id_tipo_habitacion: id,
-      tipo_habitacion_nombre: selected ? selected.nombre : '',
-      tarifa_diaria: tarifa,
-    };
-    updated.monto_total = recalculateTotal(
-      updated.noches,
-      updated.cantidad_habitaciones,
-      tarifa,
-      updated.isManualTotal,
-      updated.monto_total
-    );
-    setFormData(updated);
+    const selected = (catalogos.tiposHabitacion || []).find(t => String(t.id) === String(id));
+    setFormData(prev => {
+      const tarifa = selected ? Number(selected.tarifa_base || 0) : prev.tarifa_diaria;
+      const updated = {
+        ...prev,
+        id_tipo_habitacion: id,
+        tipo_habitacion_nombre: selected ? selected.nombre : '',
+        tarifa_diaria: tarifa,
+      };
+      updated.monto_total = recalculateTotal(
+        updated.noches,
+        updated.cantidad_habitaciones,
+        tarifa,
+        updated.isManualTotal,
+        updated.monto_total
+      );
+      return updated;
+    });
   };
 
   // Búsqueda de Historial de Huésped al cambiar teléfono o correo
@@ -741,7 +758,8 @@ export default function HabitacionModal({
                     placeholder="Ej. Juan Pérez"
                     value={formData.nombre_huesped ?? ''}
                     onChange={e => {
-                      setFormData({ ...formData, nombre_huesped: e.target.value });
+                      const val = e.target.value;
+                      setFormData(prev => ({ ...prev, nombre_huesped: val }));
                       clearError('nombre_huesped');
                     }}
                   />
@@ -763,7 +781,10 @@ export default function HabitacionModal({
                     style={{ width: '100%' }}
                     placeholder="Ej. 55554444"
                     value={formData.telefono ?? ''}
-                    onChange={e => setFormData({ ...formData, telefono: e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData(prev => ({ ...prev, telefono: val }));
+                    }}
                     onBlur={e => checkGuestHistory(e.target.value)}
                   />
                 </div>
@@ -778,7 +799,10 @@ export default function HabitacionModal({
                     style={{ width: '100%' }}
                     placeholder="Ej. cliente@correo.com"
                     value={formData.correo ?? ''}
-                    onChange={e => setFormData({ ...formData, correo: e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData(prev => ({ ...prev, correo: val }));
+                    }}
                     onBlur={e => checkGuestHistory(e.target.value)}
                   />
                 </div>
@@ -977,12 +1001,14 @@ export default function HabitacionModal({
                     <button
                       type="button"
                       onClick={() => {
-                        const nextManual = !formData.isManualTotal;
-                        const auto = (Number(formData.noches) || 1) * (Number(formData.cantidad_habitaciones) || 1) * (Number(formData.tarifa_diaria) || 0);
-                        setFormData({
-                          ...formData,
-                          isManualTotal: nextManual,
-                          monto_total: nextManual ? (formData.monto_total !== '' && !isNaN(Number(formData.monto_total)) ? Number(formData.monto_total) : auto) : auto
+                        setFormData(prev => {
+                          const nextManual = !prev.isManualTotal;
+                          const auto = (Number(prev.noches) || 1) * (Number(prev.cantidad_habitaciones) || 1) * (Number(prev.tarifa_diaria) || 0);
+                          return {
+                            ...prev,
+                            isManualTotal: nextManual,
+                            monto_total: nextManual ? (prev.monto_total !== '' && !isNaN(Number(prev.monto_total)) ? Number(prev.monto_total) : auto) : auto
+                          };
                         });
                       }}
                       style={{
@@ -1048,8 +1074,9 @@ export default function HabitacionModal({
                     placeholder="Ej. F-10492"
                     value={formData.no_folio ?? ''}
                     onChange={e => {
+                      const val = e.target.value;
                       clearError('no_folio');
-                      setFormData({ ...formData, no_folio: e.target.value });
+                      setFormData(prev => ({ ...prev, no_folio: val }));
                     }}
                   />
                   {errors.no_folio && (
@@ -1069,13 +1096,14 @@ export default function HabitacionModal({
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_vendedor ?? ''}
                     onChange={e => {
+                      const val = e.target.value;
                       clearError('id_vendedor');
-                      const u = (sellers || []).find(s => String(s.id) === e.target.value);
-                      setFormData({
-                        ...formData,
-                        id_vendedor: e.target.value,
+                      const u = (sellers || []).find(s => String(s.id) === String(val));
+                      setFormData(prev => ({
+                        ...prev,
+                        id_vendedor: val,
                         vendedor_nombre: u ? u.name : ''
-                      });
+                      }));
                     }}
                   >
                     <option value="">Seleccione vendedor...</option>
@@ -1100,13 +1128,14 @@ export default function HabitacionModal({
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_medio_contacto ?? ''}
                     onChange={e => {
+                      const val = e.target.value;
                       clearError('id_medio_contacto');
-                      const m = (catalogos.mediosContacto || []).find(mc => mc.id === e.target.value);
-                      setFormData({
-                        ...formData,
-                        id_medio_contacto: e.target.value,
+                      const m = (catalogos.mediosContacto || []).find(mc => String(mc.id) === String(val));
+                      setFormData(prev => ({
+                        ...prev,
+                        id_medio_contacto: val,
                         medio_contacto_nombre: m ? m.nombre : ''
-                      });
+                      }));
                     }}
                   >
                     <option value="">Seleccione medio de contacto...</option>
@@ -1131,13 +1160,14 @@ export default function HabitacionModal({
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_tipo_cliente ?? ''}
                     onChange={e => {
+                      const val = e.target.value;
                       clearError('id_tipo_cliente');
-                      const tc = (catalogos.tiposCliente || []).find(c => c.id === e.target.value);
-                      setFormData({
-                        ...formData,
-                        id_tipo_cliente: e.target.value,
+                      const tc = (catalogos.tiposCliente || []).find(c => String(c.id) === String(val));
+                      setFormData(prev => ({
+                        ...prev,
+                        id_tipo_cliente: val,
                         tipo_cliente_nombre: tc ? tc.nombre : ''
-                      });
+                      }));
                     }}
                   >
                     <option value="">Seleccione tipo de cliente...</option>
@@ -1162,13 +1192,14 @@ export default function HabitacionModal({
                     style={{ width: '100%', height: 38 }}
                     value={formData.id_forma_pago ?? ''}
                     onChange={e => {
+                      const val = e.target.value;
                       clearError('id_forma_pago');
-                      const fp = (catalogos.formasPago || []).find(p => p.id === e.target.value);
-                      setFormData({
-                        ...formData,
-                        id_forma_pago: e.target.value,
+                      const fp = (catalogos.formasPago || []).find(p => String(p.id) === String(val));
+                      setFormData(prev => ({
+                        ...prev,
+                        id_forma_pago: val,
                         forma_pago_nombre: fp ? fp.nombre : ''
-                      });
+                      }));
                     }}
                   >
                     <option value="">Seleccione forma de pago...</option>
@@ -1193,8 +1224,9 @@ export default function HabitacionModal({
                     style={{ width: '100%', height: 38 }}
                     value={formData.modulo ?? ''}
                     onChange={e => {
+                      const val = e.target.value;
                       clearError('modulo');
-                      setFormData({ ...formData, modulo: e.target.value });
+                      setFormData(prev => ({ ...prev, modulo: val }));
                     }}
                   >
                     <option value="">Seleccione módulo / sector...</option>
@@ -1226,7 +1258,10 @@ export default function HabitacionModal({
                   style={{ width: '100%', fontFamily: 'inherit' }}
                   placeholder="Notas adicionales sobre la reserva..."
                   value={formData.observaciones ?? ''}
-                  onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData(prev => ({ ...prev, observaciones: val }));
+                  }}
                 />
               </div>
             </div>

@@ -566,3 +566,41 @@ test('Habitaciones: Seguridad anti-duplicados, bloqueo de scroll en campos numé
   assert.ok(ctrlCode.includes("!toSafeString(b.no_folio)"), 'Backend debe validar no_folio obligatorio');
   assert.ok(ctrlCode.includes("!toSafeString(b.modulo)"), 'Backend debe validar modulo obligatorio');
 });
+
+test('Habitaciones: Filtrado estricto híbrido de vendedores, KPIs reactivos y blindaje contra stale closures de WebSocket', () => {
+  const ctrlPath = path.join(projectRoot, 'backend', 'src', 'controllers', 'habitacionesController.js');
+  const ctrlCode = fs.readFileSync(ctrlPath, 'utf8');
+
+  // 1. Backend busca tanto por id_vendedor como por vendedor_nombre
+  assert.ok(
+    ctrlCode.includes('id_vendedor = ? OR vendedor_nombre = ? OR vendedor_nombre LIKE ?') ||
+    ctrlCode.includes('id_vendedor = ? OR vendedor_nombre LIKE ?'),
+    'Backend debe filtrar por id_vendedor y por nombre de vendedor'
+  );
+
+  // 2. Frontend aplica filtrado defensivo en reservasFiltradas
+  const modPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'HabitacionesModule.jsx');
+  const modCode = fs.readFileSync(modPath, 'utf8');
+
+  assert.ok(modCode.includes('filtersRef'), 'HabitacionesModule debe usar filtersRef para evitar stale closures en WebSocket');
+  assert.ok(modCode.includes('displayMetricas'), 'HabitacionesModule debe calcular displayMetricas reactivas al filtro');
+  assert.ok(modCode.includes('matchId') && modCode.includes('matchName'), 'reservasFiltradas debe aplicar filtrado defensivo de vendedor por ID y Nombre');
+  assert.ok(modCode.includes('Limpiar'), 'HabitacionesModule debe incluir botón para limpiar filtros');
+});
+
+test('Habitaciones: HabitacionModal preserva datos previos al editar tarifa o tipo de habitación (anti-reseteo)', () => {
+  const modalPath = path.join(projectRoot, 'src', 'modules', 'habitaciones', 'HabitacionModal.jsx');
+  const modalCode = fs.readFileSync(modalPath, 'utf8');
+
+  // 1. useEffect de inicialización solo se ejecuta al abrir o cambiar id
+  assert.ok(modalCode.includes('prevIsOpenRef'), 'Debe usar prevIsOpenRef para detectar apertura');
+  assert.ok(modalCode.includes('prevInitialIdRef'), 'Debe usar prevInitialIdRef para detectar cambio de reserva');
+  assert.ok(!modalCode.includes('}, [initialData, catalogos, isOpen]);'), 'No debe incluir catalogos en las dependencias para evitar borrado involuntario');
+
+  // 2. Actualizadores funcionales prev en nombre, teléfono, tipo habitación, folio
+  assert.ok(modalCode.includes('setFormData(prev => ({ ...prev, nombre_huesped: val }))'), 'nombre_huesped debe usar setter funcional');
+  assert.ok(modalCode.includes('setFormData(prev => ({ ...prev, telefono: val }))'), 'telefono debe usar setter funcional');
+  assert.ok(modalCode.includes('setFormData(prev => ({ ...prev, correo: val }))'), 'correo debe usar setter funcional');
+  assert.ok(modalCode.includes('setFormData(prev => ({ ...prev, no_folio: val }))'), 'no_folio debe usar setter funcional');
+  assert.ok(modalCode.includes('handleTipoHabitacionChange'), 'handleTipoHabitacionChange debe actualizar tarifa respetando campos previos');
+});

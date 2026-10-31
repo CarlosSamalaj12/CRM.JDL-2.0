@@ -5423,16 +5423,24 @@ app.get("/api/maintenance-status", async (_req, res) => {
   try {
     conn = await pool.getConnection();
     const rows = await conn.query(
-      "SELECT valor_json FROM app_state_kv WHERE clave = 'maintenanceMode' LIMIT 1"
+      "SELECT clave, valor_json FROM app_state_kv WHERE clave IN ('maintenanceMode', 'maintenanceStartsAt')"
     );
     let maintenanceMode = false;
-    if (rows.length > 0 && rows[0].valor_json) {
-      maintenanceMode = Boolean(JSON.parse(rows[0].valor_json));
+    let startsAt = null;
+    for (const r of rows) {
+      const claveStr = str(r.clave);
+      const valorStr = str(r.valor_json);
+      if (claveStr === 'maintenanceMode' && valorStr) {
+        try { maintenanceMode = Boolean(JSON.parse(valorStr)); } catch (_) {}
+      }
+      if (claveStr === 'maintenanceStartsAt' && valorStr) {
+        try { startsAt = JSON.parse(valorStr); } catch (_) {}
+      }
     }
-    return res.json({ maintenanceMode });
+    return res.json({ maintenanceMode, startsAt });
   } catch (error) {
     console.error("Error checking maintenance status:", error);
-    return res.json({ maintenanceMode: false, error: error.message });
+    return res.json({ maintenanceMode: false, startsAt: null, error: error.message });
   } finally {
     if (conn) conn.release();
   }
@@ -5479,10 +5487,17 @@ app.post("/api/maintenance/disable", async (req, res) => {
         ON DUPLICATE KEY UPDATE valor_json = 'false'
       `
     );
+    await conn.query(
+      `
+        INSERT INTO app_state_kv (clave, valor_json)
+        VALUES ('maintenanceStartsAt', 'null')
+        ON DUPLICATE KEY UPDATE valor_json = 'null'
+      `
+    );
 
     if (io) {
-      io.emit("maintenance-status-changed", { maintenanceMode: false });
-      io.emit("state-updated", { timestamp: Date.now(), key: "maintenanceMode", value: false });
+      io.emit("maintenance-status-changed", { maintenanceMode: false, startsAt: null });
+      io.emit("state-updated", { timestamp: Date.now(), key: "maintenanceMode", value: false, startsAt: null });
     }
 
     return res.json({
@@ -7280,7 +7295,48 @@ const handleSaveSetting = async (req, res) => {
       const num = Number(rawVal);
       serialized = JSON.stringify(Number.isFinite(num) ? num : 0);
     } else if (key === 'maintenanceMode') {
-      serialized = JSON.stringify(rawVal === true || rawVal === 'true');
+      let isEnabled = false;
+      let startsAt = null;
+      if (typeof rawVal === 'object' && rawVal !== null) {
+        isEnabled = rawVal.enabled === true || rawVal.active === true || rawVal.value === true;
+        const immediate = rawVal.immediate === true;
+        const durationSec = Math.max(0, Number(rawVal.duration || 30));
+        if (isEnabled) {
+          startsAt = immediate ? Date.now() : Date.now() + (durationSec * 1000);
+        }
+      } else {
+        isEnabled = rawVal === true || rawVal === 'true';
+        if (isEnabled) {
+          const immediate = req.body?.immediate === true || req.query?.immediate === 'true';
+          startsAt = immediate ? Date.now() : Date.now() + 30000;
+        }
+      }
+      serialized = JSON.stringify(isEnabled);
+
+      conn = await pool.getConnection();
+      await conn.query(
+        `
+          INSERT INTO app_state_kv (clave, valor_json)
+          VALUES (?, ?)
+          ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+        `,
+        [key, serialized]
+      );
+      await conn.query(
+        `
+          INSERT INTO app_state_kv (clave, valor_json)
+          VALUES ('maintenanceStartsAt', ?)
+          ON DUPLICATE KEY UPDATE valor_json = VALUES(valor_json)
+        `,
+        [JSON.stringify(startsAt)]
+      );
+
+      if (io) {
+        io.emit("state-updated", { timestamp: Date.now(), key, value: isEnabled, startsAt });
+        io.emit("maintenance-status-changed", { maintenanceMode: isEnabled, startsAt, duration: 30 });
+      }
+
+      return res.json({ ok: true, key, value: isEnabled, startsAt, message: "Configuración guardada correctamente." });
     } else {
       serialized = JSON.stringify(rawVal);
     }
@@ -7297,9 +7353,6 @@ const handleSaveSetting = async (req, res) => {
 
     if (io) {
       io.emit("state-updated", { timestamp: Date.now(), key });
-      if (key === 'maintenanceMode') {
-        io.emit("maintenance-status-changed", { maintenanceMode: JSON.parse(serialized) });
-      }
     }
 
     return res.json({ ok: true, key, value: JSON.parse(serialized), message: "Configuración guardada correctamente." });
