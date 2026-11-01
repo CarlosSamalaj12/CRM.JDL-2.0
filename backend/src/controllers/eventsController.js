@@ -412,16 +412,37 @@ export async function updateEventQuote(req, res, next) {
 
     if (status) {
       await conn.query(
-        `UPDATE eventos SET cotizacion_json = ?, estado = ? WHERE id = ? OR id_grupo = ? OR id LIKE CONCAT(?, '_%')`,
-        [quoteJson, status, baseId, baseId, baseId]
+        `UPDATE eventos SET
+          cotizacion_json = CASE
+            WHEN ? IS NOT NULL AND JSON_VALID(?) AND JSON_LENGTH(JSON_EXTRACT(?, '$.items')) > 0
+              THEN ?
+            WHEN eventos.cotizacion_json IS NOT NULL AND JSON_VALID(eventos.cotizacion_json) AND JSON_LENGTH(JSON_EXTRACT(eventos.cotizacion_json, '$.items')) > 0
+              THEN eventos.cotizacion_json
+            ELSE COALESCE(?, eventos.cotizacion_json)
+          END,
+          estado = ?
+         WHERE id = ? OR id_grupo = ? OR id LIKE CONCAT(?, '_%')`,
+        [quoteJson, quoteJson, quoteJson, quoteJson, quoteJson, status, baseId, baseId, baseId]
       );
     } else {
       await conn.query(
-        `UPDATE eventos SET cotizacion_json = ? WHERE id = ? OR id_grupo = ? OR id LIKE CONCAT(?, '_%')`,
-        [quoteJson, baseId, baseId, baseId]
+        `UPDATE eventos SET
+          cotizacion_json = CASE
+            WHEN ? IS NOT NULL AND JSON_VALID(?) AND JSON_LENGTH(JSON_EXTRACT(?, '$.items')) > 0
+              THEN ?
+            WHEN eventos.cotizacion_json IS NOT NULL AND JSON_VALID(eventos.cotizacion_json) AND JSON_LENGTH(JSON_EXTRACT(eventos.cotizacion_json, '$.items')) > 0
+              THEN eventos.cotizacion_json
+            ELSE COALESCE(?, eventos.cotizacion_json)
+          END
+         WHERE id = ? OR id_grupo = ? OR id LIKE CONCAT(?, '_%')`,
+        [quoteJson, quoteJson, quoteJson, quoteJson, quoteJson, baseId, baseId, baseId]
       );
     }
 
+    const [existingItems] = await conn.query('SELECT id FROM items_cotizacion_evento WHERE id_evento = ?', [baseId]);
+    const canOverwriteRelationalQuote = items.length > 0 || existingItems.length === 0;
+
+    if (canOverwriteRelationalQuote) {
     // 2. UPSERT en cotizaciones_evento (con auto-recuperación si MariaDB aún no tiene propina_*)
     try {
       await conn.query(
@@ -624,7 +645,6 @@ export async function updateEventQuote(req, res, next) {
       );
     }
 
-    const [existingItems] = await conn.query('SELECT id FROM items_cotizacion_evento WHERE id_evento = ?', [baseId]);
     const incomingSet = new Set(incomingItemIds);
     const toDelete = existingItems.map(r => String(r.id)).filter(eid => !incomingSet.has(eid));
 
@@ -786,6 +806,8 @@ export async function updateEventQuote(req, res, next) {
         }
       }
     }
+
+    } // fin if (canOverwriteRelationalQuote)
 
     // 5. Anticipos si vienen incluidos
     if (Array.isArray(q.advances) && q.advances.length > 0) {

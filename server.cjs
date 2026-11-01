@@ -2822,7 +2822,15 @@ async function readStateFromTables() {
               quote = null;
             }
           }
-          const baseId = str(e.id).replace(/_(s|slot)\d+_\d{6,}$/, '');
+          const baseId = str(e.id).replace(/_(s|slot)\d+.*$/, '');
+          const groupId = str(e.id_grupo || '').trim();
+          const hasOwnItems = quote && Array.isArray(quote.items) && quote.items.length > 0;
+          if (!hasOwnItems) {
+            const inherited = quotesByBaseEvent.get(baseId) || (groupId ? quotesByBaseEvent.get(groupId) : null);
+            if (inherited) {
+              quote = JSON.parse(JSON.stringify(inherited));
+            }
+          }
           const tableAdvances = advancesByBaseEvent.get(baseId);
           if (!quote || typeof quote !== "object") quote = {};
           const advancesMap = new Map();
@@ -4684,8 +4692,26 @@ function isEventUnchanged(e, oldEvent) {
       }
 
       // === UPSERT: cotizaciones (solo para el ID base principal del evento, no para slots secundarios) ===
+      const hasIncomingQuoteItems = e?.quote && typeof e.quote === "object" && Array.isArray(e.quote.items) && e.quote.items.length > 0;
       if (id === baseId && e?.quote && typeof e.quote === "object") {
-        const q = e.quote;
+        let canOverwriteRelationalQuote = hasIncomingQuoteItems;
+        if (!canOverwriteRelationalQuote) {
+          try {
+            const existingItemsCheck = await conn.query(
+              "SELECT COUNT(*) AS cnt FROM items_cotizacion_evento WHERE id_evento = ?",
+              [id]
+            );
+            const existingCnt = Number(existingItemsCheck?.[0]?.cnt || 0);
+            if (existingCnt === 0) {
+              canOverwriteRelationalQuote = true;
+            }
+          } catch (_) {
+            canOverwriteRelationalQuote = false;
+          }
+        }
+
+        if (canOverwriteRelationalQuote) {
+          const q = e.quote;
         const desiredCodeNum = parseQuoteCodeNumber(q.code);
         const desiredCode = desiredCodeNum > 0 ? formatQuoteCode(desiredCodeNum) : "";
         if (desiredCode && !usedQuoteCodes.has(desiredCode)) {
@@ -4973,11 +4999,18 @@ function isEventUnchanged(e, oldEvent) {
             );
           }
         }
-        // Re-escribir cotizacion_json en eventos por si el codigo fue reasignado
-        await conn.query(
-          `UPDATE eventos SET cotizacion_json = ? WHERE id = ?`,
-          [JSON.stringify(q), id]
-        );
+          // Re-escribir cotizacion_json en eventos por si el codigo fue reasignado (respetando el blindaje CASE)
+          await conn.query(
+            `UPDATE eventos SET cotizacion_json = CASE
+              WHEN ? IS NOT NULL AND JSON_VALID(?) AND JSON_LENGTH(JSON_EXTRACT(?, '$.items')) > 0
+                THEN ?
+              WHEN eventos.cotizacion_json IS NOT NULL AND JSON_VALID(eventos.cotizacion_json) AND JSON_LENGTH(JSON_EXTRACT(eventos.cotizacion_json, '$.items')) > 0
+                THEN eventos.cotizacion_json
+              ELSE COALESCE(?, eventos.cotizacion_json)
+            END WHERE id = ?`,
+            [JSON.stringify(q), JSON.stringify(q), JSON.stringify(q), JSON.stringify(q), JSON.stringify(q), id]
+          );
+        }
 
         // Sincronizar último contacto en posibles_ventas vinculadas
         await conn.query(

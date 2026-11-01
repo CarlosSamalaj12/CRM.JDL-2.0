@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react';
 import authService from '../services/authService';
 
 const DRAFT_PREFIX = 'quote_draft_';
-const MAX_DRAFT_AGE_MS = 24 * 60 * 60 * 1000; // 24 horas
+const MAX_DRAFT_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 días (evita perder borradores de vendedores de días anteriores)
 
 /**
- * Limpia borradores viejos (> 24h) en localStorage para liberar cuota.
+ * Limpia borradores viejos (> 14 días) en localStorage para liberar cuota.
  */
 export function pruneExpiredDrafts() {
   try {
@@ -51,7 +51,8 @@ export function getDraftKey(event) {
   try {
     const id = event?.id || event?.code;
     if (id && String(id).trim() && String(id).trim() !== 'new') {
-      return `${DRAFT_PREFIX}${String(id).trim()}`;
+      const baseId = String(id).trim().replace(/_(s|slot)\d+.*$/, '');
+      return `${DRAFT_PREFIX}${baseId}`;
     }
     const currentUserId = authService.getCurrentUser()?.id || 'default';
     return `${DRAFT_PREFIX}new_${currentUserId}`;
@@ -109,7 +110,11 @@ export function saveDraft(event, data) {
 export function loadDraft(event) {
   try {
     const key = getDraftKey(event);
-    const raw = localStorage.getItem(key);
+    let raw = localStorage.getItem(key);
+    // Fallback por si el borrador fue guardado con el ID de un slot específico (ej. 38702_s2_20261115)
+    if (!raw && event?.id && String(event.id).trim() !== key.slice(DRAFT_PREFIX.length)) {
+      raw = localStorage.getItem(`${DRAFT_PREFIX}${String(event.id).trim()}`);
+    }
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
@@ -118,7 +123,7 @@ export function loadDraft(event) {
       return null;
     }
 
-    // 1. Validar caducidad máxima (24 horas)
+    // 1. Validar caducidad máxima (14 días)
     if (parsed.savedAt) {
       const savedTime = new Date(parsed.savedAt).getTime();
       const ageMs = Date.now() - savedTime;
@@ -127,10 +132,14 @@ export function loadDraft(event) {
         return null;
       }
 
-      // 2. Si el evento en servidor tiene fecha de actualización posterior al borrador,
-      // significa que ya fue guardado formalmente y este borrador local es obsoleto.
+      // 2. Si el evento en servidor ya tiene cotización con servicios y fecha de guardado/actualización
+      // posterior al borrador, significa que ya fue guardado formalmente y este borrador local es obsoleto.
+      // Si el servidor aún tiene items: [], NUNCA borrar el borrador local por updatedAt del evento (ej. por cambio de estado o abono).
+      const serverHasItems = Array.isArray(event?.quote?.items) && event.quote.items.length > 0;
+      const quoteSavedTime = event?.quote?.quotedAt ? new Date(event.quote.quotedAt).getTime() : 0;
       const eventUpdatedTime = event?.updatedAt ? new Date(event.updatedAt).getTime() : 0;
-      if (eventUpdatedTime && savedTime < eventUpdatedTime) {
+      const effectiveServerTime = quoteSavedTime || (serverHasItems ? eventUpdatedTime : 0);
+      if (serverHasItems && effectiveServerTime && savedTime < effectiveServerTime) {
         clearDraft(event);
         return null;
       }
@@ -149,6 +158,9 @@ export function clearDraft(event) {
   try {
     const key = getDraftKey(event);
     localStorage.removeItem(key);
+    if (event?.id) {
+      localStorage.removeItem(`${DRAFT_PREFIX}${String(event.id).trim()}`);
+    }
   } catch (_clearErr) {
     /* ignore */
   }
