@@ -1,6 +1,6 @@
 import express from 'express';
 import * as informeController from '../controllers/informeController.js';
-import { authenticate, authorizeRoles } from '../middlewares/auth.js';
+import { authenticate, optionalAuthenticate, authorizeRoles } from '../middlewares/auth.js';
 
 const EDIT_ROLES = ['Admin', 'Vendedor', 'FrontOffice', 'Eventos'];
 
@@ -15,10 +15,10 @@ router.get('/ocupacion/:id_ocupacion', authenticate, informeController.getInform
 router.get('/check-event/:eventId', authenticate, informeController.checkEventInformes);
 router.post('/resolve-conflicts', authenticate, authorizeRoles(...EDIT_ROLES), informeController.resolveInformeConflicts);
 
-router.get('/por-evento', informeController.getInformeByEventFields);
+router.get('/por-evento', optionalAuthenticate, informeController.getInformeByEventFields);
 
 router.post('/:id/reassign-slot', authenticate, authorizeRoles(...EDIT_ROLES), informeController.reassignInformeSlot);
-router.get('/:id', informeController.getInformeById);
+router.get('/:id', optionalAuthenticate, informeController.getInformeById);
 router.put('/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeController.updateInforme);
 router.delete('/:id', authenticate, authorizeRoles(...EDIT_ROLES), informeController.deleteInforme);
 

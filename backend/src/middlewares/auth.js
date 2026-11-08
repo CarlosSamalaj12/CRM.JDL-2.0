@@ -41,3 +41,22 @@ export function authorizeRoles(...allowedRoles) {
     next();
   };
 }
+
+export function optionalAuthenticate(req, res, next) {
+  const header = req.headers.authorization;
+  const token = (header && header.startsWith('Bearer '))
+    ? header.split(' ')[1]
+    : (req.query?.token || null);
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+  } catch {
+    // Si el token es inválido o expiró, continuamos como no autenticado
+  }
+  return next();
+}

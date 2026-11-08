@@ -405,6 +405,19 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
                 <span>Ingreso de Habitaciones</span>
               </button>
 
+              <a 
+                className="drawer-nav-item" 
+                href="http://pms.appjardinesdellago.tech" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                onClick={() => setIsMobileOpen(false)} 
+                title="Abrir Iqware Online (PMS)" 
+                style={{ textDecoration: 'none' }} 
+              >
+                <span className="material-symbols-outlined">domain</span>
+                <span>Iqware Online</span>
+              </a>
+
               {isAdmin && (
                 <button 
                   className={`drawer-nav-item ${location.pathname === '/settings' ? 'isActive' : ''}`} 
@@ -1267,6 +1280,18 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
           <span className="material-symbols-outlined">bed</span>
           <span>Ingreso de Habitaciones</span>
         </button>
+
+        <a 
+          className="lum-sideItem" 
+          href="http://pms.appjardinesdellago.tech" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          title="Abrir Iqware Online (PMS)" 
+          style={{ textDecoration: 'none' }} 
+        >
+          <span className="material-symbols-outlined">domain</span>
+          <span>Iqware Online</span>
+        </a>
 
         {isAdmin && (
           <button 

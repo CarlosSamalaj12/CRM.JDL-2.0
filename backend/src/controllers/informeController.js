@@ -238,12 +238,17 @@ export async function createInforme(req, res, next) {
   } catch (error) { next(error); }
 }
 
+// Normaliza y valida si el rol del usuario autenticado tiene permisos para ver versiones de informes
+function canUserViewAllVersions(user) {
+  if (!user) return false;
+  const role = String(user.rol || user.role || '').trim().toLowerCase();
+  return ['admin', 'vendedor', 'frontoffice', 'recepcionista', 'eventos', 'coordinador'].includes(role);
+}
 export async function getInformesByOcupacion(req, res, next) {
   try {
     const { id_ocupacion } = req.params;
     const baseId = String(id_ocupacion).replace(/_(s|slot)\d+.*$/, '');
-    const rol = req.user?.rol;
-    const puedeVerTodo = rol === 'Admin' || rol === 'Vendedor' || rol === 'FrontOffice';
+    const puedeVerTodo = canUserViewAllVersions(req.user);
 
     let query = `
       SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion,
@@ -267,8 +272,7 @@ export async function getInformesByOcupacion(req, res, next) {
 
 export async function getInformes(req, res, next) {
   try {
-    const rol = req.user?.rol;
-    const puedeVerTodo = rol === 'Admin' || rol === 'Vendedor' || rol === 'FrontOffice';
+    const puedeVerTodo = canUserViewAllVersions(req.user);
 
     let query = `
       SELECT i.id, i.id_ocupacion, i.version, i.fecha_creacion, e.Institucion, e.Pax, e.FechaEvento
@@ -300,8 +304,7 @@ export async function getInformes(req, res, next) {
 export async function getInformeById(req, res, next) {
   try {
     const { id } = req.params;
-    const rol = req.user?.rol;
-    const puedeVerTodo = rol === 'Admin' || rol === 'Vendedor' || rol === 'FrontOffice';
+    const puedeVerTodo = canUserViewAllVersions(req.user);
     
     // Try by informes_eventos.id first (numeric), then by id_ocupacion (alphanumeric)
     const isNumeric = /^\d+$/.test(id);
