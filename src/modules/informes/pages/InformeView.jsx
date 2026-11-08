@@ -857,6 +857,9 @@ export default function InformeView() {
         return itemFecha === cleanTarget;
       });
       if (porFecha.length > 0) return porFecha;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanTarget) && Array.isArray(informe?.dias) && (informe.dias.length > 1 || informe.dias.some(d => String(d.fecha_evento || '').slice(0, 10) === cleanTarget))) {
+        return [];
+      }
 
       // 2. Intentar coincidencia por número de día (ej: "1", "2")
       const num = Number(selectedDiaDate);
@@ -867,7 +870,7 @@ export default function InformeView() {
     }
 
     return todosDiasValidos;
-  }, [todosDiasValidos, selectedDiaDate]);
+  }, [todosDiasValidos, selectedDiaDate, informe?.dias]);
 
   const selectedDiaValue = useMemo(() => {
     if (!selectedDiaDate || selectedDiaDate === 'all') return 'all';
@@ -879,7 +882,25 @@ export default function InformeView() {
       return String(match.dia?.fecha_evento || '').slice(0, 10) || String(match.numeroDiaOriginal);
     }
     return 'all';
-  }, [todosDiasValidos, selectedDiaDate]);
+  }, [todosDiasValidos, selectedDiaDate, informe?.dias]);
+
+  useEffect(() => {
+    if (!loading && informe && selectedDiaDate && selectedDiaDate !== 'all' && diasFiltrados.length === 0) {
+      const cleanTarget = String(selectedDiaDate).slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanTarget)) {
+        const emptyDia = (informe.dias || []).find(d => String(d.fecha_evento || '').slice(0, 10) === cleanTarget);
+        let salon = emptyDia?.slot_salon || emptyDia?.salon || '';
+        if (!salon && emptyDia?.descripcion_montaje) {
+          try { salon = JSON.parse(emptyDia.descripcion_montaje)?.salon || ''; } catch {}
+        }
+        const msg = salon
+          ? `No hay informe creado para este día (${cleanTarget} · ${salon})`
+          : `No hay informe creado para este día (${cleanTarget})`;
+        toast.info(msg, { duration: 3500 });
+        navigate('/informes', { replace: true });
+      }
+    }
+  }, [loading, informe, selectedDiaDate, diasFiltrados.length, toast, navigate]);
 
   if (loading) return <p className="status-message">Cargando informe...</p>;
   if (error) return <p className="status-message status-error">{error}</p>;

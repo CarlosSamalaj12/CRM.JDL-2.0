@@ -8,7 +8,7 @@
     "build": "node scripts/bump-sw-version.cjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node server.cjs",
+    "server": "node --watch server.cjs",
     "dev:all": "concurrently \"npm:dev\" \"npm:server\"",
     "import-menus": "node scripts/import_menus.cjs",
     "bump-sw-version": "node scripts/bump-sw-version.cjs"

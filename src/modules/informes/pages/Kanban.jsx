@@ -8,6 +8,7 @@ import { jsPDF } from 'jspdf';
 
 import { fetchEvents, fetchEventById, fetchWeeklyServices, getTareasSemanaMerged } from '../services/api.js';
 import EventCard from '../components/EventCard.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
 import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 
@@ -106,6 +107,7 @@ function MobileTablaCard({
   navigate,
   weeklyServices,
 }) {
+  const toast = useToast();
   const status = statusMap[event.Estatuscotizacion] || { label: 'Confirmado', color: 'green' };
   const statusLabel = status.label.toUpperCase();
   const isConfirmado = event.Estatuscotizacion === 4;
@@ -136,7 +138,18 @@ function MobileTablaCard({
   return (
     <div
       id={`evento-${event.Idocupacion}`}
-      onClick={() => navigate(`/informe/${event.Idocupacion}${dateQs}`)}
+      onClick={() => {
+        if (!event.tiene_informe) {
+          const fecha = String(targetDate || '').slice(0, 10);
+          const salon = event.Salon || event.nombre_salon || '';
+          const msg = salon
+            ? `No hay informe creado para este día (${fecha} · ${salon})`
+            : `No hay informe creado para este día (${fecha})`;
+          toast?.info?.(msg, { duration: 3500 });
+          return;
+        }
+        navigate(`/informe/${event.Idocupacion}${dateQs}`);
+      }}
       style={{
         background: '#ffffff',
         border: highlighted ? '2px solid #8b5cf6' : '1px solid #e2e8f0',

@@ -2,6 +2,44 @@ import pool from '../config/db.js';
 import { emitChange } from '../helpers/socketEvents.js';
 import { applyInformeResolutionsInternal } from './informeController.js';
 
+const TIENE_INFORME_DIA_SQL = `
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM informe_dias_detalle dd
+      WHERE dd.informe_id = (
+        SELECT MAX(ie.id)
+        FROM informes_eventos ie
+        WHERE ie.id_ocupacion = e.Idocupacion
+           OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+           OR ie.id_ocupacion LIKE CONCAT(SUBSTRING_INDEX(e.Idocupacion, '_s', 1), '_%')
+      )
+      AND (
+        DATE(dd.fecha_evento) = DATE(e.FechaEvento)
+        OR NOT EXISTS (
+          SELECT 1 FROM tbl_seguimientocotizaciones t2
+          WHERE SUBSTRING_INDEX(t2.Idocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
+            AND DATE(t2.FechaEvento) != DATE(e.FechaEvento)
+        )
+      )
+      AND (
+        dd.menu_id IS NOT NULL
+        OR (dd.comentario_menu IS NOT NULL AND TRIM(dd.comentario_menu) != '')
+        OR EXISTS (SELECT 1 FROM informe_dia_menu_detalle m WHERE m.dia_id = dd.id)
+        OR (
+          dd.descripcion_montaje IS NOT NULL
+          AND TRIM(dd.descripcion_montaje) != ''
+          AND (
+            LEFT(TRIM(dd.descripcion_montaje), 1) != '{'
+            OR dd.descripcion_montaje REGEXP 'tipo_montaje|equipo_necesario|manteleria|mesas|sillas|cristaleria|observaciones|num_personas'
+          )
+        )
+      )
+    ) THEN 1
+    ELSE 0
+  END
+`;
+
 const EVENTO_USER_JOIN = `
   LEFT JOIN eventos ev ON e.Idocupacion = ev.id
   LEFT JOIN usuarios u ON ev.id_usuario = u.id
@@ -104,15 +142,7 @@ export async function getEvents(req, res, next) {
           ) THEN 1
           ELSE 0
         END AS tiene_alertas,
-        CASE
-          WHEN EXISTS (
-            SELECT 1 FROM informes_eventos ie
-            WHERE ie.id_ocupacion = e.Idocupacion 
-               OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-               OR ie.id_ocupacion LIKE CONCAT(SUBSTRING_INDEX(e.Idocupacion, '_s', 1), '_%')
-          ) THEN 1
-          ELSE 0
-        END AS tiene_informe,
+        ${TIENE_INFORME_DIA_SQL} AS tiene_informe,
         m.alertas_text,
         CASE
           WHEN e.Idocupacion = (
@@ -261,15 +291,7 @@ export async function getEventById(req, res, next) {
         e.EncargadoEvento,
         e.NoDoc,
         COALESCE(m.tiene_alertas, 0) AS tiene_alertas,
-        CASE
-          WHEN EXISTS (
-            SELECT 1 FROM informes_eventos ie
-            WHERE ie.id_ocupacion = e.Idocupacion 
-               OR SUBSTRING_INDEX(ie.id_ocupacion, '_s', 1) = SUBSTRING_INDEX(e.Idocupacion, '_s', 1)
-               OR ie.id_ocupacion LIKE CONCAT(SUBSTRING_INDEX(e.Idocupacion, '_s', 1), '_%')
-          ) THEN 1
-          ELSE 0
-        END AS tiene_informe,
+        ${TIENE_INFORME_DIA_SQL} AS tiene_informe,
         m.alertas_text
       FROM tbl_seguimientocotizaciones e
       LEFT JOIN evento_metadatos m ON e.Idocupacion = m.id_ocupacion
