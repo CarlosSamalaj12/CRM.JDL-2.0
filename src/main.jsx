@@ -12,15 +12,17 @@ import { CURRENT_VERSION, forcePurgeAndLogout } from './services/versionService'
 //  SERVICE WORKER — Único punto de registro y detección de
 //  actualizaciones. NO registramos en /login para evitar que
 //  un SW se entrometa en la pantalla de autenticación.
-//  (index.html ya limpia SWs viejos y cachés al entrar a /login)
 // ═══════════════════════════════════════════════════════════════
 if ('serviceWorker' in navigator && window.location.pathname !== '/login') {
-  // Reload page when new service worker takes over control (skipWaiting completed)
+  const hadController = Boolean(navigator.serviceWorker.controller);
   let refreshing = false;
+
+  // Cuando un NUEVO Service Worker reemplaza a uno anterior, forzar cierre de sesión y limpieza de caché
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;
     if (!refreshing) {
       refreshing = true;
-      window.location.reload();
+      forcePurgeAndLogout(CURRENT_VERSION);
     }
   });
 
@@ -39,7 +41,6 @@ if ('serviceWorker' in navigator && window.location.pathname !== '/login') {
         newWorker.addEventListener('statechange', () => {
           // Cuando el nuevo SW termina de instalarse, notificar al usuario
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // Hay una nueva versión — disparar evento para que el banner lo muestre
             window.dispatchEvent(
               new CustomEvent('sw-update-ready', { detail: newWorker })
             );

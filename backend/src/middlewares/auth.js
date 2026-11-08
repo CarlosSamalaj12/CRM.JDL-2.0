@@ -6,7 +6,9 @@ if (!JWT_SECRET) {
 }
 
 export function generateToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  const verInfo = typeof global.__readAppVersion === 'function' ? global.__readAppVersion() : null;
+  const appVersion = verInfo?.version || payload?.appVersion;
+  return jwt.sign({ ...payload, ...(appVersion ? { appVersion } : {}) }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 export function authenticate(req, res, next) {
@@ -21,6 +23,19 @@ export function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (typeof global.__readAppVersion === 'function') {
+      const verInfo = global.__readAppVersion();
+      if (verInfo && verInfo.version && verInfo.version !== '0.0.0-dev' && verInfo.forceLogout !== false) {
+        if (!decoded.appVersion || decoded.appVersion !== verInfo.version) {
+          return res.status(401).json({
+            ok: false,
+            code: 'VERSION_MISMATCH',
+            version: verInfo.version,
+            message: verInfo.message || 'Se ha desplegado una nueva versión del sistema. Inicie sesión nuevamente.'
+          });
+        }
+      }
+    }
     req.user = decoded;
     next();
   } catch {
@@ -54,6 +69,14 @@ export function optionalAuthenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (typeof global.__readAppVersion === 'function') {
+      const verInfo = global.__readAppVersion();
+      if (verInfo && verInfo.version && verInfo.version !== '0.0.0-dev' && verInfo.forceLogout !== false) {
+        if (!decoded.appVersion || decoded.appVersion !== verInfo.version) {
+          return next();
+        }
+      }
+    }
     req.user = decoded;
   } catch {
     // Si el token es inválido o expiró, continuamos como no autenticado

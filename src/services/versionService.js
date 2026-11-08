@@ -13,7 +13,7 @@ export const CURRENT_VERSION =
   typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0-dev';
 
 /**
- * Compara dos versiones con formato YYYY-MM-DD-NN.
+ * Compara dos versiones con formato YYYY-MM-DD-NN o semántico X.Y.Z.
  * Devuelve:
  *   -1 si a < b
  *    0 si a == b
@@ -68,39 +68,100 @@ export async function fetchServerVersion() {
 }
 
 /**
- * Purgado completo de sesión, cachés de navegador, Service Workers
+ * Limpia la sesión de Firebase Auth y sus bases de datos IndexedDB locales
+ * para evitar que Firebase restaure silenciosamente la sesión anterior.
+ */
+export async function clearFirebasePersistence() {
+  try {
+    const { firebaseService } = await import('./firebase.js');
+    await Promise.race([
+      firebaseService?.logout?.(),
+      new Promise(resolve => setTimeout(resolve, 1200)),
+    ]);
+  } catch (_) {}
+
+  if (typeof indexedDB !== 'undefined') {
+    const dbNames = [
+      'firebaseLocalStorageDb',
+      'firebase-heartbeat-database',
+      'firebase-installations-database',
+    ];
+    await Promise.all(
+      dbNames.map(
+        name =>
+          new Promise(resolve => {
+            try {
+              const req = indexedDB.deleteDatabase(name);
+              const timer = setTimeout(resolve, 500);
+              req.onsuccess = () => { clearTimeout(timer); resolve(); };
+              req.onerror = () => { clearTimeout(timer); resolve(); };
+              req.onblocked = () => { clearTimeout(timer); resolve(); };
+            } catch {
+              resolve();
+            }
+          })
+      )
+    );
+  }
+}
+
+let isPurging = false;
+
+/**
+ * Purgado completo de sesión, cachés de navegador, IndexedDB, Service Workers
  * y redirección limpia a la pantalla de login con aviso de actualización.
  */
 export async function forcePurgeAndLogout(targetVersion = '') {
+  if (isPurging) return;
+  isPurging = true;
+
+  const resolvedVersion =
+    targetVersion ||
+    (CURRENT_VERSION && CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')
+      ? CURRENT_VERSION
+      : '');
+
+  // 1. Limpiar inmediatamente todo el localStorage y sessionStorage de la sesión anterior
   try {
-    // 1. Limpiar caches del Service Worker y CacheStorage
-    if ('caches' in window) {
+    localStorage.clear();
+    sessionStorage.clear();
+    if (resolvedVersion) {
+      localStorage.setItem('crm_installed_version', resolvedVersion);
+    }
+    sessionStorage.setItem('crm_just_updated', '1');
+  } catch (_) {}
+
+  try {
+    // 2. Cerrar sesión en Firebase y borrar IndexedDB de Firebase
+    await clearFirebasePersistence();
+
+    // 3. Limpiar caches del Service Worker y CacheStorage
+    if (typeof window !== 'undefined' && 'caches' in window) {
       const keys = await caches.keys();
       await Promise.all(keys.map(k => caches.delete(k)));
     }
-    // 2. Desregistrar Service Workers activos para forzar descarga limpia
-    if ('serviceWorker' in navigator) {
+
+    // 4. Desregistrar Service Workers activos para forzar descarga limpia desde la red
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const reg of registrations) {
-        await reg.unregister();
-      }
+      await Promise.all(registrations.map(reg => reg.unregister().catch(() => {})));
     }
   } catch (e) {
     console.warn('[forcePurgeAndLogout] Error limpiando caches/SW:', e);
   }
 
-  // 3. Limpiar credenciales y estado de sesión
+  // 5. Asegurar nuevamente que el storage quede limpio tras cerrar Firebase
   try {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    localStorage.clear();
     sessionStorage.clear();
-    if (targetVersion) {
-      localStorage.setItem('crm_installed_version', targetVersion);
+    if (resolvedVersion) {
+      localStorage.setItem('crm_installed_version', resolvedVersion);
     }
+    sessionStorage.setItem('crm_just_updated', '1');
   } catch (_) {}
 
-  // 4. Redirigir a login con flag de actualización y cache-buster
-  const verParam = targetVersion ? `&v=${encodeURIComponent(targetVersion)}` : '';
+  // 6. Redirigir a login con flag de actualización y cache-buster
+  const verParam = resolvedVersion ? `&v=${encodeURIComponent(resolvedVersion)}` : '';
   window.location.replace(`/login?update=1${verParam}&_u=${Date.now()}`);
 }
 
@@ -135,7 +196,7 @@ export function evaluateUpdate(serverInfo) {
     } catch (_) {}
   }
 
-  // Solo hay actualización si la versión del server es mayor a la local (cmp < 0)
+  // Hay actualización si la versión del server difiere o es mayor a la local
   if (cmp < 0) {
     return {
       needsUpdate: true,
@@ -160,6 +221,21 @@ export function evaluateUpdate(serverInfo) {
       };
     }
   }
+
+  // También verificar si la sesión guardada en localStorage pertenecía a una versión anterior a la del servidor
+  try {
+    const hasSession = Boolean(localStorage.getItem('token'));
+    const savedVersion = localStorage.getItem('crm_installed_version');
+    if (hasSession && serverInfo.forceLogout && (!savedVersion || compareVersions(savedVersion, serverInfo.version) < 0)) {
+      return {
+        needsUpdate: true,
+        reason: 'force-logout',
+        forceLogout: true,
+        serverVersion: serverInfo.version,
+        message: serverInfo.message || 'Se ha desplegado una nueva versión del sistema. Se cerrará sesión para aplicar los cambios limpiamente.',
+      };
+    }
+  } catch (_) {}
 
   return { needsUpdate: false };
 }

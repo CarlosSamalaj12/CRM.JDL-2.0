@@ -1,13 +1,17 @@
 import api from './api';
-import { CURRENT_VERSION } from './versionService';
+import { CURRENT_VERSION, forcePurgeAndLogout, clearFirebasePersistence } from './versionService';
 
-api.setOnUnauthorized(() => {
+api.setOnUnauthorized((err) => {
+  if (err && err.code === 'VERSION_MISMATCH') {
+    forcePurgeAndLogout(err.version || '');
+    return;
+  }
   if (window.location.pathname === '/login') {
     console.warn('[Auth] Evitando redirección recursiva 401 en la página de Login.');
     return;
   }
   authService.clearSession();
-  window.location.href = '/login';
+  window.location.replace('/login');
 });
 
 export const authService = {
@@ -108,6 +112,20 @@ export const authService = {
     if (!rawUser || !token) {
       return null;
     }
+
+    // En producción, si la versión instalada en localStorage no existe o no coincide
+    // con la versión actual del bundle, invalidar la sesión y purgar caché de inmediato.
+    if (CURRENT_VERSION && CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
+      const savedVersion = localStorage.getItem('crm_installed_version');
+      if (!savedVersion || savedVersion !== CURRENT_VERSION) {
+        this.clearSession();
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          forcePurgeAndLogout(CURRENT_VERSION);
+        }
+        return null;
+      }
+    }
+
     try {
       return JSON.parse(rawUser);
     } catch {
@@ -116,16 +134,21 @@ export const authService = {
     }
   },
 
-  // Clear session on logout
+  // Clear session on logout and wipe cached session state
   clearSession() {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    api.setToken(null);
     try {
-      import('./firebase.js').then(({ firebaseService }) => {
-        firebaseService?.logout?.().catch(() => {});
-      }).catch(() => {});
-    } catch {}
+      const installedVer = localStorage.getItem('crm_installed_version');
+      const theme = localStorage.getItem('theme');
+      localStorage.clear();
+      sessionStorage.clear();
+      if (installedVer) localStorage.setItem('crm_installed_version', installedVer);
+      if (theme) localStorage.setItem('theme', theme);
+    } catch {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
+    api.setToken(null);
+    clearFirebasePersistence().catch(() => {});
   }
 };
 

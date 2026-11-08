@@ -123,7 +123,7 @@ function App() {
       }
 
       // Solo purga si hay sesión previa activa y la versión del bundle es estrictamente mayor
-      if (hasSession && savedVersion && compareVersions(CURRENT_VERSION, savedVersion) > 0) {
+      if (hasSession && (!savedVersion || savedVersion !== CURRENT_VERSION)) {
         console.warn(`[App] Nueva versión instalada (${CURRENT_VERSION} vs ${savedVersion}). Cerrando sesión para renovar app.`);
         forcePurgeAndLogout(CURRENT_VERSION);
       } else {

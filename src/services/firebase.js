@@ -59,11 +59,6 @@ export const firebaseService = {
     } catch {}
 
     // Intentar primero signInWithPopup para todos los dispositivos (incluyendo móviles).
-    // En navegadores móviles modernos (iOS Safari, Android Chrome), signInWithPopup
-    // funciona de forma nativa abriendo una pestaña o ventana modal de selección de cuentas de Google,
-    // siempre que se invoque de forma directa en el evento táctil del usuario.
-    // Además, evita el bloqueo de almacenamiento de terceros (Safari ITP / Chrome Partitioning)
-    // que causa que signInWithRedirect falle en getRedirectResult().
     try {
       const result = await signInWithPopup(auth, googleProvider);
       try {
@@ -103,6 +98,15 @@ export const firebaseService = {
       } catch {}
     };
 
+    const startedAt = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
+    const isRecentAuth = Boolean(startedAt && (Date.now() - Number(startedAt) < 120000));
+    const isPending = (typeof window !== 'undefined' && sessionStorage.getItem('pending_google_redirect') === '1') || isRecentAuth;
+
+    // Solo resolver redirección si el usuario realmente inició un flujo de Google Login
+    if (!isPending) {
+      return null;
+    }
+
     try {
       // 1. Intentar resolver el resultado del redirect de Firebase
       const result = await getRedirectResult(auth);
@@ -111,41 +115,31 @@ export const firebaseService = {
         return result.user;
       }
 
-      // 2. Si getRedirectResult es null, comprobar si auth.currentUser ya se hidrató en memoria
+      // 2. Si getRedirectResult es null pero estamos esperando redirect, comprobar si auth.currentUser ya se hidrató
       if (auth.currentUser) {
         cleanupFlags();
         return auth.currentUser;
       }
 
       // 3. Si venía de una autenticación de Google reciente (hasta 2 min), esperar a onAuthStateChanged
-      // En móviles con internet lento (3G/4G), Firebase puede tardar 3 a 7 segundos en resolver el token
-      const startedAt = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
-      const isRecentAuth = startedAt && (Date.now() - Number(startedAt) < 120000);
-      const isPending = (typeof window !== 'undefined' && sessionStorage.getItem('pending_google_redirect') === '1') || isRecentAuth;
+      const user = await new Promise((resolve) => {
+        let unsub = () => {};
+        const timeout = setTimeout(() => {
+          unsub();
+          resolve(null);
+        }, 7500);
 
-      if (isPending) {
-        const user = await new Promise((resolve) => {
-          let unsub = () => {};
-          // Dar hasta 7.5 segundos en redes móviles lentas para que Firebase Auth complete el handshake
-          const timeout = setTimeout(() => {
+        unsub = auth.onAuthStateChanged((u) => {
+          if (u) {
+            clearTimeout(timeout);
             unsub();
-            resolve(null);
-          }, 7500);
-
-          unsub = auth.onAuthStateChanged((u) => {
-            if (u) {
-              clearTimeout(timeout);
-              unsub();
-              resolve(u);
-            }
-          });
+            resolve(u);
+          }
         });
+      });
 
-        cleanupFlags();
-        return user;
-      }
-
-      return null;
+      cleanupFlags();
+      return user;
     } catch (error) {
       cleanupFlags();
       console.error("Firebase Google redirect login error:", error);

@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-const REFRESH_COUNTDOWN_SECONDS = 20; // Auto-cierre y refresh tras 20s
+const REFRESH_COUNTDOWN_SECONDS = 5; // Auto-cierre y refresh tras 5s
 
 export default function ForceUpdateModal({
   open = false,

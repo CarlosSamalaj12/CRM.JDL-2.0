@@ -34,7 +34,7 @@ function getSessionSnapshot() {
   const user = token ? normalizeCrmUser(currentUser) : null;
 
   return {
-    token: token || null,
+    token: (currentUser && token) ? token : null,
     user,
   };
 }
@@ -100,7 +100,21 @@ export function AuthProvider({ children }) {
       headers['Content-Type'] = 'application/json';
     }
 
-    return fetch(url, { ...options, headers });
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401 && typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      try {
+        const clone = res.clone();
+        const errBody = await clone.json().catch(() => ({}));
+        if (errBody?.code === 'VERSION_MISMATCH') {
+          const { forcePurgeAndLogout } = await import('../../../services/versionService.js');
+          await forcePurgeAndLogout(errBody.version || '');
+          return res;
+        }
+      } catch (_) {}
+      authService.clearSession();
+      window.location.replace('/login');
+    }
+    return res;
   };
 
   return (

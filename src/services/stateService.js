@@ -54,6 +54,14 @@ export async function loadState({ cacheBust = false } = {}) {
       }
 
       if (!response.ok) {
+        if (response.status === 401) {
+          cachedState = null;
+          stateEtag = null;
+          cacheTimestamp = 0;
+          const errBody = await response.json().catch(() => ({}));
+          if (api.onUnauthorized) api.onUnauthorized(errBody);
+          return {};
+        }
         console.warn(`[loadState] Respuesta HTTP ${response.status} al consultar estado. Preservando estado en caché.`);
         return cachedState || {};
       }

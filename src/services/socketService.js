@@ -59,6 +59,9 @@ class SocketService {
     this.socket.on('maintenance-status-changed', (data) => {
       window.dispatchEvent(new CustomEvent('maintenanceStatusChanged', { detail: data }));
     });
+    this.socket.on('system:force-logout', (data) => {
+      window.dispatchEvent(new CustomEvent('system:force-logout', { detail: data }));
+    });
   }
 
   disconnect() {

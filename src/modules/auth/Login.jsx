@@ -37,6 +37,17 @@ export default function Login() {
     // Si viene de una actualización (?update=1), purgar cualquier sesión residual una sola vez al entrar
     if (initialIsUpdated) {
       authService.clearSession();
+      if ('caches' in window) {
+        caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).catch(() => {});
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+      }
+      if (updateVersion) {
+        try { localStorage.setItem('crm_installed_version', updateVersion); } catch {}
+      } else if (CURRENT_VERSION && CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
+        try { localStorage.setItem('crm_installed_version', CURRENT_VERSION); } catch {}
+      }
       sessionStorage.removeItem('login_redirect_count');
       sessionStorage.removeItem('last_login_redirect_time');
       // Limpiar query params de la barra de direcciones para evitar rebotes
@@ -107,6 +118,7 @@ export default function Login() {
 
     // 1. Resolver resultado de redirección (si el navegador venía de una redirección de Google)
     const completeRedirectLogin = async () => {
+      if (initialIsUpdated) return;
       try {
         const startedAt = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
         const isRecent = startedAt && (Date.now() - Number(startedAt) < 120000);
@@ -168,6 +180,19 @@ export default function Login() {
 
     // 2. Suscripción proactiva a onAuthStateChanged para sesiones demoradas o restauradas por IndexedDB
     const unsubscribeAuth = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (!firebaseUser || cancelled) return;
+      if (authService.getCurrentUser()) return;
+
+      const startedAtVal = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
+      const isRecentVal = Boolean(startedAtVal && (Date.now() - Number(startedAtVal) < 120000));
+      const isPendingRedirectFlow = (typeof window !== 'undefined' && sessionStorage.getItem('pending_google_redirect') === '1') || isRecentVal;
+
+      // Si el usuario NO acaba de iniciar un flujo de login con Google (ej. cerró sesión o hubo actualización),
+      // NO auto-restaurar la sesión desde IndexedDB; cerrar la sesión residual de Firebase.
+      if (initialIsUpdated || !isPendingRedirectFlow) {
+        firebaseService.logout().catch(() => {});
+        return;
+      }
       if (!firebaseUser || cancelled) return;
       const existingUser = authService.getCurrentUser();
       if (existingUser) return;

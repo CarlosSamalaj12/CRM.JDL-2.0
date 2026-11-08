@@ -39,7 +39,30 @@ export default defineConfig(({ mode }) => {
   const backendPort = env.APP_PORT || '3000';
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'stamp-sw-version',
+        closeBundle() {
+          try {
+            const ver = getBuildVersion();
+            if (!ver || ver === '0.0.0-dev') return;
+            const distSw = path.resolve(__dirname, 'dist', 'sw.js');
+            if (fs.existsSync(distSw)) {
+              const swContent = fs.readFileSync(distSw, 'utf8');
+              const updatedSw = swContent.replace(
+                /^(const\s+VERSION\s*=\s*')([^']+)(';?.*)$/m,
+                `$1${ver}$3`
+              );
+              fs.writeFileSync(distSw, updatedSw, 'utf8');
+              console.log(`[vite:stamp-sw-version] ✅ dist/sw.js estampado con VERSION='${ver}'`);
+            }
+          } catch (err) {
+            console.warn('[vite:stamp-sw-version] Error estampando dist/sw.js:', err.message);
+          }
+        }
+      }
+    ],
     // Inyecta la versión actual del bundle al frontend como variable global.
     // Accesible vía import.meta.env.VITE_APP_VERSION
     define: {

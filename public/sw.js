@@ -99,6 +99,8 @@ self.addEventListener('fetch', (event) => {
     url.pathname.includes('api') || 
     url.pathname.includes('socket.io') ||
     url.pathname.includes('firebase-messaging-sw.js') ||
+    url.pathname.endsWith('/sw.js') ||
+    url.pathname.endsWith('/version.json') ||
     url.pathname.includes('/assets/') ||
     request.url.includes('api') ||
     request.url.includes('socket.io') ||

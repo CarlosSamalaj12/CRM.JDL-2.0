@@ -44,13 +44,18 @@ class ApiClient {
       }
 
       if (response.status === 401) {
+        const errorBody = await response.json().catch(() => ({ message: 'Sesión expirada' }));
+        if (errorBody?.code === 'VERSION_MISMATCH' && this.onUnauthorized) {
+          this.onUnauthorized(errorBody);
+          throw new ApiError(errorBody.message || 'Sesión expirada', 401, 'VERSION_MISMATCH');
+        }
         const currentToken = localStorage.getItem('token');
         if (this.token && currentToken && this.token !== currentToken) {
           console.warn('[API] Token obsoleto detectado en petición 401. Ignorando redirección.');
         } else {
           if (this.onUnauthorized) this.onUnauthorized();
         }
-        const error = await response.json().catch(() => ({ message: 'Sesión expirada' }));
+        const error = errorBody;
         throw new ApiError(error.message || 'Sesión expirada', 401, 'AUTH_ERROR');
       }
 

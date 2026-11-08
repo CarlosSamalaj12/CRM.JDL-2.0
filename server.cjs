@@ -154,6 +154,17 @@ function authenticateJWT(req, res, next) {
   }
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    const verInfo = typeof readAppVersion === 'function' ? readAppVersion() : null;
+    if (verInfo && verInfo.version && verInfo.version !== '0.0.0-dev' && verInfo.forceLogout !== false) {
+      if (!decoded.appVersion || decoded.appVersion !== verInfo.version) {
+        return res.status(401).json({
+          ok: false,
+          code: 'VERSION_MISMATCH',
+          version: verInfo.version,
+          message: verInfo.message || 'Se ha desplegado una nueva versión del sistema. Inicie sesión nuevamente.'
+        });
+      }
+    }
     req.user = decoded;
     next();
   } catch (err) {
@@ -5518,6 +5529,17 @@ app.post("/api/maintenance/disable", async (req, res) => {
   if (!isAuthorized && token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
+    const verInfo = typeof readAppVersion === 'function' ? readAppVersion() : null;
+    if (verInfo && verInfo.version && verInfo.version !== '0.0.0-dev' && verInfo.forceLogout !== false) {
+      if (!decoded.appVersion || decoded.appVersion !== verInfo.version) {
+        return res.status(401).json({
+          ok: false,
+          code: 'VERSION_MISMATCH',
+          version: verInfo.version,
+          message: verInfo.message || 'Se ha desplegado una nueva versión del sistema. Inicie sesión nuevamente.'
+        });
+      }
+    }
       const role = String(decoded?.role || "").trim().toLowerCase();
       if (['admin', 'administrador', 'superadmin'].includes(role)) {
         isAuthorized = true;
@@ -5639,6 +5661,7 @@ function readAppVersion() {
   };
 }
 
+global.__readAppVersion = readAppVersion;
 // Watcher periódico cada 15 segundos para emitir force-logout apenas se termine un build
 setInterval(() => {
   try {
@@ -6435,7 +6458,8 @@ app.post("/api/login", async (req, res) => {
         id: user.id,
         nombre: user.name,
         email: user.email || `${user.id}@dominio.com`,
-        rol: normalizeRoleForJWT(user.role)
+        rol: normalizeRoleForJWT(user.role),
+        appVersion: readAppVersion().version
       },
       JWT_SECRET,
       { expiresIn: '7d' }
@@ -6506,7 +6530,8 @@ app.post("/api/auth/firebase", async (req, res) => {
           id: str(u.id),
           nombre: str(u.nombre),
           email: str(u.correo || email),
-          rol: normalizeRoleForJWT(u.rol)
+          rol: normalizeRoleForJWT(u.rol),
+          appVersion: readAppVersion().version
         },
         JWT_SECRET,
         { expiresIn: '7d' }
@@ -6583,7 +6608,8 @@ app.post("/api/auth/firebase", async (req, res) => {
           id: uid,
           nombre: str(u.nombre),
           email: email,
-          rol: normalizeRoleForJWT(targetRole)
+          rol: normalizeRoleForJWT(targetRole),
+          appVersion: readAppVersion().version
         },
         JWT_SECRET,
         { expiresIn: '7d' }
@@ -6627,7 +6653,8 @@ app.post("/api/auth/firebase", async (req, res) => {
           id: uid,
           nombre: displayName,
           email: email,
-          rol: 'Admin'
+          rol: 'Admin',
+          appVersion: readAppVersion().version
         },
         JWT_SECRET,
         { expiresIn: '7d' }
@@ -8989,6 +9016,18 @@ async function start() {
     });
 
     io.on("connection", (socket) => {
+      try {
+        const verInfo = readAppVersion();
+        if (socket.user && verInfo && verInfo.version && verInfo.version !== '0.0.0-dev' && verInfo.forceLogout !== false) {
+          if (!socket.user.appVersion || socket.user.appVersion !== verInfo.version) {
+            socket.emit("system:force-logout", {
+              version: verInfo.version,
+              forceLogout: true,
+              message: verInfo.message || "Se ha desplegado una nueva versión del sistema.",
+            });
+          }
+        }
+      } catch (_) {}
       socket.on("join", (room) => {
         if (typeof room === 'string' && room.trim()) {
           socket.join(room);
@@ -9019,6 +9058,17 @@ async function start() {
       try {
         const token = header.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
+    const verInfo = typeof readAppVersion === 'function' ? readAppVersion() : null;
+    if (verInfo && verInfo.version && verInfo.version !== '0.0.0-dev' && verInfo.forceLogout !== false) {
+      if (!decoded.appVersion || decoded.appVersion !== verInfo.version) {
+        return res.status(401).json({
+          ok: false,
+          code: 'VERSION_MISMATCH',
+          version: verInfo.version,
+          message: verInfo.message || 'Se ha desplegado una nueva versión del sistema. Inicie sesión nuevamente.'
+        });
+      }
+    }
         req.user = decoded;
         next();
       } catch {
@@ -9171,6 +9221,17 @@ async function start() {
       }
       try {
         const decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
+        const verInfo = typeof readAppVersion === 'function' ? readAppVersion() : null;
+        if (verInfo && verInfo.version && verInfo.version !== '0.0.0-dev' && verInfo.forceLogout !== false) {
+          if (!decoded.appVersion || decoded.appVersion !== verInfo.version) {
+            return res.status(401).json({
+              ok: false,
+              code: 'VERSION_MISMATCH',
+              version: verInfo.version,
+              message: verInfo.message || 'Se ha desplegado una nueva versión del sistema. Inicie sesión nuevamente.'
+            });
+          }
+        }
         req.user = decoded;
         next();
       } catch {
