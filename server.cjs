@@ -1812,6 +1812,32 @@ async function ensurePosiblesVentasNotificacionesRenombradas() {
   }
 }
 
+// Saneamiento de eventos fantasma huérfanos de 1970 y cotizaciones contagiadas
+async function ensureCleanPhantomAndContaminatedQuotes() {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    // 1. Eliminar eventos fantasma huérfanos sin nombre y de fecha 1970
+    await conn.query(`
+      DELETE FROM eventos 
+       WHERE (nombre = '(sin nombre)' OR nombre IS NULL) 
+         AND (fecha_evento = '1970-01-01' OR fecha_evento LIKE '1970-01-01%')
+    `);
+    // 2. Limpiar cotizaciones contagiadas con BODA BURDIN VALENCIA en reservas que no son dicha boda
+    await conn.query(`
+      UPDATE eventos 
+         SET cotizacion_json = NULL 
+       WHERE id NOT LIKE '25249%' 
+         AND (nombre IS NULL OR nombre NOT LIKE '%BURDIN%') 
+         AND cotizacion_json LIKE '%BURDIN VALENCIA%'
+    `);
+  } catch (err) {
+    console.error('[MIGRATIONS] Error en ensureCleanPhantomAndContaminatedQuotes:', err.message || err);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 async function ensureAdvancesStructure() {
   let conn;
   try {
@@ -8771,6 +8797,7 @@ const MIGRATIONS = [
   { name: 'InformeConflictGuardStructure', fn: ensureInformeConflictGuardStructure },
   { name: 'HabitacionesStructure', fn: ensureHabitacionesStructure },
   { name: 'QuotePropinasStructure', fn: ensureQuotePropinasStructure },
+  { name: 'CleanPhantomAndContaminatedQuotes', fn: ensureCleanPhantomAndContaminatedQuotes },
 ];
 
 const CANONICAL_MIGRATIONS = new Set([
@@ -8817,6 +8844,7 @@ const CANONICAL_MIGRATIONS = new Set([
   'ensureChecklistsEventoTableAndMigration',
   'ensureOcupacionPerformanceIndexes',
   'ensureUnifyPushSubscriptions',
+  'ensureCleanPhantomAndContaminatedQuotes',
 ]);
 
 /**

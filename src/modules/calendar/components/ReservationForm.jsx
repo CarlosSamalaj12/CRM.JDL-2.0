@@ -806,7 +806,13 @@ export default function ReservationForm() {
           quote: (existingEvent.quote && Array.isArray(existingEvent.quote.items) && existingEvent.quote.items.length > 0)
             ? existingEvent.quote
             : (series.find(ev => ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0)?.quote
-               || events.find(ev => (ev.groupId === existingEvent.groupId || ev.id === (existingEvent.groupId || String(id).replace(/_(s|slot)\d+.*$/, ''))) && ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0)?.quote
+               || events.find(ev => {
+                   const hasValidGroup = Boolean(existingEvent.groupId && String(existingEvent.groupId).trim());
+                   const sameGroup = hasValidGroup && String(ev.groupId || '').trim() === String(existingEvent.groupId).trim();
+                   const baseId = String(id || '').replace(/_(s|slot)\d+.*$/, '').trim();
+                   const matchesBase = Boolean(baseId && (String(ev.id) === baseId || (hasValidGroup && String(ev.id) === String(existingEvent.groupId).trim())));
+                   return (sameGroup || matchesBase) && ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0;
+                 })?.quote
                || existingEvent.quote
                || null),
           clientName: existingEvent.clientName || '',
@@ -838,6 +844,10 @@ export default function ReservationForm() {
     if (formData.quote && Array.isArray(formData.quote.items) && formData.quote.items.length > 0) {
       return formData.quote;
     }
+    // Si no hay id (reserva nueva), NUNCA buscar en otros eventos ni series existentes
+    if (!id) {
+      return formData.quote || null;
+    }
     const curr = events.find(ev => String(ev.id) === String(id));
     if (curr?.quote && Array.isArray(curr.quote.items) && curr.quote.items.length > 0) {
       return curr.quote;
@@ -846,11 +856,15 @@ export default function ReservationForm() {
     const fromSeries = series.find(ev => ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0);
     if (fromSeries?.quote) return fromSeries.quote;
 
-    const baseId = String(id || '').replace(/_(s|slot)\d+.*$/, '');
-    const fromBase = events.find(ev => (String(ev.id) === baseId || String(ev.groupId || '') === baseId) && ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0);
-    if (fromBase?.quote) return fromBase.quote;
+    const baseId = String(id || '').replace(/_(s|slot)\d+.*$/, '').trim();
+    if (baseId) {
+      const fromBase = events.find(ev => (
+        String(ev.id) === baseId || (Boolean(ev.groupId && String(ev.groupId).trim()) && String(ev.groupId).trim() === baseId)
+      ) && ev.quote && Array.isArray(ev.quote.items) && ev.quote.items.length > 0);
+      if (fromBase?.quote) return fromBase.quote;
+    }
 
-    return formData.quote || curr?.quote || fromBase?.quote || null;
+    return formData.quote || curr?.quote || null;
   }, [formData.quote, events, id]);
 
   const hasChanges = useMemo(() => {
